@@ -1,0 +1,20 @@
+<idea-plugin>
+    <id>de.moritzf.openai-usage-quota</id>
+    <name>OpenAI Usage Quota</name>
+    <version>0.2.0</version>
+    <vendor>Moritz</vendor>
+
+    <description>
+        Shows OpenAI ChatGPT usage quota in the IDE status bar and provides a browser-based login flow.
+    </description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationConfigurable
+                id="openai.usage.quota.settings"
+                displayName="OpenAI Usage Quota"
+                instance="de.moritzf.quota.idea.QuotaSettingsConfigurable"/>
+        <statusBarWidgetFactory implementation="de.moritzf.quota.idea.QuotaStatusBarWidgetFactory" id="openai.usage.quota.widget"/>
+    </extensions>
+</idea-plugin>
