@@ -95,3 +95,4 @@ http-client.private.env.json
 /.idea/vcs.xml
 /.idea/modules/
 /.idea/inspectionProfiles/Project_Default.xml
+/.idea/kotlinc.xml
