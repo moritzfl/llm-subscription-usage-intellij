@@ -9,6 +9,8 @@
 .idea/**/shelf
 
 build
+/bin/**
+
 .intellijPlatform
 .gradle
 
