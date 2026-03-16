@@ -8,7 +8,7 @@
   </picture>
 </p>
 
-An IntelliJ plugin that shows your OpenAI Codex/ChatGPT usage quota in the status bar and inside a detailed popup.
+An IntelliJ plugin that tracks OpenAI Codex and Code Review usage quotas across OpenAI subscription plans in the status bar and inside a detailed popup.
 
 Install from JetBrains Marketplace: [OpenAI Usage Quota](https://plugins.jetbrains.com/plugin/30690-openai-usage-quota)
 
