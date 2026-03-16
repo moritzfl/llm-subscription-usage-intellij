@@ -1,7 +1,11 @@
 # OpenAI Usage Quota (IntelliJ Plugin)
 
 <p align="center">
-  <img src="docs/quota_logo.svg" alt="Quota Logo" width="200" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="src/main/resources/META-INF/pluginIcon_dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="src/main/resources/META-INF/pluginIcon.svg">
+    <img src="src/main/resources/META-INF/pluginIcon.svg" alt="Quota Logo" width="200" />
+  </picture>
 </p>
 
 An IntelliJ plugin that shows your OpenAI Codex/ChatGPT usage quota in the status bar and inside a detailed popup.
