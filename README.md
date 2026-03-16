@@ -10,6 +10,8 @@
 
 An IntelliJ plugin that shows your OpenAI Codex/ChatGPT usage quota in the status bar and inside a detailed popup.
 
+Install from JetBrains Marketplace: [OpenAI Usage Quota](https://plugins.jetbrains.com/plugin/30690-openai-usage-quota)
+
 ![Quota popup](docs/quota-popup-go.png)
 
 ## What It Does
@@ -31,7 +33,13 @@ In practice, this means IntelliJ IDEA 2025.3+ compatible platform builds.
 
 ## Installation
 
-### Option 1: Install From ZIP (Local)
+### Option 1: Install From JetBrains Marketplace
+
+1. Open IntelliJ IDEA `Settings` > `Plugins` > `Marketplace`
+2. Search for `OpenAI Usage Quota`
+3. Click `Install`
+
+### Option 2: Install From ZIP (Local)
 
 Hint: instead of building it yourself, check out the ["Releases"](https://github.com/moritzfl/openai-usage-quota-intellij/releases) section
 
@@ -44,7 +52,7 @@ Hint: instead of building it yourself, check out the ["Releases"](https://github
 2. In IntelliJ IDEA, go to `Settings` > `Plugins` > gear icon > `Install Plugin from Disk...`
 3. Select the ZIP from `build/distributions/`
 
-### Option 2: Run in Sandbox (Development)
+### Option 3: Run in Sandbox (Development)
 
 ```bash
 ./gradlew runIde
