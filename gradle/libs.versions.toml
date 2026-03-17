@@ -17,6 +17,6 @@ junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
-intelliJPlatform = { id = "org.jetbrains.intellij.platform", version = "2.11.0" }
+intelliJPlatform = { id = "org.jetbrains.intellij.platform", version = "2.13.1" }
 changelog = { id = "org.jetbrains.changelog", version.ref = "changelog" }
 kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
