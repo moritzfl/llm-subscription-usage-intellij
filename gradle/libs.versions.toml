@@ -5,8 +5,8 @@ kover = "0.8.3"
 junit = "4.13.2"
 opentest4j = "1.2.0"
 jackson-databind = "2.21.1"
-junit-jupiter = "6.0.0"
-junit-platform-launcher = "6.0.0"
+junit-jupiter = "6.0.3"
+junit-platform-launcher = "6.0.3"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
