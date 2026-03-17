@@ -1,0 +1,17 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "enabledManagers": [
+    "gradle"
+  ],
+  "gradle": {
+    "managerFilePatterns": [
+      "/(^|/)build\\.gradle(\\.kts)?$/",
+      "/(^|/)settings\\.gradle(\\.kts)?$/",
+      "/(^|/)gradle\\.properties$/",
+      "/(^|/)gradle/libs\\.versions\\.toml$/"
+    ]
+  }
+}
