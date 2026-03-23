@@ -82,6 +82,16 @@ Logout is available in the same settings page.
 
 ![Quota popup Plus](docs/quota-popup-plus.png)
 
+### Status bar
+
+![quota-statusbar-modes.png](docs/quota-statusbar-modes.png)
+
+![quota-icon-only.png](docs/quota-icon-only.png)
+
+![quota-cake.png](docs/quota-cake.png)
+
+![quota-percentage-bar.png](docs/quota-percentage-bar.png)
+
 ### Settings
 
 ![Settings](docs/settings.png)
