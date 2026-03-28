@@ -1,5 +1,8 @@
 # OpenAI Usage Quota Changelog
 
+## [0.4.1] - 2026-03-28
+- Expanded cake diagram icons to full 5% steps from 0% to 100%
+
 ## [0.4.0] - 2026-03-23
 - Added different display modes for the status bar
 - Added a settings button to the quota popup
