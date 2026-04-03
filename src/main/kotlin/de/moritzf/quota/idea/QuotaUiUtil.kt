@@ -2,8 +2,9 @@ package de.moritzf.quota.idea
 
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -11,10 +12,8 @@ import kotlin.time.Duration.Companion.milliseconds
  * UI formatting helpers for timestamps and relative quota time values.
  */
 object QuotaUiUtil {
-    private val monthAbbreviations = listOf(
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    )
+    private val absoluteFormatter: DateTimeFormatter = DateTimeFormatter
+        .ofPattern("MMM d, uuuu HH:mm", Locale.ENGLISH)
 
     @JvmStatic
     fun formatReset(resetsAt: Instant?): String? {
@@ -108,10 +107,7 @@ object QuotaUiUtil {
     }
 
     private fun formatAbsoluteInstant(instant: Instant): String {
-        val dateTime = instant.toLocalDateTime(TimeZone.currentSystemDefault())
-        val month = monthAbbreviations[dateTime.monthNumber - 1]
-        val hour = dateTime.hour.toString().padStart(2, '0')
-        val minute = dateTime.minute.toString().padStart(2, '0')
-        return "$month ${dateTime.dayOfMonth}, ${dateTime.year} $hour:$minute"
+        val zonedInstant = java.time.Instant.ofEpochMilli(instant.toEpochMilliseconds()).atZone(ZoneId.systemDefault())
+        return absoluteFormatter.format(zonedInstant)
     }
 }
