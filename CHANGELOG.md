@@ -1,5 +1,11 @@
 # OpenAI Usage Quota Changelog
 
+## [Unreleased]
+
+## [0.6.0] - 2026-04-03
+- Migrated the plugin codebase to Kotlin
+- Reworked the status bar, popup, and settings UI
+
 ## [0.5.0] - 2026-04-03
 - Access to usage quota with MCP tooling
 

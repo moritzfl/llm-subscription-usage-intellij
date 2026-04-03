@@ -1,8 +1,7 @@
 <idea-plugin>
     <id>de.moritzf.openai-usage-quota</id>
     <name>OpenAI Usage Quota</name>
-    <version>0.5.0</version>
-    <vendor>Moritz</vendor>
+    <vendor>Moritzf</vendor>
 
     <description>
         Tracks OpenAI Codex and Code Review usage quotas in the IDE status bar and popup, including plan-specific limits across OpenAI subscription tiers, with a browser-based login flow.
