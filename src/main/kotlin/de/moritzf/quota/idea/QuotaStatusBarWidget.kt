@@ -5,6 +5,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.util.Disposer
@@ -12,25 +13,24 @@ import com.intellij.openapi.wm.CustomStatusBarWidget
 import com.intellij.openapi.wm.StatusBar
 import com.intellij.ui.Gray
 import com.intellij.ui.JBColor
+import com.intellij.ui.SeparatorComponent
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
+import com.intellij.ui.components.panels.NonOpaquePanel
 import com.intellij.util.IconUtil
 import com.intellij.util.messages.MessageBusConnection
 import com.intellij.util.ui.JBUI
+import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.OpenAiCodexQuota
 import de.moritzf.quota.UsageWindow
-import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
 import java.awt.Cursor
 import java.awt.Dimension
-import java.awt.Font
 import java.awt.FontMetrics
 import java.awt.Graphics
 import java.awt.Graphics2D
-import java.awt.GridBagConstraints
-import java.awt.GridBagLayout
 import java.awt.RenderingHints
 import java.awt.Shape
 import java.awt.event.MouseAdapter
@@ -39,8 +39,6 @@ import java.awt.geom.RoundRectangle2D
 import javax.swing.Icon
 import javax.swing.JComponent
 import javax.swing.JProgressBar
-import javax.swing.JSeparator
-import javax.swing.SwingConstants
 import kotlin.math.roundToInt
 
 /**
@@ -120,106 +118,68 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
     }
 
     private fun buildPopupContent(): JComponent {
-        val panel = JBPanel<JBPanel<*>>(BorderLayout())
-        val content = JBPanel<JBPanel<*>>(GridBagLayout())
-        content.border = JBUI.Borders.empty(8, 8, 8, 3)
-        panel.add(content, BorderLayout.CENTER)
+        val currentQuota = quota
+        val hasReviewData = currentQuota != null && (
+            currentQuota.reviewPrimary != null || currentQuota.reviewSecondary != null ||
+                currentQuota.reviewAllowed != null || currentQuota.reviewLimitReached != null
+            )
 
-        val constraints = GridBagConstraints().apply {
-            gridx = 0
-            gridy = 0
-            anchor = GridBagConstraints.WEST
-            fill = GridBagConstraints.HORIZONTAL
-            insets = JBUI.emptyInsets()
-            weightx = 1.0
-        }
+        val content = createPopupStack().apply {
+            add(createHeaderRow())
 
-        val planLabel = quota?.planType
-        val titleRow = JBPanel<JBPanel<*>>(BorderLayout()).apply { isOpaque = false }
-        val title = JBLabel("OpenAI usage")
-        title.font = title.font.deriveFont(title.font.style or Font.BOLD, title.font.size + 2f)
-        titleRow.add(title, BorderLayout.WEST)
-        titleRow.add(createOpenSettingsButton(), BorderLayout.EAST)
-        content.add(titleRow, constraints)
-        constraints.gridy++
+            val planLabel = quota?.planType?.toDisplayLabel()
+            if (!planLabel.isNullOrBlank()) {
+                add(withVerticalInsets(createMutedLabel("Plan: $planLabel"), top = 3))
+            }
 
-        if (!planLabel.isNullOrBlank()) {
-            val capitalizedPlanLabel = planLabel.split(Regex("\\s+")).joinToString(" ") { word ->
-                word.lowercase().replaceFirstChar { character ->
-                    if (character.isLowerCase()) character.titlecase() else character.toString()
+            add(createSeparatedBlock())
+
+            val authService = QuotaAuthService.getInstance()
+            when {
+                !authService.isLoggedIn() -> {
+                    add(withVerticalInsets(JBLabel("Not logged in."), top = 1))
+                    add(withVerticalInsets(ActionLink("Open Settings") { openSettings() }, top = 3))
+                }
+
+                error != null -> {
+                    add(withVerticalInsets(createWarningLabel("Error: $error"), top = 1))
+                    add(withVerticalInsets(ActionLink("Open Settings") { openSettings() }, top = 3))
+                }
+
+                currentQuota == null -> {
+                    add(withVerticalInsets(JBLabel("Loading usage data..."), top = 1))
+                }
+
+                else -> {
+                    val limitWarning = getLimitWarning(currentQuota)
+                    if (limitWarning != null) {
+                        add(withVerticalInsets(createWarningLabel(limitWarning), top = 1))
+                        add(createSeparatedBlock())
+                    }
+
+                    if (currentQuota.primary != null || currentQuota.secondary != null) {
+                        add(withVerticalInsets(createSectionTitleLabel("Codex"), top = 0))
+                        currentQuota.primary?.let { add(createWindowBlock(it, "Primary", top = 3)) }
+                        currentQuota.secondary?.let { add(createWindowBlock(it, "Secondary", top = 5)) }
+                    }
+
+                    if (hasReviewData) {
+                        add(createSeparatedBlock())
+                        add(withVerticalInsets(createSectionTitleLabel("Code Review"), top = 0))
+                        currentQuota.reviewPrimary?.let { add(createWindowBlock(it, "Primary", top = 3)) }
+                        currentQuota.reviewSecondary?.let { add(createWindowBlock(it, "Secondary", top = 5)) }
+                    }
+
+                    val fetchedAt = QuotaUiUtil.formatInstant(currentQuota.fetchedAt)
+                    if (fetchedAt != null) {
+                        add(createSeparatedBlock())
+                        add(withVerticalInsets(createMutedLabel("Last updated: $fetchedAt"), top = 1))
+                    }
                 }
             }
-            val plan = JBLabel("Plan: $capitalizedPlanLabel")
-            plan.foreground = JBColor.GRAY
-            content.add(plan, constraints)
-            constraints.gridy++
         }
 
-        constraints.insets = JBUI.insets(8, 0)
-        addSeparator(content, constraints)
-        constraints.insets = JBUI.emptyInsets()
-
-        val authService = QuotaAuthService.getInstance()
-        if (!authService.isLoggedIn()) {
-            content.add(JBLabel("Not logged in."), constraints)
-            constraints.gridy++
-            content.add(ActionLink("Open Settings") { openSettings() }, constraints)
-            return panel
-        }
-
-        if (error != null) {
-            content.add(JBLabel("Error: $error"), constraints)
-            constraints.gridy++
-            content.add(ActionLink("Open Settings") { openSettings() }, constraints)
-            return panel
-        }
-
-        val currentQuota = quota
-        if (currentQuota == null) {
-            content.add(JBLabel("Loading usage data..."), constraints)
-            return panel
-        }
-
-        val limitWarning = getLimitWarning(currentQuota)
-        if (limitWarning != null) {
-            val warningLabel = JBLabel(limitWarning)
-            warningLabel.foreground = JBColor.RED
-            warningLabel.font = warningLabel.font.deriveFont(warningLabel.font.style or Font.BOLD)
-            content.add(warningLabel, constraints)
-            constraints.gridy++
-            constraints.insets = JBUI.insets(8, 0)
-            addSeparator(content, constraints)
-            constraints.insets = JBUI.emptyInsets()
-        }
-
-        addSectionTitle(content, constraints, "Codex")
-        addWindow(content, constraints, currentQuota.primary, "Primary")
-        addWindow(content, constraints, currentQuota.secondary, "Secondary")
-
-        val hasReviewData = currentQuota.reviewPrimary != null || currentQuota.reviewSecondary != null ||
-            currentQuota.reviewAllowed != null || currentQuota.reviewLimitReached != null
-        if (hasReviewData) {
-            constraints.insets = JBUI.insets(12, 0, 4, 0)
-            addSeparator(content, constraints)
-            constraints.insets = JBUI.insets(4, 0)
-            addSectionTitle(content, constraints, "Code Review")
-            addWindow(content, constraints, currentQuota.reviewPrimary, "Primary")
-            addWindow(content, constraints, currentQuota.reviewSecondary, "Secondary")
-        }
-
-        constraints.insets = JBUI.insets(12, 0, 4, 0)
-        addSeparator(content, constraints)
-        constraints.insets = JBUI.insetsTop(4)
-
-        val fetchedAt = QuotaUiUtil.formatInstant(currentQuota.fetchedAt)
-        if (fetchedAt != null) {
-            val updatedLabel = JBLabel("Last updated: $fetchedAt")
-            updatedLabel.font = updatedLabel.font.deriveFont(updatedLabel.font.size - 1f)
-            updatedLabel.foreground = JBColor.GRAY
-            content.add(updatedLabel, constraints)
-        }
-
-        return panel
+        return content
     }
 
     private fun createOpenSettingsButton(): ActionLink {
@@ -237,11 +197,21 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
         }
     }
 
-    private fun addWindow(content: JBPanel<*>, constraints: GridBagConstraints, window: UsageWindow?, fallbackLabel: String) {
-        if (window == null) {
-            return
+    private fun createPopupStack(): NonOpaquePanel {
+        return NonOpaquePanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)).apply {
+            border = JBUI.Borders.empty(6, 8, 5, 8)
         }
+    }
 
+    private fun createHeaderRow(): JComponent {
+        return BorderLayoutPanel().apply {
+            isOpaque = false
+            addToLeft(createPopupTitleLabel("OpenAI usage"))
+            addToRight(createOpenSettingsButton())
+        }
+    }
+
+    private fun createWindowBlock(window: UsageWindow, fallbackLabel: String, top: Int): JComponent {
         val percent = clampPercent(window.usedPercent.roundToInt())
         val title = describeWindowLabel(window, fallbackLabel)
         val resetText = QuotaUiUtil.formatReset(window.resetsAt)
@@ -250,23 +220,24 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
             info += " - $resetText"
         }
 
-        constraints.insets = JBUI.insetsTop(4)
-        content.add(JBLabel(title), constraints)
-        constraints.gridy++
-
-        constraints.insets = JBUI.emptyInsets()
-        content.add(JBLabel(info), constraints)
-        constraints.gridy++
-
-        val bar = JProgressBar(0, 100).apply {
-            value = percent
-            isStringPainted = false
-            preferredSize = Dimension(200, 6)
+        return createPopupStack().apply {
+            border = JBUI.Borders.emptyTop(top)
+            add(createWindowTitleLabel(title))
+            add(withVerticalInsets(JBLabel(info), top = 1))
+            add(withVerticalInsets(createUsageProgressBar(percent), top = 1))
         }
-        content.add(bar, constraints)
-        constraints.gridy++
+    }
 
-        constraints.insets = JBUI.insetsTop(4)
+    private fun createSeparatedBlock(): JComponent {
+        return withVerticalInsets(createCompactSeparator(), top = 5, bottom = 5)
+    }
+
+    private fun withVerticalInsets(component: JComponent, top: Int = 0, bottom: Int = 0): JComponent {
+        return BorderLayoutPanel().apply {
+            isOpaque = false
+            border = JBUI.Borders.empty(top, 0, bottom, 0)
+            addToCenter(component)
+        }
     }
 
     private fun openSettings() {
@@ -503,24 +474,6 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
         private val COLOR_BG = JBColor(Gray._240, Gray._63)
         private val COLOR_TEXT = JBColor(Gray._60, Gray._210)
 
-        private fun addSectionTitle(content: JBPanel<*>, constraints: GridBagConstraints, titleText: String) {
-            val label = JBLabel(titleText)
-            label.font = label.font.deriveFont(label.font.style or Font.BOLD, label.font.size + 1f)
-            label.foreground = JBColor.BLUE
-            content.add(label, constraints)
-            constraints.gridy++
-        }
-
-        private fun addSeparator(content: JBPanel<*>, constraints: GridBagConstraints) {
-            val separator = JSeparator(SwingConstants.HORIZONTAL)
-            separator.foreground = JBColor.LIGHT_GRAY
-            val size = separator.minimumSize
-            separator.minimumSize = Dimension(size.width, 2)
-            separator.maximumSize = Dimension(Int.MAX_VALUE, 2)
-            content.add(separator, constraints)
-            constraints.gridy++
-        }
-
         private fun describeWindowLabel(window: UsageWindow, fallbackLabel: String): String {
             val minutes = window.windowDuration?.inWholeMinutes ?: return "$fallbackLabel limit"
             return when {
@@ -551,5 +504,59 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
         }
 
         private fun clampPercent(value: Int): Int = value.coerceIn(0, 100)
+
+        private fun String.toDisplayLabel(): String {
+            return split(Regex("\\s+")).joinToString(" ") { word ->
+                word.lowercase().replaceFirstChar { character ->
+                    if (character.isLowerCase()) character.titlecase() else character.toString()
+                }
+            }
+        }
+    }
+
+    private fun createPopupTitleLabel(text: String): JBLabel {
+        return JBLabel(text).apply {
+            font = font.deriveFont(font.style or java.awt.Font.BOLD, font.size + 2f)
+        }
+    }
+
+    private fun createWindowTitleLabel(text: String): JBLabel {
+        return JBLabel(text).apply {
+            font = font.deriveFont(font.style or java.awt.Font.BOLD)
+        }
+    }
+
+    private fun createSectionTitleLabel(text: String): JBLabel {
+        return JBLabel(text).apply {
+            foreground = JBColor.BLUE
+            font = font.deriveFont(font.style or java.awt.Font.BOLD, font.size + 1f)
+        }
+    }
+
+    private fun createWarningLabel(text: String): JBLabel {
+        return JBLabel(text).apply {
+            foreground = JBColor.RED
+            font = font.deriveFont(font.style or java.awt.Font.BOLD)
+        }
+    }
+
+    private fun createMutedLabel(text: String): JBLabel {
+        return JBLabel(text).apply {
+            foreground = JBColor.GRAY
+        }
+    }
+
+    private fun createUsageProgressBar(percent: Int): JProgressBar {
+        return JProgressBar(0, 100).apply {
+            value = percent
+            isStringPainted = false
+            preferredSize = Dimension(200, 4)
+        }
+    }
+
+    private fun createCompactSeparator(): JComponent {
+        return SeparatorComponent(1, 0).apply {
+            foreground = JBColor.LIGHT_GRAY
+        }
     }
 }
