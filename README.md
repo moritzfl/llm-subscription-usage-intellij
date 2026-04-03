@@ -27,8 +27,6 @@ An IntelliJ plugin that tracks OpenAI Codex and Code Review usage quotas across 
   </tr>
 </table>
 
-![Quota popup](docs/quota-popup.png)
-
 ## What It Does
 
 - Adds a status bar widget with quick quota state
