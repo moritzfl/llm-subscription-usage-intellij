@@ -1,16 +1,31 @@
 # OpenAI Usage Quota (IntelliJ Plugin)
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="src/main/resources/META-INF/pluginIcon_dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="src/main/resources/META-INF/pluginIcon.svg">
-    <img src="src/main/resources/META-INF/pluginIcon.svg" alt="Quota Logo" width="200" />
-  </picture>
-</p>
-
 An IntelliJ plugin that tracks OpenAI Codex and Code Review usage quotas across OpenAI subscription plans in the status bar and inside a detailed popup.
 
-Install from JetBrains Marketplace: [OpenAI Usage Quota](https://plugins.jetbrains.com/plugin/30690-openai-usage-quota)
+<table align="center">
+  <tr>
+    <td align="center">
+      <a href="https://plugins.jetbrains.com/plugin/30690-openai-usage-quota">
+        <img src="src/main/resources/META-INF/pluginIcon.svg" alt="OpenAI Usage Quota on JetBrains Marketplace" width="96" />
+      </a>
+      <br />
+      <strong><a href="https://plugins.jetbrains.com/plugin/30690-openai-usage-quota">OpenAI Usage Quota on JetBrains Marketplace</a></strong>
+      <br />
+      Install the plugin for IntelliJ IDEA.
+      <br />
+      <br />
+      <a href="https://plugins.jetbrains.com/plugin/30690-openai-usage-quota">
+        <img src="https://img.shields.io/jetbrains/plugin/v/30690" alt="JetBrains Marketplace version" />
+      </a>
+      <a href="https://plugins.jetbrains.com/plugin/30690-openai-usage-quota">
+        <img src="https://img.shields.io/jetbrains/plugin/d/30690" alt="JetBrains Marketplace downloads" />
+      </a>
+      <a href="https://plugins.jetbrains.com/plugin/30690-openai-usage-quota">
+        <img src="https://img.shields.io/jetbrains/plugin/r/rating/30690" alt="JetBrains Marketplace rating" />
+      </a>
+    </td>
+  </tr>
+</table>
 
 ![Quota popup](docs/quota-popup.png)
 
