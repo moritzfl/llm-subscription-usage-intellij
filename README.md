@@ -21,6 +21,7 @@ Install from JetBrains Marketplace: [OpenAI Usage Quota](https://plugins.jetbrai
 - Supports browser-based OAuth login from inside IDE settings
 - Stores OAuth credentials in IntelliJ Password Safe
 - Automatically refreshes quota data in the background
+- Exposes the latest quota data to IDE chat tools via MCP
 - Exposes the last raw quota JSON in settings for debugging
 
 ## Compatibility
@@ -91,6 +92,10 @@ Logout is available in the same settings page.
 ![quota-cake.png](docs/quota-cake.png)
 
 ![quota-percentage-bar.png](docs/quota-percentage-bar.png)
+
+### Chat (MCP integration)
+
+![quota-mcp-integration.png](docs/quota-mcp-integration.png)
 
 ### Settings
 
