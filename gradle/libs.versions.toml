@@ -1,4 +1,5 @@
 [versions]
+ktor = "3.2.3"
 kotlinx-datetime = "0.7.1"
 kotlinx-serialization-json = "1.9.0"
 junit4 = "4.13.2"
@@ -11,6 +12,8 @@ junit-platform-launcher = "6.0.3"
 junit4 = { group = "junit", name = "junit", version.ref = "junit4" }
 junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform-launcher", version.ref = "junit-platform-launcher" }
 kotlin-test-junit5 = { group = "org.jetbrains.kotlin", name = "kotlin-test-junit5", version.ref = "kotlin" }
+ktor-client-cio = { group = "io.ktor", name = "ktor-client-cio-jvm", version.ref = "ktor" }
+ktor-server-cio = { group = "io.ktor", name = "ktor-server-cio-jvm", version.ref = "ktor" }
 kotlinx-datetime = { group = "org.jetbrains.kotlinx", name = "kotlinx-datetime", version.ref = "kotlinx-datetime" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinx-serialization-json" }
 

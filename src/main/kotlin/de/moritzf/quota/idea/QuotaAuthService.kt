@@ -4,29 +4,41 @@ import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.util.concurrency.AppExecutorUtil
 import de.moritzf.quota.idea.auth.OAuthClientConfig
 import de.moritzf.quota.idea.auth.OAuthCredentials
 import de.moritzf.quota.idea.auth.OAuthCredentialsStore
 import de.moritzf.quota.idea.auth.OAuthLoginFlow
 import de.moritzf.quota.idea.auth.OAuthTokenClient
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.request.get
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.minutes
-import kotlin.time.Duration.Companion.seconds
-import kotlin.time.toJavaDuration
 
 /**
  * Coordinates OAuth login, credential storage, and token refresh for quota requests.
  */
 @Service(Service.Level.APP)
 class QuotaAuthService {
-    private val httpClient = HttpClient.newHttpClient()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val httpClient = HttpClient(CIO) {
+        expectSuccess = false
+        install(HttpTimeout) {
+            requestTimeoutMillis = 30_000
+            connectTimeoutMillis = 30_000
+            socketTimeoutMillis = 30_000
+        }
+    }
     private val tokenClient = OAuthTokenClient(httpClient, OAUTH_CONFIG)
     private val credentialsStore = OAuthCredentialsStore(SERVICE_NAME, USER_NAME)
     private val cachedCredentials = AtomicReference<OAuthCredentials?>()
@@ -46,7 +58,7 @@ class QuotaAuthService {
             return
         }
 
-        AppExecutorUtil.getAppExecutorService().execute {
+        scope.launch {
             val result = try {
                 runLoginFlow()
             } catch (exception: Exception) {
@@ -105,7 +117,7 @@ class QuotaAuthService {
             return
         }
 
-        AppExecutorUtil.getAppExecutorService().execute {
+        scope.launch {
             try {
                 getCredentialsBlocking()
             } finally {
@@ -114,7 +126,7 @@ class QuotaAuthService {
         }
     }
 
-    private fun runLoginFlow(): LoginResult {
+    private suspend fun runLoginFlow(): LoginResult {
         LOG.info("Starting OAuth login flow")
         val flow = OAuthLoginFlow.start(OAUTH_CONFIG)
         pendingFlow.set(flow)
@@ -144,17 +156,13 @@ class QuotaAuthService {
         return LoginResult.success()
     }
 
-    private fun pingCallbackEndpoint(): String? {
+    private suspend fun pingCallbackEndpoint(): String? {
         return try {
-            val request = HttpRequest.newBuilder(URI.create("http://localhost:${OAUTH_CONFIG.callbackPort}/auth/ping"))
-                .timeout(3.seconds.toJavaDuration())
-                .GET()
-                .build()
-            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-            if (response.statusCode() in 200..299) {
+            val response = httpClient.get("http://localhost:${OAUTH_CONFIG.callbackPort}/auth/ping")
+            if (response.status.value in 200..299) {
                 null
             } else {
-                "Callback test failed (HTTP ${response.statusCode()})"
+                "Callback test failed (HTTP ${response.status.value})"
             }
         } catch (exception: Exception) {
             "Callback not reachable: ${exception::class.java.simpleName}"
@@ -163,7 +171,7 @@ class QuotaAuthService {
 
     private fun openAuthorizationUi(url: String) {
         LOG.info("Opening authorization UI: $url")
-        AppExecutorUtil.getAppExecutorService().execute { BrowserUtil.browse(url) }
+        BrowserUtil.browse(url)
     }
 
     private fun getCredentialsBlocking(): OAuthCredentials? {
@@ -183,7 +191,9 @@ class QuotaAuthService {
 
     private fun refreshCredentialsBlocking(existing: OAuthCredentials): OAuthCredentials? {
         return try {
-            tokenClient.refreshCredentials(existing).also { refreshed ->
+            runBlocking {
+                tokenClient.refreshCredentials(existing)
+            }.also { refreshed ->
                 saveCredentials(refreshed)
                 cachedCredentials.set(refreshed)
             }
@@ -192,6 +202,11 @@ class QuotaAuthService {
             clearCredentials()
             null
         }
+    }
+
+    fun dispose() {
+        scope.cancel()
+        httpClient.close()
     }
 
     class LoginResult private constructor(@JvmField val success: Boolean, @JvmField val message: String?) {
