@@ -1,7 +1,7 @@
 <idea-plugin>
     <id>de.moritzf.openai-usage-quota</id>
     <name>OpenAI Usage Quota</name>
-    <version>0.2.0</version>
+    <version>0.5.0</version>
     <vendor>Moritz</vendor>
 
     <description>
@@ -9,6 +9,7 @@
     </description>
 
     <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.mcpServer</depends>
 
     <extensions defaultExtensionNs="com.intellij">
         <applicationConfigurable
@@ -16,5 +17,6 @@
                 displayName="OpenAI Usage Quota"
                 instance="de.moritzf.quota.idea.QuotaSettingsConfigurable"/>
         <statusBarWidgetFactory implementation="de.moritzf.quota.idea.QuotaStatusBarWidgetFactory" id="openai.usage.quota.widget"/>
+        <mcpServer.mcpToolset implementation="de.moritzf.quota.idea.mcp.OpenAiUsageQuotaMcpToolset"/>
     </extensions>
 </idea-plugin>

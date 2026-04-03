@@ -53,6 +53,10 @@ public final class QuotaUsageService implements Disposable {
         AppExecutorUtil.getAppExecutorService().execute(this::refreshNow);
     }
 
+    public void refreshNowBlocking() {
+        refreshNow();
+    }
+
     private void scheduleRefresh() {
         int minutes = Math.max(1, QuotaSettingsState.getInstance().refreshMinutes);
         scheduled = scheduler.scheduleWithFixedDelay(this::refreshNow, 0, minutes, TimeUnit.MINUTES);
