@@ -26,9 +26,6 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.minutes
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * Runs the browser-based OAuth login flow including local callback server handling.
@@ -45,7 +42,7 @@ class OAuthLoginFlow private constructor(
 
     suspend fun waitForCallback(): OAuthCallbackResult {
         return try {
-            withTimeoutOrNull(CALLBACK_TIMEOUT) {
+            withTimeoutOrNull(CALLBACK_TIMEOUT_MS) {
                 callbackDeferred.await()
             } ?: OAuthCallbackResult(error = "Authentication timed out")
         } finally {
@@ -155,15 +152,15 @@ class OAuthLoginFlow private constructor(
 
     private fun scheduleStopServer() {
         scope.launch {
-            delay(CALLBACK_SHUTDOWN_DELAY)
+            delay(CALLBACK_SHUTDOWN_DELAY_MS)
             stopServer()
         }
     }
 
     companion object {
         private val LOG = Logger.getInstance(OAuthLoginFlow::class.java)
-        private val CALLBACK_TIMEOUT: Duration = 10.minutes
-        private val CALLBACK_SHUTDOWN_DELAY: Duration = 3.seconds
+        private const val CALLBACK_TIMEOUT_MS: Long = 10 * 60 * 1000L
+        private const val CALLBACK_SHUTDOWN_DELAY_MS: Long = 3 * 1000L
 
         @JvmStatic
         fun start(config: OAuthClientConfig): OAuthLoginFlow {

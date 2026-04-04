@@ -26,7 +26,6 @@ import java.net.URI
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.time.Duration.Companion.minutes
 
 /**
  * Coordinates OAuth login, credential storage, and token refresh for quota requests.
@@ -286,7 +285,7 @@ class QuotaAuthService(
         fun parseUri(value: String): URI = OAuthLoginFlow.parseUri(value, OAUTH_CONFIG.redirectUri)
 
         private fun isExpired(credentials: OAuthCredentials): Boolean {
-            return System.currentTimeMillis() >= credentials.expiresAt - 5.minutes.inWholeMilliseconds
+            return System.currentTimeMillis() >= credentials.expiresAt - EXPIRY_SKEW_MS
         }
 
         private fun sameCredentials(left: OAuthCredentials?, right: OAuthCredentials?): Boolean {
@@ -309,5 +308,7 @@ class QuotaAuthService(
                 }
             }
         }
+
+        private const val EXPIRY_SKEW_MS: Long = 5 * 60 * 1000L
     }
 }
