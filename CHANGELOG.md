@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-04-04
+- Added an indicator location setting so the quota icon can live in the main toolbar or the status bar
+
 ## [0.6.1] - 2026-04-04
 - Fixed login/logout edge cases that could leave authentication in a bad state
 - Fixed the quota popup so it updates while it is open
