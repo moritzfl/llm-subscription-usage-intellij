@@ -6,10 +6,12 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import de.moritzf.quota.idea.auth.OAuthClientConfig
+import de.moritzf.quota.idea.auth.OAuthCredentialStore
 import de.moritzf.quota.idea.auth.OAuthCredentials
 import de.moritzf.quota.idea.auth.OAuthCredentialsStore
 import de.moritzf.quota.idea.auth.OAuthLoginFlow
 import de.moritzf.quota.idea.auth.OAuthTokenClient
+import de.moritzf.quota.idea.auth.OAuthTokenOperations
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
@@ -30,18 +32,14 @@ import kotlin.time.Duration.Companion.minutes
  * Coordinates OAuth login, credential storage, and token refresh for quota requests.
  */
 @Service(Service.Level.APP)
-class QuotaAuthService : Disposable {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val httpClient = HttpClient(CIO) {
-        expectSuccess = false
-        install(HttpTimeout) {
-            requestTimeoutMillis = 30_000
-            connectTimeoutMillis = 30_000
-            socketTimeoutMillis = 30_000
-        }
-    }
-    private val tokenClient = OAuthTokenClient(httpClient, OAUTH_CONFIG)
-    private val credentialsStore = OAuthCredentialsStore(SERVICE_NAME, USER_NAME)
+class QuotaAuthService(
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    private val httpClient: HttpClient = createHttpClient(),
+    private val tokenOperations: OAuthTokenOperations = OAuthTokenClient(httpClient, OAUTH_CONFIG),
+    private val credentialStore: OAuthCredentialStore = OAuthCredentialsStore(SERVICE_NAME, USER_NAME),
+    private val loginFlowStarter: (OAuthClientConfig) -> OAuthLoginFlow = OAuthLoginFlow::start,
+    private val browserOpener: (String) -> Unit = BrowserUtil::browse,
+) : Disposable {
     private val credentialsLock = Any()
     private val refreshLock = Any()
     private val cachedCredentials = AtomicReference<OAuthCredentials?>()
@@ -94,7 +92,7 @@ class QuotaAuthService : Disposable {
         synchronized(credentialsLock) {
             credentialClearCounter.incrementAndGet()
             cachedCredentials.set(null)
-            credentialsStore.clear()
+            credentialStore.clear()
         }
         LOG.info("Cleared stored OAuth credentials")
     }
@@ -133,7 +131,7 @@ class QuotaAuthService : Disposable {
 
     private suspend fun runLoginFlow(): LoginResult {
         LOG.info("Starting OAuth login flow")
-        val flow = OAuthLoginFlow.start(OAUTH_CONFIG)
+        val flow = loginFlowStarter(OAUTH_CONFIG)
         pendingFlow.set(flow)
 
         val callbackError = pingCallbackEndpoint()
@@ -156,7 +154,7 @@ class QuotaAuthService : Disposable {
         }
 
         val clearMarker = currentCredentialClearMarker()
-        val credentials = tokenClient.exchangeAuthorizationCode(callback.code, flow.codeVerifier)
+        val credentials = tokenOperations.exchangeAuthorizationCode(callback.code, flow.codeVerifier)
         if (persistCredentialsIfCurrent(clearMarker, credentials, "login") == null) {
             return LoginResult.error("Login canceled")
         }
@@ -178,12 +176,12 @@ class QuotaAuthService : Disposable {
 
     private fun openAuthorizationUi(url: String) {
         LOG.info("Opening authorization UI: $url")
-        BrowserUtil.browse(url)
+        browserOpener(url)
     }
 
     private fun getCredentialsBlocking(): OAuthCredentials? {
         val clearMarker = currentCredentialClearMarker()
-        val credentials = credentialsStore.load()
+        val credentials = credentialStore.load()
         synchronized(credentialsLock) {
             if (credentialClearCounter.get() != clearMarker) {
                 cachedCredentials.set(null)
@@ -195,7 +193,7 @@ class QuotaAuthService : Disposable {
     }
 
     private fun saveCredentials(credentials: OAuthCredentials) {
-        credentialsStore.save(credentials)
+        credentialStore.save(credentials)
     }
 
     private fun refreshCredentialsBlocking(): OAuthCredentials? {
@@ -208,7 +206,7 @@ class QuotaAuthService : Disposable {
             val clearMarker = currentCredentialClearMarker()
             return try {
                 val refreshed = runBlocking {
-                    tokenClient.refreshCredentials(latestCredentials)
+                    tokenOperations.refreshCredentials(latestCredentials)
                 }
                 persistCredentialsIfCurrent(clearMarker, refreshed, "refresh")
             } catch (exception: Exception) {
@@ -250,7 +248,7 @@ class QuotaAuthService : Disposable {
             }
             credentialClearCounter.incrementAndGet()
             cachedCredentials.set(null)
-            credentialsStore.clear()
+            credentialStore.clear()
         }
         LOG.info("Cleared stored OAuth credentials after refresh failure")
     }
@@ -299,6 +297,17 @@ class QuotaAuthService : Disposable {
                 left.refreshToken == right.refreshToken &&
                 left.expiresAt == right.expiresAt &&
                 left.accountId == right.accountId
+        }
+
+        private fun createHttpClient(): HttpClient {
+            return HttpClient(CIO) {
+                expectSuccess = false
+                install(HttpTimeout) {
+                    requestTimeoutMillis = 30_000
+                    connectTimeoutMillis = 30_000
+                    socketTimeoutMillis = 30_000
+                }
+            }
         }
     }
 }

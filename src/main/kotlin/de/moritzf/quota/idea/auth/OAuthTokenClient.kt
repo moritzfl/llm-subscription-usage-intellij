@@ -20,8 +20,8 @@ import java.io.IOException
 class OAuthTokenClient(
     private val httpClient: HttpClient,
     private val config: OAuthClientConfig,
-) {
-    suspend fun exchangeAuthorizationCode(code: String, codeVerifier: String): OAuthCredentials {
+) : OAuthTokenOperations {
+    override suspend fun exchangeAuthorizationCode(code: String, codeVerifier: String): OAuthCredentials {
         LOG.info("Exchanging authorization code for tokens")
         val response = postForm(
             Parameters.build {
@@ -47,7 +47,7 @@ class OAuthTokenClient(
         }
     }
 
-    suspend fun refreshCredentials(existing: OAuthCredentials): OAuthCredentials {
+    override suspend fun refreshCredentials(existing: OAuthCredentials): OAuthCredentials {
         LOG.info("Refreshing OAuth token")
         val response = postForm(
             Parameters.build {

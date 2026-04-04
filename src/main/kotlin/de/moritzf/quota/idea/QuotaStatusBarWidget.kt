@@ -87,7 +87,11 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
 
         QuotaUsageService.getInstance().refreshNowAsync()
         var popup: JBPopup? = null
-        val content = UsagePopupContent { openSettings { popup?.cancel() } }
+        val content = RefreshablePopupPanel<QuotaPopupContentState> { state ->
+            buildPopupContent(state.quota, state.error) { openSettings { popup?.cancel() } }
+        }.apply {
+            refresh(QuotaPopupContentState(quota, error))
+        }
         popup = JBPopupFactory.getInstance()
             .createComponentPopupBuilder(content, content)
             .setRequestFocus(true)
@@ -104,7 +108,7 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
                 if (currentPopup.isDisposed || !currentPopup.isVisible) {
                     return@invokeLater
                 }
-                content.refresh(updatedQuota, updatedError)
+                content.refresh(QuotaPopupContentState(updatedQuota, updatedError))
                 currentPopup.pack(true, true)
             }
         })
@@ -193,20 +197,6 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
         }
 
         return content
-    }
-
-    private inner class UsagePopupContent(private val onOpenSettings: () -> Unit) : BorderLayoutPanel() {
-        init {
-            isOpaque = false
-            refresh(quota, error)
-        }
-
-        fun refresh(updatedQuota: OpenAiCodexQuota?, updatedError: String?) {
-            removeAll()
-            addToCenter(buildPopupContent(updatedQuota, updatedError, onOpenSettings))
-            revalidate()
-            repaint()
-        }
     }
 
     private fun createOpenSettingsButton(onOpenSettings: () -> Unit): ActionLink {
@@ -521,5 +511,23 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
     private fun createCompactSeparator(): JComponent {
         val separatorColor = JBUI.CurrentTheme.Popup.separatorColor()
         return SeparatorComponent(1, 0, separatorColor, separatorColor)
+    }
+}
+
+internal data class QuotaPopupContentState(
+    val quota: OpenAiCodexQuota?,
+    val error: String?,
+)
+
+internal class RefreshablePopupPanel<T>(private val renderer: (T) -> JComponent) : BorderLayoutPanel() {
+    init {
+        isOpaque = false
+    }
+
+    fun refresh(state: T) {
+        removeAll()
+        addToCenter(renderer(state))
+        revalidate()
+        repaint()
     }
 }

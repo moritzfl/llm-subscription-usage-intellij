@@ -9,10 +9,10 @@ import de.moritzf.quota.JsonSupport
 /**
  * Handles loading, saving, and clearing OAuth credentials in PasswordSafe.
  */
-class OAuthCredentialsStore(serviceName: String, private val userName: String) {
+class OAuthCredentialsStore(serviceName: String, private val userName: String) : OAuthCredentialStore {
     private val attributes = CredentialAttributes(serviceName, userName)
 
-    fun load(): OAuthCredentials? {
+    override fun load(): OAuthCredentials? {
         val stored = PasswordSafe.instance.get(attributes) ?: return null
         val json = stored.getPasswordAsString() ?: return null
         if (json.isBlank()) {
@@ -27,12 +27,12 @@ class OAuthCredentialsStore(serviceName: String, private val userName: String) {
         }
     }
 
-    fun save(credentials: OAuthCredentials) {
+    override fun save(credentials: OAuthCredentials) {
         val json = JsonSupport.json.encodeToString(credentials)
         PasswordSafe.instance.set(attributes, Credentials(userName, json))
     }
 
-    fun clear() {
+    override fun clear() {
         try {
             PasswordSafe.instance.set(attributes, null)
         } catch (exception: Exception) {
