@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-04-04
+- Fixed login/logout edge cases that could leave authentication in a bad state
+- Fixed the quota popup so it updates while it is open
+- Fixed the quota popup not closing when opening settings
+- Moved the plugin settings page under `Tools`
+
 ## [0.6.0] - 2026-04-03
 - Migrated the plugin codebase to Kotlin
 - Reworked the status bar, popup, and settings UI
