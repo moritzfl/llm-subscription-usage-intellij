@@ -87,7 +87,7 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
 
         QuotaUsageService.getInstance().refreshNowAsync()
         var popup: JBPopup? = null
-        val content = buildPopupContent { openSettings { popup?.cancel() } }
+        val content = UsagePopupContent { openSettings { popup?.cancel() } }
         popup = JBPopupFactory.getInstance()
             .createComponentPopupBuilder(content, content)
             .setRequestFocus(true)
@@ -96,6 +96,18 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
             .setMovable(false)
             .createPopup()
         Disposer.register(this, popup)
+
+        val currentPopup = popup
+        val popupConnection = ApplicationManager.getApplication().messageBus.connect(currentPopup)
+        popupConnection.subscribe(QuotaUsageListener.TOPIC, QuotaUsageListener { updatedQuota, updatedError ->
+            ApplicationManager.getApplication().invokeLater {
+                if (currentPopup.isDisposed || !currentPopup.isVisible) {
+                    return@invokeLater
+                }
+                content.refresh(updatedQuota, updatedError)
+                currentPopup.pack(true, true)
+            }
+        })
 
         val popupSize = content.preferredSize
         val x = (component.width - popupSize.width) / 2
@@ -115,8 +127,11 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
         return "OpenAI usage quota: ${clampPercent(primary.usedPercent.roundToInt())}% used"
     }
 
-    private fun buildPopupContent(onOpenSettings: () -> Unit): JComponent {
-        val currentQuota = quota
+    private fun buildPopupContent(
+        currentQuota: OpenAiCodexQuota?,
+        currentError: String?,
+        onOpenSettings: () -> Unit,
+    ): JComponent {
         val hasReviewData = currentQuota != null && (
                 currentQuota.reviewPrimary != null || currentQuota.reviewSecondary != null ||
                         currentQuota.reviewAllowed != null || currentQuota.reviewLimitReached != null
@@ -125,7 +140,7 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
         val content = createPopupStack().apply {
             add(createHeaderRow(onOpenSettings))
 
-            val planLabel = quota?.planType?.toDisplayLabel()
+            val planLabel = currentQuota?.planType?.toDisplayLabel()
             if (!planLabel.isNullOrBlank()) {
                 add(withVerticalInsets(createMutedLabel("Plan: $planLabel"), top = 3))
             }
@@ -139,8 +154,8 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
                     add(withVerticalInsets(ActionLink("Open Settings") { onOpenSettings() }, top = 3))
                 }
 
-                error != null -> {
-                    add(withVerticalInsets(createWarningLabel("Error: $error"), top = 1))
+                currentError != null -> {
+                    add(withVerticalInsets(createWarningLabel("Error: $currentError"), top = 1))
                     add(withVerticalInsets(ActionLink("Open Settings") { onOpenSettings() }, top = 3))
                 }
 
@@ -178,6 +193,20 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
         }
 
         return content
+    }
+
+    private inner class UsagePopupContent(private val onOpenSettings: () -> Unit) : BorderLayoutPanel() {
+        init {
+            isOpaque = false
+            refresh(quota, error)
+        }
+
+        fun refresh(updatedQuota: OpenAiCodexQuota?, updatedError: String?) {
+            removeAll()
+            addToCenter(buildPopupContent(updatedQuota, updatedError, onOpenSettings))
+            revalidate()
+            repaint()
+        }
     }
 
     private fun createOpenSettingsButton(onOpenSettings: () -> Unit): ActionLink {
