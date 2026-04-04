@@ -23,6 +23,7 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.OpenAiCodexQuota
 import de.moritzf.quota.UsageWindow
+import org.intellij.lang.annotations.Language
 import java.awt.Component
 import java.awt.Cursor
 import java.awt.Dimension
@@ -460,12 +461,15 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
         private fun clampPercent(value: Int): Int = value.coerceIn(0, 100)
 
         private fun String.toDisplayLabel(): String {
-            return split(Regex("\\s+")).joinToString(" ") { word ->
+            return split(Regex(WHITESPACE_REGEX)).joinToString(" ") { word ->
                 word.lowercase().replaceFirstChar { character ->
                     if (character.isLowerCase()) character.titlecase() else character.toString()
                 }
             }
         }
+
+        @Language("RegExp")
+        private const val WHITESPACE_REGEX = "\\s+"
     }
 
     private fun createPopupTitleLabel(text: String): JBLabel {

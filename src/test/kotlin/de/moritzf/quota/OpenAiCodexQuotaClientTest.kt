@@ -2,6 +2,7 @@ package de.moritzf.quota
 
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import org.intellij.lang.annotations.Language
 import java.net.Authenticator
 import java.net.CookieHandler
 import java.net.ProxySelector
@@ -23,6 +24,7 @@ import kotlin.time.Duration.Companion.minutes
 class OpenAiCodexQuotaClientTest {
     @Test
     fun customDeserializationMapsTopLevelAndWindowFields() {
+        @Language("JSON")
         val json = """
             {
               "user_id": "user-1",
@@ -67,6 +69,7 @@ class OpenAiCodexQuotaClientTest {
 
     @Test
     fun customDeserializationClampsPercentValuesAndAllowsMissingOptionalWindowFields() {
+        @Language("JSON")
         val json = """
             {
               "rate_limit": {
@@ -91,6 +94,7 @@ class OpenAiCodexQuotaClientTest {
 
     @Test
     fun fetchQuotaThrowsWhenNoUsableWindowsArePresent() {
+        @Language("JSON")
         val json = """
             {
               "rate_limit": {
@@ -112,6 +116,7 @@ class OpenAiCodexQuotaClientTest {
     @Test
     fun fetchQuotaAddsClientMetadata() {
         val before = Clock.System.now()
+        @Language("JSON")
         val json = """
             {
               "rate_limit": {
@@ -136,6 +141,7 @@ class OpenAiCodexQuotaClientTest {
 
     @Test
     fun customDeserializationMapsCodeReviewRateLimitFromAnonymizedPayload() {
+        @Language("JSON")
         val json = """
             {
               "user_id": "user-anon-1",
@@ -191,11 +197,11 @@ class OpenAiCodexQuotaClientTest {
         assertNull(quota.reviewSecondary)
     }
 
-    private fun deserializeQuota(json: String): OpenAiCodexQuota {
+    private fun deserializeQuota(@Language("JSON") json: String): OpenAiCodexQuota {
         return JsonSupport.json.decodeFromString(json)
     }
 
-    private fun newClientReturning(statusCode: Int, body: String): OpenAiCodexQuotaClient {
+    private fun newClientReturning(statusCode: Int, @Language("JSON") body: String): OpenAiCodexQuotaClient {
         return OpenAiCodexQuotaClient(StubHttpClient(statusCode, body), URI.create("https://example.com/usage"))
     }
 

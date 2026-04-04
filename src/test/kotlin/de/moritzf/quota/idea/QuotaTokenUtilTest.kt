@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea
 
+import org.intellij.lang.annotations.Language
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.test.Test
@@ -12,6 +13,7 @@ import kotlin.test.assertNull
 class QuotaTokenUtilTest {
     @Test
     fun extractChatGptAccountIdReturnsTrimmedAccountIdWhenPresent() {
+        @Language("JSON")
         val payload = """
             {
               "https://api.openai.com/auth": {
@@ -27,6 +29,7 @@ class QuotaTokenUtilTest {
 
     @Test
     fun extractChatGptAccountIdReturnsNullWhenClaimIsMissing() {
+        @Language("JSON")
         val payload = """
             {
               "sub": "user-1"
@@ -48,7 +51,8 @@ class QuotaTokenUtilTest {
         assertNull(QuotaTokenUtil.extractChatGptAccountId("   "))
     }
 
-    private fun buildToken(payloadJson: String): String {
+    private fun buildToken(@Language("JSON") payloadJson: String): String {
+        @Language("JSON")
         val headerJson = """
             {"alg":"none","typ":"JWT"}
         """.trimIndent()
