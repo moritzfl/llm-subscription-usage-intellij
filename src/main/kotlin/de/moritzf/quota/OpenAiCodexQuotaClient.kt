@@ -2,12 +2,11 @@ package de.moritzf.quota
 
 import kotlinx.datetime.Clock
 import java.io.IOException
+import java.time.Duration
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
-import kotlin.time.Duration.Companion.seconds
-import kotlin.time.toJavaDuration
 
 /**
  * HTTP client for fetching and parsing OpenAI Codex usage quota responses.
@@ -22,7 +21,7 @@ class OpenAiCodexQuotaClient(
 
         val requestBuilder = HttpRequest.newBuilder()
             .uri(endpoint)
-            .timeout(30.seconds.toJavaDuration())
+            .timeout(Duration.ofSeconds(30))
             .header("Authorization", "Bearer $accessToken")
             .header("Accept", "application/json")
             .GET()

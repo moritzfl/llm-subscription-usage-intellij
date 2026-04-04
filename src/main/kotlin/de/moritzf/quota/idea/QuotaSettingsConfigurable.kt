@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea
 
+import com.intellij.ide.ActivityTracker
 import com.intellij.lang.Language
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
@@ -15,7 +16,6 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.JBColor
-import com.intellij.util.IconUtil
 import com.intellij.util.messages.MessageBusConnection
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
@@ -39,6 +39,7 @@ class QuotaSettingsConfigurable : Configurable {
     private var statusLabel: JBLabel? = null
     private var statusLabelDefaultForeground: Color? = null
     private var authStatusMessage: AuthStatusMessage? = null
+    private var locationComboBox: ComboBox<QuotaIndicatorLocation>? = null
     private var displayModeComboBox: ComboBox<QuotaDisplayMode>? = null
     private var displayModePreview: DisplayModePreviewComponent? = null
     private var loginButton: ActionLink? = null
@@ -55,6 +56,7 @@ class QuotaSettingsConfigurable : Configurable {
         loginHeaderLabel = JBLabel()
         statusLabel = JBLabel().apply { isVisible = false }
         statusLabelDefaultForeground = statusLabel!!.foreground ?: UIManager.getColor("Label.foreground")
+        locationComboBox = ComboBox(QuotaIndicatorLocation.entries.toTypedArray())
         displayModeComboBox = ComboBox(QuotaDisplayMode.entries.toTypedArray())
         displayModePreview = DisplayModePreviewComponent()
         loginButton = createActionLink("Log In")
@@ -115,7 +117,11 @@ class QuotaSettingsConfigurable : Configurable {
         }
 
         panel = panel {
-            row("Status bar display:") {
+            row("Indicator location:") {
+                cell(locationComboBox!!)
+            }
+
+            row("Indicator display:") {
                 cell(displayModeComboBox!!)
                 cell(displayModePreview!!).gap(RightGap.SMALL)
             }
@@ -152,19 +158,28 @@ class QuotaSettingsConfigurable : Configurable {
             separator()
 
             onApply {
-                val selected = displayModeComboBox?.selectedItem as? QuotaDisplayMode ?: return@onApply
+                val selectedLocation = locationComboBox?.selectedItem as? QuotaIndicatorLocation ?: return@onApply
+                val selectedDisplayMode = displayModeComboBox?.selectedItem as? QuotaDisplayMode ?: return@onApply
                 val state = QuotaSettingsState.getInstance()
-                val current = state.displayMode()
-                if (selected != current) {
-                    state.setDisplayMode(selected)
+                val locationChanged = selectedLocation != state.location()
+                val displayModeChanged = selectedDisplayMode != state.displayMode()
+                if (locationChanged) {
+                    state.setLocation(selectedLocation)
+                }
+                if (displayModeChanged) {
+                    state.setDisplayMode(selectedDisplayMode)
+                }
+                if (locationChanged || displayModeChanged) {
                     ApplicationManager.getApplication().messageBus
                         .syncPublisher(QuotaSettingsListener.TOPIC)
                         .onSettingsChanged()
+                    ActivityTracker.getInstance().inc()
                 }
             }
 
             onReset {
                 authStatusMessage = null
+                locationComboBox?.selectedItem = QuotaSettingsState.getInstance().location()
                 displayModeComboBox?.selectedItem = QuotaSettingsState.getInstance().displayMode()
                 updateDisplayModePreview()
                 updateAuthUi()
@@ -173,11 +188,13 @@ class QuotaSettingsConfigurable : Configurable {
             }
 
             onIsModified {
-                val selected = displayModeComboBox?.selectedItem as? QuotaDisplayMode ?: return@onIsModified false
-                selected != QuotaSettingsState.getInstance().displayMode()
+                val selectedLocation = locationComboBox?.selectedItem as? QuotaIndicatorLocation ?: return@onIsModified false
+                val selectedDisplayMode = displayModeComboBox?.selectedItem as? QuotaDisplayMode ?: return@onIsModified false
+                val state = QuotaSettingsState.getInstance()
+                selectedLocation != state.location() || selectedDisplayMode != state.displayMode()
             }
         }.apply {
-            preferredFocusedComponent = displayModeComboBox
+            preferredFocusedComponent = locationComboBox
         }
 
         rootComponent = BorderLayoutPanel().apply {
@@ -237,6 +254,7 @@ class QuotaSettingsConfigurable : Configurable {
         statusLabel = null
         statusLabelDefaultForeground = null
         authStatusMessage = null
+        locationComboBox = null
         displayModeComboBox = null
         displayModePreview = null
         loginButton = null
@@ -274,6 +292,7 @@ class QuotaSettingsConfigurable : Configurable {
         area.setCaretPosition(0)
     }
 
+    @Suppress("UsePropertyAccessSyntax")
     private fun createResponseViewer(): EditorTextField {
         val jsonLanguage = Language.findLanguageByID("JSON")
         val viewer = if (jsonLanguage != null) {
@@ -362,22 +381,7 @@ class QuotaSettingsConfigurable : Configurable {
         }
 
         private fun scaledCakeIcon(component: JComponent): Icon {
-            val cakeIcon = QuotaIcons.CAKE_40
-            val statusIcon = QuotaIcons.STATUS
-            val targetWidth = statusIcon.iconWidth
-            val targetHeight = statusIcon.iconHeight
-            val iconWidth = cakeIcon.iconWidth
-            val iconHeight = cakeIcon.iconHeight
-            if (iconWidth <= 0 || iconHeight <= 0 || targetWidth <= 0 || targetHeight <= 0) {
-                return cakeIcon
-            }
-            if (iconWidth <= targetWidth && iconHeight <= targetHeight) {
-                return cakeIcon
-            }
-
-            val widthScale = targetWidth / iconWidth.toFloat()
-            val heightScale = targetHeight / iconHeight.toFloat()
-            return IconUtil.scale(cakeIcon, component, minOf(widthScale, heightScale))
+            return scaleIconToQuotaStatusSize(QuotaIcons.CAKE_40, component)
         }
     }
 }

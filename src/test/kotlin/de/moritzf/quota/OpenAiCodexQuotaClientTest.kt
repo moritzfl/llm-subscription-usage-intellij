@@ -19,7 +19,6 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLParameters
 import javax.net.ssl.SSLSession
 import kotlin.test.*
-import kotlin.time.Duration.Companion.minutes
 
 class OpenAiCodexQuotaClientTest {
     @Test
@@ -58,12 +57,12 @@ class OpenAiCodexQuotaClientTest {
 
         assertNotNull(quota.primary)
         assertEquals(12.3, quota.primary!!.usedPercent, 0.0001)
-        assertEquals(300.minutes, quota.primary!!.windowDuration)
+        assertEquals(Duration.ofMinutes(300), quota.primary!!.windowDuration)
         assertEquals(Instant.fromEpochSeconds(1735689600), quota.primary!!.resetsAt)
 
         assertNotNull(quota.secondary)
         assertEquals(45.6, quota.secondary!!.usedPercent, 0.0001)
-        assertEquals(10080.minutes, quota.secondary!!.windowDuration)
+        assertEquals(Duration.ofMinutes(10080), quota.secondary!!.windowDuration)
         assertEquals(Instant.fromEpochSeconds(1736294400), quota.secondary!!.resetsAt)
     }
 
@@ -186,12 +185,12 @@ class OpenAiCodexQuotaClientTest {
 
         assertNotNull(quota.primary)
         assertEquals(33.0, quota.primary!!.usedPercent, 0.0)
-        assertEquals(10080.minutes, quota.primary!!.windowDuration)
+        assertEquals(Duration.ofMinutes(10080), quota.primary!!.windowDuration)
         assertEquals(Instant.fromEpochSeconds(1773936760), quota.primary!!.resetsAt)
 
         assertNotNull(quota.reviewPrimary)
         assertEquals(0.0, quota.reviewPrimary!!.usedPercent, 0.0)
-        assertEquals(10080.minutes, quota.reviewPrimary!!.windowDuration)
+        assertEquals(Duration.ofMinutes(10080), quota.reviewPrimary!!.windowDuration)
         assertEquals(Instant.fromEpochSeconds(1774086811), quota.reviewPrimary!!.resetsAt)
 
         assertNull(quota.reviewSecondary)

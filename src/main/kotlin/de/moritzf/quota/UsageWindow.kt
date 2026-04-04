@@ -1,7 +1,7 @@
 package de.moritzf.quota
 
 import kotlinx.datetime.Instant
-import kotlin.time.Duration
+import java.time.Duration
 
 /**
  * Represents usage information for one quota window.

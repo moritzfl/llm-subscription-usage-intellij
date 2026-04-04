@@ -1,7 +1,7 @@
 package de.moritzf.quota.idea
 
 /**
- * Rendering mode for the status bar quota widget.
+ * Rendering mode for the quota indicator.
  */
 enum class QuotaDisplayMode(private val displayName: String) {
     ICON_ONLY("Icon only"),

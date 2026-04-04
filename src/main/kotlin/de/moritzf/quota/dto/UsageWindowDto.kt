@@ -4,8 +4,8 @@ import de.moritzf.quota.UsageWindow
 import kotlinx.datetime.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import java.time.Duration
 import kotlin.math.roundToLong
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * DTO for one raw usage window entry returned by the usage endpoint.
@@ -20,7 +20,7 @@ data class UsageWindowDto(
         val rawUsedPercent = usedPercent ?: return null
         return UsageWindow(
             usedPercent = rawUsedPercent.clampPercent(),
-            windowDuration = limitWindowSeconds?.seconds,
+            windowDuration = limitWindowSeconds?.let { Duration.ofMillis((it * 1000.0).roundToLong()) },
             resetsAt = resetAt?.let { Instant.fromEpochMilliseconds((it * 1000.0).roundToLong()) },
         )
     }

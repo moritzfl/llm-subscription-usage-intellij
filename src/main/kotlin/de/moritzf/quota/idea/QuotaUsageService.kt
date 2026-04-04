@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea
 
+import com.intellij.ide.ActivityTracker
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
@@ -83,6 +84,7 @@ class QuotaUsageService : Disposable {
             ApplicationManager.getApplication().messageBus
                 .syncPublisher(QuotaUsageListener.TOPIC)
                 .onQuotaUpdated(quota, error)
+            ActivityTracker.getInstance().inc()
         }
     }
 

@@ -18,4 +18,12 @@
                 instance="de.moritzf.quota.idea.QuotaSettingsConfigurable"/>
         <statusBarWidgetFactory implementation="de.moritzf.quota.idea.QuotaStatusBarWidgetFactory" id="openai.usage.quota.widget"/>
     </extensions>
+
+    <actions>
+        <action id="openai.usage.quota.mainToolbar"
+                class="de.moritzf.quota.idea.QuotaMainToolbarAction"
+                text="OpenAI Usage Quota">
+            <add-to-group group-id="MainToolbarRight"/>
+        </action>
+    </actions>
 </idea-plugin>

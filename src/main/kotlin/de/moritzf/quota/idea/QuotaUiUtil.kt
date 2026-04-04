@@ -2,11 +2,10 @@ package de.moritzf.quota.idea
 
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import java.time.Duration
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * UI formatting helpers for timestamps and relative quota time values.
@@ -21,7 +20,7 @@ object QuotaUiUtil {
             return null
         }
 
-        val duration = (resetsAt.toEpochMilliseconds() - Clock.System.now().toEpochMilliseconds()).milliseconds
+        val duration = Duration.ofMillis(resetsAt.toEpochMilliseconds() - Clock.System.now().toEpochMilliseconds())
         val remaining = formatDuration(duration)
         if (remaining != null) {
             return "Resets $remaining"
@@ -37,7 +36,7 @@ object QuotaUiUtil {
             return null
         }
 
-        val duration = formatDuration((resetsAt.toEpochMilliseconds() - Clock.System.now().toEpochMilliseconds()).milliseconds) ?: return null
+        val duration = formatDuration(Duration.ofMillis(resetsAt.toEpochMilliseconds() - Clock.System.now().toEpochMilliseconds())) ?: return null
         return duration.removePrefix("in ")
     }
 
@@ -47,16 +46,16 @@ object QuotaUiUtil {
             return null
         }
 
-        val ago = formatAgo((Clock.System.now().toEpochMilliseconds() - instant.toEpochMilliseconds()).milliseconds)
+        val ago = formatAgo(Duration.ofMillis(Clock.System.now().toEpochMilliseconds() - instant.toEpochMilliseconds()))
         return ago ?: formatAbsoluteInstant(instant)
     }
 
     private fun formatDuration(duration: Duration): String? {
-        if (duration.isNegative()) {
+        if (duration.isNegative) {
             return null
         }
 
-        val minutes = duration.inWholeMinutes
+        val minutes = duration.toMinutes()
         if (minutes < 1) {
             return "in <1m"
         }
@@ -84,11 +83,11 @@ object QuotaUiUtil {
     }
 
     private fun formatAgo(duration: Duration): String? {
-        if (duration.isNegative()) {
+        if (duration.isNegative) {
             return null
         }
 
-        val minutes = duration.inWholeMinutes
+        val minutes = duration.toMinutes()
         if (minutes < 1) {
             return "just now"
         }

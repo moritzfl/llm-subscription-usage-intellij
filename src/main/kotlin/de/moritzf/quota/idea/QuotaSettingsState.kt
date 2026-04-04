@@ -14,18 +14,26 @@ import com.intellij.openapi.components.Storage
 class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var refreshMinutes: Int = 5
     var statusBarDisplayMode: String = QuotaDisplayMode.ICON_ONLY.name
+    var indicatorLocation: String = QuotaIndicatorLocation.STATUS_BAR.name
 
     override fun getState(): QuotaSettingsState = this
 
     override fun loadState(state: QuotaSettingsState) {
         refreshMinutes = state.refreshMinutes
         statusBarDisplayMode = QuotaDisplayMode.fromStorageValue(state.statusBarDisplayMode).name
+        indicatorLocation = QuotaIndicatorLocation.fromStorageValue(state.indicatorLocation).name
     }
 
     fun displayMode(): QuotaDisplayMode = QuotaDisplayMode.fromStorageValue(statusBarDisplayMode)
 
     fun setDisplayMode(displayMode: QuotaDisplayMode) {
         statusBarDisplayMode = displayMode.name
+    }
+
+    fun location(): QuotaIndicatorLocation = QuotaIndicatorLocation.fromStorageValue(indicatorLocation)
+
+    fun setLocation(location: QuotaIndicatorLocation) {
+        indicatorLocation = location.name
     }
 
     companion object {
