@@ -1,5 +1,8 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import org.gradle.api.tasks.bundling.AbstractArchiveTask
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+import org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask
 
 plugins {
     alias(libs.plugins.kotlin.jvm) // Kotlin support
@@ -7,6 +10,7 @@ plugins {
     alias(libs.plugins.intelliJPlatform) // IntelliJ Platform Gradle Plugin
     alias(libs.plugins.changelog) // Gradle Changelog Plugin
     alias(libs.plugins.kover) // Gradle Kover Plugin
+    alias(libs.plugins.shadow) // Shadow plugin for shading Kotlin/Ktor dependencies
 }
 
 group = providers.gradleProperty("pluginGroup").get()
@@ -27,12 +31,25 @@ repositories {
     }
 }
 
+// Configuration for dependencies that will be shaded (relocated) into the plugin jar
+val shaded: Configuration by configurations.creating
+val shadedLibraries = listOf(
+    libs.ktor.client.cio,
+    libs.ktor.server.cio,
+    libs.kotlinx.datetime,
+    libs.kotlinx.serialization.json,
+)
+
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/version_catalogs.html
 dependencies {
-    implementation(libs.ktor.client.cio)
-    implementation(libs.ktor.server.cio)
-    implementation(libs.kotlinx.datetime)
-    implementation(libs.kotlinx.serialization.json)
+    // Kotlin/Ktor dependencies are shaded into the plugin jar to avoid classloader conflicts
+    // with IntelliJ platform-provided Kotlin libraries.
+    shadedLibraries.forEach { dependencyNotation ->
+        shaded(dependencyNotation)
+        compileOnly(dependencyNotation)
+        testImplementation(dependencyNotation)
+    }
+
     testImplementation(libs.kotlin.test.junit5)
     testRuntimeOnly(libs.junit4)
     testRuntimeOnly(libs.junit.platform.launcher)
@@ -111,5 +128,45 @@ tasks {
         enabled = providers.gradleProperty("skipSearchableOptions")
             .map { it.toBoolean().not() }
             .getOrElse(true)
+    }
+
+    // Shadow jar that takes the composedJar (instrumented plugin classes) and merges
+    // relocated Kotlin/Ktor dependencies into it, avoiding classloader conflicts.
+    val shadedJar by registering(ShadowJar::class) {
+        group = "shadow"
+        description = "Creates plugin jar with shaded Kotlin/Ktor dependencies"
+
+        dependsOn(named("composedJar"))
+        val composedJarTask = named<AbstractArchiveTask>("composedJar")
+        from(composedJarTask.map { zipTree(it.archiveFile) })
+        configurations = listOf(shaded)
+
+        relocate("io.ktor", "de.moritzf.quota.shadow.io.ktor")
+        relocate("kotlinx.serialization", "de.moritzf.quota.shadow.kotlinx.serialization")
+        relocate("kotlinx.datetime", "de.moritzf.quota.shadow.kotlinx.datetime")
+        relocate("kotlinx.coroutines", "de.moritzf.quota.shadow.kotlinx.coroutines")
+        relocate("kotlinx.io", "de.moritzf.quota.shadow.kotlinx.io")
+        relocate("kotlinx.atomicfu", "de.moritzf.quota.shadow.kotlinx.atomicfu")
+        // Relocate kotlin.time so ktor uses its own Duration class instead of IntelliJ's
+        // (internal method signatures differ between kotlin-stdlib versions)
+        relocate("kotlin.time", "de.moritzf.quota.shadow.kotlin.time")
+
+        dependencies {
+            exclude(dependency("org.jetbrains.kotlin:kotlin-reflect"))
+        }
+
+        mergeServiceFiles()
+        archiveClassifier.set("shaded")
+    }
+
+    // Use the shaded plugin jar for main sandbox/distribution builds only.
+    named<PrepareSandboxTask>("prepareSandbox") {
+        dependsOn(shadedJar)
+        pluginJar.set(shadedJar.flatMap { it.archiveFile })
+    }
+
+    // Ensure shaded jar is available for plugin distribution.
+    named("buildPlugin") {
+        dependsOn(shadedJar)
     }
 }

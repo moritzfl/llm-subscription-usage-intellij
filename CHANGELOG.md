@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-04-08
+- Fixed Kotlin/Ktor classloader conflicts (this prevented all communication with the OpenAI-API on IJ 2025.3)
+- Improved OAuth login error handling
+
 ## [0.7.0] - 2026-04-04
 - Added an indicator location setting so the quota icon can live in the main toolbar or the status bar
 

@@ -11,6 +11,7 @@ import com.intellij.openapi.ui.DialogPanel
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.EditorTextField
 import com.intellij.ui.LanguageTextField
+import com.intellij.icons.AllIcons
 import com.intellij.ui.components.*
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.RightGap
@@ -20,11 +21,14 @@ import com.intellij.util.messages.MessageBusConnection
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
 import javax.swing.Icon
+import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.SwingConstants
 import javax.swing.UIManager
 import java.awt.Color
 import java.awt.Dimension
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
 
 /**
  * Settings UI that manages authentication actions and shows latest quota payload data.
@@ -45,6 +49,8 @@ class QuotaSettingsConfigurable : Configurable {
     private var loginButton: ActionLink? = null
     private var cancelLoginButton: ActionLink? = null
     private var logoutButton: ActionLink? = null
+    private var copyUrlButton: JButton? = null
+    private var authUrl: String? = null
     private var connection: MessageBusConnection? = null
     private var updatingDisplayModeChoices: Boolean = false
 
@@ -63,6 +69,17 @@ class QuotaSettingsConfigurable : Configurable {
         loginButton = createActionLink("Log In")
         cancelLoginButton = createActionLink("Cancel Login")
         logoutButton = createActionLink("Log Out")
+        copyUrlButton = JButton("Copy URL", AllIcons.Actions.Copy).apply {
+            isVisible = false
+            toolTipText = "Copy login URL to clipboard"
+            addActionListener {
+                val url = authUrl
+                if (!url.isNullOrBlank()) {
+                    val selection = StringSelection(url)
+                    Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, null)
+                }
+            }
+        }
 
         locationComboBox!!.addActionListener {
             updateDisplayModeChoices()
@@ -85,7 +102,7 @@ class QuotaSettingsConfigurable : Configurable {
 
             loginButton!!.isEnabled = false
             setStatusMessage("Opening browser...")
-            authService.startLoginFlow { result ->
+            authService.startLoginFlow(callback = { result ->
                 val currentPanel = panel ?: return@startLoginFlow
                 ApplicationManager.getApplication().invokeLater({
                     if (panel == null || statusLabel == null || loginButton == null || logoutButton == null) {
@@ -107,7 +124,14 @@ class QuotaSettingsConfigurable : Configurable {
                     updateAuthUi()
                     updateAccountFields()
                 }, ModalityState.stateForComponent(currentPanel))
-            }
+            }, onAuthUrl = { url ->
+                val currentPanel = panel ?: return@startLoginFlow
+                ApplicationManager.getApplication().invokeLater({
+                    if (copyUrlButton == null) return@invokeLater
+                    authUrl = url
+                    copyUrlButton!!.isVisible = true
+                }, ModalityState.stateForComponent(currentPanel))
+            })
             updateAuthUi()
         }
 
@@ -146,9 +170,8 @@ class QuotaSettingsConfigurable : Configurable {
                 cell(logoutButton!!)
             }
             row {
-                cell(statusLabel!!)
-                    .resizableColumn()
-                    .align(AlignX.FILL)
+                cell(statusLabel!!).gap(RightGap.SMALL)
+                cell(copyUrlButton!!)
             }
 
             separator()
@@ -271,6 +294,8 @@ class QuotaSettingsConfigurable : Configurable {
         loginButton = null
         cancelLoginButton = null
         logoutButton = null
+        copyUrlButton = null
+        authUrl = null
         updatingDisplayModeChoices = false
     }
 
@@ -299,6 +324,10 @@ class QuotaSettingsConfigurable : Configurable {
         cancelLoginButton?.isEnabled = uiState.cancelEnabled
         logoutButton?.isEnabled = uiState.logoutEnabled
         renderStatusMessage(uiState.visibleStatusMessage)
+        if (!inProgress) {
+            copyUrlButton?.isVisible = false
+            authUrl = null
+        }
     }
 
     private fun setStatusMessage(text: String, isError: Boolean = false) {

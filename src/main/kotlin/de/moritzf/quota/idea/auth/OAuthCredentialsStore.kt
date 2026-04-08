@@ -4,6 +4,7 @@ import com.intellij.credentialStore.CredentialAttributes
 import com.intellij.credentialStore.Credentials
 import com.intellij.ide.passwordSafe.PasswordSafe
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.util.SlowOperations
 import de.moritzf.quota.JsonSupport
 
 /**
@@ -13,7 +14,12 @@ class OAuthCredentialsStore(serviceName: String, private val userName: String) :
     private val attributes = CredentialAttributes(serviceName, userName)
 
     override fun load(): OAuthCredentials? {
-        val stored = PasswordSafe.instance.get(attributes) ?: return null
+        val stored = try {
+            withPasswordSafe { PasswordSafe.instance.get(attributes) }
+        } catch (exception: Exception) {
+            LOG.warn("Failed to load stored OAuth credentials", exception)
+            return null
+        } ?: return null
         val json = stored.getPasswordAsString() ?: return null
         if (json.isBlank()) {
             return null
@@ -29,14 +35,29 @@ class OAuthCredentialsStore(serviceName: String, private val userName: String) :
 
     override fun save(credentials: OAuthCredentials) {
         val json = JsonSupport.json.encodeToString(credentials)
-        PasswordSafe.instance.set(attributes, Credentials(userName, json))
+        try {
+            withPasswordSafe {
+                PasswordSafe.instance.set(attributes, Credentials(userName, json))
+            }
+        } catch (exception: Exception) {
+            LOG.warn("Failed to save OAuth credentials", exception)
+            throw IllegalStateException("Could not persist OAuth credentials", exception)
+        }
     }
 
     override fun clear() {
         try {
-            PasswordSafe.instance.set(attributes, null)
+            withPasswordSafe {
+                PasswordSafe.instance.set(attributes, null)
+            }
         } catch (exception: Exception) {
             LOG.warn("Failed to clear stored OAuth credentials", exception)
+        }
+    }
+
+    private fun <T> withPasswordSafe(action: () -> T): T {
+        return SlowOperations.knownIssue("IDEA-352594").use {
+            action()
         }
     }
 

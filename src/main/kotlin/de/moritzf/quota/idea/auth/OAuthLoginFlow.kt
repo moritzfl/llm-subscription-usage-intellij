@@ -13,6 +13,7 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,8 +37,15 @@ class OAuthLoginFlow private constructor(
     private val state: String,
     val authorizationUrl: String,
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val callbackDeferred = CompletableDeferred<OAuthCallbackResult>()
+    private val exceptionHandler = CoroutineExceptionHandler { _, exception ->
+        LOG.warn("OAuth server coroutine failed", exception)
+        if (!callbackDeferred.isCompleted) {
+            val details = exception.message?.takeIf { it.isNotBlank() } ?: exception::class.java.simpleName
+            callbackDeferred.complete(OAuthCallbackResult(error = "Login server failed: $details"))
+        }
+    }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + exceptionHandler)
     private var server: EmbeddedServer<*, *>? = null
 
     suspend fun waitForCallback(): OAuthCallbackResult {
@@ -134,7 +142,8 @@ class OAuthLoginFlow private constructor(
             }
         } catch (exception: Exception) {
             LOG.warn("Callback handling failed", exception)
-            callbackDeferred.complete(OAuthCallbackResult(error = exception.message))
+            val details = exception.message?.takeIf { it.isNotBlank() } ?: "Internal callback handler error"
+            callbackDeferred.complete(OAuthCallbackResult(error = details))
             buildHtmlResponse("Authentication Failed", "Authentication failed.", false)
         }
 
@@ -142,9 +151,14 @@ class OAuthLoginFlow private constructor(
     }
 
     private fun stopServer() {
-        server?.stop(0, 0)
-        if (server != null) {
-            LOG.info("OAuth callback server stopped")
+        val currentServer = server
+        if (currentServer != null) {
+            try {
+                currentServer.stop(0, 0)
+                LOG.info("OAuth callback server stopped")
+            } catch (exception: Exception) {
+                LOG.warn("Failed to stop OAuth callback server cleanly", exception)
+            }
         }
         server = null
         scope.cancel()

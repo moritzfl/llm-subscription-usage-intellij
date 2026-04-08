@@ -23,3 +23,4 @@ kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", versi
 intelliJPlatform = { id = "org.jetbrains.intellij.platform", version = "2.13.1" }
 changelog = { id = "org.jetbrains.changelog", version.ref = "changelog" }
 kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
+shadow = { id = "com.gradleup.shadow", version = "9.0.0-beta12" }
