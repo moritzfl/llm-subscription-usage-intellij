@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-04-14
+- Fixed indicator always showing the correct 100% when the Codex limit is reached, using the reset time of the window that keeps usage blocked the longest
+
 ## [0.7.1] - 2026-04-08
 - Switched OAuth networking and callback server handling from Ktor to Java standard classes (`java.net.http.HttpClient` and `HttpServer`) to avoid runtime conflicts on IntelliJ 2025.3
 - Improved OAuth login error handling and callback reachability diagnostics
