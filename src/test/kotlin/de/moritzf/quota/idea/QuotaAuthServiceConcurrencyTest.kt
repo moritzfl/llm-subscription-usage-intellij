@@ -138,6 +138,24 @@ class QuotaAuthServiceConcurrencyTest {
         }
     }
 
+    @Test
+    fun isLoggedInLoadsPersistedCredentialsOnFirstAccess() {
+        val store = InMemoryCredentialStore(validCredentials(accessToken = "persisted-token", refreshToken = "persisted-refresh-token"))
+        val service = createService(
+            store = store,
+            tokenOperations = TestTokenOperations(
+                onRefresh = { error("Refresh should not be called for valid credentials") },
+            ),
+        )
+
+        try {
+            assertTrue(service.isLoggedIn())
+            assertEquals("account-1", service.getAccountId())
+        } finally {
+            service.dispose()
+        }
+    }
+
     private fun createService(
         store: OAuthCredentialStore,
         tokenOperations: OAuthTokenOperations,

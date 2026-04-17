@@ -99,10 +99,7 @@ class QuotaAuthService(
     }
 
     fun isLoggedIn(): Boolean {
-        val credentials = cachedCredentials.get()
-        if (credentials == null && !cacheLoading.get()) {
-            refreshCacheAsync()
-        }
+        val credentials = loadCachedCredentialsIfNeeded()
         return credentials?.accessToken?.isNotBlank() == true
     }
 
@@ -114,7 +111,7 @@ class QuotaAuthService(
         return credentials.accessToken
     }
 
-    fun getAccountId(): String? = cachedCredentials.get()?.accountId
+    fun getAccountId(): String? = loadCachedCredentialsIfNeeded()?.accountId
 
     fun refreshCacheAsync() {
         if (!cacheLoading.compareAndSet(false, true)) {
@@ -194,6 +191,15 @@ class QuotaAuthService(
     private fun openAuthorizationUi(url: String) {
         LOG.info("Opening authorization UI: $url")
         browserOpener(url)
+    }
+
+    private fun loadCachedCredentialsIfNeeded(): OAuthCredentials? {
+        cachedCredentials.get()?.let { return it }
+        val credentials = getCredentialsBlocking()
+        if (credentials == null && !cacheLoading.get()) {
+            refreshCacheAsync()
+        }
+        return credentials
     }
 
     private fun getCredentialsBlocking(): OAuthCredentials? {
