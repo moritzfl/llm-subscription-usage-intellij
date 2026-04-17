@@ -92,14 +92,32 @@ class OpenAiCodexQuotaClientTest {
     }
 
     @Test
-    fun fetchQuotaThrowsWhenNoUsableWindowsArePresent() {
+    fun fetchQuotaAcceptsStateOnlyResponsesWhenUsageFlagsArePresent() {
         @Language("JSON")
         val json = """
             {
               "rate_limit": {
-                "allowed": true,
-                "limit_reached": false
+                "allowed": false,
+                "limit_reached": true
               }
+            }
+        """.trimIndent()
+
+        val client = newClientReturning(200, json)
+        val quota = client.fetchQuota("token", "account-1")
+
+        assertEquals(false, quota.allowed)
+        assertEquals(true, quota.limitReached)
+        assertNull(quota.primary)
+        assertNull(quota.secondary)
+    }
+
+    @Test
+    fun fetchQuotaThrowsWhenNoUsageStateIsPresent() {
+        @Language("JSON")
+        val json = """
+            {
+              "rate_limit": {}
             }
         """.trimIndent()
 
@@ -109,7 +127,7 @@ class OpenAiCodexQuotaClientTest {
         }
 
         assertEquals(200, exception.statusCode)
-        assertTrue(exception.message.orEmpty().contains("did not include usable windows"))
+        assertTrue(exception.message.orEmpty().contains("did not include usable quota state"))
     }
 
     @Test

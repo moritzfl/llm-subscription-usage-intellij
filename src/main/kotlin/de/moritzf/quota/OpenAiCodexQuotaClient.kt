@@ -39,8 +39,8 @@ class OpenAiCodexQuotaClient(
         }
 
         val quota = JsonSupport.json.decodeFromString<OpenAiCodexQuota>(body)
-        if (!quota.hasUsableWindows()) {
-            throw OpenAiCodexQuotaException("Usage response did not include usable windows", 200)
+        if (!quota.hasUsageState()) {
+            throw OpenAiCodexQuotaException("Usage response did not include usable quota state", 200)
         }
 
         quota.fetchedAt = Clock.System.now()

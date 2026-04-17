@@ -26,6 +26,14 @@ class OpenAiCodexQuota(
         return primary != null || secondary != null || reviewPrimary != null || reviewSecondary != null
     }
 
+    fun hasUsageState(): Boolean {
+        return hasUsableWindows() ||
+            allowed != null ||
+            limitReached != null ||
+            reviewAllowed != null ||
+            reviewLimitReached != null
+    }
+
     override fun toString(): String {
         return "OpenAiCodexQuota(" +
             "primary=$primary, " +

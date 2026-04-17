@@ -15,6 +15,18 @@ import javax.swing.JComponent
 import javax.swing.SwingConstants
 import kotlin.math.roundToInt
 
+internal enum class IndicatorQuotaKind {
+    CODEX,
+    REVIEW,
+}
+
+internal data class IndicatorQuotaState(
+    val kind: IndicatorQuotaKind,
+    val window: UsageWindow?,
+    val limitReached: Boolean,
+    val allowed: Boolean?,
+)
+
 internal class QuotaIndicatorComponent(
     horizontalPadding: Int,
     private val onClick: (Component, OpenAiCodexQuota?, String?) -> Unit,
@@ -86,24 +98,7 @@ internal class QuotaIndicatorComponent(
 
     private fun barDisplayText(): String {
         val authService = QuotaAuthService.getInstance()
-        if (!authService.isLoggedIn()) {
-            return "OpenAI: not logged in"
-        }
-        if (error != null) {
-            return "OpenAI: error"
-        }
-
-        quota?.primary ?: return "OpenAI: loading..."
-        if (quota?.limitReached == true) {
-            val resetWindow = limitingWindow(quota)
-            val reset = QuotaUiUtil.formatResetCompact(resetWindow?.resetsAt)
-            return if (reset != null) "100% • $reset" else "100%"
-        }
-
-        val primary = quota!!.primary!!
-        val percent = clampPercent(primary.usedPercent.roundToInt())
-        val reset = QuotaUiUtil.formatResetCompact(primary.resetsAt)
-        return if (reset != null) "$percent% • $reset" else "$percent%"
+        return indicatorBarDisplayText(quota, error, authService.isLoggedIn())
     }
 
     private fun cakeIcon(): Icon {
@@ -112,12 +107,15 @@ internal class QuotaIndicatorComponent(
             return QuotaIcons.CAKE_UNKNOWN
         }
 
-        val primary = quota?.primary ?: return QuotaIcons.CAKE_UNKNOWN
-        if (quota?.limitReached == true) {
+        val state = indicatorQuotaState(quota) ?: return QuotaIcons.CAKE_UNKNOWN
+        if (state.limitReached) {
             return QuotaIcons.CAKE_100
         }
+        if (state.allowed == false) {
+            return QuotaIcons.CAKE_UNKNOWN
+        }
 
-        val percent = clampPercent(primary.usedPercent.roundToInt())
+        val percent = state.window?.let { clampPercent(it.usedPercent.roundToInt()) } ?: return QuotaIcons.CAKE_UNKNOWN
         if (percent >= 100) {
             return QuotaIcons.CAKE_100
         }
@@ -156,13 +154,7 @@ internal class QuotaIndicatorComponent(
 
     private fun displayPercent(): Int {
         val authService = QuotaAuthService.getInstance()
-        if (!authService.isLoggedIn() || error != null) {
-            return -1
-        }
-
-        val primary = quota?.primary ?: return -1
-        if (quota?.limitReached == true) return 100
-        return clampPercent(primary.usedPercent.roundToInt())
+        return indicatorDisplayPercent(quota, error, authService.isLoggedIn())
     }
 
     private fun updatePercentageDisplay() {
@@ -185,26 +177,178 @@ internal class QuotaIndicatorComponent(
 
 internal fun buildQuotaTooltipText(quota: OpenAiCodexQuota?, error: String?): String {
     val authService = QuotaAuthService.getInstance()
-    if (!authService.isLoggedIn()) {
+    return buildQuotaTooltipText(quota, error, authService.isLoggedIn())
+}
+
+internal fun buildQuotaTooltipText(quota: OpenAiCodexQuota?, error: String?, loggedIn: Boolean): String {
+    if (!loggedIn) {
         return "OpenAI usage quota: not logged in"
     }
     if (error != null) {
         return "OpenAI usage quota: $error"
     }
 
-    val primary = quota?.primary ?: return "OpenAI usage quota: loading"
-    val percent = if (quota?.limitReached == true) 100 else clampPercent(primary.usedPercent.roundToInt())
-    return "OpenAI usage quota: $percent% used"
+    val state = indicatorQuotaState(quota) ?: return "OpenAI usage quota: loading"
+    val label = when (state.kind) {
+        IndicatorQuotaKind.CODEX -> "OpenAI usage quota"
+        IndicatorQuotaKind.REVIEW -> "OpenAI code review quota"
+    }
+    return when {
+        state.limitReached -> "$label: limit reached"
+        state.allowed == false -> "$label: usage not allowed"
+        state.window == null -> "$label: available"
+        else -> {
+            val percent = clampPercent(state.window.usedPercent.roundToInt())
+            "$label: $percent% used"
+        }
+    }
+}
+
+internal fun indicatorBarDisplayText(quota: OpenAiCodexQuota?, error: String?, loggedIn: Boolean): String {
+    if (!loggedIn) {
+        return "OpenAI: not logged in"
+    }
+    if (error != null) {
+        return "OpenAI: error"
+    }
+
+    val state = indicatorQuotaState(quota) ?: return "OpenAI: loading..."
+    return when {
+        state.limitReached -> {
+            val resetWindow = limitingWindow(quota, state.kind)
+            val reset = QuotaUiUtil.formatResetCompact(resetWindow?.resetsAt)
+            val prefix = when (state.kind) {
+                IndicatorQuotaKind.CODEX -> ""
+                IndicatorQuotaKind.REVIEW -> "Review "
+            }
+            if (reset != null) "${prefix}100% • $reset" else "${prefix}100%"
+        }
+
+        state.allowed == false -> {
+            when (state.kind) {
+                IndicatorQuotaKind.CODEX -> "OpenAI: not allowed"
+                IndicatorQuotaKind.REVIEW -> "Review: not allowed"
+            }
+        }
+
+        state.window == null -> {
+            when (state.kind) {
+                IndicatorQuotaKind.CODEX -> "OpenAI: available"
+                IndicatorQuotaKind.REVIEW -> "Review: available"
+            }
+        }
+
+        else -> {
+            val percent = clampPercent(state.window.usedPercent.roundToInt())
+            val reset = QuotaUiUtil.formatResetCompact(state.window.resetsAt)
+            val prefix = when (state.kind) {
+                IndicatorQuotaKind.CODEX -> ""
+                IndicatorQuotaKind.REVIEW -> "Review "
+            }
+            val text = "$prefix$percent%"
+            if (reset != null) "$text • $reset" else text
+        }
+    }
+}
+
+internal fun indicatorDisplayPercent(quota: OpenAiCodexQuota?, error: String?, loggedIn: Boolean): Int {
+    if (!loggedIn || error != null) {
+        return -1
+    }
+
+    val state = indicatorQuotaState(quota) ?: return -1
+    if (state.limitReached) return 100
+    if (state.allowed == false) return -1
+    val window = state.window ?: return -1
+    return clampPercent(window.usedPercent.roundToInt())
+}
+
+internal fun indicatorQuotaState(quota: OpenAiCodexQuota?): IndicatorQuotaState? {
+    if (quota == null) {
+        return null
+    }
+
+    val codexWindow = quota.primary ?: quota.secondary
+    if (codexWindow != null) {
+        return IndicatorQuotaState(
+            kind = IndicatorQuotaKind.CODEX,
+            window = codexWindow,
+            limitReached = quota.limitReached == true,
+            allowed = quota.allowed,
+        )
+    }
+
+    val reviewWindow = quota.reviewPrimary ?: quota.reviewSecondary
+    if (isBlockedState(quota.limitReached, quota.allowed)) {
+        return IndicatorQuotaState(
+            kind = IndicatorQuotaKind.CODEX,
+            window = null,
+            limitReached = quota.limitReached == true,
+            allowed = quota.allowed,
+        )
+    }
+
+    if (reviewWindow != null) {
+        return IndicatorQuotaState(
+            kind = IndicatorQuotaKind.REVIEW,
+            window = reviewWindow,
+            limitReached = quota.reviewLimitReached == true,
+            allowed = quota.reviewAllowed,
+        )
+    }
+
+    if (isBlockedState(quota.reviewLimitReached, quota.reviewAllowed)) {
+        return IndicatorQuotaState(
+            kind = IndicatorQuotaKind.REVIEW,
+            window = null,
+            limitReached = quota.reviewLimitReached == true,
+            allowed = quota.reviewAllowed,
+        )
+    }
+
+    if (hasAnyState(quota.limitReached, quota.allowed)) {
+        return IndicatorQuotaState(
+            kind = IndicatorQuotaKind.CODEX,
+            window = null,
+            limitReached = quota.limitReached == true,
+            allowed = quota.allowed,
+        )
+    }
+
+    if (hasAnyState(quota.reviewLimitReached, quota.reviewAllowed)) {
+        return IndicatorQuotaState(
+            kind = IndicatorQuotaKind.REVIEW,
+            window = null,
+            limitReached = quota.reviewLimitReached == true,
+            allowed = quota.reviewAllowed,
+        )
+    }
+
+    return null
 }
 
 internal fun clampPercent(value: Int): Int = value.coerceIn(0, 100)
+
+private fun isBlockedState(limitReached: Boolean?, allowed: Boolean?): Boolean {
+    return limitReached == true || allowed == false
+}
+
+private fun hasAnyState(limitReached: Boolean?, allowed: Boolean?): Boolean {
+    return limitReached != null || allowed != null
+}
 
 /**
  * Returns the window that is at 100% usage and has the latest reset time.
  * Falls back to whichever window resets latest if none are explicitly at 100%.
  */
-internal fun limitingWindow(quota: OpenAiCodexQuota?): UsageWindow? {
-    val windows = listOfNotNull(quota?.primary, quota?.secondary)
+internal fun limitingWindow(
+    quota: OpenAiCodexQuota?,
+    kind: IndicatorQuotaKind = IndicatorQuotaKind.CODEX,
+): UsageWindow? {
+    val windows = when (kind) {
+        IndicatorQuotaKind.CODEX -> listOfNotNull(quota?.primary, quota?.secondary)
+        IndicatorQuotaKind.REVIEW -> listOfNotNull(quota?.reviewPrimary, quota?.reviewSecondary)
+    }
     if (windows.isEmpty()) return null
     return windows
         .filter { it.usedPercent >= 100.0 }
