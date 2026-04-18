@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-04-18
+- Improved login stability to avoid incorrect signed-out states and unnecessary credential resets
+- Made quota parsing and persistence more robust when OpenAI returns incomplete or unexpected responses
+
 ## [0.7.2] - 2026-04-14
 - Fixed indicator always showing the correct 100% when the Codex limit is reached, using the reset time of the window that keeps usage blocked the longest
 
