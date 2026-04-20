@@ -49,6 +49,7 @@ class QuotaUsageService(
     private val lastOpenCodeErrorRef = AtomicReference<String?>()
     private val lastOpenCodeCookieRef = AtomicReference<String?>()
     private val cachedWorkspaceId = AtomicReference<String?>()
+    private val cachedWorkspaceIdTimestamp = AtomicReference(0L)
     private var scheduled: ScheduledFuture<*>? = null
 
     init {
@@ -160,9 +161,14 @@ class QuotaUsageService(
     }
 
     private fun resolveWorkspaceId(sessionCookie: String): String {
-        cachedWorkspaceId.get()?.let { return it }
+        val cached = cachedWorkspaceId.get()
+        val timestamp = cachedWorkspaceIdTimestamp.get()
+        if (cached != null && System.currentTimeMillis() - timestamp < WORKSPACE_CACHE_TTL_MS) {
+            return cached
+        }
         val workspaceId = openCodeClient.discoverWorkspaceId(sessionCookie)
         cachedWorkspaceId.set(workspaceId)
+        cachedWorkspaceIdTimestamp.set(System.currentTimeMillis())
         return workspaceId
     }
 
@@ -175,12 +181,14 @@ class QuotaUsageService(
 
     private fun resetOpenCodeCaches() {
         cachedWorkspaceId.set(null)
+        cachedWorkspaceIdTimestamp.set(0)
         OpenCodeQuotaClient.clearCachedFunctionId()
     }
 
     private fun shouldRetryOpenCode(exception: OpenCodeQuotaException): Boolean {
         return exception.statusCode == 0 ||
-            exception.statusCode in 400..499 ||
+            exception.statusCode == 401 ||
+            exception.statusCode == 403 ||
             exception.message?.contains("Could not parse OpenCode quota response") == true
     }
 
@@ -215,6 +223,8 @@ class QuotaUsageService(
     }
 
     companion object {
+        private const val WORKSPACE_CACHE_TTL_MS = 30 * 60 * 1000L
+
         @JvmStatic
         fun getInstance(): QuotaUsageService {
             return ApplicationManager.getApplication().getService(QuotaUsageService::class.java)

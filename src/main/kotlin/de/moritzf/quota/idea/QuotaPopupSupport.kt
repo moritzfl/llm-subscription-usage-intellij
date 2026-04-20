@@ -37,6 +37,7 @@ internal enum class QuotaPopupLocation {
 }
 
 internal object QuotaPopupSupport {
+    private const val OPENCODE_GO_LABEL = "OpenCode Go"
     fun showPopup(
         project: Project,
         component: Component,
@@ -141,7 +142,7 @@ internal object QuotaPopupSupport {
 
             val planLabel = currentQuota?.planType?.toDisplayLabel()
             if (!planLabel.isNullOrBlank()) {
-                add(withVerticalInsets(createMutedLabel("Plan: $planLabel"), top = 3))
+                add(withVerticalInsets(createMutedLabel("OpenAI Plan: $planLabel"), top = 3))
             }
 
             add(createSeparatedBlock())
@@ -200,7 +201,7 @@ internal object QuotaPopupSupport {
                         }
 
                         else -> {
-                            add(withVerticalInsets(createSectionTitleLabel("OpenCode Go"), top = 0))
+                            add(withVerticalInsets(createSectionTitleLabel(OPENCODE_GO_LABEL), top = 0))
                             openCodeQuota.rollingUsage?.let {
                                 add(createOpenCodeWindowBlock(it, "5h rolling", top = 3))
                             }
@@ -354,7 +355,7 @@ internal object QuotaPopupSupport {
     }
 
     private fun createPopupTitleLabel(): JBLabel {
-        return JBLabel("OpenAI usage").apply {
+        return JBLabel("Quota").apply {
             font = font.deriveFont(font.style or Font.BOLD, font.size + 2f)
         }
     }

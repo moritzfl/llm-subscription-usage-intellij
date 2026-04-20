@@ -139,8 +139,12 @@ internal class SolidStartValueParser(
         if (peek('-')) {
             index++
         }
+        val digitsStart = index
         while (index < text.length && text[index].isDigit()) {
             index++
+        }
+        if (digitsStart == index) {
+            fail("Expected numeric literal")
         }
         if (peek('.')) {
             index++
@@ -169,6 +173,14 @@ internal class SolidStartValueParser(
             }
             peek('1') -> {
                 index++
+                JsonPrimitive(false)
+            }
+            text.startsWith("true", index) -> {
+                index += 4
+                JsonPrimitive(true)
+            }
+            text.startsWith("false", index) -> {
+                index += 5
                 JsonPrimitive(false)
             }
             else -> fail("Unsupported bang literal")

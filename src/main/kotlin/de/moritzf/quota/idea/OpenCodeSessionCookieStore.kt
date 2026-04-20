@@ -6,6 +6,7 @@ import com.intellij.ide.passwordSafe.PasswordSafe
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.util.concurrency.AppExecutorUtil
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import java.util.logging.Logger
 
@@ -18,6 +19,7 @@ class OpenCodeSessionCookieStore {
     private val attributes = CredentialAttributes(SERVICE_NAME, USER_NAME)
     private val cachedCookie = AtomicReference<String?>()
     private val loaded = AtomicReference(false)
+    private val loading = AtomicBoolean(false)
 
     /**
      * Returns the cached cookie value, or null if not yet loaded.
@@ -25,7 +27,9 @@ class OpenCodeSessionCookieStore {
      */
     fun load(): String? {
         if (!loaded.get()) {
-            loadAsync()
+            if (loading.compareAndSet(false, true)) {
+                loadAsync()
+            }
             return null
         }
         return cachedCookie.get()
@@ -36,14 +40,18 @@ class OpenCodeSessionCookieStore {
      */
     private fun loadAsync() {
         AppExecutorUtil.getAppExecutorService().execute {
-            val stored = try {
-                PasswordSafe.instance.get(attributes)
-            } catch (exception: Exception) {
-                null
+            try {
+                val stored = try {
+                    PasswordSafe.instance.get(attributes)
+                } catch (exception: Exception) {
+                    null
+                }
+                val cookie = stored?.getPasswordAsString()?.ifBlank { null }
+                cachedCookie.set(cookie)
+            } finally {
+                loaded.set(true)
+                loading.set(false)
             }
-            val cookie = stored?.getPasswordAsString()?.ifBlank { null }
-            cachedCookie.set(cookie)
-            loaded.set(true)
         }
     }
 
@@ -60,7 +68,7 @@ class OpenCodeSessionCookieStore {
         val cookie = stored?.getPasswordAsString()?.ifBlank { null }
         cachedCookie.set(cookie)
         loaded.set(true)
-        LOG.info("Loaded cookie: len=${cookie?.length ?: 0}, present=${cookie != null}")
+        LOG.fine("Loaded cookie: len=${cookie?.length ?: 0}, present=${cookie != null}")
         return cookie
     }
 
@@ -72,12 +80,8 @@ class OpenCodeSessionCookieStore {
         }
         cachedCookie.set(cookie.ifBlank { null })
         loaded.set(true)
-
-        // Verify save by reading back
-        val readBack = try {
-            PasswordSafe.instance.get(attributes)?.getPasswordAsString()
-        } catch (e: Exception) { null }
-        LOG.info("Saved cookie (len=${cookie.length}), read back len=${readBack?.length}, match=${cookie == readBack}")
+        loading.set(false)
+        LOG.fine("Saved cookie (len=${cookie.length})")
     }
 
     fun clear() {

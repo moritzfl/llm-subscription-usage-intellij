@@ -62,6 +62,7 @@ open class OpenCodeQuotaClient(
 
     /**
      * Discovers the workspace ID from the user's opencode.ai console.
+     * Iterates all workspaces and returns the first one with an active Go subscription.
      */
     @Throws(IOException::class, InterruptedException::class)
     open fun discoverWorkspaceId(sessionCookie: String): String {
@@ -91,12 +92,33 @@ open class OpenCodeQuotaClient(
             )
         }
 
-        val match = WORKSPACE_ID_PATTERN.find(response.body())
-            ?: throw OpenCodeQuotaException(
+        val workspaceIds = WORKSPACE_ID_PATTERN.findAll(response.body()).map { it.groupValues[1] }.toList()
+        if (workspaceIds.isEmpty()) {
+            throw OpenCodeQuotaException(
                 "No workspace found. Please ensure you have an active OpenCode Go subscription.",
                 200, response.body()
             )
-        return match.groupValues[1]
+        }
+
+        for (workspaceId in workspaceIds) {
+            try {
+                val quota = fetchQuota(sessionCookie, workspaceId)
+                if (quota.hasUsageState()) {
+                    LOG.info("Found Go subscription in workspace: $workspaceId")
+                    return workspaceId
+                }
+            } catch (exception: OpenCodeQuotaException) {
+                when (exception.statusCode) {
+                    0, 401, 403, 404 -> continue
+                    else -> throw exception
+                }
+            }
+        }
+
+        throw OpenCodeQuotaException(
+            "No workspace with an active OpenCode Go subscription found.",
+            200, response.body()
+        )
     }
 
     /**
