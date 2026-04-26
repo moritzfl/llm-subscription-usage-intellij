@@ -13,6 +13,7 @@ data class OpenCodeQuota(
     val monthlyUsage: OpenCodeUsageWindow? = null,
     val mine: Boolean = false,
     val useBalance: Boolean = false,
+    var availableBalance: Long? = null,
     var fetchedAt: Instant? = null,
     var rawJson: String? = null,
 ) {

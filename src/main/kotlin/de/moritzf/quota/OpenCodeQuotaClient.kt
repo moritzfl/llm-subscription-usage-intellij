@@ -4,6 +4,7 @@ import kotlinx.datetime.Clock
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.Serializable
 import java.io.IOException
 import java.time.Duration
 import java.net.URI
@@ -54,7 +55,14 @@ open class OpenCodeQuotaClient(
             throw OpenCodeQuotaException("OpenCode quota request failed: HTTP $status - ${body.take(500)}", status, body)
         }
 
-        val quota = parseSolidStartResponse(body)
+        val quota = parseQuotaResponse(body)
+        runCatching {
+            fetchBillingInfo(sessionCookie, workspaceId)?.balance
+        }.onFailure { exception ->
+            LOG.warning("Could not fetch OpenCode billing balance: ${exception.message}")
+        }.getOrNull()?.let { balance ->
+            quota.availableBalance = balance
+        }
         quota.fetchedAt = Clock.System.now()
         quota.rawJson = body
         return quota
@@ -172,6 +180,37 @@ open class OpenCodeQuotaClient(
         return null
     }
 
+    /**
+     * Fetches billing info so we can surface the available workspace balance next to the Go limits.
+     */
+    private fun fetchBillingInfo(sessionCookie: String, workspaceId: String): OpenCodeBillingInfo? {
+        val argsJson = """["$workspaceId"]"""
+        val encodedArgs = java.net.URLEncoder.encode(argsJson, Charsets.UTF_8)
+        val uri = URI.create("${endpoint}?id=$BILLING_INFO_FUNCTION_ID&args=$encodedArgs")
+
+        val request = HttpRequest.newBuilder()
+            .uri(uri)
+            .timeout(Duration.ofSeconds(15))
+            .header("Cookie", "auth=$sessionCookie")
+            .header("Accept", "application/json")
+            .header("X-Server-Id", BILLING_INFO_FUNCTION_ID)
+            .header("X-Server-Instance", "server-fn:1")
+            .header("Referer", "https://opencode.ai/workspace/$workspaceId/billing")
+            .header("Origin", "https://opencode.ai")
+            .GET()
+            .build()
+
+        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        val status = response.statusCode()
+        val body = response.body()
+
+        if (status !in 200..299) {
+            throw OpenCodeQuotaException("OpenCode billing request failed: HTTP $status - ${body.take(500)}", status, body)
+        }
+
+        return parseBillingInfoResponse(body)
+    }
+
     companion object {
         @JvmField
         val DEFAULT_ENDPOINT: URI = URI.create("https://opencode.ai/_server")
@@ -180,6 +219,7 @@ open class OpenCodeQuotaClient(
         private val cachedFunctionId = AtomicReference<CachedFunctionId?>()
 
         private const val WORKSPACES_FUNCTION_ID = "def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f"
+        private const val BILLING_INFO_FUNCTION_ID = "c83b78a614689c38ebee981f9b39a8b377716db85c1fd7dbab604adc02d3313d"
 
         private val FUNCTION_ID_PATTERN = Regex(
             """queryLiteSubscription_query\s*=\s*createServerReference\("([a-f0-9]{64})"\)"""
@@ -194,7 +234,37 @@ open class OpenCodeQuotaClient(
             cachedFunctionId.set(null)
         }
 
-        fun parseSolidStartResponse(body: String): OpenCodeQuota {
+        fun parseQuotaResponse(body: String): OpenCodeQuota {
+            val rootObject = parseRootObject(body)
+
+            return try {
+                JsonSupport.json.decodeFromJsonElement<OpenCodeQuota>(rootObject)
+            } catch (exception: Exception) {
+                throw OpenCodeQuotaException(
+                    "Could not parse OpenCode quota response",
+                    200,
+                    body,
+                    exception,
+                )
+            }
+        }
+
+        internal fun parseBillingInfoResponse(body: String): OpenCodeBillingInfo {
+            val rootObject = parseRootObject(body)
+
+            return try {
+                JsonSupport.json.decodeFromJsonElement<OpenCodeBillingInfo>(rootObject)
+            } catch (exception: Exception) {
+                throw OpenCodeQuotaException(
+                    "Could not parse OpenCode billing response",
+                    200,
+                    body,
+                    exception,
+                )
+            }
+        }
+
+        private fun parseRootObject(body: String): JsonObject {
             val rootAssignmentIndex = body.indexOf(ROOT_ASSIGNMENT_MARKER)
             if (rootAssignmentIndex < 0) {
                 throw OpenCodeQuotaException("Could not parse OpenCode response: unexpected format", 200, body)
@@ -220,17 +290,7 @@ open class OpenCodeQuotaClient(
 
             val rootObject = rootElement as? JsonObject
                 ?: throw OpenCodeQuotaException("Could not parse OpenCode response: unexpected format", 200, body)
-
-            return try {
-                JsonSupport.json.decodeFromJsonElement<OpenCodeQuota>(rootObject)
-            } catch (exception: Exception) {
-                throw OpenCodeQuotaException(
-                    "Could not parse OpenCode quota response",
-                    200,
-                    body,
-                    exception,
-                )
-            }
+            return rootObject
         }
 
         private const val ROOT_ASSIGNMENT_MARKER = "\$R[0]="
@@ -242,3 +302,8 @@ open class OpenCodeQuotaClient(
 
     }
 }
+
+@Serializable
+internal data class OpenCodeBillingInfo(
+    val balance: Long? = null,
+)

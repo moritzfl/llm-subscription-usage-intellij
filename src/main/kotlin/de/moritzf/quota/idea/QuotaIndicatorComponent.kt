@@ -29,15 +29,17 @@ internal data class IndicatorQuotaState(
 
 internal class QuotaIndicatorComponent(
     horizontalPadding: Int,
-    private val onClick: (Component, OpenAiCodexQuota?, String?) -> Unit,
+    private val onClick: (Component, Any?, String?) -> Unit,
 ) : BorderLayoutPanel() {
     private val statusIconLabel = createStatusIconLabel()
+    private val sourceIconLabel = createSourceIconLabel()
     private val percentageComponent = QuotaPercentageIndicator()
     private var quota: OpenAiCodexQuota? = null
+    private var openCodeQuota: de.moritzf.quota.OpenCodeQuota? = null
     private var error: String? = null
     private val clickListener = object : MouseAdapter() {
         override fun mouseClicked(event: MouseEvent) {
-            onClick(this@QuotaIndicatorComponent, quota, error)
+            onClick(this@QuotaIndicatorComponent, openCodeQuota ?: quota, error)
         }
     }
 
@@ -48,17 +50,27 @@ internal class QuotaIndicatorComponent(
         toolTipText = " "
         addMouseListener(clickListener)
         statusIconLabel.addMouseListener(clickListener)
+        sourceIconLabel.addMouseListener(clickListener)
         percentageComponent.addMouseListener(clickListener)
         statusIconLabel.cursor = cursor
+        sourceIconLabel.cursor = cursor
         percentageComponent.cursor = cursor
     }
 
-    fun updateUsage(quota: OpenAiCodexQuota?, error: String?, displayMode: QuotaDisplayMode) {
-        this.quota = quota
+    fun updateUsage(quota: Any?, error: String?, displayMode: QuotaDisplayMode) {
+        val openAiQuota = quota as? OpenAiCodexQuota
+        val openCodeQuota = quota as? de.moritzf.quota.OpenCodeQuota
+        this.quota = openAiQuota
+        this.openCodeQuota = openCodeQuota
         this.error = error
-        val tooltip = buildQuotaTooltipText(quota, error)
+        val tooltip = if (openCodeQuota != null) {
+            buildOpenCodeTooltipText(openCodeQuota, error)
+        } else {
+            buildQuotaTooltipText(openAiQuota, error)
+        }
         toolTipText = tooltip
         statusIconLabel.toolTipText = tooltip
+        sourceIconLabel.toolTipText = tooltip
         percentageComponent.toolTipText = tooltip
 
         when (displayMode) {
@@ -74,7 +86,13 @@ internal class QuotaIndicatorComponent(
 
             QuotaDisplayMode.PERCENTAGE_BAR -> {
                 updatePercentageDisplay()
-                showContent(percentageComponent)
+                val icon = resolveSourceIcon()
+                if (icon != null) {
+                    sourceIconLabel.icon = scaledSourceIcon(icon, sourceIconLabel)
+                    showPercentageContent(sourceIconLabel, percentageComponent)
+                } else {
+                    showContent(percentageComponent)
+                }
             }
         }
 
@@ -82,11 +100,33 @@ internal class QuotaIndicatorComponent(
         repaint()
     }
 
-    override fun getToolTipText(event: MouseEvent?): String = buildQuotaTooltipText(quota, error)
+    override fun getToolTipText(event: MouseEvent?): String {
+        return if (openCodeQuota != null) {
+            buildOpenCodeTooltipText(openCodeQuota, error)
+        } else {
+            buildQuotaTooltipText(quota, error)
+        }
+    }
 
     private fun showContent(component: JComponent) {
         removeAll()
         addToCenter(component)
+    }
+
+    private fun showPercentageContent(iconLabel: JComponent, percentageComponent: QuotaPercentageIndicator) {
+        removeAll()
+        val wrapper = BorderLayoutPanel().apply { isOpaque = false }
+        wrapper.addToLeft(iconLabel)
+        wrapper.addToCenter(percentageComponent)
+        addToCenter(wrapper)
+    }
+
+    private fun resolveSourceIcon(): Icon? {
+        return when {
+            openCodeQuota != null -> QuotaIcons.OPENCODE
+            quota != null -> QuotaIcons.OPENAI
+            else -> null
+        }
     }
 
     private fun createStatusIconLabel(): JBLabel {
@@ -96,12 +136,56 @@ internal class QuotaIndicatorComponent(
         }
     }
 
+    private fun createSourceIconLabel(): JBLabel {
+        return JBLabel().apply {
+            horizontalAlignment = SwingConstants.CENTER
+            verticalAlignment = SwingConstants.CENTER
+            border = JBUI.Borders.emptyRight(3)
+        }
+    }
+
     private fun barDisplayText(): String {
+        val ocQuota = openCodeQuota
+        if (ocQuota != null) {
+            return openCodeBarDisplayText(ocQuota, error)
+        }
         val authService = QuotaAuthService.getInstance()
         return indicatorBarDisplayText(quota, error, authService.isLoggedIn())
     }
 
+    internal fun openCodeBarDisplayText(quota: de.moritzf.quota.OpenCodeQuota, error: String?): String {
+        if (error != null) return "error"
+        val window = quota.rollingUsage ?: quota.weeklyUsage ?: quota.monthlyUsage
+        val balanceText = if (quota.useBalance) quota.availableBalance?.let { "$${QuotaUiUtil.formatOpenCodeBalance(it)}" } else null
+        return when {
+            window == null -> if (balanceText != null) "no data \u2022 $balanceText" else "no data"
+            window.isRateLimited -> if (balanceText != null) "rate limited \u2022 $balanceText" else "rate limited"
+            else -> {
+                val percent = window.usagePercent
+                val reset = formatResetTime(window.resetInSec)
+                val parts = mutableListOf("$percent%")
+                if (balanceText != null) parts.add(balanceText)
+                if (reset != null) parts.add(reset)
+                parts.joinToString(" \u2022 ")
+            }
+        }
+    }
+
+    private fun formatResetTime(resetInSec: Long): String? {
+        if (resetInSec <= 0) return null
+        return when {
+            resetInSec < 60 -> "${resetInSec}s"
+            resetInSec < 3600 -> "${resetInSec / 60}m"
+            resetInSec < 86400 -> "${resetInSec / 3600}h"
+            else -> "${resetInSec / 86400}d"
+        }
+    }
+
     private fun cakeIcon(): Icon {
+        val ocQuota = openCodeQuota
+        if (ocQuota != null) {
+            return openCodeCakeIcon(ocQuota)
+        }
         val authService = QuotaAuthService.getInstance()
         if (!authService.isLoggedIn() || error != null) {
             return QuotaIcons.CAKE_UNKNOWN
@@ -148,26 +232,85 @@ internal class QuotaIndicatorComponent(
         }
     }
 
+    private fun openCodeCakeIcon(quota: de.moritzf.quota.OpenCodeQuota): Icon {
+        val window = quota.rollingUsage ?: quota.weeklyUsage ?: quota.monthlyUsage
+        if (window == null || window.isRateLimited) {
+            return QuotaIcons.CAKE_UNKNOWN
+        }
+        val percent = window.usagePercent
+        return when {
+            percent >= 100 -> QuotaIcons.CAKE_100
+            percent <= 0 -> QuotaIcons.CAKE_0
+            else -> {
+                val bucket = minOf(95, ((percent + 4) / 5) * 5)
+                when (bucket) {
+                    5 -> QuotaIcons.CAKE_5
+                    10 -> QuotaIcons.CAKE_10
+                    15 -> QuotaIcons.CAKE_15
+                    20 -> QuotaIcons.CAKE_20
+                    25 -> QuotaIcons.CAKE_25
+                    30 -> QuotaIcons.CAKE_30
+                    35 -> QuotaIcons.CAKE_35
+                    40 -> QuotaIcons.CAKE_40
+                    45 -> QuotaIcons.CAKE_45
+                    50 -> QuotaIcons.CAKE_50
+                    55 -> QuotaIcons.CAKE_55
+                    60 -> QuotaIcons.CAKE_60
+                    65 -> QuotaIcons.CAKE_65
+                    70 -> QuotaIcons.CAKE_70
+                    75 -> QuotaIcons.CAKE_75
+                    80 -> QuotaIcons.CAKE_80
+                    85 -> QuotaIcons.CAKE_85
+                    90 -> QuotaIcons.CAKE_90
+                    95 -> QuotaIcons.CAKE_95
+                    else -> QuotaIcons.CAKE_UNKNOWN
+                }
+            }
+        }
+    }
+
     private fun scaledCakeIcon(component: JComponent): Icon {
         return scaleIconToQuotaStatusSize(cakeIcon(), component)
     }
 
+    private fun scaledSourceIcon(icon: Icon, component: JComponent): Icon {
+        val targetSize = JBUI.scale(13)
+        val iconWidth = icon.iconWidth
+        val iconHeight = icon.iconHeight
+        if (iconWidth <= 0 || iconHeight <= 0) {
+            return icon
+        }
+        if (iconWidth <= targetSize && iconHeight <= targetSize) {
+            return icon
+        }
+
+        val widthScale = targetSize / iconWidth.toFloat()
+        val heightScale = targetSize / iconHeight.toFloat()
+        return IconUtil.scale(icon, component, minOf(widthScale, heightScale))
+    }
+
     private fun displayPercent(): Int {
+        val ocQuota = openCodeQuota
+        if (ocQuota != null) {
+            val window = ocQuota.rollingUsage ?: ocQuota.weeklyUsage ?: ocQuota.monthlyUsage
+            return window?.usagePercent ?: -1
+        }
         val authService = QuotaAuthService.getInstance()
         return indicatorDisplayPercent(quota, error, authService.isLoggedIn())
     }
 
     private fun updatePercentageDisplay() {
         val percentage = displayPercent()
+        val text = barDisplayText()
         if (percentage >= 0) {
             percentageComponent.update(
-                text = barDisplayText(),
+                text = text,
                 fraction = percentage / 100.0,
                 fillColor = QuotaUsageColors.usageColor(percentage),
             )
         } else {
             percentageComponent.update(
-                text = barDisplayText(),
+                text = text,
                 fraction = 0.0,
                 fillColor = QuotaUsageColors.GRAY,
             )
@@ -178,6 +321,24 @@ internal class QuotaIndicatorComponent(
 internal fun buildQuotaTooltipText(quota: OpenAiCodexQuota?, error: String?): String {
     val authService = QuotaAuthService.getInstance()
     return buildQuotaTooltipText(quota, error, authService.isLoggedIn())
+}
+
+internal fun buildOpenCodeTooltipText(quota: de.moritzf.quota.OpenCodeQuota?, error: String?): String {
+    if (error != null) {
+        return "OpenCode quota: $error"
+    }
+    if (quota == null) {
+        return "OpenCode quota: loading"
+    }
+    val window = quota.rollingUsage ?: quota.weeklyUsage ?: quota.monthlyUsage
+    val availableBalance = quota.availableBalance
+    return when {
+        window == null -> "OpenCode quota: no usage data"
+        window.isRateLimited -> "OpenCode quota: rate limited"
+        quota.useBalance && availableBalance != null ->
+            "OpenCode quota: ${window.usagePercent}% used, balance $${QuotaUiUtil.formatOpenCodeBalance(availableBalance)}"
+        else -> "OpenCode quota: ${window.usagePercent}% used"
+    }
 }
 
 internal fun buildQuotaTooltipText(quota: OpenAiCodexQuota?, error: String?, loggedIn: Boolean): String {
@@ -206,46 +367,32 @@ internal fun buildQuotaTooltipText(quota: OpenAiCodexQuota?, error: String?, log
 
 internal fun indicatorBarDisplayText(quota: OpenAiCodexQuota?, error: String?, loggedIn: Boolean): String {
     if (!loggedIn) {
-        return "OpenAI: not logged in"
+        return "not logged in"
     }
     if (error != null) {
-        return "OpenAI: error"
+        return "error"
     }
 
-    val state = indicatorQuotaState(quota) ?: return "OpenAI: loading..."
+    val state = indicatorQuotaState(quota) ?: return "loading..."
     return when {
         state.limitReached -> {
             val resetWindow = limitingWindow(quota, state.kind)
             val reset = QuotaUiUtil.formatResetCompact(resetWindow?.resetsAt)
-            val prefix = when (state.kind) {
-                IndicatorQuotaKind.CODEX -> ""
-                IndicatorQuotaKind.REVIEW -> "Review "
-            }
-            if (reset != null) "${prefix}100% • $reset" else "${prefix}100%"
+            if (reset != null) "100% • $reset" else "100%"
         }
 
         state.allowed == false -> {
-            when (state.kind) {
-                IndicatorQuotaKind.CODEX -> "OpenAI: not allowed"
-                IndicatorQuotaKind.REVIEW -> "Review: not allowed"
-            }
+            "not allowed"
         }
 
         state.window == null -> {
-            when (state.kind) {
-                IndicatorQuotaKind.CODEX -> "OpenAI: available"
-                IndicatorQuotaKind.REVIEW -> "Review: available"
-            }
+            "available"
         }
 
         else -> {
             val percent = clampPercent(state.window.usedPercent.roundToInt())
             val reset = QuotaUiUtil.formatResetCompact(state.window.resetsAt)
-            val prefix = when (state.kind) {
-                IndicatorQuotaKind.CODEX -> ""
-                IndicatorQuotaKind.REVIEW -> "Review "
-            }
-            val text = "$prefix$percent%"
+            val text = "$percent%"
             if (reset != null) "$text • $reset" else text
         }
     }

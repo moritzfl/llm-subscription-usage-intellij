@@ -48,6 +48,9 @@ class QuotaSettingsConfigurable : Configurable {
     private var authStatusMessage: AuthStatusMessage? = null
     private var locationComboBox: ComboBox<QuotaIndicatorLocation>? = null
     private var displayModeComboBox: ComboBox<QuotaDisplayMode>? = null
+    private var indicatorSourceComboBox: ComboBox<QuotaIndicatorSource>? = null
+    private var openAiHideFromPopupCheckBox: JBCheckBox? = null
+    private var openCodeHideFromPopupCheckBox: JBCheckBox? = null
     private var displayModePreview: DisplayModePreviewComponent? = null
     private var loginButton: ActionLink? = null
     private var cancelLoginButton: ActionLink? = null
@@ -77,8 +80,11 @@ class QuotaSettingsConfigurable : Configurable {
         loginHeaderLabel = JBLabel()
         statusLabel = JBLabel().apply { isVisible = false }
         statusLabelDefaultForeground = statusLabel!!.foreground ?: UIManager.getColor("Label.foreground")
-        locationComboBox = ComboBox(QuotaIndicatorLocation.entries.toTypedArray())
-        displayModeComboBox = ComboBox(QuotaDisplayMode.entries.toTypedArray())
+        locationComboBox = createIndicatorComboBox(QuotaIndicatorLocation.entries.toTypedArray())
+        displayModeComboBox = createIndicatorComboBox(QuotaDisplayMode.entries.toTypedArray())
+        indicatorSourceComboBox = createIndicatorComboBox(QuotaIndicatorSource.entries.toTypedArray())
+        openAiHideFromPopupCheckBox = JBCheckBox("Hide from quota popup")
+        openCodeHideFromPopupCheckBox = JBCheckBox("Hide from quota popup")
         displayModePreview = DisplayModePreviewComponent()
         loginButton = createActionLink("Log In")
         cancelLoginButton = createActionLink("Cancel Login")
@@ -174,20 +180,33 @@ class QuotaSettingsConfigurable : Configurable {
                 cell(displayModePreview!!).gap(RightGap.SMALL)
             }
 
+            row("Indicator quota source:") {
+                cell(indicatorSourceComboBox!!)
+            }
+
             onApply {
                 val selectedLocation = locationComboBox?.selectedItem as? QuotaIndicatorLocation ?: return@onApply
                 val selectedDisplayMode = displayModeComboBox?.selectedItem as? QuotaDisplayMode ?: return@onApply
+                val selectedSource = indicatorSourceComboBox?.selectedItem as? QuotaIndicatorSource ?: return@onApply
                 val sanitizedDisplayMode = QuotaDisplayMode.sanitizeFor(selectedLocation, selectedDisplayMode)
                 val state = QuotaSettingsState.getInstance()
                 val locationChanged = selectedLocation != state.location()
                 val displayModeChanged = sanitizedDisplayMode != state.displayMode()
+                val sourceChanged = selectedSource != state.source()
+                val openAiPopupVisibilityChanged = openAiHideFromPopupCheckBox?.isSelected != state.hideOpenAiFromQuotaPopup
+                val openCodePopupVisibilityChanged = openCodeHideFromPopupCheckBox?.isSelected != state.hideOpenCodeFromQuotaPopup
                 if (locationChanged) {
                     state.setLocation(selectedLocation)
                 }
                 if (displayModeChanged) {
                     state.setDisplayMode(sanitizedDisplayMode)
                 }
-                if (locationChanged || displayModeChanged) {
+                if (sourceChanged) {
+                    state.setSource(selectedSource)
+                }
+                state.hideOpenAiFromQuotaPopup = openAiHideFromPopupCheckBox?.isSelected == true
+                state.hideOpenCodeFromQuotaPopup = openCodeHideFromPopupCheckBox?.isSelected == true
+                if (locationChanged || displayModeChanged || sourceChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged) {
                     ApplicationManager.getApplication().messageBus
                         .syncPublisher(QuotaSettingsListener.TOPIC)
                         .onSettingsChanged()
@@ -200,6 +219,9 @@ class QuotaSettingsConfigurable : Configurable {
                 locationComboBox?.selectedItem = QuotaSettingsState.getInstance().location()
                 updateDisplayModeChoices(QuotaSettingsState.getInstance().displayMode())
                 updateDisplayModePreview()
+                indicatorSourceComboBox?.selectedItem = QuotaSettingsState.getInstance().source()
+                openAiHideFromPopupCheckBox?.isSelected = QuotaSettingsState.getInstance().hideOpenAiFromQuotaPopup
+                openCodeHideFromPopupCheckBox?.isSelected = QuotaSettingsState.getInstance().hideOpenCodeFromQuotaPopup
                 updateAuthUi()
                 updateAccountFields()
                 updateResponseArea()
@@ -210,9 +232,13 @@ class QuotaSettingsConfigurable : Configurable {
             onIsModified {
                 val selectedLocation = locationComboBox?.selectedItem as? QuotaIndicatorLocation ?: return@onIsModified false
                 val selectedDisplayMode = displayModeComboBox?.selectedItem as? QuotaDisplayMode ?: return@onIsModified false
+                val selectedSource = indicatorSourceComboBox?.selectedItem as? QuotaIndicatorSource ?: return@onIsModified false
                 val state = QuotaSettingsState.getInstance()
                 selectedLocation != state.location() ||
-                    QuotaDisplayMode.sanitizeFor(selectedLocation, selectedDisplayMode) != state.displayMode()
+                    QuotaDisplayMode.sanitizeFor(selectedLocation, selectedDisplayMode) != state.displayMode() ||
+                    selectedSource != state.source() ||
+                    openAiHideFromPopupCheckBox?.isSelected != state.hideOpenAiFromQuotaPopup ||
+                    openCodeHideFromPopupCheckBox?.isSelected != state.hideOpenCodeFromQuotaPopup
             }
         }.apply {
             preferredFocusedComponent = locationComboBox
@@ -220,6 +246,9 @@ class QuotaSettingsConfigurable : Configurable {
 
         // Codex tab content
         val codexConfigPanel = panel {
+            row {
+                cell(openAiHideFromPopupCheckBox!!)
+            }
             row { cell(loginHeaderLabel!!) }
             row {
                 cell(loginButton!!).gap(RightGap.SMALL)
@@ -258,7 +287,7 @@ class QuotaSettingsConfigurable : Configurable {
         // OpenCode tab content
         val openCodeConfigPanel = panel {
             row {
-                label("OpenCode Go").bold()
+                cell(openCodeHideFromPopupCheckBox!!)
             }
             row("Session cookie:") {
                 cell(openCodeCookieField!!)
@@ -374,6 +403,9 @@ class QuotaSettingsConfigurable : Configurable {
         authStatusMessage = null
         locationComboBox = null
         displayModeComboBox = null
+        indicatorSourceComboBox = null
+        openAiHideFromPopupCheckBox = null
+        openCodeHideFromPopupCheckBox = null
         displayModePreview = null
         loginButton = null
         cancelLoginButton = null
@@ -525,7 +557,8 @@ class QuotaSettingsConfigurable : Configurable {
                 label.foreground = JBColor.RED
             }
             openCodeQuota != null -> {
-                label.text = "Connected - Go subscription active"
+                val balanceText = if (openCodeQuota.useBalance) openCodeQuota.availableBalance?.let { "Balance: $${QuotaUiUtil.formatOpenCodeBalance(it)}" } else null
+                label.text = if (balanceText != null) "Connected - Go subscription active - $balanceText" else "Connected - Go subscription active"
                 label.foreground = JBColor.GREEN.darker()
             }
             else -> {
@@ -544,6 +577,13 @@ class QuotaSettingsConfigurable : Configurable {
     private fun createActionLink(text: String): ActionLink {
         return ActionLink(text).apply {
             autoHideOnDisable = false
+        }
+    }
+
+    private fun <T> createIndicatorComboBox(items: Array<T>): ComboBox<T> {
+        return ComboBox(items).apply {
+            preferredSize = Dimension(JBUI.scale(220), preferredSize.height)
+            minimumSize = preferredSize
         }
     }
 

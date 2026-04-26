@@ -15,6 +15,13 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var refreshMinutes: Int = 5
     var statusBarDisplayMode: String = QuotaDisplayMode.ICON_ONLY.name
     var indicatorLocation: String = QuotaIndicatorLocation.STATUS_BAR.name
+    var indicatorSource: String = QuotaIndicatorSource.LAST_USED.name
+    var lastOpenAiUpdate: Long = 0
+    var lastOpenCodeUpdate: Long = 0
+    var hideOpenAiFromQuotaPopup: Boolean = false
+    var hideOpenCodeFromQuotaPopup: Boolean = false
+    var cachedOpenAiQuotaJson: String? = null
+    var cachedOpenCodeQuotaJson: String? = null
 
     override fun getState(): QuotaSettingsState = this
 
@@ -22,6 +29,13 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         refreshMinutes = state.refreshMinutes
         statusBarDisplayMode = QuotaDisplayMode.fromStorageValue(state.statusBarDisplayMode).name
         indicatorLocation = QuotaIndicatorLocation.fromStorageValue(state.indicatorLocation).name
+        indicatorSource = state.indicatorSource
+        lastOpenAiUpdate = state.lastOpenAiUpdate
+        lastOpenCodeUpdate = state.lastOpenCodeUpdate
+        hideOpenAiFromQuotaPopup = state.hideOpenAiFromQuotaPopup
+        hideOpenCodeFromQuotaPopup = state.hideOpenCodeFromQuotaPopup
+        cachedOpenAiQuotaJson = state.cachedOpenAiQuotaJson
+        cachedOpenCodeQuotaJson = state.cachedOpenCodeQuotaJson
     }
 
     fun displayMode(): QuotaDisplayMode = QuotaDisplayMode.fromStorageValue(statusBarDisplayMode)
@@ -34,6 +48,33 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
 
     fun setLocation(location: QuotaIndicatorLocation) {
         indicatorLocation = location.name
+    }
+
+    fun source(): QuotaIndicatorSource = QuotaIndicatorSource.fromStorageValue(indicatorSource)
+
+    fun setSource(source: QuotaIndicatorSource) {
+        indicatorSource = source.name
+    }
+
+    fun updateTimestamp(provider: String) {
+        when (provider) {
+            "openai" -> lastOpenAiUpdate = System.currentTimeMillis()
+            "opencode" -> lastOpenCodeUpdate = System.currentTimeMillis()
+        }
+    }
+
+    fun lastUsedSource(): QuotaIndicatorSource {
+        val openAiUpdate = lastOpenAiUpdate.takeIf { it > 0 }
+            ?: QuotaSnapshotCache.decodeOpenAiQuota(cachedOpenAiQuotaJson)?.fetchedAt?.toEpochMilliseconds()
+            ?: 0
+        val openCodeUpdate = lastOpenCodeUpdate.takeIf { it > 0 }
+            ?: QuotaSnapshotCache.decodeOpenCodeQuota(cachedOpenCodeQuotaJson)?.fetchedAt?.toEpochMilliseconds()
+            ?: 0
+        return when {
+            openAiUpdate >= openCodeUpdate -> QuotaIndicatorSource.OPEN_AI
+            openCodeUpdate > openAiUpdate -> QuotaIndicatorSource.OPEN_CODE
+            else -> QuotaIndicatorSource.OPEN_AI
+        }
     }
 
     companion object {

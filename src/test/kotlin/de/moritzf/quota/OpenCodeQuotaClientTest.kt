@@ -14,7 +14,7 @@ class OpenCodeQuotaClientTest {
             "monthlyUsage:\$R[3]={status:\"ok\",resetInSec:2503851,usagePercent:24}})" +
             "(\$R[\"server-fn:1\"]))"
 
-        val quota = OpenCodeQuotaClient.parseSolidStartResponse(body)
+        val quota = OpenCodeQuotaClient.parseQuotaResponse(body)
 
         assertTrue(quota.mine)
         assertEquals(false, quota.useBalance)
@@ -39,7 +39,7 @@ class OpenCodeQuotaClientTest {
             "monthlyUsage:\$R[3]={status:\"ok\",resetInSec:2000000,usagePercent:30}})" +
             "(\$R[\"server-fn:1\"]))"
 
-        val quota = OpenCodeQuotaClient.parseSolidStartResponse(body)
+        val quota = OpenCodeQuotaClient.parseQuotaResponse(body)
         val rollingUsage = quota.rollingUsage!!
 
         assertTrue(rollingUsage.isRateLimited)
@@ -56,7 +56,7 @@ class OpenCodeQuotaClientTest {
             "monthlyUsage:\$R[3]={status:\"ok\",resetInSec:2503851,usagePercent:24}})" +
             "(\$R[\"server-fn:1\"]))"
 
-        val quota = OpenCodeQuotaClient.parseSolidStartResponse(body)
+        val quota = OpenCodeQuotaClient.parseQuotaResponse(body)
 
         assertEquals("ok {still-json}", quota.rollingUsage?.status)
         assertEquals(1, quota.rollingUsage?.usagePercent)
@@ -68,10 +68,20 @@ class OpenCodeQuotaClientTest {
             "(\$R=>\$R[0]=null)(\$R[\"server-fn:1\"]))"
 
         try {
-            OpenCodeQuotaClient.parseSolidStartResponse(body)
+            OpenCodeQuotaClient.parseQuotaResponse(body)
             assertTrue(false, "Should have thrown for null response")
         } catch (e: OpenCodeQuotaException) {
             assertTrue(e.message?.contains("unexpected format") == true)
         }
+    }
+
+    @Test
+    fun parsesBillingInfoResponse() {
+        val body = ";0x00000040;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[]," +
+            "(\$R=>\$R[0]={balance:1234560000,customerID:\"cus_123\"})(\$R[\"server-fn:1\"]))"
+
+        val billingInfo = OpenCodeQuotaClient.parseBillingInfoResponse(body)
+
+        assertEquals(1234560000L, billingInfo.balance)
     }
 }

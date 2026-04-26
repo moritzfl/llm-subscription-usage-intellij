@@ -9,6 +9,7 @@ import com.intellij.openapi.actionSystem.RightAlignedToolbarAction
 import com.intellij.openapi.actionSystem.ex.CustomComponentAction
 import com.intellij.openapi.project.DumbAware
 import de.moritzf.quota.OpenAiCodexQuota
+import de.moritzf.quota.idea.QuotaIndicatorSource
 import java.awt.Component
 import javax.swing.JComponent
 
@@ -35,9 +36,12 @@ class QuotaMainToolbarAction : AnAction(), CustomComponentAction, RightAlignedTo
     }
 
     private fun updateComponent(component: QuotaIndicatorComponent) {
+        val service = QuotaUsageService.getInstance()
+        val effectiveQuota = selectEffectiveQuota(service)
+        val effectiveError = selectEffectiveError(service)
         component.updateUsage(
-            quota = QuotaUsageService.getInstance().getLastQuota(),
-            error = QuotaUsageService.getInstance().getLastError(),
+            quota = effectiveQuota,
+            error = effectiveError,
             displayMode = QuotaDisplayMode.sanitizeFor(
                 QuotaIndicatorLocation.MAIN_TOOLBAR,
                 QuotaSettingsState.getInstance().displayMode(),
@@ -45,12 +49,40 @@ class QuotaMainToolbarAction : AnAction(), CustomComponentAction, RightAlignedTo
         )
     }
 
-    private fun showPopup(component: Component, quota: OpenAiCodexQuota?, error: String?) {
+    private fun selectEffectiveQuota(service: QuotaUsageService): Any? {
+        val source = QuotaSettingsState.getInstance().source()
+        return when (source) {
+            QuotaIndicatorSource.OPEN_AI -> service.getLastQuota()
+            QuotaIndicatorSource.OPEN_CODE -> service.getLastOpenCodeQuota()
+            QuotaIndicatorSource.LAST_USED -> when (QuotaSettingsState.getInstance().lastUsedSource()) {
+                QuotaIndicatorSource.OPEN_AI -> service.getLastQuota()
+                QuotaIndicatorSource.OPEN_CODE -> service.getLastOpenCodeQuota()
+                else -> service.getLastQuota()
+            }
+        } as Any?
+    }
+
+    private fun selectEffectiveError(service: QuotaUsageService): String? {
+        val source = QuotaSettingsState.getInstance().source()
+        return when (source) {
+            QuotaIndicatorSource.OPEN_AI -> service.getLastError()
+            QuotaIndicatorSource.OPEN_CODE -> service.getLastOpenCodeError()
+            QuotaIndicatorSource.LAST_USED -> when (QuotaSettingsState.getInstance().lastUsedSource()) {
+                QuotaIndicatorSource.OPEN_AI -> service.getLastError()
+                QuotaIndicatorSource.OPEN_CODE -> service.getLastOpenCodeError()
+                else -> service.getLastError()
+            }
+        }
+    }
+
+    private fun showPopup(component: Component, quota: Any?, error: String?) {
         val project = ProjectUtil.getProjectForComponent(component) ?: return
+        val openAiQuota = quota as? OpenAiCodexQuota
+        val openCodeQuota = quota as? de.moritzf.quota.OpenCodeQuota
         val service = QuotaUsageService.getInstance()
         QuotaPopupSupport.showPopup(
-            project, component, quota, error,
-            service.getLastOpenCodeQuota(), service.getLastOpenCodeError(),
+            project, component, openAiQuota, error,
+            openCodeQuota ?: service.getLastOpenCodeQuota(), service.getLastOpenCodeError(),
             QuotaPopupLocation.BELOW,
         )
     }

@@ -27,6 +27,7 @@ import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.Font
 import java.awt.Point
+import javax.swing.Icon
 import javax.swing.JComponent
 import javax.swing.JProgressBar
 import kotlin.math.roundToInt
@@ -72,17 +73,28 @@ internal object QuotaPopupSupport {
         var latestError = error
         var latestOpenCodeQuota = openCodeQuota
         var latestOpenCodeError = openCodeError
+        var refreshScheduled = false
+        fun scheduleRefresh() {
+            if (refreshScheduled) {
+                return
+            }
+            refreshScheduled = true
+            ApplicationManager.getApplication().invokeLater {
+                refreshScheduled = false
+                refreshPopup(currentPopup, content, component, location, latestQuota, latestError, latestOpenCodeQuota, latestOpenCodeError)
+            }
+        }
         popupConnection.subscribe(QuotaUsageListener.TOPIC, object : QuotaUsageListener {
             override fun onQuotaUpdated(updatedQuota: OpenAiCodexQuota?, updatedError: String?) {
                 latestQuota = updatedQuota
                 latestError = updatedError
-                refreshPopup(currentPopup, content, component, location, latestQuota, latestError, latestOpenCodeQuota, latestOpenCodeError)
+                scheduleRefresh()
             }
 
             override fun onOpenCodeQuotaUpdated(updatedQuota: OpenCodeQuota?, updatedError: String?) {
                 latestOpenCodeQuota = updatedQuota
                 latestOpenCodeError = updatedError
-                refreshPopup(currentPopup, content, component, location, latestQuota, latestError, latestOpenCodeQuota, latestOpenCodeError)
+                scheduleRefresh()
             }
         })
 
@@ -99,11 +111,13 @@ internal object QuotaPopupSupport {
         openCodeQuota: OpenCodeQuota?,
         openCodeError: String?,
     ) {
-        ApplicationManager.getApplication().invokeLater {
-            if (currentPopup.isDisposed || !currentPopup.isVisible) {
-                return@invokeLater
-            }
-            content.refresh(QuotaPopupContentState(quota, error, openCodeQuota, openCodeError))
+        if (currentPopup.isDisposed || !currentPopup.isVisible) {
+            return
+        }
+        val oldSize = content.preferredSize
+        content.refresh(QuotaPopupContentState(quota, error, openCodeQuota, openCodeError))
+        val newSize = content.preferredSize
+        if (oldSize != newSize) {
             currentPopup.pack(true, true)
             val newPoint = popupPoint(component, content, location)
             val screenPoint = RelativePoint(component, newPoint).getScreenPoint()
@@ -132,6 +146,9 @@ internal object QuotaPopupSupport {
         openCodeError: String?,
         onClosePopup: () -> Unit,
     ): JComponent {
+        val settings = QuotaSettingsState.getInstance()
+        val hideOpenAi = settings.hideOpenAiFromQuotaPopup
+        val hideOpenCode = settings.hideOpenCodeFromQuotaPopup
         val hasReviewData = currentQuota != null && (
             currentQuota.reviewPrimary != null || currentQuota.reviewSecondary != null ||
                 currentQuota.reviewAllowed != null || currentQuota.reviewLimitReached != null
@@ -140,56 +157,62 @@ internal object QuotaPopupSupport {
         return createPopupStack().apply {
             add(createHeaderRow { openSettings(project, component) { onClosePopup() } })
 
-            val planLabel = currentQuota?.planType?.toDisplayLabel()
-            if (!planLabel.isNullOrBlank()) {
-                add(withVerticalInsets(createMutedLabel("OpenAI Plan: $planLabel"), top = 3))
-            }
-
             add(createSeparatedBlock())
 
             val authService = QuotaAuthService.getInstance()
             val openCodeCookieStore = OpenCodeSessionCookieStore.getInstance()
             val hasCodexAuth = authService.isLoggedIn()
             val hasOpenCodeAuth = openCodeCookieStore.load() != null
+            val showCodexSection = hasCodexAuth && !hideOpenAi
+            val showOpenCodeSection = hasOpenCodeAuth && !hideOpenCode
 
             if (!hasCodexAuth && !hasOpenCodeAuth) {
                 add(withVerticalInsets(JBLabel("Not logged in."), top = 1))
                 add(withVerticalInsets(ActionLink("Open Settings") { openSettings(project, component) { onClosePopup() } }, top = 3))
+            } else if (!showCodexSection && !showOpenCodeSection) {
+                add(withVerticalInsets(JBLabel("All quota sources are hidden from this popup."), top = 1))
+                add(withVerticalInsets(ActionLink("Open Settings") { openSettings(project, component) { onClosePopup() } }, top = 3))
             } else {
                 // Codex section
-                when {
-                    currentError != null -> {
-                        add(withVerticalInsets(createWarningLabel("Codex error: $currentError"), top = 1))
-                    }
-
-                    currentQuota == null && hasCodexAuth -> {
-                        add(withVerticalInsets(JBLabel("Loading Codex usage..."), top = 1))
-                    }
-
-                    currentQuota != null -> {
-                        val limitWarning = getLimitWarning(currentQuota)
-                        if (limitWarning != null) {
-                            add(withVerticalInsets(createWarningLabel(limitWarning), top = 1))
-                            add(createSeparatedBlock())
+                if (showCodexSection) {
+                    when {
+                        currentError != null -> {
+                            add(withVerticalInsets(createWarningLabel("Codex error: $currentError"), top = 1))
                         }
 
-                        if (currentQuota.primary != null || currentQuota.secondary != null) {
-                            add(withVerticalInsets(createSectionTitleLabel("Codex"), top = 0))
-                            currentQuota.primary?.let { add(createWindowBlock(it, "Primary", top = 3)) }
-                            currentQuota.secondary?.let { add(createWindowBlock(it, "Secondary", top = 5)) }
+                        currentQuota == null -> {
+                            add(withVerticalInsets(JBLabel("Loading Codex usage..."), top = 1))
                         }
 
-                        if (hasReviewData) {
-                            add(createSeparatedBlock())
-                            add(withVerticalInsets(createSectionTitleLabel("Code Review"), top = 0))
-                            currentQuota.reviewPrimary?.let { add(createWindowBlock(it, "Primary", top = 3)) }
-                            currentQuota.reviewSecondary?.let { add(createWindowBlock(it, "Secondary", top = 5)) }
+                        else -> {
+                            val limitWarning = getLimitWarning(currentQuota)
+                            if (limitWarning != null) {
+                                add(withVerticalInsets(createWarningLabel(limitWarning), top = 1))
+                                add(createSeparatedBlock())
+                            }
+
+                            if (currentQuota.primary != null || currentQuota.secondary != null) {
+                                add(withVerticalInsets(createSectionTitleLabel("Codex", QuotaIcons.OPENAI), top = 0))
+                                val planLabel = currentQuota.planType?.toDisplayLabel()
+                                if (!planLabel.isNullOrBlank()) {
+                                    add(withVerticalInsets(createMutedLabel("OpenAI Plan: $planLabel"), top = 2))
+                                }
+                                currentQuota.primary?.let { add(createWindowBlock(it, "Primary", top = 3)) }
+                                currentQuota.secondary?.let { add(createWindowBlock(it, "Secondary", top = 5)) }
+                            }
+
+                            if (hasReviewData) {
+                                add(createSeparatedBlock())
+                                add(withVerticalInsets(createSectionTitleLabel("Code Review", QuotaIcons.OPENAI), top = 0))
+                                currentQuota.reviewPrimary?.let { add(createWindowBlock(it, "Primary", top = 3)) }
+                                currentQuota.reviewSecondary?.let { add(createWindowBlock(it, "Secondary", top = 5)) }
+                            }
                         }
                     }
                 }
 
                 // OpenCode Go section
-                if (hasOpenCodeAuth) {
+                if (showOpenCodeSection) {
                     add(createSeparatedBlock())
                     when {
                         openCodeError != null -> {
@@ -201,7 +224,11 @@ internal object QuotaPopupSupport {
                         }
 
                         else -> {
-                            add(withVerticalInsets(createSectionTitleLabel(OPENCODE_GO_LABEL), top = 0))
+                            add(withVerticalInsets(createSectionTitleLabel(OPENCODE_GO_LABEL, QuotaIcons.OPENCODE), top = 0))
+                            val balanceText = openCodeQuota.availableBalance?.let(QuotaUiUtil::formatOpenCodeBalance)
+                            if (balanceText != null) {
+                                add(withVerticalInsets(createMutedLabel("Available balance: $$balanceText"), top = 2))
+                            }
                             openCodeQuota.rollingUsage?.let {
                                 add(createOpenCodeWindowBlock(it, "5h rolling", top = 3))
                             }
@@ -215,7 +242,7 @@ internal object QuotaPopupSupport {
                     }
                 }
 
-                val fetchedAt = QuotaUiUtil.formatInstant(currentQuota?.fetchedAt)
+                val fetchedAt = if (showCodexSection) QuotaUiUtil.formatInstant(currentQuota?.fetchedAt) else null
                 if (fetchedAt != null) {
                     add(createSeparatedBlock())
                     add(withVerticalInsets(createMutedLabel("Last updated: $fetchedAt"), top = 1))
@@ -355,7 +382,7 @@ internal object QuotaPopupSupport {
     }
 
     private fun createPopupTitleLabel(): JBLabel {
-        return JBLabel("Quota").apply {
+        return JBLabel("Subscription Quota").apply {
             font = font.deriveFont(font.style or Font.BOLD, font.size + 2f)
         }
     }
@@ -366,8 +393,12 @@ internal object QuotaPopupSupport {
         }
     }
 
-    private fun createSectionTitleLabel(text: String): JBLabel {
+    private fun createSectionTitleLabel(text: String, icon: Icon? = null): JBLabel {
         return JBLabel(text).apply {
+            if (icon != null) {
+                this.icon = scaleIconToQuotaStatusSize(icon, this)
+                iconTextGap = JBUI.scale(4)
+            }
             foreground = JBColor.BLUE
             font = font.deriveFont(font.style or Font.BOLD, font.size + 1f)
         }
@@ -411,14 +442,27 @@ internal data class QuotaPopupContentState(
 )
 
 internal class RefreshablePopupPanel<T>(private val renderer: (T) -> JComponent) : BorderLayoutPanel() {
+    private var stableWidth = 0
+    private var currentState: T? = null
+
     init {
         isOpaque = false
     }
 
     fun refresh(state: T) {
+        if (state == currentState) {
+            return
+        }
+        currentState = state
         removeAll()
         addToCenter(renderer(state))
         revalidate()
         repaint()
+    }
+
+    override fun getPreferredSize(): Dimension {
+        val size = super.getPreferredSize()
+        stableWidth = maxOf(stableWidth, size.width, JBUI.scale(260))
+        return Dimension(stableWidth, size.height)
     }
 }

@@ -2,6 +2,8 @@ package de.moritzf.quota.idea
 
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.Duration
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -117,6 +119,11 @@ object QuotaUiUtil {
         }
 
         return if (minutes == 1L) "1 minute ago" else "$minutes minutes ago"
+    }
+
+    @JvmStatic
+    fun formatOpenCodeBalance(balance: Long): String {
+        return BigDecimal.valueOf(balance).movePointLeft(8).setScale(2, RoundingMode.HALF_UP).toPlainString()
     }
 
     private fun formatAbsoluteInstant(instant: Instant): String {
