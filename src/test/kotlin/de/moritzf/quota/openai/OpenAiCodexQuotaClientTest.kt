@@ -1,4 +1,4 @@
-package de.moritzf.quota
+package de.moritzf.quota.openai
 
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
@@ -12,6 +12,7 @@ import java.net.http.HttpHeaders
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
+import de.moritzf.quota.shared.JsonSupport
 import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor

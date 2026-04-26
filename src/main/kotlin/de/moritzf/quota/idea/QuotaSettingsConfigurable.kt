@@ -16,10 +16,10 @@ import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.messages.MessageBusConnection
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
-import de.moritzf.quota.OpenAiCodexQuota
-import de.moritzf.quota.OpenCodeQuota
-import de.moritzf.quota.OpenCodeQuotaClient
-import de.moritzf.quota.OpenCodeWorkspace
+import de.moritzf.quota.openai.OpenAiCodexQuota
+import de.moritzf.quota.opencode.OpenCodeQuota
+import de.moritzf.quota.opencode.OpenCodeQuotaClient
+import de.moritzf.quota.opencode.OpenCodeWorkspace
 import java.awt.Color
 import java.awt.Dimension
 import java.awt.Font
@@ -331,8 +331,8 @@ class QuotaSettingsConfigurable : Configurable {
             quota == null -> "No OpenCode response yet."
             else -> {
                 try {
-                    de.moritzf.quota.JsonSupport.json.encodeToString(
-                        de.moritzf.quota.OpenCodeQuota.serializer(),
+                    de.moritzf.quota.shared.JsonSupport.json.encodeToString(
+                        de.moritzf.quota.opencode.OpenCodeQuota.serializer(),
                         quota,
                     )
                 } catch (exception: Exception) {

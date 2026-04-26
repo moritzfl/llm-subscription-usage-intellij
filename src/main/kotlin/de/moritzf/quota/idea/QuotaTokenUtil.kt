@@ -1,7 +1,7 @@
 package de.moritzf.quota.idea
 
-import de.moritzf.quota.JsonSupport
-import de.moritzf.quota.dto.OpenAiAuthorizationDto
+import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.openai.dto.OpenAiAuthorizationDto
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject

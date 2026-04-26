@@ -1,4 +1,4 @@
-package de.moritzf.quota
+package de.moritzf.quota.opencode
 
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement

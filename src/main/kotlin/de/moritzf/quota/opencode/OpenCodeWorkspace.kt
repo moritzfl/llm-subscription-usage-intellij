@@ -1,4 +1,4 @@
-package de.moritzf.quota
+package de.moritzf.quota.opencode
 
 /**
  * Represents an OpenCode workspace with subscription info.

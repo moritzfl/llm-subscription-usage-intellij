@@ -1,6 +1,6 @@
-package de.moritzf.quota
+package de.moritzf.quota.openai
 
-import de.moritzf.quota.dto.UsageResponseDto
+import de.moritzf.quota.openai.dto.UsageResponseDto
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.descriptors.SerialDescriptor

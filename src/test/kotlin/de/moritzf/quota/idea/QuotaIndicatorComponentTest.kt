@@ -1,9 +1,9 @@
 package de.moritzf.quota.idea
 
-import de.moritzf.quota.OpenAiCodexQuota
-import de.moritzf.quota.OpenCodeQuota
-import de.moritzf.quota.OpenCodeUsageWindow
-import de.moritzf.quota.UsageWindow
+import de.moritzf.quota.openai.OpenAiCodexQuota
+import de.moritzf.quota.opencode.OpenCodeQuota
+import de.moritzf.quota.openai.UsageWindow
+import de.moritzf.quota.opencode.OpenCodeUsageWindow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

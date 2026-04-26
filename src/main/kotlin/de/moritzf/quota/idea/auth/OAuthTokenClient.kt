@@ -1,8 +1,8 @@
 package de.moritzf.quota.idea.auth
 
 import com.intellij.openapi.diagnostic.Logger
-import de.moritzf.quota.JsonSupport
-import de.moritzf.quota.dto.OAuthTokenResponseDto
+import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.openai.dto.OAuthTokenResponseDto
 import de.moritzf.quota.idea.QuotaTokenUtil
 import java.io.IOException
 import java.net.URI

@@ -1,4 +1,4 @@
-package de.moritzf.quota
+package de.moritzf.quota.openai
 
 import kotlinx.datetime.Instant
 import java.time.Duration

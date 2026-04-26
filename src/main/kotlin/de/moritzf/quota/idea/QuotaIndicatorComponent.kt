@@ -4,9 +4,9 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.util.IconUtil
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
-import de.moritzf.quota.OpenAiCodexQuota
-import de.moritzf.quota.OpenCodeQuota
-import de.moritzf.quota.UsageWindow
+import de.moritzf.quota.openai.OpenAiCodexQuota
+import de.moritzf.quota.opencode.OpenCodeQuota
+import de.moritzf.quota.openai.UsageWindow
 import java.awt.Component
 import java.awt.Cursor
 import java.awt.event.MouseAdapter
@@ -198,7 +198,7 @@ internal class QuotaIndicatorComponent(
         }
     }
 
-    private fun openCodeCakeIcon(quota: de.moritzf.quota.OpenCodeQuota): Icon {
+    private fun openCodeCakeIcon(quota: de.moritzf.quota.opencode.OpenCodeQuota): Icon {
         val window = quota.rollingUsage ?: quota.weeklyUsage ?: quota.monthlyUsage
         if (window == null || window.isRateLimited) {
             return QuotaIcons.CAKE_UNKNOWN

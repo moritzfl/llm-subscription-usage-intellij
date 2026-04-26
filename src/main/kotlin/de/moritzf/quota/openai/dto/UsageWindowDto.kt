@@ -1,6 +1,6 @@
-package de.moritzf.quota.dto
+package de.moritzf.quota.openai.dto
 
-import de.moritzf.quota.UsageWindow
+import de.moritzf.quota.openai.UsageWindow
 import kotlinx.datetime.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable

@@ -4,7 +4,7 @@ import com.intellij.credentialStore.CredentialAttributes
 import com.intellij.credentialStore.Credentials
 import com.intellij.ide.passwordSafe.PasswordSafe
 import com.intellij.openapi.diagnostic.Logger
-import de.moritzf.quota.JsonSupport
+import de.moritzf.quota.shared.JsonSupport
 
 /**
  * Handles loading, saving, and clearing OAuth credentials in PasswordSafe.

@@ -1,9 +1,9 @@
 package de.moritzf.quota.idea
 
-import de.moritzf.quota.JsonSupport
-import de.moritzf.quota.OpenAiCodexQuota
-import de.moritzf.quota.OpenCodeQuota
-import de.moritzf.quota.UsageWindow
+import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.openai.OpenAiCodexQuota
+import de.moritzf.quota.opencode.OpenCodeQuota
+import de.moritzf.quota.openai.UsageWindow
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import java.time.Duration

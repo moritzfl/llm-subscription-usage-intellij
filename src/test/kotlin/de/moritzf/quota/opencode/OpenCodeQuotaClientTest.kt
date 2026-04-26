@@ -1,4 +1,4 @@
-package de.moritzf.quota
+package de.moritzf.quota.opencode
 
 import kotlin.test.Test
 import kotlin.test.assertEquals

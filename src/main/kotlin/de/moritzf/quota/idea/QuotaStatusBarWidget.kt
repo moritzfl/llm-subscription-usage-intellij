@@ -25,10 +25,10 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
     init {
         connection = ApplicationManager.getApplication().messageBus.connect(this)
         connection.subscribe(QuotaUsageListener.TOPIC, object : QuotaUsageListener {
-            override fun onQuotaUpdated(quota: de.moritzf.quota.OpenAiCodexQuota?, error: String?) {
+            override fun onQuotaUpdated(quota: de.moritzf.quota.openai.OpenAiCodexQuota?, error: String?) {
                 updateWidget()
             }
-            override fun onOpenCodeQuotaUpdated(quota: de.moritzf.quota.OpenCodeQuota?, error: String?) {
+            override fun onOpenCodeQuotaUpdated(quota: de.moritzf.quota.opencode.OpenCodeQuota?, error: String?) {
                 updateWidget()
             }
         })

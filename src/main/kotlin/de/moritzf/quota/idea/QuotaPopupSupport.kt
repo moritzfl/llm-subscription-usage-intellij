@@ -17,10 +17,10 @@ import com.intellij.ui.components.panels.NonOpaquePanel
 import com.intellij.util.messages.MessageBusConnection
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
-import de.moritzf.quota.OpenAiCodexQuota
-import de.moritzf.quota.OpenCodeQuota
-import de.moritzf.quota.OpenCodeUsageWindow
-import de.moritzf.quota.UsageWindow
+import de.moritzf.quota.openai.OpenAiCodexQuota
+import de.moritzf.quota.opencode.OpenCodeQuota
+import de.moritzf.quota.opencode.OpenCodeUsageWindow
+import de.moritzf.quota.openai.UsageWindow
 import org.intellij.lang.annotations.Language
 import java.awt.Component
 import java.awt.Cursor

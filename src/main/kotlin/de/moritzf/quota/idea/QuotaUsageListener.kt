@@ -1,8 +1,8 @@
 package de.moritzf.quota.idea
 
 import com.intellij.util.messages.Topic
-import de.moritzf.quota.OpenAiCodexQuota
-import de.moritzf.quota.OpenCodeQuota
+import de.moritzf.quota.openai.OpenAiCodexQuota
+import de.moritzf.quota.opencode.OpenCodeQuota
 
 /**
  * Message bus listener for quota refresh updates.

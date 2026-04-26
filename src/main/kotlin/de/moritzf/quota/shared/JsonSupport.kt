@@ -1,4 +1,4 @@
-package de.moritzf.quota
+package de.moritzf.quota.shared
 
 import kotlinx.serialization.json.Json
 

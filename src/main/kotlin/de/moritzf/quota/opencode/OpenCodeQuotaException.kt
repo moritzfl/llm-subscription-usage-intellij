@@ -1,11 +1,11 @@
-package de.moritzf.quota
+package de.moritzf.quota.opencode
 
 import java.io.IOException
 
 /**
- * Signals a quota API request or response error with the associated HTTP status code.
+ * Signals an OpenCode quota API request or response error with the associated HTTP status code.
  */
-class OpenAiCodexQuotaException(
+class OpenCodeQuotaException(
     message: String,
     val statusCode: Int,
     val rawBody: String? = null,

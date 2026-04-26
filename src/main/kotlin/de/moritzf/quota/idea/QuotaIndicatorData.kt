@@ -1,7 +1,7 @@
 package de.moritzf.quota.idea
 
-import de.moritzf.quota.OpenAiCodexQuota
-import de.moritzf.quota.OpenCodeQuota
+import de.moritzf.quota.openai.OpenAiCodexQuota
+import de.moritzf.quota.opencode.OpenCodeQuota
 
 internal sealed interface QuotaIndicatorData {
     val error: String?

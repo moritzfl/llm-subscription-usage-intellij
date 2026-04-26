@@ -1,7 +1,7 @@
 package de.moritzf.quota.idea
 
 import com.intellij.ui.components.JBLabel
-import de.moritzf.quota.OpenAiCodexQuota
+import de.moritzf.quota.openai.OpenAiCodexQuota
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotSame

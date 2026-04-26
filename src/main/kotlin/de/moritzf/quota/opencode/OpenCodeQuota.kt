@@ -1,4 +1,4 @@
-package de.moritzf.quota
+package de.moritzf.quota.opencode
 
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable

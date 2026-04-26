@@ -1,10 +1,11 @@
 package de.moritzf.quota.idea
 
-import de.moritzf.quota.OpenAiCodexQuota
-import de.moritzf.quota.OpenAiCodexQuotaException
-import de.moritzf.quota.OpenCodeQuota
-import de.moritzf.quota.OpenCodeQuotaClient
-import de.moritzf.quota.OpenCodeQuotaException
+import de.moritzf.quota.openai.OpenAiCodexQuota
+import de.moritzf.quota.openai.OpenAiCodexQuotaException
+import de.moritzf.quota.opencode.OpenCodeQuota
+import de.moritzf.quota.opencode.OpenCodeQuotaClient
+import de.moritzf.quota.opencode.OpenCodeQuotaException
+import de.moritzf.quota.opencode.OpenCodeUsageWindow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -191,7 +192,7 @@ class QuotaUsageServiceTest {
                 throw exception
             }
             return OpenCodeQuota(
-                rollingUsage = de.moritzf.quota.OpenCodeUsageWindow(
+                rollingUsage = OpenCodeUsageWindow(
                     status = "ok",
                     resetInSec = 60,
                     usagePercent = 10,

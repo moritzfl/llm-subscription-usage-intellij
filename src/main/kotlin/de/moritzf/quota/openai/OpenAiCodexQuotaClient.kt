@@ -1,5 +1,6 @@
-package de.moritzf.quota
+package de.moritzf.quota.openai
 
+import de.moritzf.quota.shared.JsonSupport
 import kotlinx.datetime.Clock
 import java.io.IOException
 import java.time.Duration
