@@ -30,7 +30,7 @@ repositories {
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/version_catalogs.html
 dependencies {
     implementation(libs.kotlinx.datetime)
-    implementation(libs.kotlinx.serialization.json)
+    compileOnly(libs.kotlinx.serialization.json)
 
     testImplementation(libs.kotlin.test.junit5)
     testRuntimeOnly(libs.junit4)
