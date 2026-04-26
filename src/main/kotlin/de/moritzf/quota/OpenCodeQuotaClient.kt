@@ -152,16 +152,33 @@ open class OpenCodeQuotaClient(
         val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         LOG.info("Workspace list response: status=${response.statusCode()}, body=${response.body().take(200)}")
 
+        if (response.statusCode() == 401 || response.statusCode() == 403) {
+            throw OpenCodeQuotaException(
+                "Could not fetch workspace list: session cookie is invalid or expired (HTTP ${response.statusCode()}). " +
+                    "Please update your session cookie in the plugin settings.",
+                response.statusCode(), response.body()
+            )
+        }
         if (response.statusCode() !in 200..299) {
             throw OpenCodeQuotaException(
-                "Could not fetch workspace list: HTTP ${response.statusCode()} - ${response.body().take(500)}",
+                "Could not fetch workspace list: HTTP ${response.statusCode()}. " +
+                    "The opencode.ai API may have changed — please report this issue if it persists.",
                 response.statusCode(), response.body()
             )
         }
 
-        return WORKSPACE_ID_PATTERN.findAll(response.body()).map {
+        val workspaces = WORKSPACE_ID_PATTERN.findAll(response.body()).map {
             it.groupValues[1] to it.groupValues[2]
         }.toList()
+
+        if (workspaces.isEmpty() && response.body().isNotBlank()) {
+            LOG.warning(
+                "Workspace list response was successful but no workspace IDs could be parsed. " +
+                    "The opencode.ai page format may have changed. Body preview: ${response.body().take(300)}"
+            )
+        }
+
+        return workspaces
     }
 
     /**
@@ -239,8 +256,27 @@ open class OpenCodeQuotaClient(
         val status = response.statusCode()
         val body = response.body()
 
+        if (status == 401 || status == 403) {
+            throw OpenCodeQuotaException(
+                "OpenCode billing request failed: session cookie is invalid or expired (HTTP $status). " +
+                    "Please update your session cookie in the plugin settings.",
+                status, body
+            )
+        }
+        if (status == 404) {
+            // Billing endpoint hash may have rotated — log prominently but treat as non-fatal
+            LOG.warning(
+                "OpenCode billing endpoint returned 404. The server function ID ($BILLING_INFO_FUNCTION_ID) " +
+                    "may be outdated. Balance will not be shown. Please report this issue."
+            )
+            return null
+        }
         if (status !in 200..299) {
-            throw OpenCodeQuotaException("OpenCode billing request failed: HTTP $status - ${body.take(500)}", status, body)
+            throw OpenCodeQuotaException(
+                "OpenCode billing request failed: HTTP $status. " +
+                    "The opencode.ai API may have changed — please report this issue if it persists.",
+                status, body
+            )
         }
 
         return parseBillingInfoResponse(body)

@@ -18,7 +18,7 @@ import java.util.logging.Logger
 class OpenCodeSessionCookieStore {
     private val attributes = CredentialAttributes(SERVICE_NAME, USER_NAME)
     private val cachedCookie = AtomicReference<String?>()
-    private val loaded = AtomicReference(false)
+    private val loaded = AtomicBoolean(false)
     private val loading = AtomicBoolean(false)
 
     /**

@@ -2,6 +2,7 @@ package de.moritzf.quota
 
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 /**
  * Represents OpenCode Go subscription quota with rolling, weekly, and monthly usage windows.
@@ -15,7 +16,7 @@ data class OpenCodeQuota(
     val useBalance: Boolean = false,
     var availableBalance: Long? = null,
     var fetchedAt: Instant? = null,
-    var rawJson: String? = null,
+    @Transient var rawJson: String? = null,
 ) {
     fun hasUsageState(): Boolean {
         return rollingUsage != null || weeklyUsage != null || monthlyUsage != null
