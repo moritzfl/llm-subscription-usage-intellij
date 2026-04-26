@@ -1,5 +1,7 @@
 package de.moritzf.quota.idea
 
+import de.moritzf.quota.idea.common.OpenAiQuotaProvider
+import de.moritzf.quota.idea.common.OpenCodeQuotaProvider
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.openai.OpenAiCodexQuota
@@ -17,11 +19,14 @@ class QuotaUsageServiceTest {
     @Test
     fun refreshStoresRawResponseFromQuotaException() {
         val rawJson = """{"unexpected":"shape"}"""
-        val service = createService(
+        val openAiProvider = OpenAiQuotaProvider(
             quotaFetcher = { _, _ ->
                 throw OpenAiCodexQuotaException("Usage response could not be parsed", 200, rawJson)
             },
+            accessTokenProvider = { "token" },
+            accountIdProvider = { "account-1" },
         )
+        val service = createService(openAiProvider = openAiProvider)
 
         try {
             service.refreshNowBlocking()
@@ -37,13 +42,16 @@ class QuotaUsageServiceTest {
     @Test
     fun clearUsageDataRemovesCachedRawResponse() {
         val rawJson = """{"rate_limit":{"allowed":true}}"""
-        val service = createService(
+        val openAiProvider = OpenAiQuotaProvider(
             quotaFetcher = { _, _ ->
                 OpenAiCodexQuota(allowed = true).apply {
                     this.rawJson = rawJson
                 }
             },
+            accessTokenProvider = { "token" },
+            accountIdProvider = { "account-1" },
         )
+        val service = createService(openAiProvider = openAiProvider)
 
         try {
             service.refreshNowBlocking()
@@ -64,15 +72,24 @@ class QuotaUsageServiceTest {
     @Test
     fun clearOpenCodeUsageDataKeepsCodexState() {
         val rawJson = """{"rate_limit":{"allowed":true}}"""
-        val openCodeClient = RecordingOpenCodeQuotaClient()
-        val service = createService(
+        val openAiProvider = OpenAiQuotaProvider(
             quotaFetcher = { _, _ ->
                 OpenAiCodexQuota(allowed = true).apply {
                     this.rawJson = rawJson
                 }
             },
+            accessTokenProvider = { "token" },
+            accountIdProvider = { "account-1" },
+        )
+        val openCodeClient = RecordingOpenCodeQuotaClient()
+        val openCodeProvider = OpenCodeQuotaProvider(
             openCodeClient = openCodeClient,
             openCodeCookieProvider = { "cookie-a" },
+            settingsProvider = { null },
+        )
+        val service = createService(
+            openAiProvider = openAiProvider,
+            openCodeProvider = openCodeProvider,
         )
 
         try {
@@ -93,10 +110,12 @@ class QuotaUsageServiceTest {
     fun changingCookieInvalidatesWorkspaceCache() {
         val openCodeClient = RecordingOpenCodeQuotaClient()
         var cookie = "cookie-a"
-        val service = createService(
+        val openCodeProvider = OpenCodeQuotaProvider(
             openCodeClient = openCodeClient,
             openCodeCookieProvider = { cookie },
+            settingsProvider = { null },
         )
+        val service = createService(openCodeProvider = openCodeProvider)
 
         try {
             service.refreshNowBlocking()
@@ -118,10 +137,12 @@ class QuotaUsageServiceTest {
         val openCodeClient = RecordingOpenCodeQuotaClient().apply {
             failFirstFetch = OpenCodeQuotaException("Could not parse OpenCode quota response", 200, "broken")
         }
-        val service = createService(
+        val openCodeProvider = OpenCodeQuotaProvider(
             openCodeClient = openCodeClient,
             openCodeCookieProvider = { "cookie-a" },
+            settingsProvider = { null },
         )
+        val service = createService(openCodeProvider = openCodeProvider)
 
         try {
             service.refreshNowBlocking()
@@ -141,9 +162,13 @@ class QuotaUsageServiceTest {
         settings.openCodeWorkspaceId = "wrk-stored"
 
         val openCodeClient = RecordingOpenCodeQuotaClient()
-        val service = createService(
+        val openCodeProvider = OpenCodeQuotaProvider(
             openCodeClient = openCodeClient,
             openCodeCookieProvider = { "cookie-a" },
+            settingsProvider = { settings },
+        )
+        val service = createService(
+            openCodeProvider = openCodeProvider,
             settingsProvider = { settings },
         )
 
@@ -158,17 +183,19 @@ class QuotaUsageServiceTest {
     }
 
     private fun createService(
-        quotaFetcher: (String, String?) -> OpenAiCodexQuota = { _, _ -> OpenAiCodexQuota() },
-        openCodeClient: OpenCodeQuotaClient = RecordingOpenCodeQuotaClient(),
-        openCodeCookieProvider: () -> String? = { null },
+        openAiProvider: OpenAiQuotaProvider = OpenAiQuotaProvider(
+            quotaFetcher = { _, _ -> OpenAiCodexQuota() },
+            accessTokenProvider = { "token" },
+            accountIdProvider = { "account-1" },
+        ),
+        openCodeProvider: OpenCodeQuotaProvider = OpenCodeQuotaProvider(
+            openCodeCookieProvider = { null },
+            settingsProvider = { null },
+        ),
         settingsProvider: () -> QuotaSettingsState? = { null },
     ): QuotaUsageService {
         return QuotaUsageService(
-            quotaFetcher = quotaFetcher,
-            openCodeClient = openCodeClient,
-            accessTokenProvider = { "token" },
-            accountIdProvider = { "account-1" },
-            openCodeCookieProvider = openCodeCookieProvider,
+            providers = listOf(openAiProvider, openCodeProvider),
             settingsProvider = settingsProvider,
             updatePublisher = { _, _, _, _ -> },
             scheduleOnInit = false,
