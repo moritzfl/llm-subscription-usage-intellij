@@ -1,4 +1,4 @@
-# OpenAI Usage Quota Changelog
+# LLM Subscription Usage Changelog
 
 ## [Unreleased]
 

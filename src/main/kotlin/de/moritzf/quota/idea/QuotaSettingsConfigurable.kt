@@ -60,7 +60,7 @@ class QuotaSettingsConfigurable : Configurable {
     private var connection: MessageBusConnection? = null
     private var updatingDisplayModeChoices: Boolean = false
 
-    override fun getDisplayName(): String = "OpenAI Usage Quota"
+    override fun getDisplayName(): String = "LLM Subscription Usage"
 
     override fun createComponent(): JComponent? {
         accountIdField = JBTextField().apply { isEditable = false }

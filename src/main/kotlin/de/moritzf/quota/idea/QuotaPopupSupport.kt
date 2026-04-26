@@ -382,7 +382,7 @@ internal object QuotaPopupSupport {
     }
 
     private fun createPopupTitleLabel(): JBLabel {
-        return JBLabel("Subscription Quota").apply {
+        return JBLabel("Subscription Usage").apply {
             font = font.deriveFont(font.style or Font.BOLD, font.size + 2f)
         }
     }

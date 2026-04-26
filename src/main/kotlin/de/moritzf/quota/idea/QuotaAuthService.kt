@@ -297,7 +297,7 @@ class QuotaAuthService(
 
     companion object {
         private val LOG = Logger.getInstance(QuotaAuthService::class.java)
-        private const val SERVICE_NAME = "OpenAI Usage Quota OAuth"
+        private const val SERVICE_NAME = "LLM Subscription Usage OAuth"
         private const val USER_NAME = "openai-oauth"
         private val OAUTH_CONFIG = OAuthClientConfig.openAiUsageQuotaDefaults()
 

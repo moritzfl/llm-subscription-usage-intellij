@@ -1,10 +1,10 @@
 <idea-plugin>
     <id>de.moritzf.openai-usage-quota</id>
-    <name>OpenAI Usage Quota</name>
+    <name>LLM Subscription Usage</name>
     <vendor>Moritzf</vendor>
 
     <description>
-        Tracks OpenAI Codex and Code Review usage quotas in the IDE status bar and popup, including plan-specific limits across OpenAI subscription tiers, with a browser-based login flow.
+        Tracks LLM subscription usage quotas in the IDE status bar and popup, including OpenAI Codex, Code Review, and OpenCode Go limits.
     </description>
 
     <depends>com.intellij.modules.platform</depends>
@@ -13,7 +13,7 @@
     <extensions defaultExtensionNs="com.intellij">
         <applicationConfigurable
                 id="openai.usage.quota.settings"
-                displayName="OpenAI Usage Quota"
+                displayName="LLM Subscription Usage"
                 parentId="tools"
                 instance="de.moritzf.quota.idea.QuotaSettingsConfigurable"/>
         <statusBarWidgetFactory implementation="de.moritzf.quota.idea.QuotaStatusBarWidgetFactory" id="openai.usage.quota.widget"/>
@@ -22,7 +22,7 @@
     <actions>
         <action id="openai.usage.quota.mainToolbar"
                 class="de.moritzf.quota.idea.QuotaMainToolbarAction"
-                text="OpenAI Usage Quota">
+                text="LLM Subscription Usage">
             <add-to-group group-id="MainToolbarRight"/>
         </action>
     </actions>

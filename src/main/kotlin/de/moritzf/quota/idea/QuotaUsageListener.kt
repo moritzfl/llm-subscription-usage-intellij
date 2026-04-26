@@ -13,6 +13,6 @@ interface QuotaUsageListener {
 
     companion object {
         @JvmField
-        val TOPIC: Topic<QuotaUsageListener> = Topic.create("OpenAI Usage Quota Updated", QuotaUsageListener::class.java)
+        val TOPIC: Topic<QuotaUsageListener> = Topic.create("LLM Subscription Usage Updated", QuotaUsageListener::class.java)
     }
 }

@@ -1,15 +1,15 @@
-# OpenAI Usage Quota (IntelliJ Plugin)
+# LLM Subscription Usage (IntelliJ Plugin)
 
-An IntelliJ plugin that tracks OpenAI Codex and Code Review usage quotas across OpenAI subscription plans in the status bar and inside a detailed popup.
+An IntelliJ plugin that tracks LLM subscription usage quotas across OpenAI Codex, Code Review, and OpenCode Go in the status bar and inside a detailed popup.
 
 <table align="center">
   <tr>
     <td align="center">
       <a href="https://plugins.jetbrains.com/plugin/30690-openai-usage-quota">
-        <img src="src/main/resources/META-INF/pluginIcon.svg" alt="OpenAI Usage Quota on JetBrains Marketplace" width="96" />
+        <img src="src/main/resources/META-INF/pluginIcon.svg" alt="LLM Subscription Usage on JetBrains Marketplace" width="96" />
       </a>
       <br />
-      <strong><a href="https://plugins.jetbrains.com/plugin/30690-openai-usage-quota">OpenAI Usage Quota on JetBrains Marketplace</a></strong>
+      <strong><a href="https://plugins.jetbrains.com/plugin/30690-openai-usage-quota">LLM Subscription Usage on JetBrains Marketplace</a></strong>
       <br />
       Install the plugin for IntelliJ IDEA.
       <br />
@@ -50,7 +50,7 @@ In practice, this means IntelliJ IDEA 2025.3+ compatible platform builds.
 ### Option 1: Install From JetBrains Marketplace
 
 1. Open IntelliJ IDEA `Settings` > `Plugins` > `Marketplace`
-2. Search for `OpenAI Usage Quota`
+2. Search for `LLM Subscription Usage`
 3. Click `Install`
 
 ### Option 2: Install From ZIP (Local)
@@ -76,7 +76,7 @@ This opens a sandbox IDE with the plugin loaded.
 
 ## Usage
 
-1. Open `Settings` > `OpenAI Usage Quota`
+1. Open `Settings` > `LLM Subscription Usage`
 2. Click `Log In`
 3. Complete the browser login flow
 4. Return to IDE and check:

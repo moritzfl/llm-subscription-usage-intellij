@@ -11,7 +11,7 @@ import com.intellij.openapi.wm.StatusBarWidgetFactory
 class QuotaStatusBarWidgetFactory : StatusBarWidgetFactory {
     override fun getId(): String = ID
 
-    override fun getDisplayName(): String = "OpenAI Usage Quota"
+    override fun getDisplayName(): String = "LLM Subscription Usage"
 
     override fun isAvailable(project: Project): Boolean = !project.isDisposed
 
