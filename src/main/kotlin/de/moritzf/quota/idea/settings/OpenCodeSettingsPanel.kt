@@ -54,7 +54,7 @@ internal class OpenCodeSettingsPanel(
             if (state.openCodeWorkspaceId != selected.id) {
                 state.openCodeWorkspaceId = selected.id
                 QuotaUsageService.getInstance().resetOpenCodeWorkspaceCache()
-                QuotaUsageService.getInstance().refreshNowAsync()
+                QuotaUsageService.getInstance().refreshOpenCodeAsync()
             }
         }
 
@@ -80,7 +80,7 @@ internal class OpenCodeSettingsPanel(
                         OpenCodeSessionCookieStore.getInstance().save(cookie)
                         updateOpenCodeFields()
                         updateOpenCodeStatus()
-                        QuotaUsageService.getInstance().refreshNowAsync()
+                        QuotaUsageService.getInstance().refreshOpenCodeAsync()
                     }
                 }
                 button("Clear") {

@@ -182,6 +182,43 @@ class QuotaUsageServiceTest {
         }
     }
 
+    @Test
+    fun providerSpecificRefreshOnlyCallsSelectedProvider() {
+        var openAiFetchCount = 0
+        val openAiProvider = OpenAiQuotaProvider(
+            quotaFetcher = { _, _ ->
+                openAiFetchCount++
+                OpenAiCodexQuota()
+            },
+            accessTokenProvider = { "token" },
+            accountIdProvider = { "account-1" },
+        )
+        val openCodeClient = RecordingOpenCodeQuotaClient()
+        val openCodeProvider = OpenCodeQuotaProvider(
+            openCodeClient = openCodeClient,
+            openCodeCookieProvider = { "cookie-a" },
+            settingsProvider = { null },
+        )
+        val service = createService(
+            openAiProvider = openAiProvider,
+            openCodeProvider = openCodeProvider,
+        )
+
+        try {
+            service.refreshOpenAiBlocking()
+
+            assertEquals(1, openAiFetchCount)
+            assertEquals(emptyList(), openCodeClient.fetchCalls)
+
+            service.refreshOpenCodeBlocking()
+
+            assertEquals(1, openAiFetchCount)
+            assertEquals(listOf("cookie-a:wrk-cookie-a"), openCodeClient.fetchCalls)
+        } finally {
+            service.dispose()
+        }
+    }
+
     private fun createService(
         openAiProvider: OpenAiQuotaProvider = OpenAiQuotaProvider(
             quotaFetcher = { _, _ -> OpenAiCodexQuota() },

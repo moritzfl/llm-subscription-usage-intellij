@@ -17,7 +17,7 @@ class OpenAiUsageQuotaMcpToolset : McpToolset {
     @McpDescription(description = "Returns the latest OpenAI usage quota response JSON.")
     fun openai_usage_quota(): McpToolCallResult {
         val usageService = QuotaUsageService.getInstance()
-        usageService.refreshNowBlocking()
+        usageService.refreshOpenAiBlocking()
 
         val error = usageService.getLastError()
         if (!error.isNullOrBlank()) {
@@ -35,7 +35,7 @@ class OpenAiUsageQuotaMcpToolset : McpToolset {
     @McpDescription(description = "Returns the latest OpenCode Go usage quota response JSON.")
     fun opencode_usage_quota(): McpToolCallResult {
         val usageService = QuotaUsageService.getInstance()
-        usageService.refreshNowBlocking()
+        usageService.refreshOpenCodeBlocking()
 
         val error = usageService.getLastOpenCodeError()
         if (!error.isNullOrBlank()) {

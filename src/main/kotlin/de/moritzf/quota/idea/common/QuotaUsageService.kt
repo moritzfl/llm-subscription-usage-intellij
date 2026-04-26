@@ -39,7 +39,8 @@ class QuotaUsageService(
     },
     scheduleOnInit: Boolean = true,
 ) : Disposable {
-    private val refreshing = AtomicBoolean(false)
+    private val refreshingOpenAi = AtomicBoolean(false)
+    private val refreshingOpenCode = AtomicBoolean(false)
     private val openAiProvider = providers.filterIsInstance<OpenAiQuotaProvider>().firstOrNull()
     private val openCodeProvider = providers.filterIsInstance<OpenCodeQuotaProvider>().firstOrNull()
     private var scheduled: ScheduledFuture<*>? = null
@@ -82,8 +83,20 @@ class QuotaUsageService(
         AppExecutorUtil.getAppExecutorService().execute(::refreshNow)
     }
 
+    fun refreshOpenCodeAsync() {
+        AppExecutorUtil.getAppExecutorService().execute(::refreshOpenCode)
+    }
+
     fun refreshNowBlocking() {
         refreshNow()
+    }
+
+    fun refreshOpenAiBlocking() {
+        refreshOpenAi()
+    }
+
+    fun refreshOpenCodeBlocking() {
+        refreshOpenCode()
     }
 
     fun clearUsageData(error: String? = null) {
@@ -119,24 +132,30 @@ class QuotaUsageService(
     }
 
     private fun refreshNow() {
-        if (!refreshing.compareAndSet(false, true)) {
+        refreshOpenAi()
+        refreshOpenCode()
+    }
+
+    private fun refreshOpenAi() {
+        refreshProvider(openAiProvider, refreshingOpenAi)
+    }
+
+    private fun refreshOpenCode() {
+        refreshProvider(openCodeProvider, refreshingOpenCode)
+    }
+
+    private fun refreshProvider(provider: QuotaProvider?, refreshing: AtomicBoolean) {
+        if (provider == null || !refreshing.compareAndSet(false, true)) {
             return
         }
 
         try {
-            openAiProvider?.refresh()
-            openCodeProvider?.refresh()
-            persistToCache()
+            provider.refresh()
+            settingsProvider()?.let(provider::persistToCache)
             publishUpdate()
         } finally {
             refreshing.set(false)
         }
-    }
-
-    private fun persistToCache() {
-        val settings = settingsProvider() ?: return
-        openAiProvider?.persistToCache(settings)
-        openCodeProvider?.persistToCache(settings)
     }
 
     private fun publishUpdate() {
