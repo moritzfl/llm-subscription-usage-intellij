@@ -159,7 +159,7 @@ internal class OpenCodeSettingsPanel(
                 openCodeStatusLabel.foreground = statusLabelDefaultForeground ?: openCodeStatusLabel.foreground
             }
             openCodeQuota != null -> {
-                val balanceText = if (openCodeQuota.useBalance) openCodeQuota.availableBalance?.let { "Balance: $${QuotaUiUtil.formatOpenCodeBalance(it)}" } else null
+                val balanceText = openCodeQuota.availableBalance?.let { "Balance: $${QuotaUiUtil.formatOpenCodeBalance(it)}" }
                 val text = if (balanceText != null) "Connected - Go subscription active - $balanceText" else "Connected - Go subscription active"
                 openCodeStatusLabel.text = formatStatusText(text, AuthStatusKind.CONNECTED)
                 openCodeStatusLabel.foreground = statusLabelDefaultForeground ?: openCodeStatusLabel.foreground

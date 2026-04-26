@@ -305,7 +305,7 @@ internal fun buildOpenCodeTooltipText(quota: OpenCodeQuota?, error: String?): St
     return when {
         window == null -> "OpenCode quota: no usage data"
         window.isRateLimited -> "OpenCode quota: rate limited"
-        quota.useBalance && availableBalance != null ->
+        availableBalance != null ->
             "OpenCode quota: ${window.usagePercent}% used, balance $${QuotaUiUtil.formatOpenCodeBalance(availableBalance)}"
         else -> "OpenCode quota: ${window.usagePercent}% used"
     }
@@ -316,7 +316,7 @@ internal fun openCodeBarDisplayText(quota: OpenCodeQuota?, error: String?): Stri
     if (quota == null) return "loading..."
 
     val window = quota.rollingUsage ?: quota.weeklyUsage ?: quota.monthlyUsage
-    val balanceText = if (quota.useBalance) quota.availableBalance?.let { "$${QuotaUiUtil.formatOpenCodeBalance(it)}" } else null
+        val balanceText = quota.availableBalance?.let { "$${QuotaUiUtil.formatOpenCodeBalance(it)}" }
     return when {
         window == null -> if (balanceText != null) "no data \u2022 $balanceText" else "no data"
         window.isRateLimited -> if (balanceText != null) "rate limited \u2022 $balanceText" else "rate limited"

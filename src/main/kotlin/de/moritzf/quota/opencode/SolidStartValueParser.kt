@@ -26,7 +26,7 @@ internal class SolidStartValueParser(
             '-' -> parseNumber()
             '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' -> parseNumber()
             '!' -> parseBooleanBang()
-            'n' -> parseNull()
+            'n' -> parseNullOrDate()
             't', 'f' -> parseBooleanWord()
             '$' -> parseReferenceExpression()
             else -> fail("Unexpected token '${text[index]}'")
@@ -201,12 +201,20 @@ internal class SolidStartValueParser(
         }
     }
 
-    private fun parseNull(): JsonElement {
-        if (!text.startsWith("null", index)) {
-            fail("Unsupported identifier literal")
+    private fun parseNullOrDate(): JsonElement {
+        return when {
+            text.startsWith("null", index) -> {
+                index += 4
+                JsonNull
+            }
+            text.startsWith("new Date(\"", index) -> {
+                index += 9
+                val dateString = parseString()
+                expect(')')
+                JsonPrimitive(dateString)
+            }
+            else -> fail("Unsupported identifier literal")
         }
-        index += 4
-        return JsonNull
     }
 
     private fun parseReferenceExpression(): JsonElement {
