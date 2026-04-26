@@ -126,6 +126,22 @@ object QuotaUiUtil {
         return BigDecimal.valueOf(balance).movePointLeft(8).setScale(2, RoundingMode.HALF_UP).toPlainString()
     }
 
+    @JvmStatic
+    fun escapeHtml(text: String): String {
+        return buildString(text.length) {
+            text.forEach { char ->
+                when (char) {
+                    '&' -> append("&amp;")
+                    '<' -> append("&lt;")
+                    '>' -> append("&gt;")
+                    '"' -> append("&quot;")
+                    '\'' -> append("&#39;")
+                    else -> append(char)
+                }
+            }
+        }
+    }
+
     private fun formatAbsoluteInstant(instant: Instant): String {
         val zonedInstant = java.time.Instant.ofEpochMilli(instant.toEpochMilliseconds()).atZone(ZoneId.systemDefault())
         return absoluteFormatter.format(zonedInstant)

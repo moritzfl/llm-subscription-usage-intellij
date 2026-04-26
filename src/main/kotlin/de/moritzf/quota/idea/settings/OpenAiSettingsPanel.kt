@@ -12,6 +12,7 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaUsageService
+import de.moritzf.quota.idea.ui.QuotaUiUtil
 import java.awt.Dimension
 import java.awt.Font
 import java.awt.Toolkit
@@ -197,6 +198,6 @@ internal class OpenAiSettingsPanel : BorderLayoutPanel() {
             AuthStatusKind.DISCONNECTED -> "#F44336"
             AuthStatusKind.PENDING -> "#FFC107"
         }
-        return "<html><span style='color:$color'>●</span>&nbsp;$text</html>"
+        return "<html><span style='color:$color'>●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
     }
 }

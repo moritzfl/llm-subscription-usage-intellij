@@ -35,4 +35,12 @@ class QuotaUiUtilTest {
         assertEquals("0.01", QuotaUiUtil.formatOpenCodeBalance(1_000_000L))
         assertEquals("100.00", QuotaUiUtil.formatOpenCodeBalance(10_000_000_000L))
     }
+
+    @Test
+    fun escapeHtmlEscapesSpecialCharacters() {
+        assertEquals(
+            "&lt;script&gt;&amp;&quot;&#39;&lt;/script&gt;",
+            QuotaUiUtil.escapeHtml("<script>&\"'</script>"),
+        )
+    }
 }

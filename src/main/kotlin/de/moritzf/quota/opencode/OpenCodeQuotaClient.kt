@@ -53,7 +53,7 @@ open class OpenCodeQuotaClient(
         LOG.info("OpenCode quota response: status=$status, body=${body.take(200)}")
 
         if (status !in 200..299) {
-            throw OpenCodeQuotaException("OpenCode quota request failed: HTTP $status - ${body.take(500)}", status, body)
+            throw OpenCodeQuotaException("OpenCode quota request failed: HTTP $status", status, body)
         }
 
         val quota = parseQuotaResponse(body)
