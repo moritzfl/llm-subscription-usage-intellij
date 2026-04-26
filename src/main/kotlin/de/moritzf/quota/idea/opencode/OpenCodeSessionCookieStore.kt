@@ -8,6 +8,7 @@ import com.intellij.openapi.components.Service
 import com.intellij.util.concurrency.AppExecutorUtil
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import java.util.logging.Logger
 
@@ -21,6 +22,7 @@ class OpenCodeSessionCookieStore {
     private val cachedCookie = AtomicReference<String?>()
     private val loaded = AtomicBoolean(false)
     private val loading = AtomicBoolean(false)
+    private val loadGeneration = AtomicLong(0)
     private val loadCallbacks = CopyOnWriteArrayList<() -> Unit>()
 
     /**
@@ -50,6 +52,7 @@ class OpenCodeSessionCookieStore {
      * Loads the cookie from PasswordSafe on a background thread.
      */
     private fun loadAsync() {
+        val generation = loadGeneration.get()
         AppExecutorUtil.getAppExecutorService().execute {
             try {
                 val stored = try {
@@ -58,11 +61,13 @@ class OpenCodeSessionCookieStore {
                     null
                 }
                 val cookie = stored?.getPasswordAsString()?.ifBlank { null }
-                cachedCookie.set(cookie)
+                if (loadGeneration.get() == generation) {
+                    cachedCookie.set(cookie)
+                    loaded.set(true)
+                    notifyLoadedCallbacks()
+                }
             } finally {
-                loaded.set(true)
                 loading.set(false)
-                notifyLoadedCallbacks()
             }
         }
     }
@@ -71,6 +76,7 @@ class OpenCodeSessionCookieStore {
      * Forces a synchronous reload. Should NOT be called from the EDT.
      */
     fun loadBlocking(): String? {
+        loadGeneration.incrementAndGet()
         val stored = try {
             PasswordSafe.instance.get(attributes)
         } catch (exception: Exception) {
@@ -86,6 +92,7 @@ class OpenCodeSessionCookieStore {
     }
 
     fun save(cookie: String) {
+        loadGeneration.incrementAndGet()
         try {
             PasswordSafe.instance.set(attributes, Credentials(USER_NAME, cookie))
         } catch (exception: Exception) {
@@ -99,6 +106,7 @@ class OpenCodeSessionCookieStore {
     }
 
     fun clear() {
+        loadGeneration.incrementAndGet()
         try {
             PasswordSafe.instance.set(attributes, null)
         } catch (exception: Exception) {
