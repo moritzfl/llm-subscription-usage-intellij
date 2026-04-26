@@ -1,4 +1,4 @@
-package de.moritzf.quota.idea
+package de.moritzf.quota.idea.common
 
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.openai.OpenAiCodexQuota

@@ -3,7 +3,7 @@ package de.moritzf.quota.idea.auth
 import com.intellij.openapi.diagnostic.Logger
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.openai.dto.OAuthTokenResponseDto
-import de.moritzf.quota.idea.QuotaTokenUtil
+import de.moritzf.quota.idea.auth.QuotaTokenUtil
 import java.io.IOException
 import java.net.URI
 import java.net.URLEncoder

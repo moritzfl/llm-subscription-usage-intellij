@@ -1,6 +1,14 @@
-package de.moritzf.quota.idea
+package de.moritzf.quota.idea.ui.toolbar
 
 import com.intellij.ide.impl.ProjectUtil
+import de.moritzf.quota.idea.common.QuotaUsageService
+import de.moritzf.quota.idea.settings.QuotaDisplayMode
+import de.moritzf.quota.idea.settings.QuotaSettingsState
+import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorComponent
+import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorData
+import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorLocation
+import de.moritzf.quota.idea.ui.popup.QuotaPopupLocation
+import de.moritzf.quota.idea.ui.popup.QuotaPopupSupport
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent

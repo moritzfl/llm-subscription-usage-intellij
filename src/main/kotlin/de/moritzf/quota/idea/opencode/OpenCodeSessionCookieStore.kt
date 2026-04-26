@@ -1,4 +1,4 @@
-package de.moritzf.quota.idea
+package de.moritzf.quota.idea.opencode
 
 import com.intellij.credentialStore.CredentialAttributes
 import com.intellij.credentialStore.Credentials

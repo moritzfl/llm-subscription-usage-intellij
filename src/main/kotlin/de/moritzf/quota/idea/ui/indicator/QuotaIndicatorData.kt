@@ -1,4 +1,4 @@
-package de.moritzf.quota.idea
+package de.moritzf.quota.idea.ui.indicator
 
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.opencode.OpenCodeQuota

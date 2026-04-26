@@ -1,6 +1,9 @@
-package de.moritzf.quota.idea
+package de.moritzf.quota.idea.ui.indicator
 
 import com.intellij.ui.components.JBLabel
+import de.moritzf.quota.idea.auth.QuotaAuthService
+import de.moritzf.quota.idea.settings.QuotaDisplayMode
+import de.moritzf.quota.idea.ui.QuotaUiUtil
 import com.intellij.util.IconUtil
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel

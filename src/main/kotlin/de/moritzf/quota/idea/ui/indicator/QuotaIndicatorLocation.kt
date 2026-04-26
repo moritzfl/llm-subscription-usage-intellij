@@ -1,4 +1,4 @@
-package de.moritzf.quota.idea
+package de.moritzf.quota.idea.ui.indicator
 
 /**
  * Preferred host for the quota indicator UI.

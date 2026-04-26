@@ -1,4 +1,4 @@
-package de.moritzf.quota.idea
+package de.moritzf.quota.idea.ui.indicator
 
 enum class QuotaIndicatorSource(private val displayName: String) {
     OPEN_AI("OpenAI"),

@@ -1,5 +1,7 @@
 package de.moritzf.quota.idea
 
+import de.moritzf.quota.idea.common.QuotaUsageService
+import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.OpenAiCodexQuotaException
 import de.moritzf.quota.opencode.OpenCodeQuota

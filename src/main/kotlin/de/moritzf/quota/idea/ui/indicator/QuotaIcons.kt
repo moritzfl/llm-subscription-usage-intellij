@@ -1,4 +1,4 @@
-package de.moritzf.quota.idea
+package de.moritzf.quota.idea.ui.indicator
 
 import com.intellij.openapi.util.IconLoader
 import javax.swing.Icon

@@ -1,4 +1,4 @@
-package de.moritzf.quota.idea
+package de.moritzf.quota.idea.ui.indicator
 
 import com.intellij.ui.Gray
 import com.intellij.ui.JBColor

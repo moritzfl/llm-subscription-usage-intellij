@@ -1,5 +1,8 @@
 package de.moritzf.quota.idea
 
+import de.moritzf.quota.idea.settings.AuthStatusMessage
+import de.moritzf.quota.idea.settings.AuthStatusKind
+import de.moritzf.quota.idea.settings.QuotaSettingsAuthUiState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

@@ -1,5 +1,7 @@
 package de.moritzf.quota.idea
 
+import de.moritzf.quota.idea.settings.QuotaDisplayMode
+import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorLocation
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

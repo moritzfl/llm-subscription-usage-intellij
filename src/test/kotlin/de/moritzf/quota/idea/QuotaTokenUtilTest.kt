@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea
 
+import de.moritzf.quota.idea.auth.QuotaTokenUtil
 import org.intellij.lang.annotations.Language
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi

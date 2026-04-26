@@ -1,4 +1,4 @@
-package de.moritzf.quota.idea
+package de.moritzf.quota.idea.settings
 
 import com.intellij.icons.AllIcons
 import com.intellij.ide.ActivityTracker
@@ -20,6 +20,17 @@ import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.opencode.OpenCodeQuotaClient
 import de.moritzf.quota.opencode.OpenCodeWorkspace
+import de.moritzf.quota.idea.auth.QuotaAuthService
+import de.moritzf.quota.idea.common.QuotaUsageListener
+import de.moritzf.quota.idea.common.QuotaUsageService
+import de.moritzf.quota.idea.opencode.OpenCodeSessionCookieStore
+import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorLocation
+import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorSource
+import de.moritzf.quota.idea.ui.QuotaUiUtil
+import de.moritzf.quota.idea.ui.indicator.QuotaIcons
+import de.moritzf.quota.idea.ui.indicator.QuotaPercentageIndicator
+import de.moritzf.quota.idea.ui.indicator.scaleIconToQuotaStatusSize
+import de.moritzf.quota.idea.ui.indicator.QuotaUsageColors
 import java.awt.Color
 import java.awt.Dimension
 import java.awt.Font

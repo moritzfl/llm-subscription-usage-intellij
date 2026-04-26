@@ -1,6 +1,9 @@
-package de.moritzf.quota.idea
+package de.moritzf.quota.idea.settings
 
 import com.intellij.openapi.application.ApplicationManager
+import de.moritzf.quota.idea.common.QuotaSnapshotCache
+import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorLocation
+import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorSource
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State

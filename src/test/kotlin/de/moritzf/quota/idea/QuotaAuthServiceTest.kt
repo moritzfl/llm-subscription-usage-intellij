@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea
 
+import de.moritzf.quota.idea.auth.QuotaAuthService
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

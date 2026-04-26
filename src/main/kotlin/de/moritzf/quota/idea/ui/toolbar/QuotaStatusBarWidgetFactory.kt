@@ -1,4 +1,4 @@
-package de.moritzf.quota.idea
+package de.moritzf.quota.idea.ui.toolbar
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.StatusBar

@@ -1,4 +1,4 @@
-package de.moritzf.quota.idea
+package de.moritzf.quota.idea.settings
 
 internal data class AuthStatusMessage(
     val text: String,

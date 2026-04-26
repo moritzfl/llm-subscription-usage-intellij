@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea
 
+import de.moritzf.quota.idea.ui.QuotaUiUtil
 import kotlinx.datetime.Clock
 import kotlin.test.Test
 import kotlin.test.assertEquals

@@ -1,4 +1,4 @@
-package de.moritzf.quota.idea
+package de.moritzf.quota.idea.auth
 
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.Disposable

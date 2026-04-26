@@ -1,4 +1,4 @@
-package de.moritzf.quota.idea
+package de.moritzf.quota.idea.ui
 
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant

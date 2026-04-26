@@ -1,6 +1,16 @@
-package de.moritzf.quota.idea
+package de.moritzf.quota.idea.ui.popup
 
 import com.intellij.icons.AllIcons
+import de.moritzf.quota.idea.auth.QuotaAuthService
+import de.moritzf.quota.idea.settings.QuotaSettingsConfigurable
+import de.moritzf.quota.idea.ui.indicator.QuotaIcons
+import de.moritzf.quota.idea.ui.indicator.clampPercent
+import de.moritzf.quota.idea.ui.indicator.scaleIconToQuotaStatusSize
+import de.moritzf.quota.idea.common.QuotaUsageListener
+import de.moritzf.quota.idea.common.QuotaUsageService
+import de.moritzf.quota.idea.opencode.OpenCodeSessionCookieStore
+import de.moritzf.quota.idea.settings.QuotaSettingsState
+import de.moritzf.quota.idea.ui.QuotaUiUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.options.ShowSettingsUtil

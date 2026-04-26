@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea
 
+import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.auth.OAuthClientConfig
 import de.moritzf.quota.idea.auth.OAuthCredentialStore
 import de.moritzf.quota.idea.auth.OAuthCredentials

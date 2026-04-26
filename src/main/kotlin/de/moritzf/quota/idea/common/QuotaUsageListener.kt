@@ -1,4 +1,4 @@
-package de.moritzf.quota.idea
+package de.moritzf.quota.idea.common
 
 import com.intellij.util.messages.Topic
 import de.moritzf.quota.openai.OpenAiCodexQuota

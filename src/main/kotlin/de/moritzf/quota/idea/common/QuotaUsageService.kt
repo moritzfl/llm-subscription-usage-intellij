@@ -1,4 +1,4 @@
-package de.moritzf.quota.idea
+package de.moritzf.quota.idea.common
 
 import com.intellij.ide.ActivityTracker
 import com.intellij.openapi.Disposable
@@ -11,6 +11,11 @@ import de.moritzf.quota.openai.OpenAiCodexQuotaException
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.opencode.OpenCodeQuotaClient
 import de.moritzf.quota.opencode.OpenCodeQuotaException
+import de.moritzf.quota.idea.auth.QuotaAuthService
+import de.moritzf.quota.idea.opencode.OpenCodeSessionCookieStore
+import de.moritzf.quota.idea.settings.QuotaSettingsState
+import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorData
+import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorSource
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit

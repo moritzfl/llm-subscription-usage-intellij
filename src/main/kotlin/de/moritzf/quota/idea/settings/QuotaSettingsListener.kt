@@ -1,4 +1,4 @@
-package de.moritzf.quota.idea
+package de.moritzf.quota.idea.settings
 
 import com.intellij.util.messages.Topic
 

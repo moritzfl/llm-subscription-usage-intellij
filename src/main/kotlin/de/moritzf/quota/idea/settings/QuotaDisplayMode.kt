@@ -1,4 +1,6 @@
-package de.moritzf.quota.idea
+package de.moritzf.quota.idea.settings
+
+import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorLocation
 
 /**
  * Rendering mode for the quota indicator.

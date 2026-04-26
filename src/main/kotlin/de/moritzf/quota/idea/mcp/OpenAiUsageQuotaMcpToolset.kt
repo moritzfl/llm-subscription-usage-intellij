@@ -5,7 +5,7 @@ import com.intellij.mcpserver.McpToolCallResultContent
 import com.intellij.mcpserver.McpToolset
 import com.intellij.mcpserver.annotations.McpDescription
 import com.intellij.mcpserver.annotations.McpTool
-import de.moritzf.quota.idea.QuotaUsageService
+import de.moritzf.quota.idea.common.QuotaUsageService
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
