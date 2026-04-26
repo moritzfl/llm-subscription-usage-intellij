@@ -132,10 +132,33 @@ class QuotaUsageServiceTest {
         }
     }
 
+    @Test
+    fun storedWorkspaceIdSkipsDiscovery() {
+        val settings = QuotaSettingsState()
+        settings.openCodeWorkspaceId = "wrk-stored"
+
+        val openCodeClient = RecordingOpenCodeQuotaClient()
+        val service = createService(
+            openCodeClient = openCodeClient,
+            openCodeCookieProvider = { "cookie-a" },
+            settingsProvider = { settings },
+        )
+
+        try {
+            service.refreshNowBlocking()
+
+            assertEquals(0, openCodeClient.discoverCount)
+            assertEquals(listOf("cookie-a:wrk-stored"), openCodeClient.fetchCalls)
+        } finally {
+            service.dispose()
+        }
+    }
+
     private fun createService(
         quotaFetcher: (String, String?) -> OpenAiCodexQuota = { _, _ -> OpenAiCodexQuota() },
         openCodeClient: OpenCodeQuotaClient = RecordingOpenCodeQuotaClient(),
         openCodeCookieProvider: () -> String? = { null },
+        settingsProvider: () -> QuotaSettingsState? = { null },
     ): QuotaUsageService {
         return QuotaUsageService(
             quotaFetcher = quotaFetcher,
@@ -143,6 +166,7 @@ class QuotaUsageServiceTest {
             accessTokenProvider = { "token" },
             accountIdProvider = { "account-1" },
             openCodeCookieProvider = openCodeCookieProvider,
+            settingsProvider = settingsProvider,
             updatePublisher = { _, _, _, _ -> },
             scheduleOnInit = false,
         )

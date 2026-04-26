@@ -69,6 +69,36 @@ open class OpenCodeQuotaClient(
     }
 
     /**
+     * Fetches all workspaces for the user and enriches them with quota info
+     * so the caller can pick the right one.
+     */
+    @Throws(IOException::class, InterruptedException::class)
+    open fun fetchWorkspaces(sessionCookie: String): List<OpenCodeWorkspace> {
+        require(sessionCookie.isNotBlank()) { "sessionCookie must not be null or blank" }
+
+        val workspaces = fetchWorkspaceList(sessionCookie)
+        if (workspaces.isEmpty()) {
+            throw OpenCodeQuotaException(
+                "No workspaces found. Please ensure you have access to opencode.ai.",
+                200, null
+            )
+        }
+
+        return workspaces.map { (id, name) ->
+            val (mine, hasGo) = try {
+                val quota = fetchQuota(sessionCookie, id)
+                quota.mine to quota.hasUsageState()
+            } catch (exception: OpenCodeQuotaException) {
+                when (exception.statusCode) {
+                    0, 401, 403, 404 -> false to false
+                    else -> false to false
+                }
+            }
+            OpenCodeWorkspace(id = id, name = name, mine = mine, hasGoSubscription = hasGo)
+        }
+    }
+
+    /**
      * Discovers the workspace ID from the user's opencode.ai console.
      * Iterates all workspaces and returns the first one with an active Go subscription.
      */
@@ -76,39 +106,15 @@ open class OpenCodeQuotaClient(
     open fun discoverWorkspaceId(sessionCookie: String): String {
         require(sessionCookie.isNotBlank()) { "sessionCookie must not be null or blank" }
 
-        // Call the workspaces list RPC
-        val uri = URI.create("https://opencode.ai/_server?id=$WORKSPACES_FUNCTION_ID&args=%5B%5D")
-        LOG.info("Discovering workspace ID: $uri")
-
-        val request = HttpRequest.newBuilder()
-            .uri(uri)
-            .timeout(Duration.ofSeconds(15))
-            .header("Cookie", "auth=$sessionCookie")
-            .header("Accept", "application/json")
-            .header("X-Server-Id", WORKSPACES_FUNCTION_ID)
-            .header("X-Server-Instance", "server-fn:2")
-            .GET()
-            .build()
-
-        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-        LOG.info("Workspace discovery response: status=${response.statusCode()}, body=${response.body().take(200)}")
-
-        if (response.statusCode() !in 200..299) {
-            throw OpenCodeQuotaException(
-                "Could not discover workspace ID: HTTP ${response.statusCode()} - ${response.body().take(500)}",
-                response.statusCode(), response.body()
-            )
-        }
-
-        val workspaceIds = WORKSPACE_ID_PATTERN.findAll(response.body()).map { it.groupValues[1] }.toList()
-        if (workspaceIds.isEmpty()) {
+        val workspaces = fetchWorkspaceList(sessionCookie)
+        if (workspaces.isEmpty()) {
             throw OpenCodeQuotaException(
                 "No workspace found. Please ensure you have an active OpenCode Go subscription.",
-                200, response.body()
+                200, null
             )
         }
 
-        for (workspaceId in workspaceIds) {
+        for ((workspaceId, _) in workspaces) {
             try {
                 val quota = fetchQuota(sessionCookie, workspaceId)
                 if (quota.hasUsageState()) {
@@ -125,8 +131,37 @@ open class OpenCodeQuotaClient(
 
         throw OpenCodeQuotaException(
             "No workspace with an active OpenCode Go subscription found.",
-            200, response.body()
+            200, null
         )
+    }
+
+    private fun fetchWorkspaceList(sessionCookie: String): List<Pair<String, String>> {
+        val uri = URI.create("https://opencode.ai/_server?id=$WORKSPACES_FUNCTION_ID&args=%5B%5D")
+        LOG.info("Fetching workspace list: $uri")
+
+        val request = HttpRequest.newBuilder()
+            .uri(uri)
+            .timeout(Duration.ofSeconds(15))
+            .header("Cookie", "auth=$sessionCookie")
+            .header("Accept", "application/json")
+            .header("X-Server-Id", WORKSPACES_FUNCTION_ID)
+            .header("X-Server-Instance", "server-fn:2")
+            .GET()
+            .build()
+
+        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        LOG.info("Workspace list response: status=${response.statusCode()}, body=${response.body().take(200)}")
+
+        if (response.statusCode() !in 200..299) {
+            throw OpenCodeQuotaException(
+                "Could not fetch workspace list: HTTP ${response.statusCode()} - ${response.body().take(500)}",
+                response.statusCode(), response.body()
+            )
+        }
+
+        return WORKSPACE_ID_PATTERN.findAll(response.body()).map {
+            it.groupValues[1] to it.groupValues[2]
+        }.toList()
     }
 
     /**

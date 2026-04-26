@@ -18,6 +18,8 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.OpenAiCodexQuota
 import de.moritzf.quota.OpenCodeQuota
+import de.moritzf.quota.OpenCodeQuotaClient
+import de.moritzf.quota.OpenCodeWorkspace
 import java.awt.Color
 import java.awt.Dimension
 import java.awt.Font
@@ -54,6 +56,10 @@ class QuotaSettingsConfigurable : Configurable {
     private var authUrl: String? = null
     private var connection: MessageBusConnection? = null
     private var updatingDisplayModeChoices: Boolean = false
+    private var workspaceComboBox: ComboBox<OpenCodeWorkspace>? = null
+    private var workspaceLabel: JBLabel? = null
+    private var workspaceLoadingLabel: JBLabel? = null
+    private var updatingWorkspaceComboBox: Boolean = false
 
     override fun getDisplayName(): String = "LLM Subscription Usage"
 
@@ -90,6 +96,22 @@ class QuotaSettingsConfigurable : Configurable {
                 }
             }
         }
+
+        workspaceComboBox = ComboBox<OpenCodeWorkspace>().apply {
+            isVisible = false
+            addActionListener {
+                if (updatingWorkspaceComboBox) return@addActionListener
+                val selected = selectedItem as? OpenCodeWorkspace ?: return@addActionListener
+                val state = QuotaSettingsState.getInstance()
+                if (state.openCodeWorkspaceId != selected.id) {
+                    state.openCodeWorkspaceId = selected.id
+                    QuotaUsageService.getInstance().resetOpenCodeWorkspaceCache()
+                    QuotaUsageService.getInstance().refreshNowAsync()
+                }
+            }
+        }
+        workspaceLabel = JBLabel("Workspace:").apply { isVisible = false }
+        workspaceLoadingLabel = JBLabel("Loading workspaces...").apply { isVisible = false }
 
         locationComboBox!!.addActionListener {
             updateDisplayModeChoices()
@@ -303,9 +325,23 @@ class QuotaSettingsConfigurable : Configurable {
                 button("Clear") {
                     OpenCodeSessionCookieStore.getInstance().clear()
                     openCodeCookieField!!.text = ""
+                    QuotaSettingsState.getInstance().openCodeWorkspaceId = null
+                    workspaceComboBox?.removeAllItems()
+                    workspaceComboBox?.isVisible = false
+                    workspaceLabel?.isVisible = false
+                    workspaceLoadingLabel?.isVisible = false
                     updateOpenCodeStatus()
                     QuotaUsageService.getInstance().clearOpenCodeUsageData()
                 }
+            }
+            row {
+                cell(workspaceLoadingLabel!!)
+            }
+            row {
+                cell(workspaceLabel!!).gap(RightGap.SMALL)
+                cell(workspaceComboBox!!)
+                    .resizableColumn()
+                    .align(AlignX.FILL)
             }
             separator()
             row {
@@ -407,6 +443,10 @@ class QuotaSettingsConfigurable : Configurable {
         copyUrlButton = null
         authUrl = null
         updatingDisplayModeChoices = false
+        workspaceComboBox = null
+        workspaceLabel = null
+        workspaceLoadingLabel = null
+        updatingWorkspaceComboBox = false
     }
 
     private fun updateDisplayModeChoices(preferredMode: QuotaDisplayMode? = null) {
@@ -513,7 +553,61 @@ class QuotaSettingsConfigurable : Configurable {
     private fun updateOpenCodeFields() {
         val cookie = OpenCodeSessionCookieStore.getInstance().load()
         openCodeCookieField?.text = if (cookie.isNullOrBlank()) "" else OPENCODE_COOKIE_PLACEHOLDER
+        if (!cookie.isNullOrBlank()) {
+            loadWorkspaces(cookie)
+        } else {
+            workspaceComboBox?.removeAllItems()
+            workspaceComboBox?.isVisible = false
+            workspaceLabel?.isVisible = false
+            workspaceLoadingLabel?.isVisible = false
+        }
         updateOpenCodeStatus()
+    }
+
+    private fun loadWorkspaces(cookie: String) {
+        workspaceLoadingLabel?.isVisible = true
+        workspaceLabel?.isVisible = false
+        workspaceComboBox?.isVisible = false
+
+        ApplicationManager.getApplication().executeOnPooledThread {
+            try {
+                val client = OpenCodeQuotaClient()
+                val workspaces = client.fetchWorkspaces(cookie)
+
+                ApplicationManager.getApplication().invokeLater({
+                    if (workspaceComboBox == null) return@invokeLater
+
+                    workspaceComboBox!!.removeAllItems()
+                    workspaces.forEach { workspaceComboBox!!.addItem(it) }
+
+                    val storedId = QuotaSettingsState.getInstance().openCodeWorkspaceId
+                    val preselected = workspaces.find { it.id == storedId }
+                        ?: workspaces.firstOrNull { it.mine && it.hasGoSubscription }
+                        ?: workspaces.firstOrNull { it.hasGoSubscription }
+                        ?: workspaces.firstOrNull()
+
+                    updatingWorkspaceComboBox = true
+                    try {
+                        preselected?.let {
+                            workspaceComboBox!!.selectedItem = it
+                            QuotaSettingsState.getInstance().openCodeWorkspaceId = it.id
+                        }
+                    } finally {
+                        updatingWorkspaceComboBox = false
+                    }
+
+                    workspaceLoadingLabel?.isVisible = false
+                    workspaceLabel?.isVisible = true
+                    workspaceComboBox?.isVisible = true
+                    updateOpenCodeStatus()
+                }, ModalityState.stateForComponent(panel ?: rootComponent ?: return@executeOnPooledThread))
+            } catch (e: Exception) {
+                ApplicationManager.getApplication().invokeLater({
+                    workspaceLoadingLabel?.text = "Could not load workspaces: ${e.message}"
+                    updateOpenCodeStatus()
+                }, ModalityState.stateForComponent(panel ?: rootComponent ?: return@executeOnPooledThread))
+            }
+        }
     }
 
     private fun updateOpenCodeStatus() {

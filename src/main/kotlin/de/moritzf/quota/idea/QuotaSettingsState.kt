@@ -20,6 +20,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var lastOpenCodeUpdate: Long = 0
     var hideOpenAiFromQuotaPopup: Boolean = false
     var hideOpenCodeFromQuotaPopup: Boolean = false
+    var openCodeWorkspaceId: String? = null
     var cachedOpenAiQuotaJson: String? = null
     var cachedOpenCodeQuotaJson: String? = null
 
@@ -34,6 +35,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         lastOpenCodeUpdate = state.lastOpenCodeUpdate
         hideOpenAiFromQuotaPopup = state.hideOpenAiFromQuotaPopup
         hideOpenCodeFromQuotaPopup = state.hideOpenCodeFromQuotaPopup
+        openCodeWorkspaceId = state.openCodeWorkspaceId
         cachedOpenAiQuotaJson = state.cachedOpenAiQuotaJson
         cachedOpenCodeQuotaJson = state.cachedOpenCodeQuotaJson
     }

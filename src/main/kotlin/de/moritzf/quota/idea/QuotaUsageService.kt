@@ -99,6 +99,12 @@ class QuotaUsageService(
         publishOpenCodeUpdate(null, error)
     }
 
+    fun resetOpenCodeWorkspaceCache() {
+        cachedWorkspaceId.set(null)
+        cachedWorkspaceIdTimestamp.set(0)
+        OpenCodeQuotaClient.clearCachedFunctionId()
+    }
+
     private fun scheduleRefresh() {
         val minutes = maxOf(1, settingsProvider()?.refreshMinutes ?: 5)
         scheduled = scheduler.scheduleWithFixedDelay(::refreshNow, 0, minutes.toLong(), TimeUnit.MINUTES)
@@ -183,6 +189,15 @@ class QuotaUsageService(
         if (cached != null && System.currentTimeMillis() - timestamp < WORKSPACE_CACHE_TTL_MS) {
             return cached
         }
+
+        val settings = settingsProvider()
+        val storedWorkspaceId = settings?.openCodeWorkspaceId
+        if (!storedWorkspaceId.isNullOrBlank()) {
+            cachedWorkspaceId.set(storedWorkspaceId)
+            cachedWorkspaceIdTimestamp.set(System.currentTimeMillis())
+            return storedWorkspaceId
+        }
+
         val workspaceId = openCodeClient.discoverWorkspaceId(sessionCookie)
         cachedWorkspaceId.set(workspaceId)
         cachedWorkspaceIdTimestamp.set(System.currentTimeMillis())

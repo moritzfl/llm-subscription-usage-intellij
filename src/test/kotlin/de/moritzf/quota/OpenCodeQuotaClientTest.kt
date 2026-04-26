@@ -5,6 +5,18 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class OpenCodeQuotaClientTest {
+
+    @Test
+    fun workspaceToStringIncludesNameIdMineAndGo() {
+        val ws1 = OpenCodeWorkspace("wrk_a", "My Workspace", true, true)
+        assertEquals("My Workspace (wrk_a) [mine] [Go]", ws1.toString())
+
+        val ws2 = OpenCodeWorkspace("wrk_b", "", false, true)
+        assertEquals("wrk_b [Go]", ws2.toString())
+
+        val ws3 = OpenCodeWorkspace("wrk_c", "wrk_c", true, false)
+        assertEquals("wrk_c [mine]", ws3.toString())
+    }
     @Test
     fun parsesRealSolidStartResponse() {
         val body = ";0x00000126;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[]," +
