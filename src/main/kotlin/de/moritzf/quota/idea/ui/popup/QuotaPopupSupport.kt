@@ -1,46 +1,22 @@
 package de.moritzf.quota.idea.ui.popup
 
-import com.intellij.icons.AllIcons
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.popup.JBPopup
+import com.intellij.openapi.ui.popup.JBPopupFactory
+import com.intellij.ui.awt.RelativePoint
+import com.intellij.util.messages.MessageBusConnection
+import com.intellij.util.ui.JBUI
 import de.moritzf.quota.idea.auth.QuotaAuthService
-import de.moritzf.quota.idea.settings.QuotaSettingsConfigurable
-import de.moritzf.quota.idea.ui.indicator.QuotaIcons
-import de.moritzf.quota.idea.ui.indicator.clampPercent
-import de.moritzf.quota.idea.ui.indicator.scaleIconToQuotaStatusSize
 import de.moritzf.quota.idea.common.QuotaUsageListener
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.opencode.OpenCodeSessionCookieStore
 import de.moritzf.quota.idea.settings.QuotaSettingsState
-import de.moritzf.quota.idea.ui.QuotaUiUtil
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.ModalityState
-import com.intellij.openapi.options.ShowSettingsUtil
-import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.VerticalFlowLayout
-import com.intellij.openapi.ui.popup.JBPopup
-import com.intellij.openapi.ui.popup.JBPopupFactory
-import com.intellij.ui.JBColor
-import com.intellij.ui.SeparatorComponent
-import com.intellij.ui.awt.RelativePoint
-import com.intellij.ui.components.ActionLink
-import com.intellij.ui.components.JBLabel
-import com.intellij.ui.components.panels.NonOpaquePanel
-import com.intellij.util.messages.MessageBusConnection
-import com.intellij.util.ui.JBUI
-import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.opencode.OpenCodeQuota
-import de.moritzf.quota.opencode.OpenCodeUsageWindow
-import de.moritzf.quota.openai.UsageWindow
-import org.intellij.lang.annotations.Language
 import java.awt.Component
-import java.awt.Cursor
-import java.awt.Dimension
-import java.awt.Font
 import java.awt.Point
-import javax.swing.Icon
 import javax.swing.JComponent
-import javax.swing.JProgressBar
-import kotlin.math.roundToInt
 
 internal enum class QuotaPopupLocation {
     ABOVE,
@@ -48,7 +24,6 @@ internal enum class QuotaPopupLocation {
 }
 
 internal object QuotaPopupSupport {
-    private const val OPENCODE_GO_LABEL = "OpenCode Go"
     fun showPopup(
         project: Project,
         component: Component,
@@ -164,95 +139,28 @@ internal object QuotaPopupSupport {
                 currentQuota.reviewAllowed != null || currentQuota.reviewLimitReached != null
             )
 
+        val authService = QuotaAuthService.getInstance()
+        val openCodeCookieStore = OpenCodeSessionCookieStore.getInstance()
+        val hasCodexAuth = authService.isLoggedIn()
+        val hasOpenCodeAuth = openCodeCookieStore.load() != null
+        val showCodexSection = hasCodexAuth && !hideOpenAi
+        val showOpenCodeSection = hasOpenCodeAuth && !hideOpenCode
+
         return createPopupStack().apply {
             add(createHeaderRow { openSettings(project, component) { onClosePopup() } })
-
             add(createSeparatedBlock())
 
-            val authService = QuotaAuthService.getInstance()
-            val openCodeCookieStore = OpenCodeSessionCookieStore.getInstance()
-            val hasCodexAuth = authService.isLoggedIn()
-            val hasOpenCodeAuth = openCodeCookieStore.load() != null
-            val showCodexSection = hasCodexAuth && !hideOpenAi
-            val showOpenCodeSection = hasOpenCodeAuth && !hideOpenCode
-
             if (!hasCodexAuth && !hasOpenCodeAuth) {
-                add(withVerticalInsets(JBLabel("Not logged in."), top = 1))
-                add(withVerticalInsets(ActionLink("Open Settings") { openSettings(project, component) { onClosePopup() } }, top = 3))
+                add(withVerticalInsets(com.intellij.ui.components.JBLabel("Not logged in."), top = 1))
+                add(withVerticalInsets(com.intellij.ui.components.ActionLink("Open Settings") { openSettings(project, component) { onClosePopup() } }, top = 3))
             } else if (!showCodexSection && !showOpenCodeSection) {
-                add(withVerticalInsets(JBLabel("All quota sources are hidden from this popup."), top = 1))
-                add(withVerticalInsets(ActionLink("Open Settings") { openSettings(project, component) { onClosePopup() } }, top = 3))
+                add(withVerticalInsets(com.intellij.ui.components.JBLabel("All quota sources are hidden from this popup."), top = 1))
+                add(withVerticalInsets(com.intellij.ui.components.ActionLink("Open Settings") { openSettings(project, component) { onClosePopup() } }, top = 3))
             } else {
-                // Codex section
-                if (showCodexSection) {
-                    when {
-                        currentError != null -> {
-                            add(withVerticalInsets(createWarningLabel("Codex error: $currentError"), top = 1))
-                        }
+                buildOpenAiPopupContent(currentQuota, currentError, showCodexSection, hasReviewData).forEach { add(it) }
+                buildOpenCodePopupContent(openCodeQuota, openCodeError, showOpenCodeSection).forEach { add(it) }
 
-                        currentQuota == null -> {
-                            add(withVerticalInsets(JBLabel("Loading Codex usage..."), top = 1))
-                        }
-
-                        else -> {
-                            val limitWarning = getLimitWarning(currentQuota)
-                            if (limitWarning != null) {
-                                add(withVerticalInsets(createWarningLabel(limitWarning), top = 1))
-                                add(createSeparatedBlock())
-                            }
-
-                            if (currentQuota.primary != null || currentQuota.secondary != null) {
-                                add(withVerticalInsets(createSectionTitleLabel("Codex", QuotaIcons.OPENAI), top = 0))
-                                val planLabel = currentQuota.planType?.toDisplayLabel()
-                                if (!planLabel.isNullOrBlank()) {
-                                    add(withVerticalInsets(createMutedLabel("OpenAI Plan: $planLabel"), top = 2))
-                                }
-                                currentQuota.primary?.let { add(createWindowBlock(it, "Primary", top = 3)) }
-                                currentQuota.secondary?.let { add(createWindowBlock(it, "Secondary", top = 5)) }
-                            }
-
-                            if (hasReviewData) {
-                                add(createSeparatedBlock())
-                                add(withVerticalInsets(createSectionTitleLabel("Code Review", QuotaIcons.OPENAI), top = 0))
-                                currentQuota.reviewPrimary?.let { add(createWindowBlock(it, "Primary", top = 3)) }
-                                currentQuota.reviewSecondary?.let { add(createWindowBlock(it, "Secondary", top = 5)) }
-                            }
-                        }
-                    }
-                }
-
-                // OpenCode Go section
-                if (showOpenCodeSection) {
-                    add(createSeparatedBlock())
-                    when {
-                        openCodeError != null -> {
-                            add(withVerticalInsets(createWarningLabel("OpenCode error: $openCodeError"), top = 1))
-                        }
-
-                        openCodeQuota == null -> {
-                            add(withVerticalInsets(JBLabel("Loading OpenCode usage..."), top = 1))
-                        }
-
-                        else -> {
-                            add(withVerticalInsets(createSectionTitleLabel(OPENCODE_GO_LABEL, QuotaIcons.OPENCODE), top = 0))
-                            val balanceText = openCodeQuota.availableBalance?.let(QuotaUiUtil::formatOpenCodeBalance)
-                            if (balanceText != null) {
-                                add(withVerticalInsets(createMutedLabel("Available balance: $$balanceText"), top = 2))
-                            }
-                            openCodeQuota.rollingUsage?.let {
-                                add(createOpenCodeWindowBlock(it, "5h rolling", top = 3))
-                            }
-                            openCodeQuota.weeklyUsage?.let {
-                                add(createOpenCodeWindowBlock(it, "Weekly", top = 5))
-                            }
-                            openCodeQuota.monthlyUsage?.let {
-                                add(createOpenCodeWindowBlock(it, "Monthly", top = 5))
-                            }
-                        }
-                    }
-                }
-
-                val fetchedAt = if (showCodexSection) QuotaUiUtil.formatInstant(currentQuota?.fetchedAt) else null
+                val fetchedAt = if (showCodexSection) de.moritzf.quota.idea.ui.QuotaUiUtil.formatInstant(currentQuota?.fetchedAt) else null
                 if (fetchedAt != null) {
                     add(createSeparatedBlock())
                     add(withVerticalInsets(createMutedLabel("Last updated: $fetchedAt"), top = 1))
@@ -260,188 +168,6 @@ internal object QuotaPopupSupport {
             }
         }
     }
-
-    private fun createOpenSettingsButton(onOpenSettings: () -> Unit): ActionLink {
-        return ActionLink("") { onOpenSettings() }.apply {
-            icon = AllIcons.General.Settings
-            autoHideOnDisable = false
-            toolTipText = "Open settings"
-            margin = JBUI.emptyInsets()
-            border = JBUI.Borders.empty()
-            isBorderPainted = false
-            isContentAreaFilled = false
-            isFocusPainted = false
-            isOpaque = false
-            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-        }
-    }
-
-    private fun createPopupStack(): NonOpaquePanel {
-        return NonOpaquePanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)).apply {
-            border = JBUI.Borders.empty(6, 8, 5, 8)
-        }
-    }
-
-    private fun createHeaderRow(onOpenSettings: () -> Unit): JComponent {
-        return BorderLayoutPanel().apply {
-            isOpaque = false
-            addToLeft(createPopupTitleLabel())
-            addToRight(createOpenSettingsButton(onOpenSettings))
-        }
-    }
-
-    private fun createWindowBlock(window: UsageWindow, fallbackLabel: String, top: Int): JComponent {
-        val percent = clampPercent(window.usedPercent.roundToInt())
-        val title = describeWindowLabel(window, fallbackLabel)
-        val resetText = QuotaUiUtil.formatReset(window.resetsAt)
-        var info = "$percent% used"
-        if (resetText != null) {
-            info += " - $resetText"
-        }
-
-        return createPopupStack().apply {
-            border = JBUI.Borders.emptyTop(top)
-            add(createWindowTitleLabel(title))
-            add(withVerticalInsets(JBLabel(info), top = 1))
-            add(withVerticalInsets(createUsageProgressBar(percent), top = 1))
-        }
-    }
-
-    private fun createOpenCodeWindowBlock(window: OpenCodeUsageWindow, label: String, top: Int): JComponent {
-        val percent = clampPercent(window.usagePercent)
-        val resetText = QuotaUiUtil.formatResetInSeconds(window.resetInSec)
-        var info = "$percent% used"
-        if (window.isRateLimited) {
-            info += " - LIMIT REACHED"
-        }
-        if (resetText != null) {
-            info += " - $resetText"
-        }
-
-        return createPopupStack().apply {
-            border = JBUI.Borders.emptyTop(top)
-            add(createWindowTitleLabel("$label limit"))
-            add(withVerticalInsets(JBLabel(info), top = 1))
-            add(withVerticalInsets(createUsageProgressBar(percent), top = 1))
-        }
-    }
-
-    private fun createSeparatedBlock(): JComponent {
-        return withVerticalInsets(createCompactSeparator(), top = 5, bottom = 5)
-    }
-
-    private fun withVerticalInsets(component: JComponent, top: Int = 0, bottom: Int = 0): JComponent {
-        return BorderLayoutPanel().apply {
-            isOpaque = false
-            border = JBUI.Borders.empty(top, 0, bottom, 0)
-            addToCenter(component)
-        }
-    }
-
-    private fun openSettings(project: Project, component: Component, beforeOpen: () -> Unit = {}) {
-        if (project.isDisposed) {
-            return
-        }
-
-        val modality = ModalityState.stateForComponent(component)
-        ApplicationManager.getApplication().invokeLater(
-            {
-                beforeOpen()
-                ShowSettingsUtil.getInstance().showSettingsDialog(project, QuotaSettingsConfigurable::class.java)
-            },
-            modality,
-        )
-    }
-
-    private fun describeWindowLabel(window: UsageWindow, fallbackLabel: String): String {
-        val minutes = window.windowDuration?.toMinutes() ?: return "$fallbackLabel limit"
-        return when {
-            minutes in 295L..305L -> "5h limit"
-            minutes in 10070L..10090L -> "Weekly limit"
-            minutes % (60L * 24L * 7L) == 0L -> {
-                val weeks = minutes / (60L * 24L * 7L)
-                if (weeks == 1L) "Weekly limit" else "${weeks}w limit"
-            }
-
-            minutes % (60L * 24L) == 0L -> "${minutes / (60L * 24L)}d limit"
-            minutes % 60L == 0L -> "${minutes / 60L}h limit"
-            else -> "${minutes}m limit"
-        }
-    }
-
-    private fun getLimitWarning(quota: OpenAiCodexQuota?): String? {
-        if (quota == null) {
-            return null
-        }
-
-        return when {
-            quota.limitReached == true -> "Codex limit reached"
-            quota.allowed == false -> "Codex usage not allowed"
-            quota.reviewLimitReached == true -> "Code review limit reached"
-            quota.reviewAllowed == false -> "Code review usage not allowed"
-            else -> null
-        }
-    }
-
-    private fun String.toDisplayLabel(): String {
-        return split(Regex(WHITESPACE_REGEX)).joinToString(" ") { word ->
-            word.lowercase().replaceFirstChar { character ->
-                if (character.isLowerCase()) character.titlecase() else character.toString()
-            }
-        }
-    }
-
-    private fun createPopupTitleLabel(): JBLabel {
-        return JBLabel("Subscription Usage").apply {
-            font = font.deriveFont(font.style or Font.BOLD, font.size + 2f)
-        }
-    }
-
-    private fun createWindowTitleLabel(text: String): JBLabel {
-        return JBLabel(text).apply {
-            font = font.deriveFont(font.style or Font.BOLD)
-        }
-    }
-
-    private fun createSectionTitleLabel(text: String, icon: Icon? = null): JBLabel {
-        return JBLabel(text).apply {
-            if (icon != null) {
-                this.icon = scaleIconToQuotaStatusSize(icon, this)
-                iconTextGap = JBUI.scale(4)
-            }
-            foreground = JBColor.BLUE
-            font = font.deriveFont(font.style or Font.BOLD, font.size + 1f)
-        }
-    }
-
-    private fun createWarningLabel(text: String): JBLabel {
-        return JBLabel(text).apply {
-            foreground = JBColor.RED
-            font = font.deriveFont(font.style or Font.BOLD)
-        }
-    }
-
-    private fun createMutedLabel(text: String): JBLabel {
-        return JBLabel(text).apply {
-            foreground = JBColor.GRAY
-        }
-    }
-
-    private fun createUsageProgressBar(percent: Int): JProgressBar {
-        return JProgressBar(0, 100).apply {
-            value = percent
-            isStringPainted = false
-            preferredSize = Dimension(200, 4)
-        }
-    }
-
-    private fun createCompactSeparator(): JComponent {
-        val separatorColor = JBUI.CurrentTheme.Popup.separatorColor()
-        return SeparatorComponent(1, 0, separatorColor, separatorColor)
-    }
-
-    @Language("RegExp")
-    private const val WHITESPACE_REGEX = "\\s+"
 }
 
 internal data class QuotaPopupContentState(
@@ -451,7 +177,7 @@ internal data class QuotaPopupContentState(
     val openCodeError: String? = null,
 )
 
-internal class RefreshablePopupPanel<T>(private val renderer: (T) -> JComponent) : BorderLayoutPanel() {
+internal class RefreshablePopupPanel<T>(private val renderer: (T) -> JComponent) : com.intellij.util.ui.components.BorderLayoutPanel() {
     private var stableWidth = 0
     private var currentState: T? = null
 
@@ -470,9 +196,9 @@ internal class RefreshablePopupPanel<T>(private val renderer: (T) -> JComponent)
         repaint()
     }
 
-    override fun getPreferredSize(): Dimension {
+    override fun getPreferredSize(): java.awt.Dimension {
         val size = super.getPreferredSize()
         stableWidth = maxOf(stableWidth, size.width, JBUI.scale(260))
-        return Dimension(stableWidth, size.height)
+        return java.awt.Dimension(stableWidth, size.height)
     }
 }
