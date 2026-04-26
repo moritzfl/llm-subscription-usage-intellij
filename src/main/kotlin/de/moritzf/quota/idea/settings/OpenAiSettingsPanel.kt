@@ -93,7 +93,7 @@ internal class OpenAiSettingsPanel : BorderLayoutPanel() {
 
         logoutButton.addActionListener {
             QuotaAuthService.getInstance().clearCredentials()
-            QuotaUsageService.getInstance().clearUsageData("Not logged in")
+            QuotaUsageService.getInstance().clearCodexUsageData("Not logged in")
             authStatusMessage = AuthStatusMessage("Logged out", false, AuthStatusKind.DISCONNECTED)
             updateAuthUi()
             updateAccountFields()
