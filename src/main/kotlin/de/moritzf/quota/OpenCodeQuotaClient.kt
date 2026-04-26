@@ -84,18 +84,17 @@ open class OpenCodeQuotaClient(
             )
         }
 
-        return workspaces.map { (id, name) ->
+        return workspaces.parallelStream().map { (id, name) ->
             val (mine, hasGo) = try {
                 val quota = fetchQuota(sessionCookie, id)
                 quota.mine to quota.hasUsageState()
             } catch (exception: OpenCodeQuotaException) {
-                when (exception.statusCode) {
-                    0, 401, 403, 404 -> false to false
-                    else -> false to false
-                }
+                false to false
+            } catch (exception: Exception) {
+                false to false
             }
             OpenCodeWorkspace(id = id, name = name, mine = mine, hasGoSubscription = hasGo)
-        }
+        }.toList()
     }
 
     /**

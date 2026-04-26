@@ -40,7 +40,6 @@ private data class CachedOpenAiQuota(
     val reviewAllowed: Boolean? = null,
     val reviewLimitReached: Boolean? = null,
     val fetchedAtEpochMs: Long? = null,
-    val rawJson: String? = null,
     val accountId: String? = null,
     val email: String? = null,
 ) {
@@ -56,7 +55,6 @@ private data class CachedOpenAiQuota(
             reviewAllowed = reviewAllowed,
             reviewLimitReached = reviewLimitReached,
             fetchedAt = fetchedAtEpochMs?.let(Instant::fromEpochMilliseconds),
-            rawJson = rawJson,
             accountId = accountId,
             email = email,
         )
@@ -75,7 +73,6 @@ private data class CachedOpenAiQuota(
                 reviewAllowed = quota.reviewAllowed,
                 reviewLimitReached = quota.reviewLimitReached,
                 fetchedAtEpochMs = quota.fetchedAt?.toEpochMilliseconds(),
-                rawJson = quota.rawJson,
                 accountId = quota.accountId,
                 email = quota.email,
             )

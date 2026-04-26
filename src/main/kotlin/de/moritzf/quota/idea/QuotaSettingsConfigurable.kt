@@ -181,193 +181,16 @@ class QuotaSettingsConfigurable : Configurable {
             updateAccountFields()
         }
 
-        // Indicator config panel (has onApply / onReset / onIsModified)
-        panel = panel {
-            row("Indicator location:") {
-                cell(locationComboBox!!)
-            }
+        panel = buildIndicatorConfigPanel()
 
-            row("Indicator display:") {
-                cell(displayModeComboBox!!)
-                cell(displayModePreview!!).gap(RightGap.SMALL)
-            }
+        val codexTab = buildCodexTab()
+        val openCodeTab = buildOpenCodeTab()
 
-            row("Indicator quota source:") {
-                cell(indicatorSourceComboBox!!)
-            }
-
-            onApply {
-                val selectedLocation = locationComboBox?.selectedItem as? QuotaIndicatorLocation ?: return@onApply
-                val selectedDisplayMode = displayModeComboBox?.selectedItem as? QuotaDisplayMode ?: return@onApply
-                val selectedSource = indicatorSourceComboBox?.selectedItem as? QuotaIndicatorSource ?: return@onApply
-                val sanitizedDisplayMode = QuotaDisplayMode.sanitizeFor(selectedLocation, selectedDisplayMode)
-                val state = QuotaSettingsState.getInstance()
-                val locationChanged = selectedLocation != state.location()
-                val displayModeChanged = sanitizedDisplayMode != state.displayMode()
-                val sourceChanged = selectedSource != state.source()
-                val openAiPopupVisibilityChanged = openAiHideFromPopupCheckBox?.isSelected != state.hideOpenAiFromQuotaPopup
-                val openCodePopupVisibilityChanged = openCodeHideFromPopupCheckBox?.isSelected != state.hideOpenCodeFromQuotaPopup
-                if (locationChanged) {
-                    state.setLocation(selectedLocation)
-                }
-                if (displayModeChanged) {
-                    state.setDisplayMode(sanitizedDisplayMode)
-                }
-                if (sourceChanged) {
-                    state.setSource(selectedSource)
-                }
-                state.hideOpenAiFromQuotaPopup = openAiHideFromPopupCheckBox?.isSelected == true
-                state.hideOpenCodeFromQuotaPopup = openCodeHideFromPopupCheckBox?.isSelected == true
-                if (locationChanged || displayModeChanged || sourceChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged) {
-                    ApplicationManager.getApplication().messageBus
-                        .syncPublisher(QuotaSettingsListener.TOPIC)
-                        .onSettingsChanged()
-                    ActivityTracker.getInstance().inc()
-                }
-            }
-
-            onReset {
-                authStatusMessage = null
-                locationComboBox?.selectedItem = QuotaSettingsState.getInstance().location()
-                updateDisplayModeChoices(QuotaSettingsState.getInstance().displayMode())
-                updateDisplayModePreview()
-                indicatorSourceComboBox?.selectedItem = QuotaSettingsState.getInstance().source()
-                openAiHideFromPopupCheckBox?.isSelected = QuotaSettingsState.getInstance().hideOpenAiFromQuotaPopup
-                openCodeHideFromPopupCheckBox?.isSelected = QuotaSettingsState.getInstance().hideOpenCodeFromQuotaPopup
-                updateAuthUi()
-                updateAccountFields()
-                updateResponseArea()
-                updateOpenCodeResponseArea()
-                updateOpenCodeFields()
-            }
-
-            onIsModified {
-                val selectedLocation = locationComboBox?.selectedItem as? QuotaIndicatorLocation ?: return@onIsModified false
-                val selectedDisplayMode = displayModeComboBox?.selectedItem as? QuotaDisplayMode ?: return@onIsModified false
-                val selectedSource = indicatorSourceComboBox?.selectedItem as? QuotaIndicatorSource ?: return@onIsModified false
-                val state = QuotaSettingsState.getInstance()
-                selectedLocation != state.location() ||
-                    QuotaDisplayMode.sanitizeFor(selectedLocation, selectedDisplayMode) != state.displayMode() ||
-                    selectedSource != state.source() ||
-                    openAiHideFromPopupCheckBox?.isSelected != state.hideOpenAiFromQuotaPopup ||
-                    openCodeHideFromPopupCheckBox?.isSelected != state.hideOpenCodeFromQuotaPopup
-            }
-        }.apply {
-            preferredFocusedComponent = locationComboBox
-        }
-
-        // Codex tab content
-        val codexConfigPanel = panel {
-            row {
-                cell(openAiHideFromPopupCheckBox!!)
-            }
-            row { cell(loginHeaderLabel!!) }
-            row {
-                cell(statusLabel!!).gap(RightGap.SMALL)
-                cell(copyUrlButton!!)
-            }
-            row {
-                cell(loginButton!!).gap(RightGap.SMALL)
-                cell(cancelLoginButton!!).gap(RightGap.SMALL)
-                cell(logoutButton!!)
-            }
-            separator()
-            row("Account ID:") {
-                cell(accountIdField!!)
-                    .resizableColumn()
-                    .align(AlignX.FILL)
-            }
-            row("Email:") {
-                cell(emailField!!)
-                    .resizableColumn()
-                    .align(AlignX.FILL)
-            }
-        }
-
-        val codexTab = BorderLayoutPanel().apply {
-            addToTop(codexConfigPanel)
-            addToCenter(
-                BorderLayoutPanel().apply {
-                    addToTop(
-                        JBLabel("Last quota response:"),
-                    )
-                    addToCenter(createResponseViewerPanel(codexResponseViewer!!))
-                },
-            )
-        }
-
-        // OpenCode tab content
-        val openCodeConfigPanel = panel {
-            row {
-                cell(openCodeHideFromPopupCheckBox!!)
-            }
-            row {
-                label("Session cookie")
-            }
-            row {
-                cell(openCodeStatusLabel!!)
-            }
-            row("Session cookie:") {
-                cell(openCodeCookieField!!)
-                    .resizableColumn()
-                    .align(AlignX.FILL)
-            }
-            row {
-                button("Save") {
-                    val cookie = String(openCodeCookieField!!.password)
-                    if (cookie.isNotBlank() && cookie != OPENCODE_COOKIE_PLACEHOLDER) {
-                        OpenCodeSessionCookieStore.getInstance().save(cookie)
-                        updateOpenCodeFields()
-                        updateOpenCodeStatus()
-                        QuotaUsageService.getInstance().refreshNowAsync()
-                    }
-                }
-                button("Clear") {
-                    OpenCodeSessionCookieStore.getInstance().clear()
-                    openCodeCookieField!!.text = ""
-                    QuotaSettingsState.getInstance().openCodeWorkspaceId = null
-                    workspaceComboBox?.removeAllItems()
-                    workspaceComboBox?.isVisible = false
-                    workspaceLabel?.isVisible = false
-                    workspaceLoadingLabel?.isVisible = false
-                    updateOpenCodeStatus()
-                    QuotaUsageService.getInstance().clearOpenCodeUsageData()
-                }
-            }
-            row {
-                cell(workspaceLoadingLabel!!)
-            }
-            row {
-                cell(workspaceLabel!!).gap(RightGap.SMALL)
-                cell(workspaceComboBox!!)
-                    .resizableColumn()
-                    .align(AlignX.FILL)
-            }
-            separator()
-            row {
-                label("Extract from opencode.ai → DevTools → Storage → Cookies → \"auth\" cookie value. Valid for 1 year.")
-            }
-        }
-
-        val openCodeTab = BorderLayoutPanel().apply {
-            addToTop(openCodeConfigPanel)
-            addToCenter(
-                BorderLayoutPanel().apply {
-                    addToTop(
-                        JBLabel("Last quota response:"),
-                    )
-                    addToCenter(createResponseViewerPanel(openCodeJsonViewer!!))
-                },
-            )
-        }
-
-        // Service tabs
         val serviceTabs = JBTabbedPane().apply {
             addTab("OpenAI Codex", codexTab)
             addTab("OpenCode Go", openCodeTab)
         }
 
-        // Root component
         rootComponent = BorderLayoutPanel().apply {
             isOpaque = false
             addToTop(panel!!)
@@ -707,46 +530,188 @@ class QuotaSettingsConfigurable : Configurable {
         }
     }
 
+    private fun buildIndicatorConfigPanel(): DialogPanel {
+        return panel {
+            row("Indicator location:") {
+                cell(locationComboBox!!)
+            }
+
+            row("Indicator display:") {
+                cell(displayModeComboBox!!)
+                cell(displayModePreview!!).gap(RightGap.SMALL)
+            }
+
+            row("Indicator quota source:") {
+                cell(indicatorSourceComboBox!!)
+            }
+
+            onApply {
+                val selectedLocation = locationComboBox?.selectedItem as? QuotaIndicatorLocation ?: return@onApply
+                val selectedDisplayMode = displayModeComboBox?.selectedItem as? QuotaDisplayMode ?: return@onApply
+                val selectedSource = indicatorSourceComboBox?.selectedItem as? QuotaIndicatorSource ?: return@onApply
+                val sanitizedDisplayMode = QuotaDisplayMode.sanitizeFor(selectedLocation, selectedDisplayMode)
+                val state = QuotaSettingsState.getInstance()
+                val locationChanged = selectedLocation != state.location()
+                val displayModeChanged = sanitizedDisplayMode != state.displayMode()
+                val sourceChanged = selectedSource != state.source()
+                val openAiPopupVisibilityChanged = openAiHideFromPopupCheckBox?.isSelected != state.hideOpenAiFromQuotaPopup
+                val openCodePopupVisibilityChanged = openCodeHideFromPopupCheckBox?.isSelected != state.hideOpenCodeFromQuotaPopup
+                if (locationChanged) {
+                    state.setLocation(selectedLocation)
+                }
+                if (displayModeChanged) {
+                    state.setDisplayMode(sanitizedDisplayMode)
+                }
+                if (sourceChanged) {
+                    state.setSource(selectedSource)
+                }
+                state.hideOpenAiFromQuotaPopup = openAiHideFromPopupCheckBox?.isSelected == true
+                state.hideOpenCodeFromQuotaPopup = openCodeHideFromPopupCheckBox?.isSelected == true
+                if (locationChanged || displayModeChanged || sourceChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged) {
+                    ApplicationManager.getApplication().messageBus
+                        .syncPublisher(QuotaSettingsListener.TOPIC)
+                        .onSettingsChanged()
+                    ActivityTracker.getInstance().inc()
+                }
+            }
+
+            onReset {
+                authStatusMessage = null
+                locationComboBox?.selectedItem = QuotaSettingsState.getInstance().location()
+                updateDisplayModeChoices(QuotaSettingsState.getInstance().displayMode())
+                updateDisplayModePreview()
+                indicatorSourceComboBox?.selectedItem = QuotaSettingsState.getInstance().source()
+                openAiHideFromPopupCheckBox?.isSelected = QuotaSettingsState.getInstance().hideOpenAiFromQuotaPopup
+                openCodeHideFromPopupCheckBox?.isSelected = QuotaSettingsState.getInstance().hideOpenCodeFromQuotaPopup
+                updateAuthUi()
+                updateAccountFields()
+                updateResponseArea()
+                updateOpenCodeResponseArea()
+                updateOpenCodeFields()
+            }
+
+            onIsModified {
+                val selectedLocation = locationComboBox?.selectedItem as? QuotaIndicatorLocation ?: return@onIsModified false
+                val selectedDisplayMode = displayModeComboBox?.selectedItem as? QuotaDisplayMode ?: return@onIsModified false
+                val selectedSource = indicatorSourceComboBox?.selectedItem as? QuotaIndicatorSource ?: return@onIsModified false
+                val state = QuotaSettingsState.getInstance()
+                selectedLocation != state.location() ||
+                    QuotaDisplayMode.sanitizeFor(selectedLocation, selectedDisplayMode) != state.displayMode() ||
+                    selectedSource != state.source() ||
+                    openAiHideFromPopupCheckBox?.isSelected != state.hideOpenAiFromQuotaPopup ||
+                    openCodeHideFromPopupCheckBox?.isSelected != state.hideOpenCodeFromQuotaPopup
+            }
+        }.apply {
+            preferredFocusedComponent = locationComboBox
+        }
+    }
+
+    private fun buildCodexTab(): JComponent {
+        val codexConfigPanel = panel {
+            row {
+                cell(openAiHideFromPopupCheckBox!!)
+            }
+            row { cell(loginHeaderLabel!!) }
+            row {
+                cell(statusLabel!!).gap(RightGap.SMALL)
+                cell(copyUrlButton!!)
+            }
+            row {
+                cell(loginButton!!).gap(RightGap.SMALL)
+                cell(cancelLoginButton!!).gap(RightGap.SMALL)
+                cell(logoutButton!!)
+            }
+            separator()
+            row("Account ID:") {
+                cell(accountIdField!!)
+                    .resizableColumn()
+                    .align(AlignX.FILL)
+            }
+            row("Email:") {
+                cell(emailField!!)
+                    .resizableColumn()
+                    .align(AlignX.FILL)
+            }
+        }
+
+        return BorderLayoutPanel().apply {
+            addToTop(codexConfigPanel)
+            addToCenter(
+                BorderLayoutPanel().apply {
+                    addToTop(JBLabel("Last quota response:"))
+                    addToCenter(createResponseViewerPanel(codexResponseViewer!!))
+                },
+            )
+        }
+    }
+
+    private fun buildOpenCodeTab(): JComponent {
+        val openCodeConfigPanel = panel {
+            row {
+                cell(openCodeHideFromPopupCheckBox!!)
+            }
+            row {
+                label("Session cookie")
+            }
+            row {
+                cell(openCodeStatusLabel!!)
+            }
+            row("Session cookie:") {
+                cell(openCodeCookieField!!)
+                    .resizableColumn()
+                    .align(AlignX.FILL)
+            }
+            row {
+                button("Save") {
+                    val cookie = String(openCodeCookieField!!.password)
+                    if (cookie.isNotBlank() && cookie != OPENCODE_COOKIE_PLACEHOLDER) {
+                        OpenCodeSessionCookieStore.getInstance().save(cookie)
+                        updateOpenCodeFields()
+                        updateOpenCodeStatus()
+                        QuotaUsageService.getInstance().refreshNowAsync()
+                    }
+                }
+                button("Clear") {
+                    OpenCodeSessionCookieStore.getInstance().clear()
+                    openCodeCookieField!!.text = ""
+                    QuotaSettingsState.getInstance().openCodeWorkspaceId = null
+                    workspaceComboBox?.removeAllItems()
+                    workspaceComboBox?.isVisible = false
+                    workspaceLabel?.isVisible = false
+                    workspaceLoadingLabel?.isVisible = false
+                    updateOpenCodeStatus()
+                    QuotaUsageService.getInstance().clearOpenCodeUsageData()
+                }
+            }
+            row {
+                cell(workspaceLoadingLabel!!)
+            }
+            row {
+                cell(workspaceLabel!!).gap(RightGap.SMALL)
+                cell(workspaceComboBox!!)
+                    .resizableColumn()
+                    .align(AlignX.FILL)
+            }
+            separator()
+            row {
+                label("Extract from opencode.ai → DevTools → Storage → Cookies → \"auth\" cookie value. Valid for 1 year.")
+            }
+        }
+
+        return BorderLayoutPanel().apply {
+            addToTop(openCodeConfigPanel)
+            addToCenter(
+                BorderLayoutPanel().apply {
+                    addToTop(JBLabel("Last quota response:"))
+                    addToCenter(createResponseViewerPanel(openCodeJsonViewer!!))
+                },
+            )
+        }
+    }
+
     private companion object {
         private const val OPENCODE_COOKIE_PLACEHOLDER = "********"
     }
 }
 
-internal data class AuthStatusMessage(
-    val text: String,
-    val isError: Boolean = false,
-    val kind: AuthStatusKind = if (isError) AuthStatusKind.DISCONNECTED else AuthStatusKind.CONNECTED,
-)
 
-internal enum class AuthStatusKind {
-    CONNECTED,
-    DISCONNECTED,
-    PENDING,
-}
-
-internal data class QuotaSettingsAuthUiState(
-    val headerText: String,
-    val visibleStatusMessage: AuthStatusMessage?,
-    val loginEnabled: Boolean,
-    val cancelEnabled: Boolean,
-    val logoutEnabled: Boolean,
-) {
-    companion object {
-        fun create(loggedIn: Boolean, inProgress: Boolean, statusMessage: AuthStatusMessage?): QuotaSettingsAuthUiState {
-            val visibleStatusMessage = statusMessage ?: if (inProgress) {
-                AuthStatusMessage("Complete the login in your browser.", kind = AuthStatusKind.PENDING)
-            } else if (loggedIn) {
-                AuthStatusMessage("Connected", isError = false)
-            } else {
-                AuthStatusMessage("Not logged in", isError = true)
-            }
-            return QuotaSettingsAuthUiState(
-                headerText = "Login",
-                visibleStatusMessage = visibleStatusMessage,
-                loginEnabled = !inProgress && !loggedIn,
-                cancelEnabled = inProgress,
-                logoutEnabled = loggedIn,
-            )
-        }
-    }
-}

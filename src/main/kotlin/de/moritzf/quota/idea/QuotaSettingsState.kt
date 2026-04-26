@@ -15,7 +15,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var refreshMinutes: Int = 5
     var statusBarDisplayMode: String = QuotaDisplayMode.ICON_ONLY.name
     var indicatorLocation: String = QuotaIndicatorLocation.STATUS_BAR.name
-    var indicatorSource: String = QuotaIndicatorSource.LAST_USED.name
+    var indicatorSource: String = QuotaIndicatorSource.OPEN_AI.name
     var lastOpenAiUpdate: Long = 0
     var lastOpenCodeUpdate: Long = 0
     var hideOpenAiFromQuotaPopup: Boolean = false
