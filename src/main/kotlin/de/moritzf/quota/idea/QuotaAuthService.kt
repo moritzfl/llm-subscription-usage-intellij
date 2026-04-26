@@ -45,6 +45,7 @@ class QuotaAuthService(
     private val refreshLock = Any()
     private val cachedCredentials = AtomicReference<OAuthCredentials?>()
     private val cacheLoading = AtomicBoolean(false)
+    private val cacheLoaded = AtomicBoolean(false)
     private val authInProgress = AtomicBoolean(false)
     private val pendingFlow = AtomicReference<OAuthLoginFlow?>()
     private val credentialClearCounter = AtomicLong(0)
@@ -93,13 +94,14 @@ class QuotaAuthService(
         synchronized(credentialsLock) {
             credentialClearCounter.incrementAndGet()
             cachedCredentials.set(null)
+            cacheLoaded.set(true)
             credentialStore.clear()
         }
         LOG.info("Cleared stored OAuth credentials")
     }
 
     fun isLoggedIn(): Boolean {
-        val credentials = loadCachedCredentialsIfNeeded()
+        val credentials = cachedCredentialsOrScheduleLoad()
         return credentials?.accessToken?.isNotBlank() == true
     }
 
@@ -111,7 +113,7 @@ class QuotaAuthService(
         return credentials.accessToken
     }
 
-    fun getAccountId(): String? = loadCachedCredentialsIfNeeded()?.accountId
+    fun getAccountId(): String? = cachedCredentialsOrScheduleLoad()?.accountId
 
     fun refreshCacheAsync() {
         if (!cacheLoading.compareAndSet(false, true)) {
@@ -193,19 +195,19 @@ class QuotaAuthService(
         browserOpener(url)
     }
 
-    private fun loadCachedCredentialsIfNeeded(): OAuthCredentials? {
+    private fun cachedCredentialsOrScheduleLoad(): OAuthCredentials? {
         cachedCredentials.get()?.let { return it }
-        val credentials = getCredentialsBlocking()
-        if (credentials == null && !cacheLoading.get()) {
+        if (!cacheLoaded.get()) {
             refreshCacheAsync()
         }
-        return credentials
+        return null
     }
 
     private fun getCredentialsBlocking(): OAuthCredentials? {
         val clearMarker = currentCredentialClearMarker()
         val credentials = credentialStore.load()
         synchronized(credentialsLock) {
+            cacheLoaded.set(true)
             if (credentialClearCounter.get() != clearMarker) {
                 cachedCredentials.set(null)
                 return null
@@ -259,11 +261,13 @@ class QuotaAuthService(
         synchronized(credentialsLock) {
             if (credentialClearCounter.get() != clearMarker) {
                 cachedCredentials.set(null)
+                cacheLoaded.set(true)
                 LOG.info("Discarded OAuth credentials from $operation after logout")
                 return null
             }
             saveCredentials(credentials)
             cachedCredentials.set(credentials)
+            cacheLoaded.set(true)
             return credentials
         }
     }
@@ -276,6 +280,7 @@ class QuotaAuthService(
             }
             credentialClearCounter.incrementAndGet()
             cachedCredentials.set(null)
+            cacheLoaded.set(true)
             credentialStore.clear()
         }
         LOG.info("Cleared stored OAuth credentials after refresh failure")

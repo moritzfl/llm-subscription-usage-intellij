@@ -2,17 +2,13 @@ package de.moritzf.quota.idea
 
 import com.intellij.icons.AllIcons
 import com.intellij.ide.ActivityTracker
-import com.intellij.lang.Language
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
-import com.intellij.openapi.fileTypes.PlainTextFileType
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.openapi.ui.Messages
-import com.intellij.ui.EditorTextField
 import com.intellij.ui.JBColor
-import com.intellij.ui.LanguageTextField
 import com.intellij.ui.components.*
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.RightGap
@@ -24,6 +20,7 @@ import de.moritzf.quota.OpenAiCodexQuota
 import de.moritzf.quota.OpenCodeQuota
 import java.awt.Color
 import java.awt.Dimension
+import java.awt.Font
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import javax.swing.*
@@ -38,10 +35,8 @@ class QuotaSettingsConfigurable : Configurable {
     private var emailField: JBTextField? = null
     private var openCodeCookieField: JBPasswordField? = null
     private var openCodeStatusLabel: JBLabel? = null
-    private var codexResponseViewer: EditorTextField? = null
-    private var openCodeRawViewer: EditorTextField? = null
-    private var openCodeJsonViewer: EditorTextField? = null
-    private var openCodeResponseTabbedPane: JBTabbedPane? = null
+    private var codexResponseViewer: JBTextArea? = null
+    private var openCodeJsonViewer: JBTextArea? = null
     private var loginHeaderLabel: JBLabel? = null
     private var statusLabel: JBLabel? = null
     private var statusLabelDefaultForeground: Color? = null
@@ -71,12 +66,7 @@ class QuotaSettingsConfigurable : Configurable {
         }
         openCodeStatusLabel = JBLabel().apply { isVisible = false }
         codexResponseViewer = createResponseViewer()
-        openCodeRawViewer = createResponseViewer()
         openCodeJsonViewer = createResponseViewer()
-        openCodeResponseTabbedPane = JBTabbedPane().apply {
-            addTab("Raw", openCodeRawViewer)
-            addTab("JSON", openCodeJsonViewer)
-        }
         loginHeaderLabel = JBLabel()
         statusLabel = JBLabel().apply { isVisible = false }
         statusLabelDefaultForeground = statusLabel!!.foreground ?: UIManager.getColor("Label.foreground")
@@ -121,7 +111,7 @@ class QuotaSettingsConfigurable : Configurable {
             }
 
             loginButton!!.isEnabled = false
-            setStatusMessage("Opening browser...")
+            setStatusMessage("Opening browser...", kind = AuthStatusKind.PENDING)
             authService.startLoginFlow(callback = { result ->
                 val currentPanel = panel ?: return@startLoginFlow
                 ApplicationManager.getApplication().invokeLater({
@@ -251,13 +241,13 @@ class QuotaSettingsConfigurable : Configurable {
             }
             row { cell(loginHeaderLabel!!) }
             row {
+                cell(statusLabel!!).gap(RightGap.SMALL)
+                cell(copyUrlButton!!)
+            }
+            row {
                 cell(loginButton!!).gap(RightGap.SMALL)
                 cell(cancelLoginButton!!).gap(RightGap.SMALL)
                 cell(logoutButton!!)
-            }
-            row {
-                cell(statusLabel!!).gap(RightGap.SMALL)
-                cell(copyUrlButton!!)
             }
             separator()
             row("Account ID:") {
@@ -279,7 +269,7 @@ class QuotaSettingsConfigurable : Configurable {
                     addToTop(
                         JBLabel("Last quota response:"),
                     )
-                    addToCenter(codexResponseViewer!!)
+                    addToCenter(createResponseViewerPanel(codexResponseViewer!!))
                 },
             )
         }
@@ -289,15 +279,23 @@ class QuotaSettingsConfigurable : Configurable {
             row {
                 cell(openCodeHideFromPopupCheckBox!!)
             }
+            row {
+                label("Session cookie")
+            }
+            row {
+                cell(openCodeStatusLabel!!)
+            }
             row("Session cookie:") {
                 cell(openCodeCookieField!!)
                     .resizableColumn()
                     .align(AlignX.FILL)
+            }
+            row {
                 button("Save") {
                     val cookie = String(openCodeCookieField!!.password)
-                    if (cookie.isNotBlank()) {
+                    if (cookie.isNotBlank() && cookie != OPENCODE_COOKIE_PLACEHOLDER) {
                         OpenCodeSessionCookieStore.getInstance().save(cookie)
-                        openCodeCookieField!!.text = ""
+                        updateOpenCodeFields()
                         updateOpenCodeStatus()
                         QuotaUsageService.getInstance().refreshNowAsync()
                     }
@@ -309,9 +307,7 @@ class QuotaSettingsConfigurable : Configurable {
                     QuotaUsageService.getInstance().clearOpenCodeUsageData()
                 }
             }
-            row {
-                cell(openCodeStatusLabel!!)
-            }
+            separator()
             row {
                 label("Extract from opencode.ai → DevTools → Storage → Cookies → \"auth\" cookie value. Valid for 1 year.")
             }
@@ -324,7 +320,7 @@ class QuotaSettingsConfigurable : Configurable {
                     addToTop(
                         JBLabel("Last quota response:"),
                     )
-                    addToCenter(openCodeResponseTabbedPane!!)
+                    addToCenter(createResponseViewerPanel(openCodeJsonViewer!!))
                 },
             )
         }
@@ -394,9 +390,7 @@ class QuotaSettingsConfigurable : Configurable {
         openCodeCookieField = null
         openCodeStatusLabel = null
         codexResponseViewer = null
-        openCodeRawViewer = null
         openCodeJsonViewer = null
-        openCodeResponseTabbedPane = null
         loginHeaderLabel = null
         statusLabel = null
         statusLabelDefaultForeground = null
@@ -446,14 +440,14 @@ class QuotaSettingsConfigurable : Configurable {
         }
     }
 
-    private fun setStatusMessage(text: String, isError: Boolean = false) {
-        authStatusMessage = AuthStatusMessage(text, isError)
+    private fun setStatusMessage(text: String, isError: Boolean = false, kind: AuthStatusKind? = null) {
+        authStatusMessage = AuthStatusMessage(text, isError, kind ?: if (isError) AuthStatusKind.DISCONNECTED else AuthStatusKind.CONNECTED)
     }
 
     private fun renderStatusMessage(message: AuthStatusMessage?) {
         val label = statusLabel ?: return
-        label.text = message?.text.orEmpty()
-        label.foreground = if (message?.isError == true) JBColor.RED else statusLabelDefaultForeground ?: label.foreground
+        label.text = message?.let { formatStatusText(it.text, it.kind) }.orEmpty()
+        label.foreground = statusLabelDefaultForeground ?: label.foreground
         label.isVisible = !message?.text.isNullOrBlank()
     }
 
@@ -465,17 +459,9 @@ class QuotaSettingsConfigurable : Configurable {
     }
 
     private fun updateOpenCodeResponseArea() {
-        val rawArea = openCodeRawViewer ?: return
         val jsonArea = openCodeJsonViewer ?: return
         val quota = QuotaUsageService.getInstance().getLastOpenCodeQuota()
         val error = QuotaUsageService.getInstance().getLastOpenCodeError()
-
-        rawArea.text = when {
-            error != null -> "Error: $error"
-            quota?.rawJson.isNullOrBlank() -> "No OpenCode response yet."
-            else -> quota.rawJson!!
-        }
-        rawArea.setCaretPosition(0)
 
         jsonArea.text = when {
             error != null -> "Error: $error"
@@ -494,34 +480,23 @@ class QuotaSettingsConfigurable : Configurable {
         jsonArea.setCaretPosition(0)
     }
 
-    @Suppress("UsePropertyAccessSyntax")
-    private fun createResponseViewer(): EditorTextField {
-        val jsonLanguage = Language.findLanguageByID("JSON")
-        val viewer = if (jsonLanguage != null) {
-            LanguageTextField(jsonLanguage, null, "", false)
-        } else {
-            EditorTextField("", null, PlainTextFileType.INSTANCE)
+    private fun createResponseViewer(): JBTextArea {
+        return JBTextArea().apply {
+            isEditable = false
+            lineWrap = false
+            wrapStyleWord = false
+            font = Font(Font.MONOSPACED, Font.PLAIN, font.size)
+            margin = JBUI.insets(6)
         }
+    }
 
-        return viewer.apply {
-            setOneLineMode(false)
-            isViewer = true
-            setFontInheritedFromLAF(false)
+    private fun createResponseViewerPanel(viewer: JBTextArea): JComponent {
+        return JBScrollPane(viewer).apply {
             preferredSize = Dimension(1, JBUI.scale(220))
             minimumSize = Dimension(1, JBUI.scale(120))
-            addSettingsProvider { editor ->
-                editor.settings.apply {
-                    isLineNumbersShown = false
-                    isFoldingOutlineShown = false
-                    isLineMarkerAreaShown = false
-                    isIndentGuidesShown = false
-                    additionalLinesCount = 0
-                    additionalColumnsCount = 0
-                    isRightMarginShown = false
-                }
-                editor.setHorizontalScrollbarVisible(true)
-                editor.setVerticalScrollbarVisible(true)
-            }
+            border = JBUI.Borders.emptyTop(4)
+            horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED
+            verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
         }
     }
 
@@ -536,7 +511,8 @@ class QuotaSettingsConfigurable : Configurable {
     }
 
     private fun updateOpenCodeFields() {
-        openCodeCookieField?.text = ""
+        val cookie = OpenCodeSessionCookieStore.getInstance().load()
+        openCodeCookieField?.text = if (cookie.isNullOrBlank()) "" else OPENCODE_COOKIE_PLACEHOLDER
         updateOpenCodeStatus()
     }
 
@@ -549,24 +525,34 @@ class QuotaSettingsConfigurable : Configurable {
 
         when {
             cookie == null -> {
-                label.text = "No session cookie configured"
-                label.foreground = JBColor.GRAY
+                label.text = formatStatusText("No session cookie configured", AuthStatusKind.DISCONNECTED)
+                label.foreground = statusLabelDefaultForeground ?: label.foreground
             }
             openCodeError != null -> {
-                label.text = "Error: $openCodeError"
-                label.foreground = JBColor.RED
+                label.text = formatStatusText("Error: $openCodeError", AuthStatusKind.DISCONNECTED)
+                label.foreground = statusLabelDefaultForeground ?: label.foreground
             }
             openCodeQuota != null -> {
                 val balanceText = if (openCodeQuota.useBalance) openCodeQuota.availableBalance?.let { "Balance: $${QuotaUiUtil.formatOpenCodeBalance(it)}" } else null
-                label.text = if (balanceText != null) "Connected - Go subscription active - $balanceText" else "Connected - Go subscription active"
-                label.foreground = JBColor.GREEN.darker()
+                val text = if (balanceText != null) "Connected - Go subscription active - $balanceText" else "Connected - Go subscription active"
+                label.text = formatStatusText(text, AuthStatusKind.CONNECTED)
+                label.foreground = statusLabelDefaultForeground ?: label.foreground
             }
             else -> {
-                label.text = "Session cookie stored securely"
-                label.foreground = JBColor.GRAY
+                label.text = formatStatusText("Session cookie stored securely", AuthStatusKind.CONNECTED)
+                label.foreground = statusLabelDefaultForeground ?: label.foreground
             }
         }
         label.isVisible = true
+    }
+
+    private fun formatStatusText(text: String, kind: AuthStatusKind): String {
+        val color = when (kind) {
+            AuthStatusKind.CONNECTED -> "#4CAF50"
+            AuthStatusKind.DISCONNECTED -> "#F44336"
+            AuthStatusKind.PENDING -> "#FFC107"
+        }
+        return "<html><span style='color:$color'>●</span>&nbsp;$text</html>"
     }
 
     private fun updateDisplayModePreview() {
@@ -626,12 +612,23 @@ class QuotaSettingsConfigurable : Configurable {
             return scaleIconToQuotaStatusSize(QuotaIcons.CAKE_40, component)
         }
     }
+
+    private companion object {
+        private const val OPENCODE_COOKIE_PLACEHOLDER = "********"
+    }
 }
 
 internal data class AuthStatusMessage(
     val text: String,
     val isError: Boolean = false,
+    val kind: AuthStatusKind = if (isError) AuthStatusKind.DISCONNECTED else AuthStatusKind.CONNECTED,
 )
+
+internal enum class AuthStatusKind {
+    CONNECTED,
+    DISCONNECTED,
+    PENDING,
+}
 
 internal data class QuotaSettingsAuthUiState(
     val headerText: String,
@@ -642,18 +639,15 @@ internal data class QuotaSettingsAuthUiState(
 ) {
     companion object {
         fun create(loggedIn: Boolean, inProgress: Boolean, statusMessage: AuthStatusMessage?): QuotaSettingsAuthUiState {
-            val stateText = when {
-                inProgress -> "In progress"
-                loggedIn -> "Logged in"
-                else -> "Not logged in"
-            }
             val visibleStatusMessage = statusMessage ?: if (inProgress) {
-                AuthStatusMessage("Complete the login in your browser.")
+                AuthStatusMessage("Complete the login in your browser.", kind = AuthStatusKind.PENDING)
+            } else if (loggedIn) {
+                AuthStatusMessage("Connected", isError = false)
             } else {
-                null
+                AuthStatusMessage("Not logged in", isError = true)
             }
             return QuotaSettingsAuthUiState(
-                headerText = "Login ($stateText)",
+                headerText = "Login",
                 visibleStatusMessage = visibleStatusMessage,
                 loginEnabled = !inProgress && !loggedIn,
                 cancelEnabled = inProgress,
