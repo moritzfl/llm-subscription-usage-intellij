@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-04-28
+- Added support for Ollama Cloud usage quotas, including popup, indicator, settings, caching, and MCP tooling
+- Improved quota popup stability while provider data loads asynchronously
+- Made indicator display rules more consistent across OpenAI, OpenCode Go, and Ollama Cloud
+- Grouped provider refresh timestamps in the popup footer
+
 ## [0.8.0] - 2026-04-26
 - Added support for OpenCode Go subscription usage quotas
 - Added MCP tooling support for OpenCode usage queries
