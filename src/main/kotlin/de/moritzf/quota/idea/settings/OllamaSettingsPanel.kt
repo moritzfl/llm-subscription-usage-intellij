@@ -1,5 +1,7 @@
 package de.moritzf.quota.idea.settings
 
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.dsl.builder.AlignX
@@ -9,12 +11,14 @@ import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ollama.OllamaSessionCookieStore
 import de.moritzf.quota.idea.ui.QuotaUiUtil
+import de.moritzf.quota.ollama.OllamaQuotaClient
 import java.awt.Color
 import java.awt.Dimension
 import java.awt.Font
 import javax.swing.JComponent
 import javax.swing.JScrollPane
 import javax.swing.ScrollPaneConstants
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Ollama Cloud settings tab.
@@ -34,6 +38,7 @@ internal class OllamaSettingsPanel(
     }
     private val ollamaStatusLabel = JBLabel().apply { isVisible = false }
     private val ollamaJsonViewer = createResponseViewer()
+    private val validationGeneration = AtomicLong(0)
 
     init {
         val ollamaConfigPanel = panel {
@@ -62,8 +67,10 @@ internal class OllamaSettingsPanel(
                     val cfClearance = String(cfClearanceField.password).ifBlank { null }
                     if (sessionCookie.isNotBlank() && sessionCookie != SESSION_COOKIE_PLACEHOLDER) {
                         OllamaSessionCookieStore.getInstance().save(sessionCookie, cfClearance)
-                        updateOllamaFields()
-                        updateOllamaStatus()
+                        sessionCookieField.text = SESSION_COOKIE_PLACEHOLDER
+                        cfClearanceField.text = if (cfClearance.isNullOrBlank()) "" else CF_PLACEHOLDER
+                        setOllamaPendingStatus("Validating session cookie...")
+                        validateCookieNow(sessionCookie, cfClearance)
                         QuotaUsageService.getInstance().refreshOllamaAsync()
                     }
                 }
@@ -113,11 +120,7 @@ internal class OllamaSettingsPanel(
                 ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
             ollamaQuota != null -> {
-                val planText = ollamaQuota.plan.takeIf { it.isNotBlank() }?.replaceFirstChar { it.uppercase() } ?: "Free"
-                val sessionText = ollamaQuota.sessionUsage?.let { "Session: ${it.usagePercent}%" }
-                val weeklyText = ollamaQuota.weeklyUsage?.let { "Weekly: ${it.usagePercent}%" }
-                val text = listOfNotNull("Connected - $planText plan", sessionText, weeklyText).joinToString(" • ")
-                ollamaStatusLabel.text = formatStatusText(text, AuthStatusKind.CONNECTED)
+                ollamaStatusLabel.text = formatStatusText("Connected", AuthStatusKind.CONNECTED)
                 ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
             else -> {
@@ -125,6 +128,36 @@ internal class OllamaSettingsPanel(
                 ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
         }
+        ollamaStatusLabel.isVisible = true
+    }
+
+    private fun validateCookieNow(sessionCookie: String, cfClearance: String?) {
+        val generation = validationGeneration.incrementAndGet()
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val result = runCatching { OllamaQuotaClient().fetchQuota(sessionCookie, cfClearance) }
+            ApplicationManager.getApplication().invokeLater({
+                if (generation != validationGeneration.get()) {
+                    return@invokeLater
+                }
+                result.fold(
+                    onSuccess = {
+                        ollamaStatusLabel.text = formatStatusText("Connected", AuthStatusKind.CONNECTED)
+                        ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
+                        ollamaStatusLabel.isVisible = true
+                    },
+                    onFailure = { error ->
+                        ollamaStatusLabel.text = formatStatusText("Error: ${error.message ?: "Validation failed"}", AuthStatusKind.DISCONNECTED)
+                        ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
+                        ollamaStatusLabel.isVisible = true
+                    },
+                )
+            }, ModalityState.stateForComponent(modalityComponentProvider() ?: this@OllamaSettingsPanel))
+        }
+    }
+
+    private fun setOllamaPendingStatus(text: String) {
+        ollamaStatusLabel.text = formatStatusText(text, AuthStatusKind.PENDING)
+        ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
         ollamaStatusLabel.isVisible = true
     }
 

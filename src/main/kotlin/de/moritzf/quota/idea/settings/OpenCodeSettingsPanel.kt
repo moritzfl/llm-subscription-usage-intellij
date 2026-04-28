@@ -78,8 +78,9 @@ internal class OpenCodeSettingsPanel(
                     val cookie = String(openCodeCookieField.password)
                     if (cookie.isNotBlank() && cookie != OPENCODE_COOKIE_PLACEHOLDER) {
                         OpenCodeSessionCookieStore.getInstance().save(cookie)
-                        updateOpenCodeFields()
-                        updateOpenCodeStatus()
+                        openCodeCookieField.text = OPENCODE_COOKIE_PLACEHOLDER
+                        setOpenCodePendingStatus("Validating session cookie...")
+                        loadWorkspaces(cookie)
                         QuotaUsageService.getInstance().refreshOpenCodeAsync()
                     }
                 }
@@ -154,14 +155,16 @@ internal class OpenCodeSettingsPanel(
                 openCodeStatusLabel.text = formatStatusText("No session cookie configured", AuthStatusKind.DISCONNECTED)
                 openCodeStatusLabel.foreground = statusLabelDefaultForeground ?: openCodeStatusLabel.foreground
             }
+            workspaceComboBox.isVisible && workspaceComboBox.itemCount > 0 -> {
+                openCodeStatusLabel.text = formatStatusText("Connected", AuthStatusKind.CONNECTED)
+                openCodeStatusLabel.foreground = statusLabelDefaultForeground ?: openCodeStatusLabel.foreground
+            }
             openCodeError != null -> {
                 openCodeStatusLabel.text = formatStatusText("Error: $openCodeError", AuthStatusKind.DISCONNECTED)
                 openCodeStatusLabel.foreground = statusLabelDefaultForeground ?: openCodeStatusLabel.foreground
             }
             openCodeQuota != null -> {
-                val balanceText = openCodeQuota.availableBalance?.let { "Balance: $${QuotaUiUtil.formatOpenCodeBalance(it)}" }
-                val text = if (balanceText != null) "Connected - Go subscription active - $balanceText" else "Connected - Go subscription active"
-                openCodeStatusLabel.text = formatStatusText(text, AuthStatusKind.CONNECTED)
+                openCodeStatusLabel.text = formatStatusText("Connected", AuthStatusKind.CONNECTED)
                 openCodeStatusLabel.foreground = statusLabelDefaultForeground ?: openCodeStatusLabel.foreground
             }
             else -> {
@@ -169,6 +172,12 @@ internal class OpenCodeSettingsPanel(
                 openCodeStatusLabel.foreground = statusLabelDefaultForeground ?: openCodeStatusLabel.foreground
             }
         }
+        openCodeStatusLabel.isVisible = true
+    }
+
+    private fun setOpenCodePendingStatus(text: String) {
+        openCodeStatusLabel.text = formatStatusText(text, AuthStatusKind.PENDING)
+        openCodeStatusLabel.foreground = statusLabelDefaultForeground ?: openCodeStatusLabel.foreground
         openCodeStatusLabel.isVisible = true
     }
 

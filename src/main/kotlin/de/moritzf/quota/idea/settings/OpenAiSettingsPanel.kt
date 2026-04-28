@@ -1,6 +1,8 @@
 package de.moritzf.quota.idea.settings
 
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
@@ -69,14 +71,26 @@ internal class OpenAiSettingsPanel : BorderLayoutPanel() {
             authStatusMessage = AuthStatusMessage("Opening browser...", false, AuthStatusKind.PENDING)
             updateAuthUi()
             authService.startLoginFlow(callback = { result ->
-                onLoginResult?.invoke(result.success, result.message)
-                loginButton.isEnabled = true
-                updateAuthUi()
-                updateAccountFields()
+                ApplicationManager.getApplication().invokeLater({
+                    authStatusMessage = if (result.success) {
+                        AuthStatusMessage("Connected", false, AuthStatusKind.CONNECTED)
+                    } else {
+                        AuthStatusMessage(result.message ?: "Login failed", true, AuthStatusKind.DISCONNECTED)
+                    }
+                    onLoginResult?.invoke(result.success, result.message)
+                    loginButton.isEnabled = true
+                    updateAuthUi()
+                    updateAccountFields()
+                    if (result.success) {
+                        QuotaUsageService.getInstance().refreshNowAsync()
+                    }
+                }, ModalityState.stateForComponent(this@OpenAiSettingsPanel))
             }, onAuthUrl = { url ->
-                authUrl = url
-                copyUrlButton.isVisible = true
-                onAuthUrlReceived?.invoke(url)
+                ApplicationManager.getApplication().invokeLater({
+                    authUrl = url
+                    copyUrlButton.isVisible = true
+                    onAuthUrlReceived?.invoke(url)
+                }, ModalityState.stateForComponent(this@OpenAiSettingsPanel))
             })
             updateAuthUi()
         }
