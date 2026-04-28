@@ -44,10 +44,10 @@ class OllamaQuotaClientTest {
         val quota = OllamaQuotaClient.parseQuotaFromHtml(html)
 
         assertEquals("pro", quota.plan)
-        assertNotNull(quota.sessionUsage)
-        assertEquals(0.9, quota.sessionUsage!!.usagePercent)
-        assertNotNull(quota.weeklyUsage)
-        assertEquals(0.1, quota.weeklyUsage!!.usagePercent)
+        val sessionUsage = assertNotNull(quota.sessionUsage)
+        assertEquals(0.9, sessionUsage.usagePercent)
+        val weeklyUsage = assertNotNull(quota.weeklyUsage)
+        assertEquals(0.1, weeklyUsage.usagePercent)
     }
 
     @Test
@@ -73,8 +73,8 @@ class OllamaQuotaClientTest {
         val quota = OllamaQuotaClient.parseQuotaFromHtml(html)
 
         assertEquals("", quota.plan)
-        assertNotNull(quota.sessionUsage)
-        assertEquals(50.0, quota.sessionUsage!!.usagePercent)
+        val sessionUsage = assertNotNull(quota.sessionUsage)
+        assertEquals(50.0, sessionUsage.usagePercent)
     }
 
     @Test
@@ -94,8 +94,8 @@ class OllamaQuotaClientTest {
         val quota = OllamaQuotaClient.parseQuotaFromHtml(html)
 
         assertEquals("pro", quota.plan)
-        assertNotNull(quota.sessionUsage)
-        assertEquals(12.5, quota.sessionUsage!!.usagePercent)
+        val sessionUsage = assertNotNull(quota.sessionUsage)
+        assertEquals(12.5, sessionUsage.usagePercent)
     }
 
     @Test
@@ -114,7 +114,7 @@ class OllamaQuotaClientTest {
         val quota = OllamaQuotaClient.parseQuotaFromHtml(html)
 
         assertEquals("free", quota.plan)
-        assertNotNull(quota.sessionUsage)
-        assertEquals(75.0, quota.sessionUsage!!.usagePercent)
+        val sessionUsage = assertNotNull(quota.sessionUsage)
+        assertEquals(75.0, sessionUsage.usagePercent)
     }
 }
