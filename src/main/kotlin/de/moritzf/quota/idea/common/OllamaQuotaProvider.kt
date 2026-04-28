@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicReference
  */
 class OllamaQuotaProvider(
     private val ollamaClient: OllamaQuotaClient = OllamaQuotaClient(),
-    private val sessionCookieProvider: () -> String? = { OllamaSessionCookieStore.getInstance().loadSessionCookie() },
+    private val sessionCookieProvider: () -> String? = { OllamaSessionCookieStore.getInstance().loadBlocking().first },
     private val cfClearanceProvider: () -> String? = { OllamaSessionCookieStore.getInstance().getCfClearance() },
 ) : QuotaProvider {
     override val id = "ollama"

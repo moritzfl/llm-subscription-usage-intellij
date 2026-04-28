@@ -164,16 +164,17 @@ internal object QuotaPopupSupport {
         val ollamaCookieStore = OllamaSessionCookieStore.getInstance()
         val hasCodexAuth = authService.isLoggedIn()
         val hasOpenCodeAuth = openCodeCookieStore.load() != null
+        val ollamaAuthUnknown = !ollamaCookieStore.isLoaded()
         val hasOllamaAuth = ollamaCookieStore.loadSessionCookie() != null
         val showCodexSection = hasCodexAuth && !hideOpenAi
         val showOpenCodeSection = hasOpenCodeAuth && !hideOpenCode
-        val showOllamaSection = hasOllamaAuth && !hideOllama
+        val showOllamaSection = (hasOllamaAuth || ollamaAuthUnknown) && !hideOllama
 
         return createPopupStack().apply {
             add(createHeaderRow { openSettings(project, component) { onClosePopup() } })
             add(createSeparatedBlock())
 
-            if (!hasCodexAuth && !hasOpenCodeAuth && !hasOllamaAuth) {
+            if (!hasCodexAuth && !hasOpenCodeAuth && !hasOllamaAuth && !ollamaAuthUnknown) {
                 add(withVerticalInsets(com.intellij.ui.components.JBLabel("Not logged in."), top = 1))
                 add(withVerticalInsets(com.intellij.ui.components.ActionLink("Open Settings") { openSettings(project, component) { onClosePopup() } }, top = 3))
             } else if (!showCodexSection && !showOpenCodeSection && !showOllamaSection) {
@@ -223,6 +224,14 @@ internal object QuotaPopupSupport {
         }
 
         val loadedItems = rawItems.filter { it.fetchedAt != null }
+        if (loadedItems.isEmpty()) {
+            return listOf(
+                UpdatedAtItem(
+                    icons = rawItems.map { it.icon },
+                    text = "loading...",
+                )
+            )
+        }
         if (loadedItems.size == rawItems.size && loadedItems.areWithinOneMinute()) {
             val newest = loadedItems.maxBy { it.fetchedAt!!.toEpochMilliseconds() }.fetchedAt
             return listOf(

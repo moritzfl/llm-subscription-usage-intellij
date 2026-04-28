@@ -85,6 +85,8 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         val ollamaUpdate = lastOllamaUpdate.takeIf { it > 0 }
             ?: QuotaSnapshotCache.decodeOllamaQuota(cachedOllamaQuotaJson)?.fetchedAt?.toEpochMilliseconds()
             ?: 0
+        val maxUpdate = maxOf(openAiUpdate, openCodeUpdate, ollamaUpdate)
+        if (maxUpdate == 0L) return QuotaIndicatorSource.OPEN_AI
         return when {
             ollamaUpdate >= openAiUpdate && ollamaUpdate >= openCodeUpdate -> QuotaIndicatorSource.OLLAMA
             openCodeUpdate >= openAiUpdate && openCodeUpdate >= ollamaUpdate -> QuotaIndicatorSource.OPEN_CODE

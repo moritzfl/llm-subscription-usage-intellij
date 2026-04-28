@@ -39,6 +39,7 @@ internal class OllamaSettingsPanel(
     private val ollamaStatusLabel = JBLabel().apply { isVisible = false }
     private val ollamaJsonViewer = createResponseViewer()
     private val validationGeneration = AtomicLong(0)
+    private var awaitingCookieLoadRefresh: Boolean = false
 
     init {
         val ollamaConfigPanel = panel {
@@ -98,19 +99,24 @@ internal class OllamaSettingsPanel(
     }
 
     fun updateOllamaFields() {
-        val (sessionCookie, cfClearance) = OllamaSessionCookieStore.getInstance().loadBlocking()
+        val cookieStore = OllamaSessionCookieStore.getInstance()
+        val sessionCookie = cookieStore.loadSessionCookie(onLoaded = ::refreshAfterCookieLoad)
         sessionCookieField.text = if (sessionCookie.isNullOrBlank()) "" else SESSION_COOKIE_PLACEHOLDER
-        cfClearanceField.text = if (cfClearance.isNullOrBlank()) "" else CF_PLACEHOLDER
+        cfClearanceField.text = if (sessionCookie.isNullOrBlank()) "" else CF_PLACEHOLDER
         updateOllamaStatus()
     }
 
     fun updateOllamaStatus() {
         val cookieStore = OllamaSessionCookieStore.getInstance()
-        val (sessionCookie, _) = cookieStore.loadBlocking()
+        val sessionCookie = cookieStore.loadSessionCookie(onLoaded = ::refreshAfterCookieLoad)
         val ollamaQuota = QuotaUsageService.getInstance().getLastOllamaQuota()
         val ollamaError = QuotaUsageService.getInstance().getLastOllamaError()
 
         when {
+            !cookieStore.isLoaded() -> {
+                ollamaStatusLabel.text = formatStatusText("Loading session cookie...", AuthStatusKind.PENDING)
+                ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
+            }
             sessionCookie.isNullOrBlank() -> {
                 ollamaStatusLabel.text = formatStatusText("No session cookie configured", AuthStatusKind.DISCONNECTED)
                 ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
@@ -153,6 +159,15 @@ internal class OllamaSettingsPanel(
                 )
             }, ModalityState.stateForComponent(modalityComponentProvider() ?: this@OllamaSettingsPanel))
         }
+    }
+
+    private fun refreshAfterCookieLoad() {
+        if (awaitingCookieLoadRefresh) {
+            awaitingCookieLoadRefresh = false
+            return
+        }
+        updateOllamaFields()
+        updateOllamaResponseArea()
     }
 
     private fun setOllamaPendingStatus(text: String) {
