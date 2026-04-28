@@ -32,4 +32,5 @@ object QuotaIcons {
     @JvmField val CAKE_UNKNOWN: Icon = IconLoader.getIcon("/icons/clock_loader_unknown.svg", QuotaIcons::class.java)
     @JvmField val OPENAI: Icon = IconLoader.getIcon("/icons/openai.svg", QuotaIcons::class.java)
     @JvmField val OPENCODE: Icon = IconLoader.getIcon("/icons/opencode.svg", QuotaIcons::class.java)
+    @JvmField val OLLAMA: Icon = IconLoader.getIcon("/icons/ollama.svg", QuotaIcons::class.java)
 }

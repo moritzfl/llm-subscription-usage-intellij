@@ -15,4 +15,9 @@ internal sealed interface QuotaIndicatorData {
         val quota: OpenCodeQuota?,
         override val error: String?,
     ) : QuotaIndicatorData
+
+    data class Ollama(
+        val quota: de.moritzf.quota.ollama.OllamaQuota?,
+        override val error: String?,
+    ) : QuotaIndicatorData
 }

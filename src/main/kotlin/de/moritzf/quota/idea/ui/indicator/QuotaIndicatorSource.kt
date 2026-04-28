@@ -3,6 +3,7 @@ package de.moritzf.quota.idea.ui.indicator
 enum class QuotaIndicatorSource(private val displayName: String) {
     OPEN_AI("OpenAI"),
     OPEN_CODE("OpenCode"),
+    OLLAMA("Ollama"),
     LAST_USED("Last used");
 
     override fun toString(): String = displayName

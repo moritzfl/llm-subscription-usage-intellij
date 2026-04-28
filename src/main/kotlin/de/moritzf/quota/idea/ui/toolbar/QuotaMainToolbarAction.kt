@@ -56,8 +56,10 @@ class QuotaMainToolbarAction : AnAction(), CustomComponentAction, RightAlignedTo
         val project = ProjectUtil.getProjectForComponent(component) ?: return
         val service = QuotaUsageService.getInstance()
         QuotaPopupSupport.showPopup(
-            project, component, service.getLastQuota(), service.getLastError(),
+            project, component,
+            service.getLastQuota(), service.getLastError(),
             service.getLastOpenCodeQuota(), service.getLastOpenCodeError(),
+            service.getLastOllamaQuota(), service.getLastOllamaError(),
             QuotaPopupLocation.BELOW,
         )
     }

@@ -21,13 +21,16 @@ import de.moritzf.quota.idea.ui.indicator.scaleIconToQuotaStatusSize
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.UsageWindow
 import de.moritzf.quota.opencode.OpenCodeUsageWindow
+import de.moritzf.quota.ollama.OllamaUsageWindow
 import org.intellij.lang.annotations.Language
 import java.awt.Component
 import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.Font
+import java.awt.FlowLayout
 import javax.swing.Icon
 import javax.swing.JComponent
+import javax.swing.JPanel
 import javax.swing.JProgressBar
 import kotlin.math.roundToInt
 
@@ -74,6 +77,15 @@ internal fun createWindowBlock(window: UsageWindow, fallbackLabel: String, top: 
         add(createWindowTitleLabel(title))
         add(withVerticalInsets(JBLabel(info), top = 1))
         add(withVerticalInsets(createUsageProgressBar(percent), top = 1))
+    }
+}
+
+internal fun createLoadingWindowBlock(label: String, top: Int): JComponent {
+    return createPopupStack().apply {
+        border = JBUI.Borders.emptyTop(top)
+        add(createWindowTitleLabel("$label limit"))
+        add(withVerticalInsets(createMutedLabel("Loading usage..."), top = 1))
+        add(withVerticalInsets(createUsageProgressBar(0), top = 1))
     }
 }
 
@@ -200,11 +212,56 @@ internal fun createMutedLabel(text: String): JBLabel {
     }
 }
 
+internal fun createUpdatedAtRow(items: List<UpdatedAtItem>): JComponent {
+    return JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(3), 0)).apply {
+        isOpaque = false
+        add(createMutedLabel("Updated:"))
+        items.forEachIndexed { index, item ->
+            item.icons.forEach { providerIcon ->
+                add(JBLabel().apply {
+                    icon = scaleIconToQuotaStatusSize(providerIcon.icon, this)
+                    toolTipText = providerIcon.label
+                })
+            }
+            add(createMutedLabel(item.text))
+            if (index < items.lastIndex) {
+                add(createMutedLabel(";"))
+            }
+        }
+    }
+}
+
+internal data class UpdatedAtItem(
+    val icons: List<UpdatedAtIcon>,
+    val text: String,
+)
+
+internal data class UpdatedAtIcon(
+    val label: String,
+    val icon: Icon,
+)
+
 internal fun createUsageProgressBar(percent: Int): JProgressBar {
     return JProgressBar(0, 100).apply {
         value = percent
         isStringPainted = false
         preferredSize = Dimension(200, 4)
+    }
+}
+
+internal fun createOllamaWindowBlock(window: OllamaUsageWindow, label: String, top: Int): JComponent {
+    val percent = clampPercent(window.usagePercent.roundToInt())
+    val resetText = QuotaUiUtil.formatReset(window.resetsAt)
+    var info = "$percent% used"
+    if (resetText != null) {
+        info += " - $resetText"
+    }
+
+    return createPopupStack().apply {
+        border = JBUI.Borders.emptyTop(top)
+        add(createWindowTitleLabel("$label limit"))
+        add(withVerticalInsets(JBLabel(info), top = 1))
+        add(withVerticalInsets(createUsageProgressBar(percent), top = 1))
     }
 }
 

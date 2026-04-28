@@ -22,7 +22,9 @@ internal fun buildOpenAiPopupContent(
         }
 
         quota == null -> {
-            components.add(withVerticalInsets(javax.swing.JLabel("Loading Codex usage..."), top = 1))
+            components.add(withVerticalInsets(createSectionTitleLabel("Codex", QuotaIcons.OPENAI), top = 0))
+            components.add(createLoadingWindowBlock("5h", top = 3))
+            components.add(createLoadingWindowBlock("Weekly", top = 5))
         }
 
         else -> {
@@ -33,11 +35,9 @@ internal fun buildOpenAiPopupContent(
             }
 
             if (quota.primary != null || quota.secondary != null) {
-                components.add(withVerticalInsets(createSectionTitleLabel("Codex", QuotaIcons.OPENAI), top = 0))
                 val planLabel = quota.planType?.toDisplayLabel()
-                if (!planLabel.isNullOrBlank()) {
-                    components.add(withVerticalInsets(createMutedLabel("OpenAI Plan: $planLabel"), top = 2))
-                }
+                val title = if (!planLabel.isNullOrBlank()) "Codex ($planLabel)" else "Codex"
+                components.add(withVerticalInsets(createSectionTitleLabel(title, QuotaIcons.OPENAI), top = 0))
                 quota.primary?.let { components.add(createWindowBlock(it, "Primary", top = 3)) }
                 quota.secondary?.let { components.add(createWindowBlock(it, "Secondary", top = 5)) }
             }

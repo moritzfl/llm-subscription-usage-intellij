@@ -1,6 +1,5 @@
 package de.moritzf.quota.idea.ui.popup
 
-import com.intellij.ui.components.JBLabel
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.opencode.OpenCodeQuota
@@ -26,7 +25,11 @@ internal fun buildOpenCodePopupContent(
         }
 
         quota == null -> {
-            components.add(withVerticalInsets(JBLabel("Loading OpenCode usage..."), top = 1))
+            components.add(withVerticalInsets(createSectionTitleLabel(OPENCODE_GO_LABEL, QuotaIcons.OPENCODE), top = 0))
+            components.add(withVerticalInsets(createMutedLabel("Available balance: loading..."), top = 2))
+            components.add(createLoadingWindowBlock("5h rolling", top = 3))
+            components.add(createLoadingWindowBlock("Weekly", top = 5))
+            components.add(createLoadingWindowBlock("Monthly", top = 5))
         }
 
         else -> {

@@ -38,8 +38,9 @@ object QuotaUiUtil {
             return null
         }
 
-        val duration = formatDuration(Duration.ofMillis(resetsAt.toEpochMilliseconds() - Clock.System.now().toEpochMilliseconds())) ?: return null
-        return duration.removePrefix("in ")
+        return formatCompactDuration(
+            Duration.ofMillis(resetsAt.toEpochMilliseconds() - Clock.System.now().toEpochMilliseconds())
+        )
     }
 
     @JvmStatic
@@ -67,30 +68,40 @@ object QuotaUiUtil {
     }
 
     private fun formatDuration(duration: Duration): String? {
+        val compact = formatCompactDuration(duration) ?: return null
+        return "in $compact"
+    }
+
+    /**
+     * Formats a duration into a compact string like "4d 3h 12m" (without "in" prefix).
+     * Returns null for negative durations.
+     */
+    @JvmStatic
+    fun formatCompactDuration(duration: Duration): String? {
         if (duration.isNegative) {
             return null
         }
 
         val minutes = duration.toMinutes()
         if (minutes < 1) {
-            return "in <1m"
+            return "<1m"
         }
 
         val days = minutes / (60 * 24)
         val hours = (minutes % (60 * 24)) / 60
         val mins = minutes % 60
-        val builder = StringBuilder("in ")
+        val builder = StringBuilder()
         if (days > 0) {
             builder.append(days).append('d')
         }
         if (hours > 0) {
-            if (builder.length > 3) {
+            if (builder.isNotEmpty()) {
                 builder.append(' ')
             }
             builder.append(hours).append('h')
         }
         if (mins > 0 && days == 0L) {
-            if (builder.length > 3) {
+            if (builder.isNotEmpty()) {
                 builder.append(' ')
             }
             builder.append(mins).append('m')

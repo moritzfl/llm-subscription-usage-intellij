@@ -23,8 +23,10 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
     private val widgetComponent = QuotaIndicatorComponent(horizontalPadding = 4) { component, data ->
         val service = QuotaUsageService.getInstance()
         QuotaPopupSupport.showPopup(
-            project, component, service.getLastQuota(), service.getLastError(),
+            project, component,
+            service.getLastQuota(), service.getLastError(),
             service.getLastOpenCodeQuota(), service.getLastOpenCodeError(),
+            service.getLastOllamaQuota(), service.getLastOllamaError(),
             QuotaPopupLocation.ABOVE,
         )
     }

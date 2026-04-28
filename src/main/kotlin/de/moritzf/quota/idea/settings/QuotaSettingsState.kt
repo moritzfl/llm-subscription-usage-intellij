@@ -21,11 +21,14 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var indicatorSource: String = QuotaIndicatorSource.OPEN_AI.name
     var lastOpenAiUpdate: Long = 0
     var lastOpenCodeUpdate: Long = 0
+    var lastOllamaUpdate: Long = 0
     var hideOpenAiFromQuotaPopup: Boolean = false
     var hideOpenCodeFromQuotaPopup: Boolean = false
+    var hideOllamaFromQuotaPopup: Boolean = false
     var openCodeWorkspaceId: String? = null
     var cachedOpenAiQuotaJson: String? = null
     var cachedOpenCodeQuotaJson: String? = null
+    var cachedOllamaQuotaJson: String? = null
 
     override fun getState(): QuotaSettingsState = this
 
@@ -36,11 +39,14 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         indicatorSource = state.indicatorSource
         lastOpenAiUpdate = state.lastOpenAiUpdate
         lastOpenCodeUpdate = state.lastOpenCodeUpdate
+        lastOllamaUpdate = state.lastOllamaUpdate
         hideOpenAiFromQuotaPopup = state.hideOpenAiFromQuotaPopup
         hideOpenCodeFromQuotaPopup = state.hideOpenCodeFromQuotaPopup
+        hideOllamaFromQuotaPopup = state.hideOllamaFromQuotaPopup
         openCodeWorkspaceId = state.openCodeWorkspaceId
         cachedOpenAiQuotaJson = state.cachedOpenAiQuotaJson
         cachedOpenCodeQuotaJson = state.cachedOpenCodeQuotaJson
+        cachedOllamaQuotaJson = state.cachedOllamaQuotaJson
     }
 
     fun displayMode(): QuotaDisplayMode = QuotaDisplayMode.fromStorageValue(statusBarDisplayMode)
@@ -65,6 +71,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         when (provider) {
             "openai" -> lastOpenAiUpdate = System.currentTimeMillis()
             "opencode" -> lastOpenCodeUpdate = System.currentTimeMillis()
+            "ollama" -> lastOllamaUpdate = System.currentTimeMillis()
         }
     }
 
@@ -75,9 +82,12 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         val openCodeUpdate = lastOpenCodeUpdate.takeIf { it > 0 }
             ?: QuotaSnapshotCache.decodeOpenCodeQuota(cachedOpenCodeQuotaJson)?.fetchedAt?.toEpochMilliseconds()
             ?: 0
+        val ollamaUpdate = lastOllamaUpdate.takeIf { it > 0 }
+            ?: QuotaSnapshotCache.decodeOllamaQuota(cachedOllamaQuotaJson)?.fetchedAt?.toEpochMilliseconds()
+            ?: 0
         return when {
-            openAiUpdate >= openCodeUpdate -> QuotaIndicatorSource.OPEN_AI
-            openCodeUpdate > openAiUpdate -> QuotaIndicatorSource.OPEN_CODE
+            ollamaUpdate >= openAiUpdate && ollamaUpdate >= openCodeUpdate -> QuotaIndicatorSource.OLLAMA
+            openCodeUpdate >= openAiUpdate && openCodeUpdate >= ollamaUpdate -> QuotaIndicatorSource.OPEN_CODE
             else -> QuotaIndicatorSource.OPEN_AI
         }
     }
