@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-04-28
+- Fixed "Last used" indicator source to detect the active provider by actual usage increase, not just fetch timestamp
+- Fixed status bar not repainting on Ollama quota updates
+- Removed balance from the OpenCode indicator bar to save space
+
 ## [0.9.0] - 2026-04-28
 - Added support for Ollama Cloud usage quotas, including popup, indicator, settings, caching, and MCP tooling
 - Improved quota popup stability while provider data loads asynchronously
