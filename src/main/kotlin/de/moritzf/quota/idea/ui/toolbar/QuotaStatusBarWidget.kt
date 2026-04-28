@@ -41,6 +41,9 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
             override fun onOpenCodeQuotaUpdated(quota: de.moritzf.quota.opencode.OpenCodeQuota?, error: String?) {
                 updateWidget()
             }
+            override fun onOllamaQuotaUpdated(quota: de.moritzf.quota.ollama.OllamaQuota?, error: String?) {
+                updateWidget()
+            }
         })
         connection.subscribe(QuotaSettingsListener.TOPIC, QuotaSettingsListener { updateWidget() })
         updateWidget()
