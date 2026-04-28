@@ -357,13 +357,11 @@ internal fun openCodeBarDisplayText(quota: OpenCodeQuota?, error: String?): Stri
     if (quota == null) return "loading..."
 
     val state = openCodeIndicatorState(quota)
-    val balanceText = quota.availableBalance?.let { "$${QuotaUiUtil.formatOpenCodeBalance(it)}" }
     return when {
-        state == null -> if (balanceText != null) "no data \u2022 $balanceText" else "no data"
+        state == null -> "no data"
         else -> {
             val reset = formatOpenCodeResetTime(state.resetInSec)
             val parts = mutableListOf("${state.percent}%")
-            if (balanceText != null) parts.add(balanceText)
             if (reset != null) parts.add(reset)
             parts.joinToString(" \u2022 ")
         }
