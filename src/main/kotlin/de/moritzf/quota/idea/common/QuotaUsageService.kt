@@ -76,7 +76,7 @@ class QuotaUsageService(
     internal fun getEffectiveIndicatorData(): QuotaIndicatorData {
         val settings = settingsProvider()
         val source = when (settings?.source() ?: QuotaIndicatorSource.OPEN_AI) {
-            QuotaIndicatorSource.LAST_USED -> settings?.lastUsedSource() ?: QuotaIndicatorSource.OPEN_AI
+            QuotaIndicatorSource.LAST_USED -> resolveLastActiveSource(settings)
             QuotaIndicatorSource.OPEN_AI -> QuotaIndicatorSource.OPEN_AI
             QuotaIndicatorSource.OPEN_CODE -> QuotaIndicatorSource.OPEN_CODE
             QuotaIndicatorSource.OLLAMA -> QuotaIndicatorSource.OLLAMA
@@ -182,12 +182,74 @@ class QuotaUsageService(
         }
 
         try {
+            val settings = settingsProvider()
+            val oldFraction = getCachedUsageFraction(provider, settings)
             provider.refresh()
-            settingsProvider()?.let(provider::persistToCache)
+            val newFraction = getCurrentUsageFraction(provider)
+
+            if (oldFraction != null && newFraction != null && newFraction > oldFraction) {
+                (settings ?: settingsProvider())?.lastActiveSource = provider.id
+            }
+
+            settings?.let(provider::persistToCache)
             publishUpdate()
         } finally {
             refreshing.set(false)
         }
+    }
+
+    private fun getCachedUsageFraction(provider: QuotaProvider, settings: QuotaSettingsState?): Double? {
+        return when (provider.id) {
+            "openai" -> settings?.cachedOpenAiQuotaJson
+                ?.let(QuotaSnapshotCache::decodeOpenAiQuota)
+                ?.let(::extractOpenAiFraction)
+            "opencode" -> settings?.cachedOpenCodeQuotaJson
+                ?.let(QuotaSnapshotCache::decodeOpenCodeQuota)
+                ?.let(::extractOpenCodeFraction)
+            "ollama" -> settings?.cachedOllamaQuotaJson
+                ?.let(QuotaSnapshotCache::decodeOllamaQuota)
+                ?.let(::extractOllamaFraction)
+            else -> null
+        }
+    }
+
+    private fun getCurrentUsageFraction(provider: QuotaProvider): Double? {
+        return when (provider) {
+            is OpenAiQuotaProvider -> provider.getLastQuota()?.let(::extractOpenAiFraction)
+            is OpenCodeQuotaProvider -> provider.getLastQuota()?.let(::extractOpenCodeFraction)
+            is OllamaQuotaProvider -> provider.getLastQuota()?.let(::extractOllamaFraction)
+            else -> null
+        }
+    }
+
+    private fun extractOpenAiFraction(quota: OpenAiCodexQuota): Double? {
+        val windows = listOfNotNull(
+            quota.primary?.usedPercent, quota.secondary?.usedPercent,
+            quota.reviewPrimary?.usedPercent, quota.reviewSecondary?.usedPercent,
+        )
+        return windows.maxOrNull()?.let { it / 100.0 }
+    }
+
+    private fun extractOpenCodeFraction(quota: OpenCodeQuota): Double? {
+        val windows = listOfNotNull(
+            quota.rollingUsage?.usagePercent?.toDouble(),
+            quota.weeklyUsage?.usagePercent?.toDouble(),
+            quota.monthlyUsage?.usagePercent?.toDouble(),
+        )
+        return windows.maxOrNull()?.let { it / 100.0 }
+    }
+
+    private fun extractOllamaFraction(quota: OllamaQuota): Double? {
+        val windows = listOfNotNull(quota.sessionUsage?.usagePercent, quota.weeklyUsage?.usagePercent)
+        return windows.maxOrNull()?.let { it / 100.0 }
+    }
+
+    private fun resolveLastActiveSource(settings: QuotaSettingsState?): QuotaIndicatorSource {
+        val active = settings?.lastActiveSource
+        if (!active.isNullOrBlank()) {
+            return QuotaIndicatorSource.fromStorageValue(active)
+        }
+        return settings?.lastUsedSource() ?: QuotaIndicatorSource.OPEN_AI
     }
 
     private fun publishUpdate() {
