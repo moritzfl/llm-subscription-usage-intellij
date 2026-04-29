@@ -25,11 +25,13 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var lastOllamaUpdate: Long = 0
     var lastZaiUpdate: Long = 0
     var lastMiniMaxUpdate: Long = 0
+    var lastKimiUpdate: Long = 0
     var hideOpenAiFromQuotaPopup: Boolean = false
     var hideOpenCodeFromQuotaPopup: Boolean = false
     var hideOllamaFromQuotaPopup: Boolean = false
     var hideZaiFromQuotaPopup: Boolean = false
     var hideMiniMaxFromQuotaPopup: Boolean = false
+    var hideKimiFromQuotaPopup: Boolean = false
     var lastActiveSource: String? = null
     var openCodeWorkspaceId: String? = null
     var minimaxRegionPreference: String = MiniMaxRegionPreference.AUTO.name
@@ -38,6 +40,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var cachedOllamaQuotaJson: String? = null
     var cachedZaiQuotaJson: String? = null
     var cachedMiniMaxQuotaJson: String? = null
+    var cachedKimiQuotaJson: String? = null
 
     override fun getState(): QuotaSettingsState = this
 
@@ -51,11 +54,13 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         lastOllamaUpdate = state.lastOllamaUpdate
         lastZaiUpdate = state.lastZaiUpdate
         lastMiniMaxUpdate = state.lastMiniMaxUpdate
+        lastKimiUpdate = state.lastKimiUpdate
         hideOpenAiFromQuotaPopup = state.hideOpenAiFromQuotaPopup
         hideOpenCodeFromQuotaPopup = state.hideOpenCodeFromQuotaPopup
         hideOllamaFromQuotaPopup = state.hideOllamaFromQuotaPopup
         hideZaiFromQuotaPopup = state.hideZaiFromQuotaPopup
         hideMiniMaxFromQuotaPopup = state.hideMiniMaxFromQuotaPopup
+        hideKimiFromQuotaPopup = state.hideKimiFromQuotaPopup
         lastActiveSource = state.lastActiveSource
         openCodeWorkspaceId = state.openCodeWorkspaceId
         minimaxRegionPreference = MiniMaxRegionPreference.fromStorageValue(state.minimaxRegionPreference).name
@@ -64,6 +69,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         cachedOllamaQuotaJson = state.cachedOllamaQuotaJson
         cachedZaiQuotaJson = state.cachedZaiQuotaJson
         cachedMiniMaxQuotaJson = state.cachedMiniMaxQuotaJson
+        cachedKimiQuotaJson = state.cachedKimiQuotaJson
     }
 
     fun displayMode(): QuotaDisplayMode = QuotaDisplayMode.fromStorageValue(statusBarDisplayMode)
@@ -93,6 +99,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
             "ollama" -> lastOllamaUpdate = System.currentTimeMillis()
             "zai" -> lastZaiUpdate = System.currentTimeMillis()
             "minimax" -> lastMiniMaxUpdate = System.currentTimeMillis()
+            "kimi" -> lastKimiUpdate = System.currentTimeMillis()
         }
     }
 
@@ -112,9 +119,13 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         val minimaxUpdate = lastMiniMaxUpdate.takeIf { it > 0 }
             ?: QuotaSnapshotCache.decodeMiniMaxQuota(cachedMiniMaxQuotaJson)?.fetchedAt?.toEpochMilliseconds()
             ?: 0
-        val maxUpdate = maxOf(openAiUpdate, openCodeUpdate, ollamaUpdate, zaiUpdate, minimaxUpdate)
+        val kimiUpdate = lastKimiUpdate.takeIf { it > 0 }
+            ?: QuotaSnapshotCache.decodeKimiQuota(cachedKimiQuotaJson)?.fetchedAt?.toEpochMilliseconds()
+            ?: 0
+        val maxUpdate = maxOf(openAiUpdate, openCodeUpdate, ollamaUpdate, zaiUpdate, minimaxUpdate, kimiUpdate)
         if (maxUpdate == 0L) return QuotaIndicatorSource.OPEN_AI
         return when {
+            kimiUpdate >= openAiUpdate && kimiUpdate >= openCodeUpdate && kimiUpdate >= ollamaUpdate && kimiUpdate >= zaiUpdate && kimiUpdate >= minimaxUpdate -> QuotaIndicatorSource.KIMI
             minimaxUpdate >= openAiUpdate && minimaxUpdate >= openCodeUpdate && minimaxUpdate >= ollamaUpdate && minimaxUpdate >= zaiUpdate -> QuotaIndicatorSource.MINIMAX
             zaiUpdate >= openAiUpdate && zaiUpdate >= openCodeUpdate && zaiUpdate >= ollamaUpdate -> QuotaIndicatorSource.ZAI
             ollamaUpdate >= openAiUpdate && ollamaUpdate >= openCodeUpdate -> QuotaIndicatorSource.OLLAMA

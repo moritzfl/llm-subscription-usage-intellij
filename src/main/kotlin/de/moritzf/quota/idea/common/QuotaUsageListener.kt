@@ -6,6 +6,7 @@ import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
+import de.moritzf.quota.kimi.KimiQuota
 
 /**
  * Message bus listener for quota refresh updates.
@@ -16,6 +17,7 @@ interface QuotaUsageListener {
     fun onOllamaQuotaUpdated(quota: OllamaQuota?, error: String?) {}
     fun onZaiQuotaUpdated(quota: ZaiQuota?, error: String?) {}
     fun onMiniMaxQuotaUpdated(quota: MiniMaxQuota?, error: String?) {}
+    fun onKimiQuotaUpdated(quota: KimiQuota?, error: String?) {}
 
     companion object {
         @JvmField

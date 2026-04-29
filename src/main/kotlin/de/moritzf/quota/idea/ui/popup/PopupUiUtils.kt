@@ -25,6 +25,7 @@ import de.moritzf.quota.ollama.OllamaUsageWindow
 import de.moritzf.quota.zai.ZaiCountUsageWindow
 import de.moritzf.quota.zai.ZaiUsageWindow
 import de.moritzf.quota.minimax.MiniMaxUsageWindow
+import de.moritzf.quota.kimi.KimiUsageWindow
 import org.intellij.lang.annotations.Language
 import java.awt.Component
 import java.awt.Cursor
@@ -304,6 +305,19 @@ internal fun createMiniMaxWindowBlock(window: MiniMaxUsageWindow, label: String,
     val percent = clampPercent(window.usagePercent.roundToInt())
     val resetText = QuotaUiUtil.formatReset(window.resetsAt)
     var info = "${window.used}/${window.limit} prompts used"
+    if (resetText != null) info += " - $resetText"
+    return createPopupStack().apply {
+        border = JBUI.Borders.emptyTop(top)
+        add(createWindowTitleLabel("$label limit"))
+        add(withVerticalInsets(JBLabel(info), top = 1))
+        add(withVerticalInsets(createUsageProgressBar(percent), top = 1))
+    }
+}
+
+internal fun createKimiWindowBlock(window: KimiUsageWindow, label: String, top: Int): JComponent {
+    val percent = clampPercent(window.usagePercent.roundToInt())
+    val resetText = QuotaUiUtil.formatReset(window.resetsAt)
+    var info = "${window.used}/${window.limit} used"
     if (resetText != null) info += " - $resetText"
     return createPopupStack().apply {
         border = JBUI.Borders.emptyTop(top)

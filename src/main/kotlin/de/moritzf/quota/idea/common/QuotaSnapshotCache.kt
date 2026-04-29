@@ -8,6 +8,7 @@ import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.ollama.OllamaUsageWindow
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
+import de.moritzf.quota.kimi.KimiQuota
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import java.time.Duration
@@ -56,6 +57,15 @@ internal object QuotaSnapshotCache {
     fun decodeMiniMaxQuota(json: String?): MiniMaxQuota? {
         if (json.isNullOrBlank()) return null
         return runCatching { JsonSupport.json.decodeFromString(MiniMaxQuota.serializer(), json) }.getOrNull()
+    }
+
+    fun encodeKimiQuota(quota: KimiQuota): String? {
+        return runCatching { JsonSupport.json.encodeToString(KimiQuota.serializer(), quota) }.getOrNull()
+    }
+
+    fun decodeKimiQuota(json: String?): KimiQuota? {
+        if (json.isNullOrBlank()) return null
+        return runCatching { JsonSupport.json.decodeFromString(KimiQuota.serializer(), json) }.getOrNull()
     }
 }
 

@@ -21,6 +21,7 @@ import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.minimax.MiniMaxRegionPreference
+import de.moritzf.quota.kimi.KimiQuota
 import java.awt.Dimension
 import javax.swing.Icon
 import javax.swing.JComponent
@@ -37,6 +38,7 @@ class QuotaSettingsConfigurable : Configurable {
     private var updatingDisplayModeChoices: Boolean = false
 
     private lateinit var openAiPanel: OpenAiSettingsPanel
+    private lateinit var kimiPanel: KimiSettingsPanel
     private lateinit var miniMaxPanel: MiniMaxSettingsPanel
     private lateinit var openCodePanel: OpenCodeSettingsPanel
     private lateinit var ollamaPanel: OllamaSettingsPanel
@@ -53,6 +55,10 @@ class QuotaSettingsConfigurable : Configurable {
         val statusLabelDefaultForeground = UIManager.getColor("Label.foreground")
 
         openAiPanel = OpenAiSettingsPanel()
+        kimiPanel = KimiSettingsPanel(
+            modalityComponentProvider = { panel ?: rootComponent },
+            statusLabelDefaultForeground = statusLabelDefaultForeground,
+        )
         miniMaxPanel = MiniMaxSettingsPanel(
             modalityComponentProvider = { panel ?: rootComponent },
             statusLabelDefaultForeground = statusLabelDefaultForeground,
@@ -90,6 +96,7 @@ class QuotaSettingsConfigurable : Configurable {
         panel = buildIndicatorConfigPanel()
 
         val serviceTabs = JBTabbedPane().apply {
+            addTab("Kimi", kimiPanel)
             addTab("MiniMax", miniMaxPanel)
             addTab("Ollama Cloud", ollamaPanel)
             addTab("OpenAI Codex", openAiPanel)
@@ -114,6 +121,7 @@ class QuotaSettingsConfigurable : Configurable {
                     ollamaPanel.updateOllamaStatus()
                     zaiPanel.updateZaiStatus()
                     miniMaxPanel.updateMiniMaxStatus()
+                    kimiPanel.updateKimiStatus()
                 }, ModalityState.stateForComponent(currentPanel))
             }
 
@@ -125,6 +133,7 @@ class QuotaSettingsConfigurable : Configurable {
                     ollamaPanel.updateOllamaStatus()
                     zaiPanel.updateZaiStatus()
                     miniMaxPanel.updateMiniMaxStatus()
+                    kimiPanel.updateKimiStatus()
                 }, ModalityState.stateForComponent(currentPanel))
             }
 
@@ -150,6 +159,14 @@ class QuotaSettingsConfigurable : Configurable {
                 ApplicationManager.getApplication().invokeLater({
                     miniMaxPanel.updateMiniMaxResponseArea()
                     miniMaxPanel.updateMiniMaxStatus()
+                }, ModalityState.stateForComponent(currentPanel))
+            }
+
+            override fun onKimiQuotaUpdated(quota: KimiQuota?, error: String?) {
+                val currentPanel = rootComponent ?: panel ?: return@onKimiQuotaUpdated
+                ApplicationManager.getApplication().invokeLater({
+                    kimiPanel.updateKimiResponseArea()
+                    kimiPanel.updateKimiStatus()
                 }, ModalityState.stateForComponent(currentPanel))
             }
         })
@@ -238,6 +255,7 @@ class QuotaSettingsConfigurable : Configurable {
                 val ollamaPopupVisibilityChanged = ollamaPanel.ollamaHideFromPopupCheckBox.isSelected != state.hideOllamaFromQuotaPopup
                 val zaiPopupVisibilityChanged = zaiPanel.zaiHideFromPopupCheckBox.isSelected != state.hideZaiFromQuotaPopup
                 val miniMaxPopupVisibilityChanged = miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected != state.hideMiniMaxFromQuotaPopup
+                val kimiPopupVisibilityChanged = kimiPanel.kimiHideFromPopupCheckBox.isSelected != state.hideKimiFromQuotaPopup
                 val miniMaxRegionChanged = miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference()
                 if (locationChanged) {
                     state.setLocation(selectedLocation)
@@ -253,8 +271,9 @@ class QuotaSettingsConfigurable : Configurable {
                 state.hideOllamaFromQuotaPopup = ollamaPanel.ollamaHideFromPopupCheckBox.isSelected
                 state.hideZaiFromQuotaPopup = zaiPanel.zaiHideFromPopupCheckBox.isSelected
                 state.hideMiniMaxFromQuotaPopup = miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected
+                state.hideKimiFromQuotaPopup = kimiPanel.kimiHideFromPopupCheckBox.isSelected
                 state.minimaxRegionPreference = (miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference ?: MiniMaxRegionPreference.AUTO).name
-                if (locationChanged || displayModeChanged || sourceChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged || ollamaPopupVisibilityChanged || zaiPopupVisibilityChanged || miniMaxPopupVisibilityChanged || miniMaxRegionChanged) {
+                if (locationChanged || displayModeChanged || sourceChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged || ollamaPopupVisibilityChanged || zaiPopupVisibilityChanged || miniMaxPopupVisibilityChanged || kimiPopupVisibilityChanged || miniMaxRegionChanged) {
                     ApplicationManager.getApplication().messageBus
                         .syncPublisher(QuotaSettingsListener.TOPIC)
                         .onSettingsChanged()
@@ -272,6 +291,7 @@ class QuotaSettingsConfigurable : Configurable {
                 ollamaPanel.ollamaHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideOllamaFromQuotaPopup
                 zaiPanel.zaiHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideZaiFromQuotaPopup
                 miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideMiniMaxFromQuotaPopup
+                kimiPanel.kimiHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideKimiFromQuotaPopup
                 miniMaxPanel.regionComboBox.selectedItem = QuotaSettingsState.getInstance().miniMaxRegionPreference()
                 openAiPanel.updateAuthUi()
                 openAiPanel.updateAccountFields()
@@ -284,6 +304,8 @@ class QuotaSettingsConfigurable : Configurable {
                 zaiPanel.updateZaiResponseArea()
                 miniMaxPanel.updateMiniMaxFields()
                 miniMaxPanel.updateMiniMaxResponseArea()
+                kimiPanel.updateKimiFields()
+                kimiPanel.updateKimiResponseArea()
             }
 
             onIsModified {
@@ -299,6 +321,7 @@ class QuotaSettingsConfigurable : Configurable {
                     ollamaPanel.ollamaHideFromPopupCheckBox.isSelected != state.hideOllamaFromQuotaPopup ||
                     zaiPanel.zaiHideFromPopupCheckBox.isSelected != state.hideZaiFromQuotaPopup ||
                     miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected != state.hideMiniMaxFromQuotaPopup ||
+                    kimiPanel.kimiHideFromPopupCheckBox.isSelected != state.hideKimiFromQuotaPopup ||
                     miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference()
             }
         }.apply {

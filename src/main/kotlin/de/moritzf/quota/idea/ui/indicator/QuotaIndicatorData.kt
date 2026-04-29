@@ -4,6 +4,7 @@ import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
+import de.moritzf.quota.kimi.KimiQuota
 
 internal sealed interface QuotaIndicatorData {
     val error: String?
@@ -15,6 +16,11 @@ internal sealed interface QuotaIndicatorData {
 
     data class MiniMax(
         val quota: MiniMaxQuota?,
+        override val error: String?,
+    ) : QuotaIndicatorData
+
+    data class Kimi(
+        val quota: KimiQuota?,
         override val error: String?,
     ) : QuotaIndicatorData
 

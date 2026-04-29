@@ -103,6 +103,24 @@ class OpenAiUsageQuotaMcpToolset : McpToolset {
         return successResult(json)
     }
 
+    @McpTool(name = "kimi_usage_quota")
+    @McpDescription(description = "Returns the latest Kimi usage quota response JSON.")
+    fun kimi_usage_quota(): McpToolCallResult {
+        val usageService = QuotaUsageService.getInstance()
+        usageService.refreshKimiBlocking()
+
+        val error = usageService.getLastKimiError()
+        if (!error.isNullOrBlank()) {
+            return errorResult(error)
+        }
+
+        val json = usageService.getLastKimiResponseJson()
+        if (json.isNullOrBlank()) {
+            return errorResult("No Kimi usage response available")
+        }
+        return successResult(json)
+    }
+
     private fun successResult(text: String): McpToolCallResult {
         return McpToolCallResult(arrayOf(McpToolCallResultContent.Text(text)), null, false)
     }

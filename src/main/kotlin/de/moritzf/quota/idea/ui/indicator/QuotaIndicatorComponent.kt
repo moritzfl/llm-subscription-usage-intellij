@@ -14,6 +14,7 @@ import de.moritzf.quota.openai.UsageWindow
 import de.moritzf.quota.ollama.OllamaUsageWindow
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
+import de.moritzf.quota.kimi.KimiQuota
 import java.awt.Component
 import java.awt.Cursor
 import java.awt.event.MouseAdapter
@@ -92,6 +93,7 @@ internal class QuotaIndicatorComponent(
             is QuotaIndicatorData.Ollama -> buildOllamaTooltipText(data.quota, data.error)
             is QuotaIndicatorData.Zai -> buildZaiTooltipText(data.quota, data.error)
             is QuotaIndicatorData.MiniMax -> buildMiniMaxTooltipText(data.quota, data.error)
+            is QuotaIndicatorData.Kimi -> buildKimiTooltipText(data.quota, data.error)
         }
         toolTipText = tooltip
         statusIconLabel.toolTipText = tooltip
@@ -132,6 +134,7 @@ internal class QuotaIndicatorComponent(
             is QuotaIndicatorData.Ollama -> buildOllamaTooltipText(currentData.quota, currentData.error)
             is QuotaIndicatorData.Zai -> buildZaiTooltipText(currentData.quota, currentData.error)
             is QuotaIndicatorData.MiniMax -> buildMiniMaxTooltipText(currentData.quota, currentData.error)
+            is QuotaIndicatorData.Kimi -> buildKimiTooltipText(currentData.quota, currentData.error)
         }
     }
 
@@ -155,6 +158,7 @@ internal class QuotaIndicatorComponent(
             is QuotaIndicatorData.Ollama -> QuotaIcons.OLLAMA
             is QuotaIndicatorData.Zai -> QuotaIcons.ZAI
             is QuotaIndicatorData.MiniMax -> QuotaIcons.MINIMAX
+            is QuotaIndicatorData.Kimi -> QuotaIcons.KIMI
         }
     }
 
@@ -183,6 +187,7 @@ internal class QuotaIndicatorComponent(
             is QuotaIndicatorData.Ollama -> ollamaBarDisplayText(currentData.quota, currentData.error)
             is QuotaIndicatorData.Zai -> zaiBarDisplayText(currentData.quota, currentData.error)
             is QuotaIndicatorData.MiniMax -> miniMaxBarDisplayText(currentData.quota, currentData.error)
+            is QuotaIndicatorData.Kimi -> kimiBarDisplayText(currentData.quota, currentData.error)
         }
     }
 
@@ -199,6 +204,9 @@ internal class QuotaIndicatorComponent(
         }
         if (currentData is QuotaIndicatorData.MiniMax) {
             return currentData.quota?.sessionUsage?.usagePercent?.roundToInt()?.let(::clampPercent)?.let(::cakeIconForPercent) ?: QuotaIcons.CAKE_UNKNOWN
+        }
+        if (currentData is QuotaIndicatorData.Kimi) {
+            return currentData.quota?.let(::kimiDisplayWindow)?.usagePercent?.roundToInt()?.let(::clampPercent)?.let(::cakeIconForPercent) ?: QuotaIcons.CAKE_UNKNOWN
         }
         val openAiData = currentData as QuotaIndicatorData.OpenAi
         val authService = QuotaAuthService.getInstance()
@@ -309,6 +317,9 @@ internal class QuotaIndicatorComponent(
         if (currentData is QuotaIndicatorData.MiniMax) {
             return currentData.quota?.sessionUsage?.usagePercent?.roundToInt()?.let(::clampPercent) ?: -1
         }
+        if (currentData is QuotaIndicatorData.Kimi) {
+            return currentData.quota?.let(::kimiDisplayWindow)?.usagePercent?.roundToInt()?.let(::clampPercent) ?: -1
+        }
         val openAiData = currentData as QuotaIndicatorData.OpenAi
         val authService = QuotaAuthService.getInstance()
         return indicatorDisplayPercent(openAiData.quota, openAiData.error, authService.isLoggedIn())
@@ -399,6 +410,27 @@ internal fun miniMaxBarDisplayText(quota: MiniMaxQuota?, error: String?): String
     val reset = QuotaUiUtil.formatResetCompact(usage.resetsAt)
     val text = "${clampPercent(usage.usagePercent.roundToInt())}%"
     return if (reset != null) "$text • $reset" else text
+}
+
+internal fun buildKimiTooltipText(quota: KimiQuota?, error: String?): String {
+    if (error != null) return "Kimi quota: $error"
+    if (quota == null) return "Kimi quota: loading"
+    val usage = kimiDisplayWindow(quota) ?: return "Kimi quota: no usage data"
+    val plan = quota.plan.ifBlank { "Kimi Code" }
+    return "Kimi quota: $plan / ${usage.used}/${usage.limit} used"
+}
+
+internal fun kimiBarDisplayText(quota: KimiQuota?, error: String?): String {
+    if (error != null) return "error"
+    if (quota == null) return "loading..."
+    val usage = kimiDisplayWindow(quota) ?: return "no data"
+    val reset = QuotaUiUtil.formatResetCompact(usage.resetsAt)
+    val text = "${clampPercent(usage.usagePercent.roundToInt())}%"
+    return if (reset != null) "$text • $reset" else text
+}
+
+private fun kimiDisplayWindow(quota: KimiQuota): de.moritzf.quota.kimi.KimiUsageWindow? {
+    return quota.sessionUsage ?: quota.totalUsage
 }
 
 internal fun zaiBarDisplayText(quota: ZaiQuota?, error: String?): String {
