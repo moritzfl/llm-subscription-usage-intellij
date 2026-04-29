@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-04-29
+- Added support for **Z.ai**, **MiniMax**, and **Kimi** usage quotas
+- Quota popup provider order is now customizable via drag-and-drop in settings
+- Improved popup sizing stability: no more flickering, shrinks correctly when sections hide
+- Normalized Ollama icon colors for light/dark themes
+
 ## [0.9.1] - 2026-04-28
 - Fixed "Last used" indicator source to detect the active provider by actual usage increase, not just fetch timestamp
 - Fixed status bar not repainting on Ollama quota updates
