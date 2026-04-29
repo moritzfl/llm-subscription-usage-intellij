@@ -26,6 +26,7 @@ import de.moritzf.quota.kimi.KimiQuota
 import java.awt.Dimension
 import javax.swing.Icon
 import javax.swing.JComponent
+import javax.swing.JSeparator
 import javax.swing.SwingConstants
 import javax.swing.UIManager
 
@@ -109,8 +110,13 @@ class QuotaSettingsConfigurable : Configurable {
             addToTop(panel!!)
             addToCenter(BorderLayoutPanel().apply {
                 isOpaque = false
-                addToTop(providerReorderPanel!!)
-                addToCenter(serviceTabs)
+                addToTop(JSeparator())
+                addToCenter(BorderLayoutPanel().apply {
+                    isOpaque = false
+                    addToTop(providerReorderPanel!!)
+                    addToCenter(serviceTabs)
+                })
+                addToBottom(JSeparator())
             })
         }
 
