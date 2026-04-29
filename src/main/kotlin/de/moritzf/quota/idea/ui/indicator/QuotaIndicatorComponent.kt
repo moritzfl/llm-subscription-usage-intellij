@@ -34,7 +34,6 @@ internal data class IndicatorQuotaState(
     val kind: IndicatorQuotaKind,
     val window: UsageWindow?,
     val limitReached: Boolean,
-    val allowed: Boolean?,
 )
 
 internal data class IndicatorDisplayState(
@@ -217,9 +216,6 @@ internal class QuotaIndicatorComponent(
         val state = indicatorQuotaState(openAiData.quota) ?: return QuotaIcons.CAKE_UNKNOWN
         if (state.limitReached) {
             return QuotaIcons.CAKE_100
-        }
-        if (state.allowed == false) {
-            return QuotaIcons.CAKE_UNKNOWN
         }
 
         val percent = state.window?.let { clampPercent(it.usedPercent.roundToInt()) } ?: return QuotaIcons.CAKE_UNKNOWN
@@ -502,7 +498,6 @@ internal fun buildQuotaTooltipText(quota: OpenAiCodexQuota?, error: String?, log
     }
     return when {
         state.limitReached -> "$label: limit reached"
-        state.allowed == false -> "$label: usage not allowed"
         state.window == null -> "$label: available"
         else -> {
             val percent = clampPercent(state.window.usedPercent.roundToInt())
@@ -520,7 +515,6 @@ internal fun indicatorBarDisplayText(quota: OpenAiCodexQuota?, error: String?, l
     }
 
     val state = indicatorQuotaState(quota) ?: return "loading..."
-    if (state.allowed == false) return "not allowed"
 
     val display = openAiIndicatorDisplayState(quota, state) ?: return "available"
     val reset = QuotaUiUtil.formatResetCompact(display.resetsAt)
@@ -534,7 +528,6 @@ internal fun indicatorDisplayPercent(quota: OpenAiCodexQuota?, error: String?, l
     }
 
     val state = indicatorQuotaState(quota) ?: return -1
-    if (state.allowed == false) return -1
     return openAiIndicatorDisplayState(quota, state)?.percent ?: -1
 }
 
@@ -640,17 +633,15 @@ internal fun indicatorQuotaState(quota: OpenAiCodexQuota?): IndicatorQuotaState?
             kind = IndicatorQuotaKind.CODEX,
             window = codexWindow,
             limitReached = quota.limitReached == true || codexWindow.usedPercent >= 100.0,
-            allowed = quota.allowed,
         )
     }
 
     val reviewWindow = shortestUsageWindow(listOfNotNull(quota.reviewPrimary, quota.reviewSecondary))
-    if (isBlockedState(quota.limitReached, quota.allowed)) {
+    if (quota.limitReached == true) {
         return IndicatorQuotaState(
             kind = IndicatorQuotaKind.CODEX,
             window = null,
-            limitReached = quota.limitReached == true,
-            allowed = quota.allowed,
+            limitReached = true,
         )
     }
 
@@ -659,34 +650,30 @@ internal fun indicatorQuotaState(quota: OpenAiCodexQuota?): IndicatorQuotaState?
             kind = IndicatorQuotaKind.REVIEW,
             window = reviewWindow,
             limitReached = quota.reviewLimitReached == true || reviewWindow.usedPercent >= 100.0,
-            allowed = quota.reviewAllowed,
         )
     }
 
-    if (isBlockedState(quota.reviewLimitReached, quota.reviewAllowed)) {
+    if (quota.reviewLimitReached == true) {
         return IndicatorQuotaState(
             kind = IndicatorQuotaKind.REVIEW,
             window = null,
-            limitReached = quota.reviewLimitReached == true,
-            allowed = quota.reviewAllowed,
+            limitReached = true,
         )
     }
 
-    if (hasAnyState(quota.limitReached, quota.allowed)) {
+    if (quota.limitReached != null) {
         return IndicatorQuotaState(
             kind = IndicatorQuotaKind.CODEX,
             window = null,
             limitReached = quota.limitReached == true,
-            allowed = quota.allowed,
         )
     }
 
-    if (hasAnyState(quota.reviewLimitReached, quota.reviewAllowed)) {
+    if (quota.reviewLimitReached != null) {
         return IndicatorQuotaState(
             kind = IndicatorQuotaKind.REVIEW,
             window = null,
             limitReached = quota.reviewLimitReached == true,
-            allowed = quota.reviewAllowed,
         )
     }
 
@@ -694,14 +681,6 @@ internal fun indicatorQuotaState(quota: OpenAiCodexQuota?): IndicatorQuotaState?
 }
 
 internal fun clampPercent(value: Int): Int = value.coerceIn(0, 100)
-
-private fun isBlockedState(limitReached: Boolean?, allowed: Boolean?): Boolean {
-    return limitReached == true || allowed == false
-}
-
-private fun hasAnyState(limitReached: Boolean?, allowed: Boolean?): Boolean {
-    return limitReached != null || allowed != null
-}
 
 private fun shortestUsageWindow(windows: List<UsageWindow>): UsageWindow? {
     if (windows.isEmpty()) return null

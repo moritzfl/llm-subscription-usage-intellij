@@ -92,14 +92,14 @@ class QuotaIndicatorComponentTest {
     }
 
     @Test
-    fun indicatorShowsStateOnlyNotAllowedWithoutPretendingToLoad() {
+    fun indicatorShowsLoadingWhenNoWindowsAvailable() {
         val quota = OpenAiCodexQuota(
             allowed = false,
         )
 
-        assertEquals("not allowed", indicatorBarDisplayText(quota, error = null, loggedIn = true))
+        assertEquals("loading...", indicatorBarDisplayText(quota, error = null, loggedIn = true))
         assertEquals(-1, indicatorDisplayPercent(quota, error = null, loggedIn = true))
-        assertEquals("OpenAI usage quota: usage not allowed", buildQuotaTooltipText(quota, error = null, loggedIn = true))
+        assertEquals("OpenAI usage quota: loading", buildQuotaTooltipText(quota, error = null, loggedIn = true))
     }
 
     @Test

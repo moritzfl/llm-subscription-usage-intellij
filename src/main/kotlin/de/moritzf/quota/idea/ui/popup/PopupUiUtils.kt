@@ -162,9 +162,7 @@ internal fun getLimitWarning(quota: OpenAiCodexQuota?): String? {
 
     return when {
         quota.limitReached == true -> "Codex limit reached"
-        quota.allowed == false -> "Codex usage not allowed"
         quota.reviewLimitReached == true -> "Code review limit reached"
-        quota.reviewAllowed == false -> "Code review usage not allowed"
         else -> null
     }
 }
