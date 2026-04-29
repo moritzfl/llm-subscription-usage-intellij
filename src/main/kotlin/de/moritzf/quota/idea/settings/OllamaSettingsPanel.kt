@@ -179,10 +179,13 @@ internal class OllamaSettingsPanel(
     fun updateOllamaResponseArea() {
         val quota = QuotaUsageService.getInstance().getLastOllamaQuota()
         val error = QuotaUsageService.getInstance().getLastOllamaError()
+        val rawJson = QuotaUsageService.getInstance().getLastOllamaResponseJson()
 
         ollamaJsonViewer.text = when {
+            error != null && !rawJson.isNullOrBlank() -> "Error: $error\n\n$rawJson"
             error != null -> "Error: $error"
             quota == null -> "No Ollama response yet."
+            !rawJson.isNullOrBlank() -> rawJson
             else -> {
                 try {
                     de.moritzf.quota.shared.JsonSupport.json.encodeToString(

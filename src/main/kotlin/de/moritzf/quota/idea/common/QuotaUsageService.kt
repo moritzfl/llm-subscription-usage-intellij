@@ -12,6 +12,7 @@ import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.zai.ZaiQuota
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
@@ -26,18 +27,20 @@ class QuotaUsageService(
         OpenAiQuotaProvider(),
         OpenCodeQuotaProvider(),
         OllamaQuotaProvider(),
+        ZaiQuotaProvider(),
     ),
     private val settingsProvider: () -> QuotaSettingsState? = {
         runCatching { QuotaSettingsState.getInstance() }.getOrNull()
     },
     private val scheduler: ScheduledExecutorService = AppExecutorUtil.getAppScheduledExecutorService(),
-    private val updatePublisher: (OpenAiCodexQuota?, String?, OpenCodeQuota?, String?, OllamaQuota?, String?) -> Unit = { quota, error, openCodeQuota, openCodeError, ollamaQuota, ollamaError ->
+    private val updatePublisher: (OpenAiCodexQuota?, String?, OpenCodeQuota?, String?, OllamaQuota?, String?, ZaiQuota?, String?) -> Unit = { quota, error, openCodeQuota, openCodeError, ollamaQuota, ollamaError, zaiQuota, zaiError ->
         ApplicationManager.getApplication().invokeLater {
             val publisher = ApplicationManager.getApplication().messageBus
                 .syncPublisher(QuotaUsageListener.TOPIC)
             publisher.onQuotaUpdated(quota, error)
             publisher.onOpenCodeQuotaUpdated(openCodeQuota, openCodeError)
             publisher.onOllamaQuotaUpdated(ollamaQuota, ollamaError)
+            publisher.onZaiQuotaUpdated(zaiQuota, zaiError)
             ActivityTracker.getInstance().inc()
         }
     },
@@ -46,9 +49,11 @@ class QuotaUsageService(
     private val refreshingOpenAi = AtomicBoolean(false)
     private val refreshingOpenCode = AtomicBoolean(false)
     private val refreshingOllama = AtomicBoolean(false)
+    private val refreshingZai = AtomicBoolean(false)
     private val openAiProvider = providers.filterIsInstance<OpenAiQuotaProvider>().firstOrNull()
     private val openCodeProvider = providers.filterIsInstance<OpenCodeQuotaProvider>().firstOrNull()
     private val ollamaProvider = providers.filterIsInstance<OllamaQuotaProvider>().firstOrNull()
+    private val zaiProvider = providers.filterIsInstance<ZaiQuotaProvider>().firstOrNull()
     private var scheduled: ScheduledFuture<*>? = null
 
     init {
@@ -64,13 +69,22 @@ class QuotaUsageService(
 
     fun getLastOpenCodeQuota(): OpenCodeQuota? = openCodeProvider?.getLastQuota()
     fun getLastOpenCodeError(): String? = openCodeProvider?.getLastError()
-    fun getLastOpenCodeResponseJson(): String? = openCodeProvider?.getLastQuota()?.rawJson
+    fun getLastOpenCodeResponseJson(): String? = openCodeProvider?.getLastRawJson() ?: openCodeProvider?.getLastQuota()?.rawJson
 
     fun getLastOllamaQuota(): OllamaQuota? = ollamaProvider?.getLastQuota()
     fun getLastOllamaError(): String? = ollamaProvider?.getLastError()
     fun getLastOllamaResponseJson(): String? {
+        ollamaProvider?.getLastRawJson()?.let { return it }
         val quota = ollamaProvider?.getLastQuota() ?: return null
         return runCatching { JsonSupport.json.encodeToString(OllamaQuota.serializer(), quota) }.getOrNull()
+    }
+
+    fun getLastZaiQuota(): ZaiQuota? = zaiProvider?.getLastQuota()
+    fun getLastZaiError(): String? = zaiProvider?.getLastError()
+    fun getLastZaiResponseJson(): String? {
+        zaiProvider?.getLastRawJson()?.let { return it }
+        val quota = zaiProvider?.getLastQuota() ?: return null
+        return runCatching { JsonSupport.json.encodeToString(ZaiQuota.serializer(), quota) }.getOrNull()
     }
 
     internal fun getEffectiveIndicatorData(): QuotaIndicatorData {
@@ -80,12 +94,14 @@ class QuotaUsageService(
             QuotaIndicatorSource.OPEN_AI -> QuotaIndicatorSource.OPEN_AI
             QuotaIndicatorSource.OPEN_CODE -> QuotaIndicatorSource.OPEN_CODE
             QuotaIndicatorSource.OLLAMA -> QuotaIndicatorSource.OLLAMA
+            QuotaIndicatorSource.ZAI -> QuotaIndicatorSource.ZAI
         }
 
         return when (source) {
             QuotaIndicatorSource.OPEN_AI -> QuotaIndicatorData.OpenAi(getLastQuota(), getLastError())
             QuotaIndicatorSource.OPEN_CODE -> QuotaIndicatorData.OpenCode(getLastOpenCodeQuota(), getLastOpenCodeError())
             QuotaIndicatorSource.OLLAMA -> QuotaIndicatorData.Ollama(getLastOllamaQuota(), getLastOllamaError())
+            QuotaIndicatorSource.ZAI -> QuotaIndicatorData.Zai(getLastZaiQuota(), getLastZaiError())
             QuotaIndicatorSource.LAST_USED -> QuotaIndicatorData.OpenAi(getLastQuota(), getLastError())
         }
     }
@@ -100,6 +116,10 @@ class QuotaUsageService(
 
     fun refreshOllamaAsync() {
         AppExecutorUtil.getAppExecutorService().execute(::refreshOllama)
+    }
+
+    fun refreshZaiAsync() {
+        AppExecutorUtil.getAppExecutorService().execute(::refreshZai)
     }
 
     fun refreshNowBlocking() {
@@ -118,10 +138,15 @@ class QuotaUsageService(
         refreshOllama()
     }
 
+    fun refreshZaiBlocking() {
+        refreshZai()
+    }
+
     fun clearUsageData(error: String? = null) {
         clearCodexUsageData(error)
         clearOpenCodeUsageData()
         clearOllamaUsageData()
+        clearZaiUsageData()
     }
 
     fun clearCodexUsageData(error: String? = null) {
@@ -142,6 +167,12 @@ class QuotaUsageService(
         publishUpdate()
     }
 
+    fun clearZaiUsageData(error: String? = "No Z.ai API key configured") {
+        zaiProvider?.clearData(error)
+        settingsProvider()?.cachedZaiQuotaJson = null
+        publishUpdate()
+    }
+
     fun resetOpenCodeWorkspaceCache() {
         openCodeProvider?.resetWorkspaceCache()
     }
@@ -156,12 +187,14 @@ class QuotaUsageService(
         openAiProvider?.hydrateFromCache(settings)
         openCodeProvider?.hydrateFromCache(settings)
         ollamaProvider?.hydrateFromCache(settings)
+        zaiProvider?.hydrateFromCache(settings)
     }
 
     private fun refreshNow() {
         refreshOpenAi()
         refreshOpenCode()
         refreshOllama()
+        refreshZai()
     }
 
     private fun refreshOpenAi() {
@@ -174,6 +207,10 @@ class QuotaUsageService(
 
     private fun refreshOllama() {
         refreshProvider(ollamaProvider, refreshingOllama)
+    }
+
+    private fun refreshZai() {
+        refreshProvider(zaiProvider, refreshingZai)
     }
 
     private fun refreshProvider(provider: QuotaProvider?, refreshing: AtomicBoolean) {
@@ -209,6 +246,9 @@ class QuotaUsageService(
             "ollama" -> settings?.cachedOllamaQuotaJson
                 ?.let(QuotaSnapshotCache::decodeOllamaQuota)
                 ?.let(::extractOllamaFraction)
+            "zai" -> settings?.cachedZaiQuotaJson
+                ?.let(QuotaSnapshotCache::decodeZaiQuota)
+                ?.let(::extractZaiFraction)
             else -> null
         }
     }
@@ -218,6 +258,7 @@ class QuotaUsageService(
             is OpenAiQuotaProvider -> provider.getLastQuota()?.let(::extractOpenAiFraction)
             is OpenCodeQuotaProvider -> provider.getLastQuota()?.let(::extractOpenCodeFraction)
             is OllamaQuotaProvider -> provider.getLastQuota()?.let(::extractOllamaFraction)
+            is ZaiQuotaProvider -> provider.getLastQuota()?.let(::extractZaiFraction)
             else -> null
         }
     }
@@ -244,6 +285,15 @@ class QuotaUsageService(
         return windows.maxOrNull()?.let { it / 100.0 }
     }
 
+    private fun extractZaiFraction(quota: ZaiQuota): Double? {
+        val windows = listOfNotNull(
+            quota.sessionUsage?.usagePercent,
+            quota.weeklyUsage?.usagePercent,
+            quota.webSearchUsage?.usagePercent,
+        )
+        return windows.maxOrNull()?.let { it / 100.0 }
+    }
+
     private fun resolveLastActiveSource(settings: QuotaSettingsState?): QuotaIndicatorSource {
         val active = settings?.lastActiveSource
         if (!active.isNullOrBlank()) {
@@ -256,7 +306,8 @@ class QuotaUsageService(
         updatePublisher(
             getLastQuota(), getLastError(),
             getLastOpenCodeQuota(), getLastOpenCodeError(),
-            getLastOllamaQuota(), getLastOllamaError()
+            getLastOllamaQuota(), getLastOllamaError(),
+            getLastZaiQuota(), getLastZaiError()
         )
     }
 

@@ -6,6 +6,7 @@ import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.openai.UsageWindow
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.ollama.OllamaUsageWindow
+import de.moritzf.quota.zai.ZaiQuota
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import java.time.Duration
@@ -36,6 +37,15 @@ internal object QuotaSnapshotCache {
     fun decodeOllamaQuota(json: String?): OllamaQuota? {
         if (json.isNullOrBlank()) return null
         return runCatching { JsonSupport.json.decodeFromString(OllamaQuota.serializer(), json) }.getOrNull()
+    }
+
+    fun encodeZaiQuota(quota: ZaiQuota): String? {
+        return runCatching { JsonSupport.json.encodeToString(ZaiQuota.serializer(), quota) }.getOrNull()
+    }
+
+    fun decodeZaiQuota(json: String?): ZaiQuota? {
+        if (json.isNullOrBlank()) return null
+        return runCatching { JsonSupport.json.decodeFromString(ZaiQuota.serializer(), json) }.getOrNull()
     }
 }
 

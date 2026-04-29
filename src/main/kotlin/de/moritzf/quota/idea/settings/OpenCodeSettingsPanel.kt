@@ -184,10 +184,13 @@ internal class OpenCodeSettingsPanel(
     fun updateOpenCodeResponseArea() {
         val quota = QuotaUsageService.getInstance().getLastOpenCodeQuota()
         val error = QuotaUsageService.getInstance().getLastOpenCodeError()
+        val rawJson = QuotaUsageService.getInstance().getLastOpenCodeResponseJson()
 
         openCodeJsonViewer.text = when {
+            error != null && !rawJson.isNullOrBlank() -> "Error: $error\n\n$rawJson"
             error != null -> "Error: $error"
             quota == null -> "No OpenCode response yet."
+            !rawJson.isNullOrBlank() -> rawJson
             else -> {
                 try {
                     de.moritzf.quota.shared.JsonSupport.json.encodeToString(

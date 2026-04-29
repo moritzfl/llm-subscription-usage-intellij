@@ -21,12 +21,14 @@ class OpenCodeQuotaProvider(
 
     private val lastQuotaRef = AtomicReference<OpenCodeQuota?>()
     private val lastErrorRef = AtomicReference<String?>()
+    private val lastRawJsonRef = AtomicReference<String?>()
     private val lastCookieRef = AtomicReference<String?>()
     private val cachedWorkspaceId = AtomicReference<String?>()
     private val cachedWorkspaceIdTimestamp = AtomicReference(0L)
 
     fun getLastQuota(): OpenCodeQuota? = lastQuotaRef.get()
     fun getLastError(): String? = lastErrorRef.get()
+    fun getLastRawJson(): String? = lastRawJsonRef.get()
 
     override fun refresh() {
         val cookie = openCodeCookieProvider()
@@ -41,6 +43,7 @@ class OpenCodeQuotaProvider(
             val quota = fetchOpenCodeQuota(cookie)
             lastQuotaRef.set(quota)
             lastErrorRef.set(null)
+            lastRawJsonRef.set(quota.rawJson)
         } catch (exception: OpenCodeQuotaException) {
             if (shouldRetryOpenCode(exception)) {
                 resetOpenCodeCaches()
@@ -48,20 +51,25 @@ class OpenCodeQuotaProvider(
                     val quota = fetchOpenCodeQuota(cookie)
                     lastQuotaRef.set(quota)
                     lastErrorRef.set(null)
+                    lastRawJsonRef.set(quota.rawJson)
                 } catch (retryException: OpenCodeQuotaException) {
                     lastQuotaRef.set(null)
                     lastErrorRef.set(retryException.message ?: "Request failed (${retryException.statusCode})")
+                    lastRawJsonRef.set(retryException.rawBody)
                 } catch (retryException: Exception) {
                     lastQuotaRef.set(null)
                     lastErrorRef.set(retryException.message ?: "Request failed")
+                    lastRawJsonRef.set(null)
                 }
             } else {
                 lastQuotaRef.set(null)
                 lastErrorRef.set(exception.message ?: "Request failed (${exception.statusCode})")
+                lastRawJsonRef.set(exception.rawBody)
             }
         } catch (exception: Exception) {
             lastQuotaRef.set(null)
             lastErrorRef.set(exception.message ?: "Request failed")
+            lastRawJsonRef.set(null)
         }
     }
 
@@ -70,6 +78,7 @@ class OpenCodeQuotaProvider(
         lastCookieRef.set(null)
         lastQuotaRef.set(null)
         lastErrorRef.set(error)
+        lastRawJsonRef.set(null)
     }
 
     fun resetWorkspaceCache() {
@@ -81,6 +90,7 @@ class OpenCodeQuotaProvider(
     override fun hydrateFromCache(settings: QuotaSettingsState) {
         val cached = QuotaSnapshotCache.decodeOpenCodeQuota(settings.cachedOpenCodeQuotaJson)
         lastQuotaRef.set(cached)
+        lastRawJsonRef.set(cached?.rawJson)
     }
 
     override fun persistToCache(settings: QuotaSettingsState) {

@@ -67,6 +67,24 @@ class OpenAiUsageQuotaMcpToolset : McpToolset {
         return successResult(json)
     }
 
+    @McpTool(name = "zai_usage_quota")
+    @McpDescription(description = "Returns the latest Z.ai usage quota response JSON.")
+    fun zai_usage_quota(): McpToolCallResult {
+        val usageService = QuotaUsageService.getInstance()
+        usageService.refreshZaiBlocking()
+
+        val error = usageService.getLastZaiError()
+        if (!error.isNullOrBlank()) {
+            return errorResult(error)
+        }
+
+        val json = usageService.getLastZaiResponseJson()
+        if (json.isNullOrBlank()) {
+            return errorResult("No Z.ai usage response available")
+        }
+        return successResult(json)
+    }
+
     private fun successResult(text: String): McpToolCallResult {
         return McpToolCallResult(arrayOf(McpToolCallResultContent.Text(text)), null, false)
     }

@@ -22,6 +22,8 @@ import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.UsageWindow
 import de.moritzf.quota.opencode.OpenCodeUsageWindow
 import de.moritzf.quota.ollama.OllamaUsageWindow
+import de.moritzf.quota.zai.ZaiCountUsageWindow
+import de.moritzf.quota.zai.ZaiUsageWindow
 import org.intellij.lang.annotations.Language
 import java.awt.Component
 import java.awt.Cursor
@@ -260,6 +262,38 @@ internal fun createOllamaWindowBlock(window: OllamaUsageWindow, label: String, t
     return createPopupStack().apply {
         border = JBUI.Borders.emptyTop(top)
         add(createWindowTitleLabel("$label limit"))
+        add(withVerticalInsets(JBLabel(info), top = 1))
+        add(withVerticalInsets(createUsageProgressBar(percent), top = 1))
+    }
+}
+
+internal fun createZaiWindowBlock(window: ZaiUsageWindow, label: String, top: Int): JComponent {
+    val percent = clampPercent(window.usagePercent.roundToInt())
+    val resetText = QuotaUiUtil.formatReset(window.resetsAt)
+    var info = "$percent% used"
+    if (resetText != null) {
+        info += " - $resetText"
+    }
+
+    return createPopupStack().apply {
+        border = JBUI.Borders.emptyTop(top)
+        add(createWindowTitleLabel("$label limit"))
+        add(withVerticalInsets(JBLabel(info), top = 1))
+        add(withVerticalInsets(createUsageProgressBar(percent), top = 1))
+    }
+}
+
+internal fun createZaiCountWindowBlock(window: ZaiCountUsageWindow, label: String, top: Int): JComponent {
+    val percent = clampPercent(window.usagePercent.roundToInt())
+    val resetText = QuotaUiUtil.formatReset(window.resetsAt)
+    var info = "${window.used}/${window.limit} used"
+    if (resetText != null) {
+        info += " - $resetText"
+    }
+
+    return createPopupStack().apply {
+        border = JBUI.Borders.emptyTop(top)
+        add(createWindowTitleLabel(label))
         add(withVerticalInsets(JBLabel(info), top = 1))
         add(withVerticalInsets(createUsageProgressBar(percent), top = 1))
     }

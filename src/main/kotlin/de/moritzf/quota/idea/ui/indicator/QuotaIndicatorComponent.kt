@@ -12,6 +12,7 @@ import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.opencode.OpenCodeUsageWindow
 import de.moritzf.quota.openai.UsageWindow
 import de.moritzf.quota.ollama.OllamaUsageWindow
+import de.moritzf.quota.zai.ZaiQuota
 import java.awt.Component
 import java.awt.Cursor
 import java.awt.event.MouseAdapter
@@ -45,6 +46,11 @@ private data class OpenCodeIndicatorState(
 )
 
 private data class OllamaIndicatorState(
+    val percent: Int,
+    val resetsAt: Instant?,
+)
+
+private data class ZaiIndicatorState(
     val percent: Int,
     val resetsAt: Instant?,
 )
@@ -83,6 +89,7 @@ internal class QuotaIndicatorComponent(
             is QuotaIndicatorData.OpenAi -> buildQuotaTooltipText(data.quota, data.error)
             is QuotaIndicatorData.OpenCode -> buildOpenCodeTooltipText(data.quota, data.error)
             is QuotaIndicatorData.Ollama -> buildOllamaTooltipText(data.quota, data.error)
+            is QuotaIndicatorData.Zai -> buildZaiTooltipText(data.quota, data.error)
         }
         toolTipText = tooltip
         statusIconLabel.toolTipText = tooltip
@@ -121,6 +128,7 @@ internal class QuotaIndicatorComponent(
             is QuotaIndicatorData.OpenAi -> buildQuotaTooltipText(currentData.quota, currentData.error)
             is QuotaIndicatorData.OpenCode -> buildOpenCodeTooltipText(currentData.quota, currentData.error)
             is QuotaIndicatorData.Ollama -> buildOllamaTooltipText(currentData.quota, currentData.error)
+            is QuotaIndicatorData.Zai -> buildZaiTooltipText(currentData.quota, currentData.error)
         }
     }
 
@@ -142,6 +150,7 @@ internal class QuotaIndicatorComponent(
             is QuotaIndicatorData.OpenAi -> QuotaIcons.OPENAI
             is QuotaIndicatorData.OpenCode -> QuotaIcons.OPENCODE
             is QuotaIndicatorData.Ollama -> QuotaIcons.OLLAMA
+            is QuotaIndicatorData.Zai -> QuotaIcons.ZAI
         }
     }
 
@@ -168,6 +177,7 @@ internal class QuotaIndicatorComponent(
             }
             is QuotaIndicatorData.OpenCode -> openCodeBarDisplayText(currentData.quota, currentData.error)
             is QuotaIndicatorData.Ollama -> ollamaBarDisplayText(currentData.quota, currentData.error)
+            is QuotaIndicatorData.Zai -> zaiBarDisplayText(currentData.quota, currentData.error)
         }
     }
 
@@ -178,6 +188,9 @@ internal class QuotaIndicatorComponent(
         }
         if (currentData is QuotaIndicatorData.Ollama) {
             return currentData.quota?.let(::ollamaCakeIcon) ?: QuotaIcons.CAKE_UNKNOWN
+        }
+        if (currentData is QuotaIndicatorData.Zai) {
+            return currentData.quota?.let(::zaiCakeIcon) ?: QuotaIcons.CAKE_UNKNOWN
         }
         val openAiData = currentData as QuotaIndicatorData.OpenAi
         val authService = QuotaAuthService.getInstance()
@@ -207,6 +220,14 @@ internal class QuotaIndicatorComponent(
 
     private fun ollamaCakeIcon(quota: de.moritzf.quota.ollama.OllamaQuota): Icon {
         val state = ollamaIndicatorState(quota)
+        if (state == null) {
+            return QuotaIcons.CAKE_UNKNOWN
+        }
+        return cakeIconForPercent(state.percent)
+    }
+
+    private fun zaiCakeIcon(quota: ZaiQuota): Icon {
+        val state = zaiIndicatorState(quota)
         if (state == null) {
             return QuotaIcons.CAKE_UNKNOWN
         }
@@ -274,6 +295,9 @@ internal class QuotaIndicatorComponent(
         if (currentData is QuotaIndicatorData.Ollama) {
             return currentData.quota?.let(::ollamaIndicatorState)?.percent ?: -1
         }
+        if (currentData is QuotaIndicatorData.Zai) {
+            return currentData.quota?.let(::zaiIndicatorState)?.percent ?: -1
+        }
         val openAiData = currentData as QuotaIndicatorData.OpenAi
         val authService = QuotaAuthService.getInstance()
         return indicatorDisplayPercent(openAiData.quota, openAiData.error, authService.isLoggedIn())
@@ -324,6 +348,36 @@ internal fun ollamaBarDisplayText(quota: de.moritzf.quota.ollama.OllamaQuota?, e
     if (quota == null) return "loading..."
 
     val state = ollamaIndicatorState(quota) ?: return "no data"
+    val reset = QuotaUiUtil.formatResetCompact(state.resetsAt)
+    val text = "${state.percent}%"
+    return if (reset != null) "$text • $reset" else text
+}
+
+internal fun buildZaiTooltipText(quota: ZaiQuota?, error: String?): String {
+    if (error != null) {
+        return "Z.ai quota: $error"
+    }
+    if (quota == null) {
+        return "Z.ai quota: loading"
+    }
+    return when {
+        !quota.hasUsageState() -> "Z.ai quota: no usage data"
+        else -> {
+            val parts = mutableListOf<String>()
+            quota.plan.takeIf { it.isNotBlank() }?.let(parts::add)
+            quota.sessionUsage?.let { parts.add("Session: ${clampPercent(it.usagePercent.roundToInt())}%") }
+            quota.weeklyUsage?.let { parts.add("Weekly: ${clampPercent(it.usagePercent.roundToInt())}%") }
+            quota.webSearchUsage?.let { parts.add("Web searches: ${it.used}/${it.limit}") }
+            "Z.ai quota: ${parts.joinToString(" / ")}"
+        }
+    }
+}
+
+internal fun zaiBarDisplayText(quota: ZaiQuota?, error: String?): String {
+    if (error != null) return "error"
+    if (quota == null) return "loading..."
+
+    val state = zaiIndicatorState(quota) ?: return "no data"
     val reset = QuotaUiUtil.formatResetCompact(state.resetsAt)
     val text = "${state.percent}%"
     return if (reset != null) "$text • $reset" else text
@@ -484,6 +538,32 @@ private fun ollamaIndicatorState(quota: de.moritzf.quota.ollama.OllamaQuota): Ol
 
     val window = windows.first()
     return OllamaIndicatorState(
+        percent = clampPercent(window.usagePercent.roundToInt()),
+        resetsAt = window.resetsAt,
+    )
+}
+
+private fun zaiIndicatorState(quota: ZaiQuota): ZaiIndicatorState? {
+    val windows = listOfNotNull(quota.sessionUsage, quota.weeklyUsage)
+    if (windows.isEmpty()) {
+        return quota.webSearchUsage?.let {
+            ZaiIndicatorState(
+                percent = clampPercent(it.usagePercent.roundToInt()),
+                resetsAt = it.resetsAt,
+            )
+        }
+    }
+
+    val exhausted = windows.filter { it.usagePercent >= 100.0 }
+    if (exhausted.isNotEmpty()) {
+        return ZaiIndicatorState(
+            percent = 100,
+            resetsAt = exhausted.maxByOrNull { it.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE }?.resetsAt,
+        )
+    }
+
+    val window = windows.first()
+    return ZaiIndicatorState(
         percent = clampPercent(window.usagePercent.roundToInt()),
         resetsAt = window.resetsAt,
     )

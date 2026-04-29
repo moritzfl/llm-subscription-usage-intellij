@@ -4,6 +4,7 @@ enum class QuotaIndicatorSource(private val displayName: String) {
     OPEN_AI("OpenAI"),
     OPEN_CODE("OpenCode"),
     OLLAMA("Ollama"),
+    ZAI("Z.ai"),
     LAST_USED("Last used");
 
     override fun toString(): String = displayName

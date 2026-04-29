@@ -18,6 +18,7 @@ import de.moritzf.quota.idea.ui.indicator.*
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.opencode.OpenCodeQuota
+import de.moritzf.quota.zai.ZaiQuota
 import java.awt.Dimension
 import javax.swing.Icon
 import javax.swing.JComponent
@@ -36,6 +37,7 @@ class QuotaSettingsConfigurable : Configurable {
     private lateinit var openAiPanel: OpenAiSettingsPanel
     private lateinit var openCodePanel: OpenCodeSettingsPanel
     private lateinit var ollamaPanel: OllamaSettingsPanel
+    private lateinit var zaiPanel: ZaiSettingsPanel
 
     private var locationComboBox: ComboBox<QuotaIndicatorLocation>? = null
     private var displayModeComboBox: ComboBox<QuotaDisplayMode>? = null
@@ -53,6 +55,10 @@ class QuotaSettingsConfigurable : Configurable {
             statusLabelDefaultForeground = statusLabelDefaultForeground,
         )
         ollamaPanel = OllamaSettingsPanel(
+            modalityComponentProvider = { panel ?: rootComponent },
+            statusLabelDefaultForeground = statusLabelDefaultForeground,
+        )
+        zaiPanel = ZaiSettingsPanel(
             modalityComponentProvider = { panel ?: rootComponent },
             statusLabelDefaultForeground = statusLabelDefaultForeground,
         )
@@ -80,6 +86,7 @@ class QuotaSettingsConfigurable : Configurable {
             addTab("OpenAI Codex", openAiPanel)
             addTab("OpenCode Go", openCodePanel)
             addTab("Ollama Cloud", ollamaPanel)
+            addTab("Z.ai", zaiPanel)
         }
 
         rootComponent = BorderLayoutPanel().apply {
@@ -97,6 +104,7 @@ class QuotaSettingsConfigurable : Configurable {
                     openAiPanel.updateResponseArea()
                     openCodePanel.updateOpenCodeStatus()
                     ollamaPanel.updateOllamaStatus()
+                    zaiPanel.updateZaiStatus()
                 }, ModalityState.stateForComponent(currentPanel))
             }
 
@@ -106,6 +114,7 @@ class QuotaSettingsConfigurable : Configurable {
                     openCodePanel.updateOpenCodeResponseArea()
                     openCodePanel.updateOpenCodeStatus()
                     ollamaPanel.updateOllamaStatus()
+                    zaiPanel.updateZaiStatus()
                 }, ModalityState.stateForComponent(currentPanel))
             }
 
@@ -114,6 +123,15 @@ class QuotaSettingsConfigurable : Configurable {
                 ApplicationManager.getApplication().invokeLater({
                     ollamaPanel.updateOllamaResponseArea()
                     ollamaPanel.updateOllamaStatus()
+                    zaiPanel.updateZaiStatus()
+                }, ModalityState.stateForComponent(currentPanel))
+            }
+
+            override fun onZaiQuotaUpdated(quota: ZaiQuota?, error: String?) {
+                val currentPanel = rootComponent ?: panel ?: return@onZaiQuotaUpdated
+                ApplicationManager.getApplication().invokeLater({
+                    zaiPanel.updateZaiResponseArea()
+                    zaiPanel.updateZaiStatus()
                 }, ModalityState.stateForComponent(currentPanel))
             }
         })
@@ -200,6 +218,7 @@ class QuotaSettingsConfigurable : Configurable {
                 val openAiPopupVisibilityChanged = openAiPanel.openAiHideFromPopupCheckBox.isSelected != state.hideOpenAiFromQuotaPopup
                 val openCodePopupVisibilityChanged = openCodePanel.openCodeHideFromPopupCheckBox.isSelected != state.hideOpenCodeFromQuotaPopup
                 val ollamaPopupVisibilityChanged = ollamaPanel.ollamaHideFromPopupCheckBox.isSelected != state.hideOllamaFromQuotaPopup
+                val zaiPopupVisibilityChanged = zaiPanel.zaiHideFromPopupCheckBox.isSelected != state.hideZaiFromQuotaPopup
                 if (locationChanged) {
                     state.setLocation(selectedLocation)
                 }
@@ -212,7 +231,8 @@ class QuotaSettingsConfigurable : Configurable {
                 state.hideOpenAiFromQuotaPopup = openAiPanel.openAiHideFromPopupCheckBox.isSelected
                 state.hideOpenCodeFromQuotaPopup = openCodePanel.openCodeHideFromPopupCheckBox.isSelected
                 state.hideOllamaFromQuotaPopup = ollamaPanel.ollamaHideFromPopupCheckBox.isSelected
-                if (locationChanged || displayModeChanged || sourceChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged || ollamaPopupVisibilityChanged) {
+                state.hideZaiFromQuotaPopup = zaiPanel.zaiHideFromPopupCheckBox.isSelected
+                if (locationChanged || displayModeChanged || sourceChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged || ollamaPopupVisibilityChanged || zaiPopupVisibilityChanged) {
                     ApplicationManager.getApplication().messageBus
                         .syncPublisher(QuotaSettingsListener.TOPIC)
                         .onSettingsChanged()
@@ -228,6 +248,7 @@ class QuotaSettingsConfigurable : Configurable {
                 openAiPanel.openAiHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideOpenAiFromQuotaPopup
                 openCodePanel.openCodeHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideOpenCodeFromQuotaPopup
                 ollamaPanel.ollamaHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideOllamaFromQuotaPopup
+                zaiPanel.zaiHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideZaiFromQuotaPopup
                 openAiPanel.updateAuthUi()
                 openAiPanel.updateAccountFields()
                 openAiPanel.updateResponseArea()
@@ -235,6 +256,8 @@ class QuotaSettingsConfigurable : Configurable {
                 openCodePanel.updateOpenCodeFields()
                 ollamaPanel.updateOllamaFields()
                 ollamaPanel.updateOllamaResponseArea()
+                zaiPanel.updateZaiFields()
+                zaiPanel.updateZaiResponseArea()
             }
 
             onIsModified {
@@ -247,7 +270,8 @@ class QuotaSettingsConfigurable : Configurable {
                     selectedSource != state.source() ||
                     openAiPanel.openAiHideFromPopupCheckBox.isSelected != state.hideOpenAiFromQuotaPopup ||
                     openCodePanel.openCodeHideFromPopupCheckBox.isSelected != state.hideOpenCodeFromQuotaPopup ||
-                    ollamaPanel.ollamaHideFromPopupCheckBox.isSelected != state.hideOllamaFromQuotaPopup
+                    ollamaPanel.ollamaHideFromPopupCheckBox.isSelected != state.hideOllamaFromQuotaPopup ||
+                    zaiPanel.zaiHideFromPopupCheckBox.isSelected != state.hideZaiFromQuotaPopup
             }
         }.apply {
             preferredFocusedComponent = locationComboBox

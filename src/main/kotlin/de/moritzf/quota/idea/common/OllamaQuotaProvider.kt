@@ -19,9 +19,11 @@ class OllamaQuotaProvider(
 
     private val lastQuotaRef = AtomicReference<OllamaQuota?>()
     private val lastErrorRef = AtomicReference<String?>()
+    private val lastRawJsonRef = AtomicReference<String?>()
 
     fun getLastQuota(): OllamaQuota? = lastQuotaRef.get()
     fun getLastError(): String? = lastErrorRef.get()
+    fun getLastRawJson(): String? = lastRawJsonRef.get()
 
     override fun refresh() {
         val sessionCookie = sessionCookieProvider()
@@ -35,23 +37,28 @@ class OllamaQuotaProvider(
             val quota = ollamaClient.fetchQuota(sessionCookie, cfClearance)
             lastQuotaRef.set(quota)
             lastErrorRef.set(null)
+            lastRawJsonRef.set(quota.rawJson)
         } catch (exception: OllamaQuotaException) {
             lastQuotaRef.set(null)
             lastErrorRef.set(exception.message ?: "Request failed (${exception.statusCode})")
+            lastRawJsonRef.set(exception.rawBody)
         } catch (exception: Exception) {
             lastQuotaRef.set(null)
             lastErrorRef.set(exception.message ?: "Request failed")
+            lastRawJsonRef.set(null)
         }
     }
 
     override fun clearData(error: String?) {
         lastQuotaRef.set(null)
         lastErrorRef.set(error)
+        lastRawJsonRef.set(null)
     }
 
     override fun hydrateFromCache(settings: QuotaSettingsState) {
         val cached = QuotaSnapshotCache.decodeOllamaQuota(settings.cachedOllamaQuotaJson)
         lastQuotaRef.set(cached)
+        lastRawJsonRef.set(cached?.rawJson)
     }
 
     override fun persistToCache(settings: QuotaSettingsState) {

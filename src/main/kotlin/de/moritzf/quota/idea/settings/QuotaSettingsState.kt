@@ -22,14 +22,17 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var lastOpenAiUpdate: Long = 0
     var lastOpenCodeUpdate: Long = 0
     var lastOllamaUpdate: Long = 0
+    var lastZaiUpdate: Long = 0
     var hideOpenAiFromQuotaPopup: Boolean = false
     var hideOpenCodeFromQuotaPopup: Boolean = false
     var hideOllamaFromQuotaPopup: Boolean = false
+    var hideZaiFromQuotaPopup: Boolean = false
     var lastActiveSource: String? = null
     var openCodeWorkspaceId: String? = null
     var cachedOpenAiQuotaJson: String? = null
     var cachedOpenCodeQuotaJson: String? = null
     var cachedOllamaQuotaJson: String? = null
+    var cachedZaiQuotaJson: String? = null
 
     override fun getState(): QuotaSettingsState = this
 
@@ -41,14 +44,17 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         lastOpenAiUpdate = state.lastOpenAiUpdate
         lastOpenCodeUpdate = state.lastOpenCodeUpdate
         lastOllamaUpdate = state.lastOllamaUpdate
+        lastZaiUpdate = state.lastZaiUpdate
         hideOpenAiFromQuotaPopup = state.hideOpenAiFromQuotaPopup
         hideOpenCodeFromQuotaPopup = state.hideOpenCodeFromQuotaPopup
         hideOllamaFromQuotaPopup = state.hideOllamaFromQuotaPopup
+        hideZaiFromQuotaPopup = state.hideZaiFromQuotaPopup
         lastActiveSource = state.lastActiveSource
         openCodeWorkspaceId = state.openCodeWorkspaceId
         cachedOpenAiQuotaJson = state.cachedOpenAiQuotaJson
         cachedOpenCodeQuotaJson = state.cachedOpenCodeQuotaJson
         cachedOllamaQuotaJson = state.cachedOllamaQuotaJson
+        cachedZaiQuotaJson = state.cachedZaiQuotaJson
     }
 
     fun displayMode(): QuotaDisplayMode = QuotaDisplayMode.fromStorageValue(statusBarDisplayMode)
@@ -74,6 +80,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
             "openai" -> lastOpenAiUpdate = System.currentTimeMillis()
             "opencode" -> lastOpenCodeUpdate = System.currentTimeMillis()
             "ollama" -> lastOllamaUpdate = System.currentTimeMillis()
+            "zai" -> lastZaiUpdate = System.currentTimeMillis()
         }
     }
 
@@ -87,9 +94,13 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         val ollamaUpdate = lastOllamaUpdate.takeIf { it > 0 }
             ?: QuotaSnapshotCache.decodeOllamaQuota(cachedOllamaQuotaJson)?.fetchedAt?.toEpochMilliseconds()
             ?: 0
-        val maxUpdate = maxOf(openAiUpdate, openCodeUpdate, ollamaUpdate)
+        val zaiUpdate = lastZaiUpdate.takeIf { it > 0 }
+            ?: QuotaSnapshotCache.decodeZaiQuota(cachedZaiQuotaJson)?.fetchedAt?.toEpochMilliseconds()
+            ?: 0
+        val maxUpdate = maxOf(openAiUpdate, openCodeUpdate, ollamaUpdate, zaiUpdate)
         if (maxUpdate == 0L) return QuotaIndicatorSource.OPEN_AI
         return when {
+            zaiUpdate >= openAiUpdate && zaiUpdate >= openCodeUpdate && zaiUpdate >= ollamaUpdate -> QuotaIndicatorSource.ZAI
             ollamaUpdate >= openAiUpdate && ollamaUpdate >= openCodeUpdate -> QuotaIndicatorSource.OLLAMA
             openCodeUpdate >= openAiUpdate && openCodeUpdate >= ollamaUpdate -> QuotaIndicatorSource.OPEN_CODE
             else -> QuotaIndicatorSource.OPEN_AI
