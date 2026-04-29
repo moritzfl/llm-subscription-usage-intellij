@@ -6,6 +6,9 @@ import com.intellij.mcpserver.McpToolset
 import com.intellij.mcpserver.annotations.McpDescription
 import com.intellij.mcpserver.annotations.McpTool
 import de.moritzf.quota.idea.common.QuotaUsageService
+import de.moritzf.quota.ollama.OllamaQuota
+import de.moritzf.quota.opencode.OpenCodeQuota
+import de.moritzf.quota.shared.JsonSupport
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -42,10 +45,10 @@ class OpenAiUsageQuotaMcpToolset : McpToolset {
             return errorResult(error)
         }
 
-        val json = usageService.getLastOpenCodeResponseJson()
-        if (json.isNullOrBlank()) {
-            return errorResult("No OpenCode usage response available")
-        }
+        val quota = usageService.getLastOpenCodeQuota()
+            ?: return errorResult("No OpenCode usage response available")
+        val json = runCatching { JsonSupport.json.encodeToString(OpenCodeQuota.serializer(), quota) }.getOrNull()
+            ?: return errorResult("No OpenCode usage response available")
         return successResult(json)
     }
 
@@ -60,10 +63,10 @@ class OpenAiUsageQuotaMcpToolset : McpToolset {
             return errorResult(error)
         }
 
-        val json = usageService.getLastOllamaResponseJson()
-        if (json.isNullOrBlank()) {
-            return errorResult("No Ollama usage response available")
-        }
+        val quota = usageService.getLastOllamaQuota()
+            ?: return errorResult("No Ollama usage response available")
+        val json = runCatching { JsonSupport.json.encodeToString(OllamaQuota.serializer(), quota) }.getOrNull()
+            ?: return errorResult("No Ollama usage response available")
         return successResult(json)
     }
 
