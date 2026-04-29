@@ -13,6 +13,7 @@ import de.moritzf.quota.opencode.OpenCodeUsageWindow
 import de.moritzf.quota.openai.UsageWindow
 import de.moritzf.quota.ollama.OllamaUsageWindow
 import de.moritzf.quota.zai.ZaiQuota
+import de.moritzf.quota.minimax.MiniMaxQuota
 import java.awt.Component
 import java.awt.Cursor
 import java.awt.event.MouseAdapter
@@ -90,6 +91,7 @@ internal class QuotaIndicatorComponent(
             is QuotaIndicatorData.OpenCode -> buildOpenCodeTooltipText(data.quota, data.error)
             is QuotaIndicatorData.Ollama -> buildOllamaTooltipText(data.quota, data.error)
             is QuotaIndicatorData.Zai -> buildZaiTooltipText(data.quota, data.error)
+            is QuotaIndicatorData.MiniMax -> buildMiniMaxTooltipText(data.quota, data.error)
         }
         toolTipText = tooltip
         statusIconLabel.toolTipText = tooltip
@@ -129,6 +131,7 @@ internal class QuotaIndicatorComponent(
             is QuotaIndicatorData.OpenCode -> buildOpenCodeTooltipText(currentData.quota, currentData.error)
             is QuotaIndicatorData.Ollama -> buildOllamaTooltipText(currentData.quota, currentData.error)
             is QuotaIndicatorData.Zai -> buildZaiTooltipText(currentData.quota, currentData.error)
+            is QuotaIndicatorData.MiniMax -> buildMiniMaxTooltipText(currentData.quota, currentData.error)
         }
     }
 
@@ -151,6 +154,7 @@ internal class QuotaIndicatorComponent(
             is QuotaIndicatorData.OpenCode -> QuotaIcons.OPENCODE
             is QuotaIndicatorData.Ollama -> QuotaIcons.OLLAMA
             is QuotaIndicatorData.Zai -> QuotaIcons.ZAI
+            is QuotaIndicatorData.MiniMax -> QuotaIcons.MINIMAX
         }
     }
 
@@ -178,6 +182,7 @@ internal class QuotaIndicatorComponent(
             is QuotaIndicatorData.OpenCode -> openCodeBarDisplayText(currentData.quota, currentData.error)
             is QuotaIndicatorData.Ollama -> ollamaBarDisplayText(currentData.quota, currentData.error)
             is QuotaIndicatorData.Zai -> zaiBarDisplayText(currentData.quota, currentData.error)
+            is QuotaIndicatorData.MiniMax -> miniMaxBarDisplayText(currentData.quota, currentData.error)
         }
     }
 
@@ -191,6 +196,9 @@ internal class QuotaIndicatorComponent(
         }
         if (currentData is QuotaIndicatorData.Zai) {
             return currentData.quota?.let(::zaiCakeIcon) ?: QuotaIcons.CAKE_UNKNOWN
+        }
+        if (currentData is QuotaIndicatorData.MiniMax) {
+            return currentData.quota?.sessionUsage?.usagePercent?.roundToInt()?.let(::clampPercent)?.let(::cakeIconForPercent) ?: QuotaIcons.CAKE_UNKNOWN
         }
         val openAiData = currentData as QuotaIndicatorData.OpenAi
         val authService = QuotaAuthService.getInstance()
@@ -298,6 +306,9 @@ internal class QuotaIndicatorComponent(
         if (currentData is QuotaIndicatorData.Zai) {
             return currentData.quota?.let(::zaiIndicatorState)?.percent ?: -1
         }
+        if (currentData is QuotaIndicatorData.MiniMax) {
+            return currentData.quota?.sessionUsage?.usagePercent?.roundToInt()?.let(::clampPercent) ?: -1
+        }
         val openAiData = currentData as QuotaIndicatorData.OpenAi
         val authService = QuotaAuthService.getInstance()
         return indicatorDisplayPercent(openAiData.quota, openAiData.error, authService.isLoggedIn())
@@ -371,6 +382,23 @@ internal fun buildZaiTooltipText(quota: ZaiQuota?, error: String?): String {
             "Z.ai quota: ${parts.joinToString(" / ")}"
         }
     }
+}
+
+internal fun buildMiniMaxTooltipText(quota: MiniMaxQuota?, error: String?): String {
+    if (error != null) return "MiniMax quota: $error"
+    if (quota == null) return "MiniMax quota: loading"
+    val usage = quota.sessionUsage ?: return "MiniMax quota: no usage data"
+    val plan = quota.plan.ifBlank { "MiniMax Coding Plan (${quota.region})" }
+    return "MiniMax quota: $plan / ${usage.used}/${usage.limit} prompts"
+}
+
+internal fun miniMaxBarDisplayText(quota: MiniMaxQuota?, error: String?): String {
+    if (error != null) return "error"
+    if (quota == null) return "loading..."
+    val usage = quota.sessionUsage ?: return "no data"
+    val reset = QuotaUiUtil.formatResetCompact(usage.resetsAt)
+    val text = "${clampPercent(usage.usagePercent.roundToInt())}%"
+    return if (reset != null) "$text • $reset" else text
 }
 
 internal fun zaiBarDisplayText(quota: ZaiQuota?, error: String?): String {

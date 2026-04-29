@@ -20,6 +20,8 @@ import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.zai.ZaiQuota
+import de.moritzf.quota.minimax.MiniMaxQuota
+import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
 import kotlinx.datetime.Instant
 import java.awt.Component
 import java.awt.Point
@@ -42,6 +44,8 @@ internal object QuotaPopupSupport {
         ollamaError: String?,
         zaiQuota: ZaiQuota?,
         zaiError: String?,
+        miniMaxQuota: MiniMaxQuota?,
+        miniMaxError: String?,
         location: QuotaPopupLocation,
     ) {
         if (project.isDisposed) {
@@ -51,9 +55,9 @@ internal object QuotaPopupSupport {
         QuotaUsageService.getInstance().refreshNowAsync()
         var popup: JBPopup? = null
         val content = RefreshablePopupPanel<QuotaPopupContentState> { state ->
-            buildPopupContent(project, component, state.quota, state.error, state.openCodeQuota, state.openCodeError, state.ollamaQuota, state.ollamaError, state.zaiQuota, state.zaiError) { popup?.cancel() }
+            buildPopupContent(project, component, state.quota, state.error, state.openCodeQuota, state.openCodeError, state.ollamaQuota, state.ollamaError, state.zaiQuota, state.zaiError, state.miniMaxQuota, state.miniMaxError) { popup?.cancel() }
         }.apply {
-            refresh(QuotaPopupContentState(quota, error, openCodeQuota, openCodeError, ollamaQuota, ollamaError, zaiQuota, zaiError))
+            refresh(QuotaPopupContentState(quota, error, openCodeQuota, openCodeError, ollamaQuota, ollamaError, zaiQuota, zaiError, miniMaxQuota, miniMaxError))
         }
         popup = JBPopupFactory.getInstance()
             .createComponentPopupBuilder(content, content)
@@ -73,6 +77,8 @@ internal object QuotaPopupSupport {
         var latestOllamaError = ollamaError
         var latestZaiQuota = zaiQuota
         var latestZaiError = zaiError
+        var latestMiniMaxQuota = miniMaxQuota
+        var latestMiniMaxError = miniMaxError
         var refreshScheduled = false
         fun scheduleRefresh() {
             if (refreshScheduled) {
@@ -81,7 +87,7 @@ internal object QuotaPopupSupport {
             refreshScheduled = true
             ApplicationManager.getApplication().invokeLater {
                 refreshScheduled = false
-                refreshPopup(currentPopup, content, component, location, latestQuota, latestError, latestOpenCodeQuota, latestOpenCodeError, latestOllamaQuota, latestOllamaError, latestZaiQuota, latestZaiError)
+                refreshPopup(currentPopup, content, component, location, latestQuota, latestError, latestOpenCodeQuota, latestOpenCodeError, latestOllamaQuota, latestOllamaError, latestZaiQuota, latestZaiError, latestMiniMaxQuota, latestMiniMaxError)
             }
         }
         popupConnection.subscribe(QuotaUsageListener.TOPIC, object : QuotaUsageListener {
@@ -108,6 +114,11 @@ internal object QuotaPopupSupport {
                 latestZaiError = error
                 scheduleRefresh()
             }
+            override fun onMiniMaxQuotaUpdated(quota: MiniMaxQuota?, error: String?) {
+                latestMiniMaxQuota = quota
+                latestMiniMaxError = error
+                scheduleRefresh()
+            }
         })
 
         popup.show(RelativePoint(component, popupPoint(component, content, location)))
@@ -126,12 +137,14 @@ internal object QuotaPopupSupport {
         ollamaError: String?,
         zaiQuota: ZaiQuota?,
         zaiError: String?,
+        miniMaxQuota: MiniMaxQuota?,
+        miniMaxError: String?,
     ) {
         if (currentPopup.isDisposed || !currentPopup.isVisible) {
             return
         }
         val oldSize = content.preferredSize
-        content.refresh(QuotaPopupContentState(quota, error, openCodeQuota, openCodeError, ollamaQuota, ollamaError, zaiQuota, zaiError))
+        content.refresh(QuotaPopupContentState(quota, error, openCodeQuota, openCodeError, ollamaQuota, ollamaError, zaiQuota, zaiError, miniMaxQuota, miniMaxError))
         val newSize = content.preferredSize
         if (oldSize != newSize) {
             currentPopup.pack(true, true)
@@ -164,6 +177,8 @@ internal object QuotaPopupSupport {
         ollamaError: String?,
         zaiQuota: ZaiQuota?,
         zaiError: String?,
+        miniMaxQuota: MiniMaxQuota?,
+        miniMaxError: String?,
         onClosePopup: () -> Unit,
     ): JComponent {
         val settings = QuotaSettingsState.getInstance()
@@ -171,6 +186,7 @@ internal object QuotaPopupSupport {
         val hideOpenCode = settings.hideOpenCodeFromQuotaPopup
         val hideOllama = settings.hideOllamaFromQuotaPopup
         val hideZai = settings.hideZaiFromQuotaPopup
+        val hideMiniMax = settings.hideMiniMaxFromQuotaPopup
         val hasReviewData = currentQuota != null && (
             currentQuota.reviewPrimary != null || currentQuota.reviewSecondary != null ||
                 currentQuota.reviewAllowed != null || currentQuota.reviewLimitReached != null
@@ -180,28 +196,33 @@ internal object QuotaPopupSupport {
         val openCodeCookieStore = OpenCodeSessionCookieStore.getInstance()
         val ollamaCookieStore = OllamaSessionCookieStore.getInstance()
         val zaiApiKeyStore = ZaiApiKeyStore.getInstance()
+        val miniMaxApiKeyStore = MiniMaxApiKeyStore.getInstance()
         val hasCodexAuth = authService.isLoggedIn()
         val hasOpenCodeAuth = openCodeCookieStore.load() != null
         val ollamaAuthUnknown = !ollamaCookieStore.isLoaded()
         val hasOllamaAuth = ollamaCookieStore.loadSessionCookie() != null
         val zaiAuthUnknown = !zaiApiKeyStore.isLoaded()
         val hasZaiAuth = zaiApiKeyStore.load() != null
+        val miniMaxAuthUnknown = !miniMaxApiKeyStore.isLoaded()
+        val hasMiniMaxAuth = !miniMaxApiKeyStore.load().isNullOrBlank()
         val showCodexSection = hasCodexAuth && !hideOpenAi
         val showOpenCodeSection = hasOpenCodeAuth && !hideOpenCode
         val showOllamaSection = (hasOllamaAuth || ollamaAuthUnknown) && !hideOllama
         val showZaiSection = (hasZaiAuth || zaiAuthUnknown) && !hideZai
+        val showMiniMaxSection = (hasMiniMaxAuth || miniMaxAuthUnknown) && !hideMiniMax
 
         return createPopupStack().apply {
             add(createHeaderRow { openSettings(project, component) { onClosePopup() } })
             add(createSeparatedBlock())
 
-            if (!hasCodexAuth && !hasOpenCodeAuth && !hasOllamaAuth && !ollamaAuthUnknown && !hasZaiAuth && !zaiAuthUnknown) {
+            if (!hasCodexAuth && !hasOpenCodeAuth && !hasOllamaAuth && !ollamaAuthUnknown && !hasZaiAuth && !zaiAuthUnknown && !hasMiniMaxAuth && !miniMaxAuthUnknown) {
                 add(withVerticalInsets(com.intellij.ui.components.JBLabel("Not logged in."), top = 1))
                 add(withVerticalInsets(com.intellij.ui.components.ActionLink("Open Settings") { openSettings(project, component) { onClosePopup() } }, top = 3))
-            } else if (!showCodexSection && !showOpenCodeSection && !showOllamaSection && !showZaiSection) {
+            } else if (!showCodexSection && !showOpenCodeSection && !showOllamaSection && !showZaiSection && !showMiniMaxSection) {
                 add(withVerticalInsets(com.intellij.ui.components.JBLabel("All quota sources are hidden from this popup."), top = 1))
                 add(withVerticalInsets(com.intellij.ui.components.ActionLink("Open Settings") { openSettings(project, component) { onClosePopup() } }, top = 3))
             } else {
+                buildMiniMaxPopupContent(miniMaxQuota, miniMaxError, showMiniMaxSection).forEach { add(it) }
                 buildOpenAiPopupContent(currentQuota, currentError, showCodexSection, hasReviewData).forEach { add(it) }
                 buildOpenCodePopupContent(openCodeQuota, openCodeError, showOpenCodeSection).forEach { add(it) }
                 buildOllamaPopupContent(ollamaQuota, ollamaError, showOllamaSection).forEach { add(it) }
@@ -216,6 +237,8 @@ internal object QuotaPopupSupport {
                     ollamaQuota,
                     showZaiSection,
                     zaiQuota,
+                    showMiniMaxSection,
+                    miniMaxQuota,
                 )
                 if (updatedAtItems.isNotEmpty()) {
                     add(createSeparatedBlock())
@@ -234,8 +257,13 @@ internal object QuotaPopupSupport {
         ollamaQuota: OllamaQuota?,
         showZaiSection: Boolean,
         zaiQuota: ZaiQuota?,
+        showMiniMaxSection: Boolean,
+        miniMaxQuota: MiniMaxQuota?,
     ): List<UpdatedAtItem> {
         val rawItems = mutableListOf<UpdatedAtRawItem>()
+        if (showMiniMaxSection) {
+            rawItems.add(UpdatedAtRawItem(UpdatedAtIcon("MiniMax", QuotaIcons.MINIMAX), miniMaxQuota?.fetchedAt))
+        }
         if (showCodexSection) {
             rawItems.add(UpdatedAtRawItem(UpdatedAtIcon("Codex", QuotaIcons.OPENAI), currentQuota?.fetchedAt))
         }
@@ -300,6 +328,8 @@ internal data class QuotaPopupContentState(
     val ollamaError: String? = null,
     val zaiQuota: ZaiQuota? = null,
     val zaiError: String? = null,
+    val miniMaxQuota: MiniMaxQuota? = null,
+    val miniMaxError: String? = null,
 )
 
 internal class RefreshablePopupPanel<T>(private val renderer: (T) -> JComponent) : com.intellij.util.ui.components.BorderLayoutPanel() {

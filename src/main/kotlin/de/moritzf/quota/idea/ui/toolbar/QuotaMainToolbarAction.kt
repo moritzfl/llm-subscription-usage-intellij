@@ -61,6 +61,7 @@ class QuotaMainToolbarAction : AnAction(), CustomComponentAction, RightAlignedTo
             service.getLastOpenCodeQuota(), service.getLastOpenCodeError(),
             service.getLastOllamaQuota(), service.getLastOllamaError(),
             service.getLastZaiQuota(), service.getLastZaiError(),
+            service.getLastMiniMaxQuota(), service.getLastMiniMaxError(),
             QuotaPopupLocation.BELOW,
         )
     }

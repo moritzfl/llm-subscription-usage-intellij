@@ -4,6 +4,7 @@ import com.intellij.openapi.application.ApplicationManager
 import de.moritzf.quota.idea.common.QuotaSnapshotCache
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorLocation
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorSource
+import de.moritzf.quota.minimax.MiniMaxRegionPreference
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
@@ -23,16 +24,20 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var lastOpenCodeUpdate: Long = 0
     var lastOllamaUpdate: Long = 0
     var lastZaiUpdate: Long = 0
+    var lastMiniMaxUpdate: Long = 0
     var hideOpenAiFromQuotaPopup: Boolean = false
     var hideOpenCodeFromQuotaPopup: Boolean = false
     var hideOllamaFromQuotaPopup: Boolean = false
     var hideZaiFromQuotaPopup: Boolean = false
+    var hideMiniMaxFromQuotaPopup: Boolean = false
     var lastActiveSource: String? = null
     var openCodeWorkspaceId: String? = null
+    var minimaxRegionPreference: String = MiniMaxRegionPreference.AUTO.name
     var cachedOpenAiQuotaJson: String? = null
     var cachedOpenCodeQuotaJson: String? = null
     var cachedOllamaQuotaJson: String? = null
     var cachedZaiQuotaJson: String? = null
+    var cachedMiniMaxQuotaJson: String? = null
 
     override fun getState(): QuotaSettingsState = this
 
@@ -45,16 +50,20 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         lastOpenCodeUpdate = state.lastOpenCodeUpdate
         lastOllamaUpdate = state.lastOllamaUpdate
         lastZaiUpdate = state.lastZaiUpdate
+        lastMiniMaxUpdate = state.lastMiniMaxUpdate
         hideOpenAiFromQuotaPopup = state.hideOpenAiFromQuotaPopup
         hideOpenCodeFromQuotaPopup = state.hideOpenCodeFromQuotaPopup
         hideOllamaFromQuotaPopup = state.hideOllamaFromQuotaPopup
         hideZaiFromQuotaPopup = state.hideZaiFromQuotaPopup
+        hideMiniMaxFromQuotaPopup = state.hideMiniMaxFromQuotaPopup
         lastActiveSource = state.lastActiveSource
         openCodeWorkspaceId = state.openCodeWorkspaceId
+        minimaxRegionPreference = MiniMaxRegionPreference.fromStorageValue(state.minimaxRegionPreference).name
         cachedOpenAiQuotaJson = state.cachedOpenAiQuotaJson
         cachedOpenCodeQuotaJson = state.cachedOpenCodeQuotaJson
         cachedOllamaQuotaJson = state.cachedOllamaQuotaJson
         cachedZaiQuotaJson = state.cachedZaiQuotaJson
+        cachedMiniMaxQuotaJson = state.cachedMiniMaxQuotaJson
     }
 
     fun displayMode(): QuotaDisplayMode = QuotaDisplayMode.fromStorageValue(statusBarDisplayMode)
@@ -71,6 +80,8 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
 
     fun source(): QuotaIndicatorSource = QuotaIndicatorSource.fromStorageValue(indicatorSource)
 
+    fun miniMaxRegionPreference(): MiniMaxRegionPreference = MiniMaxRegionPreference.fromStorageValue(minimaxRegionPreference)
+
     fun setSource(source: QuotaIndicatorSource) {
         indicatorSource = source.name
     }
@@ -81,6 +92,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
             "opencode" -> lastOpenCodeUpdate = System.currentTimeMillis()
             "ollama" -> lastOllamaUpdate = System.currentTimeMillis()
             "zai" -> lastZaiUpdate = System.currentTimeMillis()
+            "minimax" -> lastMiniMaxUpdate = System.currentTimeMillis()
         }
     }
 
@@ -97,9 +109,13 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         val zaiUpdate = lastZaiUpdate.takeIf { it > 0 }
             ?: QuotaSnapshotCache.decodeZaiQuota(cachedZaiQuotaJson)?.fetchedAt?.toEpochMilliseconds()
             ?: 0
-        val maxUpdate = maxOf(openAiUpdate, openCodeUpdate, ollamaUpdate, zaiUpdate)
+        val minimaxUpdate = lastMiniMaxUpdate.takeIf { it > 0 }
+            ?: QuotaSnapshotCache.decodeMiniMaxQuota(cachedMiniMaxQuotaJson)?.fetchedAt?.toEpochMilliseconds()
+            ?: 0
+        val maxUpdate = maxOf(openAiUpdate, openCodeUpdate, ollamaUpdate, zaiUpdate, minimaxUpdate)
         if (maxUpdate == 0L) return QuotaIndicatorSource.OPEN_AI
         return when {
+            minimaxUpdate >= openAiUpdate && minimaxUpdate >= openCodeUpdate && minimaxUpdate >= ollamaUpdate && minimaxUpdate >= zaiUpdate -> QuotaIndicatorSource.MINIMAX
             zaiUpdate >= openAiUpdate && zaiUpdate >= openCodeUpdate && zaiUpdate >= ollamaUpdate -> QuotaIndicatorSource.ZAI
             ollamaUpdate >= openAiUpdate && ollamaUpdate >= openCodeUpdate -> QuotaIndicatorSource.OLLAMA
             openCodeUpdate >= openAiUpdate && openCodeUpdate >= ollamaUpdate -> QuotaIndicatorSource.OPEN_CODE

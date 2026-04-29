@@ -28,6 +28,7 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
             service.getLastOpenCodeQuota(), service.getLastOpenCodeError(),
             service.getLastOllamaQuota(), service.getLastOllamaError(),
             service.getLastZaiQuota(), service.getLastZaiError(),
+            service.getLastMiniMaxQuota(), service.getLastMiniMaxError(),
             QuotaPopupLocation.ABOVE,
         )
     }
@@ -46,6 +47,9 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
                 updateWidget()
             }
             override fun onZaiQuotaUpdated(quota: de.moritzf.quota.zai.ZaiQuota?, error: String?) {
+                updateWidget()
+            }
+            override fun onMiniMaxQuotaUpdated(quota: de.moritzf.quota.minimax.MiniMaxQuota?, error: String?) {
                 updateWidget()
             }
         })

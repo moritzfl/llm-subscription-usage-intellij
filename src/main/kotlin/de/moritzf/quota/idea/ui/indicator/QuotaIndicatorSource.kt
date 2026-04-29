@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.ui.indicator
 
 enum class QuotaIndicatorSource(private val displayName: String) {
+    MINIMAX("MiniMax"),
     OPEN_AI("OpenAI"),
     OPEN_CODE("OpenCode"),
     OLLAMA("Ollama"),

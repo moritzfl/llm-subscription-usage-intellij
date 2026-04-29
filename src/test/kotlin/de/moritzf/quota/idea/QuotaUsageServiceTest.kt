@@ -234,7 +234,7 @@ class QuotaUsageServiceTest {
         return QuotaUsageService(
             providers = listOf(openAiProvider, openCodeProvider),
             settingsProvider = settingsProvider,
-            updatePublisher = { _, _, _, _, _, _, _, _ -> },
+            updatePublisher = { _, _, _, _, _, _, _, _, _, _ -> },
             scheduleOnInit = false,
         )
     }

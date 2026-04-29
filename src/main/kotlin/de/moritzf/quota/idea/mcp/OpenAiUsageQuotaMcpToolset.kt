@@ -85,6 +85,24 @@ class OpenAiUsageQuotaMcpToolset : McpToolset {
         return successResult(json)
     }
 
+    @McpTool(name = "minimax_usage_quota")
+    @McpDescription(description = "Returns the latest MiniMax usage quota response JSON.")
+    fun minimax_usage_quota(): McpToolCallResult {
+        val usageService = QuotaUsageService.getInstance()
+        usageService.refreshMiniMaxBlocking()
+
+        val error = usageService.getLastMiniMaxError()
+        if (!error.isNullOrBlank()) {
+            return errorResult(error)
+        }
+
+        val json = usageService.getLastMiniMaxResponseJson()
+        if (json.isNullOrBlank()) {
+            return errorResult("No MiniMax usage response available")
+        }
+        return successResult(json)
+    }
+
     private fun successResult(text: String): McpToolCallResult {
         return McpToolCallResult(arrayOf(McpToolCallResultContent.Text(text)), null, false)
     }

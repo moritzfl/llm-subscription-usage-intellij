@@ -13,6 +13,7 @@ import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.zai.ZaiQuota
+import de.moritzf.quota.minimax.MiniMaxQuota
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
@@ -28,12 +29,13 @@ class QuotaUsageService(
         OpenCodeQuotaProvider(),
         OllamaQuotaProvider(),
         ZaiQuotaProvider(),
+        MiniMaxQuotaProvider(),
     ),
     private val settingsProvider: () -> QuotaSettingsState? = {
         runCatching { QuotaSettingsState.getInstance() }.getOrNull()
     },
     private val scheduler: ScheduledExecutorService = AppExecutorUtil.getAppScheduledExecutorService(),
-    private val updatePublisher: (OpenAiCodexQuota?, String?, OpenCodeQuota?, String?, OllamaQuota?, String?, ZaiQuota?, String?) -> Unit = { quota, error, openCodeQuota, openCodeError, ollamaQuota, ollamaError, zaiQuota, zaiError ->
+    private val updatePublisher: (OpenAiCodexQuota?, String?, OpenCodeQuota?, String?, OllamaQuota?, String?, ZaiQuota?, String?, MiniMaxQuota?, String?) -> Unit = { quota, error, openCodeQuota, openCodeError, ollamaQuota, ollamaError, zaiQuota, zaiError, miniMaxQuota, miniMaxError ->
         ApplicationManager.getApplication().invokeLater {
             val publisher = ApplicationManager.getApplication().messageBus
                 .syncPublisher(QuotaUsageListener.TOPIC)
@@ -41,6 +43,7 @@ class QuotaUsageService(
             publisher.onOpenCodeQuotaUpdated(openCodeQuota, openCodeError)
             publisher.onOllamaQuotaUpdated(ollamaQuota, ollamaError)
             publisher.onZaiQuotaUpdated(zaiQuota, zaiError)
+            publisher.onMiniMaxQuotaUpdated(miniMaxQuota, miniMaxError)
             ActivityTracker.getInstance().inc()
         }
     },
@@ -50,10 +53,12 @@ class QuotaUsageService(
     private val refreshingOpenCode = AtomicBoolean(false)
     private val refreshingOllama = AtomicBoolean(false)
     private val refreshingZai = AtomicBoolean(false)
+    private val refreshingMiniMax = AtomicBoolean(false)
     private val openAiProvider = providers.filterIsInstance<OpenAiQuotaProvider>().firstOrNull()
     private val openCodeProvider = providers.filterIsInstance<OpenCodeQuotaProvider>().firstOrNull()
     private val ollamaProvider = providers.filterIsInstance<OllamaQuotaProvider>().firstOrNull()
     private val zaiProvider = providers.filterIsInstance<ZaiQuotaProvider>().firstOrNull()
+    private val miniMaxProvider = providers.filterIsInstance<MiniMaxQuotaProvider>().firstOrNull()
     private var scheduled: ScheduledFuture<*>? = null
 
     init {
@@ -87,6 +92,14 @@ class QuotaUsageService(
         return runCatching { JsonSupport.json.encodeToString(ZaiQuota.serializer(), quota) }.getOrNull()
     }
 
+    fun getLastMiniMaxQuota(): MiniMaxQuota? = miniMaxProvider?.getLastQuota()
+    fun getLastMiniMaxError(): String? = miniMaxProvider?.getLastError()
+    fun getLastMiniMaxResponseJson(): String? {
+        miniMaxProvider?.getLastRawJson()?.let { return it }
+        val quota = miniMaxProvider?.getLastQuota() ?: return null
+        return runCatching { JsonSupport.json.encodeToString(MiniMaxQuota.serializer(), quota) }.getOrNull()
+    }
+
     internal fun getEffectiveIndicatorData(): QuotaIndicatorData {
         val settings = settingsProvider()
         val source = when (settings?.source() ?: QuotaIndicatorSource.OPEN_AI) {
@@ -95,6 +108,7 @@ class QuotaUsageService(
             QuotaIndicatorSource.OPEN_CODE -> QuotaIndicatorSource.OPEN_CODE
             QuotaIndicatorSource.OLLAMA -> QuotaIndicatorSource.OLLAMA
             QuotaIndicatorSource.ZAI -> QuotaIndicatorSource.ZAI
+            QuotaIndicatorSource.MINIMAX -> QuotaIndicatorSource.MINIMAX
         }
 
         return when (source) {
@@ -102,6 +116,7 @@ class QuotaUsageService(
             QuotaIndicatorSource.OPEN_CODE -> QuotaIndicatorData.OpenCode(getLastOpenCodeQuota(), getLastOpenCodeError())
             QuotaIndicatorSource.OLLAMA -> QuotaIndicatorData.Ollama(getLastOllamaQuota(), getLastOllamaError())
             QuotaIndicatorSource.ZAI -> QuotaIndicatorData.Zai(getLastZaiQuota(), getLastZaiError())
+            QuotaIndicatorSource.MINIMAX -> QuotaIndicatorData.MiniMax(getLastMiniMaxQuota(), getLastMiniMaxError())
             QuotaIndicatorSource.LAST_USED -> QuotaIndicatorData.OpenAi(getLastQuota(), getLastError())
         }
     }
@@ -120,6 +135,10 @@ class QuotaUsageService(
 
     fun refreshZaiAsync() {
         AppExecutorUtil.getAppExecutorService().execute(::refreshZai)
+    }
+
+    fun refreshMiniMaxAsync() {
+        AppExecutorUtil.getAppExecutorService().execute(::refreshMiniMax)
     }
 
     fun refreshNowBlocking() {
@@ -142,11 +161,16 @@ class QuotaUsageService(
         refreshZai()
     }
 
+    fun refreshMiniMaxBlocking() {
+        refreshMiniMax()
+    }
+
     fun clearUsageData(error: String? = null) {
         clearCodexUsageData(error)
         clearOpenCodeUsageData()
         clearOllamaUsageData()
         clearZaiUsageData()
+        clearMiniMaxUsageData()
     }
 
     fun clearCodexUsageData(error: String? = null) {
@@ -173,6 +197,12 @@ class QuotaUsageService(
         publishUpdate()
     }
 
+    fun clearMiniMaxUsageData(error: String? = "MiniMax API key missing. Add a MiniMax API key in settings.") {
+        miniMaxProvider?.clearData(error)
+        settingsProvider()?.cachedMiniMaxQuotaJson = null
+        publishUpdate()
+    }
+
     fun resetOpenCodeWorkspaceCache() {
         openCodeProvider?.resetWorkspaceCache()
     }
@@ -188,6 +218,7 @@ class QuotaUsageService(
         openCodeProvider?.hydrateFromCache(settings)
         ollamaProvider?.hydrateFromCache(settings)
         zaiProvider?.hydrateFromCache(settings)
+        miniMaxProvider?.hydrateFromCache(settings)
     }
 
     private fun refreshNow() {
@@ -195,6 +226,7 @@ class QuotaUsageService(
         refreshOpenCode()
         refreshOllama()
         refreshZai()
+        refreshMiniMax()
     }
 
     private fun refreshOpenAi() {
@@ -211,6 +243,10 @@ class QuotaUsageService(
 
     private fun refreshZai() {
         refreshProvider(zaiProvider, refreshingZai)
+    }
+
+    private fun refreshMiniMax() {
+        refreshProvider(miniMaxProvider, refreshingMiniMax)
     }
 
     private fun refreshProvider(provider: QuotaProvider?, refreshing: AtomicBoolean) {
@@ -249,6 +285,9 @@ class QuotaUsageService(
             "zai" -> settings?.cachedZaiQuotaJson
                 ?.let(QuotaSnapshotCache::decodeZaiQuota)
                 ?.let(::extractZaiFraction)
+            "minimax" -> settings?.cachedMiniMaxQuotaJson
+                ?.let(QuotaSnapshotCache::decodeMiniMaxQuota)
+                ?.let(::extractMiniMaxFraction)
             else -> null
         }
     }
@@ -259,6 +298,7 @@ class QuotaUsageService(
             is OpenCodeQuotaProvider -> provider.getLastQuota()?.let(::extractOpenCodeFraction)
             is OllamaQuotaProvider -> provider.getLastQuota()?.let(::extractOllamaFraction)
             is ZaiQuotaProvider -> provider.getLastQuota()?.let(::extractZaiFraction)
+            is MiniMaxQuotaProvider -> provider.getLastQuota()?.let(::extractMiniMaxFraction)
             else -> null
         }
     }
@@ -294,6 +334,10 @@ class QuotaUsageService(
         return windows.maxOrNull()?.let { it / 100.0 }
     }
 
+    private fun extractMiniMaxFraction(quota: MiniMaxQuota): Double? {
+        return quota.sessionUsage?.usagePercent?.let { it / 100.0 }
+    }
+
     private fun resolveLastActiveSource(settings: QuotaSettingsState?): QuotaIndicatorSource {
         val active = settings?.lastActiveSource
         if (!active.isNullOrBlank()) {
@@ -307,7 +351,8 @@ class QuotaUsageService(
             getLastQuota(), getLastError(),
             getLastOpenCodeQuota(), getLastOpenCodeError(),
             getLastOllamaQuota(), getLastOllamaError(),
-            getLastZaiQuota(), getLastZaiError()
+            getLastZaiQuota(), getLastZaiError(),
+            getLastMiniMaxQuota(), getLastMiniMaxError()
         )
     }
 
