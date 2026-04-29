@@ -233,7 +233,6 @@ class QuotaSettingsConfigurable : Configurable {
 
     private fun rebuildServiceTabs(tabs: JBTabbedPane) {
         tabs.removeAll()
-        val order = providerReorderPanel?.getOrder() ?: QuotaSettingsState.getInstance().providerOrderList()
         val tabMap = mapOf(
             "kimi" to ("Kimi" to kimiPanel),
             "minimax" to ("MiniMax" to miniMaxPanel),
@@ -242,8 +241,7 @@ class QuotaSettingsConfigurable : Configurable {
             "opencode" to ("OpenCode Go" to openCodePanel),
             "zai" to ("Z.ai" to zaiPanel),
         )
-        order.forEach { id ->
-            val (title, panel) = tabMap[id] ?: return@forEach
+        tabMap.values.sortedBy { it.first }.forEach { (title, panel) ->
             tabs.addTab(title, panel)
         }
     }
