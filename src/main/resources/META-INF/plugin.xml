@@ -4,7 +4,7 @@
     <vendor>Moritzf</vendor>
 
     <description>
-        Tracks LLM subscription usage quotas in the IDE status bar and popup, including OpenAI, Codex, Code Review, OpenCode Go, and Ollama Cloud limits.
+        Tracks LLM subscription usage quotas in the IDE status bar and popup, including OpenAI, OpenCode Go, Ollama Cloud, Z.ai, MiniMax, and Kimi limits.
     </description>
 
     <depends>com.intellij.modules.platform</depends>
