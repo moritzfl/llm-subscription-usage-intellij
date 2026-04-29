@@ -217,12 +217,14 @@ private class QuotaPopupContentPanel(
         add(ActionLink("Open Settings") { openSettings(project, component) { onClosePopup() } }.apply { border = JBUI.Borders.emptyTop(3) })
     }
 
-    private val kimiSection = KimiPopupSection()
-    private val miniMaxSection = MiniMaxPopupSection()
-    private val openAiSection = OpenAiPopupSection()
-    private val openCodeSection = OpenCodePopupSection()
-    private val ollamaSection = OllamaPopupSection()
-    private val zaiSection = ZaiPopupSection()
+    private val sections = linkedMapOf(
+        "kimi" to KimiPopupSection(),
+        "minimax" to MiniMaxPopupSection(),
+        "openai" to OpenAiPopupSection(),
+        "opencode" to OpenCodePopupSection(),
+        "ollama" to OllamaPopupSection(),
+        "zai" to ZaiPopupSection(),
+    )
 
     private val updatedAtSeparator = createSeparatedBlock()
     private val updatedAtRow = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(3), 0)).apply { isOpaque = false }
@@ -233,12 +235,13 @@ private class QuotaPopupContentPanel(
         add(header)
         add(notLoggedInPanel)
         add(allHiddenPanel)
-        add(kimiSection)
-        add(miniMaxSection)
-        add(openAiSection)
-        add(openCodeSection)
-        add(ollamaSection)
-        add(zaiSection)
+        val order = QuotaSettingsState.getInstance().providerOrderList()
+        order.forEach { id ->
+            sections[id]?.let { add(it) }
+        }
+        sections.keys.filter { it !in order }.forEach { id ->
+            sections[id]?.let { add(it) }
+        }
         add(updatedAtSeparator)
         add(updatedAtRow)
     }
@@ -292,21 +295,21 @@ private class QuotaPopupContentPanel(
         notLoggedInPanel.isVisible = notLoggedIn
         allHiddenPanel.isVisible = !notLoggedIn && allHidden
 
-        kimiSection.update(state.kimiQuota, state.kimiError, showKimiSection)
-        miniMaxSection.update(state.miniMaxQuota, state.miniMaxError, showMiniMaxSection)
-        openAiSection.update(state.quota, state.error, showCodexSection, hasReviewData)
-        openCodeSection.update(state.openCodeQuota, state.openCodeError, showOpenCodeSection)
-        ollamaSection.update(state.ollamaQuota, state.ollamaError, showOllamaSection)
-        zaiSection.update(state.zaiQuota, state.zaiError, showZaiSection)
+        (sections["kimi"] as? KimiPopupSection)?.update(state.kimiQuota, state.kimiError, showKimiSection)
+        (sections["minimax"] as? MiniMaxPopupSection)?.update(state.miniMaxQuota, state.miniMaxError, showMiniMaxSection)
+        (sections["openai"] as? OpenAiPopupSection)?.update(state.quota, state.error, showCodexSection, hasReviewData)
+        (sections["opencode"] as? OpenCodePopupSection)?.update(state.openCodeQuota, state.openCodeError, showOpenCodeSection)
+        (sections["ollama"] as? OllamaPopupSection)?.update(state.ollamaQuota, state.ollamaError, showOllamaSection)
+        (sections["zai"] as? ZaiPopupSection)?.update(state.zaiQuota, state.zaiError, showZaiSection)
 
         val showAnySection = !notLoggedIn && !allHidden
         val updatedAtItems = if (showAnySection) buildUpdatedAtItems(
+            showKimiSection, state.kimiQuota,
+            showMiniMaxSection, state.miniMaxQuota,
             showCodexSection, state.quota,
             showOpenCodeSection, state.openCodeQuota,
             showOllamaSection, state.ollamaQuota,
             showZaiSection, state.zaiQuota,
-            showMiniMaxSection, state.miniMaxQuota,
-            showKimiSection, state.kimiQuota,
         ) else emptyList()
 
         updatedAtSeparator.isVisible = updatedAtItems.isNotEmpty()
@@ -330,6 +333,10 @@ private class QuotaPopupContentPanel(
     }
 
     private fun buildUpdatedAtItems(
+        showKimiSection: Boolean,
+        kimiQuota: KimiQuota?,
+        showMiniMaxSection: Boolean,
+        miniMaxQuota: MiniMaxQuota?,
         showCodexSection: Boolean,
         currentQuota: OpenAiCodexQuota?,
         showOpenCodeSection: Boolean,
@@ -338,29 +345,19 @@ private class QuotaPopupContentPanel(
         ollamaQuota: OllamaQuota?,
         showZaiSection: Boolean,
         zaiQuota: ZaiQuota?,
-        showMiniMaxSection: Boolean,
-        miniMaxQuota: MiniMaxQuota?,
-        showKimiSection: Boolean,
-        kimiQuota: KimiQuota?,
     ): List<UpdatedAtItem> {
-        val rawItems = mutableListOf<UpdatedAtRawItem>()
-        if (showKimiSection) {
-            rawItems.add(UpdatedAtRawItem(UpdatedAtIcon("Kimi", QuotaIcons.KIMI), kimiQuota?.fetchedAt))
-        }
-        if (showMiniMaxSection) {
-            rawItems.add(UpdatedAtRawItem(UpdatedAtIcon("MiniMax", QuotaIcons.MINIMAX), miniMaxQuota?.fetchedAt))
-        }
-        if (showCodexSection) {
-            rawItems.add(UpdatedAtRawItem(UpdatedAtIcon("Codex", QuotaIcons.OPENAI), currentQuota?.fetchedAt))
-        }
-        if (showOpenCodeSection) {
-            rawItems.add(UpdatedAtRawItem(UpdatedAtIcon("OpenCode", QuotaIcons.OPENCODE), openCodeQuota?.fetchedAt))
-        }
-        if (showOllamaSection) {
-            rawItems.add(UpdatedAtRawItem(UpdatedAtIcon("Ollama", QuotaIcons.OLLAMA), ollamaQuota?.fetchedAt))
-        }
-        if (showZaiSection) {
-            rawItems.add(UpdatedAtRawItem(UpdatedAtIcon("Z.ai", QuotaIcons.ZAI), zaiQuota?.fetchedAt))
+        val order = QuotaSettingsState.getInstance().providerOrderList()
+        val providerMap = mapOf(
+            "kimi" to Pair(showKimiSection, UpdatedAtRawItem(UpdatedAtIcon("Kimi", QuotaIcons.KIMI), kimiQuota?.fetchedAt)),
+            "minimax" to Pair(showMiniMaxSection, UpdatedAtRawItem(UpdatedAtIcon("MiniMax", QuotaIcons.MINIMAX), miniMaxQuota?.fetchedAt)),
+            "openai" to Pair(showCodexSection, UpdatedAtRawItem(UpdatedAtIcon("Codex", QuotaIcons.OPENAI), currentQuota?.fetchedAt)),
+            "opencode" to Pair(showOpenCodeSection, UpdatedAtRawItem(UpdatedAtIcon("OpenCode", QuotaIcons.OPENCODE), openCodeQuota?.fetchedAt)),
+            "ollama" to Pair(showOllamaSection, UpdatedAtRawItem(UpdatedAtIcon("Ollama", QuotaIcons.OLLAMA), ollamaQuota?.fetchedAt)),
+            "zai" to Pair(showZaiSection, UpdatedAtRawItem(UpdatedAtIcon("Z.ai", QuotaIcons.ZAI), zaiQuota?.fetchedAt)),
+        )
+        val rawItems = order.mapNotNull { id ->
+            val (show, item) = providerMap[id] ?: return@mapNotNull null
+            if (show) item else null
         }
         if (rawItems.isEmpty()) {
             return emptyList()

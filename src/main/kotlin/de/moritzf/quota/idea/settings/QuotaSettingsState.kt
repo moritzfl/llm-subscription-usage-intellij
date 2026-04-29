@@ -41,6 +41,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var cachedZaiQuotaJson: String? = null
     var cachedMiniMaxQuotaJson: String? = null
     var cachedKimiQuotaJson: String? = null
+    var providerOrder: String = DEFAULT_PROVIDER_ORDER
 
     override fun getState(): QuotaSettingsState = this
 
@@ -70,7 +71,10 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         cachedZaiQuotaJson = state.cachedZaiQuotaJson
         cachedMiniMaxQuotaJson = state.cachedMiniMaxQuotaJson
         cachedKimiQuotaJson = state.cachedKimiQuotaJson
+        providerOrder = state.providerOrder.ifBlank { DEFAULT_PROVIDER_ORDER }
     }
+
+    fun providerOrderList(): List<String> = providerOrder.split(",").map { it.trim() }.filter { it.isNotBlank() }
 
     fun displayMode(): QuotaDisplayMode = QuotaDisplayMode.fromStorageValue(statusBarDisplayMode)
 
@@ -135,6 +139,8 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     }
 
     companion object {
+        const val DEFAULT_PROVIDER_ORDER = "kimi,minimax,openai,opencode,ollama,zai"
+
         @JvmStatic
         fun getInstance(): QuotaSettingsState {
             return ApplicationManager.getApplication().getService(QuotaSettingsState::class.java)

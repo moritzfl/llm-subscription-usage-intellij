@@ -15,6 +15,7 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.common.QuotaUsageListener
 import de.moritzf.quota.idea.ui.indicator.*
+import de.moritzf.quota.idea.ui.settings.ProviderReorderPanel
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.opencode.OpenCodeQuota
@@ -48,6 +49,7 @@ class QuotaSettingsConfigurable : Configurable {
     private var displayModeComboBox: ComboBox<QuotaDisplayMode>? = null
     private var indicatorSourceComboBox: ComboBox<QuotaIndicatorSource>? = null
     private var displayModePreview: DisplayModePreviewComponent? = null
+    private var providerReorderPanel: ProviderReorderPanel? = null
 
     override fun getDisplayName(): String = "LLM Subscription Usage"
 
@@ -95,19 +97,21 @@ class QuotaSettingsConfigurable : Configurable {
 
         panel = buildIndicatorConfigPanel()
 
-        val serviceTabs = JBTabbedPane().apply {
-            addTab("Kimi", kimiPanel)
-            addTab("MiniMax", miniMaxPanel)
-            addTab("Ollama Cloud", ollamaPanel)
-            addTab("OpenAI Codex", openAiPanel)
-            addTab("OpenCode Go", openCodePanel)
-            addTab("Z.ai", zaiPanel)
-        }
+        providerReorderPanel = ProviderReorderPanel(
+            QuotaSettingsState.getInstance().providerOrderList(),
+        ) { }
+
+        val serviceTabs = JBTabbedPane()
+        rebuildServiceTabs(serviceTabs)
 
         rootComponent = BorderLayoutPanel().apply {
             isOpaque = false
             addToTop(panel!!)
-            addToCenter(serviceTabs)
+            addToCenter(BorderLayoutPanel().apply {
+                isOpaque = false
+                addToTop(providerReorderPanel!!)
+                addToCenter(serviceTabs)
+            })
         }
 
         connection = ApplicationManager.getApplication().messageBus.connect()
@@ -196,6 +200,7 @@ class QuotaSettingsConfigurable : Configurable {
         displayModeComboBox = null
         indicatorSourceComboBox = null
         displayModePreview = null
+        providerReorderPanel = null
         updatingDisplayModeChoices = false
     }
 
@@ -223,6 +228,23 @@ class QuotaSettingsConfigurable : Configurable {
         return ComboBox(items).apply {
             preferredSize = Dimension(JBUI.scale(220), preferredSize.height)
             minimumSize = preferredSize
+        }
+    }
+
+    private fun rebuildServiceTabs(tabs: JBTabbedPane) {
+        tabs.removeAll()
+        val order = providerReorderPanel?.getOrder() ?: QuotaSettingsState.getInstance().providerOrderList()
+        val tabMap = mapOf(
+            "kimi" to ("Kimi" to kimiPanel),
+            "minimax" to ("MiniMax" to miniMaxPanel),
+            "ollama" to ("Ollama Cloud" to ollamaPanel),
+            "openai" to ("OpenAI Codex" to openAiPanel),
+            "opencode" to ("OpenCode Go" to openCodePanel),
+            "zai" to ("Z.ai" to zaiPanel),
+        )
+        order.forEach { id ->
+            val (title, panel) = tabMap[id] ?: return@forEach
+            tabs.addTab(title, panel)
         }
     }
 
@@ -257,6 +279,7 @@ class QuotaSettingsConfigurable : Configurable {
                 val miniMaxPopupVisibilityChanged = miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected != state.hideMiniMaxFromQuotaPopup
                 val kimiPopupVisibilityChanged = kimiPanel.kimiHideFromPopupCheckBox.isSelected != state.hideKimiFromQuotaPopup
                 val miniMaxRegionChanged = miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference()
+                val providerOrderChanged = providerReorderPanel?.getOrder()?.joinToString(",") != state.providerOrder
                 if (locationChanged) {
                     state.setLocation(selectedLocation)
                 }
@@ -273,7 +296,10 @@ class QuotaSettingsConfigurable : Configurable {
                 state.hideMiniMaxFromQuotaPopup = miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected
                 state.hideKimiFromQuotaPopup = kimiPanel.kimiHideFromPopupCheckBox.isSelected
                 state.minimaxRegionPreference = (miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference ?: MiniMaxRegionPreference.AUTO).name
-                if (locationChanged || displayModeChanged || sourceChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged || ollamaPopupVisibilityChanged || zaiPopupVisibilityChanged || miniMaxPopupVisibilityChanged || kimiPopupVisibilityChanged || miniMaxRegionChanged) {
+                if (providerOrderChanged) {
+                    state.providerOrder = providerReorderPanel?.getOrder()?.joinToString(",") ?: state.providerOrder
+                }
+                if (locationChanged || displayModeChanged || sourceChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged || ollamaPopupVisibilityChanged || zaiPopupVisibilityChanged || miniMaxPopupVisibilityChanged || kimiPopupVisibilityChanged || miniMaxRegionChanged || providerOrderChanged) {
                     ApplicationManager.getApplication().messageBus
                         .syncPublisher(QuotaSettingsListener.TOPIC)
                         .onSettingsChanged()
@@ -293,6 +319,7 @@ class QuotaSettingsConfigurable : Configurable {
                 miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideMiniMaxFromQuotaPopup
                 kimiPanel.kimiHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideKimiFromQuotaPopup
                 miniMaxPanel.regionComboBox.selectedItem = QuotaSettingsState.getInstance().miniMaxRegionPreference()
+                providerReorderPanel?.setOrder(QuotaSettingsState.getInstance().providerOrderList())
                 openAiPanel.updateAuthUi()
                 openAiPanel.updateAccountFields()
                 openAiPanel.updateResponseArea()
@@ -322,7 +349,8 @@ class QuotaSettingsConfigurable : Configurable {
                     zaiPanel.zaiHideFromPopupCheckBox.isSelected != state.hideZaiFromQuotaPopup ||
                     miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected != state.hideMiniMaxFromQuotaPopup ||
                     kimiPanel.kimiHideFromPopupCheckBox.isSelected != state.hideKimiFromQuotaPopup ||
-                    miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference()
+                    miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference() ||
+                    providerReorderPanel?.getOrder()?.joinToString(",") != state.providerOrder
             }
         }.apply {
             preferredFocusedComponent = locationComboBox
