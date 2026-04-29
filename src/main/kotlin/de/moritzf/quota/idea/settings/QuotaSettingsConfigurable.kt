@@ -83,9 +83,9 @@ class QuotaSettingsConfigurable : Configurable {
         panel = buildIndicatorConfigPanel()
 
         val serviceTabs = JBTabbedPane().apply {
+            addTab("Ollama Cloud", ollamaPanel)
             addTab("OpenAI Codex", openAiPanel)
             addTab("OpenCode Go", openCodePanel)
-            addTab("Ollama Cloud", ollamaPanel)
             addTab("Z.ai", zaiPanel)
         }
 
