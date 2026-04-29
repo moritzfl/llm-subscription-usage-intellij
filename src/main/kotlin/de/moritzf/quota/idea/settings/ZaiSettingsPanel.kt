@@ -43,9 +43,6 @@ internal class ZaiSettingsPanel(
                 cell(zaiHideFromPopupCheckBox)
             }
             row {
-                label("Authentication")
-            }
-            row {
                 cell(zaiStatusLabel)
             }
             row("API key:") {
@@ -68,9 +65,6 @@ internal class ZaiSettingsPanel(
                 }
             }
             separator()
-            row {
-                label("Create an API key in the Z.ai console and store it here in IntelliJ Password Safe.")
-            }
         }
 
         addToTop(configPanel)

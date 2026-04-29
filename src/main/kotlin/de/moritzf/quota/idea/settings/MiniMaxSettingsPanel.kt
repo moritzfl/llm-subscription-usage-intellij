@@ -41,7 +41,6 @@ internal class MiniMaxSettingsPanel(
                 button("Clear") { clearKeysNow() }
             }
             separator()
-            row { label("Store your MiniMax API key in IntelliJ Password Safe. Region controls which endpoint is used.") }
         })
         addToCenter(BorderLayoutPanel().apply {
             addToTop(JBLabel("Last quota response:"))

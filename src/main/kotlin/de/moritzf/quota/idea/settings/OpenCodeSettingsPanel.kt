@@ -63,10 +63,10 @@ internal class OpenCodeSettingsPanel(
                 cell(openCodeHideFromPopupCheckBox)
             }
             row {
-                label("Session cookie")
+                cell(openCodeStatusLabel)
             }
             row {
-                cell(openCodeStatusLabel)
+                label("Extract from opencode.ai → DevTools → Storage → Cookies → \"auth\" cookie value. Valid for 1 year.")
             }
             row("Session cookie:") {
                 cell(openCodeCookieField)
@@ -106,9 +106,6 @@ internal class OpenCodeSettingsPanel(
                     .align(AlignX.FILL)
             }
             separator()
-            row {
-                label("Extract from opencode.ai → DevTools → Storage → Cookies → \"auth\" cookie value. Valid for 1 year.")
-            }
         }
 
         addToTop(openCodeConfigPanel)

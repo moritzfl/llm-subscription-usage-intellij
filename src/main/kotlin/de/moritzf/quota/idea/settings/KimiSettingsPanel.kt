@@ -116,7 +116,6 @@ internal class KimiSettingsPanel(
                 cell(logoutButton)
             }
             separator()
-            row { label("Kimi login opens a browser and stores OAuth tokens securely in IntelliJ Password Safe.") }
         })
         addToCenter(BorderLayoutPanel().apply {
             addToTop(JBLabel("Last quota response:"))

@@ -30,7 +30,6 @@ import javax.swing.SwingConstants
  */
 internal class OpenAiSettingsPanel : BorderLayoutPanel() {
     val openAiHideFromPopupCheckBox = com.intellij.ui.components.JBCheckBox("Hide from quota popup")
-    private val loginHeaderLabel = JBLabel()
     private val statusLabel = JBLabel().apply { isVisible = false }
     private val loginButton = createActionLink("Log In")
     private val cancelLoginButton = createActionLink("Cancel Login")
@@ -119,7 +118,6 @@ internal class OpenAiSettingsPanel : BorderLayoutPanel() {
             row {
                 cell(openAiHideFromPopupCheckBox)
             }
-            row { cell(loginHeaderLabel) }
             row {
                 cell(statusLabel).gap(RightGap.SMALL)
                 cell(copyUrlButton)
@@ -140,6 +138,7 @@ internal class OpenAiSettingsPanel : BorderLayoutPanel() {
                     .resizableColumn()
                     .align(AlignX.FILL)
             }
+            separator()
         }
 
         addToTop(codexConfigPanel)
@@ -156,7 +155,6 @@ internal class OpenAiSettingsPanel : BorderLayoutPanel() {
         val loggedIn = authService.isLoggedIn()
         val inProgress = authService.isLoginInProgress()
         val uiState = QuotaSettingsAuthUiState.create(loggedIn, inProgress, authStatusMessage)
-        loginHeaderLabel.text = uiState.headerText
         loginButton.isEnabled = uiState.loginEnabled
         cancelLoginButton.isEnabled = uiState.cancelEnabled
         logoutButton.isEnabled = uiState.logoutEnabled

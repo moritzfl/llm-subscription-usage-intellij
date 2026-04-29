@@ -47,10 +47,10 @@ internal class OllamaSettingsPanel(
                 cell(ollamaHideFromPopupCheckBox)
             }
             row {
-                label("Session cookie")
+                cell(ollamaStatusLabel)
             }
             row {
-                cell(ollamaStatusLabel)
+                label("Extract from ollama.com → DevTools → Storage → Cookies. Paste __Secure-session (required) and cf_clearance (optional).")
             }
             row("Session cookie (__Secure-session):") {
                 cell(sessionCookieField)
@@ -84,9 +84,6 @@ internal class OllamaSettingsPanel(
                 }
             }
             separator()
-            row {
-                label("Extract from ollama.com → DevTools → Storage → Cookies. Paste __Secure-session (required) and cf_clearance (optional).")
-            }
         }
 
         addToTop(ollamaConfigPanel)
