@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-04-30
+- Fixed MCP tools for OpenCode and Ollama to always return properly serialized JSON instead of raw response data
+
 ## [0.10.0] - 2026-04-29
 - Added support for **Z.ai**, **MiniMax**, and **Kimi** usage quotas
 - Quota popup provider order is now customizable via drag-and-drop in settings
