@@ -331,3 +331,36 @@ internal fun createCompactSeparator(): JComponent {
     val separatorColor = JBUI.CurrentTheme.Popup.separatorColor()
     return SeparatorComponent(1, 0, separatorColor, separatorColor)
 }
+
+/**
+ * Reusable panel for a single quota window block (title, info, progress bar).
+ * Creates its child components once and updates them in-place to avoid popup flicker.
+ */
+internal class WindowBlockPanel(topInset: Int = 3) : JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)) {
+    private val titleLabel = createWindowTitleLabel("")
+    private val infoLabel = JBLabel("").apply { border = JBUI.Borders.emptyTop(1) }
+    private val progressBar = createUsageProgressBar(0).apply { border = JBUI.Borders.emptyTop(1) }
+
+    init {
+        isOpaque = false
+        border = JBUI.Borders.emptyTop(topInset)
+        add(titleLabel)
+        add(infoLabel)
+        add(progressBar)
+    }
+
+    fun update(title: String, info: String, percent: Int) {
+        titleLabel.text = title
+        infoLabel.text = info
+        progressBar.value = percent
+        isVisible = true
+    }
+
+    fun showLoading(title: String) {
+        update("$title limit", "Loading usage...", 0)
+    }
+
+    fun clear() {
+        isVisible = false
+    }
+}

@@ -1,28 +1,67 @@
 package de.moritzf.quota.idea.ui.popup
 
+import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
+import de.moritzf.quota.idea.ui.indicator.clampPercent
 import de.moritzf.quota.minimax.MiniMaxQuota
-import javax.swing.JComponent
+import kotlin.math.roundToInt
+import de.moritzf.quota.minimax.MiniMaxUsageWindow
+import com.intellij.openapi.ui.VerticalFlowLayout
+import com.intellij.util.ui.JBUI
+import javax.swing.JPanel
 
-internal fun buildMiniMaxPopupContent(
-    quota: MiniMaxQuota?,
-    error: String?,
-    showSection: Boolean,
-): List<JComponent> {
-    if (!showSection) return emptyList()
-    val components = mutableListOf<JComponent>()
-    components.add(createSeparatedBlock())
-    when {
-        error != null -> components.add(withVerticalInsets(createWarningLabel("MiniMax error: $error"), top = 1))
-        quota == null -> {
-            components.add(withVerticalInsets(createSectionTitleLabel("MiniMax", QuotaIcons.MINIMAX), top = 0))
-            components.add(createLoadingWindowBlock("Session", top = 3))
-        }
-        else -> {
-            val label = quota.plan.ifBlank { "MiniMax Coding Plan (${quota.region})" }
-            components.add(withVerticalInsets(createSectionTitleLabel(label, QuotaIcons.MINIMAX), top = 0))
-            quota.sessionUsage?.let { components.add(createMiniMaxWindowBlock(it, "Session", top = 3)) }
+internal class MiniMaxPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)) {
+    private val separator = createSeparatedBlock()
+    private val errorLabel = createWarningLabel("").apply { border = JBUI.Borders.emptyTop(1) }
+    private val titleLabel = createSectionTitleLabel("MiniMax", QuotaIcons.MINIMAX).apply { border = JBUI.Borders.emptyTop(0) }
+    private val sessionBlock = WindowBlockPanel(3)
+
+    init {
+        isOpaque = false
+        add(separator)
+        add(errorLabel)
+        add(titleLabel)
+        add(sessionBlock)
+        hideAll()
+    }
+
+    fun update(quota: MiniMaxQuota?, error: String?, visible: Boolean) {
+        isVisible = visible
+        if (!visible) return
+
+        when {
+            error != null -> {
+                errorLabel.isVisible = true
+                errorLabel.text = "MiniMax error: $error"
+                titleLabel.isVisible = false
+                sessionBlock.isVisible = false
+            }
+            quota == null -> {
+                hideAll()
+                titleLabel.isVisible = true
+                titleLabel.text = "MiniMax"
+                sessionBlock.showLoading("Session")
+            }
+            else -> {
+                errorLabel.isVisible = false
+                titleLabel.isVisible = true
+                titleLabel.text = quota.plan.ifBlank { "MiniMax Coding Plan (${quota.region})" }
+                quota.sessionUsage?.let { sessionBlock.updateMiniMax(it, "Session") } ?: sessionBlock.clear()
+            }
         }
     }
-    return components
+
+    private fun hideAll() {
+        errorLabel.isVisible = false
+        titleLabel.isVisible = false
+        sessionBlock.isVisible = false
+    }
+
+    private fun WindowBlockPanel.updateMiniMax(window: MiniMaxUsageWindow, label: String) {
+        val percent = clampPercent(window.usagePercent.roundToInt())
+        val resetText = QuotaUiUtil.formatReset(window.resetsAt)
+        var info = "${window.used}/${window.limit} prompts used"
+        if (resetText != null) info += " - $resetText"
+        update("$label limit", info, percent)
+    }
 }

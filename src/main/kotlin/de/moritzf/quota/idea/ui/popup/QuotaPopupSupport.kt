@@ -5,29 +5,36 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.awt.RelativePoint
+import com.intellij.ui.components.ActionLink
+import com.intellij.ui.components.JBLabel
 import com.intellij.util.messages.MessageBusConnection
 import com.intellij.util.ui.JBUI
+import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaUsageListener
 import de.moritzf.quota.idea.common.QuotaUsageService
+import de.moritzf.quota.idea.kimi.KimiCredentialsStore
+import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
 import de.moritzf.quota.idea.ollama.OllamaSessionCookieStore
 import de.moritzf.quota.idea.opencode.OpenCodeSessionCookieStore
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
-import de.moritzf.quota.openai.OpenAiCodexQuota
-import de.moritzf.quota.opencode.OpenCodeQuota
-import de.moritzf.quota.ollama.OllamaQuota
-import de.moritzf.quota.zai.ZaiQuota
-import de.moritzf.quota.minimax.MiniMaxQuota
-import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
 import de.moritzf.quota.kimi.KimiQuota
-import de.moritzf.quota.idea.kimi.KimiCredentialsStore
+import de.moritzf.quota.minimax.MiniMaxQuota
+import de.moritzf.quota.ollama.OllamaQuota
+import de.moritzf.quota.opencode.OpenCodeQuota
+import de.moritzf.quota.openai.OpenAiCodexQuota
+import de.moritzf.quota.zai.ZaiQuota
 import kotlinx.datetime.Instant
 import java.awt.Component
+import java.awt.Dimension
+import java.awt.FlowLayout
 import java.awt.Point
 import javax.swing.JComponent
+import javax.swing.JPanel
+import com.intellij.openapi.ui.VerticalFlowLayout
 
 internal enum class QuotaPopupLocation {
     ABOVE,
@@ -58,11 +65,12 @@ internal object QuotaPopupSupport {
 
         QuotaUsageService.getInstance().refreshNowAsync()
         var popup: JBPopup? = null
-        val content = RefreshablePopupPanel<QuotaPopupContentState> { state ->
-            buildPopupContent(project, component, state.quota, state.error, state.openCodeQuota, state.openCodeError, state.ollamaQuota, state.ollamaError, state.zaiQuota, state.zaiError, state.miniMaxQuota, state.miniMaxError, state.kimiQuota, state.kimiError) { popup?.cancel() }
-        }.apply {
-            refresh(QuotaPopupContentState(quota, error, openCodeQuota, openCodeError, ollamaQuota, ollamaError, zaiQuota, zaiError, miniMaxQuota, miniMaxError, kimiQuota, kimiError))
+
+        val contentPanel = QuotaPopupContentPanel(project, component) { popup?.cancel() }
+        val content = RefreshablePopupPanel<QuotaPopupContentState>(contentPanel) { state ->
+            contentPanel.update(state)
         }
+
         popup = JBPopupFactory.getInstance()
             .createComponentPopupBuilder(content, content)
             .setRequestFocus(true)
@@ -73,18 +81,10 @@ internal object QuotaPopupSupport {
 
         val currentPopup = popup
         val popupConnection: MessageBusConnection = ApplicationManager.getApplication().messageBus.connect(currentPopup)
-        var latestQuota = quota
-        var latestError = error
-        var latestOpenCodeQuota = openCodeQuota
-        var latestOpenCodeError = openCodeError
-        var latestOllamaQuota = ollamaQuota
-        var latestOllamaError = ollamaError
-        var latestZaiQuota = zaiQuota
-        var latestZaiError = zaiError
-        var latestMiniMaxQuota = miniMaxQuota
-        var latestMiniMaxError = miniMaxError
-        var latestKimiQuota = kimiQuota
-        var latestKimiError = kimiError
+        var latestState = QuotaPopupContentState(
+            quota, error, openCodeQuota, openCodeError, ollamaQuota, ollamaError,
+            zaiQuota, zaiError, miniMaxQuota, miniMaxError, kimiQuota, kimiError,
+        )
         var refreshScheduled = false
         fun scheduleRefresh() {
             if (refreshScheduled) {
@@ -93,45 +93,42 @@ internal object QuotaPopupSupport {
             refreshScheduled = true
             ApplicationManager.getApplication().invokeLater {
                 refreshScheduled = false
-                refreshPopup(currentPopup, content, component, location, latestQuota, latestError, latestOpenCodeQuota, latestOpenCodeError, latestOllamaQuota, latestOllamaError, latestZaiQuota, latestZaiError, latestMiniMaxQuota, latestMiniMaxError, latestKimiQuota, latestKimiError)
+                refreshPopup(currentPopup, content, component, location, latestState)
             }
         }
         popupConnection.subscribe(QuotaUsageListener.TOPIC, object : QuotaUsageListener {
             override fun onQuotaUpdated(quota: OpenAiCodexQuota?, error: String?) {
-                latestQuota = quota
-                latestError = error
+                latestState = latestState.copy(quota = quota, error = error)
                 scheduleRefresh()
             }
 
             override fun onOpenCodeQuotaUpdated(quota: OpenCodeQuota?, error: String?) {
-                latestOpenCodeQuota = quota
-                latestOpenCodeError = error
+                latestState = latestState.copy(openCodeQuota = quota, openCodeError = error)
                 scheduleRefresh()
             }
 
             override fun onOllamaQuotaUpdated(quota: OllamaQuota?, error: String?) {
-                latestOllamaQuota = quota
-                latestOllamaError = error
+                latestState = latestState.copy(ollamaQuota = quota, ollamaError = error)
                 scheduleRefresh()
             }
 
             override fun onZaiQuotaUpdated(quota: ZaiQuota?, error: String?) {
-                latestZaiQuota = quota
-                latestZaiError = error
+                latestState = latestState.copy(zaiQuota = quota, zaiError = error)
                 scheduleRefresh()
             }
+
             override fun onMiniMaxQuotaUpdated(quota: MiniMaxQuota?, error: String?) {
-                latestMiniMaxQuota = quota
-                latestMiniMaxError = error
+                latestState = latestState.copy(miniMaxQuota = quota, miniMaxError = error)
                 scheduleRefresh()
             }
+
             override fun onKimiQuotaUpdated(quota: KimiQuota?, error: String?) {
-                latestKimiQuota = quota
-                latestKimiError = error
+                latestState = latestState.copy(kimiQuota = quota, kimiError = error)
                 scheduleRefresh()
             }
         })
 
+        content.refresh(latestState)
         popup.show(RelativePoint(component, popupPoint(component, content, location)))
     }
 
@@ -140,31 +137,19 @@ internal object QuotaPopupSupport {
         content: RefreshablePopupPanel<QuotaPopupContentState>,
         component: Component,
         location: QuotaPopupLocation,
-        quota: OpenAiCodexQuota?,
-        error: String?,
-        openCodeQuota: OpenCodeQuota?,
-        openCodeError: String?,
-        ollamaQuota: OllamaQuota?,
-        ollamaError: String?,
-        zaiQuota: ZaiQuota?,
-        zaiError: String?,
-        miniMaxQuota: MiniMaxQuota?,
-        miniMaxError: String?,
-        kimiQuota: KimiQuota?,
-        kimiError: String?,
+        state: QuotaPopupContentState,
     ) {
         if (currentPopup.isDisposed || !currentPopup.isVisible) {
             return
         }
-        val oldSize = content.preferredSize
-        content.refresh(QuotaPopupContentState(quota, error, openCodeQuota, openCodeError, ollamaQuota, ollamaError, zaiQuota, zaiError, miniMaxQuota, miniMaxError, kimiQuota, kimiError))
-        val newSize = content.preferredSize
-        if (oldSize != newSize) {
-            currentPopup.pack(true, true)
+        val oldHeight = content.preferredSize.height
+        content.refresh(state)
+        val newHeight = content.preferredSize.height
+        if (oldHeight != newHeight) {
+            currentPopup.size = Dimension(JBUI.scale(280), newHeight)
             val newPoint = popupPoint(component, content, location)
             val screenPoint = RelativePoint(component, newPoint).getScreenPoint()
             currentPopup.setLocation(screenPoint)
-            currentPopup.moveToFitScreen()
         }
     }
 
@@ -178,24 +163,92 @@ internal object QuotaPopupSupport {
         }
         return Point(x, y)
     }
+}
 
-    private fun buildPopupContent(
-        project: Project,
-        component: Component,
-        currentQuota: OpenAiCodexQuota?,
-        currentError: String?,
-        openCodeQuota: OpenCodeQuota?,
-        openCodeError: String?,
-        ollamaQuota: OllamaQuota?,
-        ollamaError: String?,
-        zaiQuota: ZaiQuota?,
-        zaiError: String?,
-        miniMaxQuota: MiniMaxQuota?,
-        miniMaxError: String?,
-        kimiQuota: KimiQuota?,
-        kimiError: String?,
-        onClosePopup: () -> Unit,
-    ): JComponent {
+internal data class QuotaPopupContentState(
+    val quota: OpenAiCodexQuota?,
+    val error: String?,
+    val openCodeQuota: OpenCodeQuota? = null,
+    val openCodeError: String? = null,
+    val ollamaQuota: OllamaQuota? = null,
+    val ollamaError: String? = null,
+    val zaiQuota: ZaiQuota? = null,
+    val zaiError: String? = null,
+    val miniMaxQuota: MiniMaxQuota? = null,
+    val miniMaxError: String? = null,
+    val kimiQuota: KimiQuota? = null,
+    val kimiError: String? = null,
+)
+
+internal class RefreshablePopupPanel<T>(
+    private val content: JComponent,
+    private val updater: (T) -> Unit,
+) : BorderLayoutPanel() {
+    init {
+        isOpaque = false
+        addToCenter(content)
+    }
+
+    fun refresh(state: T) {
+        updater(state)
+        invalidate()
+        validate()
+        repaint()
+    }
+}
+
+private class QuotaPopupContentPanel(
+    private val project: Project,
+    private val component: Component,
+    private val onClosePopup: () -> Unit,
+) : JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)) {
+
+    private val header = createHeaderRow { openSettings(project, component) { onClosePopup() } }
+
+    private val notLoggedInPanel = JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)).apply {
+        isOpaque = false
+        add(JBLabel("Not logged in.").apply { border = JBUI.Borders.emptyTop(1) })
+        add(ActionLink("Open Settings") { openSettings(project, component) { onClosePopup() } }.apply { border = JBUI.Borders.emptyTop(3) })
+    }
+
+    private val allHiddenPanel = JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)).apply {
+        isOpaque = false
+        add(JBLabel("All quota sources are hidden from this popup.").apply { border = JBUI.Borders.emptyTop(1) })
+        add(ActionLink("Open Settings") { openSettings(project, component) { onClosePopup() } }.apply { border = JBUI.Borders.emptyTop(3) })
+    }
+
+    private val kimiSection = KimiPopupSection()
+    private val miniMaxSection = MiniMaxPopupSection()
+    private val openAiSection = OpenAiPopupSection()
+    private val openCodeSection = OpenCodePopupSection()
+    private val ollamaSection = OllamaPopupSection()
+    private val zaiSection = ZaiPopupSection()
+
+    private val updatedAtSeparator = createSeparatedBlock()
+    private val updatedAtRow = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(3), 0)).apply { isOpaque = false }
+
+    init {
+        isOpaque = false
+        border = JBUI.Borders.empty(6, 8, 5, 8)
+        add(header)
+        add(notLoggedInPanel)
+        add(allHiddenPanel)
+        add(kimiSection)
+        add(miniMaxSection)
+        add(openAiSection)
+        add(openCodeSection)
+        add(ollamaSection)
+        add(zaiSection)
+        add(updatedAtSeparator)
+        add(updatedAtRow)
+    }
+
+    override fun getPreferredSize(): Dimension {
+        val size = super.getPreferredSize()
+        return Dimension(JBUI.scale(280), size.height)
+    }
+
+    fun update(state: QuotaPopupContentState) {
         val settings = QuotaSettingsState.getInstance()
         val hideOpenAi = settings.hideOpenAiFromQuotaPopup
         val hideOpenCode = settings.hideOpenCodeFromQuotaPopup
@@ -203,9 +256,9 @@ internal object QuotaPopupSupport {
         val hideZai = settings.hideZaiFromQuotaPopup
         val hideMiniMax = settings.hideMiniMaxFromQuotaPopup
         val hideKimi = settings.hideKimiFromQuotaPopup
-        val hasReviewData = currentQuota != null && (
-            currentQuota.reviewPrimary != null || currentQuota.reviewSecondary != null ||
-                currentQuota.reviewAllowed != null || currentQuota.reviewLimitReached != null
+        val hasReviewData = state.quota != null && (
+            state.quota.reviewPrimary != null || state.quota.reviewSecondary != null ||
+                state.quota.reviewAllowed != null || state.quota.reviewLimitReached != null
             )
 
         val authService = QuotaAuthService.getInstance()
@@ -216,14 +269,14 @@ internal object QuotaPopupSupport {
         val kimiCredentialsStore = KimiCredentialsStore.getInstance()
         val hasCodexAuth = authService.isLoggedIn()
         val hasOpenCodeAuth = openCodeCookieStore.load() != null
-        val ollamaAuthUnknown = !ollamaCookieStore.isLoaded()
         val hasOllamaAuth = ollamaCookieStore.loadSessionCookie() != null
-        val zaiAuthUnknown = !zaiApiKeyStore.isLoaded()
+        val ollamaAuthUnknown = !ollamaCookieStore.isLoaded()
         val hasZaiAuth = zaiApiKeyStore.load() != null
-        val miniMaxAuthUnknown = !miniMaxApiKeyStore.isLoaded()
+        val zaiAuthUnknown = !zaiApiKeyStore.isLoaded()
         val hasMiniMaxAuth = !miniMaxApiKeyStore.load().isNullOrBlank()
-        val kimiAuthUnknown = !kimiCredentialsStore.isLoaded()
+        val miniMaxAuthUnknown = !miniMaxApiKeyStore.isLoaded()
         val hasKimiAuth = kimiCredentialsStore.load()?.isUsable() == true
+        val kimiAuthUnknown = !kimiCredentialsStore.isLoaded()
         val showCodexSection = hasCodexAuth && !hideOpenAi
         val showOpenCodeSection = hasOpenCodeAuth && !hideOpenCode
         val showOllamaSection = (hasOllamaAuth || ollamaAuthUnknown) && !hideOllama
@@ -231,41 +284,46 @@ internal object QuotaPopupSupport {
         val showMiniMaxSection = (hasMiniMaxAuth || miniMaxAuthUnknown) && !hideMiniMax
         val showKimiSection = (hasKimiAuth || kimiAuthUnknown) && !hideKimi
 
-        return createPopupStack().apply {
-            add(createHeaderRow { openSettings(project, component) { onClosePopup() } })
-            add(createSeparatedBlock())
+        val notLoggedIn = !hasCodexAuth && !hasOpenCodeAuth && !hasOllamaAuth && !ollamaAuthUnknown &&
+            !hasZaiAuth && !zaiAuthUnknown && !hasMiniMaxAuth && !miniMaxAuthUnknown && !hasKimiAuth && !kimiAuthUnknown
+        val allHidden = !showCodexSection && !showOpenCodeSection && !showOllamaSection && !showZaiSection &&
+            !showMiniMaxSection && !showKimiSection
 
-            if (!hasCodexAuth && !hasOpenCodeAuth && !hasOllamaAuth && !ollamaAuthUnknown && !hasZaiAuth && !zaiAuthUnknown && !hasMiniMaxAuth && !miniMaxAuthUnknown && !hasKimiAuth && !kimiAuthUnknown) {
-                add(withVerticalInsets(com.intellij.ui.components.JBLabel("Not logged in."), top = 1))
-                add(withVerticalInsets(com.intellij.ui.components.ActionLink("Open Settings") { openSettings(project, component) { onClosePopup() } }, top = 3))
-            } else if (!showCodexSection && !showOpenCodeSection && !showOllamaSection && !showZaiSection && !showMiniMaxSection && !showKimiSection) {
-                add(withVerticalInsets(com.intellij.ui.components.JBLabel("All quota sources are hidden from this popup."), top = 1))
-                add(withVerticalInsets(com.intellij.ui.components.ActionLink("Open Settings") { openSettings(project, component) { onClosePopup() } }, top = 3))
-            } else {
-                buildKimiPopupContent(kimiQuota, kimiError, showKimiSection).forEach { add(it) }
-                buildMiniMaxPopupContent(miniMaxQuota, miniMaxError, showMiniMaxSection).forEach { add(it) }
-                buildOpenAiPopupContent(currentQuota, currentError, showCodexSection, hasReviewData).forEach { add(it) }
-                buildOpenCodePopupContent(openCodeQuota, openCodeError, showOpenCodeSection).forEach { add(it) }
-                buildOllamaPopupContent(ollamaQuota, ollamaError, showOllamaSection).forEach { add(it) }
-                buildZaiPopupContent(zaiQuota, zaiError, showZaiSection).forEach { add(it) }
+        notLoggedInPanel.isVisible = notLoggedIn
+        allHiddenPanel.isVisible = !notLoggedIn && allHidden
 
-                val updatedAtItems = buildUpdatedAtItems(
-                    showCodexSection,
-                    currentQuota,
-                    showOpenCodeSection,
-                    openCodeQuota,
-                    showOllamaSection,
-                    ollamaQuota,
-                    showZaiSection,
-                    zaiQuota,
-                    showMiniMaxSection,
-                    miniMaxQuota,
-                    showKimiSection,
-                    kimiQuota,
-                )
-                if (updatedAtItems.isNotEmpty()) {
-                    add(createSeparatedBlock())
-                    add(withVerticalInsets(createUpdatedAtRow(updatedAtItems), top = 1))
+        kimiSection.update(state.kimiQuota, state.kimiError, showKimiSection)
+        miniMaxSection.update(state.miniMaxQuota, state.miniMaxError, showMiniMaxSection)
+        openAiSection.update(state.quota, state.error, showCodexSection, hasReviewData)
+        openCodeSection.update(state.openCodeQuota, state.openCodeError, showOpenCodeSection)
+        ollamaSection.update(state.ollamaQuota, state.ollamaError, showOllamaSection)
+        zaiSection.update(state.zaiQuota, state.zaiError, showZaiSection)
+
+        val showAnySection = !notLoggedIn && !allHidden
+        val updatedAtItems = if (showAnySection) buildUpdatedAtItems(
+            showCodexSection, state.quota,
+            showOpenCodeSection, state.openCodeQuota,
+            showOllamaSection, state.ollamaQuota,
+            showZaiSection, state.zaiQuota,
+            showMiniMaxSection, state.miniMaxQuota,
+            showKimiSection, state.kimiQuota,
+        ) else emptyList()
+
+        updatedAtSeparator.isVisible = updatedAtItems.isNotEmpty()
+        updatedAtRow.isVisible = updatedAtItems.isNotEmpty()
+        if (updatedAtItems.isNotEmpty()) {
+            updatedAtRow.removeAll()
+            updatedAtRow.add(JBLabel("Updated:").apply { foreground = com.intellij.ui.JBColor.GRAY })
+            updatedAtItems.forEachIndexed { index, item ->
+                item.icons.forEach { providerIcon ->
+                    updatedAtRow.add(JBLabel().apply {
+                        icon = de.moritzf.quota.idea.ui.indicator.scaleIconToQuotaStatusSize(providerIcon.icon, this)
+                        toolTipText = providerIcon.label
+                    })
+                }
+                updatedAtRow.add(JBLabel(item.text).apply { foreground = com.intellij.ui.JBColor.GRAY })
+                if (index < updatedAtItems.lastIndex) {
+                    updatedAtRow.add(JBLabel(";").apply { foreground = com.intellij.ui.JBColor.GRAY })
                 }
             }
         }
@@ -346,46 +404,3 @@ private data class UpdatedAtRawItem(
     val icon: UpdatedAtIcon,
     val fetchedAt: Instant?,
 )
-
-internal data class QuotaPopupContentState(
-    val quota: OpenAiCodexQuota?,
-    val error: String?,
-    val openCodeQuota: OpenCodeQuota? = null,
-    val openCodeError: String? = null,
-    val ollamaQuota: OllamaQuota? = null,
-    val ollamaError: String? = null,
-    val zaiQuota: ZaiQuota? = null,
-    val zaiError: String? = null,
-    val miniMaxQuota: MiniMaxQuota? = null,
-    val miniMaxError: String? = null,
-    val kimiQuota: KimiQuota? = null,
-    val kimiError: String? = null,
-)
-
-internal class RefreshablePopupPanel<T>(private val renderer: (T) -> JComponent) : com.intellij.util.ui.components.BorderLayoutPanel() {
-    private var stableWidth = 0
-    private var stableHeight = 0
-    private var currentState: T? = null
-
-    init {
-        isOpaque = false
-    }
-
-    fun refresh(state: T) {
-        if (state == currentState) {
-            return
-        }
-        currentState = state
-        removeAll()
-        addToCenter(renderer(state))
-        revalidate()
-        repaint()
-    }
-
-    override fun getPreferredSize(): java.awt.Dimension {
-        val size = super.getPreferredSize()
-        stableWidth = maxOf(stableWidth, size.width, JBUI.scale(260))
-        stableHeight = maxOf(stableHeight, size.height)
-        return java.awt.Dimension(stableWidth, stableHeight)
-    }
-}
