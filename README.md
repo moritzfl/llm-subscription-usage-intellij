@@ -1,90 +1,45 @@
-# LLM Subscription Usage (IntelliJ Plugin)
+# LLM Subscription Usage
 
-An IntelliJ plugin that tracks LLM subscription usage quotas across OpenAI Codex, Code Review, and OpenCode Go in the status bar and inside a detailed popup.
+Track your LLM subscription usage quotas directly in IntelliJ IDEA — in the status bar, a detailed popup, and through IDE chat tools.
 
-<table align="center">
-  <tr>
-    <td align="center">
-      <a href="https://plugins.jetbrains.com/plugin/30690-openai-usage-quota">
-        <img src="src/main/resources/META-INF/pluginIcon.svg" alt="LLM Subscription Usage on JetBrains Marketplace" width="96" />
-      </a>
-      <br />
-      <strong><a href="https://plugins.jetbrains.com/plugin/30690-openai-usage-quota">LLM Subscription Usage on JetBrains Marketplace</a></strong>
-      <br />
-      Install the plugin for IntelliJ IDEA.
-      <br />
-      <br />
-      <a href="https://plugins.jetbrains.com/plugin/30690-openai-usage-quota">
-        <img src="https://img.shields.io/jetbrains/plugin/v/30690" alt="JetBrains Marketplace version" />
-      </a>
-      <a href="https://plugins.jetbrains.com/plugin/30690-openai-usage-quota">
-        <img src="https://img.shields.io/jetbrains/plugin/d/30690" alt="JetBrains Marketplace downloads" />
-      </a>
-      <a href="https://plugins.jetbrains.com/plugin/30690-openai-usage-quota">
-        <img src="https://img.shields.io/jetbrains/plugin/r/rating/30690" alt="JetBrains Marketplace rating" />
-      </a>
-    </td>
-  </tr>
-</table>
+**Supports:** OpenAI (ChatGPT), OpenCode Go, Ollama Cloud, Z.ai, MiniMax, and Kimi.
 
-## What It Does
+---
 
-- Adds a status bar widget with quick quota state
-- Shows a popup with primary/secondary usage windows
-- Supports browser-based OAuth login from inside IDE settings
-- Stores OAuth credentials in IntelliJ Password Safe
-- Automatically refreshes quota data in the background
-- Exposes the latest quota data to IDE chat tools via MCP
-- Exposes the last raw quota JSON in settings for debugging
+## Features
 
-## Compatibility
+**Status Bar Widget** — A compact indicator in your status bar shows at-a-glance quota status. Tooltip reveals quick details; click to open the full popup.
 
-- Built with IntelliJ Platform Gradle Plugin `2.10.4`
-- Targets IntelliJ platform build `253` (`sinceBuild = 253`)
-- Java toolchain: `21`
+**Quota Popup** — Click the status widget to see:
+- All your active subscriptions side-by-side
+- Primary and secondary usage windows
+- Next reset times
+- Last refresh timestamps
 
-In practice, this means IntelliJ IDEA 2025.3+ compatible platform builds.
+**MCP Integration** — Exposes quota data to IntelliJ's built-in chat via the Model Context Protocol, so you can query usage without switching contexts.
+
+**Customizable Display** — Drag-and-drop to reorder providers in the popup. Choose whether the indicator lives in the status bar or main toolbar.
+
+**Automatic Refresh** — Quotas refresh every 5 minutes in the background, plus on login and when opening the popup.
+
+**Secure OAuth** — Login via browser OAuth inside IDE settings. Credentials stored in IntelliJ Password Safe.
+
+---
 
 ## Installation
 
-### Option 1: Install From JetBrains Marketplace
+Open IntelliJ IDEA `Settings` > `Plugins` > `Marketplace`, search for **LLM Subscription Usage**, and click Install.
 
-1. Open IntelliJ IDEA `Settings` > `Plugins` > `Marketplace`
-2. Search for `LLM Subscription Usage`
-3. Click `Install`
+Or download a release ZIP from the [GitHub releases page](https://github.com/moritzfl/openai-usage-quota-intellij/releases) and install from `Settings` > `Plugins` > gear icon > `Install Plugin from Disk...`.
 
-### Option 2: Install From ZIP (Local)
-
-Hint: instead of building it yourself, check out the ["Releases"](https://github.com/moritzfl/openai-usage-quota-intellij/releases) section
-
-1. Build the plugin:
-
-```bash
-./gradlew buildPlugin
-```
-
-2. In IntelliJ IDEA, go to `Settings` > `Plugins` > gear icon > `Install Plugin from Disk...`
-3. Select the ZIP from `build/distributions/`
-
-### Option 3: Run in Sandbox (Development)
-
-```bash
-./gradlew runIde
-```
-
-This opens a sandbox IDE with the plugin loaded.
-
-## Usage
+## Getting Started
 
 1. Open `Settings` > `LLM Subscription Usage`
-2. Click `Log In`
-3. Complete the browser login flow
-4. Return to IDE and check:
-- Status bar icon tooltip for quick status
-- Click widget for a detailed popup
-- Settings page for account id/email and last JSON response
+2. Login or add your credentials for your LLM Providers
+3. Return to IDE — the status bar widget shows your quota
+4. Click the widget for a detailed popup
 
-Logout is available in the same settings page.
+---
 
 ## Screenshots
 
@@ -92,70 +47,36 @@ Logout is available in the same settings page.
 
 ![Quota popup](docs/quota-popup.png)
 
-![Quota popup Go - limit reached](docs/quota-popup-go-limit-reached.png)
+### Status Bar
 
-### Status bar
+![Status bar icon](docs/quota-statusbar-icon.png)
 
-![Status bar icon only](docs/quota-statusbar-icon.png)
+![Status bar with percentage](docs/quota-statusbar-percentage.png)
 
-![Status bar cake icon](docs/quota-statusbar-cake.png)
+![Status bar with cake diagram](docs/quota-statusbar-cake.png)
 
-![Status bar percentage](docs/quota-statusbar-percentage.png)
+### Chat (MCP)
 
-### Chat (MCP integration)
-
-![quota-mcp-integration.png](docs/quota-mcp-integration.png)
+![MCP integration](docs/quota-mcp-integration.png)
 
 ### Settings
 
 ![Settings](docs/quota-settings.png)
 
+---
+
 ## How It Works
 
-### OAuth Login
+The plugin calls each provider's usage API (with your OAuth token, API Key or other credentials) to fetch quota data, then displays it in a normalized format. Refresh happens automatically in the background every 5 minutes, plus on login and when opening the popup.
 
-- Authorization endpoint: `https://auth.openai.com/oauth/authorize`
-- Token endpoint: `https://auth.openai.com/oauth/token`
-- Redirect URI: `http://localhost:1455/auth/callback`
-- Local callback server runs only for the login flow
+Quota data is stored locally in IntelliJ's secure credential storage. Raw responses as they arrived from the API endpoint are available in settings for transparency and debugging.
 
-### Quota Request
-
-The plugin calls:
-
-- `GET https://chatgpt.com/backend-api/wham/usage`
-
-Headers:
-
-- `Authorization: Bearer <access_token>`
-- `ChatGPT-Account-Id: <accountId>` (optional, sent if available)
-
-### Refresh Behavior
-
-- Background refresh interval defaults to 5 minutes
-- Additional refreshes happen on login and when opening the status popup
-
-## Important Notes
-
-- The quota endpoint appears to be an internal ChatGPT backend API and may change or be restricted.
-- If the endpoint schema changes, parsing may fail until the plugin is updated.
-
-## Security / Data Handling
-
-- OAuth credentials are stored via IntelliJ Password Safe
-- Logging out clears stored credentials
-- Latest quota response JSON is shown in settings for transparency/debugging
+---
 
 ## Troubleshooting
 
-### "Port 1455 is already in use"
+**"Port 1455 is already in use"** — Another process is using the OAuth callback port. Stop it and retry login.
 
-Another app/process is using the OAuth callback port. Stop that process and retry login.
+**"Not logged in"** — Open plugin settings and start the login flow again.
 
-### "Not logged in"
-
-Open plugin settings and start login flow again.
-
-### Quota fetch errors
-
-If request/response behavior changed on the backend, inspect `Last quota response (JSON)` in settings.
+**Quota fetch errors** — If backend behavior changed, inspect `Last quota response (JSON)` in settings to see what changed.
