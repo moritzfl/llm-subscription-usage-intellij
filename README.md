@@ -4,6 +4,31 @@ Track your LLM subscription usage quotas directly in IntelliJ IDEA — in the st
 
 **Supports:** OpenAI (ChatGPT), OpenCode Go, Ollama Cloud, Z.ai, MiniMax, and Kimi.
 
+<table align="center">
+  <tr>
+    <td align="center">
+      <a href="https://plugins.jetbrains.com/plugin/30690-openai-usage-quota">
+        <img src="src/main/resources/META-INF/pluginIcon.svg" alt="LLM Subscription Usage on JetBrains Marketplace" width="96" />
+      </a>
+      <br />
+      <strong><a href="https://plugins.jetbrains.com/plugin/30690-openai-usage-quota">LLM Subscription Usage on JetBrains Marketplace</a></strong>
+      <br />
+      Install the plugin for IntelliJ IDEA.
+      <br />
+      <br />
+      <a href="https://plugins.jetbrains.com/plugin/30690-openai-usage-quota">
+        <img src="https://img.shields.io/jetbrains/plugin/v/30690" alt="JetBrains Marketplace version" />
+      </a>
+      <a href="https://plugins.jetbrains.com/plugin/30690-openai-usage-quota">
+        <img src="https://img.shields.io/jetbrains/plugin/d/30690" alt="JetBrains Marketplace downloads" />
+      </a>
+      <a href="https://plugins.jetbrains.com/plugin/30690-openai-usage-quota">
+        <img src="https://img.shields.io/jetbrains/plugin/r/rating/30690" alt="JetBrains Marketplace rating" />
+      </a>
+    </td>
+  </tr>
+</table>
+
 ---
 
 ## Features
