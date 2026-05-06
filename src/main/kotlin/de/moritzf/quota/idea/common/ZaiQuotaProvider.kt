@@ -14,7 +14,7 @@ class ZaiQuotaProvider(
     private val zaiClient: ZaiQuotaClient = ZaiQuotaClient(),
     private val apiKeyProvider: () -> String? = { ZaiApiKeyStore.getInstance().loadBlocking() },
 ) : QuotaProvider {
-    override val id = "zai"
+    override val type = QuotaProviderType.ZAI
 
     private val lastQuotaRef = AtomicReference<ZaiQuota?>()
     private val lastErrorRef = AtomicReference<String?>()
@@ -63,7 +63,7 @@ class ZaiQuotaProvider(
         val quota = lastQuotaRef.get()
         if (quota != null) {
             QuotaSnapshotCache.encodeZaiQuota(quota)?.let { settings.cachedZaiQuotaJson = it }
-            settings.updateTimestamp(id)
+            settings.updateTimestamp(type)
         }
     }
 }

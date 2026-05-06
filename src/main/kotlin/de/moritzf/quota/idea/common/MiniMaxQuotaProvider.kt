@@ -13,7 +13,7 @@ class MiniMaxQuotaProvider(
     private val client: MiniMaxQuotaClient = MiniMaxQuotaClient(),
     private val settingsProvider: () -> QuotaSettingsState? = { runCatching { QuotaSettingsState.getInstance() }.getOrNull() },
 ) : QuotaProvider {
-    override val id = "minimax"
+    override val type = QuotaProviderType.MINIMAX
     private val lastQuotaRef = AtomicReference<MiniMaxQuota?>()
     private val lastErrorRef = AtomicReference<String?>()
     private val lastRawJsonRef = AtomicReference<String?>()
@@ -69,7 +69,7 @@ class MiniMaxQuotaProvider(
         val quota = lastQuotaRef.get()
         if (quota != null) {
             QuotaSnapshotCache.encodeMiniMaxQuota(quota)?.let { settings.cachedMiniMaxQuotaJson = it }
-            settings.updateTimestamp(id)
+            settings.updateTimestamp(type)
         }
     }
 }

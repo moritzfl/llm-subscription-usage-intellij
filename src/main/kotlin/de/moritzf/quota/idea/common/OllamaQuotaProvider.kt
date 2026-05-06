@@ -15,7 +15,7 @@ class OllamaQuotaProvider(
     private val sessionCookieProvider: () -> String? = { OllamaSessionCookieStore.getInstance().loadBlocking().first },
     private val cfClearanceProvider: () -> String? = { OllamaSessionCookieStore.getInstance().getCfClearance() },
 ) : QuotaProvider {
-    override val id = "ollama"
+    override val type = QuotaProviderType.OLLAMA
 
     private val lastQuotaRef = AtomicReference<OllamaQuota?>()
     private val lastErrorRef = AtomicReference<String?>()
@@ -65,7 +65,7 @@ class OllamaQuotaProvider(
         val quota = lastQuotaRef.get()
         if (quota != null) {
             QuotaSnapshotCache.encodeOllamaQuota(quota)?.let { settings.cachedOllamaQuotaJson = it }
-            settings.updateTimestamp(id)
+            settings.updateTimestamp(type)
         }
     }
 }

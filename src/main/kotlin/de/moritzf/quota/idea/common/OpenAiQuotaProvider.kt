@@ -19,7 +19,7 @@ class OpenAiQuotaProvider(
     private val accessTokenProvider: () -> String? = { QuotaAuthService.getInstance().getAccessTokenBlocking() },
     private val accountIdProvider: () -> String? = { QuotaAuthService.getInstance().getAccountId() },
 ) : QuotaProvider {
-    override val id = "openai"
+    override val type = QuotaProviderType.OPEN_AI
 
     private val lastQuotaRef = AtomicReference<OpenAiCodexQuota?>()
     private val lastErrorRef = AtomicReference<String?>()
@@ -68,7 +68,7 @@ class OpenAiQuotaProvider(
         val quota = lastQuotaRef.get()
         if (quota != null) {
             QuotaSnapshotCache.encodeOpenAiQuota(quota)?.let { settings.cachedOpenAiQuotaJson = it }
-            settings.updateTimestamp(id)
+            settings.updateTimestamp(type)
         }
     }
 

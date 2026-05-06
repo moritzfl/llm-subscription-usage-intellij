@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.settings
 
 import com.intellij.openapi.application.ApplicationManager
+import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaSnapshotCache
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorLocation
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorSource
@@ -74,7 +75,9 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         providerOrder = state.providerOrder.ifBlank { DEFAULT_PROVIDER_ORDER }
     }
 
-    fun providerOrderList(): List<String> = providerOrder.split(",").map { it.trim() }.filter { it.isNotBlank() }
+    fun providerOrderList(): List<QuotaProviderType> =
+        providerOrder.split(",").map { it.trim() }.filter { it.isNotBlank() }
+            .mapNotNull { QuotaProviderType.fromId(it) }
 
     fun displayMode(): QuotaDisplayMode = QuotaDisplayMode.fromStorageValue(statusBarDisplayMode)
 
@@ -90,20 +93,21 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
 
     fun source(): QuotaIndicatorSource = QuotaIndicatorSource.fromStorageValue(indicatorSource)
 
-    fun miniMaxRegionPreference(): MiniMaxRegionPreference = MiniMaxRegionPreference.fromStorageValue(minimaxRegionPreference)
+    fun miniMaxRegionPreference(): MiniMaxRegionPreference =
+        MiniMaxRegionPreference.fromStorageValue(minimaxRegionPreference)
 
     fun setSource(source: QuotaIndicatorSource) {
         indicatorSource = source.name
     }
 
-    fun updateTimestamp(provider: String) {
+    fun updateTimestamp(provider: QuotaProviderType) {
         when (provider) {
-            "openai" -> lastOpenAiUpdate = System.currentTimeMillis()
-            "opencode" -> lastOpenCodeUpdate = System.currentTimeMillis()
-            "ollama" -> lastOllamaUpdate = System.currentTimeMillis()
-            "zai" -> lastZaiUpdate = System.currentTimeMillis()
-            "minimax" -> lastMiniMaxUpdate = System.currentTimeMillis()
-            "kimi" -> lastKimiUpdate = System.currentTimeMillis()
+            QuotaProviderType.OPEN_AI -> lastOpenAiUpdate = System.currentTimeMillis()
+            QuotaProviderType.OPEN_CODE -> lastOpenCodeUpdate = System.currentTimeMillis()
+            QuotaProviderType.OLLAMA -> lastOllamaUpdate = System.currentTimeMillis()
+            QuotaProviderType.ZAI -> lastZaiUpdate = System.currentTimeMillis()
+            QuotaProviderType.MINIMAX -> lastMiniMaxUpdate = System.currentTimeMillis()
+            QuotaProviderType.KIMI -> lastKimiUpdate = System.currentTimeMillis()
         }
     }
 

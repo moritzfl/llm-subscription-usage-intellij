@@ -7,7 +7,7 @@ import java.util.concurrent.atomic.AtomicReference
  * Common contract for quota data providers.
  */
 interface QuotaProvider {
-    val id: String
+    val type: QuotaProviderType
     fun refresh()
     fun clearData(error: String? = null)
     fun hydrateFromCache(settings: QuotaSettingsState) {}

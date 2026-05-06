@@ -11,6 +11,7 @@ import com.intellij.util.messages.MessageBusConnection
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.auth.QuotaAuthService
+import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageListener
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.kimi.KimiCredentialsStore
@@ -218,12 +219,12 @@ private class QuotaPopupContentPanel(
     }
 
     private val sections = linkedMapOf(
-        "kimi" to KimiPopupSection(),
-        "minimax" to MiniMaxPopupSection(),
-        "openai" to OpenAiPopupSection(),
-        "opencode" to OpenCodePopupSection(),
-        "ollama" to OllamaPopupSection(),
-        "zai" to ZaiPopupSection(),
+        QuotaProviderType.KIMI to KimiPopupSection(),
+        QuotaProviderType.MINIMAX to MiniMaxPopupSection(),
+        QuotaProviderType.OPEN_AI to OpenAiPopupSection(),
+        QuotaProviderType.OPEN_CODE to OpenCodePopupSection(),
+        QuotaProviderType.OLLAMA to OllamaPopupSection(),
+        QuotaProviderType.ZAI to ZaiPopupSection(),
     )
 
     private val updatedAtSeparator = createSeparatedBlock()
@@ -295,12 +296,12 @@ private class QuotaPopupContentPanel(
         notLoggedInPanel.isVisible = notLoggedIn
         allHiddenPanel.isVisible = !notLoggedIn && allHidden
 
-        (sections["kimi"] as? KimiPopupSection)?.update(state.kimiQuota, state.kimiError, showKimiSection)
-        (sections["minimax"] as? MiniMaxPopupSection)?.update(state.miniMaxQuota, state.miniMaxError, showMiniMaxSection)
-        (sections["openai"] as? OpenAiPopupSection)?.update(state.quota, state.error, showCodexSection, hasReviewData)
-        (sections["opencode"] as? OpenCodePopupSection)?.update(state.openCodeQuota, state.openCodeError, showOpenCodeSection)
-        (sections["ollama"] as? OllamaPopupSection)?.update(state.ollamaQuota, state.ollamaError, showOllamaSection)
-        (sections["zai"] as? ZaiPopupSection)?.update(state.zaiQuota, state.zaiError, showZaiSection)
+        (sections[QuotaProviderType.KIMI] as? KimiPopupSection)?.update(state.kimiQuota, state.kimiError, showKimiSection)
+        (sections[QuotaProviderType.MINIMAX] as? MiniMaxPopupSection)?.update(state.miniMaxQuota, state.miniMaxError, showMiniMaxSection)
+        (sections[QuotaProviderType.OPEN_AI] as? OpenAiPopupSection)?.update(state.quota, state.error, showCodexSection, hasReviewData)
+        (sections[QuotaProviderType.OPEN_CODE] as? OpenCodePopupSection)?.update(state.openCodeQuota, state.openCodeError, showOpenCodeSection)
+        (sections[QuotaProviderType.OLLAMA] as? OllamaPopupSection)?.update(state.ollamaQuota, state.ollamaError, showOllamaSection)
+        (sections[QuotaProviderType.ZAI] as? ZaiPopupSection)?.update(state.zaiQuota, state.zaiError, showZaiSection)
 
         val showAnySection = !notLoggedIn && !allHidden
         val updatedAtItems = if (showAnySection) buildUpdatedAtItems(
@@ -348,12 +349,12 @@ private class QuotaPopupContentPanel(
     ): List<UpdatedAtItem> {
         val order = QuotaSettingsState.getInstance().providerOrderList()
         val providerMap = mapOf(
-            "kimi" to Pair(showKimiSection, UpdatedAtRawItem(UpdatedAtIcon("Kimi", QuotaIcons.KIMI), kimiQuota?.fetchedAt)),
-            "minimax" to Pair(showMiniMaxSection, UpdatedAtRawItem(UpdatedAtIcon("MiniMax", QuotaIcons.MINIMAX), miniMaxQuota?.fetchedAt)),
-            "openai" to Pair(showCodexSection, UpdatedAtRawItem(UpdatedAtIcon("Codex", QuotaIcons.OPENAI), currentQuota?.fetchedAt)),
-            "opencode" to Pair(showOpenCodeSection, UpdatedAtRawItem(UpdatedAtIcon("OpenCode", QuotaIcons.OPENCODE), openCodeQuota?.fetchedAt)),
-            "ollama" to Pair(showOllamaSection, UpdatedAtRawItem(UpdatedAtIcon("Ollama", QuotaIcons.OLLAMA), ollamaQuota?.fetchedAt)),
-            "zai" to Pair(showZaiSection, UpdatedAtRawItem(UpdatedAtIcon("Z.ai", QuotaIcons.ZAI), zaiQuota?.fetchedAt)),
+            QuotaProviderType.KIMI to Pair(showKimiSection, UpdatedAtRawItem(UpdatedAtIcon("Kimi", QuotaIcons.KIMI), kimiQuota?.fetchedAt)),
+            QuotaProviderType.MINIMAX to Pair(showMiniMaxSection, UpdatedAtRawItem(UpdatedAtIcon("MiniMax", QuotaIcons.MINIMAX), miniMaxQuota?.fetchedAt)),
+            QuotaProviderType.OPEN_AI to Pair(showCodexSection, UpdatedAtRawItem(UpdatedAtIcon("Codex", QuotaIcons.OPENAI), currentQuota?.fetchedAt)),
+            QuotaProviderType.OPEN_CODE to Pair(showOpenCodeSection, UpdatedAtRawItem(UpdatedAtIcon("OpenCode", QuotaIcons.OPENCODE), openCodeQuota?.fetchedAt)),
+            QuotaProviderType.OLLAMA to Pair(showOllamaSection, UpdatedAtRawItem(UpdatedAtIcon("Ollama", QuotaIcons.OLLAMA), ollamaQuota?.fetchedAt)),
+            QuotaProviderType.ZAI to Pair(showZaiSection, UpdatedAtRawItem(UpdatedAtIcon("Z.ai", QuotaIcons.ZAI), zaiQuota?.fetchedAt)),
         )
         val rawItems = order.mapNotNull { id ->
             val (show, item) = providerMap[id] ?: return@mapNotNull null

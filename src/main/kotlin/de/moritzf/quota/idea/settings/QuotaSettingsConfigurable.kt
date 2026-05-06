@@ -283,7 +283,7 @@ class QuotaSettingsConfigurable : Configurable {
                 val miniMaxPopupVisibilityChanged = miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected != state.hideMiniMaxFromQuotaPopup
                 val kimiPopupVisibilityChanged = kimiPanel.kimiHideFromPopupCheckBox.isSelected != state.hideKimiFromQuotaPopup
                 val miniMaxRegionChanged = miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference()
-                val providerOrderChanged = providerReorderPanel?.getOrder()?.joinToString(",") != state.providerOrder
+                val providerOrderChanged = providerReorderPanel?.getOrder()?.joinToString(",") { it.id } != state.providerOrder
                 if (locationChanged) {
                     state.setLocation(selectedLocation)
                 }
@@ -301,7 +301,7 @@ class QuotaSettingsConfigurable : Configurable {
                 state.hideKimiFromQuotaPopup = kimiPanel.kimiHideFromPopupCheckBox.isSelected
                 state.minimaxRegionPreference = (miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference ?: MiniMaxRegionPreference.AUTO).name
                 if (providerOrderChanged) {
-                    state.providerOrder = providerReorderPanel?.getOrder()?.joinToString(",") ?: state.providerOrder
+                    state.providerOrder = providerReorderPanel?.getOrder()?.joinToString(",") { it.id } ?: state.providerOrder
                 }
                 if (locationChanged || displayModeChanged || sourceChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged || ollamaPopupVisibilityChanged || zaiPopupVisibilityChanged || miniMaxPopupVisibilityChanged || kimiPopupVisibilityChanged || miniMaxRegionChanged || providerOrderChanged) {
                     ApplicationManager.getApplication().messageBus
@@ -354,7 +354,7 @@ class QuotaSettingsConfigurable : Configurable {
                     miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected != state.hideMiniMaxFromQuotaPopup ||
                     kimiPanel.kimiHideFromPopupCheckBox.isSelected != state.hideKimiFromQuotaPopup ||
                     miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference() ||
-                    providerReorderPanel?.getOrder()?.joinToString(",") != state.providerOrder
+                    providerReorderPanel?.getOrder()?.joinToString(",") { it.id } != state.providerOrder
             }
         }.apply {
             preferredFocusedComponent = locationComboBox

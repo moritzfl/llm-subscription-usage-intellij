@@ -300,7 +300,7 @@ class QuotaUsageService(
                 kotlin.math.abs(newFraction - oldFraction) >= MIN_USAGE_INCREASE
 
             if (significantChange && newFraction > oldFraction) {
-                (settings ?: settingsProvider())?.lastActiveSource = provider.id
+                (settings ?: settingsProvider())?.lastActiveSource = provider.type.id
             }
 
             if (oldFraction == null || significantChange) {
@@ -313,26 +313,25 @@ class QuotaUsageService(
     }
 
     private fun getCachedUsageFraction(provider: QuotaProvider, settings: QuotaSettingsState?): Double? {
-        return when (provider.id) {
-            "openai" -> settings?.cachedOpenAiQuotaJson
+        return when (provider.type) {
+            QuotaProviderType.OPEN_AI -> settings?.cachedOpenAiQuotaJson
                 ?.let(QuotaSnapshotCache::decodeOpenAiQuota)
                 ?.let(::extractOpenAiFraction)
-            "opencode" -> settings?.cachedOpenCodeQuotaJson
+            QuotaProviderType.OPEN_CODE -> settings?.cachedOpenCodeQuotaJson
                 ?.let(QuotaSnapshotCache::decodeOpenCodeQuota)
                 ?.let(::extractOpenCodeFraction)
-            "ollama" -> settings?.cachedOllamaQuotaJson
+            QuotaProviderType.OLLAMA -> settings?.cachedOllamaQuotaJson
                 ?.let(QuotaSnapshotCache::decodeOllamaQuota)
                 ?.let(::extractOllamaFraction)
-            "zai" -> settings?.cachedZaiQuotaJson
+            QuotaProviderType.ZAI -> settings?.cachedZaiQuotaJson
                 ?.let(QuotaSnapshotCache::decodeZaiQuota)
                 ?.let(::extractZaiFraction)
-            "minimax" -> settings?.cachedMiniMaxQuotaJson
+            QuotaProviderType.MINIMAX -> settings?.cachedMiniMaxQuotaJson
                 ?.let(QuotaSnapshotCache::decodeMiniMaxQuota)
                 ?.let(::extractMiniMaxFraction)
-            "kimi" -> settings?.cachedKimiQuotaJson
+            QuotaProviderType.KIMI -> settings?.cachedKimiQuotaJson
                 ?.let(QuotaSnapshotCache::decodeKimiQuota)
                 ?.let(::extractKimiFraction)
-            else -> null
         }
     }
 

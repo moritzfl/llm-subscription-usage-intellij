@@ -4,6 +4,7 @@ import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.IconUtil
 import com.intellij.util.ui.JBUI
+import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import java.awt.AlphaComposite
 import java.awt.BorderLayout
@@ -26,20 +27,20 @@ import javax.swing.TransferHandler
 
 /**
  * A horizontal panel of draggable provider icons.
- * Reordering fires [onOrderChanged] with the new provider id list.
+ * Reordering fires [onOrderChanged] with the new provider type list.
  */
 internal class ProviderReorderPanel(
-    initialOrder: List<String>,
-    private val onOrderChanged: (List<String>) -> Unit,
+    initialOrder: List<QuotaProviderType>,
+    private val onOrderChanged: (List<QuotaProviderType>) -> Unit,
 ) : JPanel(BorderLayout()) {
 
     private val providers = listOf(
-        ProviderInfo("kimi", "Kimi", QuotaIcons.KIMI),
-        ProviderInfo("minimax", "MiniMax", QuotaIcons.MINIMAX),
-        ProviderInfo("openai", "OpenAI", QuotaIcons.OPENAI),
-        ProviderInfo("opencode", "OpenCode", QuotaIcons.OPENCODE),
-        ProviderInfo("ollama", "Ollama", QuotaIcons.OLLAMA),
-        ProviderInfo("zai", "Z.ai", QuotaIcons.ZAI),
+        ProviderInfo(QuotaProviderType.KIMI, QuotaIcons.KIMI),
+        ProviderInfo(QuotaProviderType.MINIMAX, QuotaIcons.MINIMAX),
+        ProviderInfo(QuotaProviderType.OPEN_AI, QuotaIcons.OPENAI),
+        ProviderInfo(QuotaProviderType.OPEN_CODE, QuotaIcons.OPENCODE),
+        ProviderInfo(QuotaProviderType.OLLAMA, QuotaIcons.OLLAMA),
+        ProviderInfo(QuotaProviderType.ZAI, QuotaIcons.ZAI),
     )
 
     private val iconsPanel = object : JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(8), 0)) {
@@ -68,9 +69,9 @@ internal class ProviderReorderPanel(
         isOpaque = false
     }
 
-    private var currentOrder: List<String> = initialOrder.filter { id -> providers.any { it.id == id } }
+    private var currentOrder: List<QuotaProviderType> = initialOrder.filter { type -> providers.any { it.type == type } }
         .let { ordered ->
-            val remaining = providers.map { it.id }.filter { it !in ordered }
+            val remaining = providers.map { it.type }.filter { it !in ordered }
             ordered + remaining
         }
 
@@ -90,12 +91,12 @@ internal class ProviderReorderPanel(
         rebuild()
     }
 
-    fun getOrder(): List<String> = currentOrder.toList()
+    fun getOrder(): List<QuotaProviderType> = currentOrder.toList()
 
-    fun setOrder(order: List<String>) {
-        currentOrder = order.filter { id -> providers.any { it.id == id } }
+    fun setOrder(order: List<QuotaProviderType>) {
+        currentOrder = order.filter { type -> providers.any { it.type == type } }
             .let { ordered ->
-                val remaining = providers.map { it.id }.filter { it !in ordered }
+                val remaining = providers.map { it.type }.filter { it !in ordered }
                 ordered + remaining
             }
         rebuild()
@@ -103,8 +104,8 @@ internal class ProviderReorderPanel(
 
     private fun rebuild() {
         iconsPanel.removeAll()
-        currentOrder.forEach { id ->
-            val provider = providers.find { it.id == id } ?: return@forEach
+        currentOrder.forEach { type ->
+            val provider = providers.find { it.type == type } ?: return@forEach
             iconsPanel.add(createDraggableIcon(provider))
         }
         iconsPanel.revalidate()
@@ -138,7 +139,7 @@ internal class ProviderReorderPanel(
     private fun createDraggableIcon(provider: ProviderInfo): JComponent {
         val itemWidth = JBUI.scale(83)
         val itemHeight = JBUI.scale(64)
-        return JBLabel(provider.label, JBLabel.CENTER).apply {
+        return JBLabel(provider.type.displayName, JBLabel.CENTER).apply {
             val scaledIcon = scaleToSize(provider.icon, JBUI.scale(24), this)
             icon = scaledIcon
             horizontalTextPosition = JBLabel.CENTER
@@ -152,9 +153,9 @@ internal class ProviderReorderPanel(
                 JBUI.Borders.empty(4, 6),
             )
             cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-            toolTipText = "Drag to reorder ${provider.label}"
+            toolTipText = "Drag to reorder ${provider.type.displayName}"
             transferHandler = ProviderTransferHandler()
-            putClientProperty("providerId", provider.id)
+            putClientProperty("providerId", provider.type.id)
 
             addMouseListener(object : MouseAdapter() {
                 override fun mousePressed(e: MouseEvent) {
@@ -166,14 +167,15 @@ internal class ProviderReorderPanel(
     }
 
     private fun moveProvider(draggedId: String, insertIndex: Int) {
+        val draggedType = QuotaProviderType.fromId(draggedId) ?: return
         val mutable = currentOrder.toMutableList()
-        val draggedIndex = mutable.indexOf(draggedId)
+        val draggedIndex = mutable.indexOf(draggedType)
         if (draggedIndex < 0) return
         mutable.removeAt(draggedIndex)
         // adjust insert index after removal
         val adjustedIndex = if (insertIndex > draggedIndex) insertIndex - 1 else insertIndex
         val clampedIndex = adjustedIndex.coerceIn(0, mutable.size)
-        mutable.add(clampedIndex, draggedId)
+        mutable.add(clampedIndex, draggedType)
         currentOrder = mutable
         rebuild()
         onOrderChanged(currentOrder)
@@ -222,8 +224,7 @@ internal class ProviderReorderPanel(
     }
 
     private data class ProviderInfo(
-        val id: String,
-        val label: String,
+        val type: QuotaProviderType,
         val icon: Icon,
     )
 

@@ -17,7 +17,7 @@ class OpenCodeQuotaProvider(
         runCatching { QuotaSettingsState.getInstance() }.getOrNull()
     },
 ) : QuotaProvider {
-    override val id = "opencode"
+    override val type = QuotaProviderType.OPEN_CODE
 
     private val lastQuotaRef = AtomicReference<OpenCodeQuota?>()
     private val lastErrorRef = AtomicReference<String?>()
@@ -97,7 +97,7 @@ class OpenCodeQuotaProvider(
         val quota = lastQuotaRef.get()
         if (quota != null) {
             QuotaSnapshotCache.encodeOpenCodeQuota(quota)?.let { settings.cachedOpenCodeQuotaJson = it }
-            settings.updateTimestamp(id)
+            settings.updateTimestamp(type)
         }
     }
 

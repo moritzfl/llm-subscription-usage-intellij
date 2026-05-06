@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicReference
 class KimiQuotaProvider(
     private val client: KimiQuotaClient = KimiQuotaClient(),
 ) : QuotaProvider {
-    override val id = "kimi"
+    override val type = QuotaProviderType.KIMI
     private val lastQuotaRef = AtomicReference<KimiQuota?>()
     private val lastErrorRef = AtomicReference<String?>()
     private val lastRawJsonRef = AtomicReference<String?>()
@@ -60,7 +60,7 @@ class KimiQuotaProvider(
         val quota = lastQuotaRef.get()
         if (quota != null) {
             QuotaSnapshotCache.encodeKimiQuota(quota)?.let { settings.cachedKimiQuotaJson = it }
-            settings.updateTimestamp(id)
+            settings.updateTimestamp(type)
         }
     }
 }
