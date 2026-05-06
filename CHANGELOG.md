@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-05-06
+- Stabilized OpenAI quota response parsing (added hysteresis) to prevent the "Last used" source indicator from bouncing incorrectly when usage drops slightly from 100% to 99%
+
 ## [0.10.1] - 2026-04-30
 - Fixed MCP tools for OpenCode and Ollama to always return properly serialized JSON instead of raw response data
 
