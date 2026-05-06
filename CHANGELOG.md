@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-05-06
+- Unified "limit reached" warnings across all providers with a clear red status message in the popup
+- Hovering over the indicator now shows a detailed, compact summary of usage for all active limits
+- Improved reliability: percentage and reset time stay visible in the toolbar even when out of quota
+- Fixed a bug where the preferred quota source would occasionally reset to OpenAI
+- Cleaner, more consistent time and duration formatting across the entire UI
+
+
 ## [0.10.2] - 2026-05-06
 - Stabilized OpenAI quota response parsing (added hysteresis) to prevent the "Last used" source indicator from bouncing incorrectly when usage drops slightly from 100% to 99%
 
