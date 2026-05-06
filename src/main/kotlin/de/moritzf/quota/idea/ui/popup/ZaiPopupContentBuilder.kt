@@ -51,7 +51,14 @@ internal class ZaiPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout.TO
                 webSearchBlock.showLoading("Web searches")
             }
             else -> {
-                errorLabel.isVisible = false
+                val limitReached = (quota.sessionUsage?.usagePercent ?: 0.0) >= 100.0 ||
+                    (quota.weeklyUsage?.usagePercent ?: 0.0) >= 100.0 ||
+                    (quota.webSearchUsage?.usagePercent ?: 0.0) >= 100.0
+                errorLabel.isVisible = limitReached
+                if (limitReached) {
+                    errorLabel.text = "Z.ai limit reached"
+                }
+
                 val label = quota.plan.takeIf { it.isNotBlank() }?.let { "$ZAI_LABEL ($it)" } ?: ZAI_LABEL
                 titleLabel.isVisible = true
                 titleLabel.text = label

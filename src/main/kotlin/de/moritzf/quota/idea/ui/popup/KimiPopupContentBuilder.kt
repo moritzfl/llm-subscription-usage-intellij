@@ -50,7 +50,13 @@ internal class KimiPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout.T
             }
 
             else -> {
-                errorLabel.isVisible = false
+                val limitReached = (quota.sessionUsage?.usagePercent ?: 0.0) >= 100.0 ||
+                    (quota.totalUsage?.usagePercent ?: 0.0) >= 100.0
+                errorLabel.isVisible = limitReached
+                if (limitReached) {
+                    errorLabel.text = "Kimi limit reached"
+                }
+
                 titleLabel.isVisible = true
                 titleLabel.text = quota.plan.ifBlank { "Kimi Code" }
                 quota.sessionUsage?.let { sessionBlock.updateKimi(it, "Session") } ?: sessionBlock.clear()

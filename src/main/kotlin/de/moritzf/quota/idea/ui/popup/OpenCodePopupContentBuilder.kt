@@ -52,7 +52,12 @@ internal class OpenCodePopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayo
                 monthlyBlock.showLoading("Monthly")
             }
             else -> {
-                errorLabel.isVisible = false
+                val limitReached = isAnyLimitReached(quota)
+                errorLabel.isVisible = limitReached
+                if (limitReached) {
+                    errorLabel.text = "OpenCode limit reached"
+                }
+
                 titleLabel.isVisible = true
                 titleLabel.text = OPENCODE_GO_LABEL
                 val balanceText = quota.availableBalance?.let(QuotaUiUtil::formatOpenCodeBalance)
@@ -84,8 +89,15 @@ internal class OpenCodePopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayo
         val percent = clampPercent(window.usagePercent)
         val resetText = QuotaUiUtil.formatResetInSeconds(window.resetInSec)
         var info = "$percent% used"
-        if (window.isRateLimited) info += " - LIMIT REACHED"
         if (resetText != null) info += " - $resetText"
         update("$label limit", info, percent)
     }
+
+    private fun isAnyLimitReached(quota: OpenCodeQuota): Boolean {
+        return (quota.rollingUsage?.isExhausted() ?: false) ||
+            (quota.weeklyUsage?.isExhausted() ?: false) ||
+            (quota.monthlyUsage?.isExhausted() ?: false)
+    }
+
+    private fun OpenCodeUsageWindow.isExhausted(): Boolean = isRateLimited || usagePercent >= 100
 }

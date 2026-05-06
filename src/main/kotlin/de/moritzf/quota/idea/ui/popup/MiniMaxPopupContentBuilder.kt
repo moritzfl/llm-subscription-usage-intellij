@@ -43,7 +43,12 @@ internal class MiniMaxPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayou
                 sessionBlock.showLoading("Session")
             }
             else -> {
-                errorLabel.isVisible = false
+                val limitReached = (quota.sessionUsage?.usagePercent ?: 0.0) >= 100.0
+                errorLabel.isVisible = limitReached
+                if (limitReached) {
+                    errorLabel.text = "MiniMax limit reached"
+                }
+
                 titleLabel.isVisible = true
                 titleLabel.text = quota.plan.ifBlank { "MiniMax Coding Plan (${quota.region})" }
                 quota.sessionUsage?.let { sessionBlock.updateMiniMax(it, "Session") } ?: sessionBlock.clear()

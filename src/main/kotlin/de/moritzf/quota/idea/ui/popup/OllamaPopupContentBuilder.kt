@@ -47,7 +47,13 @@ internal class OllamaPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout
                 weeklyBlock.showLoading("Weekly")
             }
             else -> {
-                errorLabel.isVisible = false
+                val limitReached = (quota.sessionUsage?.usagePercent ?: 0.0) >= 100.0 ||
+                    (quota.weeklyUsage?.usagePercent ?: 0.0) >= 100.0
+                errorLabel.isVisible = limitReached
+                if (limitReached) {
+                    errorLabel.text = "Ollama limit reached"
+                }
+
                 val planTitle = quota.plan.takeIf { it.isNotBlank() }?.replaceFirstChar { it.uppercase() }
                 titleLabel.isVisible = true
                 titleLabel.text = if (planTitle != null) "$OLLAMA_LABEL ($planTitle)" else OLLAMA_LABEL

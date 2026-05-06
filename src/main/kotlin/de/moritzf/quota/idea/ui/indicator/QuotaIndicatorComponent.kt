@@ -366,6 +366,8 @@ internal fun ollamaBarDisplayText(quota: de.moritzf.quota.ollama.OllamaQuota?, e
     if (quota == null) return "loading..."
 
     val state = ollamaIndicatorState(quota) ?: return "no data"
+    if (state.percent >= 100) return "limit reached"
+
     val reset = QuotaUiUtil.formatResetCompact(state.resetsAt)
     val text = "${state.percent}%"
     return if (reset != null) "$text • $reset" else text
@@ -403,8 +405,12 @@ internal fun miniMaxBarDisplayText(quota: MiniMaxQuota?, error: String?): String
     if (error != null) return "error"
     if (quota == null) return "loading..."
     val usage = quota.sessionUsage ?: return "no data"
+
+    val percent = clampPercent(usage.usagePercent.roundToInt())
+    if (percent >= 100) return "limit reached"
+
     val reset = QuotaUiUtil.formatResetCompact(usage.resetsAt)
-    val text = "${clampPercent(usage.usagePercent.roundToInt())}%"
+    val text = "$percent%"
     return if (reset != null) "$text • $reset" else text
 }
 
@@ -420,8 +426,12 @@ internal fun kimiBarDisplayText(quota: KimiQuota?, error: String?): String {
     if (error != null) return "error"
     if (quota == null) return "loading..."
     val usage = kimiDisplayWindow(quota) ?: return "no data"
+
+    val percent = clampPercent(usage.usagePercent.roundToInt())
+    if (percent >= 100) return "limit reached"
+
     val reset = QuotaUiUtil.formatResetCompact(usage.resetsAt)
-    val text = "${clampPercent(usage.usagePercent.roundToInt())}%"
+    val text = "$percent%"
     return if (reset != null) "$text • $reset" else text
 }
 
@@ -434,6 +444,8 @@ internal fun zaiBarDisplayText(quota: ZaiQuota?, error: String?): String {
     if (quota == null) return "loading..."
 
     val state = zaiIndicatorState(quota) ?: return "no data"
+    if (state.percent >= 100) return "limit reached"
+
     val reset = QuotaUiUtil.formatResetCompact(state.resetsAt)
     val text = "${state.percent}%"
     return if (reset != null) "$text • $reset" else text
@@ -455,7 +467,7 @@ internal fun buildOpenCodeTooltipText(quota: OpenCodeQuota?, error: String?): St
     val availableBalance = quota.availableBalance
     return when {
         window == null -> "OpenCode quota: no usage data"
-        window.isRateLimited -> "OpenCode quota: rate limited"
+        window.isExhausted() -> "OpenCode quota: limit reached"
         availableBalance != null ->
             "OpenCode quota: ${window.usagePercent}% used, balance $${QuotaUiUtil.formatOpenCodeBalance(availableBalance)}"
         else -> "OpenCode quota: ${window.usagePercent}% used"
@@ -466,16 +478,12 @@ internal fun openCodeBarDisplayText(quota: OpenCodeQuota?, error: String?): Stri
     if (error != null) return "error"
     if (quota == null) return "loading..."
 
-    val state = openCodeIndicatorState(quota)
-    return when {
-        state == null -> "no data"
-        else -> {
-            val reset = formatOpenCodeResetTime(state.resetInSec)
-            val parts = mutableListOf("${state.percent}%")
-            if (reset != null) parts.add(reset)
-            parts.joinToString(" \u2022 ")
-        }
-    }
+    val state = openCodeIndicatorState(quota) ?: return "no data"
+    if (state.percent >= 100) return "limit reached"
+
+    val reset = formatOpenCodeResetTime(state.resetInSec)
+    val text = "${state.percent}%"
+    return if (reset != null) "$text \u2022 $reset" else text
 }
 
 private fun formatOpenCodeResetTime(resetInSec: Long): String? {
@@ -515,6 +523,7 @@ internal fun indicatorBarDisplayText(quota: OpenAiCodexQuota?, error: String?, l
     }
 
     val state = indicatorQuotaState(quota) ?: return "loading..."
+    if (state.limitReached) return "limit reached"
 
     val display = openAiIndicatorDisplayState(quota, state) ?: return "available"
     val reset = QuotaUiUtil.formatResetCompact(display.resetsAt)
