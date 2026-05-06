@@ -5,6 +5,8 @@ import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.OpenAiCodexQuotaClient
 import de.moritzf.quota.openai.OpenAiCodexQuotaException
+import de.moritzf.quota.openai.UsageWindow
+import kotlinx.datetime.Clock
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -36,6 +38,7 @@ class OpenAiQuotaProvider(
 
         try {
             val quota = quotaFetcher(accessToken, accountIdProvider())
+            applyHysteresis(lastQuotaRef.get(), quota)
             lastQuotaRef.set(quota)
             lastErrorRef.set(null)
             lastRawJsonRef.set(quota.rawJson)
@@ -66,6 +69,62 @@ class OpenAiQuotaProvider(
         if (quota != null) {
             QuotaSnapshotCache.encodeOpenAiQuota(quota)?.let { settings.cachedOpenAiQuotaJson = it }
             settings.updateTimestamp(id)
+        }
+    }
+
+    private fun applyHysteresis(oldQuota: OpenAiCodexQuota?, newQuota: OpenAiCodexQuota) {
+        if (oldQuota == null) return
+
+        var anyLimitReached = false
+
+        fun stabilizeWindow(oldWindow: UsageWindow?, newWindow: UsageWindow?, oldLimitReached: Boolean?) {
+            if (oldWindow == null || newWindow == null) return
+
+            val wasLimitReached = oldLimitReached == true || oldWindow.usedPercent >= 100.0
+            val isLimitReached = newWindow.usedPercent >= 100.0
+
+            if (wasLimitReached && !isLimitReached && newWindow.usedPercent >= 99.0) {
+                val oldResetTime = oldWindow.resetsAt
+                if (oldResetTime != null && Clock.System.now() < oldResetTime) {
+                    newWindow.usedPercent = 100.0
+                    anyLimitReached = true
+                }
+            } else if (isLimitReached) {
+                anyLimitReached = true
+            }
+        }
+
+        stabilizeWindow(oldQuota.primary, newQuota.primary, oldQuota.limitReached)
+        stabilizeWindow(oldQuota.secondary, newQuota.secondary, oldQuota.limitReached)
+
+        if (anyLimitReached) {
+            newQuota.limitReached = true
+        }
+
+        var anyReviewLimitReached = false
+
+        fun stabilizeReviewWindow(oldWindow: UsageWindow?, newWindow: UsageWindow?, oldLimitReached: Boolean?) {
+            if (oldWindow == null || newWindow == null) return
+
+            val wasLimitReached = oldLimitReached == true || oldWindow.usedPercent >= 100.0
+            val isLimitReached = newWindow.usedPercent >= 100.0
+
+            if (wasLimitReached && !isLimitReached && newWindow.usedPercent >= 99.0) {
+                val oldResetTime = oldWindow.resetsAt
+                if (oldResetTime != null && Clock.System.now() < oldResetTime) {
+                    newWindow.usedPercent = 100.0
+                    anyReviewLimitReached = true
+                }
+            } else if (isLimitReached) {
+                anyReviewLimitReached = true
+            }
+        }
+
+        stabilizeReviewWindow(oldQuota.reviewPrimary, newQuota.reviewPrimary, oldQuota.reviewLimitReached)
+        stabilizeReviewWindow(oldQuota.reviewSecondary, newQuota.reviewSecondary, oldQuota.reviewLimitReached)
+
+        if (anyReviewLimitReached) {
+            newQuota.reviewLimitReached = true
         }
     }
 }

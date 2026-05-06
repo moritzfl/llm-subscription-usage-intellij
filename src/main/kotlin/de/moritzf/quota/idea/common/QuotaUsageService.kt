@@ -296,11 +296,16 @@ class QuotaUsageService(
             provider.refresh()
             val newFraction = getCurrentUsageFraction(provider)
 
-            if (oldFraction != null && newFraction != null && newFraction > oldFraction) {
+            val significantChange = oldFraction != null && newFraction != null &&
+                kotlin.math.abs(newFraction - oldFraction) >= MIN_USAGE_INCREASE
+
+            if (significantChange && newFraction > oldFraction) {
                 (settings ?: settingsProvider())?.lastActiveSource = provider.id
             }
 
-            settings?.let(provider::persistToCache)
+            if (oldFraction == null || significantChange) {
+                settings?.let(provider::persistToCache)
+            }
             publishUpdate()
         } finally {
             refreshing.set(false)
@@ -408,6 +413,8 @@ class QuotaUsageService(
     }
 
     companion object {
+        private const val MIN_USAGE_INCREASE = 0.005
+
         @JvmStatic
         fun getInstance(): QuotaUsageService {
             return ApplicationManager.getApplication().getService(QuotaUsageService::class.java)
