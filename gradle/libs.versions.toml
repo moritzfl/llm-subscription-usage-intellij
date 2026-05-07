@@ -1,5 +1,5 @@
 [versions]
-kotlinx-datetime = "0.7.1-0.6.x-compat"
+kotlinx-datetime = "0.8.0-0.6.x-compat"
 kotlinx-serialization-json = "1.11.0"
 junit4 = "4.13.2"
 kotlin = "2.3.21"
