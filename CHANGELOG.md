@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-05-27
+- Added support for **Gemini** subscription usage quotas
+- Improved settings layout: provider icons now act as clickable tabs and support drag-to-reorder
+
 ## [0.11.0] - 2026-05-06
 - Unified "limit reached" warnings across all providers with a clear red status message in the popup
 - Hovering over the indicator now shows a detailed, compact summary of usage for all active limits
