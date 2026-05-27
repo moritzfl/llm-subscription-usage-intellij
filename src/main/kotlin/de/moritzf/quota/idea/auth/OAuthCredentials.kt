@@ -11,4 +11,5 @@ class OAuthCredentials(
     var refreshToken: String? = null,
     var expiresAt: Long = 0,
     var accountId: String? = null,
+    var hd: String? = null,
 )

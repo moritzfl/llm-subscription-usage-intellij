@@ -22,15 +22,16 @@ class OAuthTokenClient(
 ) : OAuthTokenOperations {
     override suspend fun exchangeAuthorizationCode(code: String, codeVerifier: String): OAuthCredentials {
         LOG.info("Exchanging authorization code for tokens")
-        val response = postForm(
-            linkedMapOf(
-                "grant_type" to "authorization_code",
-                "client_id" to config.clientId,
-                "code" to code,
-                "redirect_uri" to config.redirectUri,
-                "code_verifier" to codeVerifier,
-            ),
+        val params = linkedMapOf(
+            "grant_type" to "authorization_code",
+            "client_id" to config.clientId,
+            "code" to code,
+            "redirect_uri" to config.redirectUri,
+            "code_verifier" to codeVerifier,
         )
+        config.clientSecret?.let { params["client_secret"] = it }
+
+        val response = postForm(params)
         if (response.statusCode() !in 200..299) {
             LOG.warn("Token exchange failed: ${response.statusCode()}")
             throw createRequestException("Token exchange failed", response)
@@ -48,13 +49,13 @@ class OAuthTokenClient(
 
     override suspend fun refreshCredentials(existing: OAuthCredentials): OAuthCredentials {
         LOG.info("Refreshing OAuth token")
-        val response = postForm(
-            linkedMapOf(
-                "grant_type" to "refresh_token",
-                "client_id" to config.clientId,
-                "refresh_token" to existing.refreshToken.orEmpty(),
-            ),
+        val params = linkedMapOf(
+            "grant_type" to "refresh_token",
+            "client_id" to config.clientId,
+            "refresh_token" to existing.refreshToken.orEmpty(),
         )
+        config.clientSecret?.let { params["client_secret"] = it }
+        val response = postForm(params)
         if (response.statusCode() !in 200..299) {
             LOG.warn("Token refresh failed: ${response.statusCode()}")
             throw createRequestException("Token refresh failed", response)
@@ -65,6 +66,9 @@ class OAuthTokenClient(
             credentials.refreshToken = tokenResponse.refreshToken?.takeUnless { it.isBlank() } ?: existing.refreshToken
             if (credentials.accountId == null) {
                 credentials.accountId = existing.accountId
+            }
+            if (credentials.hd == null) {
+                credentials.hd = existing.hd
             }
         }
     }
@@ -88,6 +92,7 @@ class OAuthTokenClient(
             accessToken = accessToken,
             expiresAt = System.currentTimeMillis() + tokenResponse.expiresIn * 1000L,
             accountId = resolveAccountId(tokenResponse),
+            hd = QuotaTokenUtil.extractGoogleHd(tokenResponse.idToken)
         )
     }
 
@@ -116,6 +121,7 @@ class OAuthTokenClient(
     private fun resolveAccountId(response: OAuthTokenResponseDto): String? {
         return QuotaTokenUtil.extractChatGptAccountId(response.idToken)
             ?: QuotaTokenUtil.extractChatGptAccountId(response.accessToken)
+            ?: QuotaTokenUtil.extractGoogleEmail(response.idToken)
     }
 
     private fun formUrlEncode(parameters: Map<String, String>): String {

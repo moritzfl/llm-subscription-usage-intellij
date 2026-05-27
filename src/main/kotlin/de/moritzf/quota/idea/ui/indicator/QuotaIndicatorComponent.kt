@@ -16,6 +16,8 @@ import de.moritzf.quota.ollama.OllamaUsageWindow
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.kimi.KimiQuota
+import de.moritzf.quota.gemini.GeminiQuota
+import de.moritzf.quota.idea.common.QuotaProviderType
 import java.awt.Component
 import java.awt.Cursor
 import java.awt.event.MouseAdapter
@@ -88,6 +90,7 @@ internal class QuotaIndicatorComponent(
     fun updateUsage(data: QuotaIndicatorData, displayMode: QuotaDisplayMode) {
         this.data = data
         val tooltip = when (data) {
+            is QuotaIndicatorData.Gemini -> buildGeminiTooltipText(data.quota, data.error)
             is QuotaIndicatorData.OpenAi -> buildQuotaTooltipText(data.quota, data.error)
             is QuotaIndicatorData.OpenCode -> buildOpenCodeTooltipText(data.quota, data.error)
             is QuotaIndicatorData.Ollama -> buildOllamaTooltipText(data.quota, data.error)
@@ -129,6 +132,7 @@ internal class QuotaIndicatorComponent(
 
     override fun getToolTipText(event: MouseEvent?): String {
         return when (val currentData = data) {
+            is QuotaIndicatorData.Gemini -> buildGeminiTooltipText(currentData.quota, currentData.error)
             is QuotaIndicatorData.OpenAi -> buildQuotaTooltipText(currentData.quota, currentData.error)
             is QuotaIndicatorData.OpenCode -> buildOpenCodeTooltipText(currentData.quota, currentData.error)
             is QuotaIndicatorData.Ollama -> buildOllamaTooltipText(currentData.quota, currentData.error)
@@ -153,6 +157,7 @@ internal class QuotaIndicatorComponent(
 
     private fun resolveSourceIcon(): Icon? {
         return when (data) {
+            is QuotaIndicatorData.Gemini -> QuotaIcons.GEMINI
             is QuotaIndicatorData.OpenAi -> QuotaIcons.OPENAI
             is QuotaIndicatorData.OpenCode -> QuotaIcons.OPENCODE
             is QuotaIndicatorData.Ollama -> QuotaIcons.OLLAMA
@@ -179,9 +184,10 @@ internal class QuotaIndicatorComponent(
 
     private fun barDisplayText(): String {
         return when (val currentData = data) {
+            is QuotaIndicatorData.Gemini -> geminiBarDisplayText(currentData.quota, currentData.error)
             is QuotaIndicatorData.OpenAi -> {
                 val authService = QuotaAuthService.getInstance()
-                indicatorBarDisplayText(currentData.quota, currentData.error, authService.isLoggedIn())
+                indicatorBarDisplayText(currentData.quota, currentData.error, authService.isLoggedIn(QuotaProviderType.OPEN_AI))
             }
             is QuotaIndicatorData.OpenCode -> openCodeBarDisplayText(currentData.quota, currentData.error)
             is QuotaIndicatorData.Ollama -> ollamaBarDisplayText(currentData.quota, currentData.error)
@@ -193,6 +199,9 @@ internal class QuotaIndicatorComponent(
 
     private fun cakeIcon(): Icon {
         val currentData = data
+        if (currentData is QuotaIndicatorData.Gemini) {
+            return currentData.quota?.let(::geminiCakeIcon) ?: QuotaIcons.CAKE_UNKNOWN
+        }
         if (currentData is QuotaIndicatorData.OpenCode) {
             return currentData.quota?.let(::openCodeCakeIcon) ?: QuotaIcons.CAKE_UNKNOWN
         }
@@ -210,7 +219,7 @@ internal class QuotaIndicatorComponent(
         }
         val openAiData = currentData as QuotaIndicatorData.OpenAi
         val authService = QuotaAuthService.getInstance()
-        if (!authService.isLoggedIn() || openAiData.error != null) {
+        if (!authService.isLoggedIn(QuotaProviderType.OPEN_AI) || openAiData.error != null) {
             return QuotaIcons.CAKE_UNKNOWN
         }
 
@@ -221,6 +230,13 @@ internal class QuotaIndicatorComponent(
 
         val percent = state.window?.let { clampPercent(it.usedPercent.roundToInt()) } ?: return QuotaIcons.CAKE_UNKNOWN
         return cakeIconForPercent(percent)
+    }
+
+    private fun geminiCakeIcon(quota: GeminiQuota): Icon {
+        val bucket = quota.buckets.minByOrNull { it.remainingFraction ?: 1.0 } ?: return QuotaIcons.CAKE_UNKNOWN
+        val fraction = bucket.remainingFraction ?: 1.0
+        val percentUsed = clampPercent((100.0 * (1.0 - fraction)).roundToInt())
+        return cakeIconForPercent(percentUsed)
     }
 
     private fun openCodeCakeIcon(quota: de.moritzf.quota.opencode.OpenCodeQuota): Icon {
@@ -302,6 +318,11 @@ internal class QuotaIndicatorComponent(
 
     private fun displayPercent(): Int {
         val currentData = data
+        if (currentData is QuotaIndicatorData.Gemini) {
+            val bucket = currentData.quota?.buckets?.minByOrNull { it.remainingFraction ?: 1.0 } ?: return -1
+            val fraction = bucket.remainingFraction ?: 1.0
+            return clampPercent((100.0 * (1.0 - fraction)).roundToInt())
+        }
         if (currentData is QuotaIndicatorData.OpenCode) {
             return currentData.quota?.let(::openCodeIndicatorState)?.percent ?: -1
         }
@@ -319,7 +340,7 @@ internal class QuotaIndicatorComponent(
         }
         val openAiData = currentData as QuotaIndicatorData.OpenAi
         val authService = QuotaAuthService.getInstance()
-        return indicatorDisplayPercent(openAiData.quota, openAiData.error, authService.isLoggedIn())
+        return indicatorDisplayPercent(openAiData.quota, openAiData.error, authService.isLoggedIn(QuotaProviderType.OPEN_AI))
     }
 
     private fun updatePercentageDisplay() {
@@ -339,6 +360,36 @@ internal class QuotaIndicatorComponent(
             )
         }
     }
+}
+
+internal fun buildGeminiTooltipText(quota: GeminiQuota?, error: String?): String {
+    if (error != null) return "Gemini quota: $error"
+    if (quota == null) return "Gemini quota: loading"
+    val plan = quota.planType ?: "Gemini"
+    val parts = mutableListOf<String>()
+    quota.buckets.forEach { bucket ->
+        val fraction = bucket.remainingFraction ?: 1.0
+        val percentUsed = clampPercent((100.0 * (1.0 - fraction)).roundToInt())
+        val model = bucket.modelId.substringAfterLast("/")
+        val reset = bucket.resetTime?.let { 
+             QuotaUiUtil.formatResetCompact(runCatching { kotlinx.datetime.Instant.parse(it) }.getOrNull())
+        }
+        parts.add("$model: $percentUsed% • ${reset ?: "unknown"}")
+    }
+    if (parts.isEmpty()) return "$plan quota: no usage data"
+    return "$plan quota:\n${parts.joinToString("\n")}"
+}
+
+internal fun geminiBarDisplayText(quota: GeminiQuota?, error: String?): String {
+    if (error != null) return "error"
+    if (quota == null) return "loading..."
+    val bucket = quota.buckets.minByOrNull { it.remainingFraction ?: 1.0 } ?: return "no data"
+    val fraction = bucket.remainingFraction ?: 1.0
+    val percentUsed = clampPercent((100.0 * (1.0 - fraction)).roundToInt())
+    val reset = bucket.resetTime?.let { 
+         QuotaUiUtil.formatResetCompact(runCatching { kotlinx.datetime.Instant.parse(it) }.getOrNull())
+    }
+    return if (reset != null) "$percentUsed% • $reset" else "$percentUsed%"
 }
 
 internal fun buildOllamaTooltipText(quota: de.moritzf.quota.ollama.OllamaQuota?, error: String?): String {
@@ -434,7 +485,7 @@ internal fun zaiBarDisplayText(quota: ZaiQuota?, error: String?): String {
 
 internal fun buildQuotaTooltipText(quota: OpenAiCodexQuota?, error: String?): String {
     val authService = QuotaAuthService.getInstance()
-    return buildQuotaTooltipText(quota, error, authService.isLoggedIn())
+    return buildQuotaTooltipText(quota, error, authService.isLoggedIn(QuotaProviderType.OPEN_AI))
 }
 
 internal fun buildOpenCodeTooltipText(quota: OpenCodeQuota?, error: String?): String {

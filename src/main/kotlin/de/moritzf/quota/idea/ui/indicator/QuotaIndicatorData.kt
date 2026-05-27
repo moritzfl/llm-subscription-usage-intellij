@@ -5,9 +5,15 @@ import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.kimi.KimiQuota
+import de.moritzf.quota.gemini.GeminiQuota
 
 internal sealed interface QuotaIndicatorData {
     val error: String?
+
+    data class Gemini(
+        val quota: GeminiQuota?,
+        override val error: String?,
+    ) : QuotaIndicatorData
 
     data class OpenAi(
         val quota: OpenAiCodexQuota?,

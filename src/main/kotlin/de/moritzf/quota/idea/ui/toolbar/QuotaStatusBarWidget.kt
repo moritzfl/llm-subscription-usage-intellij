@@ -24,6 +24,7 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
         val service = QuotaUsageService.getInstance()
         QuotaPopupSupport.showPopup(
             project, component,
+            service.getLastGeminiQuota(), service.getLastGeminiError(),
             service.getLastQuota(), service.getLastError(),
             service.getLastOpenCodeQuota(), service.getLastOpenCodeError(),
             service.getLastOllamaQuota(), service.getLastOllamaError(),
@@ -38,6 +39,9 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
     init {
         connection = ApplicationManager.getApplication().messageBus.connect(this)
         connection.subscribe(QuotaUsageListener.TOPIC, object : QuotaUsageListener {
+            override fun onGeminiQuotaUpdated(quota: de.moritzf.quota.gemini.GeminiQuota?, error: String?) {
+                updateWidget()
+            }
             override fun onQuotaUpdated(quota: de.moritzf.quota.openai.OpenAiCodexQuota?, error: String?) {
                 updateWidget()
             }

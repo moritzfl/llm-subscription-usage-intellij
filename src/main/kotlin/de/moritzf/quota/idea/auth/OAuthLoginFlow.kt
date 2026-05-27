@@ -216,9 +216,8 @@ class OAuthLoginFlow private constructor(
                 "code_challenge_method" to "S256",
                 "response_type" to "code",
                 "state" to state,
-                "codex_cli_simplified_flow" to "true",
-                "originator" to config.originator,
             )
+            params.putAll(config.extraParameters)
             return "${config.authorizationEndpoint}?${OAuthUrlCodec.formEncode(params)}"
         }
 
@@ -285,8 +284,8 @@ class OAuthLoginFlow private constructor(
                 </div>
                 </body>
                 </html>
-            """
-            return response.trimIndent().format(title, background, title, message)
+            """.trimIndent()
+            return response.format(title, background, title, message)
         }
     }
 }

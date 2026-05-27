@@ -27,6 +27,7 @@ import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.openai.OpenAiCodexQuota
+import de.moritzf.quota.gemini.GeminiQuota
 import de.moritzf.quota.zai.ZaiQuota
 import kotlinx.datetime.Instant
 import java.awt.Component
@@ -46,6 +47,8 @@ internal object QuotaPopupSupport {
     fun showPopup(
         project: Project,
         component: Component,
+        geminiQuota: GeminiQuota?,
+        geminiError: String?,
         quota: OpenAiCodexQuota?,
         error: String?,
         openCodeQuota: OpenCodeQuota?,
@@ -83,6 +86,7 @@ internal object QuotaPopupSupport {
         val currentPopup = popup
         val popupConnection: MessageBusConnection = ApplicationManager.getApplication().messageBus.connect(currentPopup)
         var latestState = QuotaPopupContentState(
+            geminiQuota, geminiError,
             quota, error, openCodeQuota, openCodeError, ollamaQuota, ollamaError,
             zaiQuota, zaiError, miniMaxQuota, miniMaxError, kimiQuota, kimiError,
         )
@@ -98,6 +102,11 @@ internal object QuotaPopupSupport {
             }
         }
         popupConnection.subscribe(QuotaUsageListener.TOPIC, object : QuotaUsageListener {
+            override fun onGeminiQuotaUpdated(quota: GeminiQuota?, error: String?) {
+                latestState = latestState.copy(geminiQuota = quota, geminiError = error)
+                scheduleRefresh()
+            }
+
             override fun onQuotaUpdated(quota: OpenAiCodexQuota?, error: String?) {
                 latestState = latestState.copy(quota = quota, error = error)
                 scheduleRefresh()
@@ -167,6 +176,8 @@ internal object QuotaPopupSupport {
 }
 
 internal data class QuotaPopupContentState(
+    val geminiQuota: GeminiQuota? = null,
+    val geminiError: String? = null,
     val quota: OpenAiCodexQuota?,
     val error: String?,
     val openCodeQuota: OpenCodeQuota? = null,
@@ -219,6 +230,7 @@ private class QuotaPopupContentPanel(
     }
 
     private val sections = linkedMapOf(
+        QuotaProviderType.GEMINI to GeminiPopupSection(),
         QuotaProviderType.KIMI to KimiPopupSection(),
         QuotaProviderType.MINIMAX to MiniMaxPopupSection(),
         QuotaProviderType.OPEN_AI to OpenAiPopupSection(),
@@ -254,6 +266,7 @@ private class QuotaPopupContentPanel(
 
     fun update(state: QuotaPopupContentState) {
         val settings = QuotaSettingsState.getInstance()
+        val hideGemini = settings.hideGeminiFromQuotaPopup
         val hideOpenAi = settings.hideOpenAiFromQuotaPopup
         val hideOpenCode = settings.hideOpenCodeFromQuotaPopup
         val hideOllama = settings.hideOllamaFromQuotaPopup
@@ -271,7 +284,8 @@ private class QuotaPopupContentPanel(
         val zaiApiKeyStore = ZaiApiKeyStore.getInstance()
         val miniMaxApiKeyStore = MiniMaxApiKeyStore.getInstance()
         val kimiCredentialsStore = KimiCredentialsStore.getInstance()
-        val hasCodexAuth = authService.isLoggedIn()
+        val hasGeminiAuth = authService.isLoggedIn(QuotaProviderType.GEMINI)
+        val hasCodexAuth = authService.isLoggedIn(QuotaProviderType.OPEN_AI)
         val hasOpenCodeAuth = openCodeCookieStore.load() != null
         val hasOllamaAuth = ollamaCookieStore.loadSessionCookie() != null
         val ollamaAuthUnknown = !ollamaCookieStore.isLoaded()
@@ -281,6 +295,7 @@ private class QuotaPopupContentPanel(
         val miniMaxAuthUnknown = !miniMaxApiKeyStore.isLoaded()
         val hasKimiAuth = kimiCredentialsStore.load()?.isUsable() == true
         val kimiAuthUnknown = !kimiCredentialsStore.isLoaded()
+        val showGeminiSection = hasGeminiAuth && !hideGemini
         val showCodexSection = hasCodexAuth && !hideOpenAi
         val showOpenCodeSection = hasOpenCodeAuth && !hideOpenCode
         val showOllamaSection = (hasOllamaAuth || ollamaAuthUnknown) && !hideOllama
@@ -288,14 +303,15 @@ private class QuotaPopupContentPanel(
         val showMiniMaxSection = (hasMiniMaxAuth || miniMaxAuthUnknown) && !hideMiniMax
         val showKimiSection = (hasKimiAuth || kimiAuthUnknown) && !hideKimi
 
-        val notLoggedIn = !hasCodexAuth && !hasOpenCodeAuth && !hasOllamaAuth && !ollamaAuthUnknown &&
+        val notLoggedIn = !hasGeminiAuth && !hasCodexAuth && !hasOpenCodeAuth && !hasOllamaAuth && !ollamaAuthUnknown &&
             !hasZaiAuth && !zaiAuthUnknown && !hasMiniMaxAuth && !miniMaxAuthUnknown && !hasKimiAuth && !kimiAuthUnknown
-        val allHidden = !showCodexSection && !showOpenCodeSection && !showOllamaSection && !showZaiSection &&
+        val allHidden = !showGeminiSection && !showCodexSection && !showOpenCodeSection && !showOllamaSection && !showZaiSection &&
             !showMiniMaxSection && !showKimiSection
 
         notLoggedInPanel.isVisible = notLoggedIn
         allHiddenPanel.isVisible = !notLoggedIn && allHidden
 
+        (sections[QuotaProviderType.GEMINI] as? GeminiPopupSection)?.update(state.geminiQuota, state.geminiError, showGeminiSection)
         (sections[QuotaProviderType.KIMI] as? KimiPopupSection)?.update(state.kimiQuota, state.kimiError, showKimiSection)
         (sections[QuotaProviderType.MINIMAX] as? MiniMaxPopupSection)?.update(state.miniMaxQuota, state.miniMaxError, showMiniMaxSection)
         (sections[QuotaProviderType.OPEN_AI] as? OpenAiPopupSection)?.update(state.quota, state.error, showCodexSection, hasReviewData)
@@ -305,6 +321,7 @@ private class QuotaPopupContentPanel(
 
         val showAnySection = !notLoggedIn && !allHidden
         val updatedAtItems = if (showAnySection) buildUpdatedAtItems(
+            showGeminiSection, state.geminiQuota,
             showKimiSection, state.kimiQuota,
             showMiniMaxSection, state.miniMaxQuota,
             showCodexSection, state.quota,
@@ -334,6 +351,8 @@ private class QuotaPopupContentPanel(
     }
 
     private fun buildUpdatedAtItems(
+        showGeminiSection: Boolean,
+        geminiQuota: GeminiQuota?,
         showKimiSection: Boolean,
         kimiQuota: KimiQuota?,
         showMiniMaxSection: Boolean,
@@ -349,6 +368,7 @@ private class QuotaPopupContentPanel(
     ): List<UpdatedAtItem> {
         val order = QuotaSettingsState.getInstance().providerOrderList()
         val providerMap = mapOf(
+            QuotaProviderType.GEMINI to Pair(showGeminiSection, UpdatedAtRawItem(UpdatedAtIcon("Gemini", QuotaIcons.GEMINI), geminiQuota?.fetchedAt)),
             QuotaProviderType.KIMI to Pair(showKimiSection, UpdatedAtRawItem(UpdatedAtIcon("Kimi", QuotaIcons.KIMI), kimiQuota?.fetchedAt)),
             QuotaProviderType.MINIMAX to Pair(showMiniMaxSection, UpdatedAtRawItem(UpdatedAtIcon("MiniMax", QuotaIcons.MINIMAX), miniMaxQuota?.fetchedAt)),
             QuotaProviderType.OPEN_AI to Pair(showCodexSection, UpdatedAtRawItem(UpdatedAtIcon("Codex", QuotaIcons.OPENAI), currentQuota?.fetchedAt)),

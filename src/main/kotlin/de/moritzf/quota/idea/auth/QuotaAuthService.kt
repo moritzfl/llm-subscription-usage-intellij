@@ -13,6 +13,7 @@ import de.moritzf.quota.idea.auth.OAuthLoginFlow
 import de.moritzf.quota.idea.auth.OAuthTokenClient
 import de.moritzf.quota.idea.auth.OAuthTokenRequestException
 import de.moritzf.quota.idea.auth.OAuthTokenOperations
+import de.moritzf.quota.idea.common.QuotaProviderType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -25,116 +26,145 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 import java.net.URI
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Coordinates OAuth login, credential storage, and token refresh for quota requests.
+ * Supports multiple providers (e.g., OpenAI, Gemini).
  */
 @Service(Service.Level.APP)
 class QuotaAuthService(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     private val httpClient: HttpClient = createHttpClient(),
-    private val tokenOperations: OAuthTokenOperations = OAuthTokenClient(httpClient, OAUTH_CONFIG),
-    private val credentialStore: OAuthCredentialStore = OAuthCredentialsStore(SERVICE_NAME, USER_NAME),
-    private val loginFlowStarter: (OAuthClientConfig) -> OAuthLoginFlow = OAuthLoginFlow::start,
-    private val browserOpener: (String) -> Unit = BrowserUtil::browse,
 ) : Disposable {
-    private val credentialsLock = Any()
-    private val refreshLock = Any()
-    private val cachedCredentials = AtomicReference<OAuthCredentials?>()
-    private val cacheLoading = AtomicBoolean(false)
-    private val cacheLoaded = AtomicBoolean(false)
-    private val authInProgress = AtomicBoolean(false)
-    private val pendingFlow = AtomicReference<OAuthLoginFlow?>()
-    private val credentialClearCounter = AtomicLong(0)
+    private val providerStates = ConcurrentHashMap<QuotaProviderType, ProviderAuthState>()
 
-    init {
-        refreshCacheAsync()
+    private fun stateFor(type: QuotaProviderType): ProviderAuthState {
+        return providerStates.computeIfAbsent(type) { ProviderAuthState(type) }
     }
 
-    fun startLoginFlow(callback: (LoginResult) -> Unit, onAuthUrl: ((String) -> Unit)? = null) {
-        if (!authInProgress.compareAndSet(false, true)) {
-            LOG.warn("Login requested while another login is already in progress")
+    private inner class ProviderAuthState(val type: QuotaProviderType) {
+        val config = when (type) {
+            QuotaProviderType.GEMINI -> OAuthClientConfig.geminiDefaults()
+            else -> OAuthClientConfig.openAiUsageQuotaDefaults()
+        }
+        val tokenOperations: OAuthTokenOperations = OAuthTokenClient(httpClient, config)
+        val credentialStore: OAuthCredentialStore = when (type) {
+            QuotaProviderType.GEMINI -> OAuthCredentialsStore("Gemini Subscription Usage OAuth", "gemini-oauth")
+            else -> OAuthCredentialsStore("LLM Subscription Usage OAuth", "openai-oauth")
+        }
+        
+        val credentialsLock = Any()
+        val refreshLock = Any()
+        val cachedCredentials = AtomicReference<OAuthCredentials?>()
+        val cacheLoading = AtomicBoolean(false)
+        val cacheLoaded = AtomicBoolean(false)
+        val authInProgress = AtomicBoolean(false)
+        val pendingFlow = AtomicReference<OAuthLoginFlow?>()
+        val credentialClearCounter = AtomicLong(0)
+    }
+
+    init {
+        QuotaProviderType.entries.forEach { type ->
+            if (type == QuotaProviderType.OPEN_AI || type == QuotaProviderType.GEMINI) {
+                refreshCacheAsync(type)
+            }
+        }
+    }
+
+    fun startLoginFlow(type: QuotaProviderType, callback: (LoginResult) -> Unit, onAuthUrl: ((String) -> Unit)? = null) {
+        val state = stateFor(type)
+        if (!state.authInProgress.compareAndSet(false, true)) {
+            LOG.warn("Login requested for ${type.displayName} while another login is already in progress")
             callback(LoginResult.error("Login already in progress"))
             return
         }
 
         scope.launch {
             val result = try {
-                runLoginFlow(onAuthUrl)
+                runLoginFlow(state, onAuthUrl)
             } catch (exception: Exception) {
-                LOG.warn("Login flow failed", exception)
+                LOG.warn("Login flow failed for ${type.displayName}", exception)
                 var message = exception.message
                 if (message != null && message.lowercase().contains("address already in use")) {
-                    message = "Port ${OAUTH_CONFIG.callbackPort} is already in use. Close the other app using it and try again."
+                    message = "Port ${state.config.callbackPort} is already in use. Close the other app using it and try again."
                 }
                 LoginResult.error(message ?: "Login failed")
             } finally {
-                authInProgress.set(false)
+                state.authInProgress.set(false)
             }
             callback(result)
         }
     }
 
-    fun isLoginInProgress(): Boolean = authInProgress.get()
+    fun isLoginInProgress(type: QuotaProviderType): Boolean = stateFor(type).authInProgress.get()
 
-    fun abortLogin(reason: String?): Boolean {
-        val flow = pendingFlow.getAndSet(null) ?: return false
-        authInProgress.set(false)
+    fun abortLogin(type: QuotaProviderType, reason: String?): Boolean {
+        val state = stateFor(type)
+        val flow = state.pendingFlow.getAndSet(null) ?: return false
+        state.authInProgress.set(false)
         val message = if (reason.isNullOrBlank()) "Login canceled" else reason
         flow.cancel(message)
-        LOG.info("Login flow aborted: $message")
+        LOG.info("Login flow aborted for ${state.type.displayName}: $message")
         return true
     }
 
-    fun clearCredentials() {
-        abortLogin("Logged out")
-        synchronized(credentialsLock) {
-            credentialClearCounter.incrementAndGet()
-            cachedCredentials.set(null)
-            cacheLoaded.set(true)
-            credentialStore.clear()
+    fun clearCredentials(type: QuotaProviderType) {
+        val state = stateFor(type)
+        abortLogin(type, "Logged out")
+        synchronized(state.credentialsLock) {
+            state.credentialClearCounter.incrementAndGet()
+            state.cachedCredentials.set(null)
+            state.cacheLoaded.set(true)
+            state.credentialStore.clear()
         }
-        LOG.info("Cleared stored OAuth credentials")
+        LOG.info("Cleared stored OAuth credentials for ${state.type.displayName}")
     }
 
-    fun isLoggedIn(): Boolean {
-        val credentials = cachedCredentialsOrScheduleLoad()
+    fun isLoggedIn(type: QuotaProviderType): Boolean {
+        val credentials = cachedCredentialsOrScheduleLoad(stateFor(type))
         return credentials?.accessToken?.isNotBlank() == true
     }
 
-    fun getAccessTokenBlocking(): String? {
-        var credentials = getCredentialsBlocking() ?: return null
+    fun getAccessTokenBlocking(type: QuotaProviderType = QuotaProviderType.OPEN_AI): String? {
+        val state = stateFor(type)
+        var credentials = getCredentialsBlocking(state) ?: return null
         if (isExpired(credentials)) {
-            credentials = refreshCredentialsBlocking() ?: return null
+            credentials = refreshCredentialsBlocking(state) ?: return null
         }
         return credentials.accessToken
     }
 
-    fun getAccountId(): String? = cachedCredentialsOrScheduleLoad()?.accountId
+    fun getAccountId(type: QuotaProviderType = QuotaProviderType.OPEN_AI): String? = 
+        cachedCredentialsOrScheduleLoad(stateFor(type))?.accountId
 
-    fun refreshCacheAsync() {
-        if (!cacheLoading.compareAndSet(false, true)) {
+    fun getHd(type: QuotaProviderType = QuotaProviderType.GEMINI): String? = 
+        cachedCredentialsOrScheduleLoad(stateFor(type))?.hd
+
+    fun refreshCacheAsync(type: QuotaProviderType) {
+        val state = stateFor(type)
+        if (!state.cacheLoading.compareAndSet(false, true)) {
             return
         }
 
         scope.launch {
             try {
-                getCredentialsBlocking()
+                getCredentialsBlocking(state)
             } finally {
-                cacheLoading.set(false)
+                state.cacheLoading.set(false)
             }
         }
     }
 
-    private suspend fun runLoginFlow(onAuthUrl: ((String) -> Unit)? = null): LoginResult {
-        LOG.info("Starting OAuth login flow")
-        val flow = loginFlowStarter(OAUTH_CONFIG)
-        pendingFlow.set(flow)
+    private suspend fun runLoginFlow(state: ProviderAuthState, onAuthUrl: ((String) -> Unit)? = null): LoginResult {
+        LOG.info("Starting OAuth login flow for ${state.type.displayName}")
+        val flow = OAuthLoginFlow.start(state.config)
+        state.pendingFlow.set(flow)
         return try {
-            val callbackError = pingCallbackEndpoint()
+            val callbackError = pingCallbackEndpoint(state.config)
             if (callbackError != null) {
                 return LoginResult.error(callbackError)
             }
@@ -145,9 +175,9 @@ class QuotaAuthService(
                 LOG.warn("Failed to publish authorization URL to UI", exception)
             }
 
-            openAuthorizationUi(flow.authorizationUrl)
+            BrowserUtil.browse(flow.authorizationUrl)
             val callback = flow.waitForCallback()
-            LOG.info("OAuth callback received; success=${callback.error == null}")
+            LOG.info("OAuth callback received for ${state.type.displayName}; success=${callback.error == null}")
 
             if (callback.error != null) {
                 return LoginResult.error(callback.error)
@@ -156,22 +186,22 @@ class QuotaAuthService(
                 return LoginResult.error("No authorization code received")
             }
 
-            val clearMarker = currentCredentialClearMarker()
-            val credentials = tokenOperations.exchangeAuthorizationCode(callback.code, flow.codeVerifier)
-            if (persistCredentialsIfCurrent(clearMarker, credentials, "login") == null) {
+            val clearMarker = currentCredentialClearMarker(state)
+            val credentials = state.tokenOperations.exchangeAuthorizationCode(callback.code, flow.codeVerifier)
+            if (persistCredentialsIfCurrent(state, clearMarker, credentials, "login") == null) {
                 return LoginResult.error("Login canceled")
             }
             LoginResult.success()
         } finally {
-            pendingFlow.compareAndSet(flow, null)
+            state.pendingFlow.compareAndSet(flow, null)
             flow.stopServerNow()
         }
     }
 
-    private suspend fun pingCallbackEndpoint(): String? {
+    private suspend fun pingCallbackEndpoint(config: OAuthClientConfig): String? {
         return try {
             val request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:${OAUTH_CONFIG.callbackPort}/auth/ping"))
+                .uri(URI.create("http://localhost:${config.callbackPort}/auth/ping"))
                 .timeout(Duration.ofSeconds(30))
                 .GET()
                 .build()
@@ -190,100 +220,92 @@ class QuotaAuthService(
         }
     }
 
-    private fun openAuthorizationUi(url: String) {
-        LOG.info("Opening authorization UI: $url")
-        browserOpener(url)
-    }
-
-    private fun cachedCredentialsOrScheduleLoad(): OAuthCredentials? {
-        cachedCredentials.get()?.let { return it }
-        if (!cacheLoaded.get()) {
-            refreshCacheAsync()
+    private fun cachedCredentialsOrScheduleLoad(state: ProviderAuthState): OAuthCredentials? {
+        state.cachedCredentials.get()?.let { return it }
+        if (!state.cacheLoaded.get()) {
+            refreshCacheAsync(state.type)
         }
         return null
     }
 
-    private fun getCredentialsBlocking(): OAuthCredentials? {
-        val clearMarker = currentCredentialClearMarker()
-        val credentials = credentialStore.load()
-        synchronized(credentialsLock) {
-            cacheLoaded.set(true)
-            if (credentialClearCounter.get() != clearMarker) {
-                cachedCredentials.set(null)
+    private fun getCredentialsBlocking(state: ProviderAuthState): OAuthCredentials? {
+        val clearMarker = currentCredentialClearMarker(state)
+        val credentials = state.credentialStore.load()
+        synchronized(state.credentialsLock) {
+            state.cacheLoaded.set(true)
+            if (state.credentialClearCounter.get() != clearMarker) {
+                state.cachedCredentials.set(null)
                 return null
             }
-            cachedCredentials.set(credentials)
+            state.cachedCredentials.set(credentials)
             return credentials
         }
     }
 
-    private fun saveCredentials(credentials: OAuthCredentials) {
-        credentialStore.save(credentials)
-    }
-
-    private fun refreshCredentialsBlocking(): OAuthCredentials? {
-        synchronized(refreshLock) {
-            val latestCredentials = getCredentialsBlocking() ?: return null
+    private fun refreshCredentialsBlocking(state: ProviderAuthState): OAuthCredentials? {
+        synchronized(state.refreshLock) {
+            val latestCredentials = getCredentialsBlocking(state) ?: return null
             if (!isExpired(latestCredentials)) {
                 return latestCredentials
             }
 
-            val clearMarker = currentCredentialClearMarker()
+            val clearMarker = currentCredentialClearMarker(state)
             return try {
                 val refreshed = runBlocking {
-                    tokenOperations.refreshCredentials(latestCredentials)
+                    state.tokenOperations.refreshCredentials(latestCredentials)
                 }
-                persistCredentialsIfCurrent(clearMarker, refreshed, "refresh")
+                persistCredentialsIfCurrent(state, clearMarker, refreshed, "refresh")
             } catch (exception: OAuthTokenRequestException) {
-                LOG.warn("Token refresh failed", exception)
+                LOG.warn("Token refresh failed for ${state.type.displayName}", exception)
                 if (exception.isTerminalAuthFailure()) {
-                    clearCredentialsIfUnchanged(latestCredentials)
+                    clearCredentialsIfUnchanged(state, latestCredentials)
                 }
                 null
             } catch (exception: Exception) {
-                LOG.warn("Token refresh failed", exception)
+                LOG.warn("Token refresh failed for ${state.type.displayName}", exception)
                 null
             }
         }
     }
 
-    private fun currentCredentialClearMarker(): Long {
-        return synchronized(credentialsLock) {
-            credentialClearCounter.get()
+    private fun currentCredentialClearMarker(state: ProviderAuthState): Long {
+        return synchronized(state.credentialsLock) {
+            state.credentialClearCounter.get()
         }
     }
 
     private fun persistCredentialsIfCurrent(
+        state: ProviderAuthState,
         clearMarker: Long,
         credentials: OAuthCredentials,
         operation: String,
     ): OAuthCredentials? {
-        synchronized(credentialsLock) {
-            if (credentialClearCounter.get() != clearMarker) {
-                cachedCredentials.set(null)
-                cacheLoaded.set(true)
-                LOG.info("Discarded OAuth credentials from $operation after logout")
+        synchronized(state.credentialsLock) {
+            if (state.credentialClearCounter.get() != clearMarker) {
+                state.cachedCredentials.set(null)
+                state.cacheLoaded.set(true)
+                LOG.info("Discarded OAuth credentials for ${state.type.displayName} from $operation after logout")
                 return null
             }
-            saveCredentials(credentials)
-            cachedCredentials.set(credentials)
-            cacheLoaded.set(true)
+            state.credentialStore.save(credentials)
+            state.cachedCredentials.set(credentials)
+            state.cacheLoaded.set(true)
             return credentials
         }
     }
 
-    private fun clearCredentialsIfUnchanged(expected: OAuthCredentials) {
-        synchronized(credentialsLock) {
-            if (!sameCredentials(cachedCredentials.get(), expected)) {
-                LOG.info("Skipped clearing OAuth credentials after refresh failure because credentials changed")
+    private fun clearCredentialsIfUnchanged(state: ProviderAuthState, expected: OAuthCredentials) {
+        synchronized(state.credentialsLock) {
+            if (!sameCredentials(state.cachedCredentials.get(), expected)) {
+                LOG.info("Skipped clearing OAuth credentials for ${state.type.displayName} after refresh failure because credentials changed")
                 return
             }
-            credentialClearCounter.incrementAndGet()
-            cachedCredentials.set(null)
-            cacheLoaded.set(true)
-            credentialStore.clear()
+            state.credentialClearCounter.incrementAndGet()
+            state.cachedCredentials.set(null)
+            state.cacheLoaded.set(true)
+            state.credentialStore.clear()
         }
-        LOG.info("Cleared stored OAuth credentials after refresh failure")
+        LOG.info("Cleared stored OAuth credentials for ${state.type.displayName} after refresh failure")
     }
 
     override fun dispose() {
@@ -302,9 +324,7 @@ class QuotaAuthService(
 
     companion object {
         private val LOG = Logger.getInstance(QuotaAuthService::class.java)
-        private const val SERVICE_NAME = "LLM Subscription Usage OAuth"
-        private const val USER_NAME = "openai-oauth"
-        private val OAUTH_CONFIG = OAuthClientConfig.openAiUsageQuotaDefaults()
+        private const val EXPIRY_SKEW_MS: Long = 5 * 60 * 1000L
 
         @JvmStatic
         fun getInstance(): QuotaAuthService {
@@ -315,7 +335,13 @@ class QuotaAuthService(
         fun parseQuery(query: String): Map<String, String> = OAuthLoginFlow.parseQuery(query)
 
         @JvmStatic
-        fun parseUri(value: String): URI = OAuthLoginFlow.parseUri(value, OAUTH_CONFIG.redirectUri)
+        fun parseUri(type: QuotaProviderType, value: String): URI {
+            val config = when (type) {
+                QuotaProviderType.GEMINI -> OAuthClientConfig.geminiDefaults()
+                else -> OAuthClientConfig.openAiUsageQuotaDefaults()
+            }
+            return OAuthLoginFlow.parseUri(value, config.redirectUri)
+        }
 
         private fun isExpired(credentials: OAuthCredentials): Boolean {
             return System.currentTimeMillis() >= credentials.expiresAt - EXPIRY_SKEW_MS
@@ -336,7 +362,5 @@ class QuotaAuthService(
                 .connectTimeout(Duration.ofSeconds(30))
                 .build()
         }
-
-        private const val EXPIRY_SKEW_MS: Long = 5 * 60 * 1000L
     }
 }

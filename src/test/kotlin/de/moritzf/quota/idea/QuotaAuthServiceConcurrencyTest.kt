@@ -6,6 +6,7 @@ import de.moritzf.quota.idea.auth.OAuthCredentialStore
 import de.moritzf.quota.idea.auth.OAuthCredentials
 import de.moritzf.quota.idea.auth.OAuthTokenRequestException
 import de.moritzf.quota.idea.auth.OAuthTokenOperations
+import de.moritzf.quota.idea.common.QuotaProviderType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -43,16 +44,16 @@ class QuotaAuthServiceConcurrencyTest {
         val executor = Executors.newSingleThreadExecutor()
 
         try {
-            val tokenFuture = executor.submit<String?> { service.getAccessTokenBlocking() }
+            val tokenFuture = executor.submit<String?> { service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI) }
 
             assertTrue(refreshStarted.await(5, TimeUnit.SECONDS))
-            service.clearCredentials()
+            service.clearCredentials(QuotaProviderType.OPEN_AI)
             allowRefreshToFinish.countDown()
 
             assertNull(tokenFuture.get(5, TimeUnit.SECONDS))
             assertEquals(1, refreshCalls.get())
             assertNull(store.current())
-            assertFalse(service.isLoggedIn())
+            assertFalse(service.isLoggedIn(QuotaProviderType.OPEN_AI))
         } finally {
             executor.shutdownNow()
             service.dispose()
@@ -80,10 +81,10 @@ class QuotaAuthServiceConcurrencyTest {
         val executor = Executors.newFixedThreadPool(2)
 
         try {
-            val firstToken = executor.submit<String?> { service.getAccessTokenBlocking() }
+            val firstToken = executor.submit<String?> { service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI) }
             assertTrue(refreshStarted.await(5, TimeUnit.SECONDS))
 
-            val secondToken = executor.submit<String?> { service.getAccessTokenBlocking() }
+            val secondToken = executor.submit<String?> { service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI) }
             allowRefreshToFinish.countDown()
 
             assertEquals("shared-token", firstToken.get(5, TimeUnit.SECONDS))
@@ -110,9 +111,9 @@ class QuotaAuthServiceConcurrencyTest {
         )
 
         try {
-            assertNull(service.getAccessTokenBlocking())
+            assertNull(service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
             assertEquals("old-token", store.current()?.accessToken)
-            assertTrue(service.isLoggedIn())
+            assertTrue(service.isLoggedIn(QuotaProviderType.OPEN_AI))
         } finally {
             service.dispose()
         }
@@ -131,9 +132,9 @@ class QuotaAuthServiceConcurrencyTest {
         )
 
         try {
-            assertNull(service.getAccessTokenBlocking())
+            assertNull(service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
             assertNull(store.current())
-            assertFalse(service.isLoggedIn())
+            assertFalse(service.isLoggedIn(QuotaProviderType.OPEN_AI))
         } finally {
             service.dispose()
         }
@@ -153,9 +154,9 @@ class QuotaAuthServiceConcurrencyTest {
         )
 
         try {
-            assertNull(service.getAccessTokenBlocking())
+            assertNull(service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
             assertEquals("old-token", store.current()?.accessToken)
-            assertTrue(service.isLoggedIn())
+            assertTrue(service.isLoggedIn(QuotaProviderType.OPEN_AI))
         } finally {
             service.dispose()
         }
@@ -172,8 +173,8 @@ class QuotaAuthServiceConcurrencyTest {
         )
 
         try {
-            assertTrue(service.isLoggedIn())
-            assertEquals("account-1", service.getAccountId())
+            assertTrue(service.isLoggedIn(QuotaProviderType.OPEN_AI))
+            assertEquals("account-1", service.getAccountId(QuotaProviderType.OPEN_AI))
         } finally {
             service.dispose()
         }
@@ -187,10 +188,6 @@ class QuotaAuthServiceConcurrencyTest {
         return QuotaAuthService(
             scope = testScope,
             httpClient = HttpClient.newHttpClient(),
-            tokenOperations = tokenOperations,
-            credentialStore = store,
-            loginFlowStarter = { _: OAuthClientConfig -> error("Login flow should not be started in this test") },
-            browserOpener = {},
         )
     }
 

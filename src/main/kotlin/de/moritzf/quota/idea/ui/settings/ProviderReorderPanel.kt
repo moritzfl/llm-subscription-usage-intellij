@@ -35,13 +35,14 @@ internal class ProviderReorderPanel(
 ) : JPanel(BorderLayout()) {
 
     private val providers = listOf(
+        ProviderInfo(QuotaProviderType.GEMINI, QuotaIcons.GEMINI),
         ProviderInfo(QuotaProviderType.KIMI, QuotaIcons.KIMI),
         ProviderInfo(QuotaProviderType.MINIMAX, QuotaIcons.MINIMAX),
+        ProviderInfo(QuotaProviderType.OLLAMA, QuotaIcons.OLLAMA),
         ProviderInfo(QuotaProviderType.OPEN_AI, QuotaIcons.OPENAI),
         ProviderInfo(QuotaProviderType.OPEN_CODE, QuotaIcons.OPENCODE),
-        ProviderInfo(QuotaProviderType.OLLAMA, QuotaIcons.OLLAMA),
         ProviderInfo(QuotaProviderType.ZAI, QuotaIcons.ZAI),
-    )
+    ).sortedBy { it.type.displayName }
 
     private val iconsPanel = object : JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(8), 0)) {
         override fun paintComponent(g: Graphics) {
@@ -57,7 +58,6 @@ internal class ProviderReorderPanel(
             g2.fillRect(x - JBUI.scale(1), top, JBUI.scale(2), bottom - top)
             // draw arrow heads
             val arrowSize = JBUI.scale(5)
-            val midY = (top + bottom) / 2
             val xs = intArrayOf(x - arrowSize, x + arrowSize, x)
             val topYs = intArrayOf(top + arrowSize * 2, top + arrowSize * 2, top + arrowSize)
             val botYs = intArrayOf(bottom - arrowSize * 2, bottom - arrowSize * 2, bottom - arrowSize)

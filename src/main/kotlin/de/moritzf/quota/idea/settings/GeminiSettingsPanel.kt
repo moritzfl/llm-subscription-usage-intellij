@@ -3,7 +3,6 @@ package de.moritzf.quota.idea.settings
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
-import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
@@ -24,13 +23,12 @@ import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JScrollPane
 import javax.swing.ScrollPaneConstants
-import javax.swing.SwingConstants
 
 /**
- * OpenAI Codex settings tab.
+ * Gemini settings tab.
  */
-internal class OpenAiSettingsPanel : BorderLayoutPanel() {
-    val openAiHideFromPopupCheckBox = com.intellij.ui.components.JBCheckBox("Hide from quota popup")
+internal class GeminiSettingsPanel : BorderLayoutPanel() {
+    val geminiHideFromPopupCheckBox = com.intellij.ui.components.JBCheckBox("Hide from quota popup")
     private val statusLabel = JBLabel().apply { isVisible = false }
     private val loginButton = createActionLink("Log In")
     private val cancelLoginButton = createActionLink("Cancel Login")
@@ -39,17 +37,11 @@ internal class OpenAiSettingsPanel : BorderLayoutPanel() {
         isVisible = false
         toolTipText = "Copy login URL to clipboard"
     }
-    private val accountIdField = JBTextField().apply { isEditable = false }
     private val emailField = JBTextField().apply { isEditable = false }
-    private val codexResponseViewer = createResponseViewer()
+    private val projectIdField = JBTextField().apply { isEditable = false }
+    private val geminiResponseViewer = createResponseViewer()
     private var authUrl: String? = null
     private var authStatusMessage: AuthStatusMessage? = null
-
-    var onLoginStarted: (() -> Unit)? = null
-    var onLoginResult: ((Boolean, String?) -> Unit)? = null
-    var onAuthUrlReceived: ((String) -> Unit)? = null
-    var onCancelLogin: (() -> Unit)? = null
-    var onLogout: (() -> Unit)? = null
 
     init {
         copyUrlButton.addActionListener {
@@ -62,7 +54,7 @@ internal class OpenAiSettingsPanel : BorderLayoutPanel() {
 
         loginButton.addActionListener {
             val authService = QuotaAuthService.getInstance()
-            if (authService.isLoggedIn(QuotaProviderType.OPEN_AI)) {
+            if (authService.isLoggedIn(QuotaProviderType.GEMINI)) {
                 updateAuthUi()
                 return@addActionListener
             }
@@ -70,54 +62,50 @@ internal class OpenAiSettingsPanel : BorderLayoutPanel() {
             loginButton.isEnabled = false
             authStatusMessage = AuthStatusMessage("Opening browser...", false, AuthStatusKind.PENDING)
             updateAuthUi()
-            authService.startLoginFlow(type = QuotaProviderType.OPEN_AI, callback = { result ->
+            authService.startLoginFlow(type = QuotaProviderType.GEMINI, callback = { result ->
                 ApplicationManager.getApplication().invokeLater({
                     authStatusMessage = if (result.success) {
                         AuthStatusMessage("Connected", false, AuthStatusKind.CONNECTED)
                     } else {
                         AuthStatusMessage(result.message ?: "Login failed", true, AuthStatusKind.DISCONNECTED)
                     }
-                    onLoginResult?.invoke(result.success, result.message)
                     loginButton.isEnabled = true
                     updateAuthUi()
                     updateAccountFields()
                     if (result.success) {
-                        QuotaUsageService.getInstance().refreshNowAsync()
+                        QuotaUsageService.getInstance().refreshGeminiAsync()
                     }
-                }, ModalityState.stateForComponent(this@OpenAiSettingsPanel))
+                }, ModalityState.stateForComponent(this@GeminiSettingsPanel))
             }, onAuthUrl = { url ->
                 ApplicationManager.getApplication().invokeLater({
                     authUrl = url
                     copyUrlButton.isVisible = true
-                    onAuthUrlReceived?.invoke(url)
-                }, ModalityState.stateForComponent(this@OpenAiSettingsPanel))
+                }, ModalityState.stateForComponent(this@GeminiSettingsPanel))
             })
             updateAuthUi()
         }
 
         cancelLoginButton.addActionListener {
-            val aborted = QuotaAuthService.getInstance().abortLogin(QuotaProviderType.OPEN_AI, "Login canceled")
+            val aborted = QuotaAuthService.getInstance().abortLogin(QuotaProviderType.GEMINI, "Login canceled")
             authStatusMessage = AuthStatusMessage(
                 if (aborted) "Login canceled" else "No login in progress",
                 false,
                 if (aborted) AuthStatusKind.PENDING else AuthStatusKind.DISCONNECTED
             )
             updateAuthUi()
-            onCancelLogin?.invoke()
         }
 
         logoutButton.addActionListener {
-            QuotaAuthService.getInstance().clearCredentials(QuotaProviderType.OPEN_AI)
-            QuotaUsageService.getInstance().clearCodexUsageData("Not logged in")
+            QuotaAuthService.getInstance().clearCredentials(QuotaProviderType.GEMINI)
+            QuotaUsageService.getInstance().clearGeminiUsageData("Not logged in")
             authStatusMessage = AuthStatusMessage("Logged out", false, AuthStatusKind.DISCONNECTED)
             updateAuthUi()
             updateAccountFields()
-            onLogout?.invoke()
         }
 
-        val codexConfigPanel = panel {
+        val geminiConfigPanel = panel {
             row {
-                cell(openAiHideFromPopupCheckBox)
+                cell(geminiHideFromPopupCheckBox)
             }
             row {
                 cell(statusLabel).gap(RightGap.SMALL)
@@ -129,32 +117,32 @@ internal class OpenAiSettingsPanel : BorderLayoutPanel() {
                 cell(logoutButton)
             }
             separator()
-            row("Account ID:") {
-                cell(accountIdField)
+            row("Email:") {
+                cell(emailField)
                     .resizableColumn()
                     .align(AlignX.FILL)
             }
-            row("Email:") {
-                cell(emailField)
+            row("Project ID:") {
+                cell(projectIdField)
                     .resizableColumn()
                     .align(AlignX.FILL)
             }
             separator()
         }
 
-        addToTop(codexConfigPanel)
+        addToTop(geminiConfigPanel)
         addToCenter(
             BorderLayoutPanel().apply {
                 addToTop(JBLabel("Last quota response:"))
-                addToCenter(createResponseViewerPanel(codexResponseViewer))
+                addToCenter(createResponseViewerPanel(geminiResponseViewer))
             },
         )
     }
 
     fun updateAuthUi() {
         val authService = QuotaAuthService.getInstance()
-        val loggedIn = authService.isLoggedIn(QuotaProviderType.OPEN_AI)
-        val inProgress = authService.isLoginInProgress(QuotaProviderType.OPEN_AI)
+        val loggedIn = authService.isLoggedIn(QuotaProviderType.GEMINI)
+        val inProgress = authService.isLoginInProgress(QuotaProviderType.GEMINI)
         val uiState = QuotaSettingsAuthUiState.create(loggedIn, inProgress, authStatusMessage)
         loginButton.isEnabled = uiState.loginEnabled
         cancelLoginButton.isEnabled = uiState.cancelEnabled
@@ -168,15 +156,15 @@ internal class OpenAiSettingsPanel : BorderLayoutPanel() {
     }
 
     fun updateAccountFields() {
-        val authService = QuotaAuthService.getInstance()
-        accountIdField.text = authService.getAccountId(QuotaProviderType.OPEN_AI).orEmpty()
-        emailField.text = if (authService.isLoggedIn(QuotaProviderType.OPEN_AI)) QuotaUsageService.getInstance().getLastQuota()?.email else null.orEmpty()
+        val quota = QuotaUsageService.getInstance().getLastGeminiQuota()
+        emailField.text = quota?.accountEmail.orEmpty()
+        projectIdField.text = quota?.projectId.orEmpty()
     }
 
     fun updateResponseArea() {
-        val json = QuotaUsageService.getInstance().getLastResponseJson()
-        codexResponseViewer.text = if (json.isNullOrBlank()) "No quota response yet." else json
-        codexResponseViewer.setCaretPosition(0)
+        val json = QuotaUsageService.getInstance().getLastGeminiResponseJson()
+        geminiResponseViewer.text = if (json.isNullOrBlank()) "No quota response yet." else json
+        geminiResponseViewer.setCaretPosition(0)
     }
 
     private fun createResponseViewer(): com.intellij.ui.components.JBTextArea {

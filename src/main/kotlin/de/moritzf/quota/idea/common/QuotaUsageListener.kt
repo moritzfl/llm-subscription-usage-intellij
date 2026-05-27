@@ -7,6 +7,7 @@ import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.kimi.KimiQuota
+import de.moritzf.quota.gemini.GeminiQuota
 
 /**
  * Message bus listener for quota refresh updates.
@@ -18,6 +19,7 @@ interface QuotaUsageListener {
     fun onZaiQuotaUpdated(quota: ZaiQuota?, error: String?) {}
     fun onMiniMaxQuotaUpdated(quota: MiniMaxQuota?, error: String?) {}
     fun onKimiQuotaUpdated(quota: KimiQuota?, error: String?) {}
+    fun onGeminiQuotaUpdated(quota: GeminiQuota?, error: String?) {}
 
     companion object {
         @JvmField

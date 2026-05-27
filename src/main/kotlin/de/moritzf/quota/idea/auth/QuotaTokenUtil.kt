@@ -9,7 +9,7 @@ import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 /**
- * Utilities for extracting OpenAI account metadata from JWT tokens.
+ * Utilities for extracting account metadata from JWT tokens.
  */
 object QuotaTokenUtil {
     @OptIn(ExperimentalEncodingApi::class)
@@ -19,7 +19,7 @@ object QuotaTokenUtil {
             return null
         }
 
-        val parts = token.split('.')
+        val parts = token.split(".")
         if (parts.size < 2) {
             return null
         }
@@ -38,6 +38,33 @@ object QuotaTokenUtil {
                     ?.trim()
                     ?.takeUnless { it.isBlank() }
             }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    @OptIn(ExperimentalEncodingApi::class)
+    @JvmStatic
+    fun extractGoogleEmail(token: String?): String? {
+        val payload = extractPayload(token) ?: return null
+        return payload["email"]?.toString()?.removeSurrounding("\"")?.takeUnless { it.isBlank() }
+    }
+
+    @OptIn(ExperimentalEncodingApi::class)
+    @JvmStatic
+    fun extractGoogleHd(token: String?): String? {
+        val payload = extractPayload(token) ?: return null
+        return payload["hd"]?.toString()?.removeSurrounding("\"")?.takeUnless { it.isBlank() }
+    }
+
+    @OptIn(ExperimentalEncodingApi::class)
+    private fun extractPayload(token: String?): kotlinx.serialization.json.JsonObject? {
+        if (token.isNullOrBlank()) return null
+        val parts = token.split(".")
+        if (parts.size < 2) return null
+        return try {
+            val decoded = Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT_OPTIONAL).decode(parts[1])
+            JsonSupport.json.parseToJsonElement(String(decoded, Charsets.UTF_8)).jsonObject
         } catch (_: Exception) {
             null
         }

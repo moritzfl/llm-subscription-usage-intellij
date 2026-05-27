@@ -27,12 +27,14 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var lastZaiUpdate: Long = 0
     var lastMiniMaxUpdate: Long = 0
     var lastKimiUpdate: Long = 0
+    var lastGeminiUpdate: Long = 0
     var hideOpenAiFromQuotaPopup: Boolean = false
     var hideOpenCodeFromQuotaPopup: Boolean = false
     var hideOllamaFromQuotaPopup: Boolean = false
     var hideZaiFromQuotaPopup: Boolean = false
     var hideMiniMaxFromQuotaPopup: Boolean = false
     var hideKimiFromQuotaPopup: Boolean = false
+    var hideGeminiFromQuotaPopup: Boolean = false
     var lastActiveSource: String? = null
     var openCodeWorkspaceId: String? = null
     var minimaxRegionPreference: String = MiniMaxRegionPreference.AUTO.name
@@ -42,6 +44,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var cachedZaiQuotaJson: String? = null
     var cachedMiniMaxQuotaJson: String? = null
     var cachedKimiQuotaJson: String? = null
+    var cachedGeminiQuotaJson: String? = null
     var providerOrder: String = DEFAULT_PROVIDER_ORDER
 
     override fun getState(): QuotaSettingsState = this
@@ -57,12 +60,14 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         lastZaiUpdate = state.lastZaiUpdate
         lastMiniMaxUpdate = state.lastMiniMaxUpdate
         lastKimiUpdate = state.lastKimiUpdate
+        lastGeminiUpdate = state.lastGeminiUpdate
         hideOpenAiFromQuotaPopup = state.hideOpenAiFromQuotaPopup
         hideOpenCodeFromQuotaPopup = state.hideOpenCodeFromQuotaPopup
         hideOllamaFromQuotaPopup = state.hideOllamaFromQuotaPopup
         hideZaiFromQuotaPopup = state.hideZaiFromQuotaPopup
         hideMiniMaxFromQuotaPopup = state.hideMiniMaxFromQuotaPopup
         hideKimiFromQuotaPopup = state.hideKimiFromQuotaPopup
+        hideGeminiFromQuotaPopup = state.hideGeminiFromQuotaPopup
         lastActiveSource = state.lastActiveSource
         openCodeWorkspaceId = state.openCodeWorkspaceId
         minimaxRegionPreference = MiniMaxRegionPreference.fromStorageValue(state.minimaxRegionPreference).name
@@ -72,6 +77,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         cachedZaiQuotaJson = state.cachedZaiQuotaJson
         cachedMiniMaxQuotaJson = state.cachedMiniMaxQuotaJson
         cachedKimiQuotaJson = state.cachedKimiQuotaJson
+        cachedGeminiQuotaJson = state.cachedGeminiQuotaJson
         providerOrder = state.providerOrder.ifBlank { DEFAULT_PROVIDER_ORDER }
     }
 
@@ -108,10 +114,14 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
             QuotaProviderType.ZAI -> lastZaiUpdate = System.currentTimeMillis()
             QuotaProviderType.MINIMAX -> lastMiniMaxUpdate = System.currentTimeMillis()
             QuotaProviderType.KIMI -> lastKimiUpdate = System.currentTimeMillis()
+            QuotaProviderType.GEMINI -> lastGeminiUpdate = System.currentTimeMillis()
         }
     }
 
     fun lastUsedSource(): QuotaIndicatorSource {
+        val geminiUpdate = lastGeminiUpdate.takeIf { it > 0 }
+            ?: QuotaSnapshotCache.decodeGeminiQuota(cachedGeminiQuotaJson)?.fetchedAt?.toEpochMilliseconds()
+            ?: 0
         val openAiUpdate = lastOpenAiUpdate.takeIf { it > 0 }
             ?: QuotaSnapshotCache.decodeOpenAiQuota(cachedOpenAiQuotaJson)?.fetchedAt?.toEpochMilliseconds()
             ?: 0
@@ -130,20 +140,21 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         val kimiUpdate = lastKimiUpdate.takeIf { it > 0 }
             ?: QuotaSnapshotCache.decodeKimiQuota(cachedKimiQuotaJson)?.fetchedAt?.toEpochMilliseconds()
             ?: 0
-        val maxUpdate = maxOf(openAiUpdate, openCodeUpdate, ollamaUpdate, zaiUpdate, minimaxUpdate, kimiUpdate)
+        val maxUpdate = maxOf(geminiUpdate, openAiUpdate, openCodeUpdate, ollamaUpdate, zaiUpdate, minimaxUpdate, kimiUpdate)
         if (maxUpdate == 0L) return QuotaIndicatorSource.OPEN_AI
         return when {
-            kimiUpdate >= openAiUpdate && kimiUpdate >= openCodeUpdate && kimiUpdate >= ollamaUpdate && kimiUpdate >= zaiUpdate && kimiUpdate >= minimaxUpdate -> QuotaIndicatorSource.KIMI
-            minimaxUpdate >= openAiUpdate && minimaxUpdate >= openCodeUpdate && minimaxUpdate >= ollamaUpdate && minimaxUpdate >= zaiUpdate -> QuotaIndicatorSource.MINIMAX
-            zaiUpdate >= openAiUpdate && zaiUpdate >= openCodeUpdate && zaiUpdate >= ollamaUpdate -> QuotaIndicatorSource.ZAI
-            ollamaUpdate >= openAiUpdate && ollamaUpdate >= openCodeUpdate -> QuotaIndicatorSource.OLLAMA
-            openCodeUpdate >= openAiUpdate && openCodeUpdate >= ollamaUpdate -> QuotaIndicatorSource.OPEN_CODE
+            geminiUpdate >= maxUpdate -> QuotaIndicatorSource.GEMINI
+            kimiUpdate >= maxUpdate -> QuotaIndicatorSource.KIMI
+            minimaxUpdate >= maxUpdate -> QuotaIndicatorSource.MINIMAX
+            zaiUpdate >= maxUpdate -> QuotaIndicatorSource.ZAI
+            ollamaUpdate >= maxUpdate -> QuotaIndicatorSource.OLLAMA
+            openCodeUpdate >= maxUpdate -> QuotaIndicatorSource.OPEN_CODE
             else -> QuotaIndicatorSource.OPEN_AI
         }
     }
 
     companion object {
-        const val DEFAULT_PROVIDER_ORDER = "kimi,minimax,openai,opencode,ollama,zai"
+        const val DEFAULT_PROVIDER_ORDER = "gemini,kimi,minimax,openai,opencode,ollama,zai"
 
         @JvmStatic
         fun getInstance(): QuotaSettingsState {
