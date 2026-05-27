@@ -14,6 +14,7 @@ import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Graphics
 import java.awt.Graphics2D
+import java.awt.Point
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
 import java.awt.datatransfer.Transferable
@@ -32,6 +33,7 @@ import javax.swing.TransferHandler
 internal class ProviderReorderPanel(
     initialOrder: List<QuotaProviderType>,
     private val onOrderChanged: (List<QuotaProviderType>) -> Unit,
+    private val onProviderSelected: (QuotaProviderType) -> Unit,
 ) : JPanel(BorderLayout()) {
 
     private val providers = listOf(
@@ -67,23 +69,31 @@ internal class ProviderReorderPanel(
         }
     }.apply {
         isOpaque = false
+        transferHandler = ProviderTransferHandler()
     }
 
     private var currentOrder: List<QuotaProviderType> = initialOrder.filter { type -> providers.any { it.type == type } }
         .let { ordered ->
             val remaining = providers.map { it.type }.filter { it !in ordered }
-            ordered + remaining
+                .sortedBy { it.displayName }
+            if (ordered.isEmpty()) remaining else ordered + remaining
         }
 
     /** -1 = no active drop target. Otherwise the index where the dragged item would be inserted. */
     private var dropIndex: Int = -1
 
+    private var selectedProvider: QuotaProviderType = QuotaProviderType.GEMINI
+    
+    private var dragStartTime: Long = 0
+    private var dragStartPoint: Point? = null
+
     init {
         isOpaque = false
-        border = JBUI.Borders.empty(6, 0)
+        border = JBUI.Borders.empty(16, 0, 10, 0)
 
-        val hintLabel = JBLabel("Drag icons to reorder how providers appear in the quota popup:").apply {
+        val hintLabel = JBLabel("Click to configure a provider, drag to reorder:").apply {
             foreground = JBColor.GRAY
+            border = JBUI.Borders.emptyBottom(8)
         }
 
         add(hintLabel, BorderLayout.NORTH)
@@ -97,6 +107,7 @@ internal class ProviderReorderPanel(
         currentOrder = order.filter { type -> providers.any { it.type == type } }
             .let { ordered ->
                 val remaining = providers.map { it.type }.filter { it !in ordered }
+                    .sortedBy { it.displayName }
                 ordered + remaining
             }
         rebuild()
@@ -109,6 +120,30 @@ internal class ProviderReorderPanel(
             iconsPanel.add(createDraggableIcon(provider))
         }
         iconsPanel.revalidate()
+        iconsPanel.repaint()
+    }
+
+    private fun updateSelectionVisuals() {
+        for (i in 0 until iconsPanel.componentCount) {
+            val label = iconsPanel.getComponent(i) as? JBLabel ?: continue
+            val providerId = label.getClientProperty("providerId") as? String ?: continue
+            val isSelected = providerId == selectedProvider.id
+            
+            if (isSelected) {
+                label.background = JBColor(Color(0, 0, 0, 20), Color(255, 255, 255, 30))
+                label.isOpaque = true
+                label.border = BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(JBColor(Color(0x4285F4), Color(0x8AB4F8)), 2, true),
+                    JBUI.Borders.empty(3, 5),
+                )
+            } else {
+                label.isOpaque = false
+                label.border = BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(JBColor.GRAY, 1, true),
+                    JBUI.Borders.empty(4, 6),
+                )
+            }
+        }
         iconsPanel.repaint()
     }
 
@@ -125,7 +160,7 @@ internal class ProviderReorderPanel(
     }
 
     /** Calculates the insertion index from a drop point within the icons panel. */
-    private fun insertionIndexFor(point: java.awt.Point): Int {
+    private fun insertionIndexFor(point: Point): Int {
         val components = iconsPanel.components
         if (components.isEmpty()) return 0
         for (i in components.indices) {
@@ -139,6 +174,7 @@ internal class ProviderReorderPanel(
     private fun createDraggableIcon(provider: ProviderInfo): JComponent {
         val itemWidth = JBUI.scale(83)
         val itemHeight = JBUI.scale(64)
+        val isSelected = provider.type == selectedProvider
         return JBLabel(provider.type.displayName, JBLabel.CENTER).apply {
             val scaledIcon = scaleToSize(provider.icon, JBUI.scale(24), this)
             icon = scaledIcon
@@ -148,19 +184,57 @@ internal class ProviderReorderPanel(
             preferredSize = Dimension(itemWidth, itemHeight)
             minimumSize = Dimension(itemWidth, itemHeight)
             maximumSize = Dimension(itemWidth, itemHeight)
-            border = BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(JBColor.GRAY, 1, true),
-                JBUI.Borders.empty(4, 6),
-            )
+            
+            if (isSelected) {
+                background = JBColor(Color(0, 0, 0, 20), Color(255, 255, 255, 30))
+                isOpaque = true
+                border = BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(JBColor(Color(0x4285F4), Color(0x8AB4F8)), 2, true),
+                    JBUI.Borders.empty(3, 5),
+                )
+            } else {
+                isOpaque = false
+                border = BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(JBColor.GRAY, 1, true),
+                    JBUI.Borders.empty(4, 6),
+                )
+            }
+            
             cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-            toolTipText = "Drag to reorder ${provider.type.displayName}"
+            toolTipText = "Click to select, drag to reorder ${provider.type.displayName}"
             transferHandler = ProviderTransferHandler()
             putClientProperty("providerId", provider.type.id)
 
             addMouseListener(object : MouseAdapter() {
                 override fun mousePressed(e: MouseEvent) {
+                    selectedProvider = provider.type
+                    updateSelectionVisuals()
+                    onProviderSelected(provider.type)
+                    
+                    dragStartTime = System.currentTimeMillis()
+                    dragStartPoint = javax.swing.SwingUtilities.convertPoint(this@apply, e.point, iconsPanel)
+                    
                     val handler = transferHandler ?: return
                     handler.exportAsDrag(this@apply, e, TransferHandler.MOVE)
+                }
+
+                override fun mouseClicked(e: MouseEvent) {
+                    // Handled in mousePressed for better responsiveness with drag
+                }
+
+                override fun mouseEntered(e: MouseEvent) {
+                    if (provider.type != selectedProvider) {
+                        background = JBColor(Color(0, 0, 0, 10), Color(255, 255, 255, 15))
+                        isOpaque = true
+                        repaint()
+                    }
+                }
+
+                override fun mouseExited(e: MouseEvent) {
+                    if (provider.type != selectedProvider) {
+                        isOpaque = false
+                        repaint()
+                    }
                 }
             })
         }
@@ -192,16 +266,31 @@ internal class ProviderReorderPanel(
         override fun canImport(support: TransferSupport): Boolean {
             if (!support.isDrop) return false
             if (!support.isDataFlavorSupported(DataFlavor.stringFlavor)) return false
-            val target = support.component as? JBLabel ?: return false
-            if (target.getClientProperty("providerId") == null) return false
+            
+            val target = support.component
+            if (target != iconsPanel && (target as? JComponent)?.getClientProperty("providerId") == null) return false
 
             val pt = support.dropLocation.dropPoint
-            val iconsPt = javax.swing.SwingUtilities.convertPoint(target, pt, iconsPanel)
-            val newIndex = insertionIndexFor(iconsPt)
-            if (newIndex != dropIndex) {
-                dropIndex = newIndex
-                iconsPanel.repaint()
+            val iconsPt = if (target == iconsPanel) pt else javax.swing.SwingUtilities.convertPoint(target, pt, iconsPanel)
+            
+            val itemWidth = JBUI.scale(83)
+            val now = System.currentTimeMillis()
+            val timeMet = now - dragStartTime >= 500
+            val distanceMet = dragStartPoint?.let { Math.abs(iconsPt.x - it.x) >= itemWidth / 2 } ?: false
+            
+            if (timeMet || distanceMet) {
+                val newIndex = insertionIndexFor(iconsPt)
+                if (newIndex != dropIndex) {
+                    dropIndex = newIndex
+                    iconsPanel.repaint()
+                }
+            } else {
+                if (dropIndex != -1) {
+                    dropIndex = -1
+                    iconsPanel.repaint()
+                }
             }
+            
             return true
         }
 
@@ -213,11 +302,14 @@ internal class ProviderReorderPanel(
                 return false
             }
             val pt = support.dropLocation.dropPoint
-            val target = support.component as? JBLabel ?: return false
-            val iconsPt = javax.swing.SwingUtilities.convertPoint(target, pt, iconsPanel)
+            val target = support.component
+            val iconsPt = if (target == iconsPanel) pt else javax.swing.SwingUtilities.convertPoint(target, pt, iconsPanel)
             val insertIndex = insertionIndexFor(iconsPt)
+            
             dropIndex = -1
+            dragStartPoint = null
             iconsPanel.repaint()
+            
             moveProvider(draggedId, insertIndex)
             return true
         }

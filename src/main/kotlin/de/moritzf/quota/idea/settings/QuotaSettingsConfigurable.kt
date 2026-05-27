@@ -13,6 +13,7 @@ import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.messages.MessageBusConnection
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
+import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageListener
 import de.moritzf.quota.idea.ui.indicator.*
 import de.moritzf.quota.idea.ui.settings.ProviderReorderPanel
@@ -24,9 +25,11 @@ import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.minimax.MiniMaxRegionPreference
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.gemini.GeminiQuota
+import java.awt.CardLayout
 import java.awt.Dimension
 import javax.swing.Icon
 import javax.swing.JComponent
+import javax.swing.JPanel
 import javax.swing.JSeparator
 import javax.swing.SwingConstants
 import javax.swing.UIManager
@@ -53,6 +56,8 @@ class QuotaSettingsConfigurable : Configurable {
     private var indicatorSourceComboBox: ComboBox<QuotaIndicatorSource>? = null
     private var displayModePreview: DisplayModePreviewComponent? = null
     private var providerReorderPanel: ProviderReorderPanel? = null
+    private var serviceCards: JPanel? = null
+    private var serviceCardLayout: CardLayout? = null
 
     override fun getDisplayName(): String = "LLM Subscription Usage"
 
@@ -101,12 +106,23 @@ class QuotaSettingsConfigurable : Configurable {
 
         panel = buildIndicatorConfigPanel()
 
+        serviceCardLayout = CardLayout()
+        serviceCards = JPanel(serviceCardLayout).apply {
+            isOpaque = false
+            border = JBUI.Borders.emptyTop(16)
+        }
+
         providerReorderPanel = ProviderReorderPanel(
             QuotaSettingsState.getInstance().providerOrderList(),
-        ) { }
+            onOrderChanged = { },
+            onProviderSelected = { type ->
+                serviceCardLayout?.show(serviceCards, type.id)
+                serviceCards?.revalidate()
+                serviceCards?.repaint()
+            }
+        )
 
-        val serviceTabs = JBTabbedPane()
-        rebuildServiceTabs(serviceTabs)
+        rebuildServiceCards()
 
         rootComponent = BorderLayoutPanel().apply {
             isOpaque = false
@@ -117,7 +133,7 @@ class QuotaSettingsConfigurable : Configurable {
                 addToCenter(BorderLayoutPanel().apply {
                     isOpaque = false
                     addToTop(providerReorderPanel!!)
-                    addToCenter(serviceTabs)
+                    addToCenter(serviceCards!!)
                 })
                 addToBottom(JSeparator())
             })
@@ -210,6 +226,8 @@ class QuotaSettingsConfigurable : Configurable {
         indicatorSourceComboBox = null
         displayModePreview = null
         providerReorderPanel = null
+        serviceCards = null
+        serviceCardLayout = null
         updatingDisplayModeChoices = false
     }
 
@@ -240,20 +258,22 @@ class QuotaSettingsConfigurable : Configurable {
         }
     }
 
-    private fun rebuildServiceTabs(tabs: JBTabbedPane) {
-        tabs.removeAll()
-        val tabMap = mapOf(
-            "gemini" to ("Gemini" to geminiPanel),
-            "kimi" to ("Kimi" to kimiPanel),
-            "minimax" to ("MiniMax" to miniMaxPanel),
-            "ollama" to ("Ollama Cloud" to ollamaPanel),
-            "openai" to ("OpenAI Codex" to openAiPanel),
-            "opencode" to ("OpenCode Go" to openCodePanel),
-            "zai" to ("Z.ai" to zaiPanel),
+    private fun rebuildServiceCards() {
+        val cards = serviceCards ?: return
+        cards.removeAll()
+        val providerPanels = mapOf(
+            QuotaProviderType.GEMINI to geminiPanel,
+            QuotaProviderType.KIMI to kimiPanel,
+            QuotaProviderType.MINIMAX to miniMaxPanel,
+            QuotaProviderType.OLLAMA to ollamaPanel,
+            QuotaProviderType.OPEN_AI to openAiPanel,
+            QuotaProviderType.OPEN_CODE to openCodePanel,
+            QuotaProviderType.ZAI to zaiPanel,
         )
-        tabMap.values.sortedBy { it.first }.forEach { (title, panel) ->
-            tabs.addTab(title, panel)
+        providerPanels.forEach { (type, panel) ->
+            cards.add(panel, type.id)
         }
+        serviceCardLayout?.show(cards, QuotaProviderType.GEMINI.id)
     }
 
     private fun buildIndicatorConfigPanel(): DialogPanel {
