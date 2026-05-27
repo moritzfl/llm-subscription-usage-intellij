@@ -288,7 +288,7 @@ internal class OpenCodeSettingsPanel(
             AuthStatusKind.DISCONNECTED -> "#F44336"
             AuthStatusKind.PENDING -> "#FFC107"
         }
-        return "<html><span style='color:$color'>●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
+        return "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
     }
 
     private companion object {
