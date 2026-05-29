@@ -43,6 +43,7 @@ class QuotaSettingsConfigurable : Configurable {
     private var connection: MessageBusConnection? = null
     private var updatingDisplayModeChoices: Boolean = false
 
+    private lateinit var cursorPanel: CursorSettingsPanel
     private lateinit var geminiPanel: GeminiSettingsPanel
     private lateinit var openAiPanel: OpenAiSettingsPanel
     private lateinit var kimiPanel: KimiSettingsPanel
@@ -64,6 +65,10 @@ class QuotaSettingsConfigurable : Configurable {
     override fun createComponent(): JComponent? {
         val statusLabelDefaultForeground = UIManager.getColor("Label.foreground")
 
+        cursorPanel = CursorSettingsPanel(
+            modalityComponentProvider = { panel ?: rootComponent },
+            statusLabelDefaultForeground = statusLabelDefaultForeground,
+        )
         geminiPanel = GeminiSettingsPanel()
         openAiPanel = OpenAiSettingsPanel()
         kimiPanel = KimiSettingsPanel(
@@ -198,6 +203,14 @@ class QuotaSettingsConfigurable : Configurable {
                     kimiPanel.updateKimiStatus()
                 }, ModalityState.stateForComponent(currentPanel))
             }
+
+            override fun onCursorQuotaUpdated(quota: de.moritzf.quota.cursor.CursorQuota?, error: String?) {
+                val currentPanel = rootComponent ?: panel ?: return@onCursorQuotaUpdated
+                ApplicationManager.getApplication().invokeLater({
+                    cursorPanel.updateCursorResponseArea()
+                    cursorPanel.updateCursorStatus()
+                }, ModalityState.stateForComponent(currentPanel))
+            }
         })
 
         reset()
@@ -262,6 +275,7 @@ class QuotaSettingsConfigurable : Configurable {
         val cards = serviceCards ?: return
         cards.removeAll()
         val providerPanels = mapOf(
+            QuotaProviderType.CURSOR to cursorPanel,
             QuotaProviderType.GEMINI to geminiPanel,
             QuotaProviderType.KIMI to kimiPanel,
             QuotaProviderType.MINIMAX to miniMaxPanel,
@@ -307,6 +321,7 @@ class QuotaSettingsConfigurable : Configurable {
                 val zaiPopupVisibilityChanged = zaiPanel.zaiHideFromPopupCheckBox.isSelected != state.hideZaiFromQuotaPopup
                 val miniMaxPopupVisibilityChanged = miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected != state.hideMiniMaxFromQuotaPopup
                 val kimiPopupVisibilityChanged = kimiPanel.kimiHideFromPopupCheckBox.isSelected != state.hideKimiFromQuotaPopup
+                val cursorPopupVisibilityChanged = cursorPanel.cursorHideFromPopupCheckBox.isSelected != state.hideCursorFromQuotaPopup
                 val miniMaxRegionChanged = miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference()
                 val providerOrderChanged = providerReorderPanel?.getOrder()?.joinToString(",") { it.id } != state.providerOrder
                 if (locationChanged) {
@@ -325,11 +340,12 @@ class QuotaSettingsConfigurable : Configurable {
                 state.hideZaiFromQuotaPopup = zaiPanel.zaiHideFromPopupCheckBox.isSelected
                 state.hideMiniMaxFromQuotaPopup = miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected
                 state.hideKimiFromQuotaPopup = kimiPanel.kimiHideFromPopupCheckBox.isSelected
+                state.hideCursorFromQuotaPopup = cursorPanel.cursorHideFromPopupCheckBox.isSelected
                 state.minimaxRegionPreference = (miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference ?: MiniMaxRegionPreference.AUTO).name
                 if (providerOrderChanged) {
                     state.providerOrder = providerReorderPanel?.getOrder()?.joinToString(",") { it.id } ?: state.providerOrder
                 }
-                if (locationChanged || displayModeChanged || sourceChanged || geminiPopupVisibilityChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged || ollamaPopupVisibilityChanged || zaiPopupVisibilityChanged || miniMaxPopupVisibilityChanged || kimiPopupVisibilityChanged || miniMaxRegionChanged || providerOrderChanged) {
+                if (locationChanged || displayModeChanged || sourceChanged || geminiPopupVisibilityChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged || ollamaPopupVisibilityChanged || zaiPopupVisibilityChanged || miniMaxPopupVisibilityChanged || kimiPopupVisibilityChanged || cursorPopupVisibilityChanged || miniMaxRegionChanged || providerOrderChanged) {
                     ApplicationManager.getApplication().messageBus
                         .syncPublisher(QuotaSettingsListener.TOPIC)
                         .onSettingsChanged()
@@ -349,6 +365,7 @@ class QuotaSettingsConfigurable : Configurable {
                 zaiPanel.zaiHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideZaiFromQuotaPopup
                 miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideMiniMaxFromQuotaPopup
                 kimiPanel.kimiHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideKimiFromQuotaPopup
+                cursorPanel.cursorHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideCursorFromQuotaPopup
                 miniMaxPanel.regionComboBox.selectedItem = QuotaSettingsState.getInstance().miniMaxRegionPreference()
                 providerReorderPanel?.setOrder(QuotaSettingsState.getInstance().providerOrderList())
                 geminiPanel.updateAuthUi()
@@ -367,6 +384,8 @@ class QuotaSettingsConfigurable : Configurable {
                 miniMaxPanel.updateMiniMaxResponseArea()
                 kimiPanel.updateKimiFields()
                 kimiPanel.updateKimiResponseArea()
+                cursorPanel.updateCursorFields()
+                cursorPanel.updateCursorResponseArea()
             }
 
             onIsModified {
@@ -384,6 +403,7 @@ class QuotaSettingsConfigurable : Configurable {
                     zaiPanel.zaiHideFromPopupCheckBox.isSelected != state.hideZaiFromQuotaPopup ||
                     miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected != state.hideMiniMaxFromQuotaPopup ||
                     kimiPanel.kimiHideFromPopupCheckBox.isSelected != state.hideKimiFromQuotaPopup ||
+                    cursorPanel.cursorHideFromPopupCheckBox.isSelected != state.hideCursorFromQuotaPopup ||
                     miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference() ||
                     providerReorderPanel?.getOrder()?.joinToString(",") { it.id } != state.providerOrder
             }

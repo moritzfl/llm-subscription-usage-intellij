@@ -31,6 +31,7 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
             service.getLastZaiQuota(), service.getLastZaiError(),
             service.getLastMiniMaxQuota(), service.getLastMiniMaxError(),
             service.getLastKimiQuota(), service.getLastKimiError(),
+            service.getLastCursorQuota(), service.getLastCursorError(),
             QuotaPopupLocation.ABOVE,
         )
     }
@@ -58,6 +59,9 @@ class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget
                 updateWidget()
             }
             override fun onKimiQuotaUpdated(quota: de.moritzf.quota.kimi.KimiQuota?, error: String?) {
+                updateWidget()
+            }
+            override fun onCursorQuotaUpdated(quota: de.moritzf.quota.cursor.CursorQuota?, error: String?) {
                 updateWidget()
             }
         })

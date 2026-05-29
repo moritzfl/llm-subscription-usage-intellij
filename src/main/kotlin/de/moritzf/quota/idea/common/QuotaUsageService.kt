@@ -16,6 +16,7 @@ import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.gemini.GeminiQuota
+import de.moritzf.quota.cursor.CursorQuota
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
@@ -34,12 +35,13 @@ class QuotaUsageService(
         ZaiQuotaProvider(),
         MiniMaxQuotaProvider(),
         KimiQuotaProvider(),
+        CursorQuotaProvider(),
     ),
     private val settingsProvider: () -> QuotaSettingsState? = {
         runCatching { QuotaSettingsState.getInstance() }.getOrNull()
     },
     private val scheduler: ScheduledExecutorService = AppExecutorUtil.getAppScheduledExecutorService(),
-    private val updatePublisher: (GeminiQuota?, String?, OpenAiCodexQuota?, String?, OpenCodeQuota?, String?, OllamaQuota?, String?, ZaiQuota?, String?, MiniMaxQuota?, String?, KimiQuota?, String?) -> Unit = { geminiQuota, geminiError, quota, error, openCodeQuota, openCodeError, ollamaQuota, ollamaError, zaiQuota, zaiError, miniMaxQuota, miniMaxError, kimiQuota, kimiError ->
+    private val updatePublisher: (GeminiQuota?, String?, OpenAiCodexQuota?, String?, OpenCodeQuota?, String?, OllamaQuota?, String?, ZaiQuota?, String?, MiniMaxQuota?, String?, KimiQuota?, String?, CursorQuota?, String?) -> Unit = { geminiQuota, geminiError, quota, error, openCodeQuota, openCodeError, ollamaQuota, ollamaError, zaiQuota, zaiError, miniMaxQuota, miniMaxError, kimiQuota, kimiError, cursorQuota, cursorError ->
         ApplicationManager.getApplication().invokeLater {
             val publisher = ApplicationManager.getApplication().messageBus
                 .syncPublisher(QuotaUsageListener.TOPIC)
@@ -50,6 +52,7 @@ class QuotaUsageService(
             publisher.onZaiQuotaUpdated(zaiQuota, zaiError)
             publisher.onMiniMaxQuotaUpdated(miniMaxQuota, miniMaxError)
             publisher.onKimiQuotaUpdated(kimiQuota, kimiError)
+            publisher.onCursorQuotaUpdated(cursorQuota, cursorError)
             ActivityTracker.getInstance().inc()
         }
     },
@@ -62,6 +65,7 @@ class QuotaUsageService(
     private val refreshingZai = AtomicBoolean(false)
     private val refreshingMiniMax = AtomicBoolean(false)
     private val refreshingKimi = AtomicBoolean(false)
+    private val refreshingCursor = AtomicBoolean(false)
     private val geminiProvider = providers.filterIsInstance<GeminiQuotaProvider>().firstOrNull()
     private val openAiProvider = providers.filterIsInstance<OpenAiQuotaProvider>().firstOrNull()
     private val openCodeProvider = providers.filterIsInstance<OpenCodeQuotaProvider>().firstOrNull()
@@ -69,6 +73,7 @@ class QuotaUsageService(
     private val zaiProvider = providers.filterIsInstance<ZaiQuotaProvider>().firstOrNull()
     private val miniMaxProvider = providers.filterIsInstance<MiniMaxQuotaProvider>().firstOrNull()
     private val kimiProvider = providers.filterIsInstance<KimiQuotaProvider>().firstOrNull()
+    private val cursorProvider = providers.filterIsInstance<CursorQuotaProvider>().firstOrNull()
     private var scheduled: ScheduledFuture<*>? = null
 
     init {
@@ -122,6 +127,14 @@ class QuotaUsageService(
         return runCatching { JsonSupport.json.encodeToString(KimiQuota.serializer(), quota) }.getOrNull()
     }
 
+    fun getLastCursorQuota(): CursorQuota? = cursorProvider?.getLastQuota()
+    fun getLastCursorError(): String? = cursorProvider?.getLastError()
+    fun getLastCursorResponseJson(): String? {
+        cursorProvider?.getLastRawJson()?.let { return it }
+        val quota = cursorProvider?.getLastQuota() ?: return null
+        return runCatching { JsonSupport.json.encodeToString(CursorQuota.serializer(), quota) }.getOrNull()
+    }
+
     internal fun getEffectiveIndicatorData(): QuotaIndicatorData {
         val settings = settingsProvider()
         val source = when (settings?.source() ?: QuotaIndicatorSource.OPEN_AI) {
@@ -133,6 +146,7 @@ class QuotaUsageService(
             QuotaIndicatorSource.ZAI -> QuotaIndicatorSource.ZAI
             QuotaIndicatorSource.MINIMAX -> QuotaIndicatorSource.MINIMAX
             QuotaIndicatorSource.KIMI -> QuotaIndicatorSource.KIMI
+            QuotaIndicatorSource.CURSOR -> QuotaIndicatorSource.CURSOR
         }
 
         return when (source) {
@@ -143,6 +157,7 @@ class QuotaUsageService(
             QuotaIndicatorSource.ZAI -> QuotaIndicatorData.Zai(getLastZaiQuota(), getLastZaiError())
             QuotaIndicatorSource.MINIMAX -> QuotaIndicatorData.MiniMax(getLastMiniMaxQuota(), getLastMiniMaxError())
             QuotaIndicatorSource.KIMI -> QuotaIndicatorData.Kimi(getLastKimiQuota(), getLastKimiError())
+            QuotaIndicatorSource.CURSOR -> QuotaIndicatorData.Cursor(getLastCursorQuota(), getLastCursorError())
             QuotaIndicatorSource.LAST_USED -> QuotaIndicatorData.OpenAi(getLastQuota(), getLastError())
         }
     }
@@ -173,6 +188,10 @@ class QuotaUsageService(
 
     fun refreshKimiAsync() {
         AppExecutorUtil.getAppExecutorService().execute(::refreshKimi)
+    }
+
+    fun refreshCursorAsync() {
+        AppExecutorUtil.getAppExecutorService().execute(::refreshCursor)
     }
 
     fun refreshNowBlocking() {
@@ -207,6 +226,10 @@ class QuotaUsageService(
         refreshKimi()
     }
 
+    fun refreshCursorBlocking() {
+        refreshCursor()
+    }
+
     fun clearUsageData(error: String? = null) {
         clearGeminiUsageData(error)
         clearCodexUsageData(error)
@@ -215,6 +238,7 @@ class QuotaUsageService(
         clearZaiUsageData()
         clearMiniMaxUsageData()
         clearKimiUsageData()
+        clearCursorUsageData()
     }
 
     fun clearGeminiUsageData(error: String? = null) {
@@ -259,6 +283,12 @@ class QuotaUsageService(
         publishUpdate()
     }
 
+    fun clearCursorUsageData(error: String? = "No Cursor session cookie configured. Paste WorkosCursorSessionToken from cursor.com in settings.") {
+        cursorProvider?.clearData(error)
+        settingsProvider()?.cachedCursorQuotaJson = null
+        publishUpdate()
+    }
+
     fun resetOpenCodeWorkspaceCache() {
         openCodeProvider?.resetWorkspaceCache()
     }
@@ -277,6 +307,7 @@ class QuotaUsageService(
         zaiProvider?.hydrateFromCache(settings)
         miniMaxProvider?.hydrateFromCache(settings)
         kimiProvider?.hydrateFromCache(settings)
+        cursorProvider?.hydrateFromCache(settings)
     }
 
     private fun refreshNow() {
@@ -287,6 +318,7 @@ class QuotaUsageService(
         refreshZai()
         refreshMiniMax()
         refreshKimi()
+        refreshCursor()
     }
 
     private fun refreshGemini() {
@@ -315,6 +347,10 @@ class QuotaUsageService(
 
     private fun refreshKimi() {
         refreshProvider(kimiProvider, refreshingKimi)
+    }
+
+    private fun refreshCursor() {
+        refreshProvider(cursorProvider, refreshingCursor)
     }
 
     private fun refreshProvider(provider: QuotaProvider?, refreshing: AtomicBoolean) {
@@ -367,6 +403,9 @@ class QuotaUsageService(
             QuotaProviderType.KIMI -> settings?.cachedKimiQuotaJson
                 ?.let(QuotaSnapshotCache::decodeKimiQuota)
                 ?.let(::extractKimiFraction)
+            QuotaProviderType.CURSOR -> settings?.cachedCursorQuotaJson
+                ?.let(QuotaSnapshotCache::decodeCursorQuota)
+                ?.let(::extractCursorFraction)
         }
     }
 
@@ -379,6 +418,7 @@ class QuotaUsageService(
             is ZaiQuotaProvider -> provider.getLastQuota()?.let(::extractZaiFraction)
             is MiniMaxQuotaProvider -> provider.getLastQuota()?.let(::extractMiniMaxFraction)
             is KimiQuotaProvider -> provider.getLastQuota()?.let(::extractKimiFraction)
+            is CursorQuotaProvider -> provider.getLastQuota()?.let(::extractCursorFraction)
             else -> null
         }
     }
@@ -429,6 +469,10 @@ class QuotaUsageService(
         return windows.maxOrNull()?.let { it / 100.0 }
     }
 
+    private fun extractCursorFraction(quota: CursorQuota): Double? {
+        return quota.primaryUsagePercent()?.let { it / 100.0 }
+    }
+
     private fun resolveLastActiveSource(settings: QuotaSettingsState?): QuotaIndicatorSource {
         val active = settings?.lastActiveSource
         if (!active.isNullOrBlank()) {
@@ -445,7 +489,8 @@ class QuotaUsageService(
             getLastOllamaQuota(), getLastOllamaError(),
             getLastZaiQuota(), getLastZaiError(),
             getLastMiniMaxQuota(), getLastMiniMaxError(),
-            getLastKimiQuota(), getLastKimiError()
+            getLastKimiQuota(), getLastKimiError(),
+            getLastCursorQuota(), getLastCursorError(),
         )
     }
 

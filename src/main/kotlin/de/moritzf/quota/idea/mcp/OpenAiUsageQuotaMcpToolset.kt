@@ -5,6 +5,7 @@ import com.intellij.mcpserver.McpToolCallResultContent
 import com.intellij.mcpserver.McpToolset
 import com.intellij.mcpserver.annotations.McpDescription
 import com.intellij.mcpserver.annotations.McpTool
+import de.moritzf.quota.cursor.CursorQuotaClient
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.opencode.OpenCodeQuota
@@ -122,6 +123,24 @@ class OpenAiUsageQuotaMcpToolset : McpToolset {
             return errorResult("No Kimi usage response available")
         }
         return successResult(json)
+    }
+
+    @McpTool(name = "cursor_usage_quota")
+    @McpDescription(description = "Returns the latest Cursor usage quota response JSON.")
+    fun cursor_usage_quota(): McpToolCallResult {
+        val usageService = QuotaUsageService.getInstance()
+        usageService.refreshCursorBlocking()
+
+        val error = usageService.getLastCursorError()
+        if (!error.isNullOrBlank()) {
+            return errorResult(error)
+        }
+
+        val rawJson = usageService.getLastCursorResponseJson()
+        if (rawJson.isNullOrBlank()) {
+            return errorResult("No Cursor usage response available")
+        }
+        return successResult(CursorQuotaClient.normalizeRawJson(rawJson))
     }
 
     private fun successResult(text: String): McpToolCallResult {

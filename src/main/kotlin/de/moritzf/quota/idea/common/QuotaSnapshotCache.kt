@@ -10,6 +10,7 @@ import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.gemini.GeminiQuota
+import de.moritzf.quota.cursor.CursorQuota
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import java.time.Duration
@@ -76,6 +77,15 @@ internal object QuotaSnapshotCache {
     fun decodeKimiQuota(json: String?): KimiQuota? {
         if (json.isNullOrBlank()) return null
         return runCatching { JsonSupport.json.decodeFromString(KimiQuota.serializer(), json) }.getOrNull()
+    }
+
+    fun encodeCursorQuota(quota: CursorQuota): String? {
+        return runCatching { JsonSupport.json.encodeToString(CursorQuota.serializer(), quota) }.getOrNull()
+    }
+
+    fun decodeCursorQuota(json: String?): CursorQuota? {
+        if (json.isNullOrBlank()) return null
+        return runCatching { JsonSupport.json.decodeFromString(CursorQuota.serializer(), json) }.getOrNull()
     }
 }
 

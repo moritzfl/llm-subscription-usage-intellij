@@ -14,6 +14,7 @@ import de.moritzf.quota.opencode.OpenCodeUsageWindow
 import de.moritzf.quota.openai.UsageWindow
 import de.moritzf.quota.ollama.OllamaUsageWindow
 import de.moritzf.quota.zai.ZaiQuota
+import de.moritzf.quota.cursor.CursorQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.gemini.GeminiQuota
@@ -97,6 +98,7 @@ internal class QuotaIndicatorComponent(
             is QuotaIndicatorData.Zai -> buildZaiTooltipText(data.quota, data.error)
             is QuotaIndicatorData.MiniMax -> buildMiniMaxTooltipText(data.quota, data.error)
             is QuotaIndicatorData.Kimi -> buildKimiTooltipText(data.quota, data.error)
+            is QuotaIndicatorData.Cursor -> buildCursorTooltipText(data.quota, data.error)
         }
         toolTipText = tooltip
         statusIconLabel.toolTipText = tooltip
@@ -139,6 +141,7 @@ internal class QuotaIndicatorComponent(
             is QuotaIndicatorData.Zai -> buildZaiTooltipText(currentData.quota, currentData.error)
             is QuotaIndicatorData.MiniMax -> buildMiniMaxTooltipText(currentData.quota, currentData.error)
             is QuotaIndicatorData.Kimi -> buildKimiTooltipText(currentData.quota, currentData.error)
+            is QuotaIndicatorData.Cursor -> buildCursorTooltipText(currentData.quota, currentData.error)
         }
     }
 
@@ -164,6 +167,7 @@ internal class QuotaIndicatorComponent(
             is QuotaIndicatorData.Zai -> QuotaIcons.ZAI
             is QuotaIndicatorData.MiniMax -> QuotaIcons.MINIMAX
             is QuotaIndicatorData.Kimi -> QuotaIcons.KIMI
+            is QuotaIndicatorData.Cursor -> QuotaIcons.CURSOR
         }
     }
 
@@ -194,6 +198,7 @@ internal class QuotaIndicatorComponent(
             is QuotaIndicatorData.Zai -> zaiBarDisplayText(currentData.quota, currentData.error)
             is QuotaIndicatorData.MiniMax -> miniMaxBarDisplayText(currentData.quota, currentData.error)
             is QuotaIndicatorData.Kimi -> kimiBarDisplayText(currentData.quota, currentData.error)
+            is QuotaIndicatorData.Cursor -> cursorBarDisplayText(currentData.quota, currentData.error)
         }
     }
 
@@ -216,6 +221,9 @@ internal class QuotaIndicatorComponent(
         }
         if (currentData is QuotaIndicatorData.Kimi) {
             return currentData.quota?.let(::kimiDisplayWindow)?.usagePercent?.roundToInt()?.let(::clampPercent)?.let(::cakeIconForPercent) ?: QuotaIcons.CAKE_UNKNOWN
+        }
+        if (currentData is QuotaIndicatorData.Cursor) {
+            return currentData.quota?.let(::cursorCakeIcon) ?: QuotaIcons.CAKE_UNKNOWN
         }
         val openAiData = currentData as QuotaIndicatorData.OpenAi
         val authService = QuotaAuthService.getInstance()
@@ -257,6 +265,14 @@ internal class QuotaIndicatorComponent(
 
     private fun zaiCakeIcon(quota: ZaiQuota): Icon {
         val state = zaiIndicatorState(quota)
+        if (state == null) {
+            return QuotaIcons.CAKE_UNKNOWN
+        }
+        return cakeIconForPercent(state.percent)
+    }
+
+    private fun cursorCakeIcon(quota: CursorQuota): Icon {
+        val state = cursorIndicatorState(quota)
         if (state == null) {
             return QuotaIcons.CAKE_UNKNOWN
         }
@@ -337,6 +353,9 @@ internal class QuotaIndicatorComponent(
         }
         if (currentData is QuotaIndicatorData.Kimi) {
             return currentData.quota?.let(::kimiDisplayWindow)?.usagePercent?.roundToInt()?.let(::clampPercent) ?: -1
+        }
+        if (currentData is QuotaIndicatorData.Cursor) {
+            return currentData.quota?.let(::cursorIndicatorState)?.percent ?: -1
         }
         val openAiData = currentData as QuotaIndicatorData.OpenAi
         val authService = QuotaAuthService.getInstance()
@@ -465,6 +484,40 @@ internal fun kimiBarDisplayText(quota: KimiQuota?, error: String?): String {
     val percent = clampPercent(usage.usagePercent.roundToInt())
     val reset = QuotaUiUtil.formatResetCompact(usage.resetsAt)
     val text = "$percent%"
+    return if (reset != null) "$text • $reset" else text
+}
+
+internal fun buildCursorTooltipText(quota: CursorQuota?, error: String?): String {
+    if (error != null) return "Cursor quota: $error"
+    if (quota == null) return "Cursor quota: loading"
+    val plan = quota.planName.takeIf { it.isNotBlank() }
+        ?: quota.membershipType.takeIf { it.isNotBlank() }
+        ?: "Cursor"
+    val parts = mutableListOf<String>()
+    quota.planUsage?.let {
+        parts.add("Plan: ${clampPercent(it.totalPercentUsed.roundToInt())}% • ${QuotaUiUtil.formatResetCompact(it.billingCycleEnd) ?: "unknown"}")
+        if (it.autoPercentUsed > 0.0) {
+            parts.add("Auto: ${clampPercent(it.autoPercentUsed.roundToInt())}%")
+        }
+        if (it.apiPercentUsed > 0.0) {
+            parts.add("API: ${clampPercent(it.apiPercentUsed.roundToInt())}%")
+        }
+    }
+    quota.spendLimit?.usagePercent()?.let {
+        parts.add("Team spend: ${clampPercent(it.roundToInt())}%")
+    }
+    if (parts.isEmpty()) return "$plan quota: no usage data"
+    return "$plan quota:\n${parts.joinToString("\n")}"
+}
+
+internal fun cursorBarDisplayText(quota: CursorQuota?, error: String?): String {
+    if (error != null) return "error"
+    if (quota == null) return "loading..."
+
+    val state = cursorIndicatorState(quota) ?: return "no data"
+
+    val reset = QuotaUiUtil.formatResetCompact(state.resetsAt)
+    val text = "${state.percent}%"
     return if (reset != null) "$text • $reset" else text
 }
 
@@ -623,6 +676,25 @@ private fun openCodeIndicatorState(quota: OpenCodeQuota): OpenCodeIndicatorState
 
 private fun OpenCodeUsageWindow.isExhausted(): Boolean {
     return isRateLimited || usagePercent >= 100
+}
+
+private data class CursorIndicatorState(
+    val percent: Int,
+    val resetsAt: kotlinx.datetime.Instant?,
+)
+
+private fun cursorIndicatorState(quota: CursorQuota): CursorIndicatorState? {
+    val spendPercent = quota.spendLimit?.usagePercent()
+    val planUsage = quota.planUsage
+    val percent = spendPercent ?: planUsage?.totalPercentUsed ?: return null
+    val resetsAt = planUsage?.billingCycleEnd
+    if (percent >= 100.0) {
+        return CursorIndicatorState(percent = 100, resetsAt = resetsAt)
+    }
+    return CursorIndicatorState(
+        percent = clampPercent(percent.roundToInt()),
+        resetsAt = resetsAt,
+    )
 }
 
 private fun ollamaIndicatorState(quota: de.moritzf.quota.ollama.OllamaQuota): OllamaIndicatorState? {

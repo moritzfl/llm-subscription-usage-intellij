@@ -37,6 +37,7 @@ internal class ProviderReorderPanel(
 ) : JPanel(BorderLayout()) {
 
     private val providers = listOf(
+        ProviderInfo(QuotaProviderType.CURSOR, QuotaIcons.CURSOR),
         ProviderInfo(QuotaProviderType.GEMINI, QuotaIcons.GEMINI),
         ProviderInfo(QuotaProviderType.KIMI, QuotaIcons.KIMI),
         ProviderInfo(QuotaProviderType.MINIMAX, QuotaIcons.MINIMAX),
@@ -72,12 +73,10 @@ internal class ProviderReorderPanel(
         transferHandler = ProviderTransferHandler()
     }
 
-    private var currentOrder: List<QuotaProviderType> = initialOrder.filter { type -> providers.any { it.type == type } }
-        .let { ordered ->
-            val remaining = providers.map { it.type }.filter { it !in ordered }
-                .sortedBy { it.displayName }
-            if (ordered.isEmpty()) remaining else ordered + remaining
-        }
+    private var currentOrder: List<QuotaProviderType> =
+        QuotaProviderType.mergeProviderOrder(
+            initialOrder.filter { type -> providers.any { it.type == type } },
+        )
 
     /** -1 = no active drop target. Otherwise the index where the dragged item would be inserted. */
     private var dropIndex: Int = -1
@@ -104,12 +103,9 @@ internal class ProviderReorderPanel(
     fun getOrder(): List<QuotaProviderType> = currentOrder.toList()
 
     fun setOrder(order: List<QuotaProviderType>) {
-        currentOrder = order.filter { type -> providers.any { it.type == type } }
-            .let { ordered ->
-                val remaining = providers.map { it.type }.filter { it !in ordered }
-                    .sortedBy { it.displayName }
-                ordered + remaining
-            }
+        currentOrder = QuotaProviderType.mergeProviderOrder(
+            order.filter { type -> providers.any { it.type == type } },
+        )
         rebuild()
     }
 

@@ -6,6 +6,7 @@ import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.gemini.GeminiQuota
+import de.moritzf.quota.cursor.CursorQuota
 
 internal sealed interface QuotaIndicatorData {
     val error: String?
@@ -42,6 +43,11 @@ internal sealed interface QuotaIndicatorData {
 
     data class Zai(
         val quota: ZaiQuota?,
+        override val error: String?,
+    ) : QuotaIndicatorData
+
+    data class Cursor(
+        val quota: CursorQuota?,
         override val error: String?,
     ) : QuotaIndicatorData
 }

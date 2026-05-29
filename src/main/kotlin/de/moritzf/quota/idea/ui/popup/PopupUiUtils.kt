@@ -32,10 +32,13 @@ import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.Font
 import java.awt.FlowLayout
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
 import javax.swing.Icon
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.JProgressBar
+import javax.swing.SwingUtilities
 import kotlin.math.roundToInt
 
 internal fun createOpenSettingsButton(onOpenSettings: () -> Unit): ActionLink {
@@ -184,8 +187,8 @@ internal fun createPopupTitleLabel(): JBLabel {
     }
 }
 
-internal fun createWindowTitleLabel(text: String): JBLabel {
-    return JBLabel(text).apply {
+internal fun createWindowTitleLabel(text: String): TruncatingPopupLabel {
+    return TruncatingPopupLabel(text).apply {
         font = font.deriveFont(font.style or Font.BOLD)
     }
 }
@@ -201,8 +204,8 @@ internal fun createSectionTitleLabel(text: String, icon: Icon? = null): JBLabel 
     }
 }
 
-internal fun createWarningLabel(text: String): JBLabel {
-    return JBLabel(text).apply {
+internal fun createWarningLabel(text: String): TruncatingPopupLabel {
+    return TruncatingPopupLabel(text).apply {
         foreground = JBColor.RED
         font = font.deriveFont(font.style or Font.BOLD)
     }
@@ -249,6 +252,11 @@ internal fun createUsageProgressBar(percent: Int): JProgressBar {
         isStringPainted = false
         preferredSize = Dimension(200, 4)
     }
+}
+
+internal fun parseDisplayMessagePercent(message: String): Int? {
+    val match = Regex("(\\d+)%").find(message) ?: return null
+    return match.groupValues[1].toIntOrNull()?.let(::clampPercent)
 }
 
 internal fun createOllamaWindowBlock(window: OllamaUsageWindow, label: String, top: Int): JComponent {
@@ -336,7 +344,7 @@ internal fun createCompactSeparator(): JComponent {
  */
 internal class WindowBlockPanel(topInset: Int = 3) : JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)) {
     private val titleLabel = createWindowTitleLabel("")
-    private val infoLabel = JBLabel("").apply { border = JBUI.Borders.emptyTop(1) }
+    private val infoLabel = TruncatingPopupLabel("").apply { border = JBUI.Borders.emptyTop(1) }
     private val progressBar = createUsageProgressBar(0).apply { border = JBUI.Borders.emptyTop(1) }
 
     init {
@@ -361,4 +369,42 @@ internal class WindowBlockPanel(topInset: Int = 3) : JPanel(VerticalFlowLayout(V
     fun clear() {
         isVisible = false
     }
+}
+
+/**
+ * Shows the full label text as a tooltip when the rendered text is clipped in the popup width.
+ */
+internal class TruncatingPopupLabel(initialText: String = "") : JBLabel(initialText) {
+    init {
+        addComponentListener(object : ComponentAdapter() {
+            override fun componentResized(e: ComponentEvent?) {
+                updateTruncationTooltip()
+            }
+
+            override fun componentShown(e: ComponentEvent?) {
+                updateTruncationTooltip()
+            }
+        })
+    }
+
+    override fun setText(text: String?) {
+        super.setText(text)
+        SwingUtilities.invokeLater { updateTruncationTooltip() }
+    }
+
+    private fun updateTruncationTooltip() {
+        val fullText = text.orEmpty()
+        toolTipText = fullText.takeIf { fullText.isNotBlank() && isLabelTextTruncated(this, fullText) }
+    }
+}
+
+internal fun isLabelTextTruncated(label: JBLabel, fullText: String): Boolean {
+    if (!label.isShowing || label.width <= 0) {
+        return false
+    }
+    val availableWidth = label.width - label.insets.left - label.insets.right
+    if (availableWidth <= 0) {
+        return false
+    }
+    return label.getFontMetrics(label.font).stringWidth(fullText) > availableWidth
 }

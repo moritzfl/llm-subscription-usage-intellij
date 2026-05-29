@@ -1,6 +1,8 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+- Added support for **Cursor** subscription usage quotas, including popup, indicator, settings, caching, and MCP tooling
+- Cursor auth now supports browser session cookies (`WorkosCursorSessionToken` from cursor.com), with optional fallback to local Cursor IDE state
 
 ## [0.12.0] - 2026-05-27
 - Added support for **Gemini** subscription usage quotas
