@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-06-01
+- Added a dual-track percentage bar indicator that shows quota usage alongside billing period progress
+- Improved 70–90% warning visibility in light mode with an orange usage color
+
 ## [0.13.0] - 2026-05-29
 - Added support for **Cursor** subscription usage quotas, including popup, indicator, settings, caching, and MCP tooling
 - Cursor auth now supports browser session cookies (`WorkosCursorSessionToken` from cursor.com), with optional fallback to local Cursor IDE state
