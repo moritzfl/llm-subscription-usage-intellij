@@ -115,6 +115,7 @@ open class CursorQuotaClient(
                 apiPercentUsed = periodUsage.planUsage.apiPercentUsed,
                 totalSpendUsd = periodUsage.planUsage.totalSpend / 100.0,
                 limitUsd = periodUsage.planUsage.limit / 100.0,
+                billingCycleStart = parseTimestamp(periodUsage.billingCycleStart),
                 billingCycleEnd = parseTimestamp(periodUsage.billingCycleEnd),
             )
 

@@ -365,17 +365,20 @@ internal class QuotaIndicatorComponent(
     private fun updatePercentageDisplay() {
         val percentage = displayPercent()
         val text = barDisplayText()
+        val periodElapsedFraction = indicatorPeriodElapsedFraction(data)
         if (percentage >= 0) {
             percentageComponent.update(
                 text = text,
                 fraction = percentage / 100.0,
                 fillColor = QuotaUsageColors.usageColor(percentage),
+                periodElapsedFraction = periodElapsedFraction,
             )
         } else {
             percentageComponent.update(
                 text = text,
                 fraction = 0.0,
                 fillColor = QuotaUsageColors.GRAY,
+                periodElapsedFraction = periodElapsedFraction,
             )
         }
     }

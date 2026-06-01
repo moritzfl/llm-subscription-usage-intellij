@@ -418,7 +418,7 @@ class QuotaSettingsConfigurable : Configurable {
             verticalAlignment = SwingConstants.CENTER
         }
         private val percentagePreview = QuotaPercentageIndicator().apply {
-            update("42% • 2h 9m", 0.42, QuotaUsageColors.GREEN)
+            update("42% • 2h 9m", 0.42, QuotaUsageColors.GREEN, periodElapsedFraction = 0.55)
         }
 
         init {
@@ -440,6 +440,12 @@ class QuotaSettingsConfigurable : Configurable {
                 }
 
                 QuotaDisplayMode.PERCENTAGE_BAR -> {
+                    percentagePreview.update(
+                        text = "42% • 2h 9m",
+                        fraction = 0.42,
+                        fillColor = QuotaUsageColors.GREEN,
+                        periodElapsedFraction = 0.55,
+                    )
                     addToCenter(percentagePreview)
                 }
             }

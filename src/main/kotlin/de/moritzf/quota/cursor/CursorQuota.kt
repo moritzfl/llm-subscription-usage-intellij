@@ -35,6 +35,7 @@ data class CursorPlanUsage(
     val apiPercentUsed: Double = 0.0,
     val totalSpendUsd: Double = 0.0,
     val limitUsd: Double = 0.0,
+    val billingCycleStart: Instant? = null,
     val billingCycleEnd: Instant? = null,
 )
 

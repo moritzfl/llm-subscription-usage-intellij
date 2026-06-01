@@ -77,6 +77,7 @@ class CursorQuotaClientTest {
         assertEquals(45.0, planUsage.totalSpendUsd)
         assertEquals(20.0, planUsage.limitUsd)
         assertEquals(Instant.fromEpochMilliseconds(1770733695000), planUsage.billingCycleEnd)
+        assertEquals(Instant.fromEpochMilliseconds(1768055295000), planUsage.billingCycleStart)
 
         val spendLimit = assertNotNull(quota.spendLimit)
         assertEquals(500.0, spendLimit.pooledLimitUsd)
