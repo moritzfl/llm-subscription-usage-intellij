@@ -15,6 +15,9 @@ data class UsageResponseDto(
     @SerialName("rate_limit") val rateLimit: RateLimitDto? = null,
     @SerialName("code_review_rate_limit") val codeReviewRateLimit: RateLimitDto? = null,
     @SerialName("plan_type") val planType: String? = null,
+    val credits: CreditsDto? = null,
+    @SerialName("spend_control") val spendControl: SpendControlDto? = null,
+    @SerialName("rate_limit_reached_type") val rateLimitReachedType: RateLimitReachedTypeDto? = null,
 ) {
     fun toQuota(): OpenAiCodexQuota {
         return OpenAiCodexQuota(
@@ -29,6 +32,9 @@ data class UsageResponseDto(
             reviewLimitReached = codeReviewRateLimit?.limitReached,
             accountId = accountId.normalizedText(),
             email = email.normalizedText(),
+            credits = credits?.toCredits(),
+            spendControl = spendControl?.toSpendControl(),
+            rateLimitReachedType = rateLimitReachedType?.type?.takeUnless { it.isEmpty() },
         )
     }
 

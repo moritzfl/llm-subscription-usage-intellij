@@ -19,6 +19,9 @@ import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.ui.indicator.clampPercent
 import de.moritzf.quota.idea.ui.indicator.scaleIconToQuotaStatusSize
 import de.moritzf.quota.openai.OpenAiCodexQuota
+import de.moritzf.quota.openai.OpenAiCredits
+import de.moritzf.quota.openai.OpenAiSpendControl
+import de.moritzf.quota.openai.creditsLimitWarning
 import de.moritzf.quota.openai.UsageWindow
 import de.moritzf.quota.opencode.OpenCodeUsageWindow
 import de.moritzf.quota.ollama.OllamaUsageWindow
@@ -162,6 +165,8 @@ internal fun getLimitWarning(quota: OpenAiCodexQuota?): String? {
     if (quota == null) {
         return null
     }
+
+    quota.creditsLimitWarning()?.let { return it }
 
     return when {
         quota.limitReached == true -> "Codex limit reached"

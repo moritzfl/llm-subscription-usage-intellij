@@ -13,6 +13,10 @@ import de.moritzf.quota.idea.ui.indicator.buildQuotaTooltipText
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.ollama.OllamaUsageWindow
 import de.moritzf.quota.openai.OpenAiCodexQuota
+import de.moritzf.quota.openai.OpenAiUsageResponseFixtures.businessMemberAssignedCreditsDepleted
+import de.moritzf.quota.openai.OpenAiUsageResponseFixtures.businessMemberWithAssignedCredits
+import de.moritzf.quota.openai.OpenAiUsageResponseFixtures.plusWithRateLimitsAndZeroPurchasedCredits
+import de.moritzf.quota.openai.isCreditsDepleted
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.openai.UsageWindow
 import de.moritzf.quota.opencode.OpenCodeUsageWindow
@@ -20,6 +24,7 @@ import kotlinx.datetime.Clock
 import java.time.Duration
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
@@ -89,6 +94,47 @@ class QuotaIndicatorComponentTest {
         assertEquals("17%", indicatorBarDisplayText(quota, error = null, loggedIn = true))
         assertEquals(17, indicatorDisplayPercent(quota, error = null, loggedIn = true))
         assertEquals("OpenAI code review quota: 17% used", buildQuotaTooltipText(quota, error = null, loggedIn = true))
+    }
+
+    @Test
+    fun indicatorShowsAvailableForBusinessMemberWithAssignedCreditsFixture() {
+        val quota = businessMemberWithAssignedCredits()
+
+        assertEquals("available", indicatorBarDisplayText(quota, error = null, loggedIn = true))
+        assertEquals(-1, indicatorDisplayPercent(quota, error = null, loggedIn = true))
+        assertTrue(buildQuotaTooltipText(quota, error = null, loggedIn = true).contains("Assigned credits: Available"))
+    }
+
+    @Test
+    fun indicatorShowsDepletedForBusinessMemberAssignedCreditsDepletedFixture() {
+        val quota = businessMemberAssignedCreditsDepleted()
+        val tooltip = buildQuotaTooltipText(quota, error = null, loggedIn = true)
+
+        assertEquals("100%", indicatorBarDisplayText(quota, error = null, loggedIn = true))
+        assertEquals(100, indicatorDisplayPercent(quota, error = null, loggedIn = true))
+        assertTrue(tooltip.contains("Assigned credits:"))
+        assertTrue(tooltip.lowercase().contains("depleted"))
+    }
+
+    @Test
+    fun indicatorUsesRateLimitsForPlusFixtureWithZeroPurchasedCredits() {
+        val quota = plusWithRateLimitsAndZeroPurchasedCredits()
+
+        val text = indicatorBarDisplayText(quota, error = null, loggedIn = true)
+        assertTrue(text.startsWith("1%"))
+        assertEquals(1, indicatorDisplayPercent(quota, error = null, loggedIn = true))
+        assertFalse(quota.isCreditsDepleted())
+        assertFalse(buildQuotaTooltipText(quota, error = null, loggedIn = true).contains("Assigned credits"))
+    }
+
+    @Test
+    fun indicatorShowsCreditsBalanceWhenPresent() {
+        val quota = OpenAiCodexQuota(
+            planType = "self_serve_business_usage_based",
+            credits = de.moritzf.quota.openai.OpenAiCredits(hasCredits = true, balance = "15.0"),
+        )
+
+        assertEquals("$15.00", indicatorBarDisplayText(quota, error = null, loggedIn = true))
     }
 
     @Test

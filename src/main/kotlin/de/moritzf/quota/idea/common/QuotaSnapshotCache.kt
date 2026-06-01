@@ -2,6 +2,8 @@ package de.moritzf.quota.idea.common
 
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.openai.OpenAiCodexQuota
+import de.moritzf.quota.openai.OpenAiCredits
+import de.moritzf.quota.openai.OpenAiSpendControl
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.openai.UsageWindow
 import de.moritzf.quota.ollama.OllamaQuota
@@ -103,6 +105,9 @@ private data class CachedOpenAiQuota(
     val fetchedAtEpochMs: Long? = null,
     val accountId: String? = null,
     val email: String? = null,
+    val credits: OpenAiCredits? = null,
+    val spendControl: OpenAiSpendControl? = null,
+    val rateLimitReachedType: String? = null,
 ) {
     fun toQuota(): OpenAiCodexQuota {
         return OpenAiCodexQuota(
@@ -118,6 +123,9 @@ private data class CachedOpenAiQuota(
             fetchedAt = fetchedAtEpochMs?.let(Instant::fromEpochMilliseconds),
             accountId = accountId,
             email = email,
+            credits = credits,
+            spendControl = spendControl,
+            rateLimitReachedType = rateLimitReachedType,
         )
     }
 
@@ -136,6 +144,9 @@ private data class CachedOpenAiQuota(
                 fetchedAtEpochMs = quota.fetchedAt?.toEpochMilliseconds(),
                 accountId = quota.accountId,
                 email = quota.email,
+                credits = quota.credits,
+                spendControl = quota.spendControl,
+                rateLimitReachedType = quota.rateLimitReachedType,
             )
         }
     }

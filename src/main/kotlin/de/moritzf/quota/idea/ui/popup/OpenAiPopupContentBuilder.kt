@@ -4,11 +4,16 @@ import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.ui.indicator.clampPercent
 import de.moritzf.quota.openai.OpenAiCodexQuota
+import de.moritzf.quota.openai.OpenAiCredits
+import de.moritzf.quota.openai.OpenAiSpendControl
 import de.moritzf.quota.openai.UsageWindow
+import de.moritzf.quota.openai.formatApproxMessages
+import de.moritzf.quota.openai.isAssignedCreditsQuota
 import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.util.ui.JBUI
 import javax.swing.JPanel
 import kotlin.math.roundToInt
+import java.util.Locale
 
 internal class OpenAiPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)) {
     private val separator = createSeparatedBlock()
@@ -16,6 +21,7 @@ internal class OpenAiPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout
     private val titleLabel = createSectionTitleLabel("Codex", QuotaIcons.OPENAI).apply { border = JBUI.Borders.emptyTop(0) }
     private val primaryBlock = WindowBlockPanel(3)
     private val secondaryBlock = WindowBlockPanel(5)
+    private val creditsBlock = WindowBlockPanel(5)
     private val reviewSeparator = createSeparatedBlock()
     private val reviewTitle = createSectionTitleLabel("Code Review", QuotaIcons.OPENAI).apply { border = JBUI.Borders.emptyTop(0) }
     private val reviewPrimaryBlock = WindowBlockPanel(3)
@@ -28,6 +34,7 @@ internal class OpenAiPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout
         add(titleLabel)
         add(primaryBlock)
         add(secondaryBlock)
+        add(creditsBlock)
         add(reviewSeparator)
         add(reviewTitle)
         add(reviewPrimaryBlock)
@@ -51,13 +58,14 @@ internal class OpenAiPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout
                 titleLabel.text = "Codex"
                 primaryBlock.showLoading("5h")
                 secondaryBlock.showLoading("Weekly")
+                creditsBlock.showLoading("Assigned credits")
             }
             else -> {
                 val limitWarning = getLimitWarning(quota)
                 warningLabel.isVisible = limitWarning != null
                 if (limitWarning != null) warningLabel.text = limitWarning
 
-                val hasMainData = quota.primary != null || quota.secondary != null
+                val hasMainData = quota.primary != null || quota.secondary != null || quota.isAssignedCreditsQuota()
                 titleLabel.isVisible = hasMainData
                 if (hasMainData) {
                     val planLabel = quota.planType?.toDisplayLabel()
@@ -66,6 +74,11 @@ internal class OpenAiPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout
 
                 quota.primary?.let { primaryBlock.updateWindow(it, "Primary") } ?: primaryBlock.clear()
                 quota.secondary?.let { secondaryBlock.updateWindow(it, "Secondary") } ?: secondaryBlock.clear()
+                if (quota.isAssignedCreditsQuota() && quota.credits != null) {
+                    creditsBlock.updateAssignedCredits(quota.credits!!, quota.spendControl, quota.rateLimitReachedType)
+                } else {
+                    creditsBlock.clear()
+                }
 
                 reviewSeparator.isVisible = hasReviewData
                 reviewTitle.isVisible = hasReviewData
@@ -84,6 +97,7 @@ internal class OpenAiPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout
         titleLabel.isVisible = false
         primaryBlock.isVisible = false
         secondaryBlock.isVisible = false
+        creditsBlock.isVisible = false
         reviewSeparator.isVisible = false
         reviewTitle.isVisible = false
         reviewPrimaryBlock.isVisible = false
@@ -97,5 +111,72 @@ internal class OpenAiPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout
         var info = "$percent% used"
         if (resetText != null) info += " - $resetText"
         update(title, info, percent)
+    }
+
+    private fun WindowBlockPanel.updateAssignedCredits(
+        credits: OpenAiCredits,
+        spendControl: OpenAiSpendControl?,
+        rateLimitReachedType: String?,
+    ) {
+        val (info, percent) = describeAssignedCredits(credits, spendControl, rateLimitReachedType)
+        update("Assigned credits", info, percent)
+    }
+
+    private fun describeAssignedCredits(
+        credits: OpenAiCredits,
+        spendControl: OpenAiSpendControl?,
+        rateLimitReachedType: String?,
+    ): Pair<String, Int> {
+        when {
+            credits.unlimited == true -> return "Unlimited" to 0
+            rateLimitReachedType == "workspace_member_credits_depleted" -> return "Assigned credits depleted" to 100
+            credits.overageLimitReached == true -> return "Overage limit reached" to 100
+            spendControl?.reached == true && (spendControl.individualLimit ?: 0.0) > 0.0 -> {
+                return "Individual spend limit reached ($${formatCreditsLimit(spendControl.individualLimit!!)} cap)" to 100
+            }
+            credits.hasCredits == false -> return "Depleted" to 100
+            !credits.balance.isNullOrBlank() -> {
+                val balance = formatCreditsBalance(credits.balance)
+                val hints = buildList {
+                    formatApproxMessages(credits.approxLocalMessages)?.let { add("~$it local messages") }
+                    formatApproxMessages(credits.approxCloudMessages)?.let { add("~$it cloud messages") }
+                }
+                var info = "$$balance remaining"
+                if (hints.isNotEmpty()) {
+                    info += " (${hints.joinToString(", ")})"
+                }
+                return info to 0
+            }
+            credits.hasCredits == true -> {
+                val hints = buildList {
+                    formatApproxMessages(credits.approxLocalMessages)?.let { add("~$it local messages") }
+                    formatApproxMessages(credits.approxCloudMessages)?.let { add("~$it cloud messages") }
+                }
+                val info = if (hints.isEmpty()) {
+                    "Available"
+                } else {
+                    "Available (${hints.joinToString(", ")})"
+                }
+                return info to 0
+            }
+        }
+
+        spendControl?.individualLimit?.takeIf { it > 0.0 }?.let { limit ->
+            return "Individual limit: $${formatCreditsLimit(limit)}" to if (spendControl.reached == true) 100 else 0
+        }
+
+        return "Unknown" to 0
+    }
+
+    private fun formatCreditsBalance(balance: String): String {
+        return balance.toDoubleOrNull()?.let(::formatCreditsLimit) ?: balance
+    }
+
+    private fun formatCreditsLimit(value: Double): String {
+        return if (value >= 100.0) {
+            value.roundToInt().toString()
+        } else {
+            String.format(Locale.US, "%.2f", value)
+        }
     }
 }

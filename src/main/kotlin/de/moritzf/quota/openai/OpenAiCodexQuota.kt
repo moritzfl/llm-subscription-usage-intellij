@@ -21,6 +21,9 @@ class OpenAiCodexQuota(
     var rawJson: String? = null,
     var accountId: String? = null,
     var email: String? = null,
+    var credits: OpenAiCredits? = null,
+    var spendControl: OpenAiSpendControl? = null,
+    var rateLimitReachedType: String? = null,
 ) {
     fun hasUsableWindows(): Boolean {
         return primary != null || secondary != null || reviewPrimary != null || reviewSecondary != null
@@ -31,7 +34,11 @@ class OpenAiCodexQuota(
             allowed != null ||
             limitReached != null ||
             reviewAllowed != null ||
-            reviewLimitReached != null
+            reviewLimitReached != null ||
+            credits?.hasCredits != null ||
+            credits?.unlimited == true ||
+            spendControl?.reached != null ||
+            rateLimitReachedType != null
     }
 
     override fun toString(): String {
@@ -48,7 +55,10 @@ class OpenAiCodexQuota(
             "fetchedAt=$fetchedAt, " +
             "rawJson=${if (rawJson == null) "null" else "<redacted>"}, " +
             "accountId=${if (accountId == null) "null" else "<redacted>"}, " +
-            "email=${if (email == null) "null" else "<redacted>"}" +
+            "email=${if (email == null) "null" else "<redacted>"}, " +
+            "credits=$credits, " +
+            "spendControl=$spendControl, " +
+            "rateLimitReachedType=$rateLimitReachedType" +
             ")"
     }
 }

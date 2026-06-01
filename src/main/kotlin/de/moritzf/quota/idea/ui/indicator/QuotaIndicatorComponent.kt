@@ -9,6 +9,10 @@ import com.intellij.util.IconUtil
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.openai.OpenAiCodexQuota
+import de.moritzf.quota.openai.OpenAiCredits
+import de.moritzf.quota.openai.OpenAiSpendControl
+import de.moritzf.quota.openai.isAssignedCreditsQuota
+import de.moritzf.quota.openai.isCreditsDepleted
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.opencode.OpenCodeUsageWindow
 import de.moritzf.quota.openai.UsageWindow
@@ -23,6 +27,7 @@ import java.awt.Component
 import java.awt.Cursor
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import java.util.Locale
 import kotlinx.datetime.Instant
 import javax.swing.Icon
 import javax.swing.JComponent
@@ -43,6 +48,7 @@ internal data class IndicatorQuotaState(
 internal data class IndicatorDisplayState(
     val percent: Int,
     val resetsAt: Instant?,
+    val creditsBalanceLabel: String? = null,
 )
 
 private data class OpenCodeIndicatorState(
@@ -600,14 +606,61 @@ internal fun buildQuotaTooltipText(quota: OpenAiCodexQuota?, error: String?, log
     addWindow(quota.primary, "Primary")
     addWindow(quota.secondary, "Secondary")
     
-    if (quota.reviewPrimary != null || quota.reviewSecondary != null) {
-        parts.add("\nCode Review:")
+    val hasCodexWindows = quota.primary != null || quota.secondary != null
+    val hasReviewWindows = quota.reviewPrimary != null || quota.reviewSecondary != null
+
+    if (hasReviewWindows) {
+        parts.add("Code Review:")
         addWindow(quota.reviewPrimary, "Primary")
         addWindow(quota.reviewSecondary, "Secondary")
     }
 
-    if (parts.isEmpty()) return "$plan quota: no usage data"
+    if (quota.isAssignedCreditsQuota() && quota.credits != null) {
+        parts.add(describeAssignedCreditsForTooltip(quota.credits!!, quota.spendControl, quota.rateLimitReachedType))
+    }
+
+    val state = indicatorQuotaState(quota)
+    val display = state?.let { openAiIndicatorDisplayState(quota, it) }
+    if (parts.size == 1 && state != null && display != null && display.creditsBalanceLabel == null && !quota.isAssignedCreditsQuota()) {
+        val quotaName = when (state.kind) {
+            IndicatorQuotaKind.CODEX -> "OpenAI usage quota"
+            IndicatorQuotaKind.REVIEW -> "OpenAI code review quota"
+        }
+        return "$quotaName: ${display.percent}% used"
+    }
+
+    if (!hasCodexWindows && hasReviewWindows && quota.credits == null && state?.kind == IndicatorQuotaKind.REVIEW && display != null) {
+        return "OpenAI code review quota: ${display.percent}% used"
+    }
+
+    if (parts.isEmpty()) return "OpenAI usage quota: loading"
     return "$plan quota:\n${parts.joinToString("\n")}"
+}
+
+private fun describeAssignedCreditsForTooltip(
+    credits: OpenAiCredits,
+    spendControl: OpenAiSpendControl?,
+    rateLimitReachedType: String?,
+): String {
+    val status = when {
+        credits.unlimited == true -> "Unlimited"
+        rateLimitReachedType == "workspace_member_credits_depleted" -> "Assigned credits depleted"
+        credits.overageLimitReached == true -> "Overage limit reached"
+        spendControl?.reached == true && (spendControl.individualLimit ?: 0.0) > 0.0 -> "Individual spend limit reached"
+        credits.hasCredits == false -> "Depleted"
+        !credits.balance.isNullOrBlank() -> "$${credits.balance} remaining"
+        credits.hasCredits == true -> "Available"
+        else -> "Unknown"
+    }
+    val spendLimit = spendControl?.individualLimit?.takeIf { it > 0.0 }?.let { limit ->
+        "Individual limit: $$limit${if (spendControl.reached == true) " (reached)" else ""}"
+    }
+    return buildString {
+        append("Assigned credits: $status")
+        if (spendLimit != null) {
+            append("\n$spendLimit")
+        }
+    }
 }
 
 internal fun indicatorBarDisplayText(quota: OpenAiCodexQuota?, error: String?, loggedIn: Boolean): String {
@@ -621,6 +674,7 @@ internal fun indicatorBarDisplayText(quota: OpenAiCodexQuota?, error: String?, l
     val state = indicatorQuotaState(quota) ?: return "loading..."
 
     val display = openAiIndicatorDisplayState(quota, state) ?: return "available"
+    display.creditsBalanceLabel?.let { return it }
     val reset = QuotaUiUtil.formatResetCompact(display.resetsAt)
     val text = "${display.percent}%"
     return if (reset != null) "$text \u2022 $reset" else text
@@ -640,6 +694,14 @@ private fun openAiIndicatorDisplayState(quota: OpenAiCodexQuota?, state: Indicat
         return IndicatorDisplayState(
             percent = 100,
             resetsAt = limitingWindow(quota, state.kind)?.resetsAt,
+        )
+    }
+
+    quota?.credits?.balance?.toDoubleOrNull()?.takeIf { quota.credits?.hasCredits == true }?.let { balance ->
+        return IndicatorDisplayState(
+            percent = 0,
+            resetsAt = null,
+            creditsBalanceLabel = formatCreditsBalanceLabel(balance),
         )
     }
 
@@ -800,7 +862,31 @@ internal fun indicatorQuotaState(quota: OpenAiCodexQuota?): IndicatorQuotaState?
         )
     }
 
+    if (quota.isCreditsDepleted()) {
+        return IndicatorQuotaState(
+            kind = IndicatorQuotaKind.CODEX,
+            window = null,
+            limitReached = true,
+        )
+    }
+
+    if (quota.isAssignedCreditsQuota() && (quota.credits?.hasCredits == true || quota.credits?.unlimited == true)) {
+        return IndicatorQuotaState(
+            kind = IndicatorQuotaKind.CODEX,
+            window = null,
+            limitReached = false,
+        )
+    }
+
     return null
+}
+
+private fun formatCreditsBalanceLabel(balance: Double): String {
+    return if (balance >= 100.0) {
+        "$${balance.roundToInt()}"
+    } else {
+        "$${String.format(Locale.US, "%.2f", balance)}"
+    }
 }
 
 internal fun clampPercent(value: Int): Int = value.coerceIn(0, 100)
