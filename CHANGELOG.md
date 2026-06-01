@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-06-01
+- Improved OpenAI/Codex usage decoding for business and pay-per-use plans: the indicator and popup now show assigned-credit state, individual spend cap, and workspace-level limit reasons (`workspace_member_credits_depleted`, `workspace_member_usage_limit_reached`, `workspace_owner_*`)
+- Added coverage for additional real-world `self_serve_business_usage_based` and `prolite` response shapes (additional rate limits, omitted optional fields) and inferred business scenarios (balance, unlimited, individual spend cap, overage)
+
 ## [0.14.0] - 2026-06-01
 - Added a dual-track percentage bar indicator that shows quota usage alongside billing period progress
 - Improved 70–90% warning visibility in light mode with an orange usage color
