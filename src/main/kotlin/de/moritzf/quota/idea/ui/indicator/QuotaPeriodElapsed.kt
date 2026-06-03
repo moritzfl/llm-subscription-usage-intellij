@@ -2,7 +2,6 @@ package de.moritzf.quota.idea.ui.indicator
 
 import de.moritzf.quota.cursor.CursorPlanUsage
 import de.moritzf.quota.cursor.CursorQuota
-import de.moritzf.quota.gemini.GeminiQuota
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.kimi.KimiQuota
@@ -114,7 +113,6 @@ internal fun CursorPlanUsage.periodElapsedFraction(now: Instant = Clock.System.n
 
 internal fun indicatorPeriodElapsedFraction(data: QuotaIndicatorData): Double? {
     return when (data) {
-        is QuotaIndicatorData.Gemini -> geminiPeriodElapsedFraction(data.quota, data.error)
         is QuotaIndicatorData.OpenAi -> openAiPeriodElapsedFraction(data.quota, data.error)
         is QuotaIndicatorData.OpenCode -> openCodePeriodElapsedFraction(data.quota, data.error)
         is QuotaIndicatorData.Ollama -> ollamaPeriodElapsedFraction(data.quota, data.error)
@@ -123,13 +121,6 @@ internal fun indicatorPeriodElapsedFraction(data: QuotaIndicatorData): Double? {
         is QuotaIndicatorData.Kimi -> kimiPeriodElapsedFraction(data.quota, data.error)
         is QuotaIndicatorData.Cursor -> cursorPeriodElapsedFraction(data.quota, data.error)
     }
-}
-
-private fun geminiPeriodElapsedFraction(quota: GeminiQuota?, error: String?): Double? {
-    if (error != null || quota == null) {
-        return null
-    }
-    return null
 }
 
 private fun openAiPeriodElapsedFraction(quota: OpenAiCodexQuota?, error: String?): Double? {

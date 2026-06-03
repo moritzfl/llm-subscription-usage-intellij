@@ -9,7 +9,6 @@ class QuotaProviderTypeTest {
         assertEquals(
             listOf(
                 QuotaProviderType.CURSOR,
-                QuotaProviderType.GEMINI,
                 QuotaProviderType.KIMI,
                 QuotaProviderType.MINIMAX,
                 QuotaProviderType.OLLAMA,
@@ -30,7 +29,6 @@ class QuotaProviderTypeTest {
     fun mergeProviderOrderInsertsAlphabeticallyFirstProviderAtStart() {
         val merged = QuotaProviderType.mergeProviderOrder(
             listOf(
-                QuotaProviderType.GEMINI,
                 QuotaProviderType.OPEN_AI,
                 QuotaProviderType.OPEN_CODE,
             ),
@@ -40,7 +38,6 @@ class QuotaProviderTypeTest {
         assertEquals(
             listOf(
                 QuotaProviderType.CURSOR,
-                QuotaProviderType.GEMINI,
                 QuotaProviderType.KIMI,
                 QuotaProviderType.MINIMAX,
                 QuotaProviderType.OLLAMA,
@@ -56,17 +53,17 @@ class QuotaProviderTypeTest {
     fun mergeProviderOrderPreservesRelativeCustomOrderForExistingProviders() {
         val customOrder = listOf(
             QuotaProviderType.OPEN_CODE,
-            QuotaProviderType.GEMINI,
+            QuotaProviderType.KIMI,
             QuotaProviderType.OPEN_AI,
         )
 
         val merged = QuotaProviderType.mergeProviderOrder(customOrder)
         val openCodeIndex = merged.indexOf(QuotaProviderType.OPEN_CODE)
-        val geminiIndex = merged.indexOf(QuotaProviderType.GEMINI)
+        val kimiIndex = merged.indexOf(QuotaProviderType.KIMI)
         val openAiIndex = merged.indexOf(QuotaProviderType.OPEN_AI)
 
-        assertEquals(true, openCodeIndex < geminiIndex)
-        assertEquals(true, geminiIndex < openAiIndex)
+        assertEquals(true, openCodeIndex < kimiIndex)
+        assertEquals(true, kimiIndex < openAiIndex)
     }
 
     @Test
@@ -74,7 +71,7 @@ class QuotaProviderTypeTest {
         val merged = QuotaProviderType.mergeProviderOrder(
             listOf(
                 QuotaProviderType.OPEN_CODE,
-                QuotaProviderType.GEMINI,
+                QuotaProviderType.KIMI,
                 QuotaProviderType.OPEN_AI,
             ),
         )
@@ -84,7 +81,6 @@ class QuotaProviderTypeTest {
                 QuotaProviderType.CURSOR,
                 QuotaProviderType.OPEN_CODE,
                 QuotaProviderType.ZAI,
-                QuotaProviderType.GEMINI,
                 QuotaProviderType.KIMI,
                 QuotaProviderType.MINIMAX,
                 QuotaProviderType.OLLAMA,

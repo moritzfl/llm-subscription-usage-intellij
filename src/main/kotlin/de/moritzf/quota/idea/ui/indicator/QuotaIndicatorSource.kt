@@ -7,7 +7,6 @@ enum class QuotaIndicatorSource(
     val providerType: QuotaProviderType? = null,
 ) {
     CURSOR("Cursor", QuotaProviderType.CURSOR),
-    GEMINI("Gemini", QuotaProviderType.GEMINI),
     KIMI("Kimi", QuotaProviderType.KIMI),
     MINIMAX("MiniMax", QuotaProviderType.MINIMAX),
     OPEN_AI("OpenAI", QuotaProviderType.OPEN_AI),

@@ -11,7 +11,6 @@ import de.moritzf.quota.ollama.OllamaUsageWindow
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.kimi.KimiQuota
-import de.moritzf.quota.gemini.GeminiQuota
 import de.moritzf.quota.cursor.CursorQuota
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
@@ -25,15 +24,6 @@ internal object QuotaSnapshotCache {
     fun decodeOpenAiQuota(json: String?): OpenAiCodexQuota? {
         if (json.isNullOrBlank()) return null
         return runCatching { JsonSupport.json.decodeFromString<CachedOpenAiQuota>(json).toQuota() }.getOrNull()
-    }
-
-    fun encodeGeminiQuota(quota: GeminiQuota): String? {
-        return runCatching { JsonSupport.json.encodeToString(GeminiQuota.serializer(), quota) }.getOrNull()
-    }
-
-    fun decodeGeminiQuota(json: String?): GeminiQuota? {
-        if (json.isNullOrBlank()) return null
-        return runCatching { JsonSupport.json.decodeFromString(GeminiQuota.serializer(), json) }.getOrNull()
     }
 
     fun encodeOpenCodeQuota(quota: OpenCodeQuota): String? {

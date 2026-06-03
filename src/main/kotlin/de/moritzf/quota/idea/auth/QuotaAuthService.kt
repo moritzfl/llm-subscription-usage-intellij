@@ -33,12 +33,18 @@ import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Coordinates OAuth login, credential storage, and token refresh for quota requests.
- * Supports multiple providers (e.g., OpenAI, Gemini).
+ * Coordinates OpenAI OAuth login, credential storage, and token refresh for quota requests.
  */
 @Service(Service.Level.APP)
 class QuotaAuthService(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     private val httpClient: HttpClient = createHttpClient(),
+    private val tokenOperationsFactory: (QuotaProviderType, OAuthClientConfig) -> OAuthTokenOperations = { _, config ->
+        OAuthTokenClient(httpClient, config)
+    },
+    private val credentialStoreFactory: (QuotaProviderType) -> OAuthCredentialStore = {
+        OAuthCredentialsStore("LLM Subscription Usage OAuth", "openai-oauth")
+    },
 ) : Disposable {
     private val providerStates = ConcurrentHashMap<QuotaProviderType, ProviderAuthState>()
 
@@ -47,15 +53,9 @@ class QuotaAuthService(
     }
 
     private inner class ProviderAuthState(val type: QuotaProviderType) {
-        val config = when (type) {
-            QuotaProviderType.GEMINI -> OAuthClientConfig.geminiDefaults()
-            else -> OAuthClientConfig.openAiUsageQuotaDefaults()
-        }
-        val tokenOperations: OAuthTokenOperations = OAuthTokenClient(httpClient, config)
-        val credentialStore: OAuthCredentialStore = when (type) {
-            QuotaProviderType.GEMINI -> OAuthCredentialsStore("Gemini Subscription Usage OAuth", "gemini-oauth")
-            else -> OAuthCredentialsStore("LLM Subscription Usage OAuth", "openai-oauth")
-        }
+        val config = OAuthClientConfig.openAiUsageQuotaDefaults()
+        val tokenOperations: OAuthTokenOperations = tokenOperationsFactory(type, config)
+        val credentialStore: OAuthCredentialStore = credentialStoreFactory(type)
         
         val credentialsLock = Any()
         val refreshLock = Any()
@@ -68,11 +68,7 @@ class QuotaAuthService(
     }
 
     init {
-        QuotaProviderType.entries.forEach { type ->
-            if (type == QuotaProviderType.OPEN_AI || type == QuotaProviderType.GEMINI) {
-                refreshCacheAsync(type)
-            }
-        }
+        refreshCacheAsync(QuotaProviderType.OPEN_AI)
     }
 
     fun startLoginFlow(type: QuotaProviderType, callback: (LoginResult) -> Unit, onAuthUrl: ((String) -> Unit)? = null) {
@@ -141,7 +137,7 @@ class QuotaAuthService(
     fun getAccountId(type: QuotaProviderType = QuotaProviderType.OPEN_AI): String? = 
         cachedCredentialsOrScheduleLoad(stateFor(type))?.accountId
 
-    fun getHd(type: QuotaProviderType = QuotaProviderType.GEMINI): String? = 
+    fun getHd(type: QuotaProviderType = QuotaProviderType.OPEN_AI): String? = 
         cachedCredentialsOrScheduleLoad(stateFor(type))?.hd
 
     fun refreshCacheAsync(type: QuotaProviderType) {
@@ -336,11 +332,7 @@ class QuotaAuthService(
 
         @JvmStatic
         fun parseUri(type: QuotaProviderType, value: String): URI {
-            val config = when (type) {
-                QuotaProviderType.GEMINI -> OAuthClientConfig.geminiDefaults()
-                else -> OAuthClientConfig.openAiUsageQuotaDefaults()
-            }
-            return OAuthLoginFlow.parseUri(value, config.redirectUri)
+            return OAuthLoginFlow.parseUri(value, OAuthClientConfig.openAiUsageQuotaDefaults().redirectUri)
         }
 
         private fun isExpired(credentials: OAuthCredentials): Boolean {

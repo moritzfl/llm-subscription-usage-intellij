@@ -15,7 +15,6 @@ import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.kimi.KimiQuota
-import de.moritzf.quota.gemini.GeminiQuota
 import de.moritzf.quota.cursor.CursorQuota
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
@@ -28,7 +27,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 @Service(Service.Level.APP)
 class QuotaUsageService(
     providers: List<QuotaProvider> = listOf(
-        GeminiQuotaProvider(),
         OpenAiQuotaProvider(),
         OpenCodeQuotaProvider(),
         OllamaQuotaProvider(),
@@ -41,11 +39,10 @@ class QuotaUsageService(
         runCatching { QuotaSettingsState.getInstance() }.getOrNull()
     },
     private val scheduler: ScheduledExecutorService = AppExecutorUtil.getAppScheduledExecutorService(),
-    private val updatePublisher: (GeminiQuota?, String?, OpenAiCodexQuota?, String?, OpenCodeQuota?, String?, OllamaQuota?, String?, ZaiQuota?, String?, MiniMaxQuota?, String?, KimiQuota?, String?, CursorQuota?, String?) -> Unit = { geminiQuota, geminiError, quota, error, openCodeQuota, openCodeError, ollamaQuota, ollamaError, zaiQuota, zaiError, miniMaxQuota, miniMaxError, kimiQuota, kimiError, cursorQuota, cursorError ->
+    private val updatePublisher: (OpenAiCodexQuota?, String?, OpenCodeQuota?, String?, OllamaQuota?, String?, ZaiQuota?, String?, MiniMaxQuota?, String?, KimiQuota?, String?, CursorQuota?, String?) -> Unit = { quota, error, openCodeQuota, openCodeError, ollamaQuota, ollamaError, zaiQuota, zaiError, miniMaxQuota, miniMaxError, kimiQuota, kimiError, cursorQuota, cursorError ->
         ApplicationManager.getApplication().invokeLater {
             val publisher = ApplicationManager.getApplication().messageBus
                 .syncPublisher(QuotaUsageListener.TOPIC)
-            publisher.onGeminiQuotaUpdated(geminiQuota, geminiError)
             publisher.onQuotaUpdated(quota, error)
             publisher.onOpenCodeQuotaUpdated(openCodeQuota, openCodeError)
             publisher.onOllamaQuotaUpdated(ollamaQuota, ollamaError)
@@ -58,7 +55,6 @@ class QuotaUsageService(
     },
     scheduleOnInit: Boolean = true,
 ) : Disposable {
-    private val refreshingGemini = AtomicBoolean(false)
     private val refreshingOpenAi = AtomicBoolean(false)
     private val refreshingOpenCode = AtomicBoolean(false)
     private val refreshingOllama = AtomicBoolean(false)
@@ -66,7 +62,6 @@ class QuotaUsageService(
     private val refreshingMiniMax = AtomicBoolean(false)
     private val refreshingKimi = AtomicBoolean(false)
     private val refreshingCursor = AtomicBoolean(false)
-    private val geminiProvider = providers.filterIsInstance<GeminiQuotaProvider>().firstOrNull()
     private val openAiProvider = providers.filterIsInstance<OpenAiQuotaProvider>().firstOrNull()
     private val openCodeProvider = providers.filterIsInstance<OpenCodeQuotaProvider>().firstOrNull()
     private val ollamaProvider = providers.filterIsInstance<OllamaQuotaProvider>().firstOrNull()
@@ -82,10 +77,6 @@ class QuotaUsageService(
             scheduleRefresh()
         }
     }
-
-    fun getLastGeminiQuota(): GeminiQuota? = geminiProvider?.getLastQuota()
-    fun getLastGeminiError(): String? = geminiProvider?.getLastError()
-    fun getLastGeminiResponseJson(): String? = geminiProvider?.getLastRawJson()
 
     fun getLastQuota(): OpenAiCodexQuota? = openAiProvider?.getLastQuota()
     fun getLastError(): String? = openAiProvider?.getLastError()
@@ -139,7 +130,6 @@ class QuotaUsageService(
         val settings = settingsProvider()
         val source = when (settings?.source() ?: QuotaIndicatorSource.OPEN_AI) {
             QuotaIndicatorSource.LAST_USED -> resolveLastActiveSource(settings)
-            QuotaIndicatorSource.GEMINI -> QuotaIndicatorSource.GEMINI
             QuotaIndicatorSource.OPEN_AI -> QuotaIndicatorSource.OPEN_AI
             QuotaIndicatorSource.OPEN_CODE -> QuotaIndicatorSource.OPEN_CODE
             QuotaIndicatorSource.OLLAMA -> QuotaIndicatorSource.OLLAMA
@@ -150,7 +140,6 @@ class QuotaUsageService(
         }
 
         return when (source) {
-            QuotaIndicatorSource.GEMINI -> QuotaIndicatorData.Gemini(getLastGeminiQuota(), getLastGeminiError())
             QuotaIndicatorSource.OPEN_AI -> QuotaIndicatorData.OpenAi(getLastQuota(), getLastError())
             QuotaIndicatorSource.OPEN_CODE -> QuotaIndicatorData.OpenCode(getLastOpenCodeQuota(), getLastOpenCodeError())
             QuotaIndicatorSource.OLLAMA -> QuotaIndicatorData.Ollama(getLastOllamaQuota(), getLastOllamaError())
@@ -164,10 +153,6 @@ class QuotaUsageService(
 
     fun refreshNowAsync() {
         AppExecutorUtil.getAppExecutorService().execute(::refreshNow)
-    }
-
-    fun refreshGeminiAsync() {
-        AppExecutorUtil.getAppExecutorService().execute(::refreshGemini)
     }
 
     fun refreshOpenCodeAsync() {
@@ -196,10 +181,6 @@ class QuotaUsageService(
 
     fun refreshNowBlocking() {
         refreshNow()
-    }
-
-    fun refreshGeminiBlocking() {
-        refreshGemini()
     }
 
     fun refreshOpenAiBlocking() {
@@ -231,7 +212,6 @@ class QuotaUsageService(
     }
 
     fun clearUsageData(error: String? = null) {
-        clearGeminiUsageData(error)
         clearCodexUsageData(error)
         clearOpenCodeUsageData()
         clearOllamaUsageData()
@@ -239,12 +219,6 @@ class QuotaUsageService(
         clearMiniMaxUsageData()
         clearKimiUsageData()
         clearCursorUsageData()
-    }
-
-    fun clearGeminiUsageData(error: String? = null) {
-        settingsProvider()?.cachedGeminiQuotaJson = null
-        geminiProvider?.clearData(error)
-        publishUpdate()
     }
 
     fun clearCodexUsageData(error: String? = null) {
@@ -300,7 +274,6 @@ class QuotaUsageService(
 
     private fun hydrateCachedQuotas() {
         val settings = settingsProvider() ?: return
-        geminiProvider?.hydrateFromCache(settings)
         openAiProvider?.hydrateFromCache(settings)
         openCodeProvider?.hydrateFromCache(settings)
         ollamaProvider?.hydrateFromCache(settings)
@@ -311,7 +284,6 @@ class QuotaUsageService(
     }
 
     private fun refreshNow() {
-        refreshGemini()
         refreshOpenAi()
         refreshOpenCode()
         refreshOllama()
@@ -319,10 +291,6 @@ class QuotaUsageService(
         refreshMiniMax()
         refreshKimi()
         refreshCursor()
-    }
-
-    private fun refreshGemini() {
-        refreshProvider(geminiProvider, refreshingGemini)
     }
 
     private fun refreshOpenAi() {
@@ -382,9 +350,6 @@ class QuotaUsageService(
 
     private fun getCachedUsageFraction(provider: QuotaProvider, settings: QuotaSettingsState?): Double? {
         return when (provider.type) {
-            QuotaProviderType.GEMINI -> settings?.cachedGeminiQuotaJson
-                ?.let(QuotaSnapshotCache::decodeGeminiQuota)
-                ?.let(::extractGeminiFraction)
             QuotaProviderType.OPEN_AI -> settings?.cachedOpenAiQuotaJson
                 ?.let(QuotaSnapshotCache::decodeOpenAiQuota)
                 ?.let(::extractOpenAiFraction)
@@ -411,7 +376,6 @@ class QuotaUsageService(
 
     private fun getCurrentUsageFraction(provider: QuotaProvider): Double? {
         return when (provider) {
-            is GeminiQuotaProvider -> provider.getLastQuota()?.let(::extractGeminiFraction)
             is OpenAiQuotaProvider -> provider.getLastQuota()?.let(::extractOpenAiFraction)
             is OpenCodeQuotaProvider -> provider.getLastQuota()?.let(::extractOpenCodeFraction)
             is OllamaQuotaProvider -> provider.getLastQuota()?.let(::extractOllamaFraction)
@@ -421,12 +385,6 @@ class QuotaUsageService(
             is CursorQuotaProvider -> provider.getLastQuota()?.let(::extractCursorFraction)
             else -> null
         }
-    }
-
-    private fun extractGeminiFraction(quota: GeminiQuota): Double? {
-        val fractions = quota.buckets.mapNotNull { it.remainingFraction }
-        if (fractions.isEmpty()) return null
-        return 1.0 - fractions.minOrNull()!!
     }
 
     private fun extractOpenAiFraction(quota: OpenAiCodexQuota): Double? {
@@ -483,7 +441,6 @@ class QuotaUsageService(
 
     private fun publishUpdate() {
         updatePublisher(
-            getLastGeminiQuota(), getLastGeminiError(),
             getLastQuota(), getLastError(),
             getLastOpenCodeQuota(), getLastOpenCodeError(),
             getLastOllamaQuota(), getLastOllamaError(),

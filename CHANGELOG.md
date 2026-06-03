@@ -1,6 +1,7 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+- Removed Gemini quota support and updated the plugin description to list the currently supported providers. Google has reoriented Gemini CLI toward Antigravity and now blocks third-party harnesses, making this integration unreliable.
 
 ## [0.15.0] - 2026-06-01
 - Improved OpenAI/Codex usage decoding for business and pay-per-use plans: the indicator and popup now show assigned-credit state, individual spend cap, and workspace-level limit reasons (`workspace_member_credits_depleted`, `workspace_member_usage_limit_reached`, `workspace_owner_*`)

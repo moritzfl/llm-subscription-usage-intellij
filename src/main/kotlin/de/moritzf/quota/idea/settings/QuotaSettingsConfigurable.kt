@@ -24,7 +24,6 @@ import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.minimax.MiniMaxRegionPreference
 import de.moritzf.quota.kimi.KimiQuota
-import de.moritzf.quota.gemini.GeminiQuota
 import java.awt.CardLayout
 import java.awt.Dimension
 import javax.swing.Icon
@@ -44,7 +43,6 @@ class QuotaSettingsConfigurable : Configurable {
     private var updatingDisplayModeChoices: Boolean = false
 
     private lateinit var cursorPanel: CursorSettingsPanel
-    private lateinit var geminiPanel: GeminiSettingsPanel
     private lateinit var openAiPanel: OpenAiSettingsPanel
     private lateinit var kimiPanel: KimiSettingsPanel
     private lateinit var miniMaxPanel: MiniMaxSettingsPanel
@@ -69,7 +67,6 @@ class QuotaSettingsConfigurable : Configurable {
             modalityComponentProvider = { panel ?: rootComponent },
             statusLabelDefaultForeground = statusLabelDefaultForeground,
         )
-        geminiPanel = GeminiSettingsPanel()
         openAiPanel = OpenAiSettingsPanel()
         kimiPanel = KimiSettingsPanel(
             modalityComponentProvider = { panel ?: rootComponent },
@@ -146,14 +143,6 @@ class QuotaSettingsConfigurable : Configurable {
 
         connection = ApplicationManager.getApplication().messageBus.connect()
         connection!!.subscribe(QuotaUsageListener.TOPIC, object : QuotaUsageListener {
-            override fun onGeminiQuotaUpdated(quota: GeminiQuota?, error: String?) {
-                val currentPanel = rootComponent ?: panel ?: return@onGeminiQuotaUpdated
-                ApplicationManager.getApplication().invokeLater({
-                    geminiPanel.updateAccountFields()
-                    geminiPanel.updateResponseArea()
-                    geminiPanel.updateAuthUi()
-                }, ModalityState.stateForComponent(currentPanel))
-            }
 
             override fun onQuotaUpdated(quota: OpenAiCodexQuota?, error: String?) {
                 val currentPanel = rootComponent ?: panel ?: return@onQuotaUpdated
@@ -276,7 +265,6 @@ class QuotaSettingsConfigurable : Configurable {
         cards.removeAll()
         val providerPanels = mapOf(
             QuotaProviderType.CURSOR to cursorPanel,
-            QuotaProviderType.GEMINI to geminiPanel,
             QuotaProviderType.KIMI to kimiPanel,
             QuotaProviderType.MINIMAX to miniMaxPanel,
             QuotaProviderType.OLLAMA to ollamaPanel,
@@ -287,7 +275,7 @@ class QuotaSettingsConfigurable : Configurable {
         providerPanels.forEach { (type, panel) ->
             cards.add(panel, type.id)
         }
-        serviceCardLayout?.show(cards, QuotaProviderType.GEMINI.id)
+        serviceCardLayout?.show(cards, QuotaProviderType.CURSOR.id)
     }
 
     private fun buildIndicatorConfigPanel(): DialogPanel {
@@ -314,7 +302,6 @@ class QuotaSettingsConfigurable : Configurable {
                 val locationChanged = selectedLocation != state.location()
                 val displayModeChanged = sanitizedDisplayMode != state.displayMode()
                 val sourceChanged = selectedSource != state.source()
-                val geminiPopupVisibilityChanged = geminiPanel.geminiHideFromPopupCheckBox.isSelected != state.hideGeminiFromQuotaPopup
                 val openAiPopupVisibilityChanged = openAiPanel.openAiHideFromPopupCheckBox.isSelected != state.hideOpenAiFromQuotaPopup
                 val openCodePopupVisibilityChanged = openCodePanel.openCodeHideFromPopupCheckBox.isSelected != state.hideOpenCodeFromQuotaPopup
                 val ollamaPopupVisibilityChanged = ollamaPanel.ollamaHideFromPopupCheckBox.isSelected != state.hideOllamaFromQuotaPopup
@@ -333,7 +320,6 @@ class QuotaSettingsConfigurable : Configurable {
                 if (sourceChanged) {
                     state.setSource(selectedSource)
                 }
-                state.hideGeminiFromQuotaPopup = geminiPanel.geminiHideFromPopupCheckBox.isSelected
                 state.hideOpenAiFromQuotaPopup = openAiPanel.openAiHideFromPopupCheckBox.isSelected
                 state.hideOpenCodeFromQuotaPopup = openCodePanel.openCodeHideFromPopupCheckBox.isSelected
                 state.hideOllamaFromQuotaPopup = ollamaPanel.ollamaHideFromPopupCheckBox.isSelected
@@ -345,7 +331,7 @@ class QuotaSettingsConfigurable : Configurable {
                 if (providerOrderChanged) {
                     state.providerOrder = providerReorderPanel?.getOrder()?.joinToString(",") { it.id } ?: state.providerOrder
                 }
-                if (locationChanged || displayModeChanged || sourceChanged || geminiPopupVisibilityChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged || ollamaPopupVisibilityChanged || zaiPopupVisibilityChanged || miniMaxPopupVisibilityChanged || kimiPopupVisibilityChanged || cursorPopupVisibilityChanged || miniMaxRegionChanged || providerOrderChanged) {
+                if (locationChanged || displayModeChanged || sourceChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged || ollamaPopupVisibilityChanged || zaiPopupVisibilityChanged || miniMaxPopupVisibilityChanged || kimiPopupVisibilityChanged || cursorPopupVisibilityChanged || miniMaxRegionChanged || providerOrderChanged) {
                     ApplicationManager.getApplication().messageBus
                         .syncPublisher(QuotaSettingsListener.TOPIC)
                         .onSettingsChanged()
@@ -358,7 +344,6 @@ class QuotaSettingsConfigurable : Configurable {
                 updateDisplayModeChoices(QuotaSettingsState.getInstance().displayMode())
                 updateDisplayModePreview()
                 indicatorSourceComboBox?.selectedItem = QuotaSettingsState.getInstance().source()
-                geminiPanel.geminiHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideGeminiFromQuotaPopup
                 openAiPanel.openAiHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideOpenAiFromQuotaPopup
                 openCodePanel.openCodeHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideOpenCodeFromQuotaPopup
                 ollamaPanel.ollamaHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideOllamaFromQuotaPopup
@@ -368,9 +353,6 @@ class QuotaSettingsConfigurable : Configurable {
                 cursorPanel.cursorHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideCursorFromQuotaPopup
                 miniMaxPanel.regionComboBox.selectedItem = QuotaSettingsState.getInstance().miniMaxRegionPreference()
                 providerReorderPanel?.setOrder(QuotaSettingsState.getInstance().providerOrderList())
-                geminiPanel.updateAuthUi()
-                geminiPanel.updateAccountFields()
-                geminiPanel.updateResponseArea()
                 openAiPanel.updateAuthUi()
                 openAiPanel.updateAccountFields()
                 openAiPanel.updateResponseArea()
@@ -396,7 +378,6 @@ class QuotaSettingsConfigurable : Configurable {
                 selectedLocation != state.location() ||
                     QuotaDisplayMode.sanitizeFor(selectedLocation, selectedDisplayMode) != state.displayMode() ||
                     selectedSource != state.source() ||
-                    geminiPanel.geminiHideFromPopupCheckBox.isSelected != state.hideGeminiFromQuotaPopup ||
                     openAiPanel.openAiHideFromPopupCheckBox.isSelected != state.hideOpenAiFromQuotaPopup ||
                     openCodePanel.openCodeHideFromPopupCheckBox.isSelected != state.hideOpenCodeFromQuotaPopup ||
                     ollamaPanel.ollamaHideFromPopupCheckBox.isSelected != state.hideOllamaFromQuotaPopup ||

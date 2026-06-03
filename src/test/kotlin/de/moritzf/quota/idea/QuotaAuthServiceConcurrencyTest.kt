@@ -188,6 +188,8 @@ class QuotaAuthServiceConcurrencyTest {
         return QuotaAuthService(
             scope = testScope,
             httpClient = HttpClient.newHttpClient(),
+            tokenOperationsFactory = { _, _ -> tokenOperations },
+            credentialStoreFactory = { store },
         )
     }
 

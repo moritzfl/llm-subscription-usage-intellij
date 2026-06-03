@@ -38,7 +38,6 @@ internal class ProviderReorderPanel(
 
     private val providers = listOf(
         ProviderInfo(QuotaProviderType.CURSOR, QuotaIcons.CURSOR),
-        ProviderInfo(QuotaProviderType.GEMINI, QuotaIcons.GEMINI),
         ProviderInfo(QuotaProviderType.KIMI, QuotaIcons.KIMI),
         ProviderInfo(QuotaProviderType.MINIMAX, QuotaIcons.MINIMAX),
         ProviderInfo(QuotaProviderType.OLLAMA, QuotaIcons.OLLAMA),
@@ -81,7 +80,7 @@ internal class ProviderReorderPanel(
     /** -1 = no active drop target. Otherwise the index where the dragged item would be inserted. */
     private var dropIndex: Int = -1
 
-    private var selectedProvider: QuotaProviderType = QuotaProviderType.GEMINI
+    private var selectedProvider: QuotaProviderType = QuotaProviderType.CURSOR
     
     private var dragStartTime: Long = 0
     private var dragStartPoint: Point? = null
