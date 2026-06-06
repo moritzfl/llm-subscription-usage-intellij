@@ -104,6 +104,50 @@ class McpJsonTargetUpdater(
             return segments
         }
 
+        fun formatDotPath(segments: List<String>): String {
+            require(segments.isNotEmpty()) { "JSON property path must not be blank" }
+            require(segments.all { it.isNotBlank() }) { "JSON property path contains an empty segment" }
+            return segments.joinToString(".") { segment ->
+                buildString {
+                    segment.forEach { char ->
+                        if (char == '.' || char == '\\') {
+                            append('\\')
+                        }
+                        append(char)
+                    }
+                }
+            }
+        }
+
+        fun findLikelyMcpServerPath(paths: Iterable<String>): String? {
+            var bestPath: String? = null
+            var bestScore = Int.MIN_VALUE
+            paths.forEach { path ->
+                val score = scoreLikelyMcpServerPath(path) ?: return@forEach
+                if (score > bestScore) {
+                    bestPath = path
+                    bestScore = score
+                }
+            }
+            return bestPath
+        }
+
+        private fun scoreLikelyMcpServerPath(path: String): Int? {
+            val lowerPath = path.lowercase()
+            if (!lowerPath.contains("mcp") || (!lowerPath.contains("intellij") && !lowerPath.contains("jetbrains"))) {
+                return null
+            }
+
+            val segments = runCatching { parsePropertyPath(path) }.getOrDefault(path.split('.'))
+            val lastSegment = segments.lastOrNull()?.lowercase().orEmpty()
+            return segments.size + when {
+                lastSegment == "url" -> 100
+                lastSegment.contains("url") -> 80
+                lastSegment.contains("endpoint") -> 60
+                else -> 0
+            }
+        }
+
         private fun parseDotPath(path: String): List<String> {
             val segments = mutableListOf<String>()
             val current = StringBuilder()

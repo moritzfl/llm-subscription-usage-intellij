@@ -66,6 +66,41 @@ class McpJsonTargetUpdaterTest {
     }
 
     @Test
+    fun formatDotPathEscapesSegments() {
+        val formatted = McpJsonTargetUpdater.formatDotPath(listOf("mcpServers", "jetbrains.url", "slash\\key"))
+
+        assertEquals("mcpServers.jetbrains\\.url.slash\\\\key", formatted)
+        assertEquals(listOf("mcpServers", "jetbrains.url", "slash\\key"), McpJsonTargetUpdater.parsePropertyPath(formatted))
+    }
+
+    @Test
+    fun likelyMcpServerPathPrefersUrlLeaf() {
+        val likelyPath = McpJsonTargetUpdater.findLikelyMcpServerPath(
+            listOf(
+                "mcpServers.jetbrains",
+                "mcpServers.jetbrains.command",
+                "mcpServers.jetbrains.url",
+                "servers.other.url",
+            ),
+        )
+
+        assertEquals("mcpServers.jetbrains.url", likelyPath)
+    }
+
+    @Test
+    fun likelyMcpServerPathRequiresMcpAndJetbrainsOrIntellij() {
+        val likelyPath = McpJsonTargetUpdater.findLikelyMcpServerPath(
+            listOf(
+                "mcpServers.github.url",
+                "servers.jetbrains.url",
+                "tooling.intellijMcp.endpoint",
+            ),
+        )
+
+        assertEquals("tooling.intellijMcp.endpoint", likelyPath)
+    }
+
+    @Test
     fun transportBuildsExpectedUrls() {
         val endpoints = McpServerEndpoints("http://localhost:63342/sse", 63342)
 
