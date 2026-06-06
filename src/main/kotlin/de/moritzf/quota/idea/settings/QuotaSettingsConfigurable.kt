@@ -17,6 +17,8 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageListener
 import de.moritzf.quota.idea.mcp.McpServerSyncTarget
 import de.moritzf.quota.idea.mcp.McpServerUrlSyncService
+import de.moritzf.quota.idea.mcp.McpServerStatusState
+import de.moritzf.quota.idea.mcp.McpServerUrlResolver
 import de.moritzf.quota.idea.ui.indicator.*
 import de.moritzf.quota.idea.ui.settings.ProviderReorderPanel
 import de.moritzf.quota.ollama.OllamaQuota
@@ -34,6 +36,7 @@ import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.JSeparator
 import javax.swing.SwingConstants
+import javax.swing.Timer
 import javax.swing.UIManager
 
 /**
@@ -62,6 +65,8 @@ class QuotaSettingsConfigurable : Configurable {
     private var serviceCardLayout: CardLayout? = null
     private var mcpSyncCheckBox: JBCheckBox? = null
     private var configureMcpSyncTargetsButton: JButton? = null
+    private var mcpServerStatusLabel: JBLabel? = null
+    private var mcpServerStatusTimer: Timer? = null
     private var mcpSyncTargets: MutableList<McpServerSyncTarget> = mutableListOf()
 
     override fun getDisplayName(): String = "LLM Subscription Usage"
@@ -109,6 +114,7 @@ class QuotaSettingsConfigurable : Configurable {
                 }
             }
         }
+        mcpServerStatusLabel = JBLabel()
 
         locationComboBox!!.addActionListener {
             updateDisplayModeChoices()
@@ -219,6 +225,7 @@ class QuotaSettingsConfigurable : Configurable {
         })
 
         reset()
+        startMcpServerStatusRefresh()
         return rootComponent
     }
 
@@ -249,7 +256,34 @@ class QuotaSettingsConfigurable : Configurable {
         updatingDisplayModeChoices = false
         mcpSyncCheckBox = null
         configureMcpSyncTargetsButton = null
+        mcpServerStatusTimer?.stop()
+        mcpServerStatusTimer = null
+        mcpServerStatusLabel = null
         mcpSyncTargets = mutableListOf()
+    }
+
+    private fun startMcpServerStatusRefresh() {
+        mcpServerStatusTimer?.stop()
+        updateMcpServerStatus()
+        mcpServerStatusTimer = Timer(MCP_SERVER_STATUS_REFRESH_MILLIS) {
+            updateMcpServerStatus()
+        }.apply {
+            isRepeats = true
+            start()
+        }
+    }
+
+    private fun updateMcpServerStatus() {
+        val label = mcpServerStatusLabel ?: return
+        val status = McpServerUrlResolver.currentStatus()
+        label.text = "● ${status.message}"
+        label.foreground = when (status.state) {
+            McpServerStatusState.RUNNING -> QuotaUsageColors.GREEN
+            McpServerStatusState.NOT_RUNNING,
+            McpServerStatusState.NOT_INSTALLED_OR_DISABLED,
+            McpServerStatusState.UNAVAILABLE -> QuotaUsageColors.RED
+        }
+        label.toolTipText = status.message
     }
 
     private fun updateDisplayModeChoices(preferredMode: QuotaDisplayMode? = null) {
@@ -315,6 +349,10 @@ class QuotaSettingsConfigurable : Configurable {
             row {
                 cell(mcpSyncCheckBox!!)
                 cell(configureMcpSyncTargetsButton!!)
+            }
+
+            row {
+                cell(mcpServerStatusLabel!!)
             }
 
             onApply {
@@ -432,6 +470,10 @@ class QuotaSettingsConfigurable : Configurable {
 
     private fun normalizeTargets(targets: List<McpServerSyncTarget>): List<McpServerSyncTarget> {
         return targets.map { it.normalized() }
+    }
+
+    companion object {
+        private const val MCP_SERVER_STATUS_REFRESH_MILLIS = 5_000
     }
 
     private class DisplayModePreviewComponent : BorderLayoutPanel() {
