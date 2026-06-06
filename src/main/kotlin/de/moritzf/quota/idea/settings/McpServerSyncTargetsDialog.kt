@@ -1,10 +1,12 @@
 package de.moritzf.quota.idea.settings
 
+import com.intellij.openapi.actionSystem.ActionToolbarPosition
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.openapi.ui.ValidationInfo
+import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
@@ -13,26 +15,26 @@ import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.mcp.McpJsonTargetUpdater
+import de.moritzf.quota.idea.mcp.McpJsonTargetValidationProblem
 import de.moritzf.quota.idea.mcp.McpServerSyncTarget
 import de.moritzf.quota.idea.mcp.McpServerTransport
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import java.awt.Component
 import java.awt.Dimension
-import java.awt.FlowLayout
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import javax.swing.AbstractCellEditor
 import javax.swing.DefaultCellEditor
-import javax.swing.JButton
 import javax.swing.JComboBox
 import javax.swing.JComponent
-import javax.swing.JPanel
 import javax.swing.JTable
+import javax.swing.table.DefaultTableCellRenderer
 import javax.swing.table.DefaultTableModel
 import javax.swing.table.TableCellEditor
 import javax.swing.tree.DefaultMutableTreeNode
@@ -58,21 +60,26 @@ internal class McpServerSyncTargetsDialog(
         fillsViewportHeight = true
         columnModel.getColumn(FILE_COLUMN).preferredWidth = JBUI.scale(320)
         columnModel.getColumn(FILE_COLUMN).cellEditor = JsonFileCellEditor()
+        columnModel.getColumn(FILE_COLUMN).cellRenderer = ValidationCellRenderer(FILE_COLUMN)
         columnModel.getColumn(PROPERTY_COLUMN).preferredWidth = JBUI.scale(300)
         columnModel.getColumn(PROPERTY_COLUMN).cellEditor = JsonPropertyPathCellEditor(::chooseJsonPropertyPath)
+        columnModel.getColumn(PROPERTY_COLUMN).cellRenderer = ValidationCellRenderer(PROPERTY_COLUMN)
         columnModel.getColumn(TRANSPORT_COLUMN).preferredWidth = JBUI.scale(140)
         columnModel.getColumn(TRANSPORT_COLUMN).cellEditor = DefaultCellEditor(
             JComboBox(McpServerTransport.entries.toTypedArray()),
         )
     }
+    private var rowValidations: Map<Int, RowValidation> = emptyMap()
 
     init {
         title = "IntelliJ MCP Server URL Sync Targets"
+        model.addTableModelListener { refreshValidationState() }
         initialTargets.forEach { addTarget(it) }
+        refreshValidationState()
         init()
     }
 
-    fun targets(): List<McpServerSyncTarget> = readTargets(includeIncomplete = false)
+    fun targets(): List<McpServerSyncTarget> = readTargets()
 
     override fun createCenterPanel(): JComponent {
         val help = JBLabel(
@@ -82,34 +89,26 @@ internal class McpServerSyncTargetsDialog(
             border = JBUI.Borders.emptyBottom(8)
         }
 
-        val buttons = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(8), 0)).apply {
-            isOpaque = false
-            add(JButton("Add").apply {
-                addActionListener { addTarget() }
-            })
-            add(JButton("Remove").apply {
-                addActionListener { removeSelectedTargets() }
-            })
-        }
+        val tablePanel = ToolbarDecorator.createDecorator(table)
+            .setAddAction { addTarget() }
+            .setRemoveAction { removeSelectedTargets() }
+            .disableUpDownActions()
+            .setToolbarPosition(ActionToolbarPosition.BOTTOM)
+            .createPanel()
 
         return BorderLayoutPanel().apply {
             border = JBUI.Borders.empty(8)
             addToTop(help)
-            addToCenter(JBScrollPane(table))
-            addToBottom(buttons)
+            addToCenter(tablePanel)
         }
     }
 
     override fun doValidate(): ValidationInfo? {
-        readTargets(includeIncomplete = true).forEachIndexed { index, target ->
-            if (target.jsonPropertyPath.isBlank()) {
-                return@forEachIndexed
-            }
-            if (target.jsonFilePath.isBlank()) {
-                return ValidationInfo("JSON file path is required on row ${index + 1}.", table)
-            }
-            runCatching { McpJsonTargetUpdater.parsePropertyPath(target.jsonPropertyPath) }
-                .onFailure { return ValidationInfo("JSON property path is invalid on row ${index + 1}: ${it.message}", table) }
+        table.cellEditor?.stopCellEditing()
+        refreshValidationState()
+        (0 until model.rowCount).forEach { row ->
+            val error = rowValidations[row]?.firstError ?: return@forEach
+            return ValidationInfo("Row ${row + 1}: $error", table)
         }
         return null
     }
@@ -131,24 +130,78 @@ internal class McpServerSyncTargetsDialog(
             .forEach(model::removeRow)
     }
 
-    private fun readTargets(includeIncomplete: Boolean): List<McpServerSyncTarget> {
+    private fun readTargets(): List<McpServerSyncTarget> {
         table.cellEditor?.stopCellEditing()
         return (0 until model.rowCount).mapNotNull { row ->
-            val jsonFilePath = (model.getValueAt(row, FILE_COLUMN) as? String).orEmpty().trim()
-            val jsonPropertyPath = (model.getValueAt(row, PROPERTY_COLUMN) as? String).orEmpty().trim()
-            val transport = when (val value = model.getValueAt(row, TRANSPORT_COLUMN)) {
-                is McpServerTransport -> value
-                is String -> McpServerTransport.fromStorageValue(value)
-                else -> McpServerTransport.SSE
-            }
-            if (!includeIncomplete && jsonPropertyPath.isBlank()) {
+            val target = readTargetAt(row)
+            if (target.jsonPropertyPath.isBlank()) {
                 return@mapNotNull null
             }
-            McpServerSyncTarget(
-                jsonFilePath = jsonFilePath,
-                jsonPropertyPath = jsonPropertyPath,
-                transportType = transport.name,
-            )
+            target
+        }
+    }
+
+    private fun readTargetAt(row: Int): McpServerSyncTarget {
+        val jsonFilePath = (model.getValueAt(row, FILE_COLUMN) as? String).orEmpty().trim()
+        val jsonPropertyPath = (model.getValueAt(row, PROPERTY_COLUMN) as? String).orEmpty().trim()
+        val transport = when (val value = model.getValueAt(row, TRANSPORT_COLUMN)) {
+            is McpServerTransport -> value
+            is String -> McpServerTransport.fromStorageValue(value)
+            else -> McpServerTransport.SSE
+        }
+        return McpServerSyncTarget(
+            jsonFilePath = jsonFilePath,
+            jsonPropertyPath = jsonPropertyPath,
+            transportType = transport.name,
+        )
+    }
+
+    private fun refreshValidationState() {
+        rowValidations = (0 until model.rowCount).associateWith(::validateRow)
+        table.repaint()
+    }
+
+    private fun validateRow(row: Int): RowValidation {
+        val target = readTargetAt(row)
+        if (target.jsonPropertyPath.isBlank()) {
+            return RowValidation()
+        }
+        if (target.jsonFilePath.isBlank()) {
+            return RowValidation(fileError = "JSON file path is required.")
+        }
+        val error = McpJsonTargetUpdater.validateTargetFile(target.jsonFilePath, target.jsonPropertyPath)
+            ?: return RowValidation()
+        return when (error.problem) {
+            McpJsonTargetValidationProblem.FILE -> RowValidation(fileError = error.message)
+            McpJsonTargetValidationProblem.PROPERTY -> RowValidation(propertyError = error.message)
+        }
+    }
+
+    private fun validationErrorForCell(modelRow: Int, modelColumn: Int): String? {
+        val validation = rowValidations[modelRow] ?: return null
+        return when (modelColumn) {
+            FILE_COLUMN -> validation.fileError
+            PROPERTY_COLUMN -> validation.propertyError
+            else -> null
+        }
+    }
+
+    private inner class ValidationCellRenderer(private val modelColumn: Int) : DefaultTableCellRenderer() {
+        override fun getTableCellRendererComponent(
+            table: JTable,
+            value: Any?,
+            isSelected: Boolean,
+            hasFocus: Boolean,
+            row: Int,
+            column: Int,
+        ): Component {
+            val component = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column)
+            val error = validationErrorForCell(table.convertRowIndexToModel(row), modelColumn)
+            toolTipText = error
+            if (error != null) {
+                component.foreground = JBColor.RED
+            }
+            return component
         }
     }
 
@@ -262,16 +315,22 @@ internal class McpServerSyncTargetsDialog(
         }
 
         override fun doValidate(): ValidationInfo? {
-            return if (selectedJsonPath() == null) {
-                ValidationInfo("Select a JSON property.", tree)
-            } else {
-                null
+            val selectedNode = selectedNode() ?: return ValidationInfo("Select a JSON property.", tree)
+            if (selectedNode.path == null) {
+                return ValidationInfo("Select a JSON property.", tree)
             }
+            return if (selectedNode.canUpdate) null else ValidationInfo("Select a string or null JSON property.", tree)
         }
 
         fun selectedJsonPath(): String? {
+            return selectedNode()
+                ?.takeIf { it.canUpdate }
+                ?.path
+        }
+
+        private fun selectedNode(): JsonPathNode? {
             val node = tree.lastSelectedPathComponent as? DefaultMutableTreeNode ?: return null
-            return (node.userObject as? JsonPathNode)?.path
+            return node.userObject as? JsonPathNode
         }
 
         private fun expandAllRows() {
@@ -295,7 +354,7 @@ internal class McpServerSyncTargetsDialog(
             val enumeration = rootNode.depthFirstEnumeration()
             while (enumeration.hasMoreElements()) {
                 val node = enumeration.nextElement() as? DefaultMutableTreeNode ?: continue
-                val path = (node.userObject as? JsonPathNode)?.path ?: continue
+                val path = (node.userObject as? JsonPathNode)?.takeIf { it.canUpdate }?.path ?: continue
                 if (path == pathToSelect) {
                     tree.selectionPath = TreePath(node.path)
                     tree.scrollPathToVisible(tree.selectionPath)
@@ -310,7 +369,7 @@ internal class McpServerSyncTargetsDialog(
             val enumeration = rootNode.depthFirstEnumeration()
             while (enumeration.hasMoreElements()) {
                 val node = enumeration.nextElement() as? DefaultMutableTreeNode ?: continue
-                val path = (node.userObject as? JsonPathNode)?.path ?: continue
+                val path = (node.userObject as? JsonPathNode)?.takeIf { it.canUpdate }?.path ?: continue
                 paths += path
             }
             return paths
@@ -331,7 +390,7 @@ internal class McpServerSyncTargetsDialog(
                 val rootObject = rootElement as? JsonObject
                     ?: error("Top-level JSON value must be an object.")
                 val rootLabel = file.fileName?.toString() ?: file.toString()
-                return DefaultMutableTreeNode(JsonPathNode(rootLabel, null)).apply {
+                return DefaultMutableTreeNode(JsonPathNode(rootLabel, null, canUpdate = false)).apply {
                     rootObject.forEach { (key, value) ->
                         add(createNode(key, listOf(key), value))
                     }
@@ -340,7 +399,9 @@ internal class McpServerSyncTargetsDialog(
 
             private fun createNode(key: String, pathSegments: List<String>, value: JsonElement): DefaultMutableTreeNode {
                 val path = McpJsonTargetUpdater.formatDotPath(pathSegments)
-                return DefaultMutableTreeNode(JsonPathNode("$key (${typeLabel(value)})", path)).apply {
+                return DefaultMutableTreeNode(
+                    JsonPathNode(nodeLabel(key, value), path, McpJsonTargetUpdater.isSupportedTargetValue(value)),
+                ).apply {
                     if (value is JsonObject) {
                         value.forEach { (childKey, childValue) ->
                             add(createNode(childKey, pathSegments + childKey, childValue))
@@ -349,21 +410,47 @@ internal class McpServerSyncTargetsDialog(
                 }
             }
 
+            private fun nodeLabel(key: String, value: JsonElement): String {
+                val baseLabel = "$key (${typeLabel(value)})"
+                return if (value is JsonObject) baseLabel else "$baseLabel: ${previewValue(value)}"
+            }
+
             private fun typeLabel(value: JsonElement): String {
                 return when (value) {
                     is JsonObject -> "object"
                     is JsonArray -> "array"
+                    is JsonNull -> "null"
                     is JsonPrimitive -> if (value.isString) "string" else "value"
                 }
             }
+
+            private fun previewValue(value: JsonElement): String {
+                val preview = value.toString().replace(Regex("\\s+"), " ")
+                return if (preview.length <= VALUE_PREVIEW_LENGTH) {
+                    preview
+                } else {
+                    preview.take(VALUE_PREVIEW_LENGTH - 3) + "..."
+                }
+            }
+
+            private const val VALUE_PREVIEW_LENGTH = 120
         }
     }
 
     private data class JsonPathNode(
         val label: String,
         val path: String?,
+        val canUpdate: Boolean,
     ) {
         override fun toString(): String = label
+    }
+
+    private data class RowValidation(
+        val fileError: String? = null,
+        val propertyError: String? = null,
+    ) {
+        val firstError: String?
+            get() = fileError ?: propertyError
     }
 
     companion object {

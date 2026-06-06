@@ -3,6 +3,7 @@ package de.moritzf.quota.idea.mcp
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -22,7 +23,8 @@ class McpJsonTargetUpdater(
 ) {
     fun updateFile(jsonFilePath: String, propertyPath: String, value: String): Boolean {
         val file = resolveJsonFilePath(jsonFilePath)
-        val existing = if (Files.exists(file)) Files.readString(file, StandardCharsets.UTF_8) else ""
+        require(Files.exists(file)) { "JSON file does not exist: $file" }
+        val existing = Files.readString(file, StandardCharsets.UTF_8)
         val updated = updateContent(existing, propertyPath, value)
         if (existing == updated) {
             return false
@@ -35,49 +37,90 @@ class McpJsonTargetUpdater(
 
     fun updateContent(content: String, propertyPath: String, value: String): String {
         val segments = parsePropertyPath(propertyPath)
-        val root = parseRoot(content)
-        val updated = setValue(root, segments, JsonPrimitive(value))
+        val root = parseRootObject(content, json)
+        requireExistingTargetValue(root, segments)
+        val updated = setExistingObjectValue(root, segments, JsonPrimitive(value))
         return json.encodeToString(JsonElement.serializer(), updated) + "\n"
     }
 
-    private fun parseRoot(content: String): JsonElement {
-        if (content.isBlank()) {
-            return buildJsonObject { }
-        }
-        return json.parseToJsonElement(content).takeIf { it is JsonObject } ?: buildJsonObject { }
-    }
-
-    private fun setValue(root: JsonElement, path: List<String>, value: JsonElement): JsonElement {
-        val rootObject = root as? JsonObject ?: buildJsonObject { }
-        return setObjectValue(rootObject, path, value)
-    }
-
-    private fun setObjectValue(source: JsonObject, path: List<String>, value: JsonElement): JsonObject {
+    private fun setExistingObjectValue(source: JsonObject, path: List<String>, value: JsonElement): JsonObject {
         val key = path.first()
         val replacement = if (path.size == 1) {
             value
         } else {
-            val child = source[key] as? JsonObject ?: buildJsonObject { }
-            setObjectValue(child, path.drop(1), value)
+            val child = source[key] as? JsonObject
+                ?: error("JSON property path does not exist: ${formatDotPath(path)}")
+            setExistingObjectValue(child, path.drop(1), value)
         }
 
         return buildJsonObject {
-            var replaced = false
             source.forEach { (existingKey, existingValue) ->
                 if (existingKey == key) {
                     put(existingKey, replacement)
-                    replaced = true
                 } else {
                     put(existingKey, existingValue)
                 }
-            }
-            if (!replaced) {
-                put(key, replacement)
             }
         }
     }
 
     companion object {
+        private val validationJson = Json {
+            allowComments = true
+            allowTrailingComma = true
+        }
+
+        fun validateTargetFile(jsonFilePath: String, propertyPath: String): McpJsonTargetValidationError? {
+            val file = resolveJsonFilePath(jsonFilePath)
+            if (!Files.exists(file)) {
+                return McpJsonTargetValidationError(
+                    McpJsonTargetValidationProblem.FILE,
+                    "JSON file does not exist: $file",
+                )
+            }
+
+            val content = runCatching { Files.readString(file, StandardCharsets.UTF_8) }
+                .getOrElse { error ->
+                    return McpJsonTargetValidationError(
+                        McpJsonTargetValidationProblem.FILE,
+                        error.message ?: "Could not read JSON file: $file",
+                    )
+                }
+            return validateTargetContent(content, propertyPath)
+        }
+
+        fun validateTargetContent(content: String, propertyPath: String): McpJsonTargetValidationError? {
+            val segments = runCatching { parsePropertyPath(propertyPath) }
+                .getOrElse { error ->
+                    return McpJsonTargetValidationError(
+                        McpJsonTargetValidationProblem.PROPERTY,
+                        error.message ?: "JSON property path is invalid.",
+                    )
+                }
+            val root = runCatching { parseRootObject(content, validationJson) }
+                .getOrElse { error ->
+                    return McpJsonTargetValidationError(
+                        McpJsonTargetValidationProblem.FILE,
+                        error.message ?: "Could not parse JSON file.",
+                    )
+                }
+            return runCatching {
+                requireExistingTargetValue(root, segments)
+            }.fold(
+                onSuccess = { null },
+                onFailure = { error ->
+                    McpJsonTargetValidationError(
+                        McpJsonTargetValidationProblem.PROPERTY,
+                        error.message ?: "JSON property path is invalid.",
+                    )
+                },
+            )
+        }
+
+        fun isSupportedTargetValue(value: JsonElement): Boolean {
+            return value is JsonNull || value is JsonPrimitive && value.isString
+        }
+
         fun resolveJsonFilePath(rawPath: String): Path {
             val trimmed = rawPath.trim()
             val expanded = when {
@@ -86,6 +129,27 @@ class McpJsonTargetUpdater(
                 else -> trimmed
             }
             return Paths.get(expanded).toAbsolutePath().normalize()
+        }
+
+        private fun parseRootObject(content: String, parser: Json): JsonObject {
+            require(content.isNotBlank()) { "JSON file is empty." }
+            val root = parser.parseToJsonElement(content)
+            require(root is JsonObject) { "Top-level JSON value must be an object." }
+            return root
+        }
+
+        private fun requireExistingTargetValue(root: JsonObject, path: List<String>): JsonElement {
+            var current: JsonElement = root
+            path.forEachIndexed { index, segment ->
+                val currentObject = current as? JsonObject
+                    ?: error("JSON property path does not exist: ${formatDotPath(path.take(index))} is not an object")
+                current = currentObject[segment]
+                    ?: error("JSON property path does not exist: ${formatDotPath(path)}")
+            }
+            require(isSupportedTargetValue(current)) {
+                "JSON property path must point to a string or null value."
+            }
+            return current
         }
 
         fun parsePropertyPath(rawPath: String): List<String> {
@@ -176,4 +240,14 @@ class McpJsonTargetUpdater(
             return segments
         }
     }
+}
+
+data class McpJsonTargetValidationError(
+    val problem: McpJsonTargetValidationProblem,
+    val message: String,
+)
+
+enum class McpJsonTargetValidationProblem {
+    FILE,
+    PROPERTY,
 }

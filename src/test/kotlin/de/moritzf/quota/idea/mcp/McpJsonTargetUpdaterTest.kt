@@ -6,6 +6,9 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 
 class McpJsonTargetUpdaterTest {
     private val json = Json { ignoreUnknownKeys = true }
@@ -36,9 +39,17 @@ class McpJsonTargetUpdaterTest {
     }
 
     @Test
-    fun jsonPointerCreatesMissingObjects() {
+    fun jsonPointerUpdatesExistingNullValue() {
         val updated = McpJsonTargetUpdater().updateContent(
-            "{}",
+            """
+            {
+              "mcpServers": {
+                "jetbrains": {
+                  "url": null
+                }
+              }
+            }
+            """.trimIndent(),
             "/mcpServers/jetbrains/url",
             "http://localhost:63342/sse",
         )
@@ -53,7 +64,13 @@ class McpJsonTargetUpdaterTest {
     @Test
     fun escapedDotKeepsLiteralDotInPropertyName() {
         val updated = McpJsonTargetUpdater().updateContent(
-            "{}",
+            """
+            {
+              "mcpServers": {
+                "jetbrains.url": "http://localhost:1/sse"
+              }
+            }
+            """.trimIndent(),
             "mcpServers.jetbrains\\.url",
             "http://localhost:63342/sse",
         )
@@ -63,6 +80,95 @@ class McpJsonTargetUpdaterTest {
             "http://localhost:63342/sse",
             root["mcpServers"]!!.jsonObject["jetbrains.url"]!!.jsonPrimitive.content,
         )
+    }
+
+    @Test
+    fun missingPathIsRejected() {
+        val error = assertFailsWith<IllegalStateException> {
+            McpJsonTargetUpdater().updateContent(
+                "{}",
+                "mcpServers.jetbrains.url",
+                "http://localhost:63342/sse",
+            )
+        }
+
+        assertEquals("JSON property path does not exist: mcpServers.jetbrains.url", error.message)
+    }
+
+    @Test
+    fun nonStringPathIsRejected() {
+        val error = assertFailsWith<IllegalArgumentException> {
+            McpJsonTargetUpdater().updateContent(
+                """
+                {
+                  "mcpServers": {
+                    "jetbrains": {
+                      "url": true
+                    }
+                  }
+                }
+                """.trimIndent(),
+                "mcpServers.jetbrains.url",
+                "http://localhost:63342/sse",
+            )
+        }
+
+        assertEquals("JSON property path must point to a string or null value.", error.message)
+    }
+
+    @Test
+    fun targetValidationAcceptsStringAndNullOnly() {
+        assertNull(
+            McpJsonTargetUpdater.validateTargetContent(
+                """
+                {
+                  "mcpServers": {
+                    "jetbrains": {
+                      "url": "http://localhost:1/sse",
+                      "nextUrl": null
+                    }
+                  }
+                }
+                """.trimIndent(),
+                "mcpServers.jetbrains.url",
+            ),
+        )
+        assertNull(
+            McpJsonTargetUpdater.validateTargetContent(
+                """
+                {
+                  "mcpServers": {
+                    "jetbrains": {
+                      "url": "http://localhost:1/sse",
+                      "nextUrl": null
+                    }
+                  }
+                }
+                """.trimIndent(),
+                "mcpServers.jetbrains.nextUrl",
+            ),
+        )
+
+        val missingPath = assertNotNull(
+            McpJsonTargetUpdater.validateTargetContent("{}", "mcpServers.jetbrains.url"),
+        )
+        assertEquals(McpJsonTargetValidationProblem.PROPERTY, missingPath.problem)
+
+        val nonStringPath = assertNotNull(
+            McpJsonTargetUpdater.validateTargetContent(
+                """
+                {
+                  "mcpServers": {
+                    "jetbrains": {
+                      "url": 63342
+                    }
+                  }
+                }
+                """.trimIndent(),
+                "mcpServers.jetbrains.url",
+            ),
+        )
+        assertEquals(McpJsonTargetValidationProblem.PROPERTY, nonStringPath.problem)
     }
 
     @Test
