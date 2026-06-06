@@ -313,7 +313,7 @@ class McpJsonTargetUpdater(
 
         private fun scoreLikelyMcpServerPath(path: String): Int? {
             val lowerPath = path.lowercase()
-            if (!lowerPath.contains("mcp") || (!lowerPath.contains("intellij") && !lowerPath.contains("jetbrains"))) {
+            if (!lowerPath.contains("mcp") || (!lowerPath.contains("intellij") && !lowerPath.contains("jetbrains") && !lowerPath.contains("idea"))) {
                 return null
             }
 

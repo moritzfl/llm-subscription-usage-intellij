@@ -233,6 +233,18 @@ class McpJsonTargetUpdaterTest {
     }
 
     @Test
+    fun likelyMcpServerPathAcceptsIdea() {
+        val likelyPath = McpJsonTargetUpdater.findLikelyMcpServerPath(
+            listOf(
+                "mcp_servers.github.url",
+                "mcp_servers.idea.url",
+            ),
+        )
+
+        assertEquals("mcp_servers.idea.url", likelyPath)
+    }
+
+    @Test
     fun transportBuildsExpectedUrls() {
         val endpoints = McpServerEndpoints("http://localhost:63342/sse", 63342)
 
