@@ -16,6 +16,7 @@
                 displayName="LLM Subscription Usage"
                 parentId="tools"
                 instance="de.moritzf.quota.idea.settings.QuotaSettingsConfigurable"/>
+        <postStartupActivity implementation="de.moritzf.quota.idea.mcp.McpServerUrlSyncStartupActivity"/>
         <statusBarWidgetFactory implementation="de.moritzf.quota.idea.ui.toolbar.QuotaStatusBarWidgetFactory" id="openai.usage.quota.widget"/>
     </extensions>
 

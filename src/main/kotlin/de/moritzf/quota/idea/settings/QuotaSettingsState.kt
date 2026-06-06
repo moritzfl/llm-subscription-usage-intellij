@@ -3,6 +3,8 @@ package de.moritzf.quota.idea.settings
 import com.intellij.openapi.application.ApplicationManager
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaSnapshotCache
+import de.moritzf.quota.idea.mcp.McpServerSyncTarget
+import de.moritzf.quota.idea.mcp.McpServerTransport
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorLocation
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorSource
 import de.moritzf.quota.minimax.MiniMaxRegionPreference
@@ -46,6 +48,8 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var cachedKimiQuotaJson: String? = null
     var cachedCursorQuotaJson: String? = null
     var providerOrder: String = DEFAULT_PROVIDER_ORDER
+    var syncIntellijMcpServerUrl: Boolean = false
+    var mcpServerSyncTargets: MutableList<McpServerSyncTarget> = mutableListOf()
 
     override fun getState(): QuotaSettingsState = this
 
@@ -79,6 +83,12 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         cachedKimiQuotaJson = state.cachedKimiQuotaJson
         cachedCursorQuotaJson = state.cachedCursorQuotaJson
         providerOrder = state.providerOrder.ifBlank { DEFAULT_PROVIDER_ORDER }
+        syncIntellijMcpServerUrl = state.syncIntellijMcpServerUrl
+        mcpServerSyncTargets = state.mcpServerSyncTargets.map { target ->
+            target.copy(
+                transportType = McpServerTransport.fromStorageValue(target.transportType).name,
+            )
+        }.toMutableList()
     }
 
     fun providerOrderList(): List<QuotaProviderType> {

@@ -7,7 +7,7 @@ import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.ui.components.JBLabel
-import com.intellij.ui.components.JBTabbedPane
+import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.messages.MessageBusConnection
@@ -15,6 +15,8 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageListener
+import de.moritzf.quota.idea.mcp.McpServerSyncTarget
+import de.moritzf.quota.idea.mcp.McpServerUrlSyncService
 import de.moritzf.quota.idea.ui.indicator.*
 import de.moritzf.quota.idea.ui.settings.ProviderReorderPanel
 import de.moritzf.quota.ollama.OllamaQuota
@@ -26,6 +28,7 @@ import de.moritzf.quota.minimax.MiniMaxRegionPreference
 import de.moritzf.quota.kimi.KimiQuota
 import java.awt.CardLayout
 import java.awt.Dimension
+import javax.swing.JButton
 import javax.swing.Icon
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -57,6 +60,9 @@ class QuotaSettingsConfigurable : Configurable {
     private var providerReorderPanel: ProviderReorderPanel? = null
     private var serviceCards: JPanel? = null
     private var serviceCardLayout: CardLayout? = null
+    private var mcpSyncCheckBox: JBCheckBox? = null
+    private var configureMcpSyncTargetsButton: JButton? = null
+    private var mcpSyncTargets: MutableList<McpServerSyncTarget> = mutableListOf()
 
     override fun getDisplayName(): String = "LLM Subscription Usage"
 
@@ -93,6 +99,16 @@ class QuotaSettingsConfigurable : Configurable {
         displayModeComboBox = createIndicatorComboBox(QuotaDisplayMode.entries.toTypedArray())
         indicatorSourceComboBox = createIndicatorComboBox(QuotaIndicatorSource.entries.toTypedArray())
         displayModePreview = DisplayModePreviewComponent()
+        mcpSyncCheckBox = JBCheckBox("Sync IntelliJ MCP server URL to JSON files")
+        configureMcpSyncTargetsButton = JButton("Configure Targets...").apply {
+            addActionListener {
+                val parent = rootComponent ?: panel ?: return@addActionListener
+                val dialog = McpServerSyncTargetsDialog(parent, mcpSyncTargets)
+                if (dialog.showAndGet()) {
+                    mcpSyncTargets = normalizeTargets(dialog.targets()).toMutableList()
+                }
+            }
+        }
 
         locationComboBox!!.addActionListener {
             updateDisplayModeChoices()
@@ -231,6 +247,9 @@ class QuotaSettingsConfigurable : Configurable {
         serviceCards = null
         serviceCardLayout = null
         updatingDisplayModeChoices = false
+        mcpSyncCheckBox = null
+        configureMcpSyncTargetsButton = null
+        mcpSyncTargets = mutableListOf()
     }
 
     private fun updateDisplayModeChoices(preferredMode: QuotaDisplayMode? = null) {
@@ -293,6 +312,11 @@ class QuotaSettingsConfigurable : Configurable {
                 cell(indicatorSourceComboBox!!)
             }
 
+            row {
+                cell(mcpSyncCheckBox!!)
+                cell(configureMcpSyncTargetsButton!!)
+            }
+
             onApply {
                 val selectedLocation = locationComboBox?.selectedItem as? QuotaIndicatorLocation ?: return@onApply
                 val selectedDisplayMode = displayModeComboBox?.selectedItem as? QuotaDisplayMode ?: return@onApply
@@ -311,6 +335,9 @@ class QuotaSettingsConfigurable : Configurable {
                 val cursorPopupVisibilityChanged = cursorPanel.cursorHideFromPopupCheckBox.isSelected != state.hideCursorFromQuotaPopup
                 val miniMaxRegionChanged = miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference()
                 val providerOrderChanged = providerReorderPanel?.getOrder()?.joinToString(",") { it.id } != state.providerOrder
+                val normalizedMcpTargets = normalizeTargets(mcpSyncTargets)
+                val mcpSyncChanged = mcpSyncCheckBox?.isSelected != state.syncIntellijMcpServerUrl
+                val mcpTargetsChanged = normalizedMcpTargets != normalizeTargets(state.mcpServerSyncTargets)
                 if (locationChanged) {
                     state.setLocation(selectedLocation)
                 }
@@ -331,10 +358,16 @@ class QuotaSettingsConfigurable : Configurable {
                 if (providerOrderChanged) {
                     state.providerOrder = providerReorderPanel?.getOrder()?.joinToString(",") { it.id } ?: state.providerOrder
                 }
-                if (locationChanged || displayModeChanged || sourceChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged || ollamaPopupVisibilityChanged || zaiPopupVisibilityChanged || miniMaxPopupVisibilityChanged || kimiPopupVisibilityChanged || cursorPopupVisibilityChanged || miniMaxRegionChanged || providerOrderChanged) {
+                state.syncIntellijMcpServerUrl = mcpSyncCheckBox?.isSelected == true
+                state.mcpServerSyncTargets = normalizedMcpTargets.toMutableList()
+                if (locationChanged || displayModeChanged || sourceChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged || ollamaPopupVisibilityChanged || zaiPopupVisibilityChanged || miniMaxPopupVisibilityChanged || kimiPopupVisibilityChanged || cursorPopupVisibilityChanged || miniMaxRegionChanged || providerOrderChanged || mcpSyncChanged || mcpTargetsChanged) {
                     ApplicationManager.getApplication().messageBus
                         .syncPublisher(QuotaSettingsListener.TOPIC)
                         .onSettingsChanged()
+                    McpServerUrlSyncService.getInstance().reloadFromSettings()
+                    if (state.syncIntellijMcpServerUrl) {
+                        McpServerUrlSyncService.getInstance().syncNowAsync()
+                    }
                     ActivityTracker.getInstance().inc()
                 }
             }
@@ -353,6 +386,8 @@ class QuotaSettingsConfigurable : Configurable {
                 cursorPanel.cursorHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideCursorFromQuotaPopup
                 miniMaxPanel.regionComboBox.selectedItem = QuotaSettingsState.getInstance().miniMaxRegionPreference()
                 providerReorderPanel?.setOrder(QuotaSettingsState.getInstance().providerOrderList())
+                mcpSyncCheckBox?.isSelected = QuotaSettingsState.getInstance().syncIntellijMcpServerUrl
+                mcpSyncTargets = normalizeTargets(QuotaSettingsState.getInstance().mcpServerSyncTargets).toMutableList()
                 openAiPanel.updateAuthUi()
                 openAiPanel.updateAccountFields()
                 openAiPanel.updateResponseArea()
@@ -386,11 +421,17 @@ class QuotaSettingsConfigurable : Configurable {
                     kimiPanel.kimiHideFromPopupCheckBox.isSelected != state.hideKimiFromQuotaPopup ||
                     cursorPanel.cursorHideFromPopupCheckBox.isSelected != state.hideCursorFromQuotaPopup ||
                     miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference() ||
-                    providerReorderPanel?.getOrder()?.joinToString(",") { it.id } != state.providerOrder
+                    providerReorderPanel?.getOrder()?.joinToString(",") { it.id } != state.providerOrder ||
+                    mcpSyncCheckBox?.isSelected != state.syncIntellijMcpServerUrl ||
+                    normalizeTargets(mcpSyncTargets) != normalizeTargets(state.mcpServerSyncTargets)
             }
         }.apply {
             preferredFocusedComponent = locationComboBox
         }
+    }
+
+    private fun normalizeTargets(targets: List<McpServerSyncTarget>): List<McpServerSyncTarget> {
+        return targets.map { it.normalized() }
     }
 
     private class DisplayModePreviewComponent : BorderLayoutPanel() {

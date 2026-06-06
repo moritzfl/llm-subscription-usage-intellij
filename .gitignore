@@ -99,3 +99,4 @@ http-client.private.env.json
 /.idea/inspectionProfiles/Project_Default.xml
 /.idea/kotlinc.xml
 /.idea/claudeCodeTabState.xml
+/.opencode/
