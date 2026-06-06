@@ -85,6 +85,23 @@ class McpYamlTargetUpdater {
             )
         }
 
+        fun collectStringPropertyPaths(content: String): List<String> {
+            val root = parseRoot(content)
+            val paths = mutableListOf<String>()
+            collectStringPropertyPaths(root, emptyList(), paths)
+            return paths
+        }
+
+        private fun collectStringPropertyPaths(value: Any?, prefix: List<String>, paths: MutableList<String>) {
+            when (value) {
+                is String -> paths += McpJsonTargetUpdater.formatDotPath(prefix)
+                is Map<*, *> -> value.forEach { (key, childValue) ->
+                    val keyString = key as? String ?: return@forEach
+                    collectStringPropertyPaths(childValue, prefix + keyString, paths)
+                }
+            }
+        }
+
         private fun parseRoot(content: String): Any? {
             require(content.isNotBlank()) { "YAML file is empty." }
             return loader.loadFromString(content) ?: error("YAML file is empty.")

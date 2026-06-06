@@ -39,6 +39,32 @@ class McpJsonTargetUpdaterTest {
     }
 
     @Test
+    fun jsonUpdatePreservesExistingFormattingOutsideTargetValue() {
+        val updated = McpJsonTargetUpdater().updateContent(
+            """
+            {
+                "model":"gpt-5.4",
+                "mcpServers": { "jetbrains": { "url" : null, "name":"IntelliJ" } },
+                "enabled":true
+            }
+            """.trimIndent(),
+            "mcpServers.jetbrains.url",
+            "http://localhost:63342/sse",
+        )
+
+        assertEquals(
+            """
+            {
+                "model":"gpt-5.4",
+                "mcpServers": { "jetbrains": { "url" : "http://localhost:63342/sse", "name":"IntelliJ" } },
+                "enabled":true
+            }
+            """.trimIndent(),
+            updated,
+        )
+    }
+
+    @Test
     fun jsonPointerUpdatesExistingNullValue() {
         val updated = McpJsonTargetUpdater().updateContent(
             """
@@ -243,6 +269,30 @@ class McpJsonTargetUpdaterTest {
     }
 
     @Test
+    fun tomlUpdatePreservesExistingFormattingOutsideTargetValue() {
+        val updated = McpTomlTargetUpdater().updateContent(
+            """
+            model = "gpt-5.4"
+            [mcp_servers.idea]
+            url    = "http://127.0.0.1:1/stream" # keep comment
+            name = "IntelliJ"
+            """.trimIndent(),
+            "mcp_servers.idea.url",
+            "http://127.0.0.1:64342/stream",
+        )
+
+        assertEquals(
+            """
+            model = "gpt-5.4"
+            [mcp_servers.idea]
+            url    = "http://127.0.0.1:64342/stream" # keep comment
+            name = "IntelliJ"
+            """.trimIndent(),
+            updated,
+        )
+    }
+
+    @Test
     fun tomlNonStringPathIsRejected() {
         val error = assertFailsWith<IllegalArgumentException> {
             McpTomlTargetUpdater().updateContent(
@@ -256,6 +306,20 @@ class McpJsonTargetUpdaterTest {
         }
 
         assertEquals("TOML property path must point to a string value.", error.message)
+    }
+
+    @Test
+    fun tomlStringPropertyPathsAreCollectedForChooser() {
+        val paths = McpTomlTargetUpdater.collectStringPropertyPaths(
+            """
+            model = "gpt-5.4"
+            [mcp_servers.idea]
+            url = "http://127.0.0.1:1/stream"
+            enabled = true
+            """.trimIndent(),
+        )
+
+        assertEquals(listOf("mcp_servers.idea.url", "model"), paths.sorted())
     }
 
     @Test
@@ -289,6 +353,32 @@ class McpJsonTargetUpdaterTest {
     }
 
     @Test
+    fun yamlUpdatePreservesExistingFormattingOutsideTargetValue() {
+        val updated = McpYamlTargetUpdater().updateContent(
+            """
+            model: gpt-5.4
+            mcp_servers:
+              idea:
+                url: http://127.0.0.1:1/stream # keep comment
+                name: IntelliJ
+            """.trimIndent(),
+            "mcp_servers.idea.url",
+            "http://127.0.0.1:64342/stream",
+        )
+
+        assertEquals(
+            """
+            model: gpt-5.4
+            mcp_servers:
+              idea:
+                url: "http://127.0.0.1:64342/stream" # keep comment
+                name: IntelliJ
+            """.trimIndent(),
+            updated,
+        )
+    }
+
+    @Test
     fun yamlNonStringPathIsRejected() {
         val error = assertFailsWith<IllegalArgumentException> {
             McpYamlTargetUpdater().updateContent(
@@ -303,5 +393,20 @@ class McpJsonTargetUpdaterTest {
         }
 
         assertEquals("YAML property path must point to a string value.", error.message)
+    }
+
+    @Test
+    fun yamlStringPropertyPathsAreCollectedForChooser() {
+        val paths = McpYamlTargetUpdater.collectStringPropertyPaths(
+            """
+            model: gpt-5.4
+            mcp_servers:
+              idea:
+                url: http://127.0.0.1:1/stream
+                enabled: true
+            """.trimIndent(),
+        )
+
+        assertEquals(listOf("mcp_servers.idea.url", "model"), paths.sorted())
     }
 }

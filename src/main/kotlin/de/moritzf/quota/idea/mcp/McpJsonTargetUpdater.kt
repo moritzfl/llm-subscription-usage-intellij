@@ -6,7 +6,6 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonObject
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
@@ -49,29 +48,9 @@ class McpJsonTargetUpdater(
         val segments = parsePropertyPath(propertyPath)
         val root = parseRootObject(content, json)
         requireExistingTargetValue(root, segments)
-        val updated = setExistingObjectValue(root, segments, JsonPrimitive(value))
-        return json.encodeToString(JsonElement.serializer(), updated) + "\n"
-    }
-
-    private fun setExistingObjectValue(source: JsonObject, path: List<String>, value: JsonElement): JsonObject {
-        val key = path.first()
-        val replacement = if (path.size == 1) {
-            value
-        } else {
-            val child = source[key] as? JsonObject
-                ?: error("JSON property path does not exist: ${formatDotPath(path)}")
-            setExistingObjectValue(child, path.drop(1), value)
-        }
-
-        return buildJsonObject {
-            source.forEach { (existingKey, existingValue) ->
-                if (existingKey == key) {
-                    put(existingKey, replacement)
-                } else {
-                    put(existingKey, existingValue)
-                }
-            }
-        }
+        val targetRange = findTargetValueRange(content, segments)
+            ?: error("JSON property path does not exist: ${formatDotPath(segments)}")
+        return content.replaceRange(targetRange, quoteJsonString(value))
     }
 
     companion object {
@@ -152,6 +131,126 @@ class McpJsonTargetUpdater(
             val root = parser.parseToJsonElement(content)
             require(root is JsonObject) { "Top-level JSON value must be an object." }
             return root
+        }
+
+        private fun findTargetValueRange(content: String, path: List<String>): IntRange? {
+            var cursor = skipWhitespace(content, 0)
+            path.forEachIndexed { index, segment ->
+                cursor = findObjectPropertyValueStart(content, cursor, segment) ?: return null
+                if (index < path.lastIndex) {
+                    cursor = skipWhitespace(content, cursor)
+                }
+            }
+
+            val start = skipWhitespace(content, cursor)
+            val endExclusive = when {
+                content.startsWith("null", start) -> start + 4
+                start < content.length && content[start] == '"' -> findStringEnd(content, start) + 1
+                else -> return null
+            }
+            return start until endExclusive
+        }
+
+        private fun findObjectPropertyValueStart(content: String, objectStart: Int, key: String): Int? {
+            var cursor = skipWhitespace(content, objectStart)
+            if (cursor >= content.length || content[cursor] != '{') {
+                return null
+            }
+            cursor++
+            while (cursor < content.length) {
+                cursor = skipWhitespace(content, cursor)
+                if (cursor < content.length && content[cursor] == '}') {
+                    return null
+                }
+                if (cursor >= content.length || content[cursor] != '"') {
+                    return null
+                }
+
+                val keyEnd = findStringEnd(content, cursor)
+                val propertyKey = unescapeJsonString(content.substring(cursor + 1, keyEnd))
+                cursor = skipWhitespace(content, keyEnd + 1)
+                if (cursor >= content.length || content[cursor] != ':') {
+                    return null
+                }
+                val valueStart = skipWhitespace(content, cursor + 1)
+                if (propertyKey == key) {
+                    return valueStart
+                }
+                cursor = skipJsonValue(content, valueStart)
+                cursor = skipWhitespace(content, cursor)
+                if (cursor < content.length && content[cursor] == ',') {
+                    cursor++
+                }
+            }
+            return null
+        }
+
+        private fun skipJsonValue(content: String, start: Int): Int {
+            var cursor = skipWhitespace(content, start)
+            if (cursor >= content.length) {
+                return cursor
+            }
+            return when (content[cursor]) {
+                '"' -> findStringEnd(content, cursor) + 1
+                '{' -> skipBalanced(content, cursor, '{', '}')
+                '[' -> skipBalanced(content, cursor, '[', ']')
+                else -> {
+                    while (cursor < content.length && content[cursor] != ',' && content[cursor] != '}' && content[cursor] != ']') {
+                        cursor++
+                    }
+                    cursor
+                }
+            }
+        }
+
+        private fun skipBalanced(content: String, start: Int, open: Char, close: Char): Int {
+            var depth = 0
+            var cursor = start
+            while (cursor < content.length) {
+                when (content[cursor]) {
+                    '"' -> cursor = findStringEnd(content, cursor)
+                    open -> depth++
+                    close -> {
+                        depth--
+                        if (depth == 0) {
+                            return cursor + 1
+                        }
+                    }
+                }
+                cursor++
+            }
+            return cursor
+        }
+
+        private fun findStringEnd(content: String, startQuote: Int): Int {
+            var cursor = startQuote + 1
+            var escaping = false
+            while (cursor < content.length) {
+                val char = content[cursor]
+                when {
+                    escaping -> escaping = false
+                    char == '\\' -> escaping = true
+                    char == '"' -> return cursor
+                }
+                cursor++
+            }
+            error("JSON string is not terminated.")
+        }
+
+        private fun skipWhitespace(content: String, start: Int): Int {
+            var cursor = start
+            while (cursor < content.length && content[cursor].isWhitespace()) {
+                cursor++
+            }
+            return cursor
+        }
+
+        private fun quoteJsonString(value: String): String {
+            return Json.encodeToString(JsonPrimitive(value))
+        }
+
+        private fun unescapeJsonString(value: String): String {
+            return Json.decodeFromString<JsonPrimitive>("\"$value\"").content
         }
 
         private fun requireExistingTargetValue(root: JsonObject, path: List<String>): JsonElement {

@@ -18,6 +18,8 @@ import de.moritzf.quota.idea.mcp.McpJsonTargetUpdater
 import de.moritzf.quota.idea.mcp.McpJsonTargetValidationProblem
 import de.moritzf.quota.idea.mcp.McpServerSyncTarget
 import de.moritzf.quota.idea.mcp.McpServerTransport
+import de.moritzf.quota.idea.mcp.McpTomlTargetUpdater
+import de.moritzf.quota.idea.mcp.McpYamlTargetUpdater
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -62,7 +64,7 @@ internal class McpServerSyncTargetsDialog(
         columnModel.getColumn(FILE_COLUMN).cellEditor = JsonFileCellEditor()
         columnModel.getColumn(FILE_COLUMN).cellRenderer = ValidationCellRenderer(FILE_COLUMN)
         columnModel.getColumn(PROPERTY_COLUMN).preferredWidth = JBUI.scale(300)
-        columnModel.getColumn(PROPERTY_COLUMN).cellEditor = JsonPropertyPathCellEditor(::chooseJsonPropertyPath)
+        columnModel.getColumn(PROPERTY_COLUMN).cellEditor = PropertyPathCellEditor(::choosePropertyPath)
         columnModel.getColumn(PROPERTY_COLUMN).cellRenderer = ValidationCellRenderer(PROPERTY_COLUMN)
         columnModel.getColumn(TRANSPORT_COLUMN).preferredWidth = JBUI.scale(140)
         columnModel.getColumn(TRANSPORT_COLUMN).cellEditor = DefaultCellEditor(
@@ -205,25 +207,25 @@ internal class McpServerSyncTargetsDialog(
         }
     }
 
-    private fun chooseJsonPropertyPath(modelRow: Int, currentPath: String): String? {
+    private fun choosePropertyPath(modelRow: Int, currentPath: String): String? {
         val jsonFilePath = (model.getValueAt(modelRow, FILE_COLUMN) as? String).orEmpty().trim()
         if (jsonFilePath.isBlank()) {
-            Messages.showErrorDialog(table, "Select a JSON file before browsing properties.", "JSON Property Path")
+            Messages.showErrorDialog(table, "Select a JSON, TOML, or YAML file before browsing properties.", "Property Path")
             return null
         }
 
-        val rootNode = runCatching { JsonPropertyPathChooserDialog.loadRoot(jsonFilePath) }
+        val rootNode = runCatching { PropertyPathChooserDialog.loadRoot(jsonFilePath) }
             .getOrElse { error ->
                 Messages.showErrorDialog(
                     table,
-                    error.message ?: "Could not read JSON file.",
-                    "JSON Property Path",
+                    error.message ?: "Could not read target file.",
+                    "Property Path",
                 )
                 return null
             }
 
-        val dialog = JsonPropertyPathChooserDialog(table, rootNode, currentPath)
-        return if (dialog.showAndGet()) dialog.selectedJsonPath() else null
+        val dialog = PropertyPathChooserDialog(table, rootNode, currentPath)
+        return if (dialog.showAndGet()) dialog.selectedPath() else null
     }
 
     private class JsonFileCellEditor : AbstractCellEditor(), TableCellEditor {
@@ -252,7 +254,7 @@ internal class McpServerSyncTargetsDialog(
         override fun getCellEditorValue(): Any = textFieldWithBrowseButton.text
     }
 
-    private class JsonPropertyPathCellEditor(
+    private class PropertyPathCellEditor(
         private val choosePath: (modelRow: Int, currentPath: String) -> String?,
     ) : AbstractCellEditor(), TableCellEditor {
         private val textFieldWithBrowseButton = TextFieldWithBrowseButton()
@@ -284,7 +286,7 @@ internal class McpServerSyncTargetsDialog(
         override fun getCellEditorValue(): Any = textFieldWithBrowseButton.text
     }
 
-    private class JsonPropertyPathChooserDialog(
+    private class PropertyPathChooserDialog(
         parent: Component,
         private val rootNode: DefaultMutableTreeNode,
         initialPath: String,
@@ -295,14 +297,14 @@ internal class McpServerSyncTargetsDialog(
         }
 
         init {
-            title = "Select JSON Property"
+            title = "Select Property"
             init()
             expandAllRows()
             selectInitialPath(initialPath)
         }
 
         override fun createCenterPanel(): JComponent {
-            val help = JBLabel("Select the JSON property that should receive the current IntelliJ MCP server URL.").apply {
+            val help = JBLabel("Select the string property that should receive the current IntelliJ MCP server URL.").apply {
                 foreground = JBColor.GRAY
                 border = JBUI.Borders.emptyBottom(8)
             }
@@ -315,22 +317,22 @@ internal class McpServerSyncTargetsDialog(
         }
 
         override fun doValidate(): ValidationInfo? {
-            val selectedNode = selectedNode() ?: return ValidationInfo("Select a JSON property.", tree)
+            val selectedNode = selectedNode() ?: return ValidationInfo("Select a property.", tree)
             if (selectedNode.path == null) {
-                return ValidationInfo("Select a JSON property.", tree)
+                return ValidationInfo("Select a property.", tree)
             }
-            return if (selectedNode.canUpdate) null else ValidationInfo("Select a string or null JSON property.", tree)
+            return if (selectedNode.canUpdate) null else ValidationInfo("Select a string property.", tree)
         }
 
-        fun selectedJsonPath(): String? {
+        fun selectedPath(): String? {
             return selectedNode()
                 ?.takeIf { it.canUpdate }
                 ?.path
         }
 
-        private fun selectedNode(): JsonPathNode? {
+        private fun selectedNode(): PropertyPathNode? {
             val node = tree.lastSelectedPathComponent as? DefaultMutableTreeNode ?: return null
-            return node.userObject as? JsonPathNode
+            return node.userObject as? PropertyPathNode
         }
 
         private fun expandAllRows() {
@@ -354,7 +356,7 @@ internal class McpServerSyncTargetsDialog(
             val enumeration = rootNode.depthFirstEnumeration()
             while (enumeration.hasMoreElements()) {
                 val node = enumeration.nextElement() as? DefaultMutableTreeNode ?: continue
-                val path = (node.userObject as? JsonPathNode)?.takeIf { it.canUpdate }?.path ?: continue
+                val path = (node.userObject as? PropertyPathNode)?.takeIf { it.canUpdate }?.path ?: continue
                 if (path == pathToSelect) {
                     tree.selectionPath = TreePath(node.path)
                     tree.scrollPathToVisible(tree.selectionPath)
@@ -369,7 +371,7 @@ internal class McpServerSyncTargetsDialog(
             val enumeration = rootNode.depthFirstEnumeration()
             while (enumeration.hasMoreElements()) {
                 val node = enumeration.nextElement() as? DefaultMutableTreeNode ?: continue
-                val path = (node.userObject as? JsonPathNode)?.takeIf { it.canUpdate }?.path ?: continue
+                val path = (node.userObject as? PropertyPathNode)?.takeIf { it.canUpdate }?.path ?: continue
                 paths += path
             }
             return paths
@@ -383,24 +385,65 @@ internal class McpServerSyncTargetsDialog(
 
             fun loadRoot(jsonFilePath: String): DefaultMutableTreeNode {
                 val file = McpJsonTargetUpdater.resolveJsonFilePath(jsonFilePath)
-                require(Files.exists(file)) { "JSON file does not exist: $file" }
+                require(Files.exists(file)) { "Target file does not exist: $file" }
 
                 val content = Files.readString(file, StandardCharsets.UTF_8)
+                if (file.extensionEquals("toml")) {
+                    return loadSimplePathsRoot(file.fileName?.toString() ?: file.toString(), McpTomlTargetUpdater.collectStringPropertyPaths(content))
+                }
+                if (file.extensionEquals("yaml") || file.extensionEquals("yml")) {
+                    return loadSimplePathsRoot(file.fileName?.toString() ?: file.toString(), McpYamlTargetUpdater.collectStringPropertyPaths(content))
+                }
+
                 val rootElement = json.parseToJsonElement(content)
                 val rootObject = rootElement as? JsonObject
                     ?: error("Top-level JSON value must be an object.")
                 val rootLabel = file.fileName?.toString() ?: file.toString()
-                return DefaultMutableTreeNode(JsonPathNode(rootLabel, null, canUpdate = false)).apply {
+                return DefaultMutableTreeNode(PropertyPathNode(rootLabel, null, canUpdate = false)).apply {
                     rootObject.forEach { (key, value) ->
                         add(createNode(key, listOf(key), value))
                     }
                 }
             }
 
+            private fun loadSimplePathsRoot(rootLabel: String, paths: List<String>): DefaultMutableTreeNode {
+                return DefaultMutableTreeNode(PropertyPathNode(rootLabel, null, canUpdate = false)).apply {
+                    paths.sorted().forEach { path -> addPathNode(this, McpJsonTargetUpdater.parsePropertyPath(path)) }
+                }
+            }
+
+            private fun addPathNode(root: DefaultMutableTreeNode, pathSegments: List<String>) {
+                var current = root
+                pathSegments.forEachIndexed { index, segment ->
+                    val path = McpJsonTargetUpdater.formatDotPath(pathSegments.take(index + 1))
+                    val canUpdate = index == pathSegments.lastIndex
+                    val existing = findChild(current, path)
+                    if (existing != null) {
+                        current = existing
+                    } else {
+                        val node = DefaultMutableTreeNode(
+                            PropertyPathNode(if (canUpdate) "$segment (string)" else "$segment (object)", path, canUpdate),
+                        )
+                        current.add(node)
+                        current = node
+                    }
+                }
+            }
+
+            private fun findChild(parent: DefaultMutableTreeNode, path: String): DefaultMutableTreeNode? {
+                for (index in 0 until parent.childCount) {
+                    val child = parent.getChildAt(index) as? DefaultMutableTreeNode ?: continue
+                    if ((child.userObject as? PropertyPathNode)?.path == path) {
+                        return child
+                    }
+                }
+                return null
+            }
+
             private fun createNode(key: String, pathSegments: List<String>, value: JsonElement): DefaultMutableTreeNode {
                 val path = McpJsonTargetUpdater.formatDotPath(pathSegments)
                 return DefaultMutableTreeNode(
-                    JsonPathNode(nodeLabel(key, value), path, McpJsonTargetUpdater.isSupportedTargetValue(value)),
+                    PropertyPathNode(nodeLabel(key, value), path, McpJsonTargetUpdater.isSupportedTargetValue(value)),
                 ).apply {
                     if (value is JsonObject) {
                         value.forEach { (childKey, childValue) ->
@@ -434,10 +477,15 @@ internal class McpServerSyncTargetsDialog(
             }
 
             private const val VALUE_PREVIEW_LENGTH = 120
+
+            private fun java.nio.file.Path.extensionEquals(extension: String): Boolean {
+                return fileName?.toString()?.substringAfterLast('.', missingDelimiterValue = "")
+                    ?.equals(extension, ignoreCase = true) == true
+            }
         }
     }
 
-    private data class JsonPathNode(
+    private data class PropertyPathNode(
         val label: String,
         val path: String?,
         val canUpdate: Boolean,

@@ -1,7 +1,6 @@
 package de.moritzf.quota.idea.mcp
 
 import org.tomlj.Toml
-import org.tomlj.TomlArray
 import org.tomlj.TomlParseResult
 import org.tomlj.TomlTable
 import java.nio.charset.StandardCharsets
@@ -83,6 +82,22 @@ class McpTomlTargetUpdater {
                     )
                 },
             )
+        }
+
+        fun collectStringPropertyPaths(content: String): List<String> {
+            val root = parseRoot(content)
+            val paths = mutableListOf<String>()
+            collectStringPropertyPaths(root, emptyList(), paths)
+            return paths
+        }
+
+        private fun collectStringPropertyPaths(table: TomlTable, prefix: List<String>, paths: MutableList<String>) {
+            table.keySet().forEach { key ->
+                when (val value = table.get(key)) {
+                    is String -> paths += McpJsonTargetUpdater.formatDotPath(prefix + key)
+                    is TomlTable -> collectStringPropertyPaths(value, prefix + key, paths)
+                }
+            }
         }
 
         private fun parseRoot(content: String): TomlParseResult {
