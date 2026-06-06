@@ -1,8 +1,10 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
-- Added configurable IntelliJ MCP server URL sync to JSON config files, so local AI clients can follow the currently running IntelliJ MCP endpoint
-- Added MCP sync target validation, JSON property selection, and a live MCP server status indicator in settings
+
+## [0.17.0] - 2026-06-06
+- Keep local AI clients connected to IntelliJ automatically by syncing the current MCP server URL into JSON, TOML, or YAML config files
+- Set up sync targets with file validation, property selection, and live MCP server status in settings
 
 ## [0.16.0] - 2026-06-03
 - Removed Gemini quota support and updated the plugin description to list the currently supported providers. Google has reoriented Gemini CLI toward Antigravity and now blocks third-party harnesses, making this integration unreliable.
