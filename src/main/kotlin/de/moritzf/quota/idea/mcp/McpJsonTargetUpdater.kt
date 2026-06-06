@@ -21,9 +21,19 @@ class McpJsonTargetUpdater(
         prettyPrintIndent = "  "
     },
 ) {
+    private val tomlUpdater = McpTomlTargetUpdater()
+    private val yamlUpdater = McpYamlTargetUpdater()
+
     fun updateFile(jsonFilePath: String, propertyPath: String, value: String): Boolean {
         val file = resolveJsonFilePath(jsonFilePath)
-        require(Files.exists(file)) { "JSON file does not exist: $file" }
+        when {
+            file.extensionEquals("toml") -> return tomlUpdater.updateFile(jsonFilePath, propertyPath, value)
+            file.extensionEquals("yaml") || file.extensionEquals("yml") -> {
+                return yamlUpdater.updateFile(jsonFilePath, propertyPath, value)
+            }
+        }
+
+        require(Files.exists(file)) { "JSON/TOML/YAML file does not exist: $file" }
         val existing = Files.readString(file, StandardCharsets.UTF_8)
         val updated = updateContent(existing, propertyPath, value)
         if (existing == updated) {
@@ -75,8 +85,14 @@ class McpJsonTargetUpdater(
             if (!Files.exists(file)) {
                 return McpJsonTargetValidationError(
                     McpJsonTargetValidationProblem.FILE,
-                    "JSON file does not exist: $file",
+                    "JSON/TOML/YAML file does not exist: $file",
                 )
+            }
+            when {
+                file.extensionEquals("toml") -> return McpTomlTargetUpdater.validateTargetFile(jsonFilePath, propertyPath)
+                file.extensionEquals("yaml") || file.extensionEquals("yml") -> {
+                    return McpYamlTargetUpdater.validateTargetFile(jsonFilePath, propertyPath)
+                }
             }
 
             val content = runCatching { Files.readString(file, StandardCharsets.UTF_8) }
@@ -238,6 +254,11 @@ class McpJsonTargetUpdater(
             }
             segments += current.toString()
             return segments
+        }
+
+        private fun Path.extensionEquals(extension: String): Boolean {
+            return fileName?.toString()?.substringAfterLast('.', missingDelimiterValue = "")
+                ?.equals(extension, ignoreCase = true) == true
         }
     }
 }

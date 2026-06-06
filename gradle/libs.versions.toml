@@ -1,6 +1,8 @@
 [versions]
 kotlinx-datetime = "0.8.0-0.6.x-compat"
 kotlinx-serialization-json = "1.11.0"
+tomlj = "1.1.1"
+snakeyaml-engine = "2.10"
 junit4 = "4.13.2"
 kotlin = "2.3.21"
 changelog = "2.5.0"
@@ -13,6 +15,8 @@ junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform
 kotlin-test-junit5 = { group = "org.jetbrains.kotlin", name = "kotlin-test-junit5", version.ref = "kotlin" }
 kotlinx-datetime = { group = "org.jetbrains.kotlinx", name = "kotlinx-datetime", version.ref = "kotlinx-datetime" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinx-serialization-json" }
+tomlj = { group = "org.tomlj", name = "tomlj", version.ref = "tomlj" }
+snakeyaml-engine = { group = "org.snakeyaml", name = "snakeyaml-engine", version.ref = "snakeyaml-engine" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

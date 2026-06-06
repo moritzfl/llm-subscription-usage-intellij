@@ -213,4 +213,95 @@ class McpJsonTargetUpdaterTest {
         assertEquals("http://localhost:63342/sse", McpServerTransport.SSE.urlFor(endpoints))
         assertEquals("http://localhost:63342/mcp", McpServerTransport.STREAMABLE_HTTP.urlFor(endpoints))
     }
+
+    @Test
+    fun tomlDotPathUpdatesNestedValueAndPreservesSiblings() {
+        val updated = McpTomlTargetUpdater().updateContent(
+            """
+            model = "gpt-5.4"
+            [mcp_servers.idea]
+            url = "http://127.0.0.1:1/stream"
+
+            [projects."/Users/moritz/Desktop/git/pebble"]
+            trust_level = "trusted"
+            """.trimIndent(),
+            "mcp_servers.idea.url",
+            "http://127.0.0.1:64342/stream",
+        )
+
+        assertEquals(
+            """
+            model = "gpt-5.4"
+            [mcp_servers.idea]
+            url = "http://127.0.0.1:64342/stream"
+
+            [projects."/Users/moritz/Desktop/git/pebble"]
+            trust_level = "trusted"
+            """.trimIndent(),
+            updated,
+        )
+    }
+
+    @Test
+    fun tomlNonStringPathIsRejected() {
+        val error = assertFailsWith<IllegalArgumentException> {
+            McpTomlTargetUpdater().updateContent(
+                """
+                [mcp_servers.idea]
+                url = true
+                """.trimIndent(),
+                "mcp_servers.idea.url",
+                "http://127.0.0.1:64342/stream",
+            )
+        }
+
+        assertEquals("TOML property path must point to a string value.", error.message)
+    }
+
+    @Test
+    fun yamlDotPathUpdatesNestedValueAndPreservesSiblings() {
+        val updated = McpYamlTargetUpdater().updateContent(
+            """
+            model: gpt-5.4
+            mcp_servers:
+              idea:
+                url: http://127.0.0.1:1/stream
+            projects:
+              /Users/moritz/Desktop/git/pebble:
+                trust_level: trusted
+            """.trimIndent(),
+            "mcp_servers.idea.url",
+            "http://127.0.0.1:64342/stream",
+        )
+
+        assertEquals(
+            """
+            model: gpt-5.4
+            mcp_servers:
+              idea:
+                url: "http://127.0.0.1:64342/stream"
+            projects:
+              /Users/moritz/Desktop/git/pebble:
+                trust_level: trusted
+            """.trimIndent(),
+            updated,
+        )
+    }
+
+    @Test
+    fun yamlNonStringPathIsRejected() {
+        val error = assertFailsWith<IllegalArgumentException> {
+            McpYamlTargetUpdater().updateContent(
+                """
+                mcp_servers:
+                  idea:
+                    url: true
+                """.trimIndent(),
+                "mcp_servers.idea.url",
+                "http://127.0.0.1:64342/stream",
+            )
+        }
+
+        assertEquals("YAML property path must point to a string value.", error.message)
+    }
 }

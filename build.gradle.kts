@@ -30,6 +30,8 @@ repositories {
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/version_catalogs.html
 dependencies {
     implementation(libs.kotlinx.datetime)
+    implementation(libs.snakeyaml.engine)
+    implementation(libs.tomlj)
     compileOnly(libs.kotlinx.serialization.json)
 
     testImplementation(libs.kotlin.test.junit5)

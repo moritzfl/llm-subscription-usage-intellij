@@ -83,7 +83,7 @@ internal class McpServerSyncTargetsDialog(
 
     override fun createCenterPanel(): JComponent {
         val help = JBLabel(
-            "Use dot paths like mcpServers.jetbrains.url or JSON Pointer paths like /mcpServers/jetbrains/url.",
+            "Use dot paths like mcpServers.jetbrains.url for JSON/TOML/YAML, or JSON Pointer paths like /mcpServers/jetbrains/url.",
         ).apply {
             foreground = JBColor.GRAY
             border = JBUI.Borders.emptyBottom(8)
@@ -167,7 +167,7 @@ internal class McpServerSyncTargetsDialog(
             return RowValidation()
         }
         if (target.jsonFilePath.isBlank()) {
-            return RowValidation(fileError = "JSON file path is required.")
+            return RowValidation(fileError = "JSON/TOML/YAML file path is required.")
         }
         val error = McpJsonTargetUpdater.validateTargetFile(target.jsonFilePath, target.jsonPropertyPath)
             ?: return RowValidation()
@@ -230,9 +230,9 @@ internal class McpServerSyncTargetsDialog(
         private val textFieldWithBrowseButton = TextFieldWithBrowseButton()
 
         init {
-            val descriptor = FileChooserDescriptorFactory.createSingleFileDescriptor("json")
-                .withTitle("Select JSON File")
-                .withDescription("Choose the JSON configuration file to update.")
+            val descriptor = FileChooserDescriptorFactory.createSingleFileDescriptor()
+                .withTitle("Select JSON/TOML/YAML File")
+                .withDescription("Choose the JSON, TOML, or YAML configuration file to update.")
                 .withShowHiddenFiles(true)
                 .apply { setForcedToUseIdeaFileChooser(true) }
             textFieldWithBrowseButton.addBrowseFolderListener(null, descriptor)
@@ -454,7 +454,7 @@ internal class McpServerSyncTargetsDialog(
     }
 
     companion object {
-        private val COLUMNS = arrayOf("JSON file", "JSON property path", "Transport")
+        private val COLUMNS = arrayOf("JSON/TOML/YAML file", "Property path", "Transport")
         private const val FILE_COLUMN = 0
         private const val PROPERTY_COLUMN = 1
         private const val TRANSPORT_COLUMN = 2
