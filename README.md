@@ -1,6 +1,6 @@
 # LLM Subscription Usage
 
-Track your LLM subscription usage quotas directly in IntelliJ IDEA — in the status bar, a detailed popup, and through IDE chat tools.
+Track your LLM subscription usage quotas directly in IntelliJ IDEA — in the status bar, a detailed popup, through IDE chat tools, and in local AI client MCP configs.
 
 **Supports:** OpenAI (ChatGPT), OpenCode Go, Ollama Cloud, Z.ai, MiniMax, and Kimi.
 
@@ -41,7 +41,7 @@ Track your LLM subscription usage quotas directly in IntelliJ IDEA — in the st
 - Next reset times
 - Last refresh timestamps
 
-**MCP Integration** — Exposes quota data to IntelliJ's built-in chat via the Model Context Protocol, so you can query usage without switching contexts.
+**MCP Integration** — Exposes quota data to IntelliJ's built-in chat via the Model Context Protocol, so you can query usage without switching contexts. It can also sync the currently running IntelliJ MCP server URL into JSON config files for local AI clients.
 
 **Customizable Display** — Drag-and-drop to reorder providers in the popup. Choose whether the indicator lives in the status bar or main toolbar.
 
@@ -63,6 +63,7 @@ Or download a release ZIP from the [GitHub releases page](https://github.com/mor
 2. Login or add your credentials for your LLM Providers
 3. Return to IDE — the status bar widget shows your quota
 4. Click the widget for a detailed popup
+5. Optional: enable `Sync IntelliJ MCP server URL to JSON files` to keep local AI client MCP configs pointed at IntelliJ's current MCP endpoint
 
 ---
 
@@ -83,6 +84,10 @@ Or download a release ZIP from the [GitHub releases page](https://github.com/mor
 ### Chat (MCP)
 
 ![MCP integration](docs/quota-mcp-integration.png)
+
+### MCP Server URL Sync
+
+The plugin can keep JSON config files up to date with IntelliJ's current MCP server URL. Enable `Sync IntelliJ MCP server URL to JSON files` in settings, choose one or more JSON files, and select an existing string or `null` property to update. The settings page shows whether IntelliJ's MCP server is currently running, installed but stopped, disabled, or unavailable.
 
 ### Settings
 

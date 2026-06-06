@@ -4,7 +4,7 @@
     <vendor>Moritzf</vendor>
 
     <description>
-        Tracks LLM subscription usage quotas in the IDE status bar and popup, including OpenAI, Cursor, OpenCode Go, Ollama Cloud, Z.ai, MiniMax, and Kimi limits.
+        Tracks LLM subscription usage quotas in the IDE status bar and popup, including OpenAI, Cursor, OpenCode Go, Ollama Cloud, Z.ai, MiniMax, and Kimi limits. Exposes quota data through IntelliJ MCP tools and can sync the currently running IntelliJ MCP server URL into JSON config files for local AI clients.
     </description>
 
     <depends>com.intellij.modules.platform</depends>

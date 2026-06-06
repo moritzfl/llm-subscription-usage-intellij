@@ -19,6 +19,7 @@ import de.moritzf.quota.idea.mcp.McpServerSyncTarget
 import de.moritzf.quota.idea.mcp.McpServerUrlSyncService
 import de.moritzf.quota.idea.mcp.McpServerStatusState
 import de.moritzf.quota.idea.mcp.McpServerUrlResolver
+import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.*
 import de.moritzf.quota.idea.ui.settings.ProviderReorderPanel
 import de.moritzf.quota.ollama.OllamaQuota
@@ -276,14 +277,19 @@ class QuotaSettingsConfigurable : Configurable {
     private fun updateMcpServerStatus() {
         val label = mcpServerStatusLabel ?: return
         val status = McpServerUrlResolver.currentStatus()
-        label.text = "● ${status.message}"
-        label.foreground = when (status.state) {
-            McpServerStatusState.RUNNING -> QuotaUsageColors.GREEN
+        label.text = formatMcpServerStatusText(status.message, status.state)
+        label.foreground = UIManager.getColor("Label.foreground") ?: label.foreground
+        label.toolTipText = status.message
+    }
+
+    private fun formatMcpServerStatusText(text: String, state: McpServerStatusState): String {
+        val color = when (state) {
+            McpServerStatusState.RUNNING -> "#4CAF50"
             McpServerStatusState.NOT_RUNNING,
             McpServerStatusState.NOT_INSTALLED_OR_DISABLED,
-            McpServerStatusState.UNAVAILABLE -> QuotaUsageColors.RED
+            McpServerStatusState.UNAVAILABLE -> "#F44336"
         }
-        label.toolTipText = status.message
+        return "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
     }
 
     private fun updateDisplayModeChoices(preferredMode: QuotaDisplayMode? = null) {
