@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.17.2] - 2026-06-07
+- Fixed OpenCode Zen credit balances not displaying when no OpenCode Go usage windows are available
+- Fixed OpenCode Zen-only responses that return `null` Go quota data so billing credits still display correctly
+- Aligned Z.ai and OpenCode icon colors with the light and dark theme palette
+
 ## [0.17.1] - 2026-06-07
 - Fixed MCP sync target removal so deleting a row clears the active table editor and selection
 - Fixed property picker preselection to respect a valid saved path before falling back to auto-discovery
