@@ -126,10 +126,18 @@ internal class McpServerSyncTargetsDialog(
     }
 
     private fun removeSelectedTargets() {
-        table.selectedRows
+        val selectedRows = table.selectedRows
+        if (selectedRows.isEmpty()) {
+            return
+        }
+
+        table.cellEditor?.cancelCellEditing()
+        table.clearSelection()
+        selectedRows
             .map(table::convertRowIndexToModel)
             .sortedDescending()
             .forEach(model::removeRow)
+        table.requestFocusInWindow()
     }
 
     private fun readTargets(): List<McpServerSyncTarget> {
