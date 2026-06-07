@@ -25,7 +25,7 @@ import javax.swing.JScrollPane
 import javax.swing.ScrollPaneConstants
 
 /**
- * OpenCode Go settings tab.
+ * OpenCode settings tab.
  */
 internal class OpenCodeSettingsPanel(
     private val modalityComponentProvider: () -> JComponent?,

@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
 /**
- * Represents OpenCode Go subscription quota with rolling, weekly, and monthly usage windows.
+ * Represents OpenCode quota data with Go usage windows and optional Zen credit balance.
  */
 @Serializable
 data class OpenCodeQuota(
@@ -20,6 +20,10 @@ data class OpenCodeQuota(
 ) {
     fun hasUsageState(): Boolean {
         return rollingUsage != null || weeklyUsage != null || monthlyUsage != null
+    }
+
+    fun hasAvailableBalance(): Boolean {
+        return availableBalance != null
     }
 }
 

@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicReference
 import java.util.logging.Logger
 
 /**
- * HTTP client for fetching OpenCode Go subscription quota via SolidStart RPC.
+ * HTTP client for fetching OpenCode quota data via SolidStart RPC.
  */
 open class OpenCodeQuotaClient(
     private val httpClient: HttpClient = HttpClient.newHttpClient(),
@@ -56,7 +56,14 @@ open class OpenCodeQuotaClient(
             throw OpenCodeQuotaException("OpenCode quota request failed: HTTP $status", status, body)
         }
 
-        val quota = parseQuotaResponse(body)
+        val quota = try {
+            parseQuotaResponse(body)
+        } catch (exception: OpenCodeQuotaException) {
+            if (!isNullQuotaResponse(body, exception)) {
+                throw exception
+            }
+            OpenCodeQuota()
+        }
         runCatching {
             fetchBillingInfo(sessionCookie, workspaceId)?.balance
         }.onFailure { exception ->
@@ -100,7 +107,7 @@ open class OpenCodeQuotaClient(
 
     /**
      * Discovers the workspace ID from the user's opencode.ai console.
-     * Iterates all workspaces and returns the first one with an active Go subscription.
+     * Iterates all workspaces and returns the first one with Go usage state or Zen credits.
      */
     @Throws(IOException::class, InterruptedException::class)
     open fun discoverWorkspaceId(sessionCookie: String): String {
@@ -109,7 +116,7 @@ open class OpenCodeQuotaClient(
         val workspaces = fetchWorkspaceList(sessionCookie)
         if (workspaces.isEmpty()) {
             throw OpenCodeQuotaException(
-                "No workspace found. Please ensure you have an active OpenCode Go subscription.",
+                "No workspace found. Please ensure you have access to OpenCode Go or Zen credits.",
                 200, null
             )
         }
@@ -117,8 +124,8 @@ open class OpenCodeQuotaClient(
         for ((workspaceId, _) in workspaces) {
             try {
                 val quota = fetchQuota(sessionCookie, workspaceId)
-                if (quota.hasUsageState()) {
-                    LOG.info("Found Go subscription in workspace: $workspaceId")
+                if (quota.hasUsageState() || quota.hasAvailableBalance()) {
+                    LOG.info("Found OpenCode quota data in workspace: $workspaceId")
                     return workspaceId
                 }
             } catch (exception: OpenCodeQuotaException) {
@@ -130,7 +137,7 @@ open class OpenCodeQuotaClient(
         }
 
         throw OpenCodeQuotaException(
-            "No workspace with an active OpenCode Go subscription found.",
+            "No workspace with OpenCode Go usage or Zen credits found.",
             200, null
         )
     }
@@ -233,7 +240,7 @@ open class OpenCodeQuotaClient(
     }
 
     /**
-     * Fetches billing info so we can surface the available workspace balance next to the Go limits.
+     * Fetches billing info so we can surface the available workspace balance next to Go limits or by itself.
      */
     private fun fetchBillingInfo(sessionCookie: String, workspaceId: String): OpenCodeBillingInfo? {
         val argsJson = """["$workspaceId"]"""
@@ -365,6 +372,13 @@ open class OpenCodeQuotaClient(
         }
 
         private const val ROOT_ASSIGNMENT_MARKER = "\$R[0]="
+
+        private fun isNullQuotaResponse(body: String, exception: OpenCodeQuotaException): Boolean {
+            return exception.message?.contains("unexpected format") == true &&
+                (body.contains("$ROOT_ASSIGNMENT_MARKER null") ||
+                    body.contains("$ROOT_ASSIGNMENT_MARKER=null") ||
+                    body.trim().endsWith(",null)"))
+        }
 
     }
 }

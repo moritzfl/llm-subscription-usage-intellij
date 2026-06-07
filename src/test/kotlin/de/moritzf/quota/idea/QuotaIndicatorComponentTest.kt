@@ -191,14 +191,15 @@ class QuotaIndicatorComponentTest {
     }
 
     @Test
-    fun openCodeBarDisplayTextShowsNoDataWithoutBalance() {
+    fun openCodeBarDisplayTextShowsBalanceWithoutUsageWindows() {
         val quota = OpenCodeQuota(
             availableBalance = 1_000_000_000L,
             useBalance = true,
         )
 
         val text = openCodeBarDisplayText(quota, error = null)
-        assertEquals("no data", text)
+        assertEquals("\$10.00", text)
+        assertEquals("OpenCode Zen credits: Balance: \$10.00", buildOpenCodeTooltipText(quota, error = null))
     }
 
     @Test

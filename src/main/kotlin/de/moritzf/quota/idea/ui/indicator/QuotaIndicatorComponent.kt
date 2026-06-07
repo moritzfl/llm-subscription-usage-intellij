@@ -508,7 +508,11 @@ internal fun buildOpenCodeTooltipText(quota: OpenCodeQuota?, error: String?): St
     quota.weeklyUsage?.let { parts.add("Weekly: ${it.usagePercent}% used • ${QuotaUiUtil.formatCompactDuration(java.time.Duration.ofSeconds(it.resetInSec)) ?: "now"}") }
     quota.monthlyUsage?.let { parts.add("Monthly: ${it.usagePercent}% used • ${QuotaUiUtil.formatCompactDuration(java.time.Duration.ofSeconds(it.resetInSec)) ?: "now"}") }
     
-    val balance = quota.availableBalance?.let { "Balance: $$${QuotaUiUtil.formatOpenCodeBalance(it)}" }
+    val balance = quota.availableBalance?.let { "Balance: $${QuotaUiUtil.formatOpenCodeBalance(it)}" }
+
+    if (parts.isEmpty() && balance != null) {
+        return "OpenCode Zen credits: $balance"
+    }
     
     return buildString {
         append("OpenCode quota")
@@ -526,7 +530,9 @@ internal fun openCodeBarDisplayText(quota: OpenCodeQuota?, error: String?): Stri
     if (error != null) return "error"
     if (quota == null) return "loading..."
 
-    val state = openCodeIndicatorState(quota) ?: return "no data"
+    val state = openCodeIndicatorState(quota) ?: return quota.availableBalance
+        ?.let { "$${QuotaUiUtil.formatOpenCodeBalance(it)}" }
+        ?: "no data"
 
     val reset = formatOpenCodeResetTime(state.resetInSec)
     val text = "${state.percent}%"

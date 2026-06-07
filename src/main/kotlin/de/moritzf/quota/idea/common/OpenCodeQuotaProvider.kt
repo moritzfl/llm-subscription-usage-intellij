@@ -8,7 +8,7 @@ import de.moritzf.quota.opencode.OpenCodeQuotaException
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Fetches and caches OpenCode Go quota data.
+ * Fetches and caches OpenCode quota data.
  */
 class OpenCodeQuotaProvider(
     private val openCodeClient: OpenCodeQuotaClient = OpenCodeQuotaClient(),

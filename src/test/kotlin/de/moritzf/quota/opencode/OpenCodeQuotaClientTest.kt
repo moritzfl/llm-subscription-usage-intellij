@@ -1,5 +1,12 @@
 package de.moritzf.quota.opencode
 
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpHeaders
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.util.Optional
+import javax.net.ssl.SSLSession
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -95,5 +102,77 @@ class OpenCodeQuotaClientTest {
         val billingInfo = OpenCodeQuotaClient.parseBillingInfoResponse(body)
 
         assertEquals(1234560000L, billingInfo.balance)
+    }
+
+    @Test
+    fun balanceOnlyQuotaHasAvailableBalanceWithoutUsageState() {
+        val quota = OpenCodeQuota(availableBalance = 1_234_560_000L, useBalance = true)
+
+        assertTrue(quota.hasAvailableBalance())
+        assertTrue(!quota.hasUsageState())
+    }
+
+    @Test
+    fun fetchQuotaFallsBackToBillingForNullGoResponse() {
+        val client = OpenCodeQuotaClient(
+            httpClient = FakeHttpClient(
+                "<script type=\"module\" src=\"/_build/assets/app.js\"></script>",
+                "const queryLiteSubscription_query=createServerReference(\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\")",
+                ";0x0000002e;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[],null)",
+                ";0x00000040;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[]," +
+                    "(\$R=>\$R[0]={balance:1234560000,customerID:\"cus_123\"})(\$R[\"server-fn:1\"]))",
+            ),
+            endpoint = URI.create("https://opencode.test/_server"),
+        )
+
+        val quota = client.fetchQuota("session", "wrk_123")
+
+        assertTrue(!quota.hasUsageState())
+        assertEquals(1234560000L, quota.availableBalance)
+    }
+
+    private class FakeHttpClient(private vararg val bodies: String) : HttpClient() {
+        private var index = 0
+
+        override fun <T : Any?> send(request: HttpRequest, responseBodyHandler: HttpResponse.BodyHandler<T>): HttpResponse<T> {
+            @Suppress("UNCHECKED_CAST")
+            return FakeResponse(bodies[index++]) as HttpResponse<T>
+        }
+
+        override fun <T : Any?> sendAsync(
+            request: HttpRequest,
+            responseBodyHandler: HttpResponse.BodyHandler<T>,
+        ): java.util.concurrent.CompletableFuture<HttpResponse<T>> {
+            throw UnsupportedOperationException()
+        }
+
+        override fun <T : Any?> sendAsync(
+            request: HttpRequest,
+            responseBodyHandler: HttpResponse.BodyHandler<T>,
+            pushPromiseHandler: HttpResponse.PushPromiseHandler<T>,
+        ): java.util.concurrent.CompletableFuture<HttpResponse<T>> {
+            throw UnsupportedOperationException()
+        }
+
+        override fun cookieHandler(): Optional<java.net.CookieHandler> = Optional.empty()
+        override fun connectTimeout(): Optional<java.time.Duration> = Optional.empty()
+        override fun followRedirects(): Redirect = Redirect.NEVER
+        override fun proxy(): Optional<java.net.ProxySelector> = Optional.empty()
+        override fun sslContext(): javax.net.ssl.SSLContext = javax.net.ssl.SSLContext.getDefault()
+        override fun sslParameters(): javax.net.ssl.SSLParameters = javax.net.ssl.SSLParameters()
+        override fun authenticator(): Optional<java.net.Authenticator> = Optional.empty()
+        override fun version(): Version = Version.HTTP_1_1
+        override fun executor(): Optional<java.util.concurrent.Executor> = Optional.empty()
+    }
+
+    private class FakeResponse(private val body: String) : HttpResponse<String> {
+        override fun statusCode(): Int = 200
+        override fun request(): HttpRequest? = null
+        override fun previousResponse(): Optional<HttpResponse<String>> = Optional.empty()
+        override fun headers(): HttpHeaders = HttpHeaders.of(emptyMap()) { _, _ -> true }
+        override fun body(): String = body
+        override fun sslSession(): Optional<SSLSession> = Optional.empty()
+        override fun uri(): URI = URI.create("https://opencode.test/_server")
+        override fun version(): HttpClient.Version = HttpClient.Version.HTTP_1_1
     }
 }

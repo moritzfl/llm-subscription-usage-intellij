@@ -11,6 +11,7 @@ import com.intellij.util.ui.JBUI
 import javax.swing.JPanel
 
 private const val OPENCODE_GO_LABEL = "OpenCode Go"
+private const val OPENCODE_ZEN_LABEL = "OpenCode Zen"
 
 internal class OpenCodePopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)) {
     private val separator = createSeparatedBlock()
@@ -59,11 +60,15 @@ internal class OpenCodePopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayo
                 }
 
                 titleLabel.isVisible = true
-                titleLabel.text = OPENCODE_GO_LABEL
+                titleLabel.text = if (quota.hasUsageState()) OPENCODE_GO_LABEL else OPENCODE_ZEN_LABEL
                 val balanceText = quota.availableBalance?.let(QuotaUiUtil::formatOpenCodeBalance)
                 balanceLabel.isVisible = balanceText != null
                 if (balanceText != null) {
-                    balanceLabel.text = "Available balance: $$balanceText"
+                    balanceLabel.text = if (quota.hasUsageState()) {
+                        "Available balance: $$balanceText"
+                    } else {
+                        "Available credits: $$balanceText"
+                    }
                 }
                 quota.rollingUsage?.let { rollingBlock.updateOpenCode(it, "5h rolling") } ?: rollingBlock.clear()
                 quota.weeklyUsage?.let { weeklyBlock.updateOpenCode(it, "Weekly") } ?: weeklyBlock.clear()
