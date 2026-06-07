@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-06-07
+- Fixed MCP sync target removal so deleting a row clears the active table editor and selection
+- Fixed property picker preselection to respect a valid saved path before falling back to auto-discovery
+- Updated MCP server URL sync settings and documentation for JSON, TOML, and YAML targets
+
 ## [0.17.0] - 2026-06-06
 - Keep local AI clients connected to IntelliJ automatically by syncing the current MCP server URL into JSON, TOML, or YAML config files
 - Set up sync targets with file validation, property selection, and live MCP server status in settings
