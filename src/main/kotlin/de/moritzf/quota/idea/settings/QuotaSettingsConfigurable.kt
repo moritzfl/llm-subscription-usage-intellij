@@ -105,7 +105,7 @@ class QuotaSettingsConfigurable : Configurable {
         displayModeComboBox = createIndicatorComboBox(QuotaDisplayMode.entries.toTypedArray())
         indicatorSourceComboBox = createIndicatorComboBox(QuotaIndicatorSource.entries.toTypedArray())
         displayModePreview = DisplayModePreviewComponent()
-        mcpSyncCheckBox = JBCheckBox("Sync IntelliJ MCP server URL to JSON files")
+        mcpSyncCheckBox = JBCheckBox("Sync IntelliJ MCP server URL to JSON/TOML/YAML files")
         configureMcpSyncTargetsButton = JButton("Configure Targets...").apply {
             addActionListener {
                 val parent = rootComponent ?: panel ?: return@addActionListener

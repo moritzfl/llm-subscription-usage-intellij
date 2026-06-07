@@ -353,8 +353,14 @@ internal class McpServerSyncTargetsDialog(
 
         private fun selectInitialPath(initialPath: String) {
             val normalized = initialPath.trim().takeIf { it.isNotBlank() }
-            if (normalized != null && selectPath(normalized)) {
-                return
+            if (normalized != null) {
+                if (selectPath(normalized)) {
+                    return
+                }
+                val normalizedSegments = runCatching { McpJsonTargetUpdater.parsePropertyPath(normalized) }.getOrNull()
+                if (normalizedSegments != null && selectPathBySegments(normalizedSegments)) {
+                    return
+                }
             }
             val likelyPath = McpJsonTargetUpdater.findLikelyMcpServerPath(availablePaths()) ?: return
             selectPath(likelyPath)
@@ -366,6 +372,21 @@ internal class McpServerSyncTargetsDialog(
                 val node = enumeration.nextElement() as? DefaultMutableTreeNode ?: continue
                 val path = (node.userObject as? PropertyPathNode)?.takeIf { it.canUpdate }?.path ?: continue
                 if (path == pathToSelect) {
+                    tree.selectionPath = TreePath(node.path)
+                    tree.scrollPathToVisible(tree.selectionPath)
+                    return true
+                }
+            }
+            return false
+        }
+
+        private fun selectPathBySegments(pathSegments: List<String>): Boolean {
+            val enumeration = rootNode.depthFirstEnumeration()
+            while (enumeration.hasMoreElements()) {
+                val node = enumeration.nextElement() as? DefaultMutableTreeNode ?: continue
+                val path = (node.userObject as? PropertyPathNode)?.takeIf { it.canUpdate }?.path ?: continue
+                val segments = runCatching { McpJsonTargetUpdater.parsePropertyPath(path) }.getOrNull() ?: continue
+                if (segments == pathSegments) {
                     tree.selectionPath = TreePath(node.path)
                     tree.scrollPathToVisible(tree.selectionPath)
                     return true
