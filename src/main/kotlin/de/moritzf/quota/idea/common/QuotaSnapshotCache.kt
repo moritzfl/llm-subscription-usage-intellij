@@ -36,48 +36,113 @@ internal object QuotaSnapshotCache {
     }
 
     fun encodeOllamaQuota(quota: OllamaQuota): String? {
-        return runCatching { JsonSupport.json.encodeToString(OllamaQuota.serializer(), quota) }.getOrNull()
+        return runCatching { JsonSupport.json.encodeToString(CachedOllamaQuota.fromQuota(quota)) }.getOrNull()
     }
 
     fun decodeOllamaQuota(json: String?): OllamaQuota? {
         if (json.isNullOrBlank()) return null
-        return runCatching { JsonSupport.json.decodeFromString(OllamaQuota.serializer(), json) }.getOrNull()
+        return runCatching { JsonSupport.json.decodeFromString<CachedOllamaQuota>(json).toQuota() }.getOrNull()
+            ?: runCatching { JsonSupport.json.decodeFromString(OllamaQuota.serializer(), json) }.getOrNull()
     }
 
     fun encodeZaiQuota(quota: ZaiQuota): String? {
-        return runCatching { JsonSupport.json.encodeToString(ZaiQuota.serializer(), quota) }.getOrNull()
+        return runCatching { JsonSupport.json.encodeToString(CachedZaiQuota.fromQuota(quota)) }.getOrNull()
     }
 
     fun decodeZaiQuota(json: String?): ZaiQuota? {
         if (json.isNullOrBlank()) return null
-        return runCatching { JsonSupport.json.decodeFromString(ZaiQuota.serializer(), json) }.getOrNull()
+        return runCatching { JsonSupport.json.decodeFromString<CachedZaiQuota>(json).toQuota() }.getOrNull()
+            ?: runCatching { JsonSupport.json.decodeFromString(ZaiQuota.serializer(), json) }.getOrNull()
     }
 
     fun encodeMiniMaxQuota(quota: MiniMaxQuota): String? {
-        return runCatching { JsonSupport.json.encodeToString(MiniMaxQuota.serializer(), quota) }.getOrNull()
+        return runCatching { JsonSupport.json.encodeToString(CachedMiniMaxQuota.fromQuota(quota)) }.getOrNull()
     }
 
     fun decodeMiniMaxQuota(json: String?): MiniMaxQuota? {
         if (json.isNullOrBlank()) return null
-        return runCatching { JsonSupport.json.decodeFromString(MiniMaxQuota.serializer(), json) }.getOrNull()
+        return runCatching { JsonSupport.json.decodeFromString<CachedMiniMaxQuota>(json).toQuota() }.getOrNull()
+            ?: runCatching { JsonSupport.json.decodeFromString(MiniMaxQuota.serializer(), json) }.getOrNull()
     }
 
     fun encodeKimiQuota(quota: KimiQuota): String? {
-        return runCatching { JsonSupport.json.encodeToString(KimiQuota.serializer(), quota) }.getOrNull()
+        return runCatching { JsonSupport.json.encodeToString(CachedKimiQuota.fromQuota(quota)) }.getOrNull()
     }
 
     fun decodeKimiQuota(json: String?): KimiQuota? {
         if (json.isNullOrBlank()) return null
-        return runCatching { JsonSupport.json.decodeFromString(KimiQuota.serializer(), json) }.getOrNull()
+        return runCatching { JsonSupport.json.decodeFromString<CachedKimiQuota>(json).toQuota() }.getOrNull()
+            ?: runCatching { JsonSupport.json.decodeFromString(KimiQuota.serializer(), json) }.getOrNull()
     }
 
     fun encodeCursorQuota(quota: CursorQuota): String? {
-        return runCatching { JsonSupport.json.encodeToString(CursorQuota.serializer(), quota) }.getOrNull()
+        return runCatching { JsonSupport.json.encodeToString(CachedCursorQuota.fromQuota(quota)) }.getOrNull()
     }
 
     fun decodeCursorQuota(json: String?): CursorQuota? {
         if (json.isNullOrBlank()) return null
-        return runCatching { JsonSupport.json.decodeFromString(CursorQuota.serializer(), json) }.getOrNull()
+        return runCatching { JsonSupport.json.decodeFromString<CachedCursorQuota>(json).toQuota() }.getOrNull()
+            ?: runCatching { JsonSupport.json.decodeFromString(CursorQuota.serializer(), json) }.getOrNull()
+    }
+}
+
+@Serializable
+private data class CachedOllamaQuota(
+    val quota: OllamaQuota,
+    val rawResponse: String? = null,
+) {
+    fun toQuota(): OllamaQuota = quota.apply { this.rawJson = rawResponse }
+
+    companion object {
+        fun fromQuota(quota: OllamaQuota): CachedOllamaQuota = CachedOllamaQuota(quota, quota.rawJson)
+    }
+}
+
+@Serializable
+private data class CachedZaiQuota(
+    val quota: ZaiQuota,
+    val rawResponse: String? = null,
+) {
+    fun toQuota(): ZaiQuota = quota.apply { this.rawJson = rawResponse }
+
+    companion object {
+        fun fromQuota(quota: ZaiQuota): CachedZaiQuota = CachedZaiQuota(quota, quota.rawJson)
+    }
+}
+
+@Serializable
+private data class CachedMiniMaxQuota(
+    val quota: MiniMaxQuota,
+    val rawResponse: String? = null,
+) {
+    fun toQuota(): MiniMaxQuota = quota.apply { this.rawJson = rawResponse }
+
+    companion object {
+        fun fromQuota(quota: MiniMaxQuota): CachedMiniMaxQuota = CachedMiniMaxQuota(quota, quota.rawJson)
+    }
+}
+
+@Serializable
+private data class CachedKimiQuota(
+    val quota: KimiQuota,
+    val rawResponse: String? = null,
+) {
+    fun toQuota(): KimiQuota = quota.apply { this.rawJson = rawResponse }
+
+    companion object {
+        fun fromQuota(quota: KimiQuota): CachedKimiQuota = CachedKimiQuota(quota, quota.rawJson)
+    }
+}
+
+@Serializable
+private data class CachedCursorQuota(
+    val quota: CursorQuota,
+    val rawResponse: String? = null,
+) {
+    fun toQuota(): CursorQuota = quota.apply { this.rawJson = rawResponse }
+
+    companion object {
+        fun fromQuota(quota: CursorQuota): CachedCursorQuota = CachedCursorQuota(quota, quota.rawJson)
     }
 }
 
