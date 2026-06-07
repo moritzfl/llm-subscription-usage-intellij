@@ -191,7 +191,7 @@ private fun zaiPeriodElapsedFraction(quota: ZaiQuota?, error: String?): Double? 
         quota.weeklyUsage?.let { it to QuotaPeriodDurations.WEEKLY },
     )
     if (windows.isEmpty()) {
-        return quota.webSearchUsage?.periodElapsedFraction(QuotaPeriodDurations.WEEKLY)
+        return quota.webSearchUsage?.periodElapsedFraction(QuotaPeriodDurations.MONTHLY)
     }
 
     val exhausted = windows.filter { (window, _) -> window.usagePercent >= 100.0 }

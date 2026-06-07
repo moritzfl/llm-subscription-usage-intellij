@@ -123,6 +123,7 @@ open class ZaiQuotaClient(
             return ZaiUsageWindow(
                 usagePercent = percentage ?: percentFromValues(currentValue, usage),
                 resetsAt = nextResetTime?.let(Instant::fromEpochMilliseconds),
+                periodDurationMs = durationMillis(),
             )
         }
 
@@ -132,7 +133,21 @@ open class ZaiQuotaClient(
                 limit = usage ?: 0,
                 usagePercent = percentage ?: percentFromValues(currentValue, usage),
                 resetsAt = resetsAt,
+                periodDurationMs = durationMillis(),
             )
+        }
+
+        private fun ZaiLimitDto.durationMillis(): Long? {
+            val value = number ?: return null
+            return when (unit) {
+                1 -> value * 1_000L
+                2 -> value * 60_000L
+                3 -> value * 3_600_000L
+                4 -> value * 86_400_000L
+                5 -> value * 30L * 86_400_000L
+                6 -> value * 86_400_000L
+                else -> null
+            }
         }
 
         private fun percentFromValues(used: Long?, limit: Long?): Double {

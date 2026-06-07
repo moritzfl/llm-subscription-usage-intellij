@@ -61,12 +61,17 @@ class ZaiQuotaClientTest {
         val quota = ZaiQuotaClient.parseQuota(subscriptionJson, quotaJson)
 
         assertEquals("GLM Coding Max", quota.plan)
-        assertEquals(15.0, assertNotNull(quota.sessionUsage).usagePercent)
-        assertEquals(42.0, assertNotNull(quota.weeklyUsage).usagePercent)
+        val sessionUsage = assertNotNull(quota.sessionUsage)
+        assertEquals(15.0, sessionUsage.usagePercent)
+        assertEquals(5 * 3_600_000L, sessionUsage.periodDurationMs)
+        val weeklyUsage = assertNotNull(quota.weeklyUsage)
+        assertEquals(42.0, weeklyUsage.usagePercent)
+        assertEquals(7 * 86_400_000L, weeklyUsage.periodDurationMs)
         val webSearchUsage = assertNotNull(quota.webSearchUsage)
         assertEquals(1828, webSearchUsage.used)
         assertEquals(4000, webSearchUsage.limit)
         assertEquals(45.0, webSearchUsage.usagePercent)
+        assertEquals(30 * 86_400_000L, webSearchUsage.periodDurationMs)
         assertEquals(1773273600000, webSearchUsage.resetsAt?.toEpochMilliseconds())
     }
 

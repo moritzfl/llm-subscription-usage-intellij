@@ -86,7 +86,7 @@ internal class ZaiPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout.TO
         val resetText = QuotaUiUtil.formatReset(window.resetsAt)
         var info = "$percent% used"
         if (resetText != null) info += " - $resetText"
-        update("$label limit", info, percent)
+        update(describeDurationLimitLabel(window.periodDuration, label), info, percent)
     }
 
     private fun WindowBlockPanel.updateZaiCount(window: ZaiCountUsageWindow, label: String) {

@@ -43,6 +43,7 @@ import javax.swing.JPanel
 import javax.swing.JProgressBar
 import javax.swing.SwingUtilities
 import kotlin.math.roundToInt
+import java.time.Duration
 
 internal fun createOpenSettingsButton(onOpenSettings: () -> Unit): ActionLink {
     return ActionLink("") { onOpenSettings() }.apply {
@@ -146,9 +147,14 @@ internal fun openSettings(project: Project, component: Component, beforeOpen: ()
 }
 
 internal fun describeWindowLabel(window: UsageWindow, fallbackLabel: String): String {
-    val minutes = window.windowDuration?.toMinutes() ?: return "$fallbackLabel limit"
+    return describeDurationLimitLabel(window.windowDuration, fallbackLabel)
+}
+
+internal fun describeDurationLimitLabel(duration: Duration?, fallbackLabel: String): String {
+    val minutes = duration?.toMinutes() ?: return "$fallbackLabel limit"
     return when {
         minutes in 295L..305L -> "5h limit"
+        minutes in 43190L..43210L -> "Monthly limit"
         minutes in 10070L..10090L -> "Weekly limit"
         minutes % (60L * 24L * 7L) == 0L -> {
             val weeks = minutes / (60L * 24L * 7L)
@@ -319,7 +325,7 @@ internal fun createMiniMaxWindowBlock(window: MiniMaxUsageWindow, label: String,
     if (resetText != null) info += " - $resetText"
     return createPopupStack().apply {
         border = JBUI.Borders.emptyTop(top)
-        add(createWindowTitleLabel("$label limit"))
+        add(createWindowTitleLabel(describeDurationLimitLabel(window.periodDuration, label)))
         add(withVerticalInsets(JBLabel(info), top = 1))
         add(withVerticalInsets(createUsageProgressBar(percent), top = 1))
     }
@@ -332,7 +338,7 @@ internal fun createKimiWindowBlock(window: KimiUsageWindow, label: String, top: 
     if (resetText != null) info += " - $resetText"
     return createPopupStack().apply {
         border = JBUI.Borders.emptyTop(top)
-        add(createWindowTitleLabel("$label limit"))
+        add(createWindowTitleLabel(describeDurationLimitLabel(window.periodDuration, label)))
         add(withVerticalInsets(JBLabel(info), top = 1))
         add(withVerticalInsets(createUsageProgressBar(percent), top = 1))
     }

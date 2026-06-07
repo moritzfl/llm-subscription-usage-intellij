@@ -3,6 +3,7 @@ package de.moritzf.quota.minimax
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
+import java.time.Duration
 
 @Serializable
 data class MiniMaxQuota(
@@ -22,7 +23,10 @@ data class MiniMaxUsageWindow(
     val usagePercent: Double = 0.0,
     val resetsAt: Instant? = null,
     val periodDurationMs: Long? = null,
-)
+) {
+    @Transient
+    val periodDuration: Duration? = periodDurationMs?.let(Duration::ofMillis)
+}
 
 @Serializable
 enum class MiniMaxRegion(private val label: String) {

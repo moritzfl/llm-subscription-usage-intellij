@@ -67,6 +67,6 @@ internal class MiniMaxPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayou
         val resetText = QuotaUiUtil.formatReset(window.resetsAt)
         var info = "$percent% used"
         if (resetText != null) info += " - $resetText"
-        update("$label limit", info, percent)
+        update(describeDurationLimitLabel(window.periodDuration, label), info, percent)
     }
 }
