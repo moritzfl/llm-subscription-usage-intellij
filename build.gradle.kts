@@ -32,6 +32,7 @@ dependencies {
     implementation(libs.kotlinx.datetime)
     implementation(libs.snakeyaml.engine)
     implementation(libs.tomlj)
+    implementation(libs.jsoup)
     compileOnly(libs.kotlinx.serialization.json)
 
     testImplementation(libs.kotlin.test.junit5)

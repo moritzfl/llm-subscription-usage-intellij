@@ -24,6 +24,13 @@ class OAuthUrlCodecTest {
     }
 
     @Test
+    fun formEncodeSupportsVarargPairs() {
+        val encoded = OAuthUrlCodec.formEncode("grant_type" to "refresh token", "client_id" to "a+b")
+
+        assertEquals("grant_type=refresh+token&client_id=a%2Bb", encoded)
+    }
+
+    @Test
     fun parseQueryDecodesValuesAndSkipsInvalidPairs() {
         val params = OAuthUrlCodec.parseQuery("code=abc%20123&state=xy%2Bz&invalid&=skip&k=v")
 

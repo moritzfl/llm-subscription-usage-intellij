@@ -16,6 +16,9 @@ object OAuthUrlCodec {
     }
 
     @JvmStatic
+    fun formEncode(vararg params: Pair<String, String>): String = formEncode(linkedMapOf(*params))
+
+    @JvmStatic
     fun parseQuery(query: String?): Map<String, String> {
         val params = linkedMapOf<String, String>()
         if (query.isNullOrBlank()) {

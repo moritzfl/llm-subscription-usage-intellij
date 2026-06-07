@@ -1,5 +1,6 @@
 package de.moritzf.quota.kimi
 
+import de.moritzf.quota.idea.auth.OAuthUrlCodec
 import de.moritzf.quota.shared.JsonSupport
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
@@ -7,7 +8,6 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.io.IOException
 import java.net.URI
-import java.net.URLEncoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
@@ -157,11 +157,7 @@ open class KimiQuotaClient(
             }
         }
 
-        private fun formEncode(vararg pairs: Pair<String, String>): String {
-            return pairs.joinToString("&") { (key, value) ->
-                "${URLEncoder.encode(key, Charsets.UTF_8)}=${URLEncoder.encode(value, Charsets.UTF_8)}"
-            }
-        }
+        private fun formEncode(vararg pairs: Pair<String, String>): String = OAuthUrlCodec.formEncode(*pairs)
     }
 }
 

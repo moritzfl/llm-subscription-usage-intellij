@@ -6,11 +6,9 @@ import de.moritzf.quota.openai.dto.OAuthTokenResponseDto
 import de.moritzf.quota.idea.auth.QuotaTokenUtil
 import java.io.IOException
 import java.net.URI
-import java.net.URLEncoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
-import java.nio.charset.StandardCharsets
 import java.time.Duration
 
 /**
@@ -74,7 +72,7 @@ class OAuthTokenClient(
     }
 
     private fun postForm(parameters: Map<String, String>): HttpResponse<String> {
-        val body = formUrlEncode(parameters)
+        val body = OAuthUrlCodec.formEncode(parameters)
         val request = HttpRequest.newBuilder()
             .uri(URI.create(config.tokenEndpoint))
             .timeout(Duration.ofSeconds(30))
@@ -122,16 +120,6 @@ class OAuthTokenClient(
         return QuotaTokenUtil.extractChatGptAccountId(response.idToken)
             ?: QuotaTokenUtil.extractChatGptAccountId(response.accessToken)
             ?: QuotaTokenUtil.extractGoogleEmail(response.idToken)
-    }
-
-    private fun formUrlEncode(parameters: Map<String, String>): String {
-        return parameters.entries.joinToString("&") { (key, value) ->
-            "${encode(key)}=${encode(value)}"
-        }
-    }
-
-    private fun encode(value: String): String {
-        return URLEncoder.encode(value, StandardCharsets.UTF_8)
     }
 
     companion object {
