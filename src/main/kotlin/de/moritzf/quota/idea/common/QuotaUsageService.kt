@@ -335,77 +335,11 @@ class QuotaUsageService(
     }
 
     private fun getCachedUsageFraction(provider: QuotaProvider, settings: QuotaSettingsState?): Double? {
-        return when (provider.type) {
-            QuotaProviderType.OPEN_AI -> settings?.cachedOpenAiQuotaJson
-                ?.let(QuotaSnapshotCache::decodeOpenAiQuota)
-                ?.let(::extractOpenAiFraction)
-            QuotaProviderType.OPEN_CODE -> settings?.cachedOpenCodeQuotaJson
-                ?.let(QuotaSnapshotCache::decodeOpenCodeQuota)
-                ?.let(::extractOpenCodeFraction)
-            QuotaProviderType.OLLAMA -> settings?.cachedOllamaQuotaJson
-                ?.let(QuotaSnapshotCache::decodeOllamaQuota)
-                ?.let(::extractOllamaFraction)
-            QuotaProviderType.ZAI -> settings?.cachedZaiQuotaJson
-                ?.let(QuotaSnapshotCache::decodeZaiQuota)
-                ?.let(::extractZaiFraction)
-            QuotaProviderType.MINIMAX -> settings?.cachedMiniMaxQuotaJson
-                ?.let(QuotaSnapshotCache::decodeMiniMaxQuota)
-                ?.let(::extractMiniMaxFraction)
-            QuotaProviderType.KIMI -> settings?.cachedKimiQuotaJson
-                ?.let(QuotaSnapshotCache::decodeKimiQuota)
-                ?.let(::extractKimiFraction)
-            QuotaProviderType.CURSOR -> settings?.cachedCursorQuotaJson
-                ?.let(QuotaSnapshotCache::decodeCursorQuota)
-                ?.let(::extractCursorFraction)
-        }
+        return settings?.let(provider::cachedUsageFraction)
     }
 
     private fun getCurrentUsageFraction(provider: QuotaProvider): Double? {
         return provider.currentUsageFraction()
-    }
-
-    private fun extractOpenAiFraction(quota: OpenAiCodexQuota): Double? {
-        val windows = listOfNotNull(
-            quota.primary?.usedPercent, quota.secondary?.usedPercent,
-            quota.reviewPrimary?.usedPercent, quota.reviewSecondary?.usedPercent,
-        )
-        return windows.maxOrNull()?.let { it / 100.0 }
-    }
-
-    private fun extractOpenCodeFraction(quota: OpenCodeQuota): Double? {
-        val windows = listOfNotNull(
-            quota.rollingUsage?.usagePercent?.toDouble(),
-            quota.weeklyUsage?.usagePercent?.toDouble(),
-            quota.monthlyUsage?.usagePercent?.toDouble(),
-        )
-        return windows.maxOrNull()?.let { it / 100.0 }
-    }
-
-    private fun extractOllamaFraction(quota: OllamaQuota): Double? {
-        val windows = listOfNotNull(quota.sessionUsage?.usagePercent, quota.weeklyUsage?.usagePercent)
-        return windows.maxOrNull()?.let { it / 100.0 }
-    }
-
-    private fun extractZaiFraction(quota: ZaiQuota): Double? {
-        val windows = listOfNotNull(
-            quota.sessionUsage?.usagePercent,
-            quota.weeklyUsage?.usagePercent,
-            quota.webSearchUsage?.usagePercent,
-        )
-        return windows.maxOrNull()?.let { it / 100.0 }
-    }
-
-    private fun extractMiniMaxFraction(quota: MiniMaxQuota): Double? {
-        return quota.sessionUsage?.usagePercent?.let { it / 100.0 }
-    }
-
-    private fun extractKimiFraction(quota: KimiQuota): Double? {
-        val windows = listOfNotNull(quota.sessionUsage?.usagePercent, quota.totalUsage?.usagePercent)
-        return windows.maxOrNull()?.let { it / 100.0 }
-    }
-
-    private fun extractCursorFraction(quota: CursorQuota): Double? {
-        return quota.primaryUsagePercent()?.let { it / 100.0 }
     }
 
     private fun resolveLastActiveSource(settings: QuotaSettingsState?): QuotaIndicatorSource {

@@ -17,6 +17,9 @@ class ZaiQuotaProvider(
     override val type = QuotaProviderType.ZAI
 
     override fun currentUsageFraction(): Double? = lastQuotaRef.get()?.usageFraction()
+    override fun cachedUsageFraction(settings: QuotaSettingsState): Double? {
+        return QuotaSnapshotCache.decodeZaiQuota(settings.cachedZaiQuotaJson)?.usageFraction()
+    }
     override fun getLastRawJson(): String? {
         lastRawJsonRef.get()?.let { return it }
         val quota = lastQuotaRef.get() ?: return null

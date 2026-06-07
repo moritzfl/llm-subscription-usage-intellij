@@ -21,6 +21,9 @@ class OpenAiQuotaProvider(
     override val type = QuotaProviderType.OPEN_AI
 
     override fun currentUsageFraction(): Double? = lastQuotaRef.get()?.usageFraction()
+    override fun cachedUsageFraction(settings: QuotaSettingsState): Double? {
+        return QuotaSnapshotCache.decodeOpenAiQuota(settings.cachedOpenAiQuotaJson)?.usageFraction()
+    }
 
     override fun refresh() {
         val accessToken = accessTokenProvider()

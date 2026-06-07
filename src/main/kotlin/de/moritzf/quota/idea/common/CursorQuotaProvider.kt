@@ -18,6 +18,9 @@ class CursorQuotaProvider(
     override val type = QuotaProviderType.CURSOR
 
     override fun currentUsageFraction(): Double? = lastQuotaRef.get()?.primaryUsagePercent()?.let { it / 100.0 }
+    override fun cachedUsageFraction(settings: QuotaSettingsState): Double? {
+        return QuotaSnapshotCache.decodeCursorQuota(settings.cachedCursorQuotaJson)?.primaryUsagePercent()?.let { it / 100.0 }
+    }
     override fun getLastRawJson(): String? {
         lastRawJsonRef.get()?.let { return it }
         val quota = lastQuotaRef.get() ?: return null

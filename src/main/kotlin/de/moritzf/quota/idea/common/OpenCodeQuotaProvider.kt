@@ -24,6 +24,9 @@ class OpenCodeQuotaProvider(
     private val cachedWorkspaceIdTimestamp = AtomicReference(0L)
 
     override fun currentUsageFraction(): Double? = lastQuotaRef.get()?.usageFraction()
+    override fun cachedUsageFraction(settings: QuotaSettingsState): Double? {
+        return QuotaSnapshotCache.decodeOpenCodeQuota(settings.cachedOpenCodeQuotaJson)?.usageFraction()
+    }
 
     override fun refresh() {
         val cookie = openCodeCookieProvider()

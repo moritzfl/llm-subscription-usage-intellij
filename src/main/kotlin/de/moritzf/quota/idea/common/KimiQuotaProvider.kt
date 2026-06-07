@@ -12,6 +12,9 @@ class KimiQuotaProvider(
 ) : CachedQuotaProvider<KimiQuota>() {
     override val type = QuotaProviderType.KIMI
     override fun currentUsageFraction(): Double? = lastQuotaRef.get()?.usageFraction()
+    override fun cachedUsageFraction(settings: QuotaSettingsState): Double? {
+        return QuotaSnapshotCache.decodeKimiQuota(settings.cachedKimiQuotaJson)?.usageFraction()
+    }
     override fun getLastRawJson(): String? {
         lastRawJsonRef.get()?.let { return it }
         val quota = lastQuotaRef.get() ?: return null
