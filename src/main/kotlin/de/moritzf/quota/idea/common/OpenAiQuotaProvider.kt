@@ -7,7 +7,6 @@ import de.moritzf.quota.openai.OpenAiCodexQuotaClient
 import de.moritzf.quota.openai.OpenAiCodexQuotaException
 import de.moritzf.quota.openai.UsageWindow
 import kotlinx.datetime.Clock
-import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Fetches and caches OpenAI Codex quota data.
@@ -18,16 +17,9 @@ class OpenAiQuotaProvider(
     },
     private val accessTokenProvider: () -> String? = { QuotaAuthService.getInstance().getAccessTokenBlocking() },
     private val accountIdProvider: () -> String? = { QuotaAuthService.getInstance().getAccountId() },
-) : QuotaProvider {
+) : CachedQuotaProvider<OpenAiCodexQuota>() {
     override val type = QuotaProviderType.OPEN_AI
 
-    private val lastQuotaRef = AtomicReference<OpenAiCodexQuota?>()
-    private val lastErrorRef = AtomicReference<String?>()
-    private val lastRawJsonRef = AtomicReference<String?>()
-
-    fun getLastQuota(): OpenAiCodexQuota? = lastQuotaRef.get()
-    fun getLastError(): String? = lastErrorRef.get()
-    override fun getLastRawJson(): String? = lastRawJsonRef.get()
     override fun currentUsageFraction(): Double? = lastQuotaRef.get()?.usageFraction()
 
     override fun refresh() {
@@ -40,23 +32,12 @@ class OpenAiQuotaProvider(
         try {
             val quota = quotaFetcher(accessToken, accountIdProvider())
             applyHysteresis(lastQuotaRef.get(), quota)
-            lastQuotaRef.set(quota)
-            lastErrorRef.set(null)
-            lastRawJsonRef.set(quota.rawJson)
+            storeQuota(quota, quota.rawJson)
         } catch (exception: OpenAiCodexQuotaException) {
-            lastQuotaRef.set(null)
-            lastErrorRef.set("Request failed (${exception.statusCode})")
-            lastRawJsonRef.set(exception.rawBody)
+            storeError("Request failed (${exception.statusCode})", exception.rawBody)
         } catch (exception: Exception) {
-            lastQuotaRef.set(null)
-            lastErrorRef.set(exception.message ?: "Request failed")
+            storeError(exception.message ?: "Request failed")
         }
-    }
-
-    override fun clearData(error: String?) {
-        lastQuotaRef.set(null)
-        lastErrorRef.set(error)
-        lastRawJsonRef.set(null)
     }
 
     override fun hydrateFromCache(settings: QuotaSettingsState) {

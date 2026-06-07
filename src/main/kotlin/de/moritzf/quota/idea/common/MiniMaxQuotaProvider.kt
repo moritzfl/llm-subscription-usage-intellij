@@ -8,19 +8,12 @@ import de.moritzf.quota.minimax.MiniMaxQuotaException
 import de.moritzf.quota.minimax.MiniMaxRegion
 import de.moritzf.quota.minimax.MiniMaxRegionPreference
 import de.moritzf.quota.shared.JsonSupport
-import java.util.concurrent.atomic.AtomicReference
 
 class MiniMaxQuotaProvider(
     private val client: MiniMaxQuotaClient = MiniMaxQuotaClient(),
     private val settingsProvider: () -> QuotaSettingsState? = { runCatching { QuotaSettingsState.getInstance() }.getOrNull() },
-) : QuotaProvider {
+) : CachedQuotaProvider<MiniMaxQuota>() {
     override val type = QuotaProviderType.MINIMAX
-    private val lastQuotaRef = AtomicReference<MiniMaxQuota?>()
-    private val lastErrorRef = AtomicReference<String?>()
-    private val lastRawJsonRef = AtomicReference<String?>()
-
-    fun getLastQuota(): MiniMaxQuota? = lastQuotaRef.get()
-    fun getLastError(): String? = lastErrorRef.get()
     override fun currentUsageFraction(): Double? = lastQuotaRef.get()?.sessionUsage?.usagePercent?.let { it / 100.0 }
     override fun getLastRawJson(): String? {
         lastRawJsonRef.get()?.let { return it }
@@ -45,24 +38,14 @@ class MiniMaxQuotaProvider(
         for (region in regions) {
             try {
                 val quota = client.fetchQuota(apiKey, region)
-                lastQuotaRef.set(quota)
-                lastErrorRef.set(null)
-                lastRawJsonRef.set(quota.rawJson)
+                storeQuota(quota, quota.rawJson)
                 return
             } catch (exception: MiniMaxQuotaException) {
                 lastException = exception
             }
         }
 
-        lastQuotaRef.set(null)
-        lastErrorRef.set(lastException?.message ?: "Request failed. Check your connection.")
-        lastRawJsonRef.set(lastException?.rawBody)
-    }
-
-    override fun clearData(error: String?) {
-        lastQuotaRef.set(null)
-        lastErrorRef.set(error)
-        lastRawJsonRef.set(null)
+        storeError(lastException?.message ?: "Request failed. Check your connection.", lastException?.rawBody)
     }
 
     override fun hydrateFromCache(settings: QuotaSettingsState) {

@@ -6,18 +6,11 @@ import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.kimi.KimiQuotaClient
 import de.moritzf.quota.kimi.KimiQuotaException
 import de.moritzf.quota.shared.JsonSupport
-import java.util.concurrent.atomic.AtomicReference
 
 class KimiQuotaProvider(
     private val client: KimiQuotaClient = KimiQuotaClient(),
-) : QuotaProvider {
+) : CachedQuotaProvider<KimiQuota>() {
     override val type = QuotaProviderType.KIMI
-    private val lastQuotaRef = AtomicReference<KimiQuota?>()
-    private val lastErrorRef = AtomicReference<String?>()
-    private val lastRawJsonRef = AtomicReference<String?>()
-
-    fun getLastQuota(): KimiQuota? = lastQuotaRef.get()
-    fun getLastError(): String? = lastErrorRef.get()
     override fun currentUsageFraction(): Double? = lastQuotaRef.get()?.usageFraction()
     override fun getLastRawJson(): String? {
         lastRawJsonRef.get()?.let { return it }
@@ -36,24 +29,12 @@ class KimiQuotaProvider(
             if (result.credentials != credentials) {
                 KimiCredentialsStore.getInstance().save(result.credentials)
             }
-            lastQuotaRef.set(result.quota)
-            lastErrorRef.set(null)
-            lastRawJsonRef.set(result.quota.rawJson)
+            storeQuota(result.quota, result.quota.rawJson)
         } catch (exception: KimiQuotaException) {
-            lastQuotaRef.set(null)
-            lastErrorRef.set(exception.message ?: "Request failed")
-            lastRawJsonRef.set(exception.rawBody)
+            storeError(exception.message ?: "Request failed", exception.rawBody)
         } catch (exception: Exception) {
-            lastQuotaRef.set(null)
-            lastErrorRef.set(exception.message ?: "Request failed")
-            lastRawJsonRef.set(null)
+            storeError(exception.message ?: "Request failed")
         }
-    }
-
-    override fun clearData(error: String?) {
-        lastQuotaRef.set(null)
-        lastErrorRef.set(error)
-        lastRawJsonRef.set(null)
     }
 
     override fun hydrateFromCache(settings: QuotaSettingsState) {
