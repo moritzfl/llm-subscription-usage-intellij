@@ -29,6 +29,7 @@ class OpenCodeQuotaProvider(
     fun getLastQuota(): OpenCodeQuota? = lastQuotaRef.get()
     fun getLastError(): String? = lastErrorRef.get()
     override fun getLastRawJson(): String? = lastRawJsonRef.get()
+    override fun currentUsageFraction(): Double? = lastQuotaRef.get()?.usageFraction()
 
     override fun refresh() {
         val cookie = openCodeCookieProvider()
@@ -148,6 +149,15 @@ class OpenCodeQuotaProvider(
             exception.statusCode == 401 ||
             exception.statusCode == 403 ||
             exception.message?.contains("Could not parse OpenCode quota response") == true
+    }
+
+    private fun OpenCodeQuota.usageFraction(): Double? {
+        val windows = listOfNotNull(
+            rollingUsage?.usagePercent?.toDouble(),
+            weeklyUsage?.usagePercent?.toDouble(),
+            monthlyUsage?.usagePercent?.toDouble(),
+        )
+        return windows.maxOrNull()?.let { it / 100.0 }
     }
 
     companion object {

@@ -18,6 +18,7 @@ class KimiQuotaProvider(
 
     fun getLastQuota(): KimiQuota? = lastQuotaRef.get()
     fun getLastError(): String? = lastErrorRef.get()
+    override fun currentUsageFraction(): Double? = lastQuotaRef.get()?.usageFraction()
     override fun getLastRawJson(): String? {
         lastRawJsonRef.get()?.let { return it }
         val quota = lastQuotaRef.get() ?: return null
@@ -67,5 +68,10 @@ class KimiQuotaProvider(
             QuotaSnapshotCache.encodeKimiQuota(quota)?.let { settings.cachedKimiQuotaJson = it }
             settings.updateTimestamp(type)
         }
+    }
+
+    private fun KimiQuota.usageFraction(): Double? {
+        val windows = listOfNotNull(sessionUsage?.usagePercent, totalUsage?.usagePercent)
+        return windows.maxOrNull()?.let { it / 100.0 }
     }
 }

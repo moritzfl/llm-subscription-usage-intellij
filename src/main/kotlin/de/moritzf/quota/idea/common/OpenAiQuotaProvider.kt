@@ -28,6 +28,7 @@ class OpenAiQuotaProvider(
     fun getLastQuota(): OpenAiCodexQuota? = lastQuotaRef.get()
     fun getLastError(): String? = lastErrorRef.get()
     override fun getLastRawJson(): String? = lastRawJsonRef.get()
+    override fun currentUsageFraction(): Double? = lastQuotaRef.get()?.usageFraction()
 
     override fun refresh() {
         val accessToken = accessTokenProvider()
@@ -126,5 +127,13 @@ class OpenAiQuotaProvider(
         if (anyReviewLimitReached) {
             newQuota.reviewLimitReached = true
         }
+    }
+
+    private fun OpenAiCodexQuota.usageFraction(): Double? {
+        val windows = listOfNotNull(
+            primary?.usedPercent, secondary?.usedPercent,
+            reviewPrimary?.usedPercent, reviewSecondary?.usedPercent,
+        )
+        return windows.maxOrNull()?.let { it / 100.0 }
     }
 }

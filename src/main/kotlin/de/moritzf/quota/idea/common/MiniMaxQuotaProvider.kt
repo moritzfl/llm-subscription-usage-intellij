@@ -21,6 +21,7 @@ class MiniMaxQuotaProvider(
 
     fun getLastQuota(): MiniMaxQuota? = lastQuotaRef.get()
     fun getLastError(): String? = lastErrorRef.get()
+    override fun currentUsageFraction(): Double? = lastQuotaRef.get()?.sessionUsage?.usagePercent?.let { it / 100.0 }
     override fun getLastRawJson(): String? {
         lastRawJsonRef.get()?.let { return it }
         val quota = lastQuotaRef.get() ?: return null

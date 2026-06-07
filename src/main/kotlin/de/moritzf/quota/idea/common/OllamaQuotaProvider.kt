@@ -24,6 +24,7 @@ class OllamaQuotaProvider(
 
     fun getLastQuota(): OllamaQuota? = lastQuotaRef.get()
     fun getLastError(): String? = lastErrorRef.get()
+    override fun currentUsageFraction(): Double? = lastQuotaRef.get()?.usageFraction()
     override fun getLastRawJson(): String? {
         lastRawJsonRef.get()?.let { return it }
         val quota = lastQuotaRef.get() ?: return null
@@ -72,5 +73,10 @@ class OllamaQuotaProvider(
             QuotaSnapshotCache.encodeOllamaQuota(quota)?.let { settings.cachedOllamaQuotaJson = it }
             settings.updateTimestamp(type)
         }
+    }
+
+    private fun OllamaQuota.usageFraction(): Double? {
+        val windows = listOfNotNull(sessionUsage?.usagePercent, weeklyUsage?.usagePercent)
+        return windows.maxOrNull()?.let { it / 100.0 }
     }
 }

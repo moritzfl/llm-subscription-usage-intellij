@@ -361,16 +361,7 @@ class QuotaUsageService(
     }
 
     private fun getCurrentUsageFraction(provider: QuotaProvider): Double? {
-        return when (provider) {
-            is OpenAiQuotaProvider -> provider.getLastQuota()?.let(::extractOpenAiFraction)
-            is OpenCodeQuotaProvider -> provider.getLastQuota()?.let(::extractOpenCodeFraction)
-            is OllamaQuotaProvider -> provider.getLastQuota()?.let(::extractOllamaFraction)
-            is ZaiQuotaProvider -> provider.getLastQuota()?.let(::extractZaiFraction)
-            is MiniMaxQuotaProvider -> provider.getLastQuota()?.let(::extractMiniMaxFraction)
-            is KimiQuotaProvider -> provider.getLastQuota()?.let(::extractKimiFraction)
-            is CursorQuotaProvider -> provider.getLastQuota()?.let(::extractCursorFraction)
-            else -> null
-        }
+        return provider.currentUsageFraction()
     }
 
     private fun extractOpenAiFraction(quota: OpenAiCodexQuota): Double? {

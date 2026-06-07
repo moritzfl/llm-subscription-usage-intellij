@@ -23,6 +23,7 @@ class ZaiQuotaProvider(
 
     fun getLastQuota(): ZaiQuota? = lastQuotaRef.get()
     fun getLastError(): String? = lastErrorRef.get()
+    override fun currentUsageFraction(): Double? = lastQuotaRef.get()?.usageFraction()
     override fun getLastRawJson(): String? {
         lastRawJsonRef.get()?.let { return it }
         val quota = lastQuotaRef.get() ?: return null
@@ -70,5 +71,14 @@ class ZaiQuotaProvider(
             QuotaSnapshotCache.encodeZaiQuota(quota)?.let { settings.cachedZaiQuotaJson = it }
             settings.updateTimestamp(type)
         }
+    }
+
+    private fun ZaiQuota.usageFraction(): Double? {
+        val windows = listOfNotNull(
+            sessionUsage?.usagePercent,
+            weeklyUsage?.usagePercent,
+            webSearchUsage?.usagePercent,
+        )
+        return windows.maxOrNull()?.let { it / 100.0 }
     }
 }
