@@ -261,6 +261,39 @@ class QuotaUsageServiceTest {
         }
     }
 
+    @Test
+    fun refreshNowWaitsForOtherProvidersWhenOneFutureFails() {
+        val openAiProvider = OpenAiQuotaProvider(
+            quotaFetcher = { _, _ -> throw IllegalStateException("boom") },
+            accessTokenProvider = { "token" },
+            accountIdProvider = { "account-1" },
+        )
+        val completedOpenCodeRefresh = CountDownLatch(1)
+        val openCodeClient = object : RecordingOpenCodeQuotaClient() {
+            override fun fetchQuota(sessionCookie: String, workspaceId: String): OpenCodeQuota {
+                Thread.sleep(50)
+                return super.fetchQuota(sessionCookie, workspaceId).also {
+                    completedOpenCodeRefresh.countDown()
+                }
+            }
+        }
+        val openCodeProvider = OpenCodeQuotaProvider(
+            openCodeClient = openCodeClient,
+            openCodeCookieProvider = { "cookie-a" },
+            settingsProvider = { null },
+        )
+        val service = createService(openAiProvider = openAiProvider, openCodeProvider = openCodeProvider)
+
+        try {
+            service.refreshNowBlocking()
+
+            assertTrue(completedOpenCodeRefresh.await(1, TimeUnit.SECONDS))
+            assertNotNull(service.getLastOpenCodeQuota())
+        } finally {
+            service.dispose()
+        }
+    }
+
     private fun createService(
         openAiProvider: OpenAiQuotaProvider = OpenAiQuotaProvider(
             quotaFetcher = { _, _ -> OpenAiCodexQuota() },

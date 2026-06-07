@@ -4,6 +4,7 @@ import com.intellij.ide.ActivityTracker
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.util.concurrency.AppExecutorUtil
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorData
@@ -276,7 +277,10 @@ class QuotaUsageService(
         val futures = refreshes.map { refresh ->
             executor.submit(refresh)
         }
-        futures.forEach { it.get() }
+        futures.forEach { future ->
+            runCatching { future.get() }
+                .onFailure { LOG.warn("Quota provider refresh failed", it) }
+        }
     }
 
     private fun refreshOpenAi() {
@@ -379,6 +383,7 @@ class QuotaUsageService(
     }
 
     companion object {
+        private val LOG = Logger.getInstance(QuotaUsageService::class.java)
         private const val MIN_USAGE_INCREASE = 0.005
 
         @JvmStatic
