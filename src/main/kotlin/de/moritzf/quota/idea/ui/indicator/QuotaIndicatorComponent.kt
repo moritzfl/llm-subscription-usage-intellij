@@ -398,7 +398,7 @@ internal fun buildZaiTooltipText(quota: ZaiQuota?, error: String?): String {
     val parts = mutableListOf<String>()
     quota.sessionUsage?.let { parts.add("Session: ${clampPercent(it.usagePercent.roundToInt())}% • ${QuotaUiUtil.formatResetCompact(it.resetsAt) ?: "unknown"}") }
     quota.weeklyUsage?.let { parts.add("Weekly: ${clampPercent(it.usagePercent.roundToInt())}% • ${QuotaUiUtil.formatResetCompact(it.resetsAt) ?: "unknown"}") }
-    quota.webSearchUsage?.let { parts.add("Web searches: ${it.used}/${it.limit} • ${QuotaUiUtil.formatResetCompact(it.resetsAt) ?: "unknown"}") }
+    quota.webSearchUsage?.let { parts.add("Web searches: ${clampPercent(it.usagePercent.roundToInt())}% • ${QuotaUiUtil.formatResetCompact(it.resetsAt) ?: "unknown"}") }
     val plan = quota.plan.takeIf { it.isNotBlank() } ?: "Z.ai"
     if (parts.isEmpty()) return "$plan quota: no usage data"
     return "$plan quota:\n${parts.joinToString("\n")}"
@@ -410,7 +410,7 @@ internal fun buildMiniMaxTooltipText(quota: MiniMaxQuota?, error: String?): Stri
     val usage = quota.sessionUsage
     val plan = quota.plan.ifBlank { "MiniMax Coding Plan (${quota.region})" }
     if (usage == null) return "$plan: no usage data"
-    return "$plan:\nSession: ${usage.used}/${usage.limit} prompts • ${QuotaUiUtil.formatResetCompact(usage.resetsAt) ?: "unknown"}"
+    return "$plan:\nSession: ${clampPercent(usage.usagePercent.roundToInt())}% • ${QuotaUiUtil.formatResetCompact(usage.resetsAt) ?: "unknown"}"
 }
 
 internal fun miniMaxBarDisplayText(quota: MiniMaxQuota?, error: String?): String {

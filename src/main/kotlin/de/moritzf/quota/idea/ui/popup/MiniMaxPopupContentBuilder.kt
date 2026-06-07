@@ -65,7 +65,7 @@ internal class MiniMaxPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayou
     private fun WindowBlockPanel.updateMiniMax(window: MiniMaxUsageWindow, label: String) {
         val percent = clampPercent(window.usagePercent.roundToInt())
         val resetText = QuotaUiUtil.formatReset(window.resetsAt)
-        var info = "${window.used}/${window.limit} prompts used"
+        var info = "$percent% used"
         if (resetText != null) info += " - $resetText"
         update("$label limit", info, percent)
     }

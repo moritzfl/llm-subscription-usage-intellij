@@ -299,7 +299,7 @@ internal fun createZaiWindowBlock(window: ZaiUsageWindow, label: String, top: In
 internal fun createZaiCountWindowBlock(window: ZaiCountUsageWindow, label: String, top: Int): JComponent {
     val percent = clampPercent(window.usagePercent.roundToInt())
     val resetText = QuotaUiUtil.formatReset(window.resetsAt)
-    var info = "${window.used}/${window.limit} used"
+    var info = "$percent% used"
     if (resetText != null) {
         info += " - $resetText"
     }
@@ -315,7 +315,7 @@ internal fun createZaiCountWindowBlock(window: ZaiCountUsageWindow, label: Strin
 internal fun createMiniMaxWindowBlock(window: MiniMaxUsageWindow, label: String, top: Int): JComponent {
     val percent = clampPercent(window.usagePercent.roundToInt())
     val resetText = QuotaUiUtil.formatReset(window.resetsAt)
-    var info = "${window.used}/${window.limit} prompts used"
+    var info = "$percent% used"
     if (resetText != null) info += " - $resetText"
     return createPopupStack().apply {
         border = JBUI.Borders.emptyTop(top)
