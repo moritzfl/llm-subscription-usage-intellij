@@ -284,13 +284,20 @@ class QuotaUsageService(
     }
 
     private fun refreshNow() {
-        refreshOpenAi()
-        refreshOpenCode()
-        refreshOllama()
-        refreshZai()
-        refreshMiniMax()
-        refreshKimi()
-        refreshCursor()
+        val refreshes = listOf(
+            ::refreshOpenAi,
+            ::refreshOpenCode,
+            ::refreshOllama,
+            ::refreshZai,
+            ::refreshMiniMax,
+            ::refreshKimi,
+            ::refreshCursor,
+        )
+        val executor = AppExecutorUtil.getAppExecutorService()
+        val futures = refreshes.map { refresh ->
+            executor.submit(refresh)
+        }
+        futures.forEach { it.get() }
     }
 
     private fun refreshOpenAi() {

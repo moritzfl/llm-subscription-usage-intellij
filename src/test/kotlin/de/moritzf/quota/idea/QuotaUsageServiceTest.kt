@@ -10,8 +10,11 @@ import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.opencode.OpenCodeQuotaClient
 import de.moritzf.quota.opencode.OpenCodeQuotaException
 import de.moritzf.quota.opencode.OpenCodeUsageWindow
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
@@ -219,6 +222,45 @@ class QuotaUsageServiceTest {
         }
     }
 
+    @Test
+    fun refreshNowRefreshesProvidersConcurrently() {
+        val started = CountDownLatch(2)
+        val release = CountDownLatch(1)
+        val openAiProvider = OpenAiQuotaProvider(
+            quotaFetcher = { _, _ ->
+                started.countDown()
+                assertTrue(started.await(2, TimeUnit.SECONDS))
+                release.await(2, TimeUnit.SECONDS)
+                OpenAiCodexQuota()
+            },
+            accessTokenProvider = { "token" },
+            accountIdProvider = { "account-1" },
+        )
+        val openCodeClient = object : RecordingOpenCodeQuotaClient() {
+            override fun fetchQuota(sessionCookie: String, workspaceId: String): OpenCodeQuota {
+                started.countDown()
+                assertTrue(started.await(2, TimeUnit.SECONDS))
+                release.countDown()
+                return super.fetchQuota(sessionCookie, workspaceId)
+            }
+        }
+        val openCodeProvider = OpenCodeQuotaProvider(
+            openCodeClient = openCodeClient,
+            openCodeCookieProvider = { "cookie-a" },
+            settingsProvider = { null },
+        )
+        val service = createService(openAiProvider = openAiProvider, openCodeProvider = openCodeProvider)
+
+        try {
+            service.refreshNowBlocking()
+
+            assertNotNull(service.getLastQuota())
+            assertNotNull(service.getLastOpenCodeQuota())
+        } finally {
+            service.dispose()
+        }
+    }
+
     private fun createService(
         openAiProvider: OpenAiQuotaProvider = OpenAiQuotaProvider(
             quotaFetcher = { _, _ -> OpenAiCodexQuota() },
@@ -239,7 +281,7 @@ class QuotaUsageServiceTest {
         )
     }
 
-    private class RecordingOpenCodeQuotaClient : OpenCodeQuotaClient() {
+    private open class RecordingOpenCodeQuotaClient : OpenCodeQuotaClient() {
         val discoveredCookies = mutableListOf<String>()
         val fetchCalls = mutableListOf<String>()
         var discoverCount: Int = 0
