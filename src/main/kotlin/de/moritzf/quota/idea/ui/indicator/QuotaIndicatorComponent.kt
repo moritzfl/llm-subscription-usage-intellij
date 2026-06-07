@@ -429,8 +429,8 @@ internal fun buildKimiTooltipText(quota: KimiQuota?, error: String?): String {
     if (quota == null) return "Kimi quota: loading"
     val plan = quota.plan.ifBlank { "Kimi Code" }
     val parts = mutableListOf<String>()
-    quota.sessionUsage?.let { parts.add("Session: ${it.used}/${it.limit} • ${QuotaUiUtil.formatResetCompact(it.resetsAt) ?: "unknown"}") }
-    quota.totalUsage?.let { parts.add("Overall: ${it.used}/${it.limit} • ${QuotaUiUtil.formatResetCompact(it.resetsAt) ?: "unknown"}") }
+    quota.sessionUsage?.let { parts.add("Session: ${clampPercent(it.usagePercent.roundToInt())}% • ${QuotaUiUtil.formatResetCompact(it.resetsAt) ?: "unknown"}") }
+    quota.totalUsage?.let { parts.add("Overall: ${clampPercent(it.usagePercent.roundToInt())}% • ${QuotaUiUtil.formatResetCompact(it.resetsAt) ?: "unknown"}") }
     if (parts.isEmpty()) return "$plan: no usage data"
     return "$plan:\n${parts.joinToString("\n")}"
 }

@@ -75,7 +75,7 @@ internal class KimiPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout.T
     private fun WindowBlockPanel.updateKimi(window: KimiUsageWindow, label: String) {
         val percent = clampPercent(window.usagePercent.roundToInt())
         val resetText = QuotaUiUtil.formatReset(window.resetsAt)
-        var info = "${window.used}/${window.limit} used"
+        var info = "$percent% used"
         if (resetText != null) info += " - $resetText"
         update("$label limit", info, percent)
     }
