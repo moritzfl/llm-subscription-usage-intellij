@@ -1,7 +1,6 @@
 package de.moritzf.quota.idea.common
 
 import de.moritzf.quota.idea.settings.QuotaSettingsState
-import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Common contract for quota data providers.
