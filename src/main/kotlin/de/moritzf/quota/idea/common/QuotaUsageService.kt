@@ -38,17 +38,17 @@ class QuotaUsageService(
         runCatching { QuotaSettingsState.getInstance() }.getOrNull()
     },
     private val scheduler: ScheduledExecutorService = AppExecutorUtil.getAppScheduledExecutorService(),
-    private val updatePublisher: (OpenAiCodexQuota?, String?, OpenCodeQuota?, String?, OllamaQuota?, String?, ZaiQuota?, String?, MiniMaxQuota?, String?, KimiQuota?, String?, CursorQuota?, String?) -> Unit = { quota, error, openCodeQuota, openCodeError, ollamaQuota, ollamaError, zaiQuota, zaiError, miniMaxQuota, miniMaxError, kimiQuota, kimiError, cursorQuota, cursorError ->
+    private val updatePublisher: (QuotaUsageSnapshot) -> Unit = { snapshot ->
         ApplicationManager.getApplication().invokeLater {
             val publisher = ApplicationManager.getApplication().messageBus
                 .syncPublisher(QuotaUsageListener.TOPIC)
-            publisher.onQuotaUpdated(quota, error)
-            publisher.onOpenCodeQuotaUpdated(openCodeQuota, openCodeError)
-            publisher.onOllamaQuotaUpdated(ollamaQuota, ollamaError)
-            publisher.onZaiQuotaUpdated(zaiQuota, zaiError)
-            publisher.onMiniMaxQuotaUpdated(miniMaxQuota, miniMaxError)
-            publisher.onKimiQuotaUpdated(kimiQuota, kimiError)
-            publisher.onCursorQuotaUpdated(cursorQuota, cursorError)
+            publisher.onQuotaUpdated(snapshot.openAiQuota, snapshot.openAiError)
+            publisher.onOpenCodeQuotaUpdated(snapshot.openCodeQuota, snapshot.openCodeError)
+            publisher.onOllamaQuotaUpdated(snapshot.ollamaQuota, snapshot.ollamaError)
+            publisher.onZaiQuotaUpdated(snapshot.zaiQuota, snapshot.zaiError)
+            publisher.onMiniMaxQuotaUpdated(snapshot.miniMaxQuota, snapshot.miniMaxError)
+            publisher.onKimiQuotaUpdated(snapshot.kimiQuota, snapshot.kimiError)
+            publisher.onCursorQuotaUpdated(snapshot.cursorQuota, snapshot.cursorError)
             ActivityTracker.getInstance().inc()
         }
     },
@@ -417,14 +417,25 @@ class QuotaUsageService(
     }
 
     private fun publishUpdate() {
-        updatePublisher(
-            getLastQuota(), getLastError(),
-            getLastOpenCodeQuota(), getLastOpenCodeError(),
-            getLastOllamaQuota(), getLastOllamaError(),
-            getLastZaiQuota(), getLastZaiError(),
-            getLastMiniMaxQuota(), getLastMiniMaxError(),
-            getLastKimiQuota(), getLastKimiError(),
-            getLastCursorQuota(), getLastCursorError(),
+        updatePublisher(currentSnapshot())
+    }
+
+    private fun currentSnapshot(): QuotaUsageSnapshot {
+        return QuotaUsageSnapshot(
+            openAiQuota = getLastQuota(),
+            openAiError = getLastError(),
+            openCodeQuota = getLastOpenCodeQuota(),
+            openCodeError = getLastOpenCodeError(),
+            ollamaQuota = getLastOllamaQuota(),
+            ollamaError = getLastOllamaError(),
+            zaiQuota = getLastZaiQuota(),
+            zaiError = getLastZaiError(),
+            miniMaxQuota = getLastMiniMaxQuota(),
+            miniMaxError = getLastMiniMaxError(),
+            kimiQuota = getLastKimiQuota(),
+            kimiError = getLastKimiError(),
+            cursorQuota = getLastCursorQuota(),
+            cursorError = getLastCursorError(),
         )
     }
 
