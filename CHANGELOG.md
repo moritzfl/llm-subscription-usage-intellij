@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.17.3] - 2026-06-07
+- Preserve original raw provider responses in settings after IDE restarts
+- Refresh quota providers concurrently while still waiting for all providers to finish
+- Added explicit Jsoup dependency and shared form encoding logic
+- Reduced duplicated provider state and quota refresh plumbing
+
 ## [0.17.2] - 2026-06-07
 - Fixed OpenCode Zen credit balances not displaying when no OpenCode Go usage windows are available
 - Fixed OpenCode Zen-only responses that return `null` Go quota data so billing credits still display correctly
