@@ -6,6 +6,7 @@ import de.moritzf.quota.cursor.CursorQuotaClient
 import de.moritzf.quota.cursor.CursorQuotaException
 import de.moritzf.quota.idea.cursor.CursorCredentialsStore
 import de.moritzf.quota.idea.settings.QuotaSettingsState
+import de.moritzf.quota.shared.JsonSupport
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -23,7 +24,11 @@ class CursorQuotaProvider(
 
     fun getLastQuota(): CursorQuota? = lastQuotaRef.get()
     fun getLastError(): String? = lastErrorRef.get()
-    fun getLastRawJson(): String? = lastRawJsonRef.get()
+    override fun getLastRawJson(): String? {
+        lastRawJsonRef.get()?.let { return it }
+        val quota = lastQuotaRef.get() ?: return null
+        return runCatching { JsonSupport.json.encodeToString(CursorQuota.serializer(), quota) }.getOrNull()
+    }
 
     override fun refresh() {
         val auth = credentialsProvider()

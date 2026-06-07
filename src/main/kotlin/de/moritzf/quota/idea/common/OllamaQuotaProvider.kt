@@ -5,6 +5,7 @@ import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.ollama.OllamaQuotaClient
 import de.moritzf.quota.ollama.OllamaQuotaException
+import de.moritzf.quota.shared.JsonSupport
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -23,7 +24,11 @@ class OllamaQuotaProvider(
 
     fun getLastQuota(): OllamaQuota? = lastQuotaRef.get()
     fun getLastError(): String? = lastErrorRef.get()
-    fun getLastRawJson(): String? = lastRawJsonRef.get()
+    override fun getLastRawJson(): String? {
+        lastRawJsonRef.get()?.let { return it }
+        val quota = lastQuotaRef.get() ?: return null
+        return runCatching { JsonSupport.json.encodeToString(OllamaQuota.serializer(), quota) }.getOrNull()
+    }
 
     override fun refresh() {
         val sessionCookie = sessionCookieProvider()

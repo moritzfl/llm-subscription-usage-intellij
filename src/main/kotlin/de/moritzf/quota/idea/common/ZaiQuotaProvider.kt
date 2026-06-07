@@ -5,6 +5,7 @@ import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.zai.ZaiQuotaClient
 import de.moritzf.quota.zai.ZaiQuotaException
+import de.moritzf.quota.shared.JsonSupport
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -22,7 +23,11 @@ class ZaiQuotaProvider(
 
     fun getLastQuota(): ZaiQuota? = lastQuotaRef.get()
     fun getLastError(): String? = lastErrorRef.get()
-    fun getLastRawJson(): String? = lastRawJsonRef.get()
+    override fun getLastRawJson(): String? {
+        lastRawJsonRef.get()?.let { return it }
+        val quota = lastQuotaRef.get() ?: return null
+        return runCatching { JsonSupport.json.encodeToString(ZaiQuota.serializer(), quota) }.getOrNull()
+    }
 
     override fun refresh() {
         val apiKey = apiKeyProvider()

@@ -7,6 +7,7 @@ import de.moritzf.quota.minimax.MiniMaxQuotaClient
 import de.moritzf.quota.minimax.MiniMaxQuotaException
 import de.moritzf.quota.minimax.MiniMaxRegion
 import de.moritzf.quota.minimax.MiniMaxRegionPreference
+import de.moritzf.quota.shared.JsonSupport
 import java.util.concurrent.atomic.AtomicReference
 
 class MiniMaxQuotaProvider(
@@ -20,7 +21,11 @@ class MiniMaxQuotaProvider(
 
     fun getLastQuota(): MiniMaxQuota? = lastQuotaRef.get()
     fun getLastError(): String? = lastErrorRef.get()
-    fun getLastRawJson(): String? = lastRawJsonRef.get()
+    override fun getLastRawJson(): String? {
+        lastRawJsonRef.get()?.let { return it }
+        val quota = lastQuotaRef.get() ?: return null
+        return runCatching { JsonSupport.json.encodeToString(MiniMaxQuota.serializer(), quota) }.getOrNull()
+    }
 
     override fun refresh() {
         val apiKey = MiniMaxApiKeyStore.getInstance().loadBlocking()

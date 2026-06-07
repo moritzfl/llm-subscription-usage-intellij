@@ -11,7 +11,6 @@ import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorSource
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.ollama.OllamaQuota
-import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.kimi.KimiQuota
@@ -88,43 +87,23 @@ class QuotaUsageService(
 
     fun getLastOllamaQuota(): OllamaQuota? = ollamaProvider?.getLastQuota()
     fun getLastOllamaError(): String? = ollamaProvider?.getLastError()
-    fun getLastOllamaResponseJson(): String? {
-        ollamaProvider?.getLastRawJson()?.let { return it }
-        val quota = ollamaProvider?.getLastQuota() ?: return null
-        return runCatching { JsonSupport.json.encodeToString(OllamaQuota.serializer(), quota) }.getOrNull()
-    }
+    fun getLastOllamaResponseJson(): String? = ollamaProvider?.getLastRawJson()
 
     fun getLastZaiQuota(): ZaiQuota? = zaiProvider?.getLastQuota()
     fun getLastZaiError(): String? = zaiProvider?.getLastError()
-    fun getLastZaiResponseJson(): String? {
-        zaiProvider?.getLastRawJson()?.let { return it }
-        val quota = zaiProvider?.getLastQuota() ?: return null
-        return runCatching { JsonSupport.json.encodeToString(ZaiQuota.serializer(), quota) }.getOrNull()
-    }
+    fun getLastZaiResponseJson(): String? = zaiProvider?.getLastRawJson()
 
     fun getLastMiniMaxQuota(): MiniMaxQuota? = miniMaxProvider?.getLastQuota()
     fun getLastMiniMaxError(): String? = miniMaxProvider?.getLastError()
-    fun getLastMiniMaxResponseJson(): String? {
-        miniMaxProvider?.getLastRawJson()?.let { return it }
-        val quota = miniMaxProvider?.getLastQuota() ?: return null
-        return runCatching { JsonSupport.json.encodeToString(MiniMaxQuota.serializer(), quota) }.getOrNull()
-    }
+    fun getLastMiniMaxResponseJson(): String? = miniMaxProvider?.getLastRawJson()
 
     fun getLastKimiQuota(): KimiQuota? = kimiProvider?.getLastQuota()
     fun getLastKimiError(): String? = kimiProvider?.getLastError()
-    fun getLastKimiResponseJson(): String? {
-        kimiProvider?.getLastRawJson()?.let { return it }
-        val quota = kimiProvider?.getLastQuota() ?: return null
-        return runCatching { JsonSupport.json.encodeToString(KimiQuota.serializer(), quota) }.getOrNull()
-    }
+    fun getLastKimiResponseJson(): String? = kimiProvider?.getLastRawJson()
 
     fun getLastCursorQuota(): CursorQuota? = cursorProvider?.getLastQuota()
     fun getLastCursorError(): String? = cursorProvider?.getLastError()
-    fun getLastCursorResponseJson(): String? {
-        cursorProvider?.getLastRawJson()?.let { return it }
-        val quota = cursorProvider?.getLastQuota() ?: return null
-        return runCatching { JsonSupport.json.encodeToString(CursorQuota.serializer(), quota) }.getOrNull()
-    }
+    fun getLastCursorResponseJson(): String? = cursorProvider?.getLastRawJson()
 
     internal fun getEffectiveIndicatorData(): QuotaIndicatorData {
         val settings = settingsProvider()

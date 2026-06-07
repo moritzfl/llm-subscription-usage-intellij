@@ -10,6 +10,7 @@ interface QuotaProvider {
     val type: QuotaProviderType
     fun refresh()
     fun clearData(error: String? = null)
+    fun getLastRawJson(): String? = null
     fun hydrateFromCache(settings: QuotaSettingsState) {}
     fun persistToCache(settings: QuotaSettingsState) {}
 }

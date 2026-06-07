@@ -28,7 +28,7 @@ class OpenCodeQuotaProvider(
 
     fun getLastQuota(): OpenCodeQuota? = lastQuotaRef.get()
     fun getLastError(): String? = lastErrorRef.get()
-    fun getLastRawJson(): String? = lastRawJsonRef.get()
+    override fun getLastRawJson(): String? = lastRawJsonRef.get()
 
     override fun refresh() {
         val cookie = openCodeCookieProvider()
