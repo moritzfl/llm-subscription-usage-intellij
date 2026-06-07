@@ -41,7 +41,7 @@ Track your LLM subscription usage quotas directly in IntelliJ IDEA — in the st
 - Next reset times
 - Last refresh timestamps
 
-**MCP Integration** — Exposes quota data to IntelliJ's built-in chat via the Model Context Protocol, so you can query usage without switching contexts. It can also sync the currently running IntelliJ MCP server URL into JSON config files for local AI clients.
+**MCP Integration** — Exposes quota data to IntelliJ's built-in chat via the Model Context Protocol, so you can query usage without switching contexts. It can also sync the currently running IntelliJ MCP server URL into JSON/TOML/YAML config files for local AI clients.
 
 **Customizable Display** — Drag-and-drop to reorder providers in the popup. Choose whether the indicator lives in the status bar or main toolbar.
 
@@ -63,7 +63,17 @@ Or download a release ZIP from the [GitHub releases page](https://github.com/mor
 2. Login or add your credentials for your LLM Providers
 3. Return to IDE — the status bar widget shows your quota
 4. Click the widget for a detailed popup
-5. Optional: enable `Sync IntelliJ MCP server URL to JSON files` to keep local AI client MCP configs pointed at IntelliJ's current MCP endpoint
+5. Optional: enable `Sync IntelliJ MCP server URL to JSON/TOML/YAML files` to keep local AI client MCP configs pointed at IntelliJ's current MCP endpoint
+
+---
+
+## MCP Server URL Sync
+
+The plugin can keep JSON, TOML, and YAML config files up to date with IntelliJ's current MCP server URL. Enable `Sync IntelliJ MCP server URL to JSON/TOML/YAML files` in settings, choose one or more config files, and select an existing string property to update.
+
+This is useful because IntelliJ's MCP server port can change. Tools like OpenCode, Codex, or other local AI clients often store the IntelliJ MCP server URL in their own config files. Server URL sync keeps those configs pointed at the active IntelliJ MCP endpoint automatically, so they continue to connect after the port changes.
+
+The settings page shows whether IntelliJ's MCP server is currently running, installed but stopped, disabled, or unavailable.
 
 ---
 
@@ -87,7 +97,7 @@ Or download a release ZIP from the [GitHub releases page](https://github.com/mor
 
 ### MCP Server URL Sync
 
-The plugin can keep JSON config files up to date with IntelliJ's current MCP server URL. Enable `Sync IntelliJ MCP server URL to JSON files` in settings, choose one or more JSON files, and select an existing string or `null` property to update. The settings page shows whether IntelliJ's MCP server is currently running, installed but stopped, disabled, or unavailable.
+![MCP server sync settings](docs/mcp-server-sync.png)
 
 ### Settings
 
