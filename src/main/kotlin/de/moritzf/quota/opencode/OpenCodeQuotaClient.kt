@@ -64,15 +64,16 @@ open class OpenCodeQuotaClient(
             }
             OpenCodeQuota()
         }
-        runCatching {
-            fetchBillingInfo(sessionCookie, workspaceId)?.balance
+        val billingResponse = runCatching {
+            fetchBillingInfo(sessionCookie, workspaceId)
         }.onFailure { exception ->
             LOG.warning("Could not fetch OpenCode billing balance: ${exception.message}")
-        }.getOrNull()?.let { balance ->
-            quota.availableBalance = balance
-        }
+        }.getOrNull()
+        quota.availableBalance = billingResponse?.info?.balance
         quota.fetchedAt = Clock.System.now()
-        quota.rawJson = body
+        quota.rawGoJson = body
+        quota.rawBillingJson = billingResponse?.rawBody
+        quota.rawJson = buildRawResponse(body, billingResponse?.rawBody)
         return quota
     }
 
@@ -242,7 +243,7 @@ open class OpenCodeQuotaClient(
     /**
      * Fetches billing info so we can surface the available workspace balance next to Go limits or by itself.
      */
-    private fun fetchBillingInfo(sessionCookie: String, workspaceId: String): OpenCodeBillingInfo? {
+    private fun fetchBillingInfo(sessionCookie: String, workspaceId: String): OpenCodeBillingResponse? {
         val argsJson = """["$workspaceId"]"""
         val encodedArgs = java.net.URLEncoder.encode(argsJson, Charsets.UTF_8)
         val uri = URI.create("${endpoint}?id=$BILLING_INFO_FUNCTION_ID&args=$encodedArgs")
@@ -286,7 +287,7 @@ open class OpenCodeQuotaClient(
             )
         }
 
-        return parseBillingInfoResponse(body)
+        return OpenCodeBillingResponse(parseBillingInfoResponse(body), body)
     }
 
     companion object {
@@ -380,10 +381,23 @@ open class OpenCodeQuotaClient(
                     body.trim().endsWith(",null)"))
         }
 
+        fun buildRawResponse(goBody: String?, billingBody: String?): String? {
+            val sections = listOfNotNull(
+                goBody?.takeIf { it.isNotBlank() }?.let { "OpenCode Go response:\n$it" },
+                billingBody?.takeIf { it.isNotBlank() }?.let { "OpenCode billing response:\n$it" },
+            )
+            return sections.takeIf { it.isNotEmpty() }?.joinToString("\n\n")
+        }
+
     }
 }
 
 @Serializable
 internal data class OpenCodeBillingInfo(
     val balance: Long? = null,
+)
+
+private data class OpenCodeBillingResponse(
+    val info: OpenCodeBillingInfo,
+    val rawBody: String,
 )

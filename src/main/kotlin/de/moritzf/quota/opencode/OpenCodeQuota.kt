@@ -17,6 +17,8 @@ data class OpenCodeQuota(
     var availableBalance: Long? = null,
     var fetchedAt: Instant? = null,
     @Transient var rawJson: String? = null,
+    @Transient var rawGoJson: String? = null,
+    @Transient var rawBillingJson: String? = null,
 ) {
     fun hasUsageState(): Boolean {
         return rollingUsage != null || weeklyUsage != null || monthlyUsage != null

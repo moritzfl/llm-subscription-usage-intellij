@@ -89,6 +89,9 @@ class OpenCodeQuotaProvider(
 
     override fun hydrateFromCache(settings: QuotaSettingsState) {
         val cached = QuotaSnapshotCache.decodeOpenCodeQuota(settings.cachedOpenCodeQuotaJson)
+        if (cached?.rawJson == null) {
+            cached?.rawJson = OpenCodeQuotaClient.buildRawResponse(cached.rawGoJson, cached.rawBillingJson)
+        }
         lastQuotaRef.set(cached)
         lastRawJsonRef.set(cached?.rawJson)
     }

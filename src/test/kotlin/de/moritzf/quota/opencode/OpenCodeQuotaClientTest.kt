@@ -114,13 +114,15 @@ class OpenCodeQuotaClientTest {
 
     @Test
     fun fetchQuotaFallsBackToBillingForNullGoResponse() {
+        val goResponse = ";0x0000002e;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[],null)"
+        val billingResponse = ";0x00000040;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[]," +
+            "(\$R=>\$R[0]={balance:1234560000,customerID:\"cus_123\"})(\$R[\"server-fn:1\"]))"
         val client = OpenCodeQuotaClient(
             httpClient = FakeHttpClient(
                 "<script type=\"module\" src=\"/_build/assets/app.js\"></script>",
                 "const queryLiteSubscription_query=createServerReference(\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\")",
-                ";0x0000002e;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[],null)",
-                ";0x00000040;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[]," +
-                    "(\$R=>\$R[0]={balance:1234560000,customerID:\"cus_123\"})(\$R[\"server-fn:1\"]))",
+                goResponse,
+                billingResponse,
             ),
             endpoint = URI.create("https://opencode.test/_server"),
         )
@@ -129,6 +131,22 @@ class OpenCodeQuotaClientTest {
 
         assertTrue(!quota.hasUsageState())
         assertEquals(1234560000L, quota.availableBalance)
+        assertEquals(goResponse, quota.rawGoJson)
+        assertEquals(billingResponse, quota.rawBillingJson)
+        assertEquals(
+            "OpenCode Go response:\n$goResponse\n\nOpenCode billing response:\n$billingResponse",
+            quota.rawJson,
+        )
+    }
+
+    @Test
+    fun buildsCombinedRawResponseFromGoAndBillingBodies() {
+        assertEquals(
+            "OpenCode Go response:\ngo\n\nOpenCode billing response:\nbilling",
+            OpenCodeQuotaClient.buildRawResponse("go", "billing"),
+        )
+        assertEquals("OpenCode Go response:\ngo", OpenCodeQuotaClient.buildRawResponse("go", null))
+        assertEquals("OpenCode billing response:\nbilling", OpenCodeQuotaClient.buildRawResponse(null, "billing"))
     }
 
     private class FakeHttpClient(private vararg val bodies: String) : HttpClient() {
