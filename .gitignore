@@ -100,3 +100,6 @@ http-client.private.env.json
 /.idea/kotlinc.xml
 /.idea/claudeCodeTabState.xml
 /.opencode/
+/.ai/
+/.idea/.name
+/.idea/php.xml
