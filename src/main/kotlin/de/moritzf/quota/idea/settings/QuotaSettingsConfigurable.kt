@@ -19,6 +19,7 @@ import de.moritzf.quota.idea.mcp.McpServerSyncTarget
 import de.moritzf.quota.idea.mcp.McpServerUrlSyncService
 import de.moritzf.quota.idea.mcp.McpServerStatusState
 import de.moritzf.quota.idea.mcp.McpServerUrlResolver
+import de.moritzf.quota.idea.openai.OpenAiProxyService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.*
 import de.moritzf.quota.idea.ui.settings.ProviderReorderPanel
@@ -173,6 +174,7 @@ class QuotaSettingsConfigurable : Configurable {
                     openAiPanel.updateAccountFields()
                     openAiPanel.updateResponseArea()
                     openAiPanel.updateAuthUi()
+                    openAiPanel.updateProxyStatus()
                 }, ModalityState.stateForComponent(currentPanel))
             }
 
@@ -382,6 +384,8 @@ class QuotaSettingsConfigurable : Configurable {
                 val normalizedMcpTargets = normalizeTargets(mcpSyncTargets)
                 val mcpSyncChanged = mcpSyncCheckBox?.isSelected != state.syncIntellijMcpServerUrl
                 val mcpTargetsChanged = normalizedMcpTargets != normalizeTargets(state.mcpServerSyncTargets)
+                val openAiProxyEnabledChanged = openAiPanel.openAiProxyEnabledCheckBox.isSelected != state.openAiProxyEnabled
+                val openAiProxyPortChanged = openAiPanel.proxyPort() != state.openAiProxyPort
                 if (locationChanged) {
                     state.setLocation(selectedLocation)
                 }
@@ -404,11 +408,14 @@ class QuotaSettingsConfigurable : Configurable {
                 }
                 state.syncIntellijMcpServerUrl = mcpSyncCheckBox?.isSelected == true
                 state.mcpServerSyncTargets = normalizedMcpTargets.toMutableList()
-                if (locationChanged || displayModeChanged || sourceChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged || ollamaPopupVisibilityChanged || zaiPopupVisibilityChanged || miniMaxPopupVisibilityChanged || kimiPopupVisibilityChanged || cursorPopupVisibilityChanged || miniMaxRegionChanged || providerOrderChanged || mcpSyncChanged || mcpTargetsChanged) {
+                state.openAiProxyEnabled = openAiPanel.openAiProxyEnabledCheckBox.isSelected
+                state.openAiProxyPort = OpenAiProxyService.sanitizePort(openAiPanel.proxyPort())
+                if (locationChanged || displayModeChanged || sourceChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged || ollamaPopupVisibilityChanged || zaiPopupVisibilityChanged || miniMaxPopupVisibilityChanged || kimiPopupVisibilityChanged || cursorPopupVisibilityChanged || miniMaxRegionChanged || providerOrderChanged || mcpSyncChanged || mcpTargetsChanged || openAiProxyEnabledChanged || openAiProxyPortChanged) {
                     ApplicationManager.getApplication().messageBus
                         .syncPublisher(QuotaSettingsListener.TOPIC)
                         .onSettingsChanged()
                     McpServerUrlSyncService.getInstance().reloadFromSettings()
+                    OpenAiProxyService.getInstance().reloadFromSettings()
                     if (state.syncIntellijMcpServerUrl) {
                         McpServerUrlSyncService.getInstance().syncNowAsync()
                     }
@@ -435,6 +442,7 @@ class QuotaSettingsConfigurable : Configurable {
                 openAiPanel.updateAuthUi()
                 openAiPanel.updateAccountFields()
                 openAiPanel.updateResponseArea()
+                openAiPanel.updateProxyFields()
                 openCodePanel.updateOpenCodeResponseArea()
                 openCodePanel.updateOpenCodeFields()
                 ollamaPanel.updateOllamaFields()
@@ -467,7 +475,9 @@ class QuotaSettingsConfigurable : Configurable {
                     miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference() ||
                     providerReorderPanel?.getOrder()?.joinToString(",") { it.id } != state.providerOrder ||
                     mcpSyncCheckBox?.isSelected != state.syncIntellijMcpServerUrl ||
-                    normalizeTargets(mcpSyncTargets) != normalizeTargets(state.mcpServerSyncTargets)
+                    normalizeTargets(mcpSyncTargets) != normalizeTargets(state.mcpServerSyncTargets) ||
+                    openAiPanel.openAiProxyEnabledCheckBox.isSelected != state.openAiProxyEnabled ||
+                    openAiPanel.proxyPort() != state.openAiProxyPort
             }
         }.apply {
             preferredFocusedComponent = locationComboBox

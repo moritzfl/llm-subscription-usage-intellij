@@ -10,20 +10,23 @@
     <depends>com.intellij.modules.platform</depends>
     <depends optional="true" config-file="openai-usage-quota-with-mcp.xml">com.intellij.mcpServer</depends>
 
+    <resource-bundle>messages.OpenAiUsageQuotaBundle</resource-bundle>
+
     <extensions defaultExtensionNs="com.intellij">
         <applicationConfigurable
                 id="openai.usage.quota.settings"
-                displayName="LLM Subscription Usage"
+                key="settings.displayName"
+                bundle="messages.OpenAiUsageQuotaBundle"
                 parentId="tools"
                 instance="de.moritzf.quota.idea.settings.QuotaSettingsConfigurable"/>
         <postStartupActivity implementation="de.moritzf.quota.idea.mcp.McpServerUrlSyncStartupActivity"/>
+        <postStartupActivity implementation="de.moritzf.quota.idea.openai.OpenAiProxyStartupActivity"/>
         <statusBarWidgetFactory implementation="de.moritzf.quota.idea.ui.toolbar.QuotaStatusBarWidgetFactory" id="openai.usage.quota.widget"/>
     </extensions>
 
     <actions>
         <action id="openai.usage.quota.mainToolbar"
-                class="de.moritzf.quota.idea.ui.toolbar.QuotaMainToolbarAction"
-                text="LLM Subscription Usage">
+                class="de.moritzf.quota.idea.ui.toolbar.QuotaMainToolbarAction">
             <add-to-group group-id="MainToolbarRight"/>
         </action>
     </actions>

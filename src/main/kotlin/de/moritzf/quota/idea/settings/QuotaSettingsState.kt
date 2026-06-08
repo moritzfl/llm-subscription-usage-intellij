@@ -5,6 +5,7 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaSnapshotCache
 import de.moritzf.quota.idea.mcp.McpServerSyncTarget
 import de.moritzf.quota.idea.mcp.McpServerTransport
+import de.moritzf.quota.idea.openai.OpenAiProxyService
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorLocation
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorSource
 import de.moritzf.quota.minimax.MiniMaxRegionPreference
@@ -50,6 +51,8 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var providerOrder: String = DEFAULT_PROVIDER_ORDER
     var syncIntellijMcpServerUrl: Boolean = false
     var mcpServerSyncTargets: MutableList<McpServerSyncTarget> = mutableListOf()
+    var openAiProxyEnabled: Boolean = false
+    var openAiProxyPort: Int = OpenAiProxyService.DEFAULT_PORT
 
     override fun getState(): QuotaSettingsState = this
 
@@ -89,6 +92,8 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
                 transportType = McpServerTransport.fromStorageValue(target.transportType).name,
             )
         }.toMutableList()
+        openAiProxyEnabled = state.openAiProxyEnabled
+        openAiProxyPort = OpenAiProxyService.sanitizePort(state.openAiProxyPort.takeIf { it > 0 } ?: OpenAiProxyService.DEFAULT_PORT)
     }
 
     fun providerOrderList(): List<QuotaProviderType> {

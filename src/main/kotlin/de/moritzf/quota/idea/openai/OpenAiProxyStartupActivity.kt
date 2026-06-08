@@ -1,10 +1,10 @@
-package de.moritzf.quota.idea.mcp
+package de.moritzf.quota.idea.openai
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.ProjectActivity
 
-class McpServerUrlSyncStartupActivity : ProjectActivity {
+class OpenAiProxyStartupActivity : ProjectActivity {
     override suspend fun execute(project: Project) {
-        McpServerUrlSyncService.getInstance().reloadFromSettings()
+        OpenAiProxyService.getInstance().reloadFromSettings()
     }
 }
