@@ -16,13 +16,19 @@ class OpenAiProxyApiKeyStore {
 
     fun loadBlocking(): String? {
         cachedApiKey.get()?.let { return it }
-        val apiKey = try {
-            PasswordSafe.instance.get(attributes)?.getPasswordAsString()?.ifBlank { null }
-        } catch (_: Exception) {
-            null
-        }
+        val apiKey = readPasswordSafe()
         cachedApiKey.set(apiKey)
         return apiKey
+    }
+
+    fun loadFreshBlocking(): String? {
+        val apiKey = readPasswordSafe()
+        cachedApiKey.set(apiKey)
+        return apiKey
+    }
+
+    fun cachedApiKey(): String? {
+        return cachedApiKey.get()
     }
 
     fun ensureApiKeyBlocking(): String {
@@ -36,6 +42,10 @@ class OpenAiProxyApiKeyStore {
         return apiKey
     }
 
+    fun generateApiKeyForEditing(): String {
+        return generateApiKey()
+    }
+
     fun saveBlocking(apiKey: String?) {
         val sanitized = apiKey?.ifBlank { null }
         PasswordSafe.instance.set(attributes, sanitized?.let { Credentials(USER_NAME, it) })
@@ -46,6 +56,14 @@ class OpenAiProxyApiKeyStore {
         val random = ByteArray(32)
         SECURE_RANDOM.nextBytes(random)
         return "sk-quota-${Base64.getUrlEncoder().withoutPadding().encodeToString(random)}"
+    }
+
+    private fun readPasswordSafe(): String? {
+        return try {
+            PasswordSafe.instance.get(attributes)?.getPasswordAsString()?.ifBlank { null }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     companion object {

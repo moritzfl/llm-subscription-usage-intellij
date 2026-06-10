@@ -33,7 +33,12 @@ dependencies {
     implementation(libs.snakeyaml.engine)
     implementation(libs.tomlj)
     implementation(libs.jsoup)
+    implementation(libs.javalin)
+    implementation(libs.jackson.databind)
+    implementation(libs.picocli)
     compileOnly(libs.kotlinx.serialization.json)
+    runtimeOnly(libs.kotlinx.serialization.json)
+    runtimeOnly(libs.kotlinx.coroutines.core)
 
     testImplementation(libs.kotlin.test.junit5)
     testRuntimeOnly(libs.junit4)
@@ -107,6 +112,13 @@ kover {
 tasks {
     test {
         useJUnitPlatform()
+    }
+
+    register<JavaExec>("runStandaloneOpenAiProxy") {
+        group = "application"
+        description = "Runs the OpenAI-compatible proxy without launching an IntelliJ IDE."
+        mainClass.set("de.moritzf.quota.openai.proxy.StandaloneOpenAiProxyKt")
+        classpath = sourceSets.main.get().runtimeClasspath
     }
 
     named("buildSearchableOptions") {

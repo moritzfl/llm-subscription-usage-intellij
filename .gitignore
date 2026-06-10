@@ -103,3 +103,7 @@ http-client.private.env.json
 /.ai/
 /.idea/.name
 /.idea/php.xml
+.env
+.env.*
+!.env.example
+/logs/

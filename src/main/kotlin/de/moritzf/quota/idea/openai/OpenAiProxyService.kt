@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea.openai
 
+import com.aiproxyoauth.util.ApiKeyUtils
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
@@ -7,6 +8,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.util.concurrency.AppExecutorUtil
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.settings.QuotaSettingsListener
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.openai.proxy.OpenAiProxyServer
@@ -25,6 +27,7 @@ class OpenAiProxyService(
     private val lock = Any()
     @Volatile private var server: OpenAiProxyServer? = null
     @Volatile private var runningPort: Int? = null
+    @Volatile private var runningApiKeyFingerprint: String? = null
     @Volatile private var lastError: String? = null
 
     init {
@@ -64,23 +67,27 @@ class OpenAiProxyService(
                 return
             }
 
-            if (server?.isRunning == true && runningPort == port) {
-                lastError = null
-                return
-            }
-
-            stopLocked()
             try {
-                apiKeyStore.ensureApiKeyBlocking()
+                val localApiKey = apiKeyStore.ensureApiKeyBlocking()
+                val localApiKeyFingerprint = ApiKeyUtils.fingerprint(localApiKey)
+                if (server?.isRunning == true && runningPort == port && runningApiKeyFingerprint == localApiKeyFingerprint) {
+                    lastError = null
+                    return
+                }
+
+                stopLocked()
                 val proxyServer = OpenAiProxyServer(
                     port = port,
-                    localApiKeyProvider = { apiKeyStore.loadBlocking() },
+                    localApiKeyProvider = { localApiKey },
                     accessTokenProvider = { authServiceProvider().getAccessTokenBlocking(QuotaProviderType.OPEN_AI) },
                     accountIdProvider = { authServiceProvider().getAccountId(QuotaProviderType.OPEN_AI) },
+                    quotaProvider = { runCatching { QuotaUsageService.getInstance().getLastQuota() }.getOrNull() },
+                    fullRequestLogging = true,
                 )
                 proxyServer.start()
                 server = proxyServer
                 runningPort = port
+                runningApiKeyFingerprint = localApiKeyFingerprint
                 lastError = null
                 LOG.info("OpenAI proxy started at ${localBaseUrl(port)}")
             } catch (exception: Exception) {
@@ -95,6 +102,7 @@ class OpenAiProxyService(
         server?.stop()
         server = null
         runningPort = null
+        runningApiKeyFingerprint = null
     }
 
     override fun dispose() {
