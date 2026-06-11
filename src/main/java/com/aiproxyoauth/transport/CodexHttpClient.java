@@ -1,6 +1,6 @@
 package com.aiproxyoauth.transport;
 
-import com.aiproxyoauth.auth.AuthManager;
+import com.aiproxyoauth.auth.CredentialsProvider;
 import com.aiproxyoauth.config.ServerConfig;
 import com.aiproxyoauth.logging.RequestLogger;
 
@@ -17,19 +17,19 @@ import java.util.concurrent.Executors;
 public class CodexHttpClient {
 
     private final HttpClient httpClient;
-    private final AuthManager authManager;
+    private final CredentialsProvider credentialsProvider;
     private final String baseUrl;
     private final RequestLogger requestLogger;
 
-    public CodexHttpClient(ServerConfig config, AuthManager authManager) {
+    public CodexHttpClient(ServerConfig config, CredentialsProvider credentialsProvider) {
         this(config, HttpClient.newBuilder()
                 .executor(Executors.newVirtualThreadPerTaskExecutor())
                 .followRedirects(HttpClient.Redirect.NORMAL)
-                .build(), authManager);
+                .build(), credentialsProvider);
     }
 
-    public CodexHttpClient(ServerConfig config, HttpClient httpClient, AuthManager authManager) {
-        this.authManager = authManager;
+    public CodexHttpClient(ServerConfig config, HttpClient httpClient, CredentialsProvider credentialsProvider) {
+        this.credentialsProvider = credentialsProvider;
         this.baseUrl = config.baseUrl();
         this.httpClient = httpClient;
         this.requestLogger = new RequestLogger(config.fullRequestLogging(), Path.of(config.requestLogDir()));
@@ -49,8 +49,16 @@ public class CodexHttpClient {
                                              String requestId,
                                              String promptCacheKey) throws Exception {
         String logRequestId = requestId != null ? requestId : requestLogger.nextRequestId();
-        HttpRequest request = buildRequest(path, method, body, extraHeaders, promptCacheKey, logRequestId);
-        HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        HttpResponse<InputStream> response = httpClient.send(
+                buildRequest(path, method, body, extraHeaders, promptCacheKey, logRequestId),
+                HttpResponse.BodyHandlers.ofInputStream());
+        if (response.statusCode() == 401 && refreshAfterUnauthorized()) {
+            // Stream body of the rejected response is unused; discard it before retrying.
+            drainQuietly(response);
+            response = httpClient.send(
+                    buildRequest(path, method, body, extraHeaders, promptCacheKey, logRequestId),
+                    HttpResponse.BodyHandlers.ofInputStream());
+        }
         requestLogger.logUpstreamResponse(logRequestId, response.statusCode(), responseHeaders(response),
                 "[streaming body omitted]");
         return response;
@@ -59,10 +67,40 @@ public class CodexHttpClient {
     public HttpResponse<String> requestString(String path, String method, String body,
                                                Map<String, String> extraHeaders) throws Exception {
         String requestId = requestLogger.nextRequestId();
-        HttpRequest request = buildRequest(path, method, body, extraHeaders, null, requestId);
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = httpClient.send(
+                buildRequest(path, method, body, extraHeaders, null, requestId),
+                HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() == 401 && refreshAfterUnauthorized()) {
+            response = httpClient.send(
+                    buildRequest(path, method, body, extraHeaders, null, requestId),
+                    HttpResponse.BodyHandlers.ofString());
+        }
         requestLogger.logUpstreamResponse(requestId, response.statusCode(), responseHeaders(response), response.body());
         return response;
+    }
+
+    /**
+     * Asks the credentials provider to refresh after an upstream 401. The refresh itself is
+     * owned by the provider (the IDE plugin routes it to its secure-storage auth service);
+     * the proxy only triggers it. Returns false if the refresh itself failed, so the caller
+     * surfaces the original 401 rather than looping.
+     */
+    private boolean refreshAfterUnauthorized() {
+        try {
+            credentialsProvider.refreshAfterUnauthorized();
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static void drainQuietly(HttpResponse<InputStream> response) {
+        try (InputStream body = response.body()) {
+            if (body != null) {
+                body.readAllBytes();
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     private HttpRequest buildRequest(String path, String method, String body,
@@ -70,7 +108,7 @@ public class CodexHttpClient {
                                      String promptCacheKey,
                                      String requestId) throws Exception {
         String targetUrl = UrlResolver.resolveTargetUrl(path, baseUrl);
-        Map<String, String> authHeaders = authManager.getAuthHeaders();
+        Map<String, String> authHeaders = credentialsProvider.getAuthHeaders();
         Map<String, String> loggedHeaders = new LinkedHashMap<>();
 
         HttpRequest.Builder builder = HttpRequest.newBuilder()

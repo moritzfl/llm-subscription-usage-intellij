@@ -1115,6 +1115,58 @@ class OpenAiProxyServerTest {
         }
     }
 
+    @Test
+    fun refreshesTokenAndRetriesOnceAfterUpstream401() {
+        TestUpstream(
+            responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT,
+            failFirstRequests = 1,
+            failStatus = 401,
+        ).use { upstream ->
+            val tokens = ArrayDeque(listOf("stale-token", "fresh-token"))
+            var refreshedWith: String? = null
+            val port = freePort()
+            val proxy = TestProxy(
+                port = port,
+                server = OpenAiProxyServer(
+                    port = port,
+                    localApiKeyProvider = { "local-key" },
+                    accessTokenProvider = { tokens.first() },
+                    accountIdProvider = { "account-1" },
+                    tokenRefresher = { stale ->
+                        refreshedWith = stale
+                        if (tokens.size > 1) tokens.removeFirst()
+                    },
+                    upstreamBaseUri = upstream.baseUri,
+                ),
+            )
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                // The proxy signalled refresh with the rejected token, then retried.
+                assertEquals("stale-token", refreshedWith)
+                val first = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("Bearer stale-token", first.firstHeader("Authorization"))
+                val retry = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("Bearer fresh-token", retry.firstHeader("Authorization"))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
     private fun newProxy(
         upstreamBaseUri: URI,
         accessToken: String? = "codex-token",

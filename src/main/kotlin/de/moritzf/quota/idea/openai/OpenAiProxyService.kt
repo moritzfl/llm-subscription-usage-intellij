@@ -84,6 +84,11 @@ class OpenAiProxyService(
                     localApiKeyProvider = { localApiKey },
                     accessTokenProvider = { authServiceProvider().getAccessTokenBlocking(QuotaProviderType.OPEN_AI) },
                     accountIdProvider = { authServiceProvider().getAccountId(QuotaProviderType.OPEN_AI) },
+                    // Upstream 401s route back to the IDE auth service, which owns refresh
+                    // and persistence; the stale token lets it dedupe concurrent refreshes.
+                    tokenRefresher = { staleToken ->
+                        authServiceProvider().forceRefreshBlocking(QuotaProviderType.OPEN_AI, staleToken)
+                    },
                     fullRequestLogging = logRequests,
                 )
                 proxyServer.start()

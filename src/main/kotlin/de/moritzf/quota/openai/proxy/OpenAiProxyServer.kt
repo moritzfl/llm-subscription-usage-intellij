@@ -1,7 +1,7 @@
 package de.moritzf.quota.openai.proxy
 
-import com.aiproxyoauth.auth.AuthManager
 import com.aiproxyoauth.auth.AuthRequiredException
+import com.aiproxyoauth.auth.CredentialsProvider
 import com.aiproxyoauth.config.ServerConfig
 import com.aiproxyoauth.model.ModelResolver
 import com.aiproxyoauth.server.ApiKeyStore
@@ -28,6 +28,10 @@ class OpenAiProxyServer(
     private val localApiKeyProvider: () -> String?,
     private val accessTokenProvider: () -> String?,
     private val accountIdProvider: () -> String?,
+    // Invoked when the proxy sees an upstream 401, with the rejected access token. The
+    // embedder owns the actual refresh (e.g. the IDE's secure-storage auth service); the
+    // proxy only signals that a refresh is needed. Default: no-op.
+    private val tokenRefresher: (staleAccessToken: String?) -> Unit = {},
     private val httpClient: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(30))
         .build(),
@@ -56,8 +60,8 @@ class OpenAiProxyServer(
         try {
             val models = ADVERTISED_MODELS
             val config = serverConfig(localApiKey, models)
-            val authManager = ProviderAuthManager(config, httpClient, accessTokenProvider, accountIdProvider)
-            val client = SanitizingCodexHttpClient(config, httpClient, authManager)
+            val credentialsProvider = QuotaCredentialsProvider(accessTokenProvider, accountIdProvider, tokenRefresher)
+            val client = SanitizingCodexHttpClient(config, httpClient, credentialsProvider)
             val proxyServer = ProxyServer(
                 config,
                 client,
@@ -113,16 +117,24 @@ class OpenAiProxyServer(
         debugLogger?.invoke(message)
     }
 
-    private class ProviderAuthManager(
-        config: ServerConfig,
-        httpClient: HttpClient,
+    /**
+     * Pure delegating [CredentialsProvider]: it never refreshes or persists tokens itself.
+     * Header tokens come from the IDE auth service (which transparently refreshes on local
+     * expiry), and an upstream 401 is routed back to that service via [tokenRefresher] so
+     * the IDE's secure-storage login/refresh logic remains the sole owner of credentials.
+     */
+    private class QuotaCredentialsProvider(
         private val accessTokenProvider: () -> String?,
         private val accountIdProvider: () -> String?,
-    ) : AuthManager(config, httpClient) {
+        private val tokenRefresher: (staleAccessToken: String?) -> Unit,
+    ) : CredentialsProvider {
+        private val lastAccessToken = java.util.concurrent.atomic.AtomicReference<String?>()
+
         @Throws(Exception::class)
         override fun getAuthHeaders(): Map<String, String> {
             val accessToken = accessTokenProvider()?.trim().takeUnless { it.isNullOrBlank() }
                 ?: throw AuthRequiredException("OpenAI login required: log in on the OpenAI settings tab, then retry.")
+            lastAccessToken.set(accessToken)
             val headers = linkedMapOf(
                 "Authorization" to "Bearer $accessToken",
                 "OpenAI-Beta" to "responses=experimental",
@@ -133,13 +145,17 @@ class OpenAiProxyServer(
             }
             return headers
         }
+
+        override fun refreshAfterUnauthorized() {
+            tokenRefresher(lastAccessToken.get())
+        }
     }
 
     private class SanitizingCodexHttpClient(
         config: ServerConfig,
         httpClient: HttpClient,
-        authManager: AuthManager,
-    ) : CodexHttpClient(config, httpClient, authManager) {
+        credentialsProvider: CredentialsProvider,
+    ) : CodexHttpClient(config, httpClient, credentialsProvider) {
         @Throws(Exception::class)
         override fun request(
             path: String,

@@ -8,7 +8,7 @@ import java.net.http.HttpClient;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
 
-public class AuthManager {
+public class AuthManager implements CredentialsProvider {
 
     private static final long REFRESH_EXPIRY_MARGIN_MS = 5 * 60 * 1000L;
 
@@ -43,6 +43,22 @@ public class AuthManager {
         }
     }
 
+    /**
+     * Drops the cached token so the next {@link #getAuthHeaders()} reloads and refreshes
+     * from the auth file. Used by the CLI's file-based flow after an upstream 401.
+     */
+    @Override
+    public void refreshAfterUnauthorized() throws Exception {
+        lock.lock();
+        try {
+            current = null;
+        } finally {
+            lock.unlock();
+        }
+        ensureFresh();
+    }
+
+    @Override
     public Map<String, String> getAuthHeaders() throws Exception {
         AuthLoader.AuthResult auth = current;
         if (auth == null || isTokenExpiringSoon(auth.accessToken())) {

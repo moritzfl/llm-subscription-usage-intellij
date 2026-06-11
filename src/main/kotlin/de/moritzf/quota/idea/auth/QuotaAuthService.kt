@@ -134,7 +134,45 @@ class QuotaAuthService(
         return credentials.accessToken
     }
 
-    fun getAccountId(type: QuotaProviderType = QuotaProviderType.OPEN_AI): String? = 
+    /**
+     * Forces a token refresh after an upstream rejected the current access token with 401,
+     * even if it is not yet locally expired. [staleAccessToken] is the token that was
+     * rejected; if another thread already rotated past it, this is a no-op so concurrent
+     * 401s do not trigger duplicate refreshes (which could invalidate a rotating refresh
+     * token). Returns the access token in effect afterwards, or null if refresh failed.
+     */
+    fun forceRefreshBlocking(
+        type: QuotaProviderType = QuotaProviderType.OPEN_AI,
+        staleAccessToken: String?,
+    ): String? {
+        val state = stateFor(type)
+        synchronized(state.refreshLock) {
+            val latestCredentials = getCredentialsBlocking(state) ?: return null
+            if (!staleAccessToken.isNullOrBlank() && latestCredentials.accessToken != staleAccessToken) {
+                // Another request already refreshed past the rejected token.
+                return latestCredentials.accessToken
+            }
+
+            val clearMarker = currentCredentialClearMarker(state)
+            return try {
+                val refreshed = runBlocking {
+                    state.tokenOperations.refreshCredentials(latestCredentials)
+                }
+                persistCredentialsIfCurrent(state, clearMarker, refreshed, "force-refresh")?.accessToken
+            } catch (exception: OAuthTokenRequestException) {
+                LOG.warn("Forced token refresh failed for ${state.type.displayName}", exception)
+                if (exception.isTerminalAuthFailure()) {
+                    clearCredentialsIfUnchanged(state, latestCredentials)
+                }
+                null
+            } catch (exception: Exception) {
+                LOG.warn("Forced token refresh failed for ${state.type.displayName}", exception)
+                null
+            }
+        }
+    }
+
+    fun getAccountId(type: QuotaProviderType = QuotaProviderType.OPEN_AI): String? =
         cachedCredentialsOrScheduleLoad(stateFor(type))?.accountId
 
     fun getHd(type: QuotaProviderType = QuotaProviderType.OPEN_AI): String? = 
