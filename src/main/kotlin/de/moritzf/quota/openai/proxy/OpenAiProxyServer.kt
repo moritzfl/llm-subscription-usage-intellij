@@ -8,7 +8,6 @@ import com.aiproxyoauth.server.ApiKeyStore
 import com.aiproxyoauth.server.ProxyServer
 import com.aiproxyoauth.transport.CodexHttpClient
 import com.aiproxyoauth.usage.UsageTracker
-import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.shared.JsonSupport
 import java.io.InputStream
 import java.net.URI
@@ -29,7 +28,6 @@ class OpenAiProxyServer(
     private val localApiKeyProvider: () -> String?,
     private val accessTokenProvider: () -> String?,
     private val accountIdProvider: () -> String?,
-    private val quotaProvider: () -> OpenAiCodexQuota? = { null },
     private val httpClient: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(30))
         .build(),
@@ -56,7 +54,7 @@ class OpenAiProxyServer(
         }
 
         try {
-            val models = modelsForPlan(quotaProvider()?.planType)
+            val models = ADVERTISED_MODELS
             val config = serverConfig(localApiKey, models)
             val authManager = ProviderAuthManager(config, httpClient, accessTokenProvider, accountIdProvider)
             val client = SanitizingCodexHttpClient(config, httpClient, authManager)
@@ -204,15 +202,16 @@ class OpenAiProxyServer(
             "max_output_tokens",
             "temperature",
         )
-        private val PAID_MODELS = listOf(
+        // The curated set of Codex models exposed via /v1/models and /v1/model/info.
+        // Per-account entitlement is enforced by the Codex backend, not here: selecting a
+        // model the subscription lacks returns an upstream error that the proxy surfaces
+        // as `insufficient_quota`. We advertise a static list rather than live-discovering
+        // so Junie's model-discovery call stays instant and offline-tolerant.
+        private val ADVERTISED_MODELS = listOf(
             "gpt-5.4",
             "gpt-5.4-mini",
             "gpt-5.5",
             "gpt-5.5-pro",
         )
-
-        private fun modelsForPlan(@Suppress("UNUSED_PARAMETER") planType: String?): List<String> {
-            return PAID_MODELS
-        }
     }
 }

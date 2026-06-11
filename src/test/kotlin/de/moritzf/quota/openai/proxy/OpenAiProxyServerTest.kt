@@ -1,7 +1,6 @@
 package de.moritzf.quota.openai.proxy
 
 import com.sun.net.httpserver.HttpServer
-import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.shared.JsonSupport
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -625,7 +624,7 @@ class OpenAiProxyServerTest {
     @Test
     fun returnsConfiguredModelsLocallyWithoutUpstreamRequest() {
         TestUpstream().use { upstream ->
-            val proxy = newProxy(upstream.baseUri, quota = OpenAiCodexQuota(planType = "plus"))
+            val proxy = newProxy(upstream.baseUri)
             try {
                 proxy.start()
                 val response = httpClient.send(
@@ -650,7 +649,7 @@ class OpenAiProxyServerTest {
     @Test
     fun returnsLiteLlmModelInfoLocallyWithoutUpstreamRequest() {
         TestUpstream().use { upstream ->
-            val proxy = newProxy(upstream.baseUri, quota = OpenAiCodexQuota(planType = "plus"))
+            val proxy = newProxy(upstream.baseUri)
             try {
                 proxy.start()
                 val response = httpClient.send(
@@ -1086,7 +1085,6 @@ class OpenAiProxyServerTest {
     private fun newProxy(
         upstreamBaseUri: URI,
         accessToken: String? = "codex-token",
-        quota: OpenAiCodexQuota? = null,
     ): TestProxy {
         val port = freePort()
         return TestProxy(
@@ -1096,7 +1094,6 @@ class OpenAiProxyServerTest {
                 localApiKeyProvider = { "local-key" },
                 accessTokenProvider = { accessToken },
                 accountIdProvider = { "account-1" },
-                quotaProvider = { quota },
                 upstreamBaseUri = upstreamBaseUri,
             ),
         )

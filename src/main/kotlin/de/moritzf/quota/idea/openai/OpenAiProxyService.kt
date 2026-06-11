@@ -8,7 +8,6 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.util.concurrency.AppExecutorUtil
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaProviderType
-import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.settings.QuotaSettingsListener
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.openai.proxy.OpenAiProxyServer
@@ -85,7 +84,6 @@ class OpenAiProxyService(
                     localApiKeyProvider = { localApiKey },
                     accessTokenProvider = { authServiceProvider().getAccessTokenBlocking(QuotaProviderType.OPEN_AI) },
                     accountIdProvider = { authServiceProvider().getAccountId(QuotaProviderType.OPEN_AI) },
-                    quotaProvider = { runCatching { QuotaUsageService.getInstance().getLastQuota() }.getOrNull() },
                     fullRequestLogging = logRequests,
                 )
                 proxyServer.start()
