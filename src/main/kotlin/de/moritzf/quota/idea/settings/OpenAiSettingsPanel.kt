@@ -42,6 +42,7 @@ internal class OpenAiSettingsPanel(
 ) : BorderLayoutPanel() {
     val openAiHideFromPopupCheckBox = com.intellij.ui.components.JBCheckBox("Hide from quota popup")
     val openAiProxyEnabledCheckBox = com.intellij.ui.components.JBCheckBox("Enable local OpenAI-compatible proxy")
+    val openAiProxyLogRequestsCheckBox = com.intellij.ui.components.JBCheckBox("Log requests and responses to disk")
     private val statusLabel = JBLabel().apply { isVisible = false }
     private val proxyStatusLabel = JBLabel().apply { isVisible = false }
     private val proxyApiKeyHintLabel = JBLabel().apply { isVisible = false }
@@ -242,6 +243,13 @@ internal class OpenAiSettingsPanel(
                     cell(generateProxyApiKeyButton)
                 }
                 row {
+                    cell(openAiProxyLogRequestsCheckBox)
+                        .comment(
+                            "Writes full request and response bodies (prompts, tool output, file contents) to a " +
+                                "temp folder. Sensitive — leave off unless debugging. Logs are pruned automatically.",
+                        )
+                }
+                row {
                     cell(proxyApiKeyHintLabel)
                 }
                 row {
@@ -302,6 +310,7 @@ internal class OpenAiSettingsPanel(
     fun updateProxyFields() {
         val settings = QuotaSettingsState.getInstance()
         openAiProxyEnabledCheckBox.isSelected = settings.openAiProxyEnabled
+        openAiProxyLogRequestsCheckBox.isSelected = settings.openAiProxyLogRequests
         proxyPortField.text = OpenAiProxyService.sanitizePort(settings.openAiProxyPort).toString()
         loadProxyApiKeyField()
         updateProxyStatus()
@@ -469,6 +478,7 @@ internal class OpenAiSettingsPanel(
         generateProxyApiKeyButton.isEnabled = enabled
         copyProxyBaseUrlButton.isEnabled = enabled
         copyProxyApiKeyButton.isEnabled = enabled && proxyApiKey() != null
+        openAiProxyLogRequestsCheckBox.isEnabled = enabled
     }
 
     private fun updateProxyApiKeyHint() {

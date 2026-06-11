@@ -10,15 +10,25 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 public final class RequestLogger {
     private static final int MAX_BODY_BYTES = 256 * 1024;
     private static final String REDACTED = "[REDACTED]";
+
+    // Bound the on-disk footprint of full request logging: prune by age first, then
+    // by file count. Logs contain prompts and tool output, so they must not accumulate
+    // for the life of the install.
+    private static final int MAX_LOG_FILES = 2_000;
+    private static final Duration MAX_LOG_AGE = Duration.ofDays(7);
 
     private final boolean enabled;
     private final Path logDir;
@@ -26,6 +36,10 @@ public final class RequestLogger {
     public RequestLogger(boolean enabled, Path logDir) {
         this.enabled = enabled;
         this.logDir = logDir;
+        if (enabled) {
+            // Prune once at startup off the request path.
+            Thread.ofVirtual().start(this::pruneOldLogs);
+        }
     }
 
     public String nextRequestId() {
@@ -169,6 +183,58 @@ public final class RequestLogger {
 
     private static String safeFilePart(String value) {
         return value.replaceAll("[^A-Za-z0-9._-]", "_");
+    }
+
+    /**
+     * Deletes log files older than {@link #MAX_LOG_AGE}, then trims the directory to
+     * {@link #MAX_LOG_FILES} newest entries. Best-effort: failures are ignored so a
+     * crowded or unreadable log directory never blocks the proxy.
+     */
+    public void pruneOldLogs() {
+        if (!Files.isDirectory(logDir)) {
+            return;
+        }
+        try (Stream<Path> entries = Files.list(logDir)) {
+            List<Path> files = new ArrayList<>(entries
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().endsWith(".json"))
+                    .toList());
+
+            long cutoffMillis = System.currentTimeMillis() - MAX_LOG_AGE.toMillis();
+            files.removeIf(path -> deleteIfOlderThan(path, cutoffMillis));
+
+            if (files.size() > MAX_LOG_FILES) {
+                files.sort(Comparator.comparingLong(RequestLogger::lastModifiedMillis));
+                int excess = files.size() - MAX_LOG_FILES;
+                for (int i = 0; i < excess; i++) {
+                    deleteQuietly(files.get(i));
+                }
+            }
+        } catch (IOException ignored) {
+        }
+    }
+
+    private static boolean deleteIfOlderThan(Path path, long cutoffMillis) {
+        if (lastModifiedMillis(path) < cutoffMillis) {
+            deleteQuietly(path);
+            return true;
+        }
+        return false;
+    }
+
+    private static long lastModifiedMillis(Path path) {
+        try {
+            return Files.getLastModifiedTime(path).toMillis();
+        } catch (IOException e) {
+            return Long.MAX_VALUE;
+        }
+    }
+
+    private static void deleteQuietly(Path path) {
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException ignored) {
+        }
     }
 
     private record BodyCapture(String body, boolean truncated) {

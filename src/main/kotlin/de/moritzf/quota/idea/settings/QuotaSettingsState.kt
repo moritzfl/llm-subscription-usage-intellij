@@ -53,6 +53,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var mcpServerSyncTargets: MutableList<McpServerSyncTarget> = mutableListOf()
     var openAiProxyEnabled: Boolean = false
     var openAiProxyPort: Int = OpenAiProxyService.DEFAULT_PORT
+    var openAiProxyLogRequests: Boolean = false
 
     override fun getState(): QuotaSettingsState = this
 
@@ -94,6 +95,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         }.toMutableList()
         openAiProxyEnabled = state.openAiProxyEnabled
         openAiProxyPort = OpenAiProxyService.sanitizePort(state.openAiProxyPort.takeIf { it > 0 } ?: OpenAiProxyService.DEFAULT_PORT)
+        openAiProxyLogRequests = state.openAiProxyLogRequests
     }
 
     fun providerOrderList(): List<QuotaProviderType> {

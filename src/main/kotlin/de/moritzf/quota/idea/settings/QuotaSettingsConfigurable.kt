@@ -389,6 +389,7 @@ class QuotaSettingsConfigurable : Configurable {
                 val openAiProxyEnabledChanged = openAiPanel.openAiProxyEnabledCheckBox.isSelected != state.openAiProxyEnabled
                 val openAiProxyPortChanged = openAiPanel.isProxyPortModified()
                 val openAiProxyApiKeyChanged = openAiPanel.isProxyApiKeyModified()
+                val openAiProxyLogRequestsChanged = openAiPanel.openAiProxyLogRequestsCheckBox.isSelected != state.openAiProxyLogRequests
                 if (locationChanged) {
                     state.setLocation(selectedLocation)
                 }
@@ -413,10 +414,11 @@ class QuotaSettingsConfigurable : Configurable {
                 state.mcpServerSyncTargets = normalizedMcpTargets.toMutableList()
                 state.openAiProxyEnabled = openAiPanel.openAiProxyEnabledCheckBox.isSelected
                 state.openAiProxyPort = OpenAiProxyService.sanitizePort(openAiPanel.proxyPort())
+                state.openAiProxyLogRequests = openAiPanel.openAiProxyLogRequestsCheckBox.isSelected
                 if (openAiProxyApiKeyChanged) {
                     openAiPanel.saveProxyApiKeyBlocking()
                 }
-                if (locationChanged || displayModeChanged || sourceChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged || ollamaPopupVisibilityChanged || zaiPopupVisibilityChanged || miniMaxPopupVisibilityChanged || kimiPopupVisibilityChanged || cursorPopupVisibilityChanged || miniMaxRegionChanged || providerOrderChanged || mcpSyncChanged || mcpTargetsChanged || openAiProxyEnabledChanged || openAiProxyPortChanged || openAiProxyApiKeyChanged) {
+                if (locationChanged || displayModeChanged || sourceChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged || ollamaPopupVisibilityChanged || zaiPopupVisibilityChanged || miniMaxPopupVisibilityChanged || kimiPopupVisibilityChanged || cursorPopupVisibilityChanged || miniMaxRegionChanged || providerOrderChanged || mcpSyncChanged || mcpTargetsChanged || openAiProxyEnabledChanged || openAiProxyPortChanged || openAiProxyApiKeyChanged || openAiProxyLogRequestsChanged) {
                     ApplicationManager.getApplication().messageBus
                         .syncPublisher(QuotaSettingsListener.TOPIC)
                         .onSettingsChanged()
@@ -485,7 +487,8 @@ class QuotaSettingsConfigurable : Configurable {
                     normalizeTargets(mcpSyncTargets) != normalizeTargets(state.mcpServerSyncTargets) ||
                     openAiPanel.openAiProxyEnabledCheckBox.isSelected != state.openAiProxyEnabled ||
                     openAiPanel.isProxyPortModified() ||
-                    openAiPanel.isProxyApiKeyModified()
+                    openAiPanel.isProxyApiKeyModified() ||
+                    openAiPanel.openAiProxyLogRequestsCheckBox.isSelected != state.openAiProxyLogRequests
             }
         }.apply {
             preferredFocusedComponent = locationComboBox

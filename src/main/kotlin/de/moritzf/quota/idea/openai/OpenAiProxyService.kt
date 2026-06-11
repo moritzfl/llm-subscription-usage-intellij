@@ -28,6 +28,7 @@ class OpenAiProxyService(
     @Volatile private var server: OpenAiProxyServer? = null
     @Volatile private var runningPort: Int? = null
     @Volatile private var runningApiKeyFingerprint: String? = null
+    @Volatile private var runningLogRequests: Boolean = false
     @Volatile private var lastError: String? = null
 
     init {
@@ -59,6 +60,7 @@ class OpenAiProxyService(
         val settings = settingsProvider()
         val enabled = settings?.openAiProxyEnabled == true
         val port = sanitizePort(settings?.openAiProxyPort ?: DEFAULT_PORT)
+        val logRequests = settings?.openAiProxyLogRequests == true
 
         synchronized(lock) {
             if (!enabled) {
@@ -70,7 +72,9 @@ class OpenAiProxyService(
             try {
                 val localApiKey = apiKeyStore.ensureApiKeyBlocking()
                 val localApiKeyFingerprint = ApiKeyUtils.fingerprint(localApiKey)
-                if (server?.isRunning == true && runningPort == port && runningApiKeyFingerprint == localApiKeyFingerprint) {
+                if (server?.isRunning == true && runningPort == port &&
+                    runningApiKeyFingerprint == localApiKeyFingerprint && runningLogRequests == logRequests
+                ) {
                     lastError = null
                     return
                 }
@@ -82,12 +86,13 @@ class OpenAiProxyService(
                     accessTokenProvider = { authServiceProvider().getAccessTokenBlocking(QuotaProviderType.OPEN_AI) },
                     accountIdProvider = { authServiceProvider().getAccountId(QuotaProviderType.OPEN_AI) },
                     quotaProvider = { runCatching { QuotaUsageService.getInstance().getLastQuota() }.getOrNull() },
-                    fullRequestLogging = true,
+                    fullRequestLogging = logRequests,
                 )
                 proxyServer.start()
                 server = proxyServer
                 runningPort = port
                 runningApiKeyFingerprint = localApiKeyFingerprint
+                runningLogRequests = logRequests
                 lastError = null
                 LOG.info("OpenAI proxy started at ${localBaseUrl(port)}")
             } catch (exception: Exception) {
@@ -103,6 +108,7 @@ class OpenAiProxyService(
         server = null
         runningPort = null
         runningApiKeyFingerprint = null
+        runningLogRequests = false
     }
 
     override fun dispose() {
