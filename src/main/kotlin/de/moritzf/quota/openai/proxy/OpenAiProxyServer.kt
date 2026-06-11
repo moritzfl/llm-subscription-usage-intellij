@@ -69,7 +69,7 @@ class OpenAiProxyServer(
             )
             proxyServer.start()
             server = proxyServer
-            debugLog("AIProxyOauth proxy started at http://127.0.0.1:$port/v1")
+            debugLog("AIProxyOauth proxy started at http://127.0.0.1:$port")
         } catch (exception: Exception) {
             running.set(false)
             server = null

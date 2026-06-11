@@ -93,8 +93,11 @@ public class ResponsesHandler implements Handler {
                 : null;
 
         // Forward to upstream
-        HttpResponse<InputStream> upstream = sendUpstream(normalized, requestId, promptCacheKey);
+        HttpResponse<InputStream> upstream = UpstreamRetry.withRetries(
+                ctx.header("x-litellm-num-retries"),
+                () -> sendUpstream(normalized, requestId, promptCacheKey));
         AccessLogFields.upstreamStatus(ctx, upstream.statusCode());
+        ctx.header("x-litellm-model-id", normalized.path("model").asText(""));
 
         if (upstream.statusCode() < 200 || upstream.statusCode() >= 300) {
             try (InputStream is = upstream.body()) {

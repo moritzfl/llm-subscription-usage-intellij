@@ -826,9 +826,14 @@ class OpenAiProxyServerTest {
                 )
 
                 assertEquals(200, response.statusCode())
-                val content = parseObject(response.body())["choices"]!!.jsonArray[0]
-                    .jsonObject["message"]!!.jsonObject["content"]!!.jsonPrimitive.content
-                assertEquals("<THOUGHT>listing</THOUGHT>\n<COMMAND>ls</COMMAND>", content)
+                val choice = parseObject(response.body())["choices"]!!.jsonArray[0].jsonObject
+                val content = choice["message"]!!.jsonObject["content"]!!.jsonPrimitive.content
+                // Standard semantics: the fired stop sequence is excluded from the content and
+                // reported via finish_details; Junie re-appends it client-side (STOP_AFTER).
+                assertEquals("<THOUGHT>listing</THOUGHT>\n<COMMAND>ls", content)
+                val finishDetails = choice["finish_details"]!!.jsonObject
+                assertEquals("stop", finishDetails["type"]!!.jsonPrimitive.content)
+                assertEquals("</COMMAND>", finishDetails["stop"]!!.jsonPrimitive.content)
                 assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
             } finally {
                 proxy.stop()
@@ -983,6 +988,67 @@ class OpenAiProxyServerTest {
         }
     }
 
+    @Test
+    fun retriesUpstreamFailuresWhenLiteLlmRetryHeaderIsSet() {
+        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT, failFirstRequests = 1).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .header("x-litellm-num-retries", "1")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                assertEquals("gpt-5.5", response.headers().firstValue("x-litellm-model-id").orElse(null))
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun emitsStreamingUsageChunkOnlyWhenClientOptsIn() {
+        TestUpstream(responseBody = RESPONSE_STREAM_WITH_TEXT_DELTAS).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                fun streamBody(streamOptions: String) = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"stream\":true,$streamOptions" +
+                                    "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                ).body()
+
+                val withoutUsage = streamBody("")
+                assertFalse(withoutUsage.contains("\"prompt_tokens\""))
+
+                val withUsage = streamBody("\"stream_options\":{\"include_usage\":true},")
+                assertTrue(withUsage.contains("\"prompt_tokens\""))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
     private fun newProxy(
         upstreamBaseUri: URI,
         accessToken: String? = "codex-token",
@@ -1011,8 +1077,10 @@ class OpenAiProxyServerTest {
         private val responseBody: String = "{\"ok\":true}",
         private val responseContentType: String = "text/event-stream",
         private val responseStatus: Int = 200,
+        private val failFirstRequests: Int = 0,
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
+        private val requestCount = java.util.concurrent.atomic.AtomicInteger(0)
         private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
 
@@ -1026,9 +1094,11 @@ class OpenAiProxyServerTest {
                     headers = exchange.requestHeaders.mapValues { it.value.toList() },
                     body = body,
                 )
-                val response = responseBody.toByteArray(Charsets.UTF_8)
-                exchange.responseHeaders.set("Content-Type", responseContentType)
-                exchange.sendResponseHeaders(responseStatus, response.size.toLong())
+                val failing = requestCount.incrementAndGet() <= failFirstRequests
+                val response = (if (failing) "{\"detail\":\"transient upstream failure\"}" else responseBody)
+                    .toByteArray(Charsets.UTF_8)
+                exchange.responseHeaders.set("Content-Type", if (failing) "application/json" else responseContentType)
+                exchange.sendResponseHeaders(if (failing) 500 else responseStatus, response.size.toLong())
                 exchange.responseBody.use { output -> output.write(response) }
             }
             server.start()

@@ -48,7 +48,7 @@ fun main(args: Array<String>) {
     )
     Runtime.getRuntime().addShutdownHook(Thread { proxy.stop() })
     proxy.start()
-    println("OpenAI standalone proxy listening at http://127.0.0.1:$port/v1")
+    println("OpenAI standalone proxy listening at http://127.0.0.1:$port")
     println("Use OPENAI_PROXY_API_KEY as the local bearer token.")
     CountDownLatch(1).await()
 }

@@ -95,8 +95,11 @@ public class ChatCompletionsHandler implements Handler {
                 : null;
 
         // Always stream upstream
-        HttpResponse<InputStream> upstream = sendUpstream(upstreamBody, requestId, promptCacheKey);
+        HttpResponse<InputStream> upstream = UpstreamRetry.withRetries(
+                ctx.header("x-litellm-num-retries"),
+                () -> sendUpstream(upstreamBody, requestId, promptCacheKey));
         AccessLogFields.upstreamStatus(ctx, upstream.statusCode());
+        ctx.header("x-litellm-model-id", upstreamModel);
 
         try (InputStream responseStream = upstream.body()) {
             if (upstream.statusCode() < 200 || upstream.statusCode() >= 300) {
@@ -481,6 +484,7 @@ public class ChatCompletionsHandler implements Handler {
             default -> hasFunctionCall ? "function_call" : toolCalls.isEmpty() ? "stop" : "tool_calls";
         };
 
+        applyStopFinishDetails(choice, message, stopSequences(requestBody));
         choice.set("message", message);
         choice.put("finish_reason", finishReason);
         choices.add(choice);
@@ -663,6 +667,7 @@ public class ChatCompletionsHandler implements Handler {
                             JsonNode response = parsed.get("response");
                             String status = response != null ? response.path("status").asText("") : "";
                             String fr;
+                            ObjectNode stopFinishDetails = null;
                             if (junieStreamingTextFallback) {
                                 String content = truncateAtStopSequence(
                                         junieFallbackContent(response, junieTextToolName,
@@ -670,6 +675,11 @@ public class ChatCompletionsHandler implements Handler {
                                         stopSequences(requestBody));
                                 String wrappedContent = JunieCommandProtocolCompat.wrapStreamingText(
                                         junieTextToolName, content, requestBody);
+                                StopCut cut = cutAtStopSequence(wrappedContent, stopSequences(requestBody));
+                                if (cut != null) {
+                                    wrappedContent = cut.content();
+                                    stopFinishDetails = finishDetails(cut.sequence());
+                                }
                                 requestLogger.logClientResponse(requestId(ctx), 200, wrappedContent);
                                 writeSseChunk(ctx, os, createChunk(id, created, model,
                                         createContentDelta(wrappedContent), null));
@@ -700,22 +710,33 @@ public class ChatCompletionsHandler implements Handler {
                             }
 
                             // Finish chunk
-                            writeSseChunk(ctx, os, createChunk(id, created, model, createEmptyDelta(), fr));
+                            ObjectNode finishChunk = createChunk(id, created, model, createEmptyDelta(), fr);
+                            if (stopFinishDetails != null) {
+                                ((ObjectNode) finishChunk.get("choices").get(0))
+                                        .set("finish_details", stopFinishDetails);
+                            }
+                            writeSseChunk(ctx, os, finishChunk);
                             finishSent[0] = true;
 
-                            // Usage chunk
+                            // Usage is tracked internally always, but the usage chunk is only
+                            // emitted when the client opted in — matching OpenAI/LiteLLM
+                            // `stream_options.include_usage` behavior.
                             JsonNode usageNode = response != null ? response.get("usage") : null;
                             usageTracker.record(ctx.attribute("keyName"),
                                     usageNode != null ? usageNode.path("input_tokens").asLong(0) : 0,
                                     usageNode != null ? usageNode.path("output_tokens").asLong(0) : 0);
-                            ObjectNode usageChunk = MAPPER.createObjectNode();
-                            usageChunk.put("id", id);
-                            usageChunk.put("object", "chat.completion.chunk");
-                            usageChunk.put("created", created);
-                            usageChunk.put("model", model);
-                            usageChunk.set("choices", MAPPER.createArrayNode());
-                            usageChunk.set("usage", JsonHelper.toUsage(usageNode));
-                            writeSseChunk(ctx, os, usageChunk);
+                            boolean includeUsage = requestBody.path("stream_options")
+                                    .path("include_usage").asBoolean(false);
+                            if (includeUsage) {
+                                ObjectNode usageChunk = MAPPER.createObjectNode();
+                                usageChunk.put("id", id);
+                                usageChunk.put("object", "chat.completion.chunk");
+                                usageChunk.put("created", created);
+                                usageChunk.put("model", model);
+                                usageChunk.set("choices", MAPPER.createArrayNode());
+                                usageChunk.set("usage", JsonHelper.toUsage(usageNode));
+                                writeSseChunk(ctx, os, usageChunk);
+                            }
                         }
                         case "response.failed", "response.cancelled" -> {
                             JsonNode response = parsed.get("response");
@@ -784,23 +805,56 @@ public class ChatCompletionsHandler implements Handler {
     }
 
     /**
-     * The upstream Responses API has no `stop` parameter, so emulate it client-side
-     * with "stop after" semantics: everything past the first stop sequence is dropped
-     * but the sequence itself is kept. Junie relies on the sequence ("</COMMAND>")
-     * remaining part of the text because it only re-appends stop sequences when a
-     * response carries `finish_details`, which this proxy does not emit.
+     * The upstream Responses API has no `stop` parameter, so emulate it client-side.
+     * This inclusive variant keeps the sequence in the text; it runs before the Junie
+     * protocol wrappers, which need to see the complete <COMMAND>...</COMMAND> block.
+     * The final exclusive cut happens in {@link #applyStopFinishDetails}.
      */
     private static String truncateAtStopSequence(String text, List<String> stopSequences) {
+        StopCut cut = cutAtStopSequence(text, stopSequences);
+        return cut != null ? cut.content() + cut.sequence() : text;
+    }
+
+    private record StopCut(String content, String sequence) {}
+
+    /** Returns the text before the first stop sequence plus the fired sequence, or null when none fired. */
+    private static StopCut cutAtStopSequence(String text, List<String> stopSequences) {
         int earliestStart = -1;
-        int truncateEnd = -1;
+        String firedSequence = null;
         for (String sequence : stopSequences) {
             int start = text.indexOf(sequence);
             if (start >= 0 && (earliestStart < 0 || start < earliestStart)) {
                 earliestStart = start;
-                truncateEnd = start + sequence.length();
+                firedSequence = sequence;
             }
         }
-        return truncateEnd >= 0 && truncateEnd < text.length() ? text.substring(0, truncateEnd) : text;
+        return firedSequence != null ? new StopCut(text.substring(0, earliestStart), firedSequence) : null;
+    }
+
+    /**
+     * Standard OpenAI/LiteLLM semantics exclude the fired stop sequence from the
+     * returned content. Junie restores it client-side when `finish_details` names the
+     * sequence (its STOP_AFTER handling), so cutting here plus emitting finish_details
+     * serves standard clients and Junie alike.
+     */
+    private void applyStopFinishDetails(ObjectNode choice, ObjectNode message, List<String> stopSequences) {
+        JsonNode contentNode = message.get("content");
+        if (contentNode == null || !contentNode.isTextual()) {
+            return;
+        }
+        StopCut cut = cutAtStopSequence(contentNode.asText(), stopSequences);
+        if (cut == null) {
+            return;
+        }
+        message.put("content", cut.content());
+        choice.set("finish_details", finishDetails(cut.sequence()));
+    }
+
+    private ObjectNode finishDetails(String stopSequence) {
+        ObjectNode finishDetails = MAPPER.createObjectNode();
+        finishDetails.put("type", "stop");
+        finishDetails.put("stop", stopSequence);
+        return finishDetails;
     }
 
     private static void appendReasoningSummary(StringBuilder target, JsonNode reasoningItem) {

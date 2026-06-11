@@ -120,7 +120,9 @@ class OpenAiProxyService(
             return ApplicationManager.getApplication().getService(OpenAiProxyService::class.java)
         }
 
-        fun localBaseUrl(port: Int): String = "http://127.0.0.1:${sanitizePort(port)}/v1"
+        // No /v1 suffix: LiteLLM-style clients (Junie included) append /v1/... themselves,
+        // and the proxy serves all routes both with and without the prefix.
+        fun localBaseUrl(port: Int): String = "http://127.0.0.1:${sanitizePort(port)}"
 
         fun sanitizePort(port: Int): Int = port.coerceIn(1, 65535)
     }
