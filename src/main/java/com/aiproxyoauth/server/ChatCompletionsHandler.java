@@ -454,8 +454,7 @@ public class ChatCompletionsHandler implements Handler {
             if (content.isBlank() && !toolCalls.isEmpty()) {
                 content = toolCallText(toolCalls, junieTextToolName);
             }
-            message.put("content", JunieCommandProtocolCompat.wrapStreamingText(
-                    junieTextToolName, content, requestBody));
+            message.put("content", JunieCommandProtocolCompat.wrapStreamingText(junieTextToolName, content));
             toolCalls.removeAll();
         } else if (!collectedText.isEmpty()) {
             message.put("content", junieTextProtocol
@@ -678,7 +677,7 @@ public class ChatCompletionsHandler implements Handler {
                                                 junieTextBuffer, junieArgumentBuffer),
                                         stopSequences(requestBody));
                                 String wrappedContent = JunieCommandProtocolCompat.wrapStreamingText(
-                                        junieTextToolName, content, requestBody);
+                                        junieTextToolName, content);
                                 StopCut cut = cutAtStopSequence(wrappedContent, stopSequences(requestBody));
                                 if (cut != null) {
                                     wrappedContent = cut.content();

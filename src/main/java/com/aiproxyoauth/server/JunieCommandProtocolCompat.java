@@ -214,10 +214,6 @@ final class JunieCommandProtocolCompat {
         return false;
     }
 
-    static String wrapStreamingText(String toolName, String text, JsonNode body) {
-        return wrapStreamingText(toolName, text);
-    }
-
     static String wrapPlainText(String text) {
         if (text == null || text.isBlank()) {
             return "<THOUGHT>Ready to submit.</THOUGHT>\n<COMMAND>submit</COMMAND>";

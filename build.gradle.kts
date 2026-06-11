@@ -12,6 +12,27 @@ plugins {
 group = providers.gradleProperty("pluginGroup").get()
 version = providers.gradleProperty("pluginVersion").get()
 
+// Carry the plugin version (gradle.properties pluginVersion) into the runtime classpath
+// as a generated resource. A manifest attribute would not survive into the composed
+// plugin jar, whose manifest the IntelliJ Platform Gradle Plugin writes itself.
+val generateVersionResource by tasks.registering {
+    val pluginVersion = providers.gradleProperty("pluginVersion")
+    val outputDir = layout.buildDirectory.dir("generated/version-resource")
+    inputs.property("pluginVersion", pluginVersion)
+    outputs.dir(outputDir)
+    doLast {
+        val file = outputDir.get().file("aiproxyoauth-version.properties").asFile
+        file.parentFile.mkdirs()
+        file.writeText("version=${pluginVersion.get()}\n")
+    }
+}
+
+sourceSets {
+    main {
+        resources.srcDir(generateVersionResource)
+    }
+}
+
 // Set the JVM language level used to build the project.
 kotlin {
     jvmToolchain(21)

@@ -38,9 +38,17 @@ import java.util.concurrent.Callable;
         name = "AIProxyOauth",
         description = "Local HTTP proxy server exposing OpenAI-compatible endpoints via ChatGPT OAuth tokens.",
         mixinStandardHelpOptions = true,
-        version = "AIProxyOauth 1.0.0"
+        versionProvider = AIProxyOauth.ManifestVersionProvider.class
 )
 public class AIProxyOauth implements Callable<Integer> {
+
+    /** Reports the plugin version stamped into the jar manifest at build time. */
+    public static class ManifestVersionProvider implements CommandLine.IVersionProvider {
+        @Override
+        public String[] getVersion() {
+            return new String[]{"AIProxyOauth " + com.aiproxyoauth.util.ProxyVersion.get()};
+        }
+    }
 
     @Option(names = "--host", description = "Host interface to bind to. Default: 127.0.0.1")
     private String host;
