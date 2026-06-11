@@ -13,6 +13,8 @@ import com.aiproxyoauth.transport.CodexHttpClient;
 import com.aiproxyoauth.usage.UsageTracker;
 import io.javalin.http.Context;
 import io.javalin.http.Handler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -23,6 +25,8 @@ import java.util.*;
 import static com.aiproxyoauth.server.JsonHelper.MAPPER;
 
 public class ChatCompletionsHandler implements Handler {
+
+    private static final Logger LOG = LoggerFactory.getLogger(ChatCompletionsHandler.class);
 
     private final CodexHttpClient client;
     private final ServerConfig config;
@@ -760,7 +764,7 @@ public class ChatCompletionsHandler implements Handler {
                 } catch (java.io.IOException e) {
                     throw new java.io.UncheckedIOException(e);
                 } catch (Exception e) {
-                    System.err.println("Error processing SSE event: " + e);
+                    LOG.warn("Error processing SSE event", e);
                     throw new RuntimeException(e);
                 }
             });

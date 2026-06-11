@@ -45,6 +45,7 @@ fun main(args: Array<String>) {
         debugLogger = debugLogger(),
         fullRequestLogging = env("OPENAI_PROXY_LOG_REQUESTS").toBooleanFlag(),
         requestLogDir = env("OPENAI_PROXY_REQUEST_LOG_DIR") ?: DEFAULT_REQUEST_LOG_DIR,
+        consoleAccessLog = true,
     )
     Runtime.getRuntime().addShutdownHook(Thread { proxy.stop() })
     proxy.start()

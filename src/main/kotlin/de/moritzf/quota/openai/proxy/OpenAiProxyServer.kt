@@ -37,11 +37,12 @@ class OpenAiProxyServer(
         .connectTimeout(Duration.ofSeconds(30))
         .build(),
     private val upstreamBaseUri: URI = DEFAULT_UPSTREAM_BASE_URI,
-    @Suppress("UNUSED_PARAMETER")
-    private val stripV1Prefix: Boolean = true,
     private val debugLogger: ((String) -> Unit)? = null,
     private val fullRequestLogging: Boolean = false,
     private val requestLogDir: String = REQUEST_LOG_DIR,
+    // Per-request access lines on stdout; useful for the standalone console proxy,
+    // disabled when embedded in the IDE.
+    private val consoleAccessLog: Boolean = false,
 ) {
     private val running = AtomicBoolean(false)
     private var server: ProxyServer? = null
@@ -111,6 +112,7 @@ class OpenAiProxyServer(
             // The Responses replay cache emulates previous_response_id/item_reference for
             // store=false. Junie always inlines full history, so it is pure overhead here.
             false,
+            consoleAccessLog,
         )
     }
 

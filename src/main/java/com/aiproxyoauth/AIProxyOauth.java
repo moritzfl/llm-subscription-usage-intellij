@@ -217,7 +217,8 @@ public class AIProxyOauth implements Callable<Integer> {
                 forwardPromptCacheHeaders,
                 codexInstructionsMode,
                 codexInstructionsCacheDir,
-                responsesReplayCache
+                responsesReplayCache,
+                true
         );
     }
 

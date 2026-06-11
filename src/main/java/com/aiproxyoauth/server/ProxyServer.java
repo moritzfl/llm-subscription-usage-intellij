@@ -66,7 +66,11 @@ public class ProxyServer {
                 ctx.attribute(AccessLogFields.REQUEST_ID, requestLogger.nextRequestId());
                 ctx.attribute(AccessLogFields.START_NANOS, System.nanoTime());
             });
-            javalinConfig.routes.after(ProxyServer::logAccessLine);
+            // Per-request stdout lines are CLI behavior; embedders (the IDE plugin) keep
+            // their process output clean and disable this via config.
+            if (config.consoleAccessLog()) {
+                javalinConfig.routes.after(ProxyServer::logAccessLine);
+            }
 
             // API key enforcement (opt-in: only when keys are configured)
             // Enforcement is evaluated once at startup. Keys can be hot-reloaded (which keys
