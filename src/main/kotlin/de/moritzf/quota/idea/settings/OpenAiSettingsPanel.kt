@@ -131,6 +131,10 @@ internal class OpenAiSettingsPanel(
             updateProxyStatus()
         }
 
+        openAiProxyLogRequestsCheckBox.addItemListener {
+            updateProxyStatus()
+        }
+
         onDocumentChange(proxyPortField) {
             updateProxyStatus()
         }
@@ -332,6 +336,9 @@ internal class OpenAiSettingsPanel(
         return proxyPortField.text.trim() != configuredPort.toString()
     }
 
+    fun isProxyLogRequestsModified(): Boolean =
+        openAiProxyLogRequestsCheckBox.isSelected != QuotaSettingsState.getInstance().openAiProxyLogRequests
+
     /**
      * Reflects only the proxy operating state (off / pending apply / starting / running / error).
      * Transient actions such as copying values must not write to this label.
@@ -360,7 +367,7 @@ internal class OpenAiSettingsPanel(
             setProxyStatus("Apply settings to start the proxy at ${OpenAiProxyService.localBaseUrl(requestedPort)}", ProxyRunState.PENDING)
             return
         }
-        if (configuredPort != requestedPort || isProxyApiKeyModified()) {
+        if (configuredPort != requestedPort || isProxyApiKeyModified() || isProxyLogRequestsModified()) {
             setProxyStatus("Apply settings to restart the proxy with the updated configuration", ProxyRunState.PENDING)
             return
         }
