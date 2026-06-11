@@ -288,9 +288,29 @@ private fun saveCredentialsToDotEnv(credentials: StandaloneCredentials) {
     val content = existing.entries.joinToString("\n", postfix = "\n") { (key, value) ->
         "$key=${value.toDotEnvValue()}"
     }
+    // The file holds the OAuth access token; restrict it to the owner before writing,
+    // mirroring AuthLoader's handling of auth.json.
+    restrictToOwner(DOT_ENV_PATH)
     Files.writeString(DOT_ENV_PATH, content)
     loadedDotEnv = existing.toMap()
     println("Saved standalone proxy credentials to ${DOT_ENV_PATH.toAbsolutePath().normalize()}")
+}
+
+private fun restrictToOwner(path: Path) {
+    runCatching {
+        if (!Files.exists(path)) {
+            Files.createFile(path)
+        }
+        if (java.nio.file.FileSystems.getDefault().supportedFileAttributeViews().contains("posix")) {
+            Files.setPosixFilePermissions(
+                path,
+                setOf(
+                    java.nio.file.attribute.PosixFilePermission.OWNER_READ,
+                    java.nio.file.attribute.PosixFilePermission.OWNER_WRITE,
+                ),
+            )
+        }
+    }
 }
 
 private fun String.toDotEnvValue(): String {
