@@ -2,6 +2,7 @@ package de.moritzf.quota.idea.common
 
 enum class QuotaProviderType(val id: String, val displayName: String) {
     CURSOR("cursor", "Cursor"),
+    GITHUB("github", "GitHub Copilot"),
     OPEN_AI("openai", "OpenAI"),
     OPEN_CODE("opencode", "OpenCode"),
     OLLAMA("ollama", "Ollama"),

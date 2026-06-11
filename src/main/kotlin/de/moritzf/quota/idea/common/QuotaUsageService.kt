@@ -14,6 +14,7 @@ import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
+import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.cursor.CursorQuota
 import java.util.concurrent.ScheduledExecutorService
@@ -33,6 +34,7 @@ class QuotaUsageService(
         ZaiQuotaProvider(),
         MiniMaxQuotaProvider(),
         KimiQuotaProvider(),
+        GitHubQuotaProvider(),
         CursorQuotaProvider(),
     ),
     private val settingsProvider: () -> QuotaSettingsState? = {
@@ -49,6 +51,7 @@ class QuotaUsageService(
             publisher.onZaiQuotaUpdated(snapshot.zaiQuota, snapshot.zaiError)
             publisher.onMiniMaxQuotaUpdated(snapshot.miniMaxQuota, snapshot.miniMaxError)
             publisher.onKimiQuotaUpdated(snapshot.kimiQuota, snapshot.kimiError)
+            publisher.onGitHubQuotaUpdated(snapshot.gitHubQuota, snapshot.gitHubError)
             publisher.onCursorQuotaUpdated(snapshot.cursorQuota, snapshot.cursorError)
             ActivityTracker.getInstance().inc()
         }
@@ -61,6 +64,7 @@ class QuotaUsageService(
     private val refreshingZai = AtomicBoolean(false)
     private val refreshingMiniMax = AtomicBoolean(false)
     private val refreshingKimi = AtomicBoolean(false)
+    private val refreshingGitHub = AtomicBoolean(false)
     private val refreshingCursor = AtomicBoolean(false)
     private val openAiProvider = providers.filterIsInstance<OpenAiQuotaProvider>().firstOrNull()
     private val openCodeProvider = providers.filterIsInstance<OpenCodeQuotaProvider>().firstOrNull()
@@ -68,6 +72,7 @@ class QuotaUsageService(
     private val zaiProvider = providers.filterIsInstance<ZaiQuotaProvider>().firstOrNull()
     private val miniMaxProvider = providers.filterIsInstance<MiniMaxQuotaProvider>().firstOrNull()
     private val kimiProvider = providers.filterIsInstance<KimiQuotaProvider>().firstOrNull()
+    private val gitHubProvider = providers.filterIsInstance<GitHubQuotaProvider>().firstOrNull()
     private val cursorProvider = providers.filterIsInstance<CursorQuotaProvider>().firstOrNull()
     private var scheduled: ScheduledFuture<*>? = null
 
@@ -102,6 +107,10 @@ class QuotaUsageService(
     fun getLastKimiError(): String? = kimiProvider?.getLastError()
     fun getLastKimiResponseJson(): String? = kimiProvider?.getLastRawJson()
 
+    fun getLastGitHubQuota(): GitHubQuota? = gitHubProvider?.getLastQuota()
+    fun getLastGitHubError(): String? = gitHubProvider?.getLastError()
+    fun getLastGitHubResponseJson(): String? = gitHubProvider?.getLastRawJson()
+
     fun getLastCursorQuota(): CursorQuota? = cursorProvider?.getLastQuota()
     fun getLastCursorError(): String? = cursorProvider?.getLastError()
     fun getLastCursorResponseJson(): String? = cursorProvider?.getLastRawJson()
@@ -116,6 +125,7 @@ class QuotaUsageService(
             QuotaIndicatorSource.ZAI -> QuotaIndicatorSource.ZAI
             QuotaIndicatorSource.MINIMAX -> QuotaIndicatorSource.MINIMAX
             QuotaIndicatorSource.KIMI -> QuotaIndicatorSource.KIMI
+            QuotaIndicatorSource.GITHUB -> QuotaIndicatorSource.GITHUB
             QuotaIndicatorSource.CURSOR -> QuotaIndicatorSource.CURSOR
         }
 
@@ -126,6 +136,7 @@ class QuotaUsageService(
             QuotaIndicatorSource.ZAI -> QuotaIndicatorData.Zai(getLastZaiQuota(), getLastZaiError())
             QuotaIndicatorSource.MINIMAX -> QuotaIndicatorData.MiniMax(getLastMiniMaxQuota(), getLastMiniMaxError())
             QuotaIndicatorSource.KIMI -> QuotaIndicatorData.Kimi(getLastKimiQuota(), getLastKimiError())
+            QuotaIndicatorSource.GITHUB -> QuotaIndicatorData.GitHub(getLastGitHubQuota(), getLastGitHubError())
             QuotaIndicatorSource.CURSOR -> QuotaIndicatorData.Cursor(getLastCursorQuota(), getLastCursorError())
             QuotaIndicatorSource.LAST_USED -> QuotaIndicatorData.OpenAi(getLastQuota(), getLastError())
         }
@@ -153,6 +164,10 @@ class QuotaUsageService(
 
     fun refreshKimiAsync() {
         AppExecutorUtil.getAppExecutorService().execute(::refreshKimi)
+    }
+
+    fun refreshGitHubAsync() {
+        AppExecutorUtil.getAppExecutorService().execute(::refreshGitHub)
     }
 
     fun refreshCursorAsync() {
@@ -187,6 +202,10 @@ class QuotaUsageService(
         refreshKimi()
     }
 
+    fun refreshGitHubBlocking() {
+        refreshGitHub()
+    }
+
     fun refreshCursorBlocking() {
         refreshCursor()
     }
@@ -198,6 +217,7 @@ class QuotaUsageService(
         clearZaiUsageData()
         clearMiniMaxUsageData()
         clearKimiUsageData()
+        clearGitHubUsageData()
         clearCursorUsageData()
     }
 
@@ -237,6 +257,12 @@ class QuotaUsageService(
         publishUpdate()
     }
 
+    fun clearGitHubUsageData(error: String? = "GitHub login required. Log in from settings.") {
+        gitHubProvider?.clearData(error)
+        settingsProvider()?.cachedGitHubQuotaJson = null
+        publishUpdate()
+    }
+
     fun clearCursorUsageData(error: String? = "No Cursor session cookie configured. Paste WorkosCursorSessionToken from cursor.com in settings.") {
         cursorProvider?.clearData(error)
         settingsProvider()?.cachedCursorQuotaJson = null
@@ -260,6 +286,7 @@ class QuotaUsageService(
         zaiProvider?.hydrateFromCache(settings)
         miniMaxProvider?.hydrateFromCache(settings)
         kimiProvider?.hydrateFromCache(settings)
+        gitHubProvider?.hydrateFromCache(settings)
         cursorProvider?.hydrateFromCache(settings)
     }
 
@@ -271,6 +298,7 @@ class QuotaUsageService(
             ::refreshZai,
             ::refreshMiniMax,
             ::refreshKimi,
+            ::refreshGitHub,
             ::refreshCursor,
         )
         val executor = AppExecutorUtil.getAppExecutorService()
@@ -305,6 +333,10 @@ class QuotaUsageService(
 
     private fun refreshKimi() {
         refreshProvider(kimiProvider, refreshingKimi)
+    }
+
+    private fun refreshGitHub() {
+        refreshProvider(gitHubProvider, refreshingGitHub)
     }
 
     private fun refreshCursor() {
@@ -372,6 +404,8 @@ class QuotaUsageService(
             miniMaxError = getLastMiniMaxError(),
             kimiQuota = getLastKimiQuota(),
             kimiError = getLastKimiError(),
+            gitHubQuota = getLastGitHubQuota(),
+            gitHubError = getLastGitHubError(),
             cursorQuota = getLastCursorQuota(),
             cursorError = getLastCursorError(),
         )

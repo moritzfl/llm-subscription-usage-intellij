@@ -7,6 +7,7 @@ import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.kimi.KimiQuota
+import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.cursor.CursorQuota
 
 /**
@@ -19,6 +20,7 @@ interface QuotaUsageListener {
     fun onZaiQuotaUpdated(quota: ZaiQuota?, error: String?) {}
     fun onMiniMaxQuotaUpdated(quota: MiniMaxQuota?, error: String?) {}
     fun onKimiQuotaUpdated(quota: KimiQuota?, error: String?) {}
+    fun onGitHubQuotaUpdated(quota: GitHubQuota?, error: String?) {}
     fun onCursorQuotaUpdated(quota: CursorQuota?, error: String?) {}
 
     companion object {

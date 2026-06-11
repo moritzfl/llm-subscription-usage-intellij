@@ -4,6 +4,8 @@ import de.moritzf.quota.cursor.CursorPlanUsage
 import de.moritzf.quota.cursor.CursorQuota
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.github.GitHubQuota
+import de.moritzf.quota.github.GitHubUsageWindow
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.kimi.KimiUsageWindow
 import de.moritzf.quota.minimax.MiniMaxQuota
@@ -102,6 +104,12 @@ internal fun KimiUsageWindow.periodElapsedFraction(now: Instant = Clock.System.n
     return computePeriodElapsedFraction(durationMs, resetAt, now)
 }
 
+internal fun GitHubUsageWindow.periodElapsedFraction(now: Instant = Clock.System.now()): Double? {
+    val durationMs = periodDurationMs ?: return null
+    val resetAt = resetsAt ?: return null
+    return computePeriodElapsedFraction(durationMs, resetAt, now)
+}
+
 internal fun CursorPlanUsage.periodElapsedFraction(now: Instant = Clock.System.now()): Double? {
     val end = billingCycleEnd ?: return null
     val start = billingCycleStart
@@ -119,6 +127,7 @@ internal fun indicatorPeriodElapsedFraction(data: QuotaIndicatorData): Double? {
         is QuotaIndicatorData.Zai -> zaiPeriodElapsedFraction(data.quota, data.error)
         is QuotaIndicatorData.MiniMax -> miniMaxPeriodElapsedFraction(data.quota, data.error)
         is QuotaIndicatorData.Kimi -> kimiPeriodElapsedFraction(data.quota, data.error)
+        is QuotaIndicatorData.GitHub -> gitHubPeriodElapsedFraction(data.quota, data.error)
         is QuotaIndicatorData.Cursor -> cursorPeriodElapsedFraction(data.quota, data.error)
     }
 }
@@ -216,6 +225,13 @@ private fun kimiPeriodElapsedFraction(quota: KimiQuota?, error: String?): Double
         return null
     }
     return (quota.sessionUsage ?: quota.totalUsage)?.periodElapsedFraction()
+}
+
+private fun gitHubPeriodElapsedFraction(quota: GitHubQuota?, error: String?): Double? {
+    if (error != null || quota == null) {
+        return null
+    }
+    return quota.limitedWindows().firstOrNull()?.periodElapsedFraction()
 }
 
 private fun cursorPeriodElapsedFraction(quota: CursorQuota?, error: String?): Double? {

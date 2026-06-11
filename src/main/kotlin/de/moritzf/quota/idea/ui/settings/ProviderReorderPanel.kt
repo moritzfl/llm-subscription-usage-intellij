@@ -38,6 +38,7 @@ internal class ProviderReorderPanel(
 
     private val providers = listOf(
         ProviderInfo(QuotaProviderType.CURSOR, QuotaIcons.CURSOR),
+        ProviderInfo(QuotaProviderType.GITHUB, QuotaIcons.GITHUB),
         ProviderInfo(QuotaProviderType.KIMI, QuotaIcons.KIMI),
         ProviderInfo(QuotaProviderType.MINIMAX, QuotaIcons.MINIMAX),
         ProviderInfo(QuotaProviderType.OLLAMA, QuotaIcons.OLLAMA),

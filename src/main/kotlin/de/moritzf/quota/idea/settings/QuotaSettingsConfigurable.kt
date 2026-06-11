@@ -29,6 +29,7 @@ import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.minimax.MiniMaxRegionPreference
+import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.kimi.KimiQuota
 import java.awt.CardLayout
 import java.awt.Dimension
@@ -53,6 +54,7 @@ class QuotaSettingsConfigurable : Configurable {
     private lateinit var cursorPanel: CursorSettingsPanel
     private lateinit var openAiPanel: OpenAiSettingsPanel
     private lateinit var kimiPanel: KimiSettingsPanel
+    private lateinit var gitHubPanel: GitHubSettingsPanel
     private lateinit var miniMaxPanel: MiniMaxSettingsPanel
     private lateinit var openCodePanel: OpenCodeSettingsPanel
     private lateinit var ollamaPanel: OllamaSettingsPanel
@@ -84,6 +86,10 @@ class QuotaSettingsConfigurable : Configurable {
             modalityComponentProvider = { panel ?: rootComponent },
         )
         kimiPanel = KimiSettingsPanel(
+            modalityComponentProvider = { panel ?: rootComponent },
+            statusLabelDefaultForeground = statusLabelDefaultForeground,
+        )
+        gitHubPanel = GitHubSettingsPanel(
             modalityComponentProvider = { panel ?: rootComponent },
             statusLabelDefaultForeground = statusLabelDefaultForeground,
         )
@@ -212,6 +218,14 @@ class QuotaSettingsConfigurable : Configurable {
                 }, ModalityState.stateForComponent(currentPanel))
             }
 
+            override fun onGitHubQuotaUpdated(quota: GitHubQuota?, error: String?) {
+                val currentPanel = rootComponent ?: panel ?: return@onGitHubQuotaUpdated
+                ApplicationManager.getApplication().invokeLater({
+                    gitHubPanel.updateGitHubResponseArea()
+                    gitHubPanel.updateGitHubStatus()
+                }, ModalityState.stateForComponent(currentPanel))
+            }
+
             override fun onKimiQuotaUpdated(quota: KimiQuota?, error: String?) {
                 val currentPanel = rootComponent ?: panel ?: return@onKimiQuotaUpdated
                 ApplicationManager.getApplication().invokeLater({
@@ -329,6 +343,7 @@ class QuotaSettingsConfigurable : Configurable {
         val providerPanels = mapOf(
             QuotaProviderType.CURSOR to cursorPanel,
             QuotaProviderType.KIMI to kimiPanel,
+            QuotaProviderType.GITHUB to gitHubPanel,
             QuotaProviderType.MINIMAX to miniMaxPanel,
             QuotaProviderType.OLLAMA to ollamaPanel,
             QuotaProviderType.OPEN_AI to openAiPanel,
@@ -380,6 +395,7 @@ class QuotaSettingsConfigurable : Configurable {
                 val zaiPopupVisibilityChanged = zaiPanel.zaiHideFromPopupCheckBox.isSelected != state.hideZaiFromQuotaPopup
                 val miniMaxPopupVisibilityChanged = miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected != state.hideMiniMaxFromQuotaPopup
                 val kimiPopupVisibilityChanged = kimiPanel.kimiHideFromPopupCheckBox.isSelected != state.hideKimiFromQuotaPopup
+                val gitHubPopupVisibilityChanged = gitHubPanel.gitHubHideFromPopupCheckBox.isSelected != state.hideGitHubFromQuotaPopup
                 val cursorPopupVisibilityChanged = cursorPanel.cursorHideFromPopupCheckBox.isSelected != state.hideCursorFromQuotaPopup
                 val miniMaxRegionChanged = miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference()
                 val providerOrderChanged = providerReorderPanel?.getOrder()?.joinToString(",") { it.id } != state.providerOrder
@@ -405,6 +421,7 @@ class QuotaSettingsConfigurable : Configurable {
                 state.hideZaiFromQuotaPopup = zaiPanel.zaiHideFromPopupCheckBox.isSelected
                 state.hideMiniMaxFromQuotaPopup = miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected
                 state.hideKimiFromQuotaPopup = kimiPanel.kimiHideFromPopupCheckBox.isSelected
+                state.hideGitHubFromQuotaPopup = gitHubPanel.gitHubHideFromPopupCheckBox.isSelected
                 state.hideCursorFromQuotaPopup = cursorPanel.cursorHideFromPopupCheckBox.isSelected
                 state.minimaxRegionPreference = (miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference ?: MiniMaxRegionPreference.AUTO).name
                 if (providerOrderChanged) {
@@ -418,7 +435,7 @@ class QuotaSettingsConfigurable : Configurable {
                 if (openAiProxyApiKeyChanged) {
                     openAiPanel.saveProxyApiKeyBlocking()
                 }
-                if (locationChanged || displayModeChanged || sourceChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged || ollamaPopupVisibilityChanged || zaiPopupVisibilityChanged || miniMaxPopupVisibilityChanged || kimiPopupVisibilityChanged || cursorPopupVisibilityChanged || miniMaxRegionChanged || providerOrderChanged || mcpSyncChanged || mcpTargetsChanged || openAiProxyEnabledChanged || openAiProxyPortChanged || openAiProxyApiKeyChanged || openAiProxyLogRequestsChanged) {
+                if (locationChanged || displayModeChanged || sourceChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged || ollamaPopupVisibilityChanged || zaiPopupVisibilityChanged || miniMaxPopupVisibilityChanged || kimiPopupVisibilityChanged || gitHubPopupVisibilityChanged || cursorPopupVisibilityChanged || miniMaxRegionChanged || providerOrderChanged || mcpSyncChanged || mcpTargetsChanged || openAiProxyEnabledChanged || openAiProxyPortChanged || openAiProxyApiKeyChanged || openAiProxyLogRequestsChanged) {
                     ApplicationManager.getApplication().messageBus
                         .syncPublisher(QuotaSettingsListener.TOPIC)
                         .onSettingsChanged()
@@ -443,6 +460,7 @@ class QuotaSettingsConfigurable : Configurable {
                 zaiPanel.zaiHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideZaiFromQuotaPopup
                 miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideMiniMaxFromQuotaPopup
                 kimiPanel.kimiHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideKimiFromQuotaPopup
+                gitHubPanel.gitHubHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideGitHubFromQuotaPopup
                 cursorPanel.cursorHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideCursorFromQuotaPopup
                 miniMaxPanel.regionComboBox.selectedItem = QuotaSettingsState.getInstance().miniMaxRegionPreference()
                 providerReorderPanel?.setOrder(QuotaSettingsState.getInstance().providerOrderList())
@@ -462,6 +480,8 @@ class QuotaSettingsConfigurable : Configurable {
                 miniMaxPanel.updateMiniMaxResponseArea()
                 kimiPanel.updateKimiFields()
                 kimiPanel.updateKimiResponseArea()
+                gitHubPanel.updateGitHubFields()
+                gitHubPanel.updateGitHubResponseArea()
                 cursorPanel.updateCursorFields()
                 cursorPanel.updateCursorResponseArea()
             }
@@ -480,6 +500,7 @@ class QuotaSettingsConfigurable : Configurable {
                     zaiPanel.zaiHideFromPopupCheckBox.isSelected != state.hideZaiFromQuotaPopup ||
                     miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected != state.hideMiniMaxFromQuotaPopup ||
                     kimiPanel.kimiHideFromPopupCheckBox.isSelected != state.hideKimiFromQuotaPopup ||
+                    gitHubPanel.gitHubHideFromPopupCheckBox.isSelected != state.hideGitHubFromQuotaPopup ||
                     cursorPanel.cursorHideFromPopupCheckBox.isSelected != state.hideCursorFromQuotaPopup ||
                     miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference() ||
                     providerReorderPanel?.getOrder()?.joinToString(",") { it.id } != state.providerOrder ||

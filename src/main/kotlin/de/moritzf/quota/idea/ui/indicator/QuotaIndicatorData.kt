@@ -4,6 +4,7 @@ import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
+import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.cursor.CursorQuota
 
@@ -22,6 +23,11 @@ internal sealed interface QuotaIndicatorData {
 
     data class Kimi(
         val quota: KimiQuota?,
+        override val error: String?,
+    ) : QuotaIndicatorData
+
+    data class GitHub(
+        val quota: GitHubQuota?,
         override val error: String?,
     ) : QuotaIndicatorData
 

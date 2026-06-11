@@ -2,7 +2,7 @@
 
 Track your LLM subscription usage quotas directly in IntelliJ IDEA — in the status bar, a detailed popup, through IDE chat tools, and in local AI client MCP configs.
 
-**Supports:** OpenAI (ChatGPT), OpenCode Go, Ollama Cloud, Z.ai, MiniMax, and Kimi.
+**Supports:** OpenAI (ChatGPT), GitHub Copilot, OpenCode Go, Ollama Cloud, Z.ai, MiniMax, and Kimi.
 
 <table align="center">
   <tr>

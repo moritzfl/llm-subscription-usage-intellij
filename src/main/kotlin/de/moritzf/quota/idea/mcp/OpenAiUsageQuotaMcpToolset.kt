@@ -125,6 +125,24 @@ class OpenAiUsageQuotaMcpToolset : McpToolset {
         return successResult(json)
     }
 
+    @McpTool(name = "github_usage_quota")
+    @McpDescription(description = "Returns the latest GitHub Copilot usage quota response JSON.")
+    fun github_usage_quota(): McpToolCallResult {
+        val usageService = QuotaUsageService.getInstance()
+        usageService.refreshGitHubBlocking()
+
+        val error = usageService.getLastGitHubError()
+        if (!error.isNullOrBlank()) {
+            return errorResult(error)
+        }
+
+        val json = usageService.getLastGitHubResponseJson()
+        if (json.isNullOrBlank()) {
+            return errorResult("No GitHub usage response available")
+        }
+        return successResult(json)
+    }
+
     @McpTool(name = "cursor_usage_quota")
     @McpDescription(description = "Returns the latest Cursor usage quota response JSON.")
     fun cursor_usage_quota(): McpToolCallResult {

@@ -30,6 +30,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var lastZaiUpdate: Long = 0
     var lastMiniMaxUpdate: Long = 0
     var lastKimiUpdate: Long = 0
+    var lastGitHubUpdate: Long = 0
     var lastCursorUpdate: Long = 0
     var hideOpenAiFromQuotaPopup: Boolean = false
     var hideOpenCodeFromQuotaPopup: Boolean = false
@@ -37,6 +38,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var hideZaiFromQuotaPopup: Boolean = false
     var hideMiniMaxFromQuotaPopup: Boolean = false
     var hideKimiFromQuotaPopup: Boolean = false
+    var hideGitHubFromQuotaPopup: Boolean = false
     var hideCursorFromQuotaPopup: Boolean = false
     var lastActiveSource: String? = null
     var openCodeWorkspaceId: String? = null
@@ -47,6 +49,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var cachedZaiQuotaJson: String? = null
     var cachedMiniMaxQuotaJson: String? = null
     var cachedKimiQuotaJson: String? = null
+    var cachedGitHubQuotaJson: String? = null
     var cachedCursorQuotaJson: String? = null
     var providerOrder: String = DEFAULT_PROVIDER_ORDER
     var syncIntellijMcpServerUrl: Boolean = false
@@ -68,6 +71,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         lastZaiUpdate = state.lastZaiUpdate
         lastMiniMaxUpdate = state.lastMiniMaxUpdate
         lastKimiUpdate = state.lastKimiUpdate
+        lastGitHubUpdate = state.lastGitHubUpdate
         lastCursorUpdate = state.lastCursorUpdate
         hideOpenAiFromQuotaPopup = state.hideOpenAiFromQuotaPopup
         hideOpenCodeFromQuotaPopup = state.hideOpenCodeFromQuotaPopup
@@ -75,6 +79,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         hideZaiFromQuotaPopup = state.hideZaiFromQuotaPopup
         hideMiniMaxFromQuotaPopup = state.hideMiniMaxFromQuotaPopup
         hideKimiFromQuotaPopup = state.hideKimiFromQuotaPopup
+        hideGitHubFromQuotaPopup = state.hideGitHubFromQuotaPopup
         hideCursorFromQuotaPopup = state.hideCursorFromQuotaPopup
         lastActiveSource = state.lastActiveSource
         openCodeWorkspaceId = state.openCodeWorkspaceId
@@ -85,6 +90,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         cachedZaiQuotaJson = state.cachedZaiQuotaJson
         cachedMiniMaxQuotaJson = state.cachedMiniMaxQuotaJson
         cachedKimiQuotaJson = state.cachedKimiQuotaJson
+        cachedGitHubQuotaJson = state.cachedGitHubQuotaJson
         cachedCursorQuotaJson = state.cachedCursorQuotaJson
         providerOrder = state.providerOrder.ifBlank { DEFAULT_PROVIDER_ORDER }
         syncIntellijMcpServerUrl = state.syncIntellijMcpServerUrl
@@ -135,6 +141,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
             QuotaProviderType.ZAI -> lastZaiUpdate = System.currentTimeMillis()
             QuotaProviderType.MINIMAX -> lastMiniMaxUpdate = System.currentTimeMillis()
             QuotaProviderType.KIMI -> lastKimiUpdate = System.currentTimeMillis()
+            QuotaProviderType.GITHUB -> lastGitHubUpdate = System.currentTimeMillis()
             QuotaProviderType.CURSOR -> lastCursorUpdate = System.currentTimeMillis()
         }
     }
@@ -158,13 +165,17 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         val kimiUpdate = lastKimiUpdate.takeIf { it > 0 }
             ?: QuotaSnapshotCache.decodeKimiQuota(cachedKimiQuotaJson)?.fetchedAt?.toEpochMilliseconds()
             ?: 0
+        val gitHubUpdate = lastGitHubUpdate.takeIf { it > 0 }
+            ?: QuotaSnapshotCache.decodeGitHubQuota(cachedGitHubQuotaJson)?.fetchedAt?.toEpochMilliseconds()
+            ?: 0
         val cursorUpdate = lastCursorUpdate.takeIf { it > 0 }
             ?: QuotaSnapshotCache.decodeCursorQuota(cachedCursorQuotaJson)?.fetchedAt?.toEpochMilliseconds()
             ?: 0
-        val maxUpdate = maxOf(openAiUpdate, openCodeUpdate, ollamaUpdate, zaiUpdate, minimaxUpdate, kimiUpdate, cursorUpdate)
+        val maxUpdate = maxOf(openAiUpdate, openCodeUpdate, ollamaUpdate, zaiUpdate, minimaxUpdate, kimiUpdate, gitHubUpdate, cursorUpdate)
         if (maxUpdate == 0L) return QuotaIndicatorSource.OPEN_AI
         return when {
             cursorUpdate >= maxUpdate -> QuotaIndicatorSource.CURSOR
+            gitHubUpdate >= maxUpdate -> QuotaIndicatorSource.GITHUB
             kimiUpdate >= maxUpdate -> QuotaIndicatorSource.KIMI
             minimaxUpdate >= maxUpdate -> QuotaIndicatorSource.MINIMAX
             zaiUpdate >= maxUpdate -> QuotaIndicatorSource.ZAI
@@ -176,7 +187,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
 
     companion object {
         const val DEFAULT_PROVIDER_ORDER =
-            "cursor,kimi,minimax,ollama,openai,opencode,zai"
+            "cursor,github,kimi,minimax,ollama,openai,opencode,zai"
 
         @JvmStatic
         fun getInstance(): QuotaSettingsState {

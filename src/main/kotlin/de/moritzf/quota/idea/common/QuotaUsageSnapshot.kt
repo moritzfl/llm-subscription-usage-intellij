@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.common
 
 import de.moritzf.quota.cursor.CursorQuota
+import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.openai.OpenAiCodexQuota
@@ -21,6 +22,8 @@ data class QuotaUsageSnapshot(
     val miniMaxError: String?,
     val kimiQuota: KimiQuota?,
     val kimiError: String?,
+    val gitHubQuota: GitHubQuota?,
+    val gitHubError: String?,
     val cursorQuota: CursorQuota?,
     val cursorError: String?,
 )

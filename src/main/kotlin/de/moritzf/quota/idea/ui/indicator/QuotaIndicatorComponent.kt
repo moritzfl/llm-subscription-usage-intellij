@@ -20,6 +20,7 @@ import de.moritzf.quota.ollama.OllamaUsageWindow
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.cursor.CursorQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
+import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.idea.common.QuotaProviderType
 import java.awt.Component
@@ -102,6 +103,7 @@ internal class QuotaIndicatorComponent(
             is QuotaIndicatorData.Zai -> buildZaiTooltipText(data.quota, data.error)
             is QuotaIndicatorData.MiniMax -> buildMiniMaxTooltipText(data.quota, data.error)
             is QuotaIndicatorData.Kimi -> buildKimiTooltipText(data.quota, data.error)
+            is QuotaIndicatorData.GitHub -> buildGitHubTooltipText(data.quota, data.error)
             is QuotaIndicatorData.Cursor -> buildCursorTooltipText(data.quota, data.error)
         }
         toolTipText = tooltip
@@ -144,6 +146,7 @@ internal class QuotaIndicatorComponent(
             is QuotaIndicatorData.Zai -> buildZaiTooltipText(currentData.quota, currentData.error)
             is QuotaIndicatorData.MiniMax -> buildMiniMaxTooltipText(currentData.quota, currentData.error)
             is QuotaIndicatorData.Kimi -> buildKimiTooltipText(currentData.quota, currentData.error)
+            is QuotaIndicatorData.GitHub -> buildGitHubTooltipText(currentData.quota, currentData.error)
             is QuotaIndicatorData.Cursor -> buildCursorTooltipText(currentData.quota, currentData.error)
         }
     }
@@ -169,6 +172,7 @@ internal class QuotaIndicatorComponent(
             is QuotaIndicatorData.Zai -> QuotaIcons.ZAI
             is QuotaIndicatorData.MiniMax -> QuotaIcons.MINIMAX
             is QuotaIndicatorData.Kimi -> QuotaIcons.KIMI
+            is QuotaIndicatorData.GitHub -> QuotaIcons.GITHUB
             is QuotaIndicatorData.Cursor -> QuotaIcons.CURSOR
         }
     }
@@ -199,6 +203,7 @@ internal class QuotaIndicatorComponent(
             is QuotaIndicatorData.Zai -> zaiBarDisplayText(currentData.quota, currentData.error)
             is QuotaIndicatorData.MiniMax -> miniMaxBarDisplayText(currentData.quota, currentData.error)
             is QuotaIndicatorData.Kimi -> kimiBarDisplayText(currentData.quota, currentData.error)
+            is QuotaIndicatorData.GitHub -> gitHubBarDisplayText(currentData.quota, currentData.error)
             is QuotaIndicatorData.Cursor -> cursorBarDisplayText(currentData.quota, currentData.error)
         }
     }
@@ -216,6 +221,9 @@ internal class QuotaIndicatorComponent(
         }
         if (currentData is QuotaIndicatorData.MiniMax) {
             return currentData.quota?.sessionUsage?.usagePercent?.roundToInt()?.let(::clampPercent)?.let(::cakeIconForPercent) ?: QuotaIcons.CAKE_UNKNOWN
+        }
+        if (currentData is QuotaIndicatorData.GitHub) {
+            return currentData.quota?.let(::gitHubDisplayWindow)?.usagePercent?.roundToInt()?.let(::clampPercent)?.let(::cakeIconForPercent) ?: QuotaIcons.CAKE_UNKNOWN
         }
         if (currentData is QuotaIndicatorData.Kimi) {
             return currentData.quota?.let(::kimiDisplayWindow)?.usagePercent?.roundToInt()?.let(::clampPercent)?.let(::cakeIconForPercent) ?: QuotaIcons.CAKE_UNKNOWN
@@ -336,6 +344,9 @@ internal class QuotaIndicatorComponent(
         }
         if (currentData is QuotaIndicatorData.MiniMax) {
             return currentData.quota?.sessionUsage?.usagePercent?.roundToInt()?.let(::clampPercent) ?: -1
+        }
+        if (currentData is QuotaIndicatorData.GitHub) {
+            return currentData.quota?.let(::gitHubDisplayWindow)?.usagePercent?.roundToInt()?.let(::clampPercent) ?: -1
         }
         if (currentData is QuotaIndicatorData.Kimi) {
             return currentData.quota?.let(::kimiDisplayWindow)?.usagePercent?.roundToInt()?.let(::clampPercent) ?: -1
@@ -482,6 +493,37 @@ internal fun cursorBarDisplayText(quota: CursorQuota?, error: String?): String {
 
 private fun kimiDisplayWindow(quota: KimiQuota): de.moritzf.quota.kimi.KimiUsageWindow? {
     return quota.sessionUsage ?: quota.totalUsage
+}
+
+internal fun buildGitHubTooltipText(quota: GitHubQuota?, error: String?): String {
+    if (error != null) return "GitHub Copilot quota: $error"
+    if (quota == null) return "GitHub Copilot quota: loading"
+    val plan = quota.plan.ifBlank { "GitHub Copilot" }
+    val parts = mutableListOf<String>()
+    listOfNotNull(quota.premiumInteractions, quota.chat, quota.completions).forEach { window ->
+        if (window.unlimited) {
+            parts.add("${window.label}: unlimited")
+        } else {
+            parts.add("${window.label}: ${clampPercent(window.usagePercent.roundToInt())}% • ${QuotaUiUtil.formatResetCompact(window.resetsAt) ?: "unknown"}")
+        }
+    }
+    if (parts.isEmpty()) return "$plan: no usage data"
+    return "$plan:\n${parts.joinToString("\n")}"
+}
+
+internal fun gitHubBarDisplayText(quota: GitHubQuota?, error: String?): String {
+    if (error != null) return "error"
+    if (quota == null) return "loading..."
+    val usage = gitHubDisplayWindow(quota) ?: return "no data"
+
+    val percent = clampPercent(usage.usagePercent.roundToInt())
+    val reset = QuotaUiUtil.formatResetCompact(usage.resetsAt)
+    val text = "$percent%"
+    return if (reset != null) "$text • $reset" else text
+}
+
+private fun gitHubDisplayWindow(quota: GitHubQuota): de.moritzf.quota.github.GitHubUsageWindow? {
+    return quota.limitedWindows().firstOrNull()
 }
 
 internal fun zaiBarDisplayText(quota: ZaiQuota?, error: String?): String {

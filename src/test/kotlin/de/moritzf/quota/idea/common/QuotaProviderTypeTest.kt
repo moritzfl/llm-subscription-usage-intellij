@@ -9,6 +9,7 @@ class QuotaProviderTypeTest {
         assertEquals(
             listOf(
                 QuotaProviderType.CURSOR,
+                QuotaProviderType.GITHUB,
                 QuotaProviderType.KIMI,
                 QuotaProviderType.MINIMAX,
                 QuotaProviderType.OLLAMA,
@@ -38,6 +39,7 @@ class QuotaProviderTypeTest {
         assertEquals(
             listOf(
                 QuotaProviderType.CURSOR,
+                QuotaProviderType.GITHUB,
                 QuotaProviderType.KIMI,
                 QuotaProviderType.MINIMAX,
                 QuotaProviderType.OLLAMA,
@@ -79,6 +81,7 @@ class QuotaProviderTypeTest {
         assertEquals(
             listOf(
                 QuotaProviderType.CURSOR,
+                QuotaProviderType.GITHUB,
                 QuotaProviderType.OPEN_CODE,
                 QuotaProviderType.ZAI,
                 QuotaProviderType.KIMI,

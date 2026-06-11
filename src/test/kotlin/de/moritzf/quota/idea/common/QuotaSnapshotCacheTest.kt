@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.common
 
 import de.moritzf.quota.cursor.CursorQuota
+import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.ollama.OllamaQuota
@@ -16,6 +17,7 @@ class QuotaSnapshotCacheTest {
         assertEquals("zai raw", roundTripZai("zai raw").rawJson)
         assertEquals("minimax raw", roundTripMiniMax("minimax raw").rawJson)
         assertEquals("kimi raw", roundTripKimi("kimi raw").rawJson)
+        assertEquals("github raw", roundTripGitHub("github raw").rawJson)
         assertEquals("cursor raw", roundTripCursor("cursor raw").rawJson)
     }
 
@@ -48,6 +50,11 @@ class QuotaSnapshotCacheTest {
     private fun roundTripKimi(raw: String): KimiQuota {
         val quota = KimiQuota(plan = "Pro").apply { rawJson = raw }
         return QuotaSnapshotCache.decodeKimiQuota(QuotaSnapshotCache.encodeKimiQuota(quota))!!
+    }
+
+    private fun roundTripGitHub(raw: String): GitHubQuota {
+        val quota = GitHubQuota(plan = "Copilot Pro").apply { rawJson = raw }
+        return QuotaSnapshotCache.decodeGitHubQuota(QuotaSnapshotCache.encodeGitHubQuota(quota))!!
     }
 
     private fun roundTripCursor(raw: String): CursorQuota {

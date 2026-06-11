@@ -10,6 +10,7 @@ import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.ollama.OllamaUsageWindow
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
+import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.cursor.CursorQuota
 import kotlinx.datetime.Instant
@@ -63,6 +64,16 @@ internal object QuotaSnapshotCache {
         if (json.isNullOrBlank()) return null
         return runCatching { JsonSupport.json.decodeFromString<CachedMiniMaxQuota>(json).toQuota() }.getOrNull()
             ?: runCatching { JsonSupport.json.decodeFromString(MiniMaxQuota.serializer(), json) }.getOrNull()
+    }
+
+    fun encodeGitHubQuota(quota: GitHubQuota): String? {
+        return runCatching { JsonSupport.json.encodeToString(CachedGitHubQuota.fromQuota(quota)) }.getOrNull()
+    }
+
+    fun decodeGitHubQuota(json: String?): GitHubQuota? {
+        if (json.isNullOrBlank()) return null
+        return runCatching { JsonSupport.json.decodeFromString<CachedGitHubQuota>(json).toQuota() }.getOrNull()
+            ?: runCatching { JsonSupport.json.decodeFromString(GitHubQuota.serializer(), json) }.getOrNull()
     }
 
     fun encodeKimiQuota(quota: KimiQuota): String? {
@@ -119,6 +130,18 @@ private data class CachedMiniMaxQuota(
 
     companion object {
         fun fromQuota(quota: MiniMaxQuota): CachedMiniMaxQuota = CachedMiniMaxQuota(quota, quota.rawJson)
+    }
+}
+
+@Serializable
+private data class CachedGitHubQuota(
+    val quota: GitHubQuota,
+    val rawResponse: String? = null,
+) {
+    fun toQuota(): GitHubQuota = quota.apply { this.rawJson = rawResponse }
+
+    companion object {
+        fun fromQuota(quota: GitHubQuota): CachedGitHubQuota = CachedGitHubQuota(quota, quota.rawJson)
     }
 }
 
