@@ -228,6 +228,29 @@ public class ChatCompletionsHandler implements Handler {
             setLegacyFunctionCallChoice(upstream, chatBody.get("function_call"));
         }
 
+        // Structured output: chat `response_format` json_schema maps to Responses `text.format`.
+        JsonNode responseFormat = chatBody.get("response_format");
+        if (responseFormat != null && responseFormat.isObject()
+                && "json_schema".equals(responseFormat.path("type").asText())) {
+            JsonNode jsonSchema = responseFormat.get("json_schema");
+            if (jsonSchema != null && jsonSchema.isObject()) {
+                ObjectNode format = MAPPER.createObjectNode();
+                format.put("type", "json_schema");
+                if (jsonSchema.hasNonNull("name")) {
+                    format.set("name", jsonSchema.get("name"));
+                }
+                if (jsonSchema.hasNonNull("strict")) {
+                    format.set("strict", jsonSchema.get("strict"));
+                }
+                if (jsonSchema.hasNonNull("schema")) {
+                    format.set("schema", jsonSchema.get("schema"));
+                }
+                ObjectNode text = MAPPER.createObjectNode();
+                text.set("format", format);
+                upstream.set("text", text);
+            }
+        }
+
         // Reasoning effort
         if (chatBody.has("reasoning_effort") && !chatBody.get("reasoning_effort").isNull()) {
             ObjectNode reasoning = MAPPER.createObjectNode();
@@ -358,6 +381,15 @@ public class ChatCompletionsHandler implements Handler {
                                    boolean legacyFunctionCallProtocol, JsonNode requestBody) throws Exception {
         JsonNode completedResponse = SseCollector.collectCompletedResponse(upstreamBody);
 
+        String upstreamStatus = completedResponse.path("status").asText("");
+        if ("failed".equals(upstreamStatus) || "cancelled".equals(upstreamStatus)) {
+            String errorMessage = completedResponse.path("error").path("message")
+                    .asText("Upstream response " + upstreamStatus + ".");
+            requestLogger.logClientResponse(requestId(ctx), 502, errorMessage);
+            JsonHelper.toErrorResponse(ctx, errorMessage, 502, "upstream_error");
+            return;
+        }
+
         String id = "chatcmpl_" + UUID.randomUUID();
         long created = System.currentTimeMillis() / 1000;
 
@@ -375,6 +407,7 @@ public class ChatCompletionsHandler implements Handler {
         message.put("role", "assistant");
 
         StringBuilder textContent = new StringBuilder();
+        StringBuilder reasoningContent = new StringBuilder();
         ArrayNode toolCalls = MAPPER.createArrayNode();
 
         JsonNode output = completedResponse.get("output");
@@ -402,31 +435,36 @@ public class ChatCompletionsHandler implements Handler {
                         tc.set("function", func);
                         toolCalls.add(tc);
                     }
+                    case "reasoning" -> appendReasoningSummary(reasoningContent, item);
                 }
             }
         }
 
+        String collectedText = truncateAtStopSequence(textContent.toString(), stopSequences(requestBody));
+
         if (junieTextToolName != null) {
-            String content = textContent.toString();
+            String content = collectedText;
             if (content.isBlank() && !toolCalls.isEmpty()) {
                 content = toolCallText(toolCalls, junieTextToolName);
             }
             message.put("content", JunieCommandProtocolCompat.wrapStreamingText(
                     junieTextToolName, content, requestBody));
             toolCalls.removeAll();
-        } else if (!textContent.isEmpty()) {
-            String content = textContent.toString();
+        } else if (!collectedText.isEmpty()) {
             message.put("content", junieTextProtocol
-                    ? JunieCommandProtocolCompat.wrapPlainText(content)
-                    : content);
+                    ? JunieCommandProtocolCompat.wrapPlainText(collectedText)
+                    : collectedText);
         } else {
             message.putNull("content");
+        }
+        if (!reasoningContent.isEmpty()) {
+            message.put("reasoning_content", reasoningContent.toString());
         }
         // Junie requires every assistant turn to contain a tool call. If the model
         // answered with plain text only, synthesize a call to the fallback tool
         // (submit/answer) carrying that text.
         if (junieNativeToolName != null && toolCalls.isEmpty()) {
-            toolCalls.add(JunieCommandProtocolCompat.chatToolCall(junieNativeToolName, textContent.toString()));
+            toolCalls.add(JunieCommandProtocolCompat.chatToolCall(junieNativeToolName, collectedText));
         }
         if (legacyFunctionCallProtocol && !message.has("function_call") && !toolCalls.isEmpty()) {
             message.set("function_call", toLegacyFunctionCall(toolCalls.get(0)));
@@ -626,8 +664,10 @@ public class ChatCompletionsHandler implements Handler {
                             String status = response != null ? response.path("status").asText("") : "";
                             String fr;
                             if (junieStreamingTextFallback) {
-                                String content = junieFallbackContent(response, junieTextToolName,
-                                        junieTextBuffer, junieArgumentBuffer);
+                                String content = truncateAtStopSequence(
+                                        junieFallbackContent(response, junieTextToolName,
+                                                junieTextBuffer, junieArgumentBuffer),
+                                        stopSequences(requestBody));
                                 String wrappedContent = JunieCommandProtocolCompat.wrapStreamingText(
                                         junieTextToolName, content, requestBody);
                                 requestLogger.logClientResponse(requestId(ctx), 200, wrappedContent);
@@ -642,6 +682,7 @@ public class ChatCompletionsHandler implements Handler {
                                 if (fallbackText.isBlank()) {
                                     fallbackText = junieTextBuffer.toString();
                                 }
+                                fallbackText = truncateAtStopSequence(fallbackText, stopSequences(requestBody));
                                 ObjectNode tc = JunieCommandProtocolCompat.chatToolCall(
                                         junieNativeToolName, fallbackText);
                                 tc.put("index", 0);
@@ -719,6 +760,63 @@ public class ChatCompletionsHandler implements Handler {
                 } catch (Exception ignored) {}
             }
             os.flush();
+        }
+    }
+
+    private static List<String> stopSequences(JsonNode body) {
+        JsonNode stop = body != null ? body.get("stop") : null;
+        if (stop == null) {
+            return List.of();
+        }
+        if (stop.isTextual() && !stop.asText().isEmpty()) {
+            return List.of(stop.asText());
+        }
+        if (stop.isArray()) {
+            List<String> sequences = new ArrayList<>();
+            for (JsonNode sequence : stop) {
+                if (sequence.isTextual() && !sequence.asText().isEmpty()) {
+                    sequences.add(sequence.asText());
+                }
+            }
+            return sequences;
+        }
+        return List.of();
+    }
+
+    /**
+     * The upstream Responses API has no `stop` parameter, so emulate it client-side
+     * with "stop after" semantics: everything past the first stop sequence is dropped
+     * but the sequence itself is kept. Junie relies on the sequence ("</COMMAND>")
+     * remaining part of the text because it only re-appends stop sequences when a
+     * response carries `finish_details`, which this proxy does not emit.
+     */
+    private static String truncateAtStopSequence(String text, List<String> stopSequences) {
+        int earliestStart = -1;
+        int truncateEnd = -1;
+        for (String sequence : stopSequences) {
+            int start = text.indexOf(sequence);
+            if (start >= 0 && (earliestStart < 0 || start < earliestStart)) {
+                earliestStart = start;
+                truncateEnd = start + sequence.length();
+            }
+        }
+        return truncateEnd >= 0 && truncateEnd < text.length() ? text.substring(0, truncateEnd) : text;
+    }
+
+    private static void appendReasoningSummary(StringBuilder target, JsonNode reasoningItem) {
+        JsonNode summary = reasoningItem.get("summary");
+        if (summary == null || !summary.isArray()) {
+            return;
+        }
+        for (JsonNode part : summary) {
+            String text = part.path("text").asText("");
+            if (text.isBlank()) {
+                continue;
+            }
+            if (!target.isEmpty()) {
+                target.append('\n');
+            }
+            target.append(text);
         }
     }
 

@@ -1,6 +1,7 @@
 package de.moritzf.quota.openai.proxy
 
 import com.aiproxyoauth.auth.AuthManager
+import com.aiproxyoauth.auth.AuthRequiredException
 import com.aiproxyoauth.config.ServerConfig
 import com.aiproxyoauth.model.ModelResolver
 import com.aiproxyoauth.server.ApiKeyStore
@@ -120,7 +121,7 @@ class OpenAiProxyServer(
         @Throws(Exception::class)
         override fun getAuthHeaders(): Map<String, String> {
             val accessToken = accessTokenProvider()?.trim().takeUnless { it.isNullOrBlank() }
-                ?: error("OpenAI login required before proxying requests")
+                ?: throw AuthRequiredException("OpenAI login required: log in on the OpenAI settings tab, then retry.")
             val headers = linkedMapOf(
                 "Authorization" to "Bearer $accessToken",
                 "OpenAI-Beta" to "responses=experimental",

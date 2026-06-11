@@ -1,6 +1,7 @@
 package com.aiproxyoauth.server;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.aiproxyoauth.config.ServerConfig;
 import com.aiproxyoauth.logging.RequestLogger;
@@ -128,12 +129,25 @@ public class ResponsesHandler implements Handler {
             // Collect completed response from SSE
             try (InputStream is = upstream.body()) {
                 JsonNode completed = SseCollector.collectCompletedResponse(is);
+                String status = completed.path("status").asText("");
+                if ("failed".equals(status) || "cancelled".equals(status)) {
+                    String errorMessage = completed.path("error").path("message")
+                            .asText("Upstream response " + status + ".");
+                    requestLogger.logClientResponse(requestId, 502, errorMessage);
+                    JsonHelper.toErrorResponse(ctx, errorMessage, 502, "upstream_error");
+                    return;
+                }
                 if (JunieCommandProtocolCompat.isJunieRequest(expanded)
                         && !JunieCommandProtocolCompat.hasFunctionCallOutput(completed)) {
-                    String fallbackToolName = JunieCommandProtocolCompat.fallbackToolName(expanded);
-                    completed = fallbackToolName != null
-                            ? JunieCommandProtocolCompat.toToolResponse(completed, fallbackToolName)
-                            : JunieCommandProtocolCompat.wrapCompletedResponse(completed);
+                    String declaredToolName = JunieCommandProtocolCompat.declaredFallbackToolName(expanded);
+                    if (declaredToolName != null) {
+                        completed = JunieCommandProtocolCompat.toToolResponse(completed, declaredToolName);
+                    } else if (!JunieCommandProtocolCompat.hasToolDefinitions(expanded)) {
+                        // Tool-less Junie requests are the <THOUGHT>/<COMMAND> text protocol;
+                        // a synthetic call to an undeclared tool would not parse as a command.
+                        completed = JunieCommandProtocolCompat.wrapCompletedResponse(completed);
+                    }
+                    // Tools declared but no submit/answer: native protocol — pass through unchanged.
                 }
                 recordUsage(ctx, completed.get("usage"));
                 // Best-effort same-process replay cache only; nothing is persisted locally.
@@ -151,6 +165,8 @@ public class ResponsesHandler implements Handler {
         if (resolvedModel.model() != null && !resolvedModel.model().isBlank()) {
             normalized.put("model", resolvedModel.model());
         }
+
+        hoistSystemMessagesIntoInstructions(normalized);
 
         if (!normalized.has("instructions") || !normalized.get("instructions").isTextual()) {
             normalized.put("instructions", instructionsProvider.instructionsForModel(normalized.path("model").asText()));
@@ -173,6 +189,55 @@ public class ResponsesHandler implements Handler {
         }
 
         return normalized;
+    }
+
+    /**
+     * The Codex backend rejects requests containing system-role input items
+     * ("System messages are not allowed"). Clients such as Junie's Responses client
+     * always send their system prompt as an input message, so move that text into
+     * the `instructions` field instead.
+     */
+    private void hoistSystemMessagesIntoInstructions(ObjectNode normalized) {
+        JsonNode input = normalized.get("input");
+        if (input == null || !input.isArray()) {
+            return;
+        }
+
+        StringBuilder systemTexts = new StringBuilder();
+        ArrayNode filteredInput = MAPPER.createArrayNode();
+        for (JsonNode item : input) {
+            if (item.isObject() && isSystemMessageItem(item)) {
+                String text = JunieCommandProtocolCompat.messageText(item.get("content"));
+                if (!text.isEmpty()) {
+                    if (!systemTexts.isEmpty()) {
+                        systemTexts.append('\n');
+                    }
+                    systemTexts.append(text);
+                }
+                continue;
+            }
+            filteredInput.add(item);
+        }
+
+        if (systemTexts.isEmpty()) {
+            return;
+        }
+        normalized.set("input", filteredInput);
+        String existingInstructions = normalized.path("instructions").isTextual()
+                ? normalized.get("instructions").asText().strip() : "";
+        String combined = existingInstructions.isEmpty()
+                ? systemTexts.toString()
+                : existingInstructions + "\n" + systemTexts;
+        normalized.put("instructions", combined);
+    }
+
+    private static boolean isSystemMessageItem(JsonNode item) {
+        String role = item.path("role").asText("");
+        if (!"system".equals(role) && !"developer".equals(role)) {
+            return false;
+        }
+        String type = item.path("type").asText("message");
+        return "message".equals(type);
     }
 
     private HttpResponse<InputStream> sendUpstream(ObjectNode normalized, String requestId, String promptCacheKey)

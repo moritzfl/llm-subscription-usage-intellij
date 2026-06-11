@@ -86,6 +86,13 @@ public class ProxyServer {
             javalinConfig.routes.post("/v1/chat/completions",
                     new ChatCompletionsHandler(client, config, usageTracker, requestLogger, instructionsProvider));
 
+            // Missing upstream credentials surface as 401 so clients show the real cause
+            // (e.g. "OpenAI login required") instead of a generic server error.
+            javalinConfig.routes.exception(com.aiproxyoauth.auth.AuthRequiredException.class, (e, ctx) -> {
+                LOG.warn("Rejected {} {}: {}", ctx.method(), ctx.path(), e.getMessage());
+                JsonHelper.toErrorResponse(ctx, e.getMessage(), 401, "authentication_error");
+            });
+
             // Global exception handler
             javalinConfig.routes.exception(Exception.class, (e, ctx) -> {
                 LOG.error("Unhandled request failure for {} {}", ctx.method(), ctx.path(), e);

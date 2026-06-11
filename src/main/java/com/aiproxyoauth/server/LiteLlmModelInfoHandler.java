@@ -37,9 +37,12 @@ public class LiteLlmModelInfoHandler implements Handler {
         Map<String, Object> modelInfo = new LinkedHashMap<>();
         modelInfo.put("id", id);
         modelInfo.put("mode", "chat");
+        modelInfo.put("litellm_provider", "openai-codex");
         modelInfo.put("supports_function_calling", true);
         modelInfo.put("supports_parallel_function_calling", false);
         modelInfo.put("supports_tool_choice", true);
+        modelInfo.put("supports_vision", true);
+        modelInfo.put("supports_prompt_caching", true);
         // Context limits of the GPT-5 family behind the Codex backend; clients such as
         // Junie size their prompts from these fields.
         modelInfo.put("max_input_tokens", 272000);
@@ -47,6 +50,7 @@ public class LiteLlmModelInfoHandler implements Handler {
         modelInfo.put("max_tokens", 128000);
         modelInfo.put("input_cost_per_token", 0.0);
         modelInfo.put("output_cost_per_token", 0.0);
+        modelInfo.put("cache_read_input_token_cost", 0.0);
 
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("id", id);

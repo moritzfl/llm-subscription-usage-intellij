@@ -30,16 +30,86 @@ final class JunieCommandProtocolCompat {
 
     private JunieCommandProtocolCompat() {}
 
+    /**
+     * Detects Junie's matterhorn command protocol. Only two signals are reliable:
+     * the {@code stop: ["</COMMAND>"]} parameter Junie sends in text mode, and the
+     * "You are Junie" system prompt. Scanning the whole body would misfire on any
+     * conversation that merely mentions Junie.
+     */
     static boolean isJunieRequest(JsonNode body) {
         if (body == null) {
             return false;
         }
-        String text = body.toString().toLowerCase(Locale.ROOT);
-        return text.contains("you are junie")
-                || text.contains("special interface")
-                || text.contains("<command")
-                || text.contains("previous_step")
-                || text.contains("junie");
+        if (stopContainsCommandMarker(body.get("stop"))) {
+            return true;
+        }
+        String systemText = systemText(body).toLowerCase(Locale.ROOT);
+        return systemText.contains("you are junie");
+    }
+
+    private static boolean stopContainsCommandMarker(JsonNode stop) {
+        if (stop == null) {
+            return false;
+        }
+        if (stop.isTextual()) {
+            return stop.asText().contains("</COMMAND>");
+        }
+        if (stop.isArray()) {
+            for (JsonNode sequence : stop) {
+                if (sequence.isTextual() && sequence.asText().contains("</COMMAND>")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Collects instructions plus all system/developer message text from chat and responses bodies. */
+    private static String systemText(JsonNode body) {
+        StringBuilder text = new StringBuilder();
+        JsonNode instructions = body.get("instructions");
+        if (instructions != null && instructions.isTextual()) {
+            text.append(instructions.asText()).append('\n');
+        }
+        appendSystemMessages(text, body.get("messages"));
+        appendSystemMessages(text, body.get("input"));
+        return text.toString();
+    }
+
+    private static void appendSystemMessages(StringBuilder target, JsonNode messages) {
+        if (messages == null || !messages.isArray()) {
+            return;
+        }
+        for (JsonNode message : messages) {
+            if (!message.isObject()) {
+                continue;
+            }
+            String role = message.path("role").asText("");
+            if (!"system".equals(role) && !"developer".equals(role)) {
+                continue;
+            }
+            target.append(messageText(message.get("content"))).append('\n');
+        }
+    }
+
+    static String messageText(JsonNode content) {
+        if (content == null) {
+            return "";
+        }
+        if (content.isTextual()) {
+            return content.asText();
+        }
+        if (!content.isArray()) {
+            return "";
+        }
+        StringBuilder text = new StringBuilder();
+        for (JsonNode part : content) {
+            String type = part.path("type").asText("");
+            if ("text".equals(type) || "input_text".equals(type) || "output_text".equals(type)) {
+                text.append(part.path("text").asText(""));
+            }
+        }
+        return text.toString();
     }
 
     static JsonNode wrapCompletedResponse(JsonNode completedResponse) {
@@ -92,18 +162,32 @@ final class JunieCommandProtocolCompat {
     }
 
     static String fallbackToolName(JsonNode body) {
+        String declared = declaredFallbackToolName(body);
+        if (declared != null) {
+            return declared;
+        }
+        if (isJunieRequest(body) && !hasToolDefinitions(body)) {
+            return "submit";
+        }
+        return null;
+    }
+
+    /** Returns submit/answer only when the request actually declares that tool. */
+    static String declaredFallbackToolName(JsonNode body) {
         if (hasTool(body, "submit")) {
             return "submit";
         }
         if (hasTool(body, "answer")) {
             return "answer";
         }
-        if (isJunieRequest(body)
-                && hasNoToolDefinitions(body.get("tools"))
-                && hasNoToolDefinitions(body.get("functions"))) {
-            return "submit";
-        }
         return null;
+    }
+
+    static boolean hasToolDefinitions(JsonNode body) {
+        if (body == null) {
+            return false;
+        }
+        return !hasNoToolDefinitions(body.get("tools")) || !hasNoToolDefinitions(body.get("functions"));
     }
 
     private static boolean hasNoToolDefinitions(JsonNode tools) {

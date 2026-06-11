@@ -697,6 +697,245 @@ class OpenAiProxyServerTest {
         }
     }
 
+    @Test
+    fun hoistsSystemInputMessagesIntoInstructionsForResponses() {
+        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/responses"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"stream\":false,\"store\":false,\"input\":[" +
+                                    "{\"type\":\"message\",\"role\":\"system\",\"content\":\"SYSTEM_PROMPT_TOKEN\"}," +
+                                    "{\"type\":\"message\",\"role\":\"user\",\"content\":" +
+                                    "[{\"type\":\"input_text\",\"text\":\"hi\"}]}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                val upstreamBody = parseObject(request.body)
+                assertTrue(
+                    upstreamBody["instructions"]!!.jsonPrimitive.content.contains("SYSTEM_PROMPT_TOKEN"),
+                )
+                val input = upstreamBody["input"]!!.jsonArray
+                assertEquals(1, input.size)
+                assertEquals("user", input[0].jsonObject["role"]!!.jsonPrimitive.content)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun wrapsToollessJunieResponsesTextAsCommandProtocolInsteadOfToolCall() {
+        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/responses"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"stream\":false,\"store\":false," +
+                                    "\"input\":[" +
+                                    "{\"type\":\"message\",\"role\":\"system\",\"content\":" +
+                                    "\"You are Junie, working with a special interface.\"}," +
+                                    "{\"type\":\"message\",\"role\":\"user\",\"content\":\"test\"}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                val outputItem = parseObject(response.body())["output"]!!.jsonArray[0].jsonObject
+                assertEquals("message", outputItem["type"]!!.jsonPrimitive.content)
+                val text = outputItem["content"]!!.jsonArray[0].jsonObject["text"]!!.jsonPrimitive.content
+                assertTrue(text.contains("<THOUGHT>pong</THOUGHT>"))
+                assertTrue(text.contains("<COMMAND>submit</COMMAND>"))
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun doesNotRewriteChatsThatMerelyMentionJunie() {
+        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"messages\":[" +
+                                    "{\"role\":\"system\",\"content\":\"You are a helpful assistant.\"}," +
+                                    "{\"role\":\"user\",\"content\":\"How does the junie special interface " +
+                                    "with <COMMAND> and previous_step work?\"}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                val message = parseObject(response.body())["choices"]!!.jsonArray[0]
+                    .jsonObject["message"]!!.jsonObject
+                assertEquals("pong", message["content"]!!.jsonPrimitive.content)
+                assertFalse("tool_calls" in message)
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun truncatesChatTextAfterFirstStopSequence() {
+        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_COMMAND_AND_TRAILING_TEXT).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"stop\":[\"</COMMAND>\"],\"messages\":[" +
+                                    "{\"role\":\"system\",\"content\":\"You are Junie. Use the special interface.\"}," +
+                                    "{\"role\":\"user\",\"content\":\"test\"}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                val content = parseObject(response.body())["choices"]!!.jsonArray[0]
+                    .jsonObject["message"]!!.jsonObject["content"]!!.jsonPrimitive.content
+                assertEquals("<THOUGHT>listing</THOUGHT>\n<COMMAND>ls</COMMAND>", content)
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun mapsUsageLimitErrorsToInsufficientQuota() {
+        TestUpstream(
+            responseBody = "{\"detail\":\"You've hit your usage limit. usage_limit_reached\"}",
+            responseContentType = "application/json",
+            responseStatus = 404,
+        ).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(429, response.statusCode())
+                val error = parseObject(response.body())["error"]!!.jsonObject
+                assertEquals("insufficient_quota", error["type"]!!.jsonPrimitive.content)
+                assertEquals("insufficient_quota", error["code"]!!.jsonPrimitive.content)
+                assertTrue(error["message"]!!.jsonPrimitive.content.contains("usage limit"))
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun returns401WhenOpenAiLoginIsMissing() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri, accessToken = null)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(401, response.statusCode())
+                val error = parseObject(response.body())["error"]!!.jsonObject
+                assertEquals("authentication_error", error["type"]!!.jsonPrimitive.content)
+                assertTrue(error["message"]!!.jsonPrimitive.content.contains("login required"))
+                assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun forwardsChatResponseFormatAsTextFormat() {
+        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]," +
+                                    "\"response_format\":{\"type\":\"json_schema\",\"json_schema\":{" +
+                                    "\"name\":\"answer\",\"strict\":true,\"schema\":{\"type\":\"object\"," +
+                                    "\"properties\":{\"result\":{\"type\":\"integer\"}}}}}}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                val format = parseObject(request.body)["text"]!!.jsonObject["format"]!!.jsonObject
+                assertEquals("json_schema", format["type"]!!.jsonPrimitive.content)
+                assertEquals("answer", format["name"]!!.jsonPrimitive.content)
+                assertEquals(true, format["strict"]!!.jsonPrimitive.boolean)
+                assertEquals("object", format["schema"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
     private fun newProxy(
         upstreamBaseUri: URI,
         accessToken: String? = "codex-token",
@@ -724,6 +963,7 @@ class OpenAiProxyServerTest {
     private class TestUpstream(
         private val responseBody: String = "{\"ok\":true}",
         private val responseContentType: String = "text/event-stream",
+        private val responseStatus: Int = 200,
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
         private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
@@ -741,7 +981,7 @@ class OpenAiProxyServerTest {
                 )
                 val response = responseBody.toByteArray(Charsets.UTF_8)
                 exchange.responseHeaders.set("Content-Type", responseContentType)
-                exchange.sendResponseHeaders(200, response.size.toLong())
+                exchange.sendResponseHeaders(responseStatus, response.size.toLong())
                 exchange.responseBody.use { output -> output.write(response) }
             }
             server.start()
@@ -778,6 +1018,12 @@ class OpenAiProxyServerTest {
             "\"id\":\"resp_1\",\"object\":\"response\",\"status\":\"completed\"," +
             "\"output\":[{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"pong\"}]}]," +
             "\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n"
+        const val COMPLETED_RESPONSE_STREAM_WITH_COMMAND_AND_TRAILING_TEXT = "event: response.completed\n" +
+            "data: {\"type\":\"response.completed\",\"response\":{" +
+            "\"id\":\"resp_1\",\"object\":\"response\",\"status\":\"completed\"," +
+            "\"output\":[{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"" +
+            "<THOUGHT>listing</THOUGHT>\\n<COMMAND>ls</COMMAND>ignored trailing chatter" +
+            "\"}]}],\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n"
         const val COMPLETED_RESPONSE_STREAM_WITH_FUNCTION_CALL = "event: response.completed\n" +
             "data: {\"type\":\"response.completed\",\"response\":{" +
             "\"id\":\"resp_1\",\"object\":\"response\",\"status\":\"completed\"," +

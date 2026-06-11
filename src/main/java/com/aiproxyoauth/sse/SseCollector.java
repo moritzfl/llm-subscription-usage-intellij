@@ -14,6 +14,7 @@ public final class SseCollector {
 
     public static JsonNode collectCompletedResponse(InputStream input) throws IOException {
         JsonNode latestResponse = null;
+        JsonNode failedResponse = null;
         JsonNode latestError = null;
         StringBuilder outputTextDeltas = new StringBuilder();
         java.util.List<JsonNode> completedItems = new java.util.ArrayList<>();
@@ -63,10 +64,22 @@ public final class SseCollector {
                         latestResponse = response;
                     }
                 }
+
+                // Keep failed/cancelled response objects so callers can surface the
+                // upstream error instead of a generic "no completed response" failure.
+                if ("response.failed".equals(eventType) || "response.cancelled".equals(eventType)) {
+                    JsonNode response = parsed.get("response");
+                    if (response != null && response.isObject()) {
+                        failedResponse = response;
+                    }
+                }
             } catch (Exception ignored) {
             }
         }
 
+        if (latestResponse == null) {
+            latestResponse = failedResponse;
+        }
         if (latestResponse != null) {
             if (!hasOutputItems(latestResponse) && !completedItems.isEmpty()) {
                 ObjectNode copy = ((ObjectNode) latestResponse).deepCopy();

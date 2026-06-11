@@ -91,26 +91,61 @@ public final class JsonHelper {
     }
 
     public static String toUpstreamErrorBody(String raw, int status) {
+        return toUpstreamErrorBody(raw, status, null);
+    }
+
+    /**
+     * Normalizes any upstream error payload to the OpenAI {@code {"error":{...}}}
+     * envelope, which is the only shape OpenAI-compatible clients parse. The Codex
+     * backend frequently answers {@code {"detail": "..."}} instead. When
+     * {@code overrideType} is set (e.g. "insufficient_quota"), it replaces the error
+     * type and code so clients classify the failure correctly.
+     */
+    public static String toUpstreamErrorBody(String raw, int status, String overrideType) {
+        JsonNode parsed = null;
         if (raw != null && !raw.isBlank()) {
             try {
-                JsonNode parsed = Json.MAPPER.readTree(raw);
-                if (parsed != null && parsed.isObject()) {
-                    return raw; // already valid JSON object
+                JsonNode candidate = Json.MAPPER.readTree(raw);
+                if (candidate != null && candidate.isObject()) {
+                    parsed = candidate;
                 }
             } catch (Exception ignored) {}
         }
+
+        if (parsed != null && overrideType == null
+                && parsed.path("error").isObject()
+                && parsed.path("error").path("message").isTextual()) {
+            return raw; // already a usable OpenAI error envelope
+        }
+
+        String message = extractErrorMessage(parsed, raw);
         ObjectNode root = Json.MAPPER.createObjectNode();
         ObjectNode error = Json.MAPPER.createObjectNode();
-        String msg = (raw != null && !raw.isBlank()) ? raw.strip() : "Upstream error";
-        error.put("message", msg);
-        error.put("type", "upstream_error");
-        error.put("code", String.valueOf(status));
+        error.put("message", message);
+        error.put("type", overrideType != null ? overrideType : "upstream_error");
+        error.put("code", overrideType != null ? overrideType : String.valueOf(status));
         root.set("error", error);
         try {
             return Json.MAPPER.writeValueAsString(root);
         } catch (Exception e) {
             return "{\"error\":{\"message\":\"Upstream error\",\"type\":\"upstream_error\"}}";
         }
+    }
+
+    private static String extractErrorMessage(JsonNode parsed, String raw) {
+        if (parsed != null) {
+            JsonNode nested = parsed.path("error").path("message");
+            if (nested.isTextual() && !nested.asText().isBlank()) {
+                return nested.asText();
+            }
+            for (String field : new String[]{"detail", "message"}) {
+                JsonNode value = parsed.get(field);
+                if (value != null && value.isTextual() && !value.asText().isBlank()) {
+                    return value.asText();
+                }
+            }
+        }
+        return raw != null && !raw.isBlank() ? raw.strip() : "Upstream error";
     }
 
     public static void setSseHeaders(Context ctx) {
