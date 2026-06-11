@@ -44,18 +44,32 @@ public class AuthManager implements CredentialsProvider {
     }
 
     /**
-     * Drops the cached token so the next {@link #getAuthHeaders()} reloads and refreshes
-     * from the auth file. Used by the CLI's file-based flow after an upstream 401.
+     * Drops the cached token and reloads from the auth file. Returns true only when the
+     * reload produced a different access token than the rejected one — reloading the same
+     * locally-valid-but-upstream-rejected token would make a retry pointless.
      */
     @Override
-    public void refreshAfterUnauthorized() throws Exception {
+    public boolean refreshAfterUnauthorized(String rejectedAuthorizationHeader) throws Exception {
         lock.lock();
         try {
             current = null;
         } finally {
             lock.unlock();
         }
-        ensureFresh();
+        AuthLoader.AuthResult refreshed = ensureFresh();
+        if (refreshed == null || refreshed.accessToken() == null || refreshed.accessToken().isEmpty()) {
+            return false;
+        }
+        String rejectedToken = stripBearer(rejectedAuthorizationHeader);
+        return !refreshed.accessToken().equals(rejectedToken);
+    }
+
+    private static String stripBearer(String authorizationHeader) {
+        if (authorizationHeader == null) {
+            return null;
+        }
+        String value = authorizationHeader.strip();
+        return value.regionMatches(true, 0, "Bearer ", 0, 7) ? value.substring(7).strip() : value;
     }
 
     @Override

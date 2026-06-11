@@ -49,14 +49,16 @@ public class CodexHttpClient {
                                              String requestId,
                                              String promptCacheKey) throws Exception {
         String logRequestId = requestId != null ? requestId : requestLogger.nextRequestId();
+        Map<String, String> authHeaders = credentialsProvider.getAuthHeaders();
         HttpResponse<InputStream> response = httpClient.send(
-                buildRequest(path, method, body, extraHeaders, promptCacheKey, logRequestId),
+                buildRequest(path, method, body, extraHeaders, promptCacheKey, logRequestId, authHeaders),
                 HttpResponse.BodyHandlers.ofInputStream());
-        if (response.statusCode() == 401 && refreshAfterUnauthorized()) {
+        if (response.statusCode() == 401 && refreshAfterUnauthorized(authHeaders)) {
             // Stream body of the rejected response is unused; discard it before retrying.
             drainQuietly(response);
             response = httpClient.send(
-                    buildRequest(path, method, body, extraHeaders, promptCacheKey, logRequestId),
+                    buildRequest(path, method, body, extraHeaders, promptCacheKey, logRequestId,
+                            credentialsProvider.getAuthHeaders()),
                     HttpResponse.BodyHandlers.ofInputStream());
         }
         requestLogger.logUpstreamResponse(logRequestId, response.statusCode(), responseHeaders(response),
@@ -67,12 +69,14 @@ public class CodexHttpClient {
     public HttpResponse<String> requestString(String path, String method, String body,
                                                Map<String, String> extraHeaders) throws Exception {
         String requestId = requestLogger.nextRequestId();
+        Map<String, String> authHeaders = credentialsProvider.getAuthHeaders();
         HttpResponse<String> response = httpClient.send(
-                buildRequest(path, method, body, extraHeaders, null, requestId),
+                buildRequest(path, method, body, extraHeaders, null, requestId, authHeaders),
                 HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() == 401 && refreshAfterUnauthorized()) {
+        if (response.statusCode() == 401 && refreshAfterUnauthorized(authHeaders)) {
             response = httpClient.send(
-                    buildRequest(path, method, body, extraHeaders, null, requestId),
+                    buildRequest(path, method, body, extraHeaders, null, requestId,
+                            credentialsProvider.getAuthHeaders()),
                     HttpResponse.BodyHandlers.ofString());
         }
         requestLogger.logUpstreamResponse(requestId, response.statusCode(), responseHeaders(response), response.body());
@@ -80,15 +84,16 @@ public class CodexHttpClient {
     }
 
     /**
-     * Asks the credentials provider to refresh after an upstream 401. The refresh itself is
-     * owned by the provider (the IDE plugin routes it to its secure-storage auth service);
-     * the proxy only triggers it. Returns false if the refresh itself failed, so the caller
-     * surfaces the original 401 rather than looping.
+     * Asks the credentials provider to refresh after an upstream 401, passing the exact
+     * Authorization header the rejected request carried so the provider can deduplicate
+     * concurrent refreshes. The refresh itself is owned by the provider (the IDE plugin
+     * routes it to its secure-storage auth service); the proxy only triggers it. Returns
+     * false when nothing was refreshed so the caller surfaces the original 401 instead of
+     * retrying with the same doomed token.
      */
-    private boolean refreshAfterUnauthorized() {
+    private boolean refreshAfterUnauthorized(Map<String, String> sentAuthHeaders) {
         try {
-            credentialsProvider.refreshAfterUnauthorized();
-            return true;
+            return credentialsProvider.refreshAfterUnauthorized(sentAuthHeaders.get("Authorization"));
         } catch (Exception e) {
             return false;
         }
@@ -106,9 +111,9 @@ public class CodexHttpClient {
     private HttpRequest buildRequest(String path, String method, String body,
                                      Map<String, String> extraHeaders,
                                      String promptCacheKey,
-                                     String requestId) throws Exception {
+                                     String requestId,
+                                     Map<String, String> authHeaders) throws Exception {
         String targetUrl = UrlResolver.resolveTargetUrl(path, baseUrl);
-        Map<String, String> authHeaders = credentialsProvider.getAuthHeaders();
         Map<String, String> loggedHeaders = new LinkedHashMap<>();
 
         HttpRequest.Builder builder = HttpRequest.newBuilder()

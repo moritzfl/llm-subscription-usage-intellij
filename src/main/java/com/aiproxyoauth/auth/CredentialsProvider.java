@@ -22,11 +22,18 @@ public interface CredentialsProvider {
     Map<String, String> getAuthHeaders() throws Exception;
 
     /**
-     * Invoked once after the upstream rejects a request with HTTP 401, before a single
-     * retry. Implementations should force their credentials to refresh so the retry uses a
-     * new token. The default is a no-op for providers that fully self-manage expiry.
+     * Invoked once after the upstream rejects a request with HTTP 401. Implementations
+     * should force their credentials to refresh so a retry can use a new token.
+     *
+     * @param rejectedAuthorizationHeader the exact {@code Authorization} header value the
+     *        rejected request carried (e.g. {@code "Bearer ..."}). Implementations use it
+     *        to deduplicate concurrent refreshes: if their current token already differs,
+     *        another request refreshed in the meantime and no new refresh is needed.
+     * @return true if credentials changed and retrying the request is worthwhile; false
+     *         when nothing was refreshed (the caller then surfaces the original 401
+     *         instead of burning a doomed retry). The default is a no-op returning false.
      */
-    default void refreshAfterUnauthorized() throws Exception {
-        // No-op by default: providers that refresh purely on local expiry need nothing here.
+    default boolean refreshAfterUnauthorized(String rejectedAuthorizationHeader) throws Exception {
+        return false;
     }
 }

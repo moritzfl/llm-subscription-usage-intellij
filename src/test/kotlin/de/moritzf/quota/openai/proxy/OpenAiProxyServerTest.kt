@@ -1135,6 +1135,7 @@ class OpenAiProxyServerTest {
                     tokenRefresher = { stale ->
                         refreshedWith = stale
                         if (tokens.size > 1) tokens.removeFirst()
+                        tokens.first()
                     },
                     upstreamBaseUri = upstream.baseUri,
                 ),
@@ -1161,6 +1162,40 @@ class OpenAiProxyServerTest {
                 assertEquals("Bearer stale-token", first.firstHeader("Authorization"))
                 val retry = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("Bearer fresh-token", retry.firstHeader("Authorization"))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun surfaces401WithoutRetryWhenNoTokenRefresherIsWired() {
+        TestUpstream(
+            responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT,
+            failFirstRequests = 1,
+            failStatus = 401,
+        ).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                // The default refresher cannot produce a new token, so the 401 is surfaced
+                // immediately instead of burning a doomed retry with the same token.
+                assertEquals(401, response.statusCode())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
             } finally {
                 proxy.stop()
             }

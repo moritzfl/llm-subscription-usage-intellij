@@ -30,8 +30,9 @@ class OpenAiProxyServer(
     private val accountIdProvider: () -> String?,
     // Invoked when the proxy sees an upstream 401, with the rejected access token. The
     // embedder owns the actual refresh (e.g. the IDE's secure-storage auth service); the
-    // proxy only signals that a refresh is needed. Default: no-op.
-    private val tokenRefresher: (staleAccessToken: String?) -> Unit = {},
+    // proxy only signals that a refresh is needed. Returns the access token in effect
+    // after the refresh, or null when refreshing failed or is unsupported (default).
+    private val tokenRefresher: (staleAccessToken: String?) -> String? = { null },
     private val httpClient: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(30))
         .build(),
@@ -126,15 +127,12 @@ class OpenAiProxyServer(
     private class QuotaCredentialsProvider(
         private val accessTokenProvider: () -> String?,
         private val accountIdProvider: () -> String?,
-        private val tokenRefresher: (staleAccessToken: String?) -> Unit,
+        private val tokenRefresher: (staleAccessToken: String?) -> String?,
     ) : CredentialsProvider {
-        private val lastAccessToken = java.util.concurrent.atomic.AtomicReference<String?>()
-
         @Throws(Exception::class)
         override fun getAuthHeaders(): Map<String, String> {
             val accessToken = accessTokenProvider()?.trim().takeUnless { it.isNullOrBlank() }
                 ?: throw AuthRequiredException("OpenAI login required: log in on the OpenAI settings tab, then retry.")
-            lastAccessToken.set(accessToken)
             val headers = linkedMapOf(
                 "Authorization" to "Bearer $accessToken",
                 "OpenAI-Beta" to "responses=experimental",
@@ -146,8 +144,13 @@ class OpenAiProxyServer(
             return headers
         }
 
-        override fun refreshAfterUnauthorized() {
-            tokenRefresher(lastAccessToken.get())
+        override fun refreshAfterUnauthorized(rejectedAuthorizationHeader: String?): Boolean {
+            // Key the refresh on the exact token the rejected request carried — not on any
+            // shared mutable slot — so concurrent 401s on different tokens dedupe correctly.
+            val staleToken = rejectedAuthorizationHeader
+                ?.removePrefix("Bearer ")?.trim()?.takeUnless { it.isEmpty() }
+            val tokenAfterRefresh = tokenRefresher(staleToken)
+            return tokenAfterRefresh != null && tokenAfterRefresh != staleToken
         }
     }
 
