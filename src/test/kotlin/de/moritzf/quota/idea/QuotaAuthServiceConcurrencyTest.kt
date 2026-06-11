@@ -180,6 +180,138 @@ class QuotaAuthServiceConcurrencyTest {
         }
     }
 
+    @Test
+    fun concurrentForceRefreshForSameRejectedTokenRefreshesOnlyOnce() {
+        // Upstream-401 scenario: credentials are locally valid, but Codex rejected them.
+        val store = InMemoryCredentialStore(validCredentials(accessToken = "old-token", refreshToken = "refresh-token"))
+        val refreshStarted = CountDownLatch(1)
+        val allowRefreshToFinish = CountDownLatch(1)
+        val refreshCalls = AtomicInteger(0)
+        val refreshedCredentials = validCredentials(accessToken = "new-token", refreshToken = "new-refresh-token")
+        val service = createService(
+            store = store,
+            tokenOperations = TestTokenOperations(
+                onRefresh = {
+                    refreshCalls.incrementAndGet()
+                    refreshStarted.countDown()
+                    assertTrue(allowRefreshToFinish.await(5, TimeUnit.SECONDS))
+                    refreshedCredentials
+                },
+            ),
+        )
+        val executor = Executors.newFixedThreadPool(2)
+
+        try {
+            // Both requests were rejected while carrying the same token, so both report
+            // the same stale value; only the first may trigger an actual refresh.
+            val first = executor.submit<String?> {
+                service.forceRefreshBlocking(QuotaProviderType.OPEN_AI, staleAccessToken = "old-token")
+            }
+            assertTrue(refreshStarted.await(5, TimeUnit.SECONDS))
+            val second = executor.submit<String?> {
+                service.forceRefreshBlocking(QuotaProviderType.OPEN_AI, staleAccessToken = "old-token")
+            }
+            allowRefreshToFinish.countDown()
+
+            assertEquals("new-token", first.get(5, TimeUnit.SECONDS))
+            assertEquals("new-token", second.get(5, TimeUnit.SECONDS))
+            assertEquals(1, refreshCalls.get())
+            assertEquals("new-token", store.current()?.accessToken)
+        } finally {
+            executor.shutdownNow()
+            service.dispose()
+        }
+    }
+
+    @Test
+    fun forceRefreshSkipsWhenAnotherRequestAlreadyRotatedTheToken() {
+        val store = InMemoryCredentialStore(validCredentials(accessToken = "current-token", refreshToken = "refresh-token"))
+        val service = createService(
+            store = store,
+            tokenOperations = TestTokenOperations(
+                onRefresh = { error("Refresh must not run when the rejected token is already rotated away") },
+            ),
+        )
+
+        try {
+            val token = service.forceRefreshBlocking(QuotaProviderType.OPEN_AI, staleAccessToken = "rotated-away-token")
+            assertEquals("current-token", token)
+            assertEquals("current-token", store.current()?.accessToken)
+        } finally {
+            service.dispose()
+        }
+    }
+
+    @Test
+    fun forceRefreshRefreshesLocallyValidCredentialsThatUpstreamRejected() {
+        val store = InMemoryCredentialStore(validCredentials(accessToken = "old-token", refreshToken = "refresh-token"))
+        val refreshCalls = AtomicInteger(0)
+        val service = createService(
+            store = store,
+            tokenOperations = TestTokenOperations(
+                onRefresh = {
+                    refreshCalls.incrementAndGet()
+                    validCredentials(accessToken = "new-token", refreshToken = "new-refresh-token")
+                },
+            ),
+        )
+
+        try {
+            val token = service.forceRefreshBlocking(QuotaProviderType.OPEN_AI, staleAccessToken = "old-token")
+            assertEquals("new-token", token)
+            assertEquals(1, refreshCalls.get())
+            assertEquals("new-token", store.current()?.accessToken)
+        } finally {
+            service.dispose()
+        }
+    }
+
+    @Test
+    fun forceRefreshWithUnknownStaleTokenStillRefreshes() {
+        // When the rejected Authorization header could not be parsed, the conservative
+        // fallback is to refresh anyway rather than retry with a doomed token.
+        val store = InMemoryCredentialStore(validCredentials(accessToken = "current-token", refreshToken = "refresh-token"))
+        val refreshCalls = AtomicInteger(0)
+        val service = createService(
+            store = store,
+            tokenOperations = TestTokenOperations(
+                onRefresh = {
+                    refreshCalls.incrementAndGet()
+                    validCredentials(accessToken = "new-token", refreshToken = "new-refresh-token")
+                },
+            ),
+        )
+
+        try {
+            val token = service.forceRefreshBlocking(QuotaProviderType.OPEN_AI, staleAccessToken = null)
+            assertEquals("new-token", token)
+            assertEquals(1, refreshCalls.get())
+        } finally {
+            service.dispose()
+        }
+    }
+
+    @Test
+    fun forceRefreshTerminalFailureClearsCredentials() {
+        val store = InMemoryCredentialStore(validCredentials(accessToken = "old-token", refreshToken = "refresh-token"))
+        val service = createService(
+            store = store,
+            tokenOperations = TestTokenOperations(
+                onRefresh = {
+                    throw OAuthTokenRequestException("invalid grant", 400, "invalid_grant")
+                },
+            ),
+        )
+
+        try {
+            assertNull(service.forceRefreshBlocking(QuotaProviderType.OPEN_AI, staleAccessToken = "old-token"))
+            assertNull(store.current())
+            assertFalse(service.isLoggedIn(QuotaProviderType.OPEN_AI))
+        } finally {
+            service.dispose()
+        }
+    }
+
     private fun createService(
         store: OAuthCredentialStore,
         tokenOperations: OAuthTokenOperations,
