@@ -24,7 +24,8 @@ public record ServerConfig(
         String requestLogDir,
         boolean forwardPromptCacheHeaders,
         String codexInstructionsMode,
-        String codexInstructionsCacheDir
+        String codexInstructionsCacheDir,
+        boolean enableResponsesReplayCache
 ) {
     public static final String DEFAULT_HOST = "127.0.0.1";
     public static final int DEFAULT_PORT = 10531;
@@ -59,7 +60,7 @@ public record ServerConfig(
             String adminKey
     ) {
         this(host, port, models, codexVersion, baseUrl, oauthClientId, oauthTokenUrl, oauthFilePath,
-                instructions, store, apiKeys, adminKey, false, List.of(), false, null, false, null, null);
+                instructions, store, apiKeys, adminKey, false, List.of(), false, null, false, null, null, false);
     }
 
     public ServerConfig(
@@ -79,7 +80,7 @@ public record ServerConfig(
             List<String> allowedCorsOrigins
     ) {
         this(host, port, models, codexVersion, baseUrl, oauthClientId, oauthTokenUrl, oauthFilePath,
-                instructions, store, apiKeys, adminKey, allowAnyCors, allowedCorsOrigins, false, null, false, null, null);
+                instructions, store, apiKeys, adminKey, allowAnyCors, allowedCorsOrigins, false, null, false, null, null, false);
     }
 
     public ServerConfig(
@@ -103,7 +104,7 @@ public record ServerConfig(
     ) {
         this(host, port, models, codexVersion, baseUrl, oauthClientId, oauthTokenUrl, oauthFilePath,
                 instructions, store, apiKeys, adminKey, allowAnyCors, allowedCorsOrigins,
-                fullRequestLogging, requestLogDir, forwardPromptCacheHeaders, null, null);
+                fullRequestLogging, requestLogDir, forwardPromptCacheHeaders, null, null, false);
     }
 
     public ServerConfig {

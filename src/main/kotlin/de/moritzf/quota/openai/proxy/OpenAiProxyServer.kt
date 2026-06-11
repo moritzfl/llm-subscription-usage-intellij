@@ -103,6 +103,9 @@ class OpenAiProxyServer(
             false,
             ServerConfig.DEFAULT_CODEX_INSTRUCTIONS_MODE,
             null,
+            // The Responses replay cache emulates previous_response_id/item_reference for
+            // store=false. Junie always inlines full history, so it is pure overhead here.
+            false,
         )
     }
 

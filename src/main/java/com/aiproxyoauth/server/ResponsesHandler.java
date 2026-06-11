@@ -82,9 +82,11 @@ public class ResponsesHandler implements Handler {
         boolean wantsStream = body.path("stream").asBoolean(false);
         AccessLogFields.mode(ctx, wantsStream ? "stream" : "sync");
 
-        // Expand previous_response_id and item_reference references before forwarding
-        ResponsesState state = replayStateFor(ctx);
-        ObjectNode expanded = state.expandRequestBody((ObjectNode) body);
+        // The replay cache emulates previous_response_id/item_reference for store=false.
+        // It is opt-in (clients like Junie always inline full history), so when disabled we
+        // forward the body as-is and skip the second SSE parse it would otherwise require.
+        ResponsesState state = config.enableResponsesReplayCache() ? replayStateFor(ctx) : null;
+        ObjectNode expanded = state != null ? state.expandRequestBody((ObjectNode) body) : (ObjectNode) body;
 
         // Normalize body
         ObjectNode normalized = requestSanitizer.sanitize(normalizeBody(expanded), config.store());
@@ -113,9 +115,11 @@ public class ResponsesHandler implements Handler {
         }
 
         if (wantsStream) {
-            // Stream SSE directly to client
+            // Stream SSE directly to client. The recorder runs only when the replay cache is
+            // enabled; otherwise the bytes pass straight through without a second parse.
             JsonHelper.setSseHeaders(ctx);
-            StreamingCompletionRecorder recorder = new StreamingCompletionRecorder(ctx, state, expanded);
+            StreamingCompletionRecorder recorder =
+                    state != null ? new StreamingCompletionRecorder(ctx, state, expanded) : null;
             try (InputStream is = upstream.body();
                  OutputStream os = ctx.res().getOutputStream()) {
                 byte[] buffer = new byte[8192];
@@ -123,11 +127,15 @@ public class ResponsesHandler implements Handler {
                 while ((bytesRead = is.read(buffer)) != -1) {
                     os.write(buffer, 0, bytesRead);
                     AccessLogFields.addResponseBytes(ctx, bytesRead);
-                    recorder.accept(buffer, bytesRead);
+                    if (recorder != null) {
+                        recorder.accept(buffer, bytesRead);
+                    }
                     os.flush();
                 }
             }
-            recorder.finish();
+            if (recorder != null) {
+                recorder.finish();
+            }
         } else {
             // Collect completed response from SSE
             try (InputStream is = upstream.body()) {
@@ -153,8 +161,10 @@ public class ResponsesHandler implements Handler {
                     // Tools declared but no submit/answer: native protocol — pass through unchanged.
                 }
                 recordUsage(ctx, completed.get("usage"));
-                // Best-effort same-process replay cache only; nothing is persisted locally.
-                state.rememberResponse(completed, expanded);
+                if (state != null) {
+                    // Best-effort same-process replay cache only; nothing is persisted locally.
+                    state.rememberResponse(completed, expanded);
+                }
                 JsonHelper.toJsonResponse(ctx, completed);
             }
         }

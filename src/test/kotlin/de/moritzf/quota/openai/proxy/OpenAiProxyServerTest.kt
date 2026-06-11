@@ -697,6 +697,39 @@ class OpenAiProxyServerTest {
     }
 
     @Test
+    fun doesNotExpandPreviousResponseIdWhenReplayCacheDisabled() {
+        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/responses"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"stream\":false,\"store\":false," +
+                                    "\"previous_response_id\":\"resp_unknown\",\"input\":[" +
+                                    "{\"type\":\"message\",\"role\":\"user\",\"content\":\"hi\"}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                val upstreamBody = parseObject(request.body)
+                // The replay cache is off by default, so the reference is forwarded verbatim
+                // rather than being expanded/removed by local replay bookkeeping.
+                assertEquals("resp_unknown", upstreamBody["previous_response_id"]?.jsonPrimitive?.content)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun hoistsSystemInputMessagesIntoInstructionsForResponses() {
         TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
             val proxy = newProxy(upstream.baseUri)

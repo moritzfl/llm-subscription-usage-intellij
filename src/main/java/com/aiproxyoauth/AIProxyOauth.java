@@ -84,6 +84,9 @@ public class AIProxyOauth implements Callable<Integer> {
     @Option(names = "--forward-prompt-cache-headers", description = "Forward prompt_cache_key as upstream conversation/session headers. Experimental. Default: false")
     private boolean forwardPromptCacheHeaders;
 
+    @Option(names = "--responses-replay-cache", description = "Emulate previous_response_id/item_reference for store=false via an in-memory cache. Only needed for clients that chain responses server-side. Default: false")
+    private boolean responsesReplayCache;
+
     @Option(names = "--codex-instructions", description = "Instruction source: configured or latest-codex. Default: configured")
     private String codexInstructionsMode;
 
@@ -213,7 +216,8 @@ public class AIProxyOauth implements Callable<Integer> {
                 requestLogDir,
                 forwardPromptCacheHeaders,
                 codexInstructionsMode,
-                codexInstructionsCacheDir
+                codexInstructionsCacheDir,
+                responsesReplayCache
         );
     }
 
