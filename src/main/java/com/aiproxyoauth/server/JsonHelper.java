@@ -45,6 +45,8 @@ public final class JsonHelper {
         ObjectNode error = Json.MAPPER.createObjectNode();
         error.put("message", message);
         error.put("type", type);
+        error.putNull("param");
+        error.put("code", String.valueOf(status));
         root.set("error", error);
         toJsonResponse(ctx, root, status);
     }
@@ -123,6 +125,7 @@ public final class JsonHelper {
         ObjectNode error = Json.MAPPER.createObjectNode();
         error.put("message", message);
         error.put("type", overrideType != null ? overrideType : "upstream_error");
+        error.putNull("param");
         error.put("code", overrideType != null ? overrideType : String.valueOf(status));
         root.set("error", error);
         try {

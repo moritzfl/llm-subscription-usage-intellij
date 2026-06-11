@@ -75,16 +75,28 @@ public class ProxyServer {
                 javalinConfig.routes.beforeMatched(ctx -> authenticateRequest(ctx, apiKeyStore));
             }
 
-            // Routes
+            // Routes. LiteLLM serves every API route both with and without the /v1
+            // prefix, and clients differ in which variant they call (Junie appends
+            // /v1/... to a prefix-less base URL) — mirror that here.
             javalinConfig.routes.get("/health", new HealthHandler());
-            javalinConfig.routes.get("/v1/models", new ModelsHandler(modelResolver));
-            javalinConfig.routes.get("/v1/model/info", new LiteLlmModelInfoHandler(modelResolver));
-            javalinConfig.routes.get("/model/info", new LiteLlmModelInfoHandler(modelResolver));
+            javalinConfig.routes.get("/health/liveliness", ProxyServer::livenessProbe);
+            javalinConfig.routes.get("/health/liveness", ProxyServer::livenessProbe);
+            javalinConfig.routes.get("/health/readiness", ProxyServer::readinessProbe);
+            ModelsHandler modelsHandler = new ModelsHandler(modelResolver);
+            javalinConfig.routes.get("/v1/models", modelsHandler);
+            javalinConfig.routes.get("/models", modelsHandler);
+            LiteLlmModelInfoHandler modelInfoHandler = new LiteLlmModelInfoHandler(modelResolver);
+            javalinConfig.routes.get("/v1/model/info", modelInfoHandler);
+            javalinConfig.routes.get("/model/info", modelInfoHandler);
             javalinConfig.routes.get("/v1/usage", new UsageHandler(usageTracker));
-            javalinConfig.routes.post("/v1/responses",
-                    new ResponsesHandler(client, config, usageTracker, requestLogger, instructionsProvider));
-            javalinConfig.routes.post("/v1/chat/completions",
-                    new ChatCompletionsHandler(client, config, usageTracker, requestLogger, instructionsProvider));
+            ResponsesHandler responsesHandler =
+                    new ResponsesHandler(client, config, usageTracker, requestLogger, instructionsProvider);
+            javalinConfig.routes.post("/v1/responses", responsesHandler);
+            javalinConfig.routes.post("/responses", responsesHandler);
+            ChatCompletionsHandler chatCompletionsHandler =
+                    new ChatCompletionsHandler(client, config, usageTracker, requestLogger, instructionsProvider);
+            javalinConfig.routes.post("/v1/chat/completions", chatCompletionsHandler);
+            javalinConfig.routes.post("/chat/completions", chatCompletionsHandler);
 
             // Missing upstream credentials surface as 401 so clients show the real cause
             // (e.g. "OpenAI login required") instead of a generic server error.
@@ -107,7 +119,8 @@ public class ProxyServer {
     }
 
     static void authenticateRequest(Context ctx, ApiKeyStore apiKeyStore) {
-        if ("/health".equals(ctx.path())) return;
+        // Health probes are unauthenticated, matching LiteLLM's liveliness/readiness endpoints.
+        if ("/health".equals(ctx.path()) || ctx.path().startsWith("/health/")) return;
         if (isCorsPreflight(ctx)) return;
         String auth = ctx.header("Authorization");
         String key = (auth != null && auth.startsWith("Bearer "))
@@ -129,6 +142,15 @@ public class ProxyServer {
             ctx.attribute("keyName", name);
             ctx.attribute("keyFingerprint", ApiKeyUtils.fingerprint(key));
         }
+    }
+
+    private static void livenessProbe(Context ctx) {
+        // LiteLLM answers its liveliness probes with this literal JSON string.
+        JsonHelper.toJsonResponse(ctx, "I'm alive!");
+    }
+
+    private static void readinessProbe(Context ctx) {
+        JsonHelper.toJsonResponse(ctx, java.util.Map.of("status", "healthy"));
     }
 
     private static boolean isCorsPreflight(Context ctx) {

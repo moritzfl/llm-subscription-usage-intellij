@@ -936,6 +936,53 @@ class OpenAiProxyServerTest {
         }
     }
 
+    @Test
+    fun servesLiteLlmStyleRoutesWithoutV1Prefix() {
+        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+
+                val models = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/models"))
+                        .header("Authorization", "Bearer local-key")
+                        .GET()
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+                assertEquals(200, models.statusCode())
+                assertEquals("list", parseObject(models.body())["object"]!!.jsonPrimitive.content)
+
+                val chat = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/chat/completions"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+                assertEquals(200, chat.statusCode())
+                assertEquals("chat.completion", parseObject(chat.body())["object"]!!.jsonPrimitive.content)
+
+                // Health probes are unauthenticated, like LiteLLM's.
+                val liveliness = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/health/liveliness"))
+                        .GET()
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+                assertEquals(200, liveliness.statusCode())
+                assertTrue(liveliness.body().contains("alive"))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
     private fun newProxy(
         upstreamBaseUri: URI,
         accessToken: String? = "codex-token",
