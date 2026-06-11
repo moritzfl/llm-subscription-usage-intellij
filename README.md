@@ -49,6 +49,8 @@ Track your LLM subscription usage quotas directly in IntelliJ IDEA — in the st
 
 **Secure OAuth** — Login via browser OAuth inside IDE settings. Credentials stored in IntelliJ Password Safe.
 
+**OpenAI-Compatible Proxy** — Serves a local OpenAI-compatible API backed by your Codex subscription, so tools like JetBrains Junie can use it as a custom LLM provider.
+
 ---
 
 ## Installation
@@ -74,6 +76,21 @@ The plugin can keep JSON, TOML, and YAML config files up to date with IntelliJ's
 This is useful because IntelliJ's MCP server port can change. Tools like OpenCode, Codex, or other local AI clients often store the IntelliJ MCP server URL in their own config files. Server URL sync keeps those configs pointed at the active IntelliJ MCP endpoint automatically, so they continue to connect after the port changes.
 
 The settings page shows whether IntelliJ's MCP server is currently running, installed but stopped, disabled, or unavailable.
+
+---
+
+## OpenAI-Compatible Proxy
+
+When you are logged in to OpenAI, the plugin can run a local proxy that exposes your Codex subscription through standard OpenAI-compatible endpoints (`/v1/chat/completions`, `/v1/responses`, `/v1/models`, plus LiteLLM-style `/v1/model/info`). Any tool that speaks the OpenAI API or expects a LiteLLM server can then use your subscription.
+
+To enable it, open the **OpenAI** tab in settings, tick `Enable local OpenAI-compatible proxy`, and apply. The status line shows whether the proxy is off, starting, running, or failed. Use `Copy Base URL` and `Copy API Key` to configure clients; requests authenticate against the locally generated API key, which is stored in the IDE Password Safe.
+
+Notes:
+
+- Configure clients with the base URL **without** a `/v1` suffix (e.g. `http://127.0.0.1:14621`); clients append `/v1/...` themselves, and all routes also answer unprefixed.
+- For JetBrains Junie, add the proxy as a LiteLLM provider with that base URL and the copied API key — the available models are then discovered automatically.
+- Token refresh is owned by the plugin's regular OpenAI login; the proxy never stores credentials itself. If the upstream rejects a token, the proxy triggers a refresh through the IDE login flow and retries once.
+- `Log requests and responses to disk` writes full request/response bodies to a temp folder for debugging. It is off by default, and logs are pruned automatically (7 days / 2000 files).
 
 ---
 
