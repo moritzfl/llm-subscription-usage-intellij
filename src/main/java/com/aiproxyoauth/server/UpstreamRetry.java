@@ -6,7 +6,14 @@ import java.net.http.HttpResponse;
 
 /**
  * Honors LiteLLM's {@code x-litellm-num-retries} request header by retrying the
- * upstream call on transient failures (5xx responses and I/O errors).
+ * upstream call on failures where no model work could have happened:
+ * <ul>
+ *   <li>I/O errors — no response was received at all;</li>
+ *   <li>gateway statuses 502/503/504 — the request was rejected at the edge before
+ *       reaching the model.</li>
+ * </ul>
+ * A bare 500 is intentionally <em>not</em> retried: it may be raised after the
+ * request was metered/billed, and retrying would double-spend the subscription quota.
  */
 final class UpstreamRetry {
 
@@ -25,7 +32,7 @@ final class UpstreamRetry {
         while (true) {
             try {
                 HttpResponse<InputStream> response = call.send();
-                if (attempt >= retries || response.statusCode() < 500) {
+                if (attempt >= retries || !isRetryableStatus(response.statusCode())) {
                     return response;
                 }
                 closeQuietly(response);
@@ -37,6 +44,10 @@ final class UpstreamRetry {
             attempt++;
             Thread.sleep(RETRY_BACKOFF_MILLIS * attempt);
         }
+    }
+
+    private static boolean isRetryableStatus(int status) {
+        return status == 502 || status == 503 || status == 504;
     }
 
     private static int parseRetries(String header) {

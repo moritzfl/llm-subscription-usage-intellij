@@ -1019,6 +1019,40 @@ class OpenAiProxyServerTest {
     }
 
     @Test
+    fun doesNotRetryAmbiguousServerErrors() {
+        TestUpstream(
+            responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT,
+            failFirstRequests = 1,
+            failStatus = 500,
+        ).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .header("x-litellm-num-retries", "3")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                // A bare 500 may be post-metering, so it is surfaced rather than retried.
+                assertEquals(500, response.statusCode())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun emitsStreamingUsageChunkOnlyWhenClientOptsIn() {
         TestUpstream(responseBody = RESPONSE_STREAM_WITH_TEXT_DELTAS).use { upstream ->
             val proxy = newProxy(upstream.baseUri)
@@ -1078,6 +1112,7 @@ class OpenAiProxyServerTest {
         private val responseContentType: String = "text/event-stream",
         private val responseStatus: Int = 200,
         private val failFirstRequests: Int = 0,
+        private val failStatus: Int = 503,
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
         private val requestCount = java.util.concurrent.atomic.AtomicInteger(0)
@@ -1098,7 +1133,7 @@ class OpenAiProxyServerTest {
                 val response = (if (failing) "{\"detail\":\"transient upstream failure\"}" else responseBody)
                     .toByteArray(Charsets.UTF_8)
                 exchange.responseHeaders.set("Content-Type", if (failing) "application/json" else responseContentType)
-                exchange.sendResponseHeaders(if (failing) 500 else responseStatus, response.size.toLong())
+                exchange.sendResponseHeaders(if (failing) failStatus else responseStatus, response.size.toLong())
                 exchange.responseBody.use { output -> output.write(response) }
             }
             server.start()

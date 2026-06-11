@@ -750,10 +750,7 @@ public class ChatCompletionsHandler implements Handler {
                                 finishSent[0] = true;
                             }
                             ObjectNode errPayload = MAPPER.createObjectNode();
-                            ObjectNode errObj = MAPPER.createObjectNode();
-                            errObj.put("message", errorMsg);
-                            errObj.put("type", "upstream_error");
-                            errPayload.set("error", errObj);
+                            errPayload.set("error", JsonHelper.errorObject(errorMsg, "upstream_error", "502"));
                             String errLine = "event: error\ndata: " + MAPPER.writeValueAsString(errPayload) + "\n\n";
                             byte[] errorBytes = errLine.getBytes(StandardCharsets.UTF_8);
                             os.write(errorBytes);

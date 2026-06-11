@@ -42,13 +42,18 @@ public final class JsonHelper {
 
     public static void toErrorResponse(Context ctx, String message, int status, String type) {
         ObjectNode root = Json.MAPPER.createObjectNode();
+        root.set("error", errorObject(message, type, String.valueOf(status)));
+        toJsonResponse(ctx, root, status);
+    }
+
+    /** Builds an OpenAI-shaped error object: {@code {message, type, param, code}}. */
+    public static ObjectNode errorObject(String message, String type, String code) {
         ObjectNode error = Json.MAPPER.createObjectNode();
         error.put("message", message);
         error.put("type", type);
         error.putNull("param");
-        error.put("code", String.valueOf(status));
-        root.set("error", error);
-        toJsonResponse(ctx, root, status);
+        error.put("code", code);
+        return error;
     }
 
     public static String mapFinishReason(String finishReason) {
@@ -122,12 +127,10 @@ public final class JsonHelper {
 
         String message = extractErrorMessage(parsed, raw);
         ObjectNode root = Json.MAPPER.createObjectNode();
-        ObjectNode error = Json.MAPPER.createObjectNode();
-        error.put("message", message);
-        error.put("type", overrideType != null ? overrideType : "upstream_error");
-        error.putNull("param");
-        error.put("code", overrideType != null ? overrideType : String.valueOf(status));
-        root.set("error", error);
+        root.set("error", errorObject(
+                message,
+                overrideType != null ? overrideType : "upstream_error",
+                overrideType != null ? overrideType : String.valueOf(status)));
         try {
             return Json.MAPPER.writeValueAsString(root);
         } catch (Exception e) {
