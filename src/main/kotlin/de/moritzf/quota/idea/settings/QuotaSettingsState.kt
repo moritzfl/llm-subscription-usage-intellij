@@ -133,6 +133,45 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         indicatorSource = source.name
     }
 
+    fun cachedQuotaJson(provider: QuotaProviderType): String? {
+        return when (provider) {
+            QuotaProviderType.OPEN_AI -> cachedOpenAiQuotaJson
+            QuotaProviderType.OPEN_CODE -> cachedOpenCodeQuotaJson
+            QuotaProviderType.OLLAMA -> cachedOllamaQuotaJson
+            QuotaProviderType.ZAI -> cachedZaiQuotaJson
+            QuotaProviderType.MINIMAX -> cachedMiniMaxQuotaJson
+            QuotaProviderType.KIMI -> cachedKimiQuotaJson
+            QuotaProviderType.GITHUB -> cachedGitHubQuotaJson
+            QuotaProviderType.CURSOR -> cachedCursorQuotaJson
+        }
+    }
+
+    fun setCachedQuotaJson(provider: QuotaProviderType, json: String?) {
+        when (provider) {
+            QuotaProviderType.OPEN_AI -> cachedOpenAiQuotaJson = json
+            QuotaProviderType.OPEN_CODE -> cachedOpenCodeQuotaJson = json
+            QuotaProviderType.OLLAMA -> cachedOllamaQuotaJson = json
+            QuotaProviderType.ZAI -> cachedZaiQuotaJson = json
+            QuotaProviderType.MINIMAX -> cachedMiniMaxQuotaJson = json
+            QuotaProviderType.KIMI -> cachedKimiQuotaJson = json
+            QuotaProviderType.GITHUB -> cachedGitHubQuotaJson = json
+            QuotaProviderType.CURSOR -> cachedCursorQuotaJson = json
+        }
+    }
+
+    fun lastUpdate(provider: QuotaProviderType): Long {
+        return when (provider) {
+            QuotaProviderType.OPEN_AI -> lastOpenAiUpdate
+            QuotaProviderType.OPEN_CODE -> lastOpenCodeUpdate
+            QuotaProviderType.OLLAMA -> lastOllamaUpdate
+            QuotaProviderType.ZAI -> lastZaiUpdate
+            QuotaProviderType.MINIMAX -> lastMiniMaxUpdate
+            QuotaProviderType.KIMI -> lastKimiUpdate
+            QuotaProviderType.GITHUB -> lastGitHubUpdate
+            QuotaProviderType.CURSOR -> lastCursorUpdate
+        }
+    }
+
     fun updateTimestamp(provider: QuotaProviderType) {
         when (provider) {
             QuotaProviderType.OPEN_AI -> lastOpenAiUpdate = System.currentTimeMillis()
@@ -147,42 +186,15 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     }
 
     fun lastUsedSource(): QuotaIndicatorSource {
-        val openAiUpdate = lastOpenAiUpdate.takeIf { it > 0 }
-            ?: QuotaSnapshotCache.decodeOpenAiQuota(cachedOpenAiQuotaJson)?.fetchedAt?.toEpochMilliseconds()
-            ?: 0
-        val openCodeUpdate = lastOpenCodeUpdate.takeIf { it > 0 }
-            ?: QuotaSnapshotCache.decodeOpenCodeQuota(cachedOpenCodeQuotaJson)?.fetchedAt?.toEpochMilliseconds()
-            ?: 0
-        val ollamaUpdate = lastOllamaUpdate.takeIf { it > 0 }
-            ?: QuotaSnapshotCache.decodeOllamaQuota(cachedOllamaQuotaJson)?.fetchedAt?.toEpochMilliseconds()
-            ?: 0
-        val zaiUpdate = lastZaiUpdate.takeIf { it > 0 }
-            ?: QuotaSnapshotCache.decodeZaiQuota(cachedZaiQuotaJson)?.fetchedAt?.toEpochMilliseconds()
-            ?: 0
-        val minimaxUpdate = lastMiniMaxUpdate.takeIf { it > 0 }
-            ?: QuotaSnapshotCache.decodeMiniMaxQuota(cachedMiniMaxQuotaJson)?.fetchedAt?.toEpochMilliseconds()
-            ?: 0
-        val kimiUpdate = lastKimiUpdate.takeIf { it > 0 }
-            ?: QuotaSnapshotCache.decodeKimiQuota(cachedKimiQuotaJson)?.fetchedAt?.toEpochMilliseconds()
-            ?: 0
-        val gitHubUpdate = lastGitHubUpdate.takeIf { it > 0 }
-            ?: QuotaSnapshotCache.decodeGitHubQuota(cachedGitHubQuotaJson)?.fetchedAt?.toEpochMilliseconds()
-            ?: 0
-        val cursorUpdate = lastCursorUpdate.takeIf { it > 0 }
-            ?: QuotaSnapshotCache.decodeCursorQuota(cachedCursorQuotaJson)?.fetchedAt?.toEpochMilliseconds()
-            ?: 0
-        val maxUpdate = maxOf(openAiUpdate, openCodeUpdate, ollamaUpdate, zaiUpdate, minimaxUpdate, kimiUpdate, gitHubUpdate, cursorUpdate)
-        if (maxUpdate == 0L) return QuotaIndicatorSource.OPEN_AI
-        return when {
-            cursorUpdate >= maxUpdate -> QuotaIndicatorSource.CURSOR
-            gitHubUpdate >= maxUpdate -> QuotaIndicatorSource.GITHUB
-            kimiUpdate >= maxUpdate -> QuotaIndicatorSource.KIMI
-            minimaxUpdate >= maxUpdate -> QuotaIndicatorSource.MINIMAX
-            zaiUpdate >= maxUpdate -> QuotaIndicatorSource.ZAI
-            ollamaUpdate >= maxUpdate -> QuotaIndicatorSource.OLLAMA
-            openCodeUpdate >= maxUpdate -> QuotaIndicatorSource.OPEN_CODE
-            else -> QuotaIndicatorSource.OPEN_AI
+        val updates = QuotaProviderType.entries.associateWith { provider ->
+            lastUpdate(provider).takeIf { it > 0 }
+                ?: QuotaSnapshotCache.decode(provider, cachedQuotaJson(provider))?.fetchedAt?.toEpochMilliseconds()
+                ?: 0L
         }
+        if (updates.values.max() == 0L) return QuotaIndicatorSource.OPEN_AI
+        val latest = QuotaProviderType.alphabeticalOrder().maxByOrNull { updates.getValue(it) }
+        return QuotaIndicatorSource.entries.firstOrNull { it.providerType == latest }
+            ?: QuotaIndicatorSource.OPEN_AI
     }
 
     companion object {

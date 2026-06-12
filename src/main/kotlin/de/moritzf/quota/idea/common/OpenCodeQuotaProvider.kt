@@ -18,20 +18,20 @@ class OpenCodeQuotaProvider(
     },
 ) : CachedQuotaProvider<OpenCodeQuota>() {
     override val type = QuotaProviderType.OPEN_CODE
+    override val notConfiguredMessage = "No session cookie configured"
 
     private val lastCookieRef = AtomicReference<String?>()
     private val cachedWorkspaceId = AtomicReference<String?>()
     private val cachedWorkspaceIdTimestamp = AtomicReference(0L)
 
-    override fun currentUsageFraction(): Double? = lastQuotaRef.get()?.usageFraction()
-    override fun cachedUsageFraction(settings: QuotaSettingsState): Double? {
-        return QuotaSnapshotCache.decodeOpenCodeQuota(settings.cachedOpenCodeQuotaJson)?.usageFraction()
+    override fun getLastRawJson(): String? {
+        return lastRawJsonRef.get() ?: lastQuotaRef.get()?.rawJson
     }
 
     override fun refresh() {
         val cookie = openCodeCookieProvider()
         if (cookie.isNullOrBlank()) {
-            clearData("No session cookie configured")
+            clearData(notConfiguredMessage)
             return
         }
 
@@ -72,20 +72,12 @@ class OpenCodeQuotaProvider(
     }
 
     override fun hydrateFromCache(settings: QuotaSettingsState) {
-        val cached = QuotaSnapshotCache.decodeOpenCodeQuota(settings.cachedOpenCodeQuotaJson)
+        val cached = decodeCached(settings)
         if (cached?.rawJson == null) {
             cached?.rawJson = OpenCodeQuotaClient.buildRawResponse(cached.rawGoJson, cached.rawBillingJson)
         }
         lastQuotaRef.set(cached)
         lastRawJsonRef.set(cached?.rawJson)
-    }
-
-    override fun persistToCache(settings: QuotaSettingsState) {
-        val quota = lastQuotaRef.get()
-        if (quota != null) {
-            QuotaSnapshotCache.encodeOpenCodeQuota(quota)?.let { settings.cachedOpenCodeQuotaJson = it }
-            settings.updateTimestamp(type)
-        }
     }
 
     private fun fetchOpenCodeQuota(sessionCookie: String): OpenCodeQuota {

@@ -1,7 +1,6 @@
 package de.moritzf.quota.idea.common
 
 import de.moritzf.quota.idea.auth.QuotaAuthService
-import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.OpenAiCodexQuotaClient
 import de.moritzf.quota.openai.OpenAiCodexQuotaException
@@ -20,11 +19,6 @@ class OpenAiQuotaProvider(
 ) : CachedQuotaProvider<OpenAiCodexQuota>() {
     override val type = QuotaProviderType.OPEN_AI
 
-    override fun currentUsageFraction(): Double? = lastQuotaRef.get()?.usageFraction()
-    override fun cachedUsageFraction(settings: QuotaSettingsState): Double? {
-        return QuotaSnapshotCache.decodeOpenAiQuota(settings.cachedOpenAiQuotaJson)?.usageFraction()
-    }
-
     override fun refresh() {
         val accessToken = accessTokenProvider()
         if (accessToken.isNullOrBlank()) {
@@ -40,20 +34,6 @@ class OpenAiQuotaProvider(
             storeError("Request failed (${exception.statusCode})", exception.rawBody)
         } catch (exception: Exception) {
             storeError(exception.message ?: "Request failed")
-        }
-    }
-
-    override fun hydrateFromCache(settings: QuotaSettingsState) {
-        val cached = QuotaSnapshotCache.decodeOpenAiQuota(settings.cachedOpenAiQuotaJson)
-        lastQuotaRef.set(cached)
-        lastRawJsonRef.set(cached?.rawJson)
-    }
-
-    override fun persistToCache(settings: QuotaSettingsState) {
-        val quota = lastQuotaRef.get()
-        if (quota != null) {
-            QuotaSnapshotCache.encodeOpenAiQuota(quota)?.let { settings.cachedOpenAiQuotaJson = it }
-            settings.updateTimestamp(type)
         }
     }
 
