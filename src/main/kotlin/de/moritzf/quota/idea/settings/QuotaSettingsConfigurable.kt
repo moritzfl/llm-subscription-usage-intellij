@@ -362,14 +362,9 @@ class QuotaSettingsConfigurable : Configurable {
                 val locationChanged = selectedLocation != state.location()
                 val displayModeChanged = sanitizedDisplayMode != state.displayMode()
                 val sourceChanged = selectedSource != state.source()
-                val openAiPopupVisibilityChanged = openAiPanel.openAiHideFromPopupCheckBox.isSelected != state.hideOpenAiFromQuotaPopup
-                val openCodePopupVisibilityChanged = openCodePanel.openCodeHideFromPopupCheckBox.isSelected != state.hideOpenCodeFromQuotaPopup
-                val ollamaPopupVisibilityChanged = ollamaPanel.ollamaHideFromPopupCheckBox.isSelected != state.hideOllamaFromQuotaPopup
-                val zaiPopupVisibilityChanged = zaiPanel.zaiHideFromPopupCheckBox.isSelected != state.hideZaiFromQuotaPopup
-                val miniMaxPopupVisibilityChanged = miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected != state.hideMiniMaxFromQuotaPopup
-                val kimiPopupVisibilityChanged = kimiPanel.kimiHideFromPopupCheckBox.isSelected != state.hideKimiFromQuotaPopup
-                val gitHubPopupVisibilityChanged = gitHubPanel.gitHubHideFromPopupCheckBox.isSelected != state.hideGitHubFromQuotaPopup
-                val cursorPopupVisibilityChanged = cursorPanel.cursorHideFromPopupCheckBox.isSelected != state.hideCursorFromQuotaPopup
+                val popupVisibilityChanged = hideFromPopupCheckBoxes().any { (type, checkBox) ->
+                    checkBox.isSelected != state.isHiddenFromPopup(type)
+                }
                 val miniMaxRegionChanged = miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference()
                 val providerOrderChanged = providerReorderPanel?.getOrder()?.joinToString(",") { it.id } != state.providerOrder
                 val normalizedMcpTargets = normalizeTargets(mcpSyncTargets)
@@ -388,14 +383,9 @@ class QuotaSettingsConfigurable : Configurable {
                 if (sourceChanged) {
                     state.setSource(selectedSource)
                 }
-                state.hideOpenAiFromQuotaPopup = openAiPanel.openAiHideFromPopupCheckBox.isSelected
-                state.hideOpenCodeFromQuotaPopup = openCodePanel.openCodeHideFromPopupCheckBox.isSelected
-                state.hideOllamaFromQuotaPopup = ollamaPanel.ollamaHideFromPopupCheckBox.isSelected
-                state.hideZaiFromQuotaPopup = zaiPanel.zaiHideFromPopupCheckBox.isSelected
-                state.hideMiniMaxFromQuotaPopup = miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected
-                state.hideKimiFromQuotaPopup = kimiPanel.kimiHideFromPopupCheckBox.isSelected
-                state.hideGitHubFromQuotaPopup = gitHubPanel.gitHubHideFromPopupCheckBox.isSelected
-                state.hideCursorFromQuotaPopup = cursorPanel.cursorHideFromPopupCheckBox.isSelected
+                hideFromPopupCheckBoxes().forEach { (type, checkBox) ->
+                    state.setHiddenFromPopup(type, checkBox.isSelected)
+                }
                 state.minimaxRegionPreference = (miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference ?: MiniMaxRegionPreference.AUTO).name
                 if (providerOrderChanged) {
                     state.providerOrder = providerReorderPanel?.getOrder()?.joinToString(",") { it.id } ?: state.providerOrder
@@ -408,7 +398,7 @@ class QuotaSettingsConfigurable : Configurable {
                 if (openAiProxyApiKeyChanged) {
                     openAiPanel.saveProxyApiKeyBlocking()
                 }
-                if (locationChanged || displayModeChanged || sourceChanged || openAiPopupVisibilityChanged || openCodePopupVisibilityChanged || ollamaPopupVisibilityChanged || zaiPopupVisibilityChanged || miniMaxPopupVisibilityChanged || kimiPopupVisibilityChanged || gitHubPopupVisibilityChanged || cursorPopupVisibilityChanged || miniMaxRegionChanged || providerOrderChanged || mcpSyncChanged || mcpTargetsChanged || openAiProxyEnabledChanged || openAiProxyPortChanged || openAiProxyApiKeyChanged || openAiProxyLogRequestsChanged) {
+                if (locationChanged || displayModeChanged || sourceChanged || popupVisibilityChanged || miniMaxRegionChanged || providerOrderChanged || mcpSyncChanged || mcpTargetsChanged || openAiProxyEnabledChanged || openAiProxyPortChanged || openAiProxyApiKeyChanged || openAiProxyLogRequestsChanged) {
                     ApplicationManager.getApplication().messageBus
                         .syncPublisher(QuotaSettingsListener.TOPIC)
                         .onSettingsChanged()
@@ -427,14 +417,9 @@ class QuotaSettingsConfigurable : Configurable {
                 updateDisplayModeChoices(QuotaSettingsState.getInstance().displayMode())
                 updateDisplayModePreview()
                 indicatorSourceComboBox?.selectedItem = QuotaSettingsState.getInstance().source()
-                openAiPanel.openAiHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideOpenAiFromQuotaPopup
-                openCodePanel.openCodeHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideOpenCodeFromQuotaPopup
-                ollamaPanel.ollamaHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideOllamaFromQuotaPopup
-                zaiPanel.zaiHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideZaiFromQuotaPopup
-                miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideMiniMaxFromQuotaPopup
-                kimiPanel.kimiHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideKimiFromQuotaPopup
-                gitHubPanel.gitHubHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideGitHubFromQuotaPopup
-                cursorPanel.cursorHideFromPopupCheckBox.isSelected = QuotaSettingsState.getInstance().hideCursorFromQuotaPopup
+                hideFromPopupCheckBoxes().forEach { (type, checkBox) ->
+                    checkBox.isSelected = QuotaSettingsState.getInstance().isHiddenFromPopup(type)
+                }
                 miniMaxPanel.regionComboBox.selectedItem = QuotaSettingsState.getInstance().miniMaxRegionPreference()
                 providerReorderPanel?.setOrder(QuotaSettingsState.getInstance().providerOrderList())
                 mcpSyncCheckBox?.isSelected = QuotaSettingsState.getInstance().syncIntellijMcpServerUrl
@@ -467,14 +452,7 @@ class QuotaSettingsConfigurable : Configurable {
                 selectedLocation != state.location() ||
                     QuotaDisplayMode.sanitizeFor(selectedLocation, selectedDisplayMode) != state.displayMode() ||
                     selectedSource != state.source() ||
-                    openAiPanel.openAiHideFromPopupCheckBox.isSelected != state.hideOpenAiFromQuotaPopup ||
-                    openCodePanel.openCodeHideFromPopupCheckBox.isSelected != state.hideOpenCodeFromQuotaPopup ||
-                    ollamaPanel.ollamaHideFromPopupCheckBox.isSelected != state.hideOllamaFromQuotaPopup ||
-                    zaiPanel.zaiHideFromPopupCheckBox.isSelected != state.hideZaiFromQuotaPopup ||
-                    miniMaxPanel.miniMaxHideFromPopupCheckBox.isSelected != state.hideMiniMaxFromQuotaPopup ||
-                    kimiPanel.kimiHideFromPopupCheckBox.isSelected != state.hideKimiFromQuotaPopup ||
-                    gitHubPanel.gitHubHideFromPopupCheckBox.isSelected != state.hideGitHubFromQuotaPopup ||
-                    cursorPanel.cursorHideFromPopupCheckBox.isSelected != state.hideCursorFromQuotaPopup ||
+                    hideFromPopupCheckBoxes().any { (type, checkBox) -> checkBox.isSelected != state.isHiddenFromPopup(type) } ||
                     miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference() ||
                     providerReorderPanel?.getOrder()?.joinToString(",") { it.id } != state.providerOrder ||
                     mcpSyncCheckBox?.isSelected != state.syncIntellijMcpServerUrl ||
@@ -487,6 +465,19 @@ class QuotaSettingsConfigurable : Configurable {
         }.apply {
             preferredFocusedComponent = locationComboBox
         }
+    }
+
+    private fun hideFromPopupCheckBoxes(): Map<QuotaProviderType, JBCheckBox> {
+        return mapOf(
+            QuotaProviderType.OPEN_AI to openAiPanel.openAiHideFromPopupCheckBox,
+            QuotaProviderType.OPEN_CODE to openCodePanel.openCodeHideFromPopupCheckBox,
+            QuotaProviderType.OLLAMA to ollamaPanel.ollamaHideFromPopupCheckBox,
+            QuotaProviderType.ZAI to zaiPanel.zaiHideFromPopupCheckBox,
+            QuotaProviderType.MINIMAX to miniMaxPanel.miniMaxHideFromPopupCheckBox,
+            QuotaProviderType.KIMI to kimiPanel.kimiHideFromPopupCheckBox,
+            QuotaProviderType.GITHUB to gitHubPanel.gitHubHideFromPopupCheckBox,
+            QuotaProviderType.CURSOR to cursorPanel.cursorHideFromPopupCheckBox,
+        )
     }
 
     private fun normalizeTargets(targets: List<McpServerSyncTarget>): List<McpServerSyncTarget> {

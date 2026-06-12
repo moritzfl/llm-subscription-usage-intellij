@@ -16,6 +16,9 @@ import com.intellij.openapi.components.Storage
 
 /**
  * Persistent plugin settings shared at application scope.
+ *
+ * Per-provider values (cache, timestamps, popup visibility) are stored in maps
+ * keyed by [QuotaProviderType.id]; new providers need no changes here.
  */
 @State(name = "OpenAiUsageQuotaSettings", storages = [Storage("openai-usage-quota.xml")])
 @Service(Service.Level.APP)
@@ -24,39 +27,69 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var statusBarDisplayMode: String = QuotaDisplayMode.ICON_ONLY.name
     var indicatorLocation: String = QuotaIndicatorLocation.STATUS_BAR.name
     var indicatorSource: String = QuotaIndicatorSource.OPEN_AI.name
-    var lastOpenAiUpdate: Long = 0
-    var lastOpenCodeUpdate: Long = 0
-    var lastOllamaUpdate: Long = 0
-    var lastZaiUpdate: Long = 0
-    var lastMiniMaxUpdate: Long = 0
-    var lastKimiUpdate: Long = 0
-    var lastGitHubUpdate: Long = 0
-    var lastCursorUpdate: Long = 0
-    var hideOpenAiFromQuotaPopup: Boolean = false
-    var hideOpenCodeFromQuotaPopup: Boolean = false
-    var hideOllamaFromQuotaPopup: Boolean = false
-    var hideZaiFromQuotaPopup: Boolean = false
-    var hideMiniMaxFromQuotaPopup: Boolean = false
-    var hideKimiFromQuotaPopup: Boolean = false
-    var hideGitHubFromQuotaPopup: Boolean = false
-    var hideCursorFromQuotaPopup: Boolean = false
+    var lastProviderUpdates: MutableMap<String, Long> = mutableMapOf()
+    var hiddenFromQuotaPopup: MutableList<String> = mutableListOf()
+    var cachedQuotaJsons: MutableMap<String, String> = mutableMapOf()
     var lastActiveSource: String? = null
     var openCodeWorkspaceId: String? = null
     var minimaxRegionPreference: String = MiniMaxRegionPreference.AUTO.name
-    var cachedOpenAiQuotaJson: String? = null
-    var cachedOpenCodeQuotaJson: String? = null
-    var cachedOllamaQuotaJson: String? = null
-    var cachedZaiQuotaJson: String? = null
-    var cachedMiniMaxQuotaJson: String? = null
-    var cachedKimiQuotaJson: String? = null
-    var cachedGitHubQuotaJson: String? = null
-    var cachedCursorQuotaJson: String? = null
     var providerOrder: String = DEFAULT_PROVIDER_ORDER
     var syncIntellijMcpServerUrl: Boolean = false
     var mcpServerSyncTargets: MutableList<McpServerSyncTarget> = mutableListOf()
     var openAiProxyEnabled: Boolean = false
     var openAiProxyPort: Int = OpenAiProxyService.DEFAULT_PORT
     var openAiProxyLogRequests: Boolean = false
+
+    // Legacy per-provider fields kept only so settings written by older
+    // versions still deserialize; loadState migrates them into the maps.
+    @Deprecated("Migrated into lastProviderUpdates")
+    var lastOpenAiUpdate: Long = 0
+    @Deprecated("Migrated into lastProviderUpdates")
+    var lastOpenCodeUpdate: Long = 0
+    @Deprecated("Migrated into lastProviderUpdates")
+    var lastOllamaUpdate: Long = 0
+    @Deprecated("Migrated into lastProviderUpdates")
+    var lastZaiUpdate: Long = 0
+    @Deprecated("Migrated into lastProviderUpdates")
+    var lastMiniMaxUpdate: Long = 0
+    @Deprecated("Migrated into lastProviderUpdates")
+    var lastKimiUpdate: Long = 0
+    @Deprecated("Migrated into lastProviderUpdates")
+    var lastGitHubUpdate: Long = 0
+    @Deprecated("Migrated into lastProviderUpdates")
+    var lastCursorUpdate: Long = 0
+    @Deprecated("Migrated into hiddenFromQuotaPopup")
+    var hideOpenAiFromQuotaPopup: Boolean = false
+    @Deprecated("Migrated into hiddenFromQuotaPopup")
+    var hideOpenCodeFromQuotaPopup: Boolean = false
+    @Deprecated("Migrated into hiddenFromQuotaPopup")
+    var hideOllamaFromQuotaPopup: Boolean = false
+    @Deprecated("Migrated into hiddenFromQuotaPopup")
+    var hideZaiFromQuotaPopup: Boolean = false
+    @Deprecated("Migrated into hiddenFromQuotaPopup")
+    var hideMiniMaxFromQuotaPopup: Boolean = false
+    @Deprecated("Migrated into hiddenFromQuotaPopup")
+    var hideKimiFromQuotaPopup: Boolean = false
+    @Deprecated("Migrated into hiddenFromQuotaPopup")
+    var hideGitHubFromQuotaPopup: Boolean = false
+    @Deprecated("Migrated into hiddenFromQuotaPopup")
+    var hideCursorFromQuotaPopup: Boolean = false
+    @Deprecated("Migrated into cachedQuotaJsons")
+    var cachedOpenAiQuotaJson: String? = null
+    @Deprecated("Migrated into cachedQuotaJsons")
+    var cachedOpenCodeQuotaJson: String? = null
+    @Deprecated("Migrated into cachedQuotaJsons")
+    var cachedOllamaQuotaJson: String? = null
+    @Deprecated("Migrated into cachedQuotaJsons")
+    var cachedZaiQuotaJson: String? = null
+    @Deprecated("Migrated into cachedQuotaJsons")
+    var cachedMiniMaxQuotaJson: String? = null
+    @Deprecated("Migrated into cachedQuotaJsons")
+    var cachedKimiQuotaJson: String? = null
+    @Deprecated("Migrated into cachedQuotaJsons")
+    var cachedGitHubQuotaJson: String? = null
+    @Deprecated("Migrated into cachedQuotaJsons")
+    var cachedCursorQuotaJson: String? = null
 
     override fun getState(): QuotaSettingsState = this
 
@@ -65,33 +98,12 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         statusBarDisplayMode = QuotaDisplayMode.fromStorageValue(state.statusBarDisplayMode).name
         indicatorLocation = QuotaIndicatorLocation.fromStorageValue(state.indicatorLocation).name
         indicatorSource = state.indicatorSource
-        lastOpenAiUpdate = state.lastOpenAiUpdate
-        lastOpenCodeUpdate = state.lastOpenCodeUpdate
-        lastOllamaUpdate = state.lastOllamaUpdate
-        lastZaiUpdate = state.lastZaiUpdate
-        lastMiniMaxUpdate = state.lastMiniMaxUpdate
-        lastKimiUpdate = state.lastKimiUpdate
-        lastGitHubUpdate = state.lastGitHubUpdate
-        lastCursorUpdate = state.lastCursorUpdate
-        hideOpenAiFromQuotaPopup = state.hideOpenAiFromQuotaPopup
-        hideOpenCodeFromQuotaPopup = state.hideOpenCodeFromQuotaPopup
-        hideOllamaFromQuotaPopup = state.hideOllamaFromQuotaPopup
-        hideZaiFromQuotaPopup = state.hideZaiFromQuotaPopup
-        hideMiniMaxFromQuotaPopup = state.hideMiniMaxFromQuotaPopup
-        hideKimiFromQuotaPopup = state.hideKimiFromQuotaPopup
-        hideGitHubFromQuotaPopup = state.hideGitHubFromQuotaPopup
-        hideCursorFromQuotaPopup = state.hideCursorFromQuotaPopup
+        lastProviderUpdates = migrateTimestamps(state)
+        hiddenFromQuotaPopup = migrateHiddenProviders(state)
+        cachedQuotaJsons = migrateCachedJsons(state)
         lastActiveSource = state.lastActiveSource
         openCodeWorkspaceId = state.openCodeWorkspaceId
         minimaxRegionPreference = MiniMaxRegionPreference.fromStorageValue(state.minimaxRegionPreference).name
-        cachedOpenAiQuotaJson = state.cachedOpenAiQuotaJson
-        cachedOpenCodeQuotaJson = state.cachedOpenCodeQuotaJson
-        cachedOllamaQuotaJson = state.cachedOllamaQuotaJson
-        cachedZaiQuotaJson = state.cachedZaiQuotaJson
-        cachedMiniMaxQuotaJson = state.cachedMiniMaxQuotaJson
-        cachedKimiQuotaJson = state.cachedKimiQuotaJson
-        cachedGitHubQuotaJson = state.cachedGitHubQuotaJson
-        cachedCursorQuotaJson = state.cachedCursorQuotaJson
         providerOrder = state.providerOrder.ifBlank { DEFAULT_PROVIDER_ORDER }
         syncIntellijMcpServerUrl = state.syncIntellijMcpServerUrl
         mcpServerSyncTargets = state.mcpServerSyncTargets.map { target ->
@@ -102,6 +114,57 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         openAiProxyEnabled = state.openAiProxyEnabled
         openAiProxyPort = OpenAiProxyService.sanitizePort(state.openAiProxyPort.takeIf { it > 0 } ?: OpenAiProxyService.DEFAULT_PORT)
         openAiProxyLogRequests = state.openAiProxyLogRequests
+    }
+
+    @Suppress("DEPRECATION")
+    private fun migrateTimestamps(state: QuotaSettingsState): MutableMap<String, Long> {
+        val result = state.lastProviderUpdates.toMutableMap()
+        fun migrate(type: QuotaProviderType, legacy: Long) {
+            if (legacy > 0 && type.id !in result) result[type.id] = legacy
+        }
+        migrate(QuotaProviderType.OPEN_AI, state.lastOpenAiUpdate)
+        migrate(QuotaProviderType.OPEN_CODE, state.lastOpenCodeUpdate)
+        migrate(QuotaProviderType.OLLAMA, state.lastOllamaUpdate)
+        migrate(QuotaProviderType.ZAI, state.lastZaiUpdate)
+        migrate(QuotaProviderType.MINIMAX, state.lastMiniMaxUpdate)
+        migrate(QuotaProviderType.KIMI, state.lastKimiUpdate)
+        migrate(QuotaProviderType.GITHUB, state.lastGitHubUpdate)
+        migrate(QuotaProviderType.CURSOR, state.lastCursorUpdate)
+        return result
+    }
+
+    @Suppress("DEPRECATION")
+    private fun migrateHiddenProviders(state: QuotaSettingsState): MutableList<String> {
+        val result = state.hiddenFromQuotaPopup.toMutableList()
+        fun migrate(type: QuotaProviderType, legacy: Boolean) {
+            if (legacy && type.id !in result) result.add(type.id)
+        }
+        migrate(QuotaProviderType.OPEN_AI, state.hideOpenAiFromQuotaPopup)
+        migrate(QuotaProviderType.OPEN_CODE, state.hideOpenCodeFromQuotaPopup)
+        migrate(QuotaProviderType.OLLAMA, state.hideOllamaFromQuotaPopup)
+        migrate(QuotaProviderType.ZAI, state.hideZaiFromQuotaPopup)
+        migrate(QuotaProviderType.MINIMAX, state.hideMiniMaxFromQuotaPopup)
+        migrate(QuotaProviderType.KIMI, state.hideKimiFromQuotaPopup)
+        migrate(QuotaProviderType.GITHUB, state.hideGitHubFromQuotaPopup)
+        migrate(QuotaProviderType.CURSOR, state.hideCursorFromQuotaPopup)
+        return result
+    }
+
+    @Suppress("DEPRECATION")
+    private fun migrateCachedJsons(state: QuotaSettingsState): MutableMap<String, String> {
+        val result = state.cachedQuotaJsons.toMutableMap()
+        fun migrate(type: QuotaProviderType, legacy: String?) {
+            if (!legacy.isNullOrBlank() && type.id !in result) result[type.id] = legacy
+        }
+        migrate(QuotaProviderType.OPEN_AI, state.cachedOpenAiQuotaJson)
+        migrate(QuotaProviderType.OPEN_CODE, state.cachedOpenCodeQuotaJson)
+        migrate(QuotaProviderType.OLLAMA, state.cachedOllamaQuotaJson)
+        migrate(QuotaProviderType.ZAI, state.cachedZaiQuotaJson)
+        migrate(QuotaProviderType.MINIMAX, state.cachedMiniMaxQuotaJson)
+        migrate(QuotaProviderType.KIMI, state.cachedKimiQuotaJson)
+        migrate(QuotaProviderType.GITHUB, state.cachedGitHubQuotaJson)
+        migrate(QuotaProviderType.CURSOR, state.cachedCursorQuotaJson)
+        return result
     }
 
     fun providerOrderList(): List<QuotaProviderType> {
@@ -133,82 +196,30 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         indicatorSource = source.name
     }
 
-    fun isHiddenFromPopup(provider: QuotaProviderType): Boolean {
-        return when (provider) {
-            QuotaProviderType.OPEN_AI -> hideOpenAiFromQuotaPopup
-            QuotaProviderType.OPEN_CODE -> hideOpenCodeFromQuotaPopup
-            QuotaProviderType.OLLAMA -> hideOllamaFromQuotaPopup
-            QuotaProviderType.ZAI -> hideZaiFromQuotaPopup
-            QuotaProviderType.MINIMAX -> hideMiniMaxFromQuotaPopup
-            QuotaProviderType.KIMI -> hideKimiFromQuotaPopup
-            QuotaProviderType.GITHUB -> hideGitHubFromQuotaPopup
-            QuotaProviderType.CURSOR -> hideCursorFromQuotaPopup
-        }
-    }
+    fun isHiddenFromPopup(provider: QuotaProviderType): Boolean = provider.id in hiddenFromQuotaPopup
 
     fun setHiddenFromPopup(provider: QuotaProviderType, hidden: Boolean) {
-        when (provider) {
-            QuotaProviderType.OPEN_AI -> hideOpenAiFromQuotaPopup = hidden
-            QuotaProviderType.OPEN_CODE -> hideOpenCodeFromQuotaPopup = hidden
-            QuotaProviderType.OLLAMA -> hideOllamaFromQuotaPopup = hidden
-            QuotaProviderType.ZAI -> hideZaiFromQuotaPopup = hidden
-            QuotaProviderType.MINIMAX -> hideMiniMaxFromQuotaPopup = hidden
-            QuotaProviderType.KIMI -> hideKimiFromQuotaPopup = hidden
-            QuotaProviderType.GITHUB -> hideGitHubFromQuotaPopup = hidden
-            QuotaProviderType.CURSOR -> hideCursorFromQuotaPopup = hidden
+        if (hidden) {
+            if (provider.id !in hiddenFromQuotaPopup) hiddenFromQuotaPopup.add(provider.id)
+        } else {
+            hiddenFromQuotaPopup.remove(provider.id)
         }
     }
 
-    fun cachedQuotaJson(provider: QuotaProviderType): String? {
-        return when (provider) {
-            QuotaProviderType.OPEN_AI -> cachedOpenAiQuotaJson
-            QuotaProviderType.OPEN_CODE -> cachedOpenCodeQuotaJson
-            QuotaProviderType.OLLAMA -> cachedOllamaQuotaJson
-            QuotaProviderType.ZAI -> cachedZaiQuotaJson
-            QuotaProviderType.MINIMAX -> cachedMiniMaxQuotaJson
-            QuotaProviderType.KIMI -> cachedKimiQuotaJson
-            QuotaProviderType.GITHUB -> cachedGitHubQuotaJson
-            QuotaProviderType.CURSOR -> cachedCursorQuotaJson
-        }
-    }
+    fun cachedQuotaJson(provider: QuotaProviderType): String? = cachedQuotaJsons[provider.id]
 
     fun setCachedQuotaJson(provider: QuotaProviderType, json: String?) {
-        when (provider) {
-            QuotaProviderType.OPEN_AI -> cachedOpenAiQuotaJson = json
-            QuotaProviderType.OPEN_CODE -> cachedOpenCodeQuotaJson = json
-            QuotaProviderType.OLLAMA -> cachedOllamaQuotaJson = json
-            QuotaProviderType.ZAI -> cachedZaiQuotaJson = json
-            QuotaProviderType.MINIMAX -> cachedMiniMaxQuotaJson = json
-            QuotaProviderType.KIMI -> cachedKimiQuotaJson = json
-            QuotaProviderType.GITHUB -> cachedGitHubQuotaJson = json
-            QuotaProviderType.CURSOR -> cachedCursorQuotaJson = json
+        if (json == null) {
+            cachedQuotaJsons.remove(provider.id)
+        } else {
+            cachedQuotaJsons[provider.id] = json
         }
     }
 
-    fun lastUpdate(provider: QuotaProviderType): Long {
-        return when (provider) {
-            QuotaProviderType.OPEN_AI -> lastOpenAiUpdate
-            QuotaProviderType.OPEN_CODE -> lastOpenCodeUpdate
-            QuotaProviderType.OLLAMA -> lastOllamaUpdate
-            QuotaProviderType.ZAI -> lastZaiUpdate
-            QuotaProviderType.MINIMAX -> lastMiniMaxUpdate
-            QuotaProviderType.KIMI -> lastKimiUpdate
-            QuotaProviderType.GITHUB -> lastGitHubUpdate
-            QuotaProviderType.CURSOR -> lastCursorUpdate
-        }
-    }
+    fun lastUpdate(provider: QuotaProviderType): Long = lastProviderUpdates[provider.id] ?: 0L
 
     fun updateTimestamp(provider: QuotaProviderType) {
-        when (provider) {
-            QuotaProviderType.OPEN_AI -> lastOpenAiUpdate = System.currentTimeMillis()
-            QuotaProviderType.OPEN_CODE -> lastOpenCodeUpdate = System.currentTimeMillis()
-            QuotaProviderType.OLLAMA -> lastOllamaUpdate = System.currentTimeMillis()
-            QuotaProviderType.ZAI -> lastZaiUpdate = System.currentTimeMillis()
-            QuotaProviderType.MINIMAX -> lastMiniMaxUpdate = System.currentTimeMillis()
-            QuotaProviderType.KIMI -> lastKimiUpdate = System.currentTimeMillis()
-            QuotaProviderType.GITHUB -> lastGitHubUpdate = System.currentTimeMillis()
-            QuotaProviderType.CURSOR -> lastCursorUpdate = System.currentTimeMillis()
-        }
+        lastProviderUpdates[provider.id] = System.currentTimeMillis()
     }
 
     fun lastUsedSource(): QuotaIndicatorSource {
