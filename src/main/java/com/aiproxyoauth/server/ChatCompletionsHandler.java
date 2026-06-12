@@ -78,6 +78,7 @@ public class ChatCompletionsHandler implements Handler {
         // modern tool definitions.
         boolean nativeToolProtocol = hasModernToolDefinitions(body);
         boolean junieTextProtocol = junieCommandProtocol && !nativeToolProtocol;
+        boolean junieNativeProtocol = junieCommandProtocol && nativeToolProtocol;
         String junieNativeToolName = nativeToolProtocol ? junieToolName : null;
         String junieTextToolName = junieTextProtocol ? junieToolName : null;
         boolean legacyFunctionCallProtocol = usesLegacyFunctions(body);
@@ -118,10 +119,11 @@ public class ChatCompletionsHandler implements Handler {
             }
 
             if (wantsStream) {
-                streamToClient(ctx, responseStream, upstreamModel, junieTextToolName, junieNativeToolName, body);
+                streamToClient(ctx, responseStream, upstreamModel, junieTextToolName, junieNativeToolName,
+                        junieNativeProtocol, body);
             } else {
                 nonStreamToClient(ctx, responseStream, upstreamModel, junieTextProtocol, junieTextToolName,
-                        junieNativeToolName, legacyFunctionCallProtocol, body);
+                        junieNativeToolName, junieNativeProtocol, legacyFunctionCallProtocol, body);
             }
         }
     }
@@ -384,7 +386,7 @@ public class ChatCompletionsHandler implements Handler {
 
     private void nonStreamToClient(Context ctx, InputStream upstreamBody, String model,
                                    boolean junieTextProtocol, String junieTextToolName,
-                                   String junieNativeToolName,
+                                   String junieNativeToolName, boolean junieNativeProtocol,
                                    boolean legacyFunctionCallProtocol, JsonNode requestBody) throws Exception {
         JsonNode completedResponse = SseCollector.collectCompletedResponse(upstreamBody);
 
@@ -457,9 +459,15 @@ public class ChatCompletionsHandler implements Handler {
             message.put("content", JunieCommandProtocolCompat.wrapStreamingText(junieTextToolName, content));
             toolCalls.removeAll();
         } else if (!collectedText.isEmpty()) {
-            message.put("content", junieTextProtocol
-                    ? JunieCommandProtocolCompat.wrapPlainText(collectedText)
-                    : collectedText);
+            String content = collectedText;
+            if (junieTextProtocol) {
+                content = JunieCommandProtocolCompat.wrapPlainText(content);
+            } else if (junieNativeProtocol) {
+                // Junie shows this text verbatim as the step thought; reformat the
+                // <UPDATE> plan markup it asked the model for into readable text.
+                content = JunieCommandProtocolCompat.formatUpdateMarkup(content);
+            }
+            message.put("content", content);
         } else {
             message.putNull("content");
         }
@@ -533,7 +541,7 @@ public class ChatCompletionsHandler implements Handler {
 
     private void streamToClient(Context ctx, InputStream upstreamBody, String model,
                                 String junieTextToolName, String junieNativeToolName,
-                                JsonNode requestBody) throws Exception {
+                                boolean junieNativeProtocol, JsonNode requestBody) throws Exception {
         JsonHelper.setSseHeaders(ctx);
         OutputStream os = ctx.res().getOutputStream();
 
@@ -579,12 +587,12 @@ public class ChatCompletionsHandler implements Handler {
                         case "response.output_text.delta" -> {
                             String delta = parsed.path("delta").asText("");
                             if (!delta.isEmpty()) {
-                                if (junieStreamingTextFallback) {
+                                // Junie protocols never get raw text deltas: the text protocol
+                                // wraps the full text at completion, and the native tool protocol
+                                // reformats the <UPDATE> plan markup, which needs the whole text.
+                                if (junieStreamingTextFallback || junieNativeProtocol) {
                                     junieTextBuffer.append(delta);
                                 } else {
-                                    if (junieNativeToolName != null) {
-                                        junieTextBuffer.append(delta);
-                                    }
                                     writeSseChunk(ctx, os, createChunk(id, created, model,
                                             createContentDelta(delta), null));
                                 }
@@ -687,23 +695,38 @@ public class ChatCompletionsHandler implements Handler {
                                 writeSseChunk(ctx, os, createChunk(id, created, model,
                                         createContentDelta(wrappedContent), null));
                                 fr = "completed".equals(status) ? "stop" : "incomplete".equals(status) ? "length" : "stop";
-                            } else if (junieNativeToolName != null && toolIndexes.isEmpty()
-                                    && !"incomplete".equals(status)) {
-                                // Junie requires a tool call in every assistant turn; synthesize a
-                                // fallback tool call from the streamed text when the model sent none.
-                                String fallbackText = completedOutputText(response);
-                                if (fallbackText.isBlank()) {
-                                    fallbackText = junieTextBuffer.toString();
+                            } else if (junieNativeProtocol) {
+                                String text = completedOutputText(response);
+                                if (text.isBlank()) {
+                                    text = junieTextBuffer.toString();
                                 }
-                                fallbackText = truncateAtStopSequence(fallbackText, stopSequences(requestBody));
-                                ObjectNode tc = JunieCommandProtocolCompat.chatToolCall(
-                                        junieNativeToolName, fallbackText);
-                                tc.put("index", 0);
-                                ArrayNode tcArray = MAPPER.createArrayNode();
-                                tcArray.add(tc);
-                                writeSseChunk(ctx, os, createChunk(id, created, model,
-                                        createToolCallsDelta(tcArray), null));
-                                fr = "tool_calls";
+                                text = truncateAtStopSequence(text, stopSequences(requestBody));
+                                // Junie shows this text verbatim as the step thought; reformat
+                                // the <UPDATE> plan markup into readable text before emitting it.
+                                String content = JunieCommandProtocolCompat.formatUpdateMarkup(text);
+                                if (content != null && !content.isBlank()) {
+                                    writeSseChunk(ctx, os, createChunk(id, created, model,
+                                            createContentDelta(content), null));
+                                }
+                                if (junieNativeToolName != null && toolIndexes.isEmpty()
+                                        && !"incomplete".equals(status)) {
+                                    // Junie requires a tool call in every assistant turn; synthesize a
+                                    // fallback tool call from the streamed text when the model sent none.
+                                    ObjectNode tc = JunieCommandProtocolCompat.chatToolCall(
+                                            junieNativeToolName, text);
+                                    tc.put("index", 0);
+                                    ArrayNode tcArray = MAPPER.createArrayNode();
+                                    tcArray.add(tc);
+                                    writeSseChunk(ctx, os, createChunk(id, created, model,
+                                            createToolCallsDelta(tcArray), null));
+                                    fr = "tool_calls";
+                                } else {
+                                    fr = switch (status) {
+                                        case "completed" -> toolIndexes.isEmpty() ? "stop" : "tool_calls";
+                                        case "incomplete" -> "length";
+                                        default -> "stop";
+                                    };
+                                }
                             } else {
                                 fr = switch (status) {
                                     case "completed" -> toolIndexes.isEmpty() ? "stop" : "tool_calls";

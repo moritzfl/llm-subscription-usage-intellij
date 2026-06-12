@@ -18,6 +18,10 @@ final class JunieCommandProtocolCompat {
             Pattern.DOTALL
     );
     private static final Pattern XML_TAG_PATTERN = Pattern.compile("</?[A-Z_]+>");
+    private static final Pattern UPDATE_MARKUP_PATTERN = Pattern.compile(
+            "</?(UPDATE|PREVIOUS_STEP|PLAN|NEXT_STEP)>",
+            Pattern.CASE_INSENSITIVE
+    );
 
     private JunieCommandProtocolCompat() {}
 
@@ -186,6 +190,61 @@ final class JunieCommandProtocolCompat {
             }
         }
         return false;
+    }
+
+    /**
+     * Junie's native tool-call protocol displays assistant text verbatim as the step
+     * thought; unlike the <THOUGHT>/<COMMAND> text protocol it never routes that text
+     * through its update_status tag parser, so <UPDATE>/<PLAN> plan markup would reach
+     * the UI raw. Reformat the markup into plain readable text. Every section's content
+     * is kept: Junie echoes this text back as assistant history, and the model relies
+     * on the previous plan to track progress across steps.
+     */
+    static String formatUpdateMarkup(String text) {
+        if (text == null || !UPDATE_MARKUP_PATTERN.matcher(text).find()) {
+            return text;
+        }
+        String formatted = text;
+        formatted = replaceTagSection(formatted, "PREVIOUS_STEP", "");
+        formatted = replaceTagSection(formatted, "PLAN", "Plan:\n");
+        formatted = replaceTagSection(formatted, "NEXT_STEP", "Next: ");
+        formatted = XML_TAG_PATTERN.matcher(formatted).replaceAll("");
+        formatted = formatted.replaceAll("\\n{3,}", "\n\n").trim();
+        return formatted.isBlank() ? text : formatted;
+    }
+
+    /** Applies {@link #formatUpdateMarkup} to all output_text parts of a completed Responses payload. */
+    static JsonNode formatUpdateMarkupInResponse(JsonNode completedResponse) {
+        if (completedResponse == null || !completedResponse.isObject()) {
+            return completedResponse;
+        }
+        ObjectNode copy = completedResponse.deepCopy();
+        boolean changed = false;
+        for (ObjectNode part : outputTextParts(copy.get("output"))) {
+            String text = part.path("text").asText("");
+            String formatted = formatUpdateMarkup(text);
+            if (!text.equals(formatted)) {
+                part.put("text", formatted);
+                changed = true;
+            }
+        }
+        return changed ? copy : completedResponse;
+    }
+
+    private static String replaceTagSection(String text, String tagName, String prefix) {
+        Pattern pattern = Pattern.compile(
+                "<" + tagName + ">\\s*(.*?)\\s*</" + tagName + ">",
+                Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+        );
+        java.util.regex.Matcher matcher = pattern.matcher(text);
+        StringBuilder result = new StringBuilder();
+        while (matcher.find()) {
+            String content = matcher.group(1).trim();
+            String replacement = content.isBlank() ? "" : "\n" + prefix + content + "\n";
+            matcher.appendReplacement(result, java.util.regex.Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(result);
+        return result.toString();
     }
 
     static String wrapPlainText(String text) {

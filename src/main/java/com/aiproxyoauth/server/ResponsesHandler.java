@@ -148,17 +148,25 @@ public class ResponsesHandler implements Handler {
                     JsonHelper.toErrorResponse(ctx, errorMessage, 502, "upstream_error");
                     return;
                 }
-                if (JunieCommandProtocolCompat.isJunieRequest(expanded)
-                        && !JunieCommandProtocolCompat.hasFunctionCallOutput(completed)) {
-                    String declaredToolName = JunieCommandProtocolCompat.declaredFallbackToolName(expanded);
-                    if (declaredToolName != null) {
-                        completed = JunieCommandProtocolCompat.toToolResponse(completed, declaredToolName);
-                    } else if (!JunieCommandProtocolCompat.hasToolDefinitions(expanded)) {
-                        // Tool-less Junie requests are the <THOUGHT>/<COMMAND> text protocol;
-                        // a synthetic call to an undeclared tool would not parse as a command.
-                        completed = JunieCommandProtocolCompat.wrapCompletedResponse(completed);
+                if (JunieCommandProtocolCompat.isJunieRequest(expanded)) {
+                    if (JunieCommandProtocolCompat.hasFunctionCallOutput(completed)) {
+                        // Native tool protocol: Junie shows message text verbatim as the step
+                        // thought, so reformat the <UPDATE> plan markup into readable text.
+                        completed = JunieCommandProtocolCompat.formatUpdateMarkupInResponse(completed);
+                    } else {
+                        String declaredToolName = JunieCommandProtocolCompat.declaredFallbackToolName(expanded);
+                        if (declaredToolName != null) {
+                            completed = JunieCommandProtocolCompat.toToolResponse(completed, declaredToolName);
+                        } else if (!JunieCommandProtocolCompat.hasToolDefinitions(expanded)) {
+                            // Tool-less Junie requests are the <THOUGHT>/<COMMAND> text protocol;
+                            // a synthetic call to an undeclared tool would not parse as a command.
+                            completed = JunieCommandProtocolCompat.wrapCompletedResponse(completed);
+                        } else {
+                            // Tools declared but no submit/answer: native protocol without a
+                            // fallback tool — still clean the plan markup in the text.
+                            completed = JunieCommandProtocolCompat.formatUpdateMarkupInResponse(completed);
+                        }
                     }
-                    // Tools declared but no submit/answer: native protocol — pass through unchanged.
                 }
                 recordUsage(ctx, completed.get("usage"));
                 if (state != null) {

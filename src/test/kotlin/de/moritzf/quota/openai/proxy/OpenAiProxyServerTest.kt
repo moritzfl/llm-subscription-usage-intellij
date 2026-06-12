@@ -272,6 +272,138 @@ class OpenAiProxyServerTest {
     }
 
     @Test
+    fun reformatsJunieUpdateMarkupForNativeToolChatResponses() {
+        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_UPDATE_TEXT_AND_FUNCTION_CALL).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"messages\":[" +
+                                    "{\"role\":\"system\",\"content\":\"You are Junie. " +
+                                    "You're working with a special interface.\"}," +
+                                    "{\"role\":\"user\",\"content\":\"Install the SDK\"}]," +
+                                    "\"tools\":[" +
+                                    "{\"type\":\"function\",\"function\":{\"name\":\"bash\"," +
+                                    "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}," +
+                                    "{\"type\":\"function\",\"function\":{\"name\":\"submit\"," +
+                                    "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                val choice = parseObject(response.body())["choices"]!!.jsonArray[0].jsonObject
+                assertEquals("tool_calls", choice["finish_reason"]!!.jsonPrimitive.content)
+                val message = choice["message"]!!.jsonObject
+                val content = message["content"]!!.jsonPrimitive.content
+                assertFalse(content.contains("<UPDATE>"))
+                assertFalse(content.contains("<PLAN>"))
+                assertFalse(content.contains("<PREVIOUS_STEP>"))
+                assertTrue(content.contains("Checked the SDK state."))
+                assertTrue(content.contains("Plan:\n1. Check current state ✓"))
+                assertTrue(content.contains("Next: Install the latest SDK."))
+                val toolCall = message["tool_calls"]!!.jsonArray[0].jsonObject
+                assertEquals("bash", toolCall["function"]!!.jsonObject["name"]!!.jsonPrimitive.content)
+
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun reformatsJunieUpdateMarkupForNativeToolStreamingChatResponses() {
+        TestUpstream(responseBody = JUNIE_UPDATE_STREAM_WITH_FUNCTION_CALL).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"stream\":true,\"messages\":[" +
+                                    "{\"role\":\"system\",\"content\":\"You are Junie. " +
+                                    "You're working with a special interface.\"}," +
+                                    "{\"role\":\"user\",\"content\":\"Install the SDK\"}]," +
+                                    "\"tools\":[" +
+                                    "{\"type\":\"function\",\"function\":{\"name\":\"bash\"," +
+                                    "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}," +
+                                    "{\"type\":\"function\",\"function\":{\"name\":\"submit\"," +
+                                    "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                val body = response.body()
+                assertFalse(body.contains("<UPDATE>"))
+                assertFalse(body.contains("<PLAN>"))
+                assertTrue(body.contains("Checked the SDK state."))
+                assertTrue(body.contains("Next: Install the latest SDK."))
+                assertTrue(body.contains("\"name\":\"bash\""))
+                assertTrue(body.contains("\"finish_reason\":\"tool_calls\""))
+
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun reformatsJunieUpdateMarkupForNativeToolResponsesRequests() {
+        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_UPDATE_TEXT_AND_FUNCTION_CALL).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/responses"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"instructions\":" +
+                                    "\"You are Junie, an autonomous programmer developed by JetBrains.\"," +
+                                    "\"input\":[],\"tools\":[" +
+                                    "{\"type\":\"function\",\"name\":\"bash\"," +
+                                    "\"parameters\":{\"type\":\"object\",\"properties\":{}}}," +
+                                    "{\"type\":\"function\",\"name\":\"submit\"," +
+                                    "\"parameters\":{\"type\":\"object\",\"properties\":{}}}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                val output = parseObject(response.body())["output"]!!.jsonArray
+                val textPart = output[0].jsonObject["content"]!!.jsonArray[0].jsonObject
+                val text = textPart["text"]!!.jsonPrimitive.content
+                assertFalse(text.contains("<UPDATE>"))
+                assertTrue(text.contains("Checked the SDK state."))
+                assertTrue(text.contains("Next: Install the latest SDK."))
+                assertEquals("function_call", output[1].jsonObject["type"]!!.jsonPrimitive.content)
+
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun reconstructsFunctionCallFromOutputItemEventsWhenCompletedOutputIsEmpty() {
         TestUpstream(responseBody = FUNCTION_CALL_STREAM_WITH_EMPTY_COMPLETED_OUTPUT).use { upstream ->
             val proxy = newProxy(upstream.baseUri)
@@ -1297,5 +1429,40 @@ class OpenAiProxyServerTest {
             "event: response.output_text.delta\n" +
             "data: {\"type\":\"response.output_text.delta\",\"delta\":\"ng\"}\n\n" +
             COMPLETED_RESPONSE_STREAM_WITH_TEXT
+
+        const val JUNIE_UPDATE_TEXT = "<UPDATE>\\n<PREVIOUS_STEP>\\nChecked the SDK state.\\n</PREVIOUS_STEP>\\n" +
+            "<PLAN>\\n1. Check current state ✓\\n2. Install latest SDK *\\n</PLAN>\\n" +
+            "<NEXT_STEP>\\nInstall the latest SDK.\\n</NEXT_STEP>\\n</UPDATE>"
+        const val COMPLETED_RESPONSE_STREAM_WITH_UPDATE_TEXT_AND_FUNCTION_CALL = "event: response.completed\n" +
+            "data: {\"type\":\"response.completed\",\"response\":{" +
+            "\"id\":\"resp_1\",\"object\":\"response\",\"status\":\"completed\"," +
+            "\"output\":[" +
+            "{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"" + JUNIE_UPDATE_TEXT + "\"}]}," +
+            "{\"type\":\"function_call\",\"call_id\":\"call_1\",\"name\":\"bash\"," +
+            "\"arguments\":\"{\\\"command\\\":\\\"pebble sdk install latest\\\"}\"}]," +
+            "\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n"
+
+        // Text deltas split mid-tag plus a function call delivered via output_item events;
+        // the completed event carries an empty output array like the real backend with store=false.
+        const val JUNIE_UPDATE_STREAM_WITH_FUNCTION_CALL = "event: response.output_text.delta\n" +
+            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"<UPDATE>\\n<PREVIOUS_STEP>\\nChecked the SDK state.\\n</PREVIOUS_STEP>\\n<PLA\"}\n\n" +
+            "event: response.output_text.delta\n" +
+            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"N>\\n1. Check current state ✓\\n</PLAN>\\n<NEXT_STEP>\\nInstall the latest SDK.\\n</NEXT_STEP>\\n</UPDATE>\"}\n\n" +
+            "event: response.output_item.added\n" +
+            "data: {\"type\":\"response.output_item.added\",\"item\":{\"id\":\"fc_1\"," +
+            "\"type\":\"function_call\",\"status\":\"in_progress\",\"arguments\":\"\"," +
+            "\"call_id\":\"call_1\",\"name\":\"bash\"}}\n\n" +
+            "event: response.function_call_arguments.delta\n" +
+            "data: {\"type\":\"response.function_call_arguments.delta\"," +
+            "\"delta\":\"{\\\"command\\\":\\\"pebble sdk install latest\\\"}\",\"item_id\":\"fc_1\"}\n\n" +
+            "event: response.output_item.done\n" +
+            "data: {\"type\":\"response.output_item.done\",\"item\":{\"id\":\"fc_1\"," +
+            "\"type\":\"function_call\",\"status\":\"completed\"," +
+            "\"arguments\":\"{\\\"command\\\":\\\"pebble sdk install latest\\\"}\",\"call_id\":\"call_1\",\"name\":\"bash\"}}\n\n" +
+            "event: response.completed\n" +
+            "data: {\"type\":\"response.completed\",\"response\":{" +
+            "\"id\":\"resp_1\",\"object\":\"response\",\"status\":\"completed\",\"output\":[]," +
+            "\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n" +
+            "data: [DONE]\n\n"
     }
 }
