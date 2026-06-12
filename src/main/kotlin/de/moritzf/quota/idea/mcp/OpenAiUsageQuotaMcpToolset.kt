@@ -16,150 +16,83 @@ import kotlinx.serialization.json.put
 
 /**
  * Exposes the latest subscription usage JSON through IntelliJ's MCP server.
+ * Each tool must stay a discrete annotated method; the bodies delegate to [quotaResult].
  */
 class OpenAiUsageQuotaMcpToolset : McpToolset {
     @McpTool(name = "openai_usage_quota")
     @McpDescription(description = "Returns the latest OpenAI usage quota response JSON.")
     fun openai_usage_quota(): McpToolCallResult {
-        val usageService = QuotaUsageService.getInstance()
-        usageService.refreshBlocking(QuotaProviderType.OPEN_AI)
-
-        val error = usageService.getLastError(QuotaProviderType.OPEN_AI)
-        if (!error.isNullOrBlank()) {
-            return errorResult(error)
-        }
-
-        val json = usageService.getLastResponseJson(QuotaProviderType.OPEN_AI)
-        if (json.isNullOrBlank()) {
-            return errorResult("No usage response available")
-        }
-        return successResult(json)
+        return quotaResult(QuotaProviderType.OPEN_AI, "No usage response available")
     }
 
     @McpTool(name = "opencode_usage_quota")
     @McpDescription(description = "Returns the latest OpenCode Go usage quota response JSON.")
     fun opencode_usage_quota(): McpToolCallResult {
-        val usageService = QuotaUsageService.getInstance()
-        usageService.refreshBlocking(QuotaProviderType.OPEN_CODE)
-
-        val error = usageService.getLastError(QuotaProviderType.OPEN_CODE)
-        if (!error.isNullOrBlank()) {
-            return errorResult(error)
+        return quotaResult(QuotaProviderType.OPEN_CODE, "No OpenCode usage response available") { service ->
+            val quota = service.getLastQuota(QuotaProviderType.OPEN_CODE) as? OpenCodeQuota ?: return@quotaResult null
+            runCatching { JsonSupport.json.encodeToString(OpenCodeQuota.serializer(), quota) }.getOrNull()
         }
-
-        val quota = usageService.getLastQuota(QuotaProviderType.OPEN_CODE) as? OpenCodeQuota
-            ?: return errorResult("No OpenCode usage response available")
-        val json = runCatching { JsonSupport.json.encodeToString(OpenCodeQuota.serializer(), quota) }.getOrNull()
-            ?: return errorResult("No OpenCode usage response available")
-        return successResult(json)
     }
 
     @McpTool(name = "ollama_usage_quota")
     @McpDescription(description = "Returns the latest Ollama Cloud usage quota response JSON.")
     fun ollama_usage_quota(): McpToolCallResult {
-        val usageService = QuotaUsageService.getInstance()
-        usageService.refreshBlocking(QuotaProviderType.OLLAMA)
-
-        val error = usageService.getLastError(QuotaProviderType.OLLAMA)
-        if (!error.isNullOrBlank()) {
-            return errorResult(error)
+        return quotaResult(QuotaProviderType.OLLAMA, "No Ollama usage response available") { service ->
+            val quota = service.getLastQuota(QuotaProviderType.OLLAMA) as? OllamaQuota ?: return@quotaResult null
+            runCatching { JsonSupport.json.encodeToString(OllamaQuota.serializer(), quota) }.getOrNull()
         }
-
-        val quota = usageService.getLastQuota(QuotaProviderType.OLLAMA) as? OllamaQuota
-            ?: return errorResult("No Ollama usage response available")
-        val json = runCatching { JsonSupport.json.encodeToString(OllamaQuota.serializer(), quota) }.getOrNull()
-            ?: return errorResult("No Ollama usage response available")
-        return successResult(json)
     }
 
     @McpTool(name = "zai_usage_quota")
     @McpDescription(description = "Returns the latest Z.ai usage quota response JSON.")
     fun zai_usage_quota(): McpToolCallResult {
-        val usageService = QuotaUsageService.getInstance()
-        usageService.refreshBlocking(QuotaProviderType.ZAI)
-
-        val error = usageService.getLastError(QuotaProviderType.ZAI)
-        if (!error.isNullOrBlank()) {
-            return errorResult(error)
-        }
-
-        val json = usageService.getLastResponseJson(QuotaProviderType.ZAI)
-        if (json.isNullOrBlank()) {
-            return errorResult("No Z.ai usage response available")
-        }
-        return successResult(json)
+        return quotaResult(QuotaProviderType.ZAI, "No Z.ai usage response available")
     }
 
     @McpTool(name = "minimax_usage_quota")
     @McpDescription(description = "Returns the latest MiniMax usage quota response JSON.")
     fun minimax_usage_quota(): McpToolCallResult {
-        val usageService = QuotaUsageService.getInstance()
-        usageService.refreshBlocking(QuotaProviderType.MINIMAX)
-
-        val error = usageService.getLastError(QuotaProviderType.MINIMAX)
-        if (!error.isNullOrBlank()) {
-            return errorResult(error)
-        }
-
-        val json = usageService.getLastResponseJson(QuotaProviderType.MINIMAX)
-        if (json.isNullOrBlank()) {
-            return errorResult("No MiniMax usage response available")
-        }
-        return successResult(json)
+        return quotaResult(QuotaProviderType.MINIMAX, "No MiniMax usage response available")
     }
 
     @McpTool(name = "kimi_usage_quota")
     @McpDescription(description = "Returns the latest Kimi usage quota response JSON.")
     fun kimi_usage_quota(): McpToolCallResult {
-        val usageService = QuotaUsageService.getInstance()
-        usageService.refreshBlocking(QuotaProviderType.KIMI)
-
-        val error = usageService.getLastError(QuotaProviderType.KIMI)
-        if (!error.isNullOrBlank()) {
-            return errorResult(error)
-        }
-
-        val json = usageService.getLastResponseJson(QuotaProviderType.KIMI)
-        if (json.isNullOrBlank()) {
-            return errorResult("No Kimi usage response available")
-        }
-        return successResult(json)
+        return quotaResult(QuotaProviderType.KIMI, "No Kimi usage response available")
     }
 
     @McpTool(name = "github_usage_quota")
     @McpDescription(description = "Returns the latest GitHub Copilot usage quota response JSON.")
     fun github_usage_quota(): McpToolCallResult {
-        val usageService = QuotaUsageService.getInstance()
-        usageService.refreshBlocking(QuotaProviderType.GITHUB)
-
-        val error = usageService.getLastError(QuotaProviderType.GITHUB)
-        if (!error.isNullOrBlank()) {
-            return errorResult(error)
-        }
-
-        val json = usageService.getLastResponseJson(QuotaProviderType.GITHUB)
-        if (json.isNullOrBlank()) {
-            return errorResult("No GitHub usage response available")
-        }
-        return successResult(json)
+        return quotaResult(QuotaProviderType.GITHUB, "No GitHub usage response available")
     }
 
     @McpTool(name = "cursor_usage_quota")
     @McpDescription(description = "Returns the latest Cursor usage quota response JSON.")
     fun cursor_usage_quota(): McpToolCallResult {
-        val usageService = QuotaUsageService.getInstance()
-        usageService.refreshBlocking(QuotaProviderType.CURSOR)
+        return quotaResult(QuotaProviderType.CURSOR, "No Cursor usage response available") { service ->
+            service.getLastResponseJson(QuotaProviderType.CURSOR)?.let(CursorQuotaClient::normalizeRawJson)
+        }
+    }
 
-        val error = usageService.getLastError(QuotaProviderType.CURSOR)
+    private fun quotaResult(
+        type: QuotaProviderType,
+        emptyMessage: String,
+        json: (QuotaUsageService) -> String? = { it.getLastResponseJson(type) },
+    ): McpToolCallResult {
+        val usageService = QuotaUsageService.getInstance()
+        usageService.refreshBlocking(type)
+
+        val error = usageService.getLastError(type)
         if (!error.isNullOrBlank()) {
             return errorResult(error)
         }
 
-        val rawJson = usageService.getLastResponseJson(QuotaProviderType.CURSOR)
-        if (rawJson.isNullOrBlank()) {
-            return errorResult("No Cursor usage response available")
+        val payload = json(usageService)
+        if (payload.isNullOrBlank()) {
+            return errorResult(emptyMessage)
         }
-        return successResult(CursorQuotaClient.normalizeRawJson(rawJson))
+        return successResult(payload)
     }
 
     private fun successResult(text: String): McpToolCallResult {
