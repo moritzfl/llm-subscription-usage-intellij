@@ -42,6 +42,10 @@ public final class RequestLogger {
         }
     }
 
+    public boolean isEnabled() {
+        return enabled;
+    }
+
     public String nextRequestId() {
         return "req_" + UUID.randomUUID().toString().replace("-", "");
     }

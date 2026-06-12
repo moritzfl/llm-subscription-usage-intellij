@@ -61,9 +61,23 @@ public class CodexHttpClient {
                             credentialsProvider.getAuthHeaders()),
                     HttpResponse.BodyHandlers.ofInputStream());
         }
-        requestLogger.logUpstreamResponse(logRequestId, response.statusCode(), responseHeaders(response),
-                "[streaming body omitted]");
-        return response;
+        return withLoggedStreamingBody(response, logRequestId);
+    }
+
+    /**
+     * With full request logging enabled, tees the streaming body so the bytes that
+     * actually flowed are logged once the stream is consumed or closed. Without it,
+     * the entry is written immediately with a placeholder (a no-op when disabled).
+     */
+    private HttpResponse<InputStream> withLoggedStreamingBody(HttpResponse<InputStream> response, String requestId) {
+        if (!requestLogger.isEnabled()) {
+            requestLogger.logUpstreamResponse(requestId, response.statusCode(), responseHeaders(response),
+                    "[streaming body omitted]");
+            return response;
+        }
+        InputStream tee = new LoggingTeeInputStream(response.body(), captured ->
+                requestLogger.logUpstreamResponse(requestId, response.statusCode(), responseHeaders(response), captured));
+        return new BodyReplacingHttpResponse(response, tee);
     }
 
     public HttpResponse<String> requestString(String path, String method, String body,
@@ -150,5 +164,119 @@ public class CodexHttpClient {
 
     private static <T> Map<String, java.util.List<String>> responseHeaders(HttpResponse<T> response) {
         return response.headers() == null ? Map.of() : response.headers().map();
+    }
+
+    /**
+     * Copies everything read through it into a bounded buffer and hands the captured
+     * text to {@code onComplete} exactly once, at EOF or close, whichever comes first.
+     */
+    private static final class LoggingTeeInputStream extends java.io.FilterInputStream {
+        private static final int MAX_CAPTURE_BYTES = 256 * 1024;
+
+        private final java.io.ByteArrayOutputStream captured = new java.io.ByteArrayOutputStream();
+        private final java.util.function.Consumer<String> onComplete;
+        private boolean truncated;
+        private boolean completed;
+
+        private LoggingTeeInputStream(InputStream delegate, java.util.function.Consumer<String> onComplete) {
+            super(delegate);
+            this.onComplete = onComplete;
+        }
+
+        @Override
+        public int read() throws java.io.IOException {
+            int b = super.read();
+            if (b == -1) {
+                complete();
+            } else {
+                capture(new byte[]{(byte) b}, 0, 1);
+            }
+            return b;
+        }
+
+        @Override
+        public int read(byte[] buffer, int offset, int length) throws java.io.IOException {
+            int count = super.read(buffer, offset, length);
+            if (count == -1) {
+                complete();
+            } else {
+                capture(buffer, offset, count);
+            }
+            return count;
+        }
+
+        @Override
+        public void close() throws java.io.IOException {
+            complete();
+            super.close();
+        }
+
+        private void capture(byte[] buffer, int offset, int count) {
+            int room = MAX_CAPTURE_BYTES - captured.size();
+            if (room <= 0) {
+                truncated = true;
+                return;
+            }
+            int toWrite = Math.min(room, count);
+            captured.write(buffer, offset, toWrite);
+            if (toWrite < count) {
+                truncated = true;
+            }
+        }
+
+        private void complete() {
+            if (completed) {
+                return;
+            }
+            completed = true;
+            String body = captured.toString(java.nio.charset.StandardCharsets.UTF_8);
+            onComplete.accept(truncated ? body + "\n[capture truncated]" : body);
+        }
+    }
+
+    /** Delegates everything to the original response except the (tee-wrapped) body. */
+    private record BodyReplacingHttpResponse(
+            HttpResponse<InputStream> delegate,
+            InputStream replacementBody
+    ) implements HttpResponse<InputStream> {
+        @Override
+        public int statusCode() {
+            return delegate.statusCode();
+        }
+
+        @Override
+        public HttpRequest request() {
+            return delegate.request();
+        }
+
+        @Override
+        public java.util.Optional<HttpResponse<InputStream>> previousResponse() {
+            return delegate.previousResponse();
+        }
+
+        @Override
+        public java.net.http.HttpHeaders headers() {
+            return delegate.headers();
+        }
+
+        @Override
+        public InputStream body() {
+            return replacementBody;
+        }
+
+        @Override
+        public java.util.Optional<javax.net.ssl.SSLSession> sslSession() {
+            return delegate.sslSession();
+        }
+
+        @Override
+        public URI uri() {
+            return delegate.uri();
+        }
+
+        @Override
+        public HttpClient.Version version() {
+            return delegate.version();
+        }
     }
 }
