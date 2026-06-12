@@ -31,37 +31,20 @@ final class JunieCommandProtocolCompat {
     private JunieCommandProtocolCompat() {}
 
     /**
-     * Detects Junie's matterhorn command protocol. Only two signals are reliable:
-     * the {@code stop: ["</COMMAND>"]} parameter Junie sends in text mode, and the
-     * "You are Junie" system prompt. Scanning the whole body would misfire on any
-     * conversation that merely mentions Junie.
+     * Detects Junie's matterhorn command protocol via the "You are Junie" system
+     * prompt. The {@code stop: ["</COMMAND>"]} parameter is deliberately NOT a
+     * signal: Junie 1892.26 attaches it to every LLM call, including plain-text
+     * utility prompts (task-name summarizer, step summarizer, allowlist
+     * generator) whose output it displays verbatim — wrapping those in
+     * THOUGHT/COMMAND leaks raw tags into the UI. Scanning the whole body would
+     * likewise misfire on any conversation that merely mentions Junie.
      */
     static boolean isJunieRequest(JsonNode body) {
         if (body == null) {
             return false;
         }
-        if (stopContainsCommandMarker(body.get("stop"))) {
-            return true;
-        }
         String systemText = systemText(body).toLowerCase(Locale.ROOT);
         return systemText.contains("you are junie");
-    }
-
-    private static boolean stopContainsCommandMarker(JsonNode stop) {
-        if (stop == null) {
-            return false;
-        }
-        if (stop.isTextual()) {
-            return stop.asText().contains("</COMMAND>");
-        }
-        if (stop.isArray()) {
-            for (JsonNode sequence : stop) {
-                if (sequence.isTextual() && sequence.asText().contains("</COMMAND>")) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     /** Collects instructions plus all system/developer message text from chat and responses bodies. */

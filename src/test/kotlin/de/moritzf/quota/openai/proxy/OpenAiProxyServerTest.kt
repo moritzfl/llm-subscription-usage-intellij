@@ -434,6 +434,45 @@ class OpenAiProxyServerTest {
     }
 
     @Test
+    fun passesThroughPlainTextForJunieUtilityPromptsDespiteCommandStopSequence() {
+        // Junie attaches stop:["</COMMAND>"] to every LLM call, including plain-text
+        // utility prompts like the task-name summarizer whose output it displays
+        // verbatim (e.g. as the terminal tab title). Those must not be wrapped in
+        // the THOUGHT/COMMAND protocol.
+        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"stop\":[\"</COMMAND>\"],\"messages\":[" +
+                                    "{\"role\":\"system\",\"content\":\"You are a programming task description summarizer\"}," +
+                                    "{\"role\":\"user\",\"content\":\"Provide a short, helpful task name of 5-10 words. " +
+                                    "Return ONLY the name, nothing else.\"}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                val choice = parseObject(response.body())["choices"]!!.jsonArray[0].jsonObject
+                val message = choice["message"]!!.jsonObject
+                assertEquals("pong", message["content"]!!.jsonPrimitive.content)
+                assertFalse("tool_calls" in message)
+
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun convertsExplicitJunieCreateFileTaskToCreateCommandWithoutToolMetadata() {
         TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_CREATE_FILE_TEXT).use { upstream ->
             val proxy = newProxy(upstream.baseUri)
