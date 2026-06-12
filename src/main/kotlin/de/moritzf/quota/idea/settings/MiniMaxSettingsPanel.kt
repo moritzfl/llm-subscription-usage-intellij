@@ -9,6 +9,8 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
+import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
 import de.moritzf.quota.idea.ui.QuotaUiUtil
@@ -58,8 +60,8 @@ internal class MiniMaxSettingsPanel(
     fun updateMiniMaxStatus() {
         val store = MiniMaxApiKeyStore.getInstance()
         val apiKey = store.load(onLoaded = ::refreshAfterKeyLoad)
-        val quota = QuotaUsageService.getInstance().getLastMiniMaxQuota()
-        val error = QuotaUsageService.getInstance().getLastMiniMaxError()
+        val quota = QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.MINIMAX) as? MiniMaxQuota
+        val error = QuotaUsageService.getInstance().getLastError(QuotaProviderType.MINIMAX)
         statusLabel.text = when {
             !store.isLoaded() -> formatStatusText("Loading API keys...", AuthStatusKind.PENDING)
             apiKey.isNullOrBlank() -> formatStatusText("MiniMax API key missing", AuthStatusKind.DISCONNECTED)
@@ -72,8 +74,8 @@ internal class MiniMaxSettingsPanel(
     }
 
     fun updateMiniMaxResponseArea() {
-        val raw = QuotaUsageService.getInstance().getLastMiniMaxResponseJson()
-        val error = QuotaUsageService.getInstance().getLastMiniMaxError()
+        val raw = QuotaUsageService.getInstance().getLastResponseJson(QuotaProviderType.MINIMAX)
+        val error = QuotaUsageService.getInstance().getLastError(QuotaProviderType.MINIMAX)
         responseViewer.text = when {
             error != null && !raw.isNullOrBlank() -> "Error: $error\n\n$raw"
             error != null -> "Error: $error"
@@ -92,7 +94,7 @@ internal class MiniMaxSettingsPanel(
             ApplicationManager.getApplication().invokeLater({
                 apiKeyField.text = if (apiKey.isNullOrBlank()) "" else PLACEHOLDER
                 updateMiniMaxStatus()
-                QuotaUsageService.getInstance().refreshMiniMaxAsync()
+                QuotaUsageService.getInstance().refreshAsync(QuotaProviderType.MINIMAX)
             }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
         }
     }
@@ -104,7 +106,7 @@ internal class MiniMaxSettingsPanel(
             ApplicationManager.getApplication().invokeLater({
                 apiKeyField.text = ""
                 updateMiniMaxStatus()
-                QuotaUsageService.getInstance().clearMiniMaxUsageData()
+                QuotaUsageService.getInstance().clearUsageData(QuotaProviderType.MINIMAX)
             }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
         }
     }

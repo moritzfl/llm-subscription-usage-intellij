@@ -23,14 +23,8 @@ import de.moritzf.quota.idea.openai.OpenAiProxyService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.*
 import de.moritzf.quota.idea.ui.settings.ProviderReorderPanel
-import de.moritzf.quota.ollama.OllamaQuota
-import de.moritzf.quota.openai.OpenAiCodexQuota
-import de.moritzf.quota.opencode.OpenCodeQuota
-import de.moritzf.quota.zai.ZaiQuota
-import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.minimax.MiniMaxRegionPreference
-import de.moritzf.quota.github.GitHubQuota
-import de.moritzf.quota.kimi.KimiQuota
+import de.moritzf.quota.shared.ProviderQuota
 import java.awt.CardLayout
 import java.awt.Dimension
 import javax.swing.JButton
@@ -173,73 +167,52 @@ class QuotaSettingsConfigurable : Configurable {
             })
         }
 
+        val panelUpdaters: Map<QuotaProviderType, () -> Unit> = mapOf(
+            QuotaProviderType.OPEN_AI to {
+                openAiPanel.updateAccountFields()
+                openAiPanel.updateResponseArea()
+                openAiPanel.updateAuthUi()
+                openAiPanel.updateProxyStatus()
+            },
+            QuotaProviderType.OPEN_CODE to {
+                openCodePanel.updateOpenCodeResponseArea()
+                openCodePanel.updateOpenCodeStatus()
+            },
+            QuotaProviderType.OLLAMA to {
+                ollamaPanel.updateOllamaResponseArea()
+                ollamaPanel.updateOllamaStatus()
+            },
+            QuotaProviderType.ZAI to {
+                zaiPanel.updateZaiResponseArea()
+                zaiPanel.updateZaiStatus()
+            },
+            QuotaProviderType.MINIMAX to {
+                miniMaxPanel.updateMiniMaxResponseArea()
+                miniMaxPanel.updateMiniMaxStatus()
+            },
+            QuotaProviderType.GITHUB to {
+                gitHubPanel.updateGitHubResponseArea()
+                gitHubPanel.updateGitHubStatus()
+            },
+            QuotaProviderType.KIMI to {
+                kimiPanel.updateKimiResponseArea()
+                kimiPanel.updateKimiStatus()
+            },
+            QuotaProviderType.CURSOR to {
+                cursorPanel.updateCursorResponseArea()
+                cursorPanel.updateCursorStatus()
+            },
+        )
+
         connection = ApplicationManager.getApplication().messageBus.connect()
         connection!!.subscribe(QuotaUsageListener.TOPIC, object : QuotaUsageListener {
-
-            override fun onQuotaUpdated(quota: OpenAiCodexQuota?, error: String?) {
-                val currentPanel = rootComponent ?: panel ?: return@onQuotaUpdated
-                ApplicationManager.getApplication().invokeLater({
-                    openAiPanel.updateAccountFields()
-                    openAiPanel.updateResponseArea()
-                    openAiPanel.updateAuthUi()
-                    openAiPanel.updateProxyStatus()
-                }, ModalityState.stateForComponent(currentPanel))
-            }
-
-            override fun onOpenCodeQuotaUpdated(quota: OpenCodeQuota?, error: String?) {
-                val currentPanel = rootComponent ?: panel ?: return@onOpenCodeQuotaUpdated
-                ApplicationManager.getApplication().invokeLater({
-                    openCodePanel.updateOpenCodeResponseArea()
-                    openCodePanel.updateOpenCodeStatus()
-                }, ModalityState.stateForComponent(currentPanel))
-            }
-
-            override fun onOllamaQuotaUpdated(quota: OllamaQuota?, error: String?) {
-                val currentPanel = rootComponent ?: panel ?: return@onOllamaQuotaUpdated
-                ApplicationManager.getApplication().invokeLater({
-                    ollamaPanel.updateOllamaResponseArea()
-                    ollamaPanel.updateOllamaStatus()
-                }, ModalityState.stateForComponent(currentPanel))
-            }
-
-            override fun onZaiQuotaUpdated(quota: ZaiQuota?, error: String?) {
-                val currentPanel = rootComponent ?: panel ?: return@onZaiQuotaUpdated
-                ApplicationManager.getApplication().invokeLater({
-                    zaiPanel.updateZaiResponseArea()
-                    zaiPanel.updateZaiStatus()
-                }, ModalityState.stateForComponent(currentPanel))
-            }
-
-            override fun onMiniMaxQuotaUpdated(quota: MiniMaxQuota?, error: String?) {
-                val currentPanel = rootComponent ?: panel ?: return@onMiniMaxQuotaUpdated
-                ApplicationManager.getApplication().invokeLater({
-                    miniMaxPanel.updateMiniMaxResponseArea()
-                    miniMaxPanel.updateMiniMaxStatus()
-                }, ModalityState.stateForComponent(currentPanel))
-            }
-
-            override fun onGitHubQuotaUpdated(quota: GitHubQuota?, error: String?) {
-                val currentPanel = rootComponent ?: panel ?: return@onGitHubQuotaUpdated
-                ApplicationManager.getApplication().invokeLater({
-                    gitHubPanel.updateGitHubResponseArea()
-                    gitHubPanel.updateGitHubStatus()
-                }, ModalityState.stateForComponent(currentPanel))
-            }
-
-            override fun onKimiQuotaUpdated(quota: KimiQuota?, error: String?) {
-                val currentPanel = rootComponent ?: panel ?: return@onKimiQuotaUpdated
-                ApplicationManager.getApplication().invokeLater({
-                    kimiPanel.updateKimiResponseArea()
-                    kimiPanel.updateKimiStatus()
-                }, ModalityState.stateForComponent(currentPanel))
-            }
-
-            override fun onCursorQuotaUpdated(quota: de.moritzf.quota.cursor.CursorQuota?, error: String?) {
-                val currentPanel = rootComponent ?: panel ?: return@onCursorQuotaUpdated
-                ApplicationManager.getApplication().invokeLater({
-                    cursorPanel.updateCursorResponseArea()
-                    cursorPanel.updateCursorStatus()
-                }, ModalityState.stateForComponent(currentPanel))
+            override fun onQuotaUpdated(type: QuotaProviderType, quota: ProviderQuota?, error: String?) {
+                val updater = panelUpdaters[type] ?: return
+                val currentPanel = rootComponent ?: panel ?: return
+                ApplicationManager.getApplication().invokeLater(
+                    updater,
+                    ModalityState.stateForComponent(currentPanel),
+                )
             }
         })
 

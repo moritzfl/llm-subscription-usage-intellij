@@ -20,48 +20,15 @@ import javax.swing.JComponent
  */
 class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget {
     private val connection: MessageBusConnection
-    private val widgetComponent = QuotaIndicatorComponent(horizontalPadding = 4) { component, data ->
-        val service = QuotaUsageService.getInstance()
-        QuotaPopupSupport.showPopup(
-            project, component,
-            service.getLastQuota(), service.getLastError(),
-            service.getLastOpenCodeQuota(), service.getLastOpenCodeError(),
-            service.getLastOllamaQuota(), service.getLastOllamaError(),
-            service.getLastZaiQuota(), service.getLastZaiError(),
-            service.getLastMiniMaxQuota(), service.getLastMiniMaxError(),
-            service.getLastKimiQuota(), service.getLastKimiError(),
-            service.getLastGitHubQuota(), service.getLastGitHubError(),
-            service.getLastCursorQuota(), service.getLastCursorError(),
-            QuotaPopupLocation.ABOVE,
-        )
+    private val widgetComponent = QuotaIndicatorComponent(horizontalPadding = 4) { component, _ ->
+        QuotaPopupSupport.showPopup(project, component, QuotaPopupLocation.ABOVE)
     }
     private var statusBar: StatusBar? = null
 
     init {
         connection = ApplicationManager.getApplication().messageBus.connect(this)
         connection.subscribe(QuotaUsageListener.TOPIC, object : QuotaUsageListener {
-            override fun onQuotaUpdated(quota: de.moritzf.quota.openai.OpenAiCodexQuota?, error: String?) {
-                updateWidget()
-            }
-            override fun onOpenCodeQuotaUpdated(quota: de.moritzf.quota.opencode.OpenCodeQuota?, error: String?) {
-                updateWidget()
-            }
-            override fun onOllamaQuotaUpdated(quota: de.moritzf.quota.ollama.OllamaQuota?, error: String?) {
-                updateWidget()
-            }
-            override fun onZaiQuotaUpdated(quota: de.moritzf.quota.zai.ZaiQuota?, error: String?) {
-                updateWidget()
-            }
-            override fun onMiniMaxQuotaUpdated(quota: de.moritzf.quota.minimax.MiniMaxQuota?, error: String?) {
-                updateWidget()
-            }
-            override fun onKimiQuotaUpdated(quota: de.moritzf.quota.kimi.KimiQuota?, error: String?) {
-                updateWidget()
-            }
-            override fun onGitHubQuotaUpdated(quota: de.moritzf.quota.github.GitHubQuota?, error: String?) {
-                updateWidget()
-            }
-            override fun onCursorQuotaUpdated(quota: de.moritzf.quota.cursor.CursorQuota?, error: String?) {
+            override fun onQuotaUpdated(type: de.moritzf.quota.idea.common.QuotaProviderType, quota: de.moritzf.quota.shared.ProviderQuota?, error: String?) {
                 updateWidget()
             }
         })

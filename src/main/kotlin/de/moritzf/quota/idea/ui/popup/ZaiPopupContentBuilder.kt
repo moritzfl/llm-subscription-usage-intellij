@@ -9,11 +9,12 @@ import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.zai.ZaiUsageWindow
 import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.util.ui.JBUI
+import de.moritzf.quota.shared.ProviderQuota
 import javax.swing.JPanel
 
 private const val ZAI_LABEL = "Z.ai"
 
-internal class ZaiPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)) {
+internal class ZaiPopupSection : ProviderPopupSection() {
     private val separator = createSeparatedBlock()
     private val errorLabel = createWarningLabel("").apply { border = JBUI.Borders.emptyTop(1) }
     private val titleLabel = createSectionTitleLabel(ZAI_LABEL, QuotaIcons.ZAI).apply { border = JBUI.Borders.emptyTop(0) }
@@ -32,7 +33,11 @@ internal class ZaiPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout.TO
         hideAll()
     }
 
-    fun update(quota: ZaiQuota?, error: String?, visible: Boolean) {
+    override fun update(quota: ProviderQuota?, error: String?, visible: Boolean) {
+        updateContent(quota as? ZaiQuota, error, visible)
+    }
+
+    private fun updateContent(quota: ZaiQuota?, error: String?, visible: Boolean) {
         isVisible = visible
         if (!visible) return
 

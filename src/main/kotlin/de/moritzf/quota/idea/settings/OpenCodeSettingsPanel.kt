@@ -11,6 +11,7 @@ import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
+import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.opencode.OpenCodeSessionCookieStore
 import de.moritzf.quota.idea.ui.QuotaUiUtil
@@ -54,7 +55,7 @@ internal class OpenCodeSettingsPanel(
             if (state.openCodeWorkspaceId != selected.id) {
                 state.openCodeWorkspaceId = selected.id
                 QuotaUsageService.getInstance().resetOpenCodeWorkspaceCache()
-                QuotaUsageService.getInstance().refreshOpenCodeAsync()
+                QuotaUsageService.getInstance().refreshAsync(QuotaProviderType.OPEN_CODE)
             }
         }
 
@@ -81,7 +82,7 @@ internal class OpenCodeSettingsPanel(
                         openCodeCookieField.text = OPENCODE_COOKIE_PLACEHOLDER
                         setOpenCodePendingStatus("Validating session cookie...")
                         loadWorkspaces(cookie)
-                        QuotaUsageService.getInstance().refreshOpenCodeAsync()
+                        QuotaUsageService.getInstance().refreshAsync(QuotaProviderType.OPEN_CODE)
                     }
                 }
                 button("Clear") {
@@ -93,7 +94,7 @@ internal class OpenCodeSettingsPanel(
                     workspaceLabel.isVisible = false
                     workspaceLoadingLabel.isVisible = false
                     updateOpenCodeStatus()
-                    QuotaUsageService.getInstance().clearOpenCodeUsageData()
+                    QuotaUsageService.getInstance().clearUsageData(QuotaProviderType.OPEN_CODE)
                 }
             }
             row {
@@ -140,8 +141,8 @@ internal class OpenCodeSettingsPanel(
     fun updateOpenCodeStatus() {
         val cookieStore = OpenCodeSessionCookieStore.getInstance()
         val cookie = cookieStore.load(onLoaded = ::refreshAfterCookieLoad)
-        val openCodeQuota = QuotaUsageService.getInstance().getLastOpenCodeQuota()
-        val openCodeError = QuotaUsageService.getInstance().getLastOpenCodeError()
+        val openCodeQuota = QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.OPEN_CODE) as? OpenCodeQuota
+        val openCodeError = QuotaUsageService.getInstance().getLastError(QuotaProviderType.OPEN_CODE)
 
         when {
             !cookieStore.isLoaded() -> {
@@ -179,9 +180,9 @@ internal class OpenCodeSettingsPanel(
     }
 
     fun updateOpenCodeResponseArea() {
-        val quota = QuotaUsageService.getInstance().getLastOpenCodeQuota()
-        val error = QuotaUsageService.getInstance().getLastOpenCodeError()
-        val rawJson = QuotaUsageService.getInstance().getLastOpenCodeResponseJson()
+        val quota = QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.OPEN_CODE) as? OpenCodeQuota
+        val error = QuotaUsageService.getInstance().getLastError(QuotaProviderType.OPEN_CODE)
+        val rawJson = QuotaUsageService.getInstance().getLastResponseJson(QuotaProviderType.OPEN_CODE)
 
         openCodeJsonViewer.text = when {
             error != null && !rawJson.isNullOrBlank() -> "Error: $error\n\n$rawJson"

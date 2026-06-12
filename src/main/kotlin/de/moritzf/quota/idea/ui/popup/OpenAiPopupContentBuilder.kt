@@ -11,11 +11,12 @@ import de.moritzf.quota.openai.formatApproxMessages
 import de.moritzf.quota.openai.isAssignedCreditsQuota
 import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.util.ui.JBUI
+import de.moritzf.quota.shared.ProviderQuota
 import javax.swing.JPanel
 import kotlin.math.roundToInt
 import java.util.Locale
 
-internal class OpenAiPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)) {
+internal class OpenAiPopupSection : ProviderPopupSection() {
     private val separator = createSeparatedBlock()
     private val warningLabel = createWarningLabel("").apply { border = JBUI.Borders.emptyTop(1) }
     private val titleLabel = createSectionTitleLabel("Codex", QuotaIcons.OPENAI).apply { border = JBUI.Borders.emptyTop(0) }
@@ -42,7 +43,16 @@ internal class OpenAiPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout
         hideAll()
     }
 
-    fun update(quota: OpenAiCodexQuota?, error: String?, visible: Boolean, hasReviewData: Boolean) {
+    override fun update(quota: ProviderQuota?, error: String?, visible: Boolean) {
+        val codexQuota = quota as? OpenAiCodexQuota
+        val hasReviewData = codexQuota != null && (
+            codexQuota.reviewPrimary != null || codexQuota.reviewSecondary != null ||
+                codexQuota.reviewAllowed != null || codexQuota.reviewLimitReached != null
+            )
+        updateContent(codexQuota, error, visible, hasReviewData)
+    }
+
+    private fun updateContent(quota: OpenAiCodexQuota?, error: String?, visible: Boolean, hasReviewData: Boolean) {
         isVisible = visible
         if (!visible) return
 

@@ -4,42 +4,29 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
+import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.messages.MessageBusConnection
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
-import de.moritzf.quota.idea.auth.QuotaAuthService
+import de.moritzf.quota.idea.common.ProviderSnapshot
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageListener
 import de.moritzf.quota.idea.common.QuotaUsageService
-import de.moritzf.quota.idea.github.GitHubCredentialsStore
-import de.moritzf.quota.idea.kimi.KimiCredentialsStore
-import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
-import de.moritzf.quota.idea.ollama.OllamaSessionCookieStore
-import de.moritzf.quota.idea.opencode.OpenCodeSessionCookieStore
+import de.moritzf.quota.idea.common.QuotaUsageSnapshot
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.ui.QuotaUiUtil
-import de.moritzf.quota.idea.ui.indicator.QuotaIcons
-import de.moritzf.quota.idea.cursor.CursorCredentialsStore
-import de.moritzf.quota.idea.zai.ZaiApiKeyStore
-import de.moritzf.quota.github.GitHubQuota
-import de.moritzf.quota.kimi.KimiQuota
-import de.moritzf.quota.minimax.MiniMaxQuota
-import de.moritzf.quota.ollama.OllamaQuota
-import de.moritzf.quota.opencode.OpenCodeQuota
-import de.moritzf.quota.openai.OpenAiCodexQuota
-import de.moritzf.quota.cursor.CursorQuota
-import de.moritzf.quota.zai.ZaiQuota
-import kotlinx.datetime.Instant
+import de.moritzf.quota.idea.ui.indicator.ProviderAuthState
+import de.moritzf.quota.idea.ui.indicator.ProviderUiRegistry
+import de.moritzf.quota.shared.ProviderQuota
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Point
 import javax.swing.JComponent
 import javax.swing.JPanel
-import com.intellij.openapi.ui.VerticalFlowLayout
 
 internal enum class QuotaPopupLocation {
     ABOVE,
@@ -50,33 +37,18 @@ internal object QuotaPopupSupport {
     fun showPopup(
         project: Project,
         component: Component,
-        quota: OpenAiCodexQuota?,
-        error: String?,
-        openCodeQuota: OpenCodeQuota?,
-        openCodeError: String?,
-        ollamaQuota: OllamaQuota?,
-        ollamaError: String?,
-        zaiQuota: ZaiQuota?,
-        zaiError: String?,
-        miniMaxQuota: MiniMaxQuota?,
-        miniMaxError: String?,
-        kimiQuota: KimiQuota?,
-        kimiError: String?,
-        gitHubQuota: GitHubQuota?,
-        gitHubError: String?,
-        cursorQuota: CursorQuota?,
-        cursorError: String?,
         location: QuotaPopupLocation,
     ) {
         if (project.isDisposed) {
             return
         }
 
-        QuotaUsageService.getInstance().refreshNowAsync()
+        val service = QuotaUsageService.getInstance()
+        service.refreshNowAsync()
         var popup: JBPopup? = null
 
         val contentPanel = QuotaPopupContentPanel(project, component) { popup?.cancel() }
-        val content = RefreshablePopupPanel<QuotaPopupContentState>(contentPanel) { state ->
+        val content = RefreshablePopupPanel<QuotaUsageSnapshot>(contentPanel) { state ->
             contentPanel.update(state)
         }
 
@@ -90,11 +62,7 @@ internal object QuotaPopupSupport {
 
         val currentPopup = popup
         val popupConnection: MessageBusConnection = ApplicationManager.getApplication().messageBus.connect(currentPopup)
-        var latestState = QuotaPopupContentState(
-            quota, error, openCodeQuota, openCodeError, ollamaQuota, ollamaError,
-            zaiQuota, zaiError, miniMaxQuota, miniMaxError, kimiQuota, kimiError,
-            gitHubQuota, gitHubError, cursorQuota, cursorError,
-        )
+        var latestState = service.currentSnapshot()
         var refreshScheduled = false
         fun scheduleRefresh() {
             if (refreshScheduled) {
@@ -107,44 +75,8 @@ internal object QuotaPopupSupport {
             }
         }
         popupConnection.subscribe(QuotaUsageListener.TOPIC, object : QuotaUsageListener {
-
-            override fun onQuotaUpdated(quota: OpenAiCodexQuota?, error: String?) {
-                latestState = latestState.copy(quota = quota, error = error)
-                scheduleRefresh()
-            }
-
-            override fun onOpenCodeQuotaUpdated(quota: OpenCodeQuota?, error: String?) {
-                latestState = latestState.copy(openCodeQuota = quota, openCodeError = error)
-                scheduleRefresh()
-            }
-
-            override fun onOllamaQuotaUpdated(quota: OllamaQuota?, error: String?) {
-                latestState = latestState.copy(ollamaQuota = quota, ollamaError = error)
-                scheduleRefresh()
-            }
-
-            override fun onZaiQuotaUpdated(quota: ZaiQuota?, error: String?) {
-                latestState = latestState.copy(zaiQuota = quota, zaiError = error)
-                scheduleRefresh()
-            }
-
-            override fun onMiniMaxQuotaUpdated(quota: MiniMaxQuota?, error: String?) {
-                latestState = latestState.copy(miniMaxQuota = quota, miniMaxError = error)
-                scheduleRefresh()
-            }
-
-            override fun onKimiQuotaUpdated(quota: KimiQuota?, error: String?) {
-                latestState = latestState.copy(kimiQuota = quota, kimiError = error)
-                scheduleRefresh()
-            }
-
-            override fun onGitHubQuotaUpdated(quota: GitHubQuota?, error: String?) {
-                latestState = latestState.copy(gitHubQuota = quota, gitHubError = error)
-                scheduleRefresh()
-            }
-
-            override fun onCursorQuotaUpdated(quota: CursorQuota?, error: String?) {
-                latestState = latestState.copy(cursorQuota = quota, cursorError = error)
+            override fun onQuotaUpdated(type: QuotaProviderType, quota: ProviderQuota?, error: String?) {
+                latestState = QuotaUsageSnapshot(latestState.entries + (type to ProviderSnapshot(quota, error)))
                 scheduleRefresh()
             }
         })
@@ -155,10 +87,10 @@ internal object QuotaPopupSupport {
 
     private fun refreshPopup(
         currentPopup: JBPopup,
-        content: RefreshablePopupPanel<QuotaPopupContentState>,
+        content: RefreshablePopupPanel<QuotaUsageSnapshot>,
         component: Component,
         location: QuotaPopupLocation,
-        state: QuotaPopupContentState,
+        state: QuotaUsageSnapshot,
     ) {
         if (currentPopup.isDisposed || !currentPopup.isVisible) {
             return
@@ -185,25 +117,6 @@ internal object QuotaPopupSupport {
         return Point(x, y)
     }
 }
-
-internal data class QuotaPopupContentState(
-    val quota: OpenAiCodexQuota?,
-    val error: String?,
-    val openCodeQuota: OpenCodeQuota? = null,
-    val openCodeError: String? = null,
-    val ollamaQuota: OllamaQuota? = null,
-    val ollamaError: String? = null,
-    val zaiQuota: ZaiQuota? = null,
-    val zaiError: String? = null,
-    val miniMaxQuota: MiniMaxQuota? = null,
-    val miniMaxError: String? = null,
-    val kimiQuota: KimiQuota? = null,
-    val kimiError: String? = null,
-    val gitHubQuota: GitHubQuota? = null,
-    val gitHubError: String? = null,
-    val cursorQuota: CursorQuota? = null,
-    val cursorError: String? = null,
-)
 
 internal class RefreshablePopupPanel<T>(
     private val content: JComponent,
@@ -242,16 +155,10 @@ private class QuotaPopupContentPanel(
         add(ActionLink("Open Settings") { openSettings(project, component) { onClosePopup() } }.apply { border = JBUI.Borders.emptyTop(3) })
     }
 
-    private val sections = linkedMapOf(
-        QuotaProviderType.CURSOR to CursorPopupSection(),
-        QuotaProviderType.GITHUB to GitHubPopupSection(),
-        QuotaProviderType.KIMI to KimiPopupSection(),
-        QuotaProviderType.MINIMAX to MiniMaxPopupSection(),
-        QuotaProviderType.OPEN_AI to OpenAiPopupSection(),
-        QuotaProviderType.OPEN_CODE to OpenCodePopupSection(),
-        QuotaProviderType.OLLAMA to OllamaPopupSection(),
-        QuotaProviderType.ZAI to ZaiPopupSection(),
-    )
+    private val sections: Map<QuotaProviderType, ProviderPopupSection> =
+        QuotaProviderType.alphabeticalOrder().associateWith { type ->
+            ProviderUiRegistry.forType(type).createPopupSection()
+        }
 
     private val updatedAtSeparator = createSeparatedBlock()
     private val updatedAtRow = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(3), 0)).apply { isOpaque = false }
@@ -278,80 +185,25 @@ private class QuotaPopupContentPanel(
         return Dimension(JBUI.scale(280), size.height)
     }
 
-    fun update(state: QuotaPopupContentState) {
+    fun update(state: QuotaUsageSnapshot) {
         val settings = QuotaSettingsState.getInstance()
-        val hideOpenAi = settings.hideOpenAiFromQuotaPopup
-        val hideOpenCode = settings.hideOpenCodeFromQuotaPopup
-        val hideOllama = settings.hideOllamaFromQuotaPopup
-        val hideZai = settings.hideZaiFromQuotaPopup
-        val hideMiniMax = settings.hideMiniMaxFromQuotaPopup
-        val hideKimi = settings.hideKimiFromQuotaPopup
-        val hideGitHub = settings.hideGitHubFromQuotaPopup
-        val hideCursor = settings.hideCursorFromQuotaPopup
-        val hasReviewData = state.quota != null && (
-            state.quota.reviewPrimary != null || state.quota.reviewSecondary != null ||
-                state.quota.reviewAllowed != null || state.quota.reviewLimitReached != null
-            )
+        val authStates = ProviderUiRegistry.all.mapValues { (_, ui) -> ui.authState() }
+        val visibleSections = sections.keys.associateWith { type ->
+            authStates[type] != ProviderAuthState.UNAUTHENTICATED && !settings.isHiddenFromPopup(type)
+        }
 
-        val authService = QuotaAuthService.getInstance()
-        val openCodeCookieStore = OpenCodeSessionCookieStore.getInstance()
-        val ollamaCookieStore = OllamaSessionCookieStore.getInstance()
-        val zaiApiKeyStore = ZaiApiKeyStore.getInstance()
-        val miniMaxApiKeyStore = MiniMaxApiKeyStore.getInstance()
-        val kimiCredentialsStore = KimiCredentialsStore.getInstance()
-        val gitHubCredentialsStore = GitHubCredentialsStore.getInstance()
-        val cursorCredentialsStore = CursorCredentialsStore.getInstance()
-        val hasCodexAuth = authService.isLoggedIn(QuotaProviderType.OPEN_AI)
-        val hasOpenCodeAuth = openCodeCookieStore.load() != null
-        val hasOllamaAuth = ollamaCookieStore.loadSessionCookie() != null
-        val ollamaAuthUnknown = !ollamaCookieStore.isLoaded()
-        val hasZaiAuth = zaiApiKeyStore.load() != null
-        val zaiAuthUnknown = !zaiApiKeyStore.isLoaded()
-        val hasMiniMaxAuth = !miniMaxApiKeyStore.load().isNullOrBlank()
-        val miniMaxAuthUnknown = !miniMaxApiKeyStore.isLoaded()
-        val hasKimiAuth = kimiCredentialsStore.load()?.isUsable() == true
-        val kimiAuthUnknown = !kimiCredentialsStore.isLoaded()
-        val hasGitHubAuth = gitHubCredentialsStore.load()?.isUsable() == true
-        val gitHubAuthUnknown = !gitHubCredentialsStore.isLoaded()
-        val hasCursorAuth = cursorCredentialsStore.hasCredentials()
-        val cursorAuthUnknown = !cursorCredentialsStore.isLoaded()
-        val showCodexSection = hasCodexAuth && !hideOpenAi
-        val showOpenCodeSection = hasOpenCodeAuth && !hideOpenCode
-        val showOllamaSection = (hasOllamaAuth || ollamaAuthUnknown) && !hideOllama
-        val showZaiSection = (hasZaiAuth || zaiAuthUnknown) && !hideZai
-        val showMiniMaxSection = (hasMiniMaxAuth || miniMaxAuthUnknown) && !hideMiniMax
-        val showKimiSection = (hasKimiAuth || kimiAuthUnknown) && !hideKimi
-        val showGitHubSection = (hasGitHubAuth || gitHubAuthUnknown) && !hideGitHub
-        val showCursorSection = (hasCursorAuth || cursorAuthUnknown) && !hideCursor
-
-        val notLoggedIn = !hasCodexAuth && !hasOpenCodeAuth && !hasOllamaAuth && !ollamaAuthUnknown &&
-            !hasZaiAuth && !zaiAuthUnknown && !hasMiniMaxAuth && !miniMaxAuthUnknown && !hasKimiAuth && !kimiAuthUnknown &&
-            !hasGitHubAuth && !gitHubAuthUnknown && !hasCursorAuth && !cursorAuthUnknown
-        val allHidden = !showCodexSection && !showOpenCodeSection && !showOllamaSection && !showZaiSection &&
-            !showMiniMaxSection && !showKimiSection && !showGitHubSection && !showCursorSection
+        val notLoggedIn = authStates.values.all { it == ProviderAuthState.UNAUTHENTICATED }
+        val allHidden = visibleSections.values.none { it }
 
         notLoggedInPanel.isVisible = notLoggedIn
         allHiddenPanel.isVisible = !notLoggedIn && allHidden
-        (sections[QuotaProviderType.KIMI] as? KimiPopupSection)?.update(state.kimiQuota, state.kimiError, showKimiSection)
-        (sections[QuotaProviderType.GITHUB] as? GitHubPopupSection)?.update(state.gitHubQuota, state.gitHubError, showGitHubSection)
-        (sections[QuotaProviderType.MINIMAX] as? MiniMaxPopupSection)?.update(state.miniMaxQuota, state.miniMaxError, showMiniMaxSection)
-        (sections[QuotaProviderType.OPEN_AI] as? OpenAiPopupSection)?.update(state.quota, state.error, showCodexSection, hasReviewData)
-        (sections[QuotaProviderType.OPEN_CODE] as? OpenCodePopupSection)?.update(state.openCodeQuota, state.openCodeError, showOpenCodeSection)
-        (sections[QuotaProviderType.OLLAMA] as? OllamaPopupSection)?.update(state.ollamaQuota, state.ollamaError, showOllamaSection)
-        (sections[QuotaProviderType.ZAI] as? ZaiPopupSection)?.update(state.zaiQuota, state.zaiError, showZaiSection)
-        (sections[QuotaProviderType.CURSOR] as? CursorPopupSection)?.update(state.cursorQuota, state.cursorError, showCursorSection)
+        sections.forEach { (type, section) ->
+            val snapshot = state[type]
+            section.update(snapshot.quota, snapshot.error, visibleSections[type] == true)
+        }
 
         val showAnySection = !notLoggedIn && !allHidden
-        val updatedAtItems = if (showAnySection) buildUpdatedAtItems(
-            showCursorSection, state.cursorQuota,
-            showGitHubSection, state.gitHubQuota,
-            showKimiSection, state.kimiQuota,
-            showMiniMaxSection, state.miniMaxQuota,
-            showCodexSection, state.quota,
-            showOpenCodeSection, state.openCodeQuota,
-            showOllamaSection, state.ollamaQuota,
-            showZaiSection, state.zaiQuota,
-        ) else emptyList()
+        val updatedAtItems = if (showAnySection) buildUpdatedAtItems(state, visibleSections) else emptyList()
 
         updatedAtSeparator.isVisible = updatedAtItems.isNotEmpty()
         updatedAtRow.isVisible = updatedAtItems.isNotEmpty()
@@ -374,37 +226,14 @@ private class QuotaPopupContentPanel(
     }
 
     private fun buildUpdatedAtItems(
-        showCursorSection: Boolean,
-        cursorQuota: CursorQuota?,
-        showGitHubSection: Boolean,
-        gitHubQuota: GitHubQuota?,
-        showKimiSection: Boolean,
-        kimiQuota: KimiQuota?,
-        showMiniMaxSection: Boolean,
-        miniMaxQuota: MiniMaxQuota?,
-        showCodexSection: Boolean,
-        currentQuota: OpenAiCodexQuota?,
-        showOpenCodeSection: Boolean,
-        openCodeQuota: OpenCodeQuota?,
-        showOllamaSection: Boolean,
-        ollamaQuota: OllamaQuota?,
-        showZaiSection: Boolean,
-        zaiQuota: ZaiQuota?,
+        state: QuotaUsageSnapshot,
+        visibleSections: Map<QuotaProviderType, Boolean>,
     ): List<UpdatedAtItem> {
         val order = QuotaSettingsState.getInstance().providerOrderList()
-        val providerMap = mapOf(
-            QuotaProviderType.CURSOR to Pair(showCursorSection, UpdatedAtRawItem(UpdatedAtIcon("Cursor", QuotaIcons.CURSOR), cursorQuota?.fetchedAt)),
-            QuotaProviderType.GITHUB to Pair(showGitHubSection, UpdatedAtRawItem(UpdatedAtIcon("GitHub Copilot", QuotaIcons.GITHUB), gitHubQuota?.fetchedAt)),
-            QuotaProviderType.KIMI to Pair(showKimiSection, UpdatedAtRawItem(UpdatedAtIcon("Kimi", QuotaIcons.KIMI), kimiQuota?.fetchedAt)),
-            QuotaProviderType.MINIMAX to Pair(showMiniMaxSection, UpdatedAtRawItem(UpdatedAtIcon("MiniMax", QuotaIcons.MINIMAX), miniMaxQuota?.fetchedAt)),
-            QuotaProviderType.OPEN_AI to Pair(showCodexSection, UpdatedAtRawItem(UpdatedAtIcon("Codex", QuotaIcons.OPENAI), currentQuota?.fetchedAt)),
-            QuotaProviderType.OPEN_CODE to Pair(showOpenCodeSection, UpdatedAtRawItem(UpdatedAtIcon("OpenCode", QuotaIcons.OPENCODE), openCodeQuota?.fetchedAt)),
-            QuotaProviderType.OLLAMA to Pair(showOllamaSection, UpdatedAtRawItem(UpdatedAtIcon("Ollama", QuotaIcons.OLLAMA), ollamaQuota?.fetchedAt)),
-            QuotaProviderType.ZAI to Pair(showZaiSection, UpdatedAtRawItem(UpdatedAtIcon("Z.ai", QuotaIcons.ZAI), zaiQuota?.fetchedAt)),
-        )
-        val rawItems = order.mapNotNull { id ->
-            val (show, item) = providerMap[id] ?: return@mapNotNull null
-            if (show) item else null
+        val rawItems = order.mapNotNull { type ->
+            if (visibleSections[type] != true) return@mapNotNull null
+            val ui = ProviderUiRegistry.forType(type)
+            UpdatedAtRawItem(UpdatedAtIcon(ui.updatedAtLabel, ui.icon), state[type].quota?.fetchedAt)
         }
         if (rawItems.isEmpty()) {
             return emptyList()
@@ -446,5 +275,5 @@ private class QuotaPopupContentPanel(
 
 private data class UpdatedAtRawItem(
     val icon: UpdatedAtIcon,
-    val fetchedAt: Instant?,
+    val fetchedAt: kotlinx.datetime.Instant?,
 )

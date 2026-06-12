@@ -16,6 +16,7 @@ import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
+import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.idea.openai.OpenAiProxyApiKeyStore
 import de.moritzf.quota.idea.openai.OpenAiProxyService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
@@ -196,7 +197,7 @@ internal class OpenAiSettingsPanel(
 
         logoutButton.addActionListener {
             QuotaAuthService.getInstance().clearCredentials(QuotaProviderType.OPEN_AI)
-            QuotaUsageService.getInstance().clearCodexUsageData("Not logged in")
+            QuotaUsageService.getInstance().clearUsageData(QuotaProviderType.OPEN_AI, "Not logged in")
             authStatusMessage = AuthStatusMessage("Logged out", false, AuthStatusKind.DISCONNECTED)
             updateAuthUi()
             updateAccountFields()
@@ -302,11 +303,11 @@ internal class OpenAiSettingsPanel(
     fun updateAccountFields() {
         val authService = QuotaAuthService.getInstance()
         accountIdField.text = authService.getAccountId(QuotaProviderType.OPEN_AI).orEmpty()
-        emailField.text = if (authService.isLoggedIn(QuotaProviderType.OPEN_AI)) QuotaUsageService.getInstance().getLastQuota()?.email else null.orEmpty()
+        emailField.text = if (authService.isLoggedIn(QuotaProviderType.OPEN_AI)) (QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.OPEN_AI) as? OpenAiCodexQuota)?.email else null.orEmpty()
     }
 
     fun updateResponseArea() {
-        val json = QuotaUsageService.getInstance().getLastResponseJson()
+        val json = QuotaUsageService.getInstance().getLastResponseJson(QuotaProviderType.OPEN_AI)
         codexResponseViewer.text = if (json.isNullOrBlank()) "No quota response yet." else json
         codexResponseViewer.setCaretPosition(0)
     }

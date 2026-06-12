@@ -5,6 +5,7 @@ import de.moritzf.quota.cursor.CursorQuota
 import de.moritzf.quota.idea.ui.indicator.computePeriodElapsedFraction
 import de.moritzf.quota.idea.ui.indicator.indicatorPeriodElapsedFraction
 import de.moritzf.quota.idea.ui.indicator.periodElapsedFraction
+import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorData
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.opencode.OpenCodeUsageWindow
@@ -46,7 +47,7 @@ class QuotaPeriodElapsedTest {
             rollingUsage = OpenCodeUsageWindow(usagePercent = 42, resetInSec = 9_000),
         )
 
-        val elapsed = indicatorPeriodElapsedFraction(QuotaIndicatorData.OpenCode(quota, error = null))
+        val elapsed = indicatorPeriodElapsedFraction(QuotaIndicatorData(QuotaProviderType.OPEN_CODE, quota, error = null))
 
         assertEquals(0.5, elapsed)
     }

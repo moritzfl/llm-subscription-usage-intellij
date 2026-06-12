@@ -51,17 +51,17 @@ internal data class IndicatorDisplayState(
     val creditsBalanceLabel: String? = null,
 )
 
-private data class OpenCodeIndicatorState(
+internal data class OpenCodeIndicatorState(
     val percent: Int,
     val resetInSec: Long,
 )
 
-private data class OllamaIndicatorState(
+internal data class OllamaIndicatorState(
     val percent: Int,
     val resetsAt: Instant?,
 )
 
-private data class ZaiIndicatorState(
+internal data class ZaiIndicatorState(
     val percent: Int,
     val resetsAt: Instant?,
 )
@@ -73,7 +73,7 @@ internal class QuotaIndicatorComponent(
     private val statusIconLabel = createStatusIconLabel()
     private val sourceIconLabel = createSourceIconLabel()
     private val percentageComponent = QuotaPercentageIndicator()
-    private var data: QuotaIndicatorData = QuotaIndicatorData.OpenAi(quota = null, error = null)
+    private var data: QuotaIndicatorData = QuotaIndicatorData(QuotaProviderType.OPEN_AI, quota = null, error = null)
     private val clickListener = object : MouseAdapter() {
         override fun mouseClicked(event: MouseEvent) {
             onClick(this@QuotaIndicatorComponent, data)
@@ -96,16 +96,7 @@ internal class QuotaIndicatorComponent(
 
     fun updateUsage(data: QuotaIndicatorData, displayMode: QuotaDisplayMode) {
         this.data = data
-        val tooltip = when (data) {
-            is QuotaIndicatorData.OpenAi -> buildQuotaTooltipText(data.quota, data.error)
-            is QuotaIndicatorData.OpenCode -> buildOpenCodeTooltipText(data.quota, data.error)
-            is QuotaIndicatorData.Ollama -> buildOllamaTooltipText(data.quota, data.error)
-            is QuotaIndicatorData.Zai -> buildZaiTooltipText(data.quota, data.error)
-            is QuotaIndicatorData.MiniMax -> buildMiniMaxTooltipText(data.quota, data.error)
-            is QuotaIndicatorData.Kimi -> buildKimiTooltipText(data.quota, data.error)
-            is QuotaIndicatorData.GitHub -> buildGitHubTooltipText(data.quota, data.error)
-            is QuotaIndicatorData.Cursor -> buildCursorTooltipText(data.quota, data.error)
-        }
+        val tooltip = ProviderUiRegistry.forType(data.type).tooltip(data.quota, data.error)
         toolTipText = tooltip
         statusIconLabel.toolTipText = tooltip
         sourceIconLabel.toolTipText = tooltip
@@ -125,12 +116,8 @@ internal class QuotaIndicatorComponent(
             QuotaDisplayMode.PERCENTAGE_BAR -> {
                 updatePercentageDisplay()
                 val icon = resolveSourceIcon()
-                if (icon != null) {
-                    sourceIconLabel.icon = scaledSourceIcon(icon, sourceIconLabel)
-                    showPercentageContent(sourceIconLabel, percentageComponent)
-                } else {
-                    showContent(percentageComponent)
-                }
+                sourceIconLabel.icon = scaledSourceIcon(icon, sourceIconLabel)
+                showPercentageContent(sourceIconLabel, percentageComponent)
             }
         }
 
@@ -139,16 +126,7 @@ internal class QuotaIndicatorComponent(
     }
 
     override fun getToolTipText(event: MouseEvent?): String {
-        return when (val currentData = data) {
-            is QuotaIndicatorData.OpenAi -> buildQuotaTooltipText(currentData.quota, currentData.error)
-            is QuotaIndicatorData.OpenCode -> buildOpenCodeTooltipText(currentData.quota, currentData.error)
-            is QuotaIndicatorData.Ollama -> buildOllamaTooltipText(currentData.quota, currentData.error)
-            is QuotaIndicatorData.Zai -> buildZaiTooltipText(currentData.quota, currentData.error)
-            is QuotaIndicatorData.MiniMax -> buildMiniMaxTooltipText(currentData.quota, currentData.error)
-            is QuotaIndicatorData.Kimi -> buildKimiTooltipText(currentData.quota, currentData.error)
-            is QuotaIndicatorData.GitHub -> buildGitHubTooltipText(currentData.quota, currentData.error)
-            is QuotaIndicatorData.Cursor -> buildCursorTooltipText(currentData.quota, currentData.error)
-        }
+        return ProviderUiRegistry.forType(data.type).tooltip(data.quota, data.error)
     }
 
     private fun showContent(component: JComponent) {
@@ -164,17 +142,8 @@ internal class QuotaIndicatorComponent(
         addToCenter(wrapper)
     }
 
-    private fun resolveSourceIcon(): Icon? {
-        return when (data) {
-            is QuotaIndicatorData.OpenAi -> QuotaIcons.OPENAI
-            is QuotaIndicatorData.OpenCode -> QuotaIcons.OPENCODE
-            is QuotaIndicatorData.Ollama -> QuotaIcons.OLLAMA
-            is QuotaIndicatorData.Zai -> QuotaIcons.ZAI
-            is QuotaIndicatorData.MiniMax -> QuotaIcons.MINIMAX
-            is QuotaIndicatorData.Kimi -> QuotaIcons.KIMI
-            is QuotaIndicatorData.GitHub -> QuotaIcons.GITHUB
-            is QuotaIndicatorData.Cursor -> QuotaIcons.CURSOR
-        }
+    private fun resolveSourceIcon(): Icon {
+        return ProviderUiRegistry.forType(data.type).icon
     }
 
     private fun createStatusIconLabel(): JBLabel {
@@ -193,89 +162,15 @@ internal class QuotaIndicatorComponent(
     }
 
     private fun barDisplayText(): String {
-        return when (val currentData = data) {
-            is QuotaIndicatorData.OpenAi -> {
-                val authService = QuotaAuthService.getInstance()
-                indicatorBarDisplayText(currentData.quota, currentData.error, authService.isLoggedIn(QuotaProviderType.OPEN_AI))
-            }
-            is QuotaIndicatorData.OpenCode -> openCodeBarDisplayText(currentData.quota, currentData.error)
-            is QuotaIndicatorData.Ollama -> ollamaBarDisplayText(currentData.quota, currentData.error)
-            is QuotaIndicatorData.Zai -> zaiBarDisplayText(currentData.quota, currentData.error)
-            is QuotaIndicatorData.MiniMax -> miniMaxBarDisplayText(currentData.quota, currentData.error)
-            is QuotaIndicatorData.Kimi -> kimiBarDisplayText(currentData.quota, currentData.error)
-            is QuotaIndicatorData.GitHub -> gitHubBarDisplayText(currentData.quota, currentData.error)
-            is QuotaIndicatorData.Cursor -> cursorBarDisplayText(currentData.quota, currentData.error)
-        }
+        return ProviderUiRegistry.forType(data.type).barText(data.quota, data.error)
     }
 
     private fun cakeIcon(): Icon {
-        val currentData = data
-        if (currentData is QuotaIndicatorData.OpenCode) {
-            return currentData.quota?.let(::openCodeCakeIcon) ?: QuotaIcons.CAKE_UNKNOWN
-        }
-        if (currentData is QuotaIndicatorData.Ollama) {
-            return currentData.quota?.let(::ollamaCakeIcon) ?: QuotaIcons.CAKE_UNKNOWN
-        }
-        if (currentData is QuotaIndicatorData.Zai) {
-            return currentData.quota?.let(::zaiCakeIcon) ?: QuotaIcons.CAKE_UNKNOWN
-        }
-        if (currentData is QuotaIndicatorData.MiniMax) {
-            return currentData.quota?.sessionUsage?.usagePercent?.roundToInt()?.let(::clampPercent)?.let(::cakeIconForPercent) ?: QuotaIcons.CAKE_UNKNOWN
-        }
-        if (currentData is QuotaIndicatorData.GitHub) {
-            return currentData.quota?.let(::gitHubDisplayWindow)?.usagePercent?.roundToInt()?.let(::clampPercent)?.let(::cakeIconForPercent) ?: QuotaIcons.CAKE_UNKNOWN
-        }
-        if (currentData is QuotaIndicatorData.Kimi) {
-            return currentData.quota?.let(::kimiDisplayWindow)?.usagePercent?.roundToInt()?.let(::clampPercent)?.let(::cakeIconForPercent) ?: QuotaIcons.CAKE_UNKNOWN
-        }
-        if (currentData is QuotaIndicatorData.Cursor) {
-            return currentData.quota?.let(::cursorCakeIcon) ?: QuotaIcons.CAKE_UNKNOWN
-        }
-        val openAiData = currentData as QuotaIndicatorData.OpenAi
-        val authService = QuotaAuthService.getInstance()
-        if (!authService.isLoggedIn(QuotaProviderType.OPEN_AI) || openAiData.error != null) {
+        val percent = ProviderUiRegistry.forType(data.type).cakePercent(data.quota, data.error)
+        if (percent < 0) {
             return QuotaIcons.CAKE_UNKNOWN
         }
-
-        val state = indicatorQuotaState(openAiData.quota) ?: return QuotaIcons.CAKE_UNKNOWN
-        if (state.limitReached) {
-            return QuotaIcons.CAKE_100
-        }
-
-        val percent = state.window?.let { clampPercent(it.usedPercent.roundToInt()) } ?: return QuotaIcons.CAKE_UNKNOWN
         return cakeIconForPercent(percent)
-    }
-
-    private fun openCodeCakeIcon(quota: de.moritzf.quota.opencode.OpenCodeQuota): Icon {
-        val state = openCodeIndicatorState(quota)
-        if (state == null) {
-            return QuotaIcons.CAKE_UNKNOWN
-        }
-        return cakeIconForPercent(state.percent)
-    }
-
-    private fun ollamaCakeIcon(quota: de.moritzf.quota.ollama.OllamaQuota): Icon {
-        val state = ollamaIndicatorState(quota)
-        if (state == null) {
-            return QuotaIcons.CAKE_UNKNOWN
-        }
-        return cakeIconForPercent(state.percent)
-    }
-
-    private fun zaiCakeIcon(quota: ZaiQuota): Icon {
-        val state = zaiIndicatorState(quota)
-        if (state == null) {
-            return QuotaIcons.CAKE_UNKNOWN
-        }
-        return cakeIconForPercent(state.percent)
-    }
-
-    private fun cursorCakeIcon(quota: CursorQuota): Icon {
-        val state = cursorIndicatorState(quota)
-        if (state == null) {
-            return QuotaIcons.CAKE_UNKNOWN
-        }
-        return cakeIconForPercent(state.percent)
     }
 
     private fun cakeIconForPercent(percent: Int): Icon {
@@ -332,31 +227,7 @@ internal class QuotaIndicatorComponent(
     }
 
     private fun displayPercent(): Int {
-        val currentData = data
-        if (currentData is QuotaIndicatorData.OpenCode) {
-            return currentData.quota?.let(::openCodeIndicatorState)?.percent ?: -1
-        }
-        if (currentData is QuotaIndicatorData.Ollama) {
-            return currentData.quota?.let(::ollamaIndicatorState)?.percent ?: -1
-        }
-        if (currentData is QuotaIndicatorData.Zai) {
-            return currentData.quota?.let(::zaiIndicatorState)?.percent ?: -1
-        }
-        if (currentData is QuotaIndicatorData.MiniMax) {
-            return currentData.quota?.sessionUsage?.usagePercent?.roundToInt()?.let(::clampPercent) ?: -1
-        }
-        if (currentData is QuotaIndicatorData.GitHub) {
-            return currentData.quota?.let(::gitHubDisplayWindow)?.usagePercent?.roundToInt()?.let(::clampPercent) ?: -1
-        }
-        if (currentData is QuotaIndicatorData.Kimi) {
-            return currentData.quota?.let(::kimiDisplayWindow)?.usagePercent?.roundToInt()?.let(::clampPercent) ?: -1
-        }
-        if (currentData is QuotaIndicatorData.Cursor) {
-            return currentData.quota?.let(::cursorIndicatorState)?.percent ?: -1
-        }
-        val openAiData = currentData as QuotaIndicatorData.OpenAi
-        val authService = QuotaAuthService.getInstance()
-        return indicatorDisplayPercent(openAiData.quota, openAiData.error, authService.isLoggedIn(QuotaProviderType.OPEN_AI))
+        return ProviderUiRegistry.forType(data.type).displayPercent(data.quota, data.error)
     }
 
     private fun updatePercentageDisplay() {
@@ -491,7 +362,7 @@ internal fun cursorBarDisplayText(quota: CursorQuota?, error: String?): String {
     return if (reset != null) "$text • $reset" else text
 }
 
-private fun kimiDisplayWindow(quota: KimiQuota): de.moritzf.quota.kimi.KimiUsageWindow? {
+internal fun kimiDisplayWindow(quota: KimiQuota): de.moritzf.quota.kimi.KimiUsageWindow? {
     return quota.sessionUsage ?: quota.totalUsage
 }
 
@@ -522,7 +393,7 @@ internal fun gitHubBarDisplayText(quota: GitHubQuota?, error: String?): String {
     return if (reset != null) "$text • $reset" else text
 }
 
-private fun gitHubDisplayWindow(quota: GitHubQuota): de.moritzf.quota.github.GitHubUsageWindow? {
+internal fun gitHubDisplayWindow(quota: GitHubQuota): de.moritzf.quota.github.GitHubUsageWindow? {
     return quota.limitedWindows().firstOrNull()
 }
 
@@ -718,7 +589,7 @@ private fun openAiIndicatorDisplayState(quota: OpenAiCodexQuota?, state: Indicat
     )
 }
 
-private fun openCodeIndicatorState(quota: OpenCodeQuota): OpenCodeIndicatorState? {
+internal fun openCodeIndicatorState(quota: OpenCodeQuota): OpenCodeIndicatorState? {
     val windows = listOfNotNull(quota.rollingUsage, quota.weeklyUsage, quota.monthlyUsage)
     if (windows.isEmpty()) return null
 
@@ -741,12 +612,12 @@ private fun OpenCodeUsageWindow.isExhausted(): Boolean {
     return isRateLimited || usagePercent >= 100
 }
 
-private data class CursorIndicatorState(
+internal data class CursorIndicatorState(
     val percent: Int,
     val resetsAt: kotlinx.datetime.Instant?,
 )
 
-private fun cursorIndicatorState(quota: CursorQuota): CursorIndicatorState? {
+internal fun cursorIndicatorState(quota: CursorQuota): CursorIndicatorState? {
     val spendPercent = quota.spendLimit?.usagePercent()
     val planUsage = quota.planUsage
     val percent = spendPercent ?: planUsage?.totalPercentUsed ?: return null
@@ -760,7 +631,7 @@ private fun cursorIndicatorState(quota: CursorQuota): CursorIndicatorState? {
     )
 }
 
-private fun ollamaIndicatorState(quota: de.moritzf.quota.ollama.OllamaQuota): OllamaIndicatorState? {
+internal fun ollamaIndicatorState(quota: de.moritzf.quota.ollama.OllamaQuota): OllamaIndicatorState? {
     val windows = listOfNotNull(quota.sessionUsage, quota.weeklyUsage)
     if (windows.isEmpty()) return null
 
@@ -779,7 +650,7 @@ private fun ollamaIndicatorState(quota: de.moritzf.quota.ollama.OllamaQuota): Ol
     )
 }
 
-private fun zaiIndicatorState(quota: ZaiQuota): ZaiIndicatorState? {
+internal fun zaiIndicatorState(quota: ZaiQuota): ZaiIndicatorState? {
     val windows = listOfNotNull(quota.sessionUsage, quota.weeklyUsage)
     if (windows.isEmpty()) {
         return quota.webSearchUsage?.let {

@@ -8,12 +8,13 @@ import de.moritzf.quota.opencode.OpenCodeUsageWindow
 import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
+import de.moritzf.quota.shared.ProviderQuota
 import javax.swing.JPanel
 
 private const val OPENCODE_GO_LABEL = "OpenCode Go"
 private const val OPENCODE_ZEN_LABEL = "OpenCode Zen"
 
-internal class OpenCodePopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)) {
+internal class OpenCodePopupSection : ProviderPopupSection() {
     private val separator = createSeparatedBlock()
     private val errorLabel = createWarningLabel("").apply { border = JBUI.Borders.emptyTop(1) }
     private val titleLabel = createSectionTitleLabel(OPENCODE_GO_LABEL, QuotaIcons.OPENCODE).apply { border = JBUI.Borders.emptyTop(0) }
@@ -34,7 +35,11 @@ internal class OpenCodePopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayo
         hideAll()
     }
 
-    fun update(quota: OpenCodeQuota?, error: String?, visible: Boolean) {
+    override fun update(quota: ProviderQuota?, error: String?, visible: Boolean) {
+        updateContent(quota as? OpenCodeQuota, error, visible)
+    }
+
+    private fun updateContent(quota: OpenCodeQuota?, error: String?, visible: Boolean) {
         isVisible = visible
         if (!visible) return
 

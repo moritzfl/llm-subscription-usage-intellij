@@ -120,19 +120,10 @@ internal fun CursorPlanUsage.periodElapsedFraction(now: Instant = Clock.System.n
 }
 
 internal fun indicatorPeriodElapsedFraction(data: QuotaIndicatorData): Double? {
-    return when (data) {
-        is QuotaIndicatorData.OpenAi -> openAiPeriodElapsedFraction(data.quota, data.error)
-        is QuotaIndicatorData.OpenCode -> openCodePeriodElapsedFraction(data.quota, data.error)
-        is QuotaIndicatorData.Ollama -> ollamaPeriodElapsedFraction(data.quota, data.error)
-        is QuotaIndicatorData.Zai -> zaiPeriodElapsedFraction(data.quota, data.error)
-        is QuotaIndicatorData.MiniMax -> miniMaxPeriodElapsedFraction(data.quota, data.error)
-        is QuotaIndicatorData.Kimi -> kimiPeriodElapsedFraction(data.quota, data.error)
-        is QuotaIndicatorData.GitHub -> gitHubPeriodElapsedFraction(data.quota, data.error)
-        is QuotaIndicatorData.Cursor -> cursorPeriodElapsedFraction(data.quota, data.error)
-    }
+    return ProviderUiRegistry.forType(data.type).periodElapsedFraction(data.quota, data.error)
 }
 
-private fun openAiPeriodElapsedFraction(quota: OpenAiCodexQuota?, error: String?): Double? {
+internal fun openAiPeriodElapsedFraction(quota: OpenAiCodexQuota?, error: String?): Double? {
     val authService = QuotaAuthService.getInstance()
     if (!authService.isLoggedIn(QuotaProviderType.OPEN_AI) || error != null) {
         return null
@@ -142,7 +133,7 @@ private fun openAiPeriodElapsedFraction(quota: OpenAiCodexQuota?, error: String?
     return window.periodElapsedFraction()
 }
 
-private fun openCodePeriodElapsedFraction(quota: OpenCodeQuota?, error: String?): Double? {
+internal fun openCodePeriodElapsedFraction(quota: OpenCodeQuota?, error: String?): Double? {
     if (error != null || quota == null) {
         return null
     }
@@ -169,7 +160,7 @@ private fun OpenCodeUsageWindow.isExhausted(): Boolean {
     return isRateLimited || usagePercent >= 100
 }
 
-private fun ollamaPeriodElapsedFraction(quota: OllamaQuota?, error: String?): Double? {
+internal fun ollamaPeriodElapsedFraction(quota: OllamaQuota?, error: String?): Double? {
     if (error != null || quota == null) {
         return null
     }
@@ -191,7 +182,7 @@ private fun ollamaPeriodElapsedFraction(quota: OllamaQuota?, error: String?): Do
     return window.periodElapsedFraction(duration)
 }
 
-private fun zaiPeriodElapsedFraction(quota: ZaiQuota?, error: String?): Double? {
+internal fun zaiPeriodElapsedFraction(quota: ZaiQuota?, error: String?): Double? {
     if (error != null || quota == null) {
         return null
     }
@@ -213,28 +204,28 @@ private fun zaiPeriodElapsedFraction(quota: ZaiQuota?, error: String?): Double? 
     return window.periodElapsedFraction(duration)
 }
 
-private fun miniMaxPeriodElapsedFraction(quota: MiniMaxQuota?, error: String?): Double? {
+internal fun miniMaxPeriodElapsedFraction(quota: MiniMaxQuota?, error: String?): Double? {
     if (error != null || quota == null) {
         return null
     }
     return quota.sessionUsage?.periodElapsedFraction()
 }
 
-private fun kimiPeriodElapsedFraction(quota: KimiQuota?, error: String?): Double? {
+internal fun kimiPeriodElapsedFraction(quota: KimiQuota?, error: String?): Double? {
     if (error != null || quota == null) {
         return null
     }
     return (quota.sessionUsage ?: quota.totalUsage)?.periodElapsedFraction()
 }
 
-private fun gitHubPeriodElapsedFraction(quota: GitHubQuota?, error: String?): Double? {
+internal fun gitHubPeriodElapsedFraction(quota: GitHubQuota?, error: String?): Double? {
     if (error != null || quota == null) {
         return null
     }
     return quota.limitedWindows().firstOrNull()?.periodElapsedFraction()
 }
 
-private fun cursorPeriodElapsedFraction(quota: CursorQuota?, error: String?): Double? {
+internal fun cursorPeriodElapsedFraction(quota: CursorQuota?, error: String?): Double? {
     if (error != null || quota == null) {
         return null
     }

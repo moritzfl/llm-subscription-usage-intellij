@@ -8,11 +8,12 @@ import kotlin.math.roundToInt
 import de.moritzf.quota.ollama.OllamaUsageWindow
 import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.util.ui.JBUI
+import de.moritzf.quota.shared.ProviderQuota
 import javax.swing.JPanel
 
 private const val OLLAMA_LABEL = "Ollama Cloud"
 
-internal class OllamaPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)) {
+internal class OllamaPopupSection : ProviderPopupSection() {
     private val separator = createSeparatedBlock()
     private val errorLabel = createWarningLabel("").apply { border = JBUI.Borders.emptyTop(1) }
     private val titleLabel = createSectionTitleLabel(OLLAMA_LABEL, QuotaIcons.OLLAMA).apply { border = JBUI.Borders.emptyTop(0) }
@@ -29,7 +30,11 @@ internal class OllamaPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout
         hideAll()
     }
 
-    fun update(quota: OllamaQuota?, error: String?, visible: Boolean) {
+    override fun update(quota: ProviderQuota?, error: String?, visible: Boolean) {
+        updateContent(quota as? OllamaQuota, error, visible)
+    }
+
+    private fun updateContent(quota: OllamaQuota?, error: String?, visible: Boolean) {
         isVisible = visible
         if (!visible) return
 

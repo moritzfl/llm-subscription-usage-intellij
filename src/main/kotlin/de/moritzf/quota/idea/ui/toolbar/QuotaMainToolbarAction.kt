@@ -54,18 +54,6 @@ class QuotaMainToolbarAction : AnAction(), CustomComponentAction, RightAlignedTo
 
     private fun showPopup(component: Component, data: QuotaIndicatorData) {
         val project = ProjectUtil.getProjectForComponent(component) ?: return
-        val service = QuotaUsageService.getInstance()
-        QuotaPopupSupport.showPopup(
-            project, component,
-            service.getLastQuota(), service.getLastError(),
-            service.getLastOpenCodeQuota(), service.getLastOpenCodeError(),
-            service.getLastOllamaQuota(), service.getLastOllamaError(),
-            service.getLastZaiQuota(), service.getLastZaiError(),
-            service.getLastMiniMaxQuota(), service.getLastMiniMaxError(),
-            service.getLastKimiQuota(), service.getLastKimiError(),
-            service.getLastGitHubQuota(), service.getLastGitHubError(),
-            service.getLastCursorQuota(), service.getLastCursorError(),
-            QuotaPopupLocation.BELOW,
-        )
+        QuotaPopupSupport.showPopup(project, component, QuotaPopupLocation.BELOW)
     }
 }

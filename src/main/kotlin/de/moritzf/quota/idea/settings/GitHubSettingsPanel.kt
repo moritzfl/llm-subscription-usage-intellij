@@ -9,6 +9,8 @@ import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
+import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.github.GitHubAuthService
 import de.moritzf.quota.idea.github.GitHubCredentialsStore
@@ -75,7 +77,7 @@ internal class GitHubSettingsPanel(
                     loginButton.isEnabled = true
                     updateGitHubStatus()
                     if (result.success) {
-                        QuotaUsageService.getInstance().refreshGitHubAsync()
+                        QuotaUsageService.getInstance().refreshAsync(QuotaProviderType.GITHUB)
                     }
                 }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
             }, onVerificationUrl = { url, code ->
@@ -109,7 +111,7 @@ internal class GitHubSettingsPanel(
                 GitHubAuthService.getInstance().clearCredentials()
                 ApplicationManager.getApplication().invokeLater({
                     authStatusMessage = AuthStatusMessage("Logged out", false, AuthStatusKind.DISCONNECTED)
-                    QuotaUsageService.getInstance().clearGitHubUsageData("Not logged in")
+                    QuotaUsageService.getInstance().clearUsageData(QuotaProviderType.GITHUB, "Not logged in")
                     updateGitHubStatus()
                 }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
             }
@@ -145,8 +147,8 @@ internal class GitHubSettingsPanel(
         val store = GitHubCredentialsStore.getInstance()
         val credentials = store.load(onLoaded = ::refreshAfterCredentialsLoad)
         val inProgress = GitHubAuthService.getInstance().isLoginInProgress()
-        val quota = QuotaUsageService.getInstance().getLastGitHubQuota()
-        val error = QuotaUsageService.getInstance().getLastGitHubError()
+        val quota = QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.GITHUB) as? GitHubQuota
+        val error = QuotaUsageService.getInstance().getLastError(QuotaProviderType.GITHUB)
         val fallbackMessage = when {
             !store.isLoaded() -> AuthStatusMessage("Loading credentials...", false, AuthStatusKind.PENDING)
             credentials?.isUsable() != true -> AuthStatusMessage("Not logged in", false, AuthStatusKind.DISCONNECTED)
@@ -172,8 +174,8 @@ internal class GitHubSettingsPanel(
     }
 
     fun updateGitHubResponseArea() {
-        val raw = QuotaUsageService.getInstance().getLastGitHubResponseJson()
-        val error = QuotaUsageService.getInstance().getLastGitHubError()
+        val raw = QuotaUsageService.getInstance().getLastResponseJson(QuotaProviderType.GITHUB)
+        val error = QuotaUsageService.getInstance().getLastError(QuotaProviderType.GITHUB)
         responseViewer.text = when {
             error != null && !raw.isNullOrBlank() -> "Error: $error\n\n$raw"
             error != null -> "Error: $error"

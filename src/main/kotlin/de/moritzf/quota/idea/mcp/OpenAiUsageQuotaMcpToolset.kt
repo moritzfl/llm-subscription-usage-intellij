@@ -6,6 +6,7 @@ import com.intellij.mcpserver.McpToolset
 import com.intellij.mcpserver.annotations.McpDescription
 import com.intellij.mcpserver.annotations.McpTool
 import de.moritzf.quota.cursor.CursorQuotaClient
+import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.opencode.OpenCodeQuota
@@ -21,14 +22,14 @@ class OpenAiUsageQuotaMcpToolset : McpToolset {
     @McpDescription(description = "Returns the latest OpenAI usage quota response JSON.")
     fun openai_usage_quota(): McpToolCallResult {
         val usageService = QuotaUsageService.getInstance()
-        usageService.refreshOpenAiBlocking()
+        usageService.refreshBlocking(QuotaProviderType.OPEN_AI)
 
-        val error = usageService.getLastError()
+        val error = usageService.getLastError(QuotaProviderType.OPEN_AI)
         if (!error.isNullOrBlank()) {
             return errorResult(error)
         }
 
-        val json = usageService.getLastResponseJson()
+        val json = usageService.getLastResponseJson(QuotaProviderType.OPEN_AI)
         if (json.isNullOrBlank()) {
             return errorResult("No usage response available")
         }
@@ -39,14 +40,14 @@ class OpenAiUsageQuotaMcpToolset : McpToolset {
     @McpDescription(description = "Returns the latest OpenCode Go usage quota response JSON.")
     fun opencode_usage_quota(): McpToolCallResult {
         val usageService = QuotaUsageService.getInstance()
-        usageService.refreshOpenCodeBlocking()
+        usageService.refreshBlocking(QuotaProviderType.OPEN_CODE)
 
-        val error = usageService.getLastOpenCodeError()
+        val error = usageService.getLastError(QuotaProviderType.OPEN_CODE)
         if (!error.isNullOrBlank()) {
             return errorResult(error)
         }
 
-        val quota = usageService.getLastOpenCodeQuota()
+        val quota = usageService.getLastQuota(QuotaProviderType.OPEN_CODE) as? OpenCodeQuota
             ?: return errorResult("No OpenCode usage response available")
         val json = runCatching { JsonSupport.json.encodeToString(OpenCodeQuota.serializer(), quota) }.getOrNull()
             ?: return errorResult("No OpenCode usage response available")
@@ -57,14 +58,14 @@ class OpenAiUsageQuotaMcpToolset : McpToolset {
     @McpDescription(description = "Returns the latest Ollama Cloud usage quota response JSON.")
     fun ollama_usage_quota(): McpToolCallResult {
         val usageService = QuotaUsageService.getInstance()
-        usageService.refreshOllamaBlocking()
+        usageService.refreshBlocking(QuotaProviderType.OLLAMA)
 
-        val error = usageService.getLastOllamaError()
+        val error = usageService.getLastError(QuotaProviderType.OLLAMA)
         if (!error.isNullOrBlank()) {
             return errorResult(error)
         }
 
-        val quota = usageService.getLastOllamaQuota()
+        val quota = usageService.getLastQuota(QuotaProviderType.OLLAMA) as? OllamaQuota
             ?: return errorResult("No Ollama usage response available")
         val json = runCatching { JsonSupport.json.encodeToString(OllamaQuota.serializer(), quota) }.getOrNull()
             ?: return errorResult("No Ollama usage response available")
@@ -75,14 +76,14 @@ class OpenAiUsageQuotaMcpToolset : McpToolset {
     @McpDescription(description = "Returns the latest Z.ai usage quota response JSON.")
     fun zai_usage_quota(): McpToolCallResult {
         val usageService = QuotaUsageService.getInstance()
-        usageService.refreshZaiBlocking()
+        usageService.refreshBlocking(QuotaProviderType.ZAI)
 
-        val error = usageService.getLastZaiError()
+        val error = usageService.getLastError(QuotaProviderType.ZAI)
         if (!error.isNullOrBlank()) {
             return errorResult(error)
         }
 
-        val json = usageService.getLastZaiResponseJson()
+        val json = usageService.getLastResponseJson(QuotaProviderType.ZAI)
         if (json.isNullOrBlank()) {
             return errorResult("No Z.ai usage response available")
         }
@@ -93,14 +94,14 @@ class OpenAiUsageQuotaMcpToolset : McpToolset {
     @McpDescription(description = "Returns the latest MiniMax usage quota response JSON.")
     fun minimax_usage_quota(): McpToolCallResult {
         val usageService = QuotaUsageService.getInstance()
-        usageService.refreshMiniMaxBlocking()
+        usageService.refreshBlocking(QuotaProviderType.MINIMAX)
 
-        val error = usageService.getLastMiniMaxError()
+        val error = usageService.getLastError(QuotaProviderType.MINIMAX)
         if (!error.isNullOrBlank()) {
             return errorResult(error)
         }
 
-        val json = usageService.getLastMiniMaxResponseJson()
+        val json = usageService.getLastResponseJson(QuotaProviderType.MINIMAX)
         if (json.isNullOrBlank()) {
             return errorResult("No MiniMax usage response available")
         }
@@ -111,14 +112,14 @@ class OpenAiUsageQuotaMcpToolset : McpToolset {
     @McpDescription(description = "Returns the latest Kimi usage quota response JSON.")
     fun kimi_usage_quota(): McpToolCallResult {
         val usageService = QuotaUsageService.getInstance()
-        usageService.refreshKimiBlocking()
+        usageService.refreshBlocking(QuotaProviderType.KIMI)
 
-        val error = usageService.getLastKimiError()
+        val error = usageService.getLastError(QuotaProviderType.KIMI)
         if (!error.isNullOrBlank()) {
             return errorResult(error)
         }
 
-        val json = usageService.getLastKimiResponseJson()
+        val json = usageService.getLastResponseJson(QuotaProviderType.KIMI)
         if (json.isNullOrBlank()) {
             return errorResult("No Kimi usage response available")
         }
@@ -129,14 +130,14 @@ class OpenAiUsageQuotaMcpToolset : McpToolset {
     @McpDescription(description = "Returns the latest GitHub Copilot usage quota response JSON.")
     fun github_usage_quota(): McpToolCallResult {
         val usageService = QuotaUsageService.getInstance()
-        usageService.refreshGitHubBlocking()
+        usageService.refreshBlocking(QuotaProviderType.GITHUB)
 
-        val error = usageService.getLastGitHubError()
+        val error = usageService.getLastError(QuotaProviderType.GITHUB)
         if (!error.isNullOrBlank()) {
             return errorResult(error)
         }
 
-        val json = usageService.getLastGitHubResponseJson()
+        val json = usageService.getLastResponseJson(QuotaProviderType.GITHUB)
         if (json.isNullOrBlank()) {
             return errorResult("No GitHub usage response available")
         }
@@ -147,14 +148,14 @@ class OpenAiUsageQuotaMcpToolset : McpToolset {
     @McpDescription(description = "Returns the latest Cursor usage quota response JSON.")
     fun cursor_usage_quota(): McpToolCallResult {
         val usageService = QuotaUsageService.getInstance()
-        usageService.refreshCursorBlocking()
+        usageService.refreshBlocking(QuotaProviderType.CURSOR)
 
-        val error = usageService.getLastCursorError()
+        val error = usageService.getLastError(QuotaProviderType.CURSOR)
         if (!error.isNullOrBlank()) {
             return errorResult(error)
         }
 
-        val rawJson = usageService.getLastCursorResponseJson()
+        val rawJson = usageService.getLastResponseJson(QuotaProviderType.CURSOR)
         if (rawJson.isNullOrBlank()) {
             return errorResult("No Cursor usage response available")
         }

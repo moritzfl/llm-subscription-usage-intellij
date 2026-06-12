@@ -8,9 +8,10 @@ import kotlin.math.roundToInt
 import de.moritzf.quota.minimax.MiniMaxUsageWindow
 import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.util.ui.JBUI
+import de.moritzf.quota.shared.ProviderQuota
 import javax.swing.JPanel
 
-internal class MiniMaxPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)) {
+internal class MiniMaxPopupSection : ProviderPopupSection() {
     private val separator = createSeparatedBlock()
     private val errorLabel = createWarningLabel("").apply { border = JBUI.Borders.emptyTop(1) }
     private val titleLabel = createSectionTitleLabel("MiniMax", QuotaIcons.MINIMAX).apply { border = JBUI.Borders.emptyTop(0) }
@@ -25,7 +26,11 @@ internal class MiniMaxPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayou
         hideAll()
     }
 
-    fun update(quota: MiniMaxQuota?, error: String?, visible: Boolean) {
+    override fun update(quota: ProviderQuota?, error: String?, visible: Boolean) {
+        updateContent(quota as? MiniMaxQuota, error, visible)
+    }
+
+    private fun updateContent(quota: MiniMaxQuota?, error: String?, visible: Boolean) {
         isVisible = visible
         if (!visible) return
 

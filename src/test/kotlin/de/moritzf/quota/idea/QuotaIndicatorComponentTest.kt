@@ -1,7 +1,6 @@
 package de.moritzf.quota.idea
 
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorComponent
-import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorData
 import de.moritzf.quota.idea.ui.indicator.openCodeBarDisplayText
 import de.moritzf.quota.idea.ui.indicator.ollamaBarDisplayText
 import de.moritzf.quota.idea.ui.indicator.buildOpenCodeTooltipText

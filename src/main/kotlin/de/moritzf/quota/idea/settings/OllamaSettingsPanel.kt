@@ -8,6 +8,8 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
+import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ollama.OllamaSessionCookieStore
 import de.moritzf.quota.idea.ui.QuotaUiUtil
@@ -72,7 +74,7 @@ internal class OllamaSettingsPanel(
                         cfClearanceField.text = if (cfClearance.isNullOrBlank()) "" else CF_PLACEHOLDER
                         setOllamaPendingStatus("Validating session cookie...")
                         validateCookieNow(sessionCookie, cfClearance)
-                        QuotaUsageService.getInstance().refreshOllamaAsync()
+                        QuotaUsageService.getInstance().refreshAsync(QuotaProviderType.OLLAMA)
                     }
                 }
                 button("Clear") {
@@ -80,7 +82,7 @@ internal class OllamaSettingsPanel(
                     sessionCookieField.text = ""
                     cfClearanceField.text = ""
                     updateOllamaStatus()
-                    QuotaUsageService.getInstance().clearOllamaUsageData()
+                    QuotaUsageService.getInstance().clearUsageData(QuotaProviderType.OLLAMA)
                 }
             }
             separator()
@@ -106,8 +108,8 @@ internal class OllamaSettingsPanel(
     fun updateOllamaStatus() {
         val cookieStore = OllamaSessionCookieStore.getInstance()
         val sessionCookie = cookieStore.loadSessionCookie(onLoaded = ::refreshAfterCookieLoad)
-        val ollamaQuota = QuotaUsageService.getInstance().getLastOllamaQuota()
-        val ollamaError = QuotaUsageService.getInstance().getLastOllamaError()
+        val ollamaQuota = QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.OLLAMA) as? OllamaQuota
+        val ollamaError = QuotaUsageService.getInstance().getLastError(QuotaProviderType.OLLAMA)
 
         when {
             !cookieStore.isLoaded() -> {
@@ -174,9 +176,9 @@ internal class OllamaSettingsPanel(
     }
 
     fun updateOllamaResponseArea() {
-        val quota = QuotaUsageService.getInstance().getLastOllamaQuota()
-        val error = QuotaUsageService.getInstance().getLastOllamaError()
-        val rawJson = QuotaUsageService.getInstance().getLastOllamaResponseJson()
+        val quota = QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.OLLAMA) as? OllamaQuota
+        val error = QuotaUsageService.getInstance().getLastError(QuotaProviderType.OLLAMA)
+        val rawJson = QuotaUsageService.getInstance().getLastResponseJson(QuotaProviderType.OLLAMA)
 
         ollamaJsonViewer.text = when {
             error != null && !rawJson.isNullOrBlank() -> "Error: $error\n\n$rawJson"

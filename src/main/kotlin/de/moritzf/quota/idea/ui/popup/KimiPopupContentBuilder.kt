@@ -8,9 +8,10 @@ import kotlin.math.roundToInt
 import de.moritzf.quota.kimi.KimiUsageWindow
 import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.util.ui.JBUI
+import de.moritzf.quota.shared.ProviderQuota
 import javax.swing.JPanel
 
-internal class KimiPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)) {
+internal class KimiPopupSection : ProviderPopupSection() {
     private val separator = createSeparatedBlock()
     private val errorLabel = createWarningLabel("").apply { border = JBUI.Borders.emptyTop(1) }
     private val titleLabel =
@@ -28,7 +29,11 @@ internal class KimiPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout.T
         hideAll()
     }
 
-    fun update(quota: KimiQuota?, error: String?, visible: Boolean) {
+    override fun update(quota: ProviderQuota?, error: String?, visible: Boolean) {
+        updateContent(quota as? KimiQuota, error, visible)
+    }
+
+    private fun updateContent(quota: KimiQuota?, error: String?, visible: Boolean) {
         isVisible = visible
         if (!visible) return
 

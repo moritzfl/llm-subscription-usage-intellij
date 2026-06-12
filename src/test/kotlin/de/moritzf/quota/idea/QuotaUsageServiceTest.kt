@@ -2,6 +2,7 @@ package de.moritzf.quota.idea
 
 import de.moritzf.quota.idea.common.OpenAiQuotaProvider
 import de.moritzf.quota.idea.common.OpenCodeQuotaProvider
+import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.openai.OpenAiCodexQuota
@@ -34,9 +35,9 @@ class QuotaUsageServiceTest {
         try {
             service.refreshNowBlocking()
 
-            assertNull(service.getLastQuota())
-            assertEquals("Request failed (200)", service.getLastError())
-            assertEquals(rawJson, service.getLastResponseJson())
+            assertNull(service.getLastQuota(QuotaProviderType.OPEN_AI))
+            assertEquals("Request failed (200)", service.getLastError(QuotaProviderType.OPEN_AI))
+            assertEquals(rawJson, service.getLastResponseJson(QuotaProviderType.OPEN_AI))
         } finally {
             service.dispose()
         }
@@ -58,15 +59,15 @@ class QuotaUsageServiceTest {
 
         try {
             service.refreshNowBlocking()
-            assertEquals(rawJson, service.getLastResponseJson())
+            assertEquals(rawJson, service.getLastResponseJson(QuotaProviderType.OPEN_AI))
 
-            service.clearUsageData("Not logged in")
+            service.clearAllUsageData("Not logged in")
 
-            assertNull(service.getLastQuota())
-            assertEquals("Not logged in", service.getLastError())
-            assertNull(service.getLastResponseJson())
-            assertNull(service.getLastOpenCodeQuota())
-            assertEquals("No session cookie configured", service.getLastOpenCodeError())
+            assertNull(service.getLastQuota(QuotaProviderType.OPEN_AI))
+            assertEquals("Not logged in", service.getLastError(QuotaProviderType.OPEN_AI))
+            assertNull(service.getLastResponseJson(QuotaProviderType.OPEN_AI))
+            assertNull(service.getLastQuota(QuotaProviderType.OPEN_CODE))
+            assertEquals("No session cookie configured", service.getLastError(QuotaProviderType.OPEN_CODE))
         } finally {
             service.dispose()
         }
@@ -98,12 +99,12 @@ class QuotaUsageServiceTest {
         try {
             service.refreshNowBlocking()
 
-            service.clearOpenCodeUsageData()
+            service.clearUsageData(QuotaProviderType.OPEN_CODE)
 
-            assertNotNull(service.getLastQuota())
-            assertEquals(rawJson, service.getLastResponseJson())
-            assertNull(service.getLastOpenCodeQuota())
-            assertEquals("No session cookie configured", service.getLastOpenCodeError())
+            assertNotNull(service.getLastQuota(QuotaProviderType.OPEN_AI))
+            assertEquals(rawJson, service.getLastResponseJson(QuotaProviderType.OPEN_AI))
+            assertNull(service.getLastQuota(QuotaProviderType.OPEN_CODE))
+            assertEquals("No session cookie configured", service.getLastError(QuotaProviderType.OPEN_CODE))
         } finally {
             service.dispose()
         }
@@ -152,8 +153,8 @@ class QuotaUsageServiceTest {
 
             assertEquals(2, openCodeClient.discoverCount)
             assertEquals(2, openCodeClient.fetchCalls.size)
-            assertNotNull(service.getLastOpenCodeQuota())
-            assertNull(service.getLastOpenCodeError())
+            assertNotNull(service.getLastQuota(QuotaProviderType.OPEN_CODE))
+            assertNull(service.getLastError(QuotaProviderType.OPEN_CODE))
         } finally {
             service.dispose()
         }
@@ -208,12 +209,12 @@ class QuotaUsageServiceTest {
         )
 
         try {
-            service.refreshOpenAiBlocking()
+            service.refreshBlocking(QuotaProviderType.OPEN_AI)
 
             assertEquals(1, openAiFetchCount)
             assertEquals(emptyList(), openCodeClient.fetchCalls)
 
-            service.refreshOpenCodeBlocking()
+            service.refreshBlocking(QuotaProviderType.OPEN_CODE)
 
             assertEquals(1, openAiFetchCount)
             assertEquals(listOf("cookie-a:wrk-cookie-a"), openCodeClient.fetchCalls)
@@ -254,8 +255,8 @@ class QuotaUsageServiceTest {
         try {
             service.refreshNowBlocking()
 
-            assertNotNull(service.getLastQuota())
-            assertNotNull(service.getLastOpenCodeQuota())
+            assertNotNull(service.getLastQuota(QuotaProviderType.OPEN_AI))
+            assertNotNull(service.getLastQuota(QuotaProviderType.OPEN_CODE))
         } finally {
             service.dispose()
         }
@@ -288,7 +289,7 @@ class QuotaUsageServiceTest {
             service.refreshNowBlocking()
 
             assertTrue(completedOpenCodeRefresh.await(1, TimeUnit.SECONDS))
-            assertNotNull(service.getLastOpenCodeQuota())
+            assertNotNull(service.getLastQuota(QuotaProviderType.OPEN_CODE))
         } finally {
             service.dispose()
         }

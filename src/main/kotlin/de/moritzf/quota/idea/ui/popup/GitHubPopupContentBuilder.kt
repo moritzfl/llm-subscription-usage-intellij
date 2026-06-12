@@ -8,9 +8,10 @@ import de.moritzf.quota.idea.ui.indicator.clampPercent
 import kotlin.math.roundToInt
 import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.util.ui.JBUI
+import de.moritzf.quota.shared.ProviderQuota
 import javax.swing.JPanel
 
-internal class GitHubPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)) {
+internal class GitHubPopupSection : ProviderPopupSection() {
     private val separator = createSeparatedBlock()
     private val errorLabel = createWarningLabel("").apply { border = JBUI.Borders.emptyTop(1) }
     private val titleLabel =
@@ -32,7 +33,11 @@ internal class GitHubPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout
         hideAll()
     }
 
-    fun update(quota: GitHubQuota?, error: String?, visible: Boolean) {
+    override fun update(quota: ProviderQuota?, error: String?, visible: Boolean) {
+        updateContent(quota as? GitHubQuota, error, visible)
+    }
+
+    private fun updateContent(quota: GitHubQuota?, error: String?, visible: Boolean) {
         isVisible = visible
         if (!visible) return
 

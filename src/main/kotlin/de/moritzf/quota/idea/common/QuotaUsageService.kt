@@ -9,14 +9,7 @@ import com.intellij.util.concurrency.AppExecutorUtil
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorData
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorSource
-import de.moritzf.quota.openai.OpenAiCodexQuota
-import de.moritzf.quota.opencode.OpenCodeQuota
-import de.moritzf.quota.ollama.OllamaQuota
-import de.moritzf.quota.zai.ZaiQuota
-import de.moritzf.quota.minimax.MiniMaxQuota
-import de.moritzf.quota.github.GitHubQuota
-import de.moritzf.quota.kimi.KimiQuota
-import de.moritzf.quota.cursor.CursorQuota
+import de.moritzf.quota.shared.ProviderQuota
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
@@ -45,35 +38,20 @@ class QuotaUsageService(
         ApplicationManager.getApplication().invokeLater {
             val publisher = ApplicationManager.getApplication().messageBus
                 .syncPublisher(QuotaUsageListener.TOPIC)
-            publisher.onQuotaUpdated(snapshot.openAiQuota, snapshot.openAiError)
-            publisher.onOpenCodeQuotaUpdated(snapshot.openCodeQuota, snapshot.openCodeError)
-            publisher.onOllamaQuotaUpdated(snapshot.ollamaQuota, snapshot.ollamaError)
-            publisher.onZaiQuotaUpdated(snapshot.zaiQuota, snapshot.zaiError)
-            publisher.onMiniMaxQuotaUpdated(snapshot.miniMaxQuota, snapshot.miniMaxError)
-            publisher.onKimiQuotaUpdated(snapshot.kimiQuota, snapshot.kimiError)
-            publisher.onGitHubQuotaUpdated(snapshot.gitHubQuota, snapshot.gitHubError)
-            publisher.onCursorQuotaUpdated(snapshot.cursorQuota, snapshot.cursorError)
+            snapshot.entries.forEach { (type, entry) ->
+                publisher.onQuotaUpdated(type, entry.quota, entry.error)
+            }
             ActivityTracker.getInstance().inc()
         }
     },
     scheduleOnInit: Boolean = true,
 ) : Disposable {
-    private val refreshingOpenAi = AtomicBoolean(false)
-    private val refreshingOpenCode = AtomicBoolean(false)
-    private val refreshingOllama = AtomicBoolean(false)
-    private val refreshingZai = AtomicBoolean(false)
-    private val refreshingMiniMax = AtomicBoolean(false)
-    private val refreshingKimi = AtomicBoolean(false)
-    private val refreshingGitHub = AtomicBoolean(false)
-    private val refreshingCursor = AtomicBoolean(false)
-    private val openAiProvider = providers.filterIsInstance<OpenAiQuotaProvider>().firstOrNull()
-    private val openCodeProvider = providers.filterIsInstance<OpenCodeQuotaProvider>().firstOrNull()
-    private val ollamaProvider = providers.filterIsInstance<OllamaQuotaProvider>().firstOrNull()
-    private val zaiProvider = providers.filterIsInstance<ZaiQuotaProvider>().firstOrNull()
-    private val miniMaxProvider = providers.filterIsInstance<MiniMaxQuotaProvider>().firstOrNull()
-    private val kimiProvider = providers.filterIsInstance<KimiQuotaProvider>().firstOrNull()
-    private val gitHubProvider = providers.filterIsInstance<GitHubQuotaProvider>().firstOrNull()
-    private val cursorProvider = providers.filterIsInstance<CursorQuotaProvider>().firstOrNull()
+    private class ProviderState(val provider: QuotaProvider) {
+        val refreshing = AtomicBoolean(false)
+    }
+
+    private val states: Map<QuotaProviderType, ProviderState> =
+        providers.associateBy({ it.type }, ::ProviderState)
     private var scheduled: ScheduledFuture<*>? = null
 
     init {
@@ -83,194 +61,62 @@ class QuotaUsageService(
         }
     }
 
-    fun getLastQuota(): OpenAiCodexQuota? = openAiProvider?.getLastQuota()
-    fun getLastError(): String? = openAiProvider?.getLastError()
-    fun getLastResponseJson(): String? = openAiProvider?.getLastRawJson()
+    fun provider(type: QuotaProviderType): QuotaProvider? = states[type]?.provider
 
-    fun getLastOpenCodeQuota(): OpenCodeQuota? = openCodeProvider?.getLastQuota()
-    fun getLastOpenCodeError(): String? = openCodeProvider?.getLastError()
-    fun getLastOpenCodeResponseJson(): String? = openCodeProvider?.getLastRawJson() ?: openCodeProvider?.getLastQuota()?.rawJson
+    fun getLastQuota(type: QuotaProviderType): ProviderQuota? = provider(type)?.getLastQuota()
 
-    fun getLastOllamaQuota(): OllamaQuota? = ollamaProvider?.getLastQuota()
-    fun getLastOllamaError(): String? = ollamaProvider?.getLastError()
-    fun getLastOllamaResponseJson(): String? = ollamaProvider?.getLastRawJson()
+    fun getLastError(type: QuotaProviderType): String? = provider(type)?.getLastError()
 
-    fun getLastZaiQuota(): ZaiQuota? = zaiProvider?.getLastQuota()
-    fun getLastZaiError(): String? = zaiProvider?.getLastError()
-    fun getLastZaiResponseJson(): String? = zaiProvider?.getLastRawJson()
+    fun getLastResponseJson(type: QuotaProviderType): String? = provider(type)?.getLastRawJson()
 
-    fun getLastMiniMaxQuota(): MiniMaxQuota? = miniMaxProvider?.getLastQuota()
-    fun getLastMiniMaxError(): String? = miniMaxProvider?.getLastError()
-    fun getLastMiniMaxResponseJson(): String? = miniMaxProvider?.getLastRawJson()
-
-    fun getLastKimiQuota(): KimiQuota? = kimiProvider?.getLastQuota()
-    fun getLastKimiError(): String? = kimiProvider?.getLastError()
-    fun getLastKimiResponseJson(): String? = kimiProvider?.getLastRawJson()
-
-    fun getLastGitHubQuota(): GitHubQuota? = gitHubProvider?.getLastQuota()
-    fun getLastGitHubError(): String? = gitHubProvider?.getLastError()
-    fun getLastGitHubResponseJson(): String? = gitHubProvider?.getLastRawJson()
-
-    fun getLastCursorQuota(): CursorQuota? = cursorProvider?.getLastQuota()
-    fun getLastCursorError(): String? = cursorProvider?.getLastError()
-    fun getLastCursorResponseJson(): String? = cursorProvider?.getLastRawJson()
+    fun currentSnapshot(): QuotaUsageSnapshot {
+        return QuotaUsageSnapshot(
+            states.mapValues { (_, state) ->
+                ProviderSnapshot(state.provider.getLastQuota(), state.provider.getLastError())
+            },
+        )
+    }
 
     internal fun getEffectiveIndicatorData(): QuotaIndicatorData {
         val settings = settingsProvider()
-        val source = when (settings?.source() ?: QuotaIndicatorSource.OPEN_AI) {
+        val source = when (val configured = settings?.source() ?: QuotaIndicatorSource.OPEN_AI) {
             QuotaIndicatorSource.LAST_USED -> resolveLastActiveSource(settings)
-            QuotaIndicatorSource.OPEN_AI -> QuotaIndicatorSource.OPEN_AI
-            QuotaIndicatorSource.OPEN_CODE -> QuotaIndicatorSource.OPEN_CODE
-            QuotaIndicatorSource.OLLAMA -> QuotaIndicatorSource.OLLAMA
-            QuotaIndicatorSource.ZAI -> QuotaIndicatorSource.ZAI
-            QuotaIndicatorSource.MINIMAX -> QuotaIndicatorSource.MINIMAX
-            QuotaIndicatorSource.KIMI -> QuotaIndicatorSource.KIMI
-            QuotaIndicatorSource.GITHUB -> QuotaIndicatorSource.GITHUB
-            QuotaIndicatorSource.CURSOR -> QuotaIndicatorSource.CURSOR
+            else -> configured
         }
-
-        return when (source) {
-            QuotaIndicatorSource.OPEN_AI -> QuotaIndicatorData.OpenAi(getLastQuota(), getLastError())
-            QuotaIndicatorSource.OPEN_CODE -> QuotaIndicatorData.OpenCode(getLastOpenCodeQuota(), getLastOpenCodeError())
-            QuotaIndicatorSource.OLLAMA -> QuotaIndicatorData.Ollama(getLastOllamaQuota(), getLastOllamaError())
-            QuotaIndicatorSource.ZAI -> QuotaIndicatorData.Zai(getLastZaiQuota(), getLastZaiError())
-            QuotaIndicatorSource.MINIMAX -> QuotaIndicatorData.MiniMax(getLastMiniMaxQuota(), getLastMiniMaxError())
-            QuotaIndicatorSource.KIMI -> QuotaIndicatorData.Kimi(getLastKimiQuota(), getLastKimiError())
-            QuotaIndicatorSource.GITHUB -> QuotaIndicatorData.GitHub(getLastGitHubQuota(), getLastGitHubError())
-            QuotaIndicatorSource.CURSOR -> QuotaIndicatorData.Cursor(getLastCursorQuota(), getLastCursorError())
-            QuotaIndicatorSource.LAST_USED -> QuotaIndicatorData.OpenAi(getLastQuota(), getLastError())
-        }
+        val type = source.providerType ?: QuotaProviderType.OPEN_AI
+        return QuotaIndicatorData(type, getLastQuota(type), getLastError(type))
     }
 
     fun refreshNowAsync() {
         AppExecutorUtil.getAppExecutorService().execute(::refreshNow)
     }
 
-    fun refreshOpenCodeAsync() {
-        AppExecutorUtil.getAppExecutorService().execute(::refreshOpenCode)
-    }
-
-    fun refreshOllamaAsync() {
-        AppExecutorUtil.getAppExecutorService().execute(::refreshOllama)
-    }
-
-    fun refreshZaiAsync() {
-        AppExecutorUtil.getAppExecutorService().execute(::refreshZai)
-    }
-
-    fun refreshMiniMaxAsync() {
-        AppExecutorUtil.getAppExecutorService().execute(::refreshMiniMax)
-    }
-
-    fun refreshKimiAsync() {
-        AppExecutorUtil.getAppExecutorService().execute(::refreshKimi)
-    }
-
-    fun refreshGitHubAsync() {
-        AppExecutorUtil.getAppExecutorService().execute(::refreshGitHub)
-    }
-
-    fun refreshCursorAsync() {
-        AppExecutorUtil.getAppExecutorService().execute(::refreshCursor)
-    }
-
     fun refreshNowBlocking() {
         refreshNow()
     }
 
-    fun refreshOpenAiBlocking() {
-        refreshOpenAi()
+    fun refreshAsync(type: QuotaProviderType) {
+        AppExecutorUtil.getAppExecutorService().execute { refreshProvider(type) }
     }
 
-    fun refreshOpenCodeBlocking() {
-        refreshOpenCode()
+    fun refreshBlocking(type: QuotaProviderType) {
+        refreshProvider(type)
     }
 
-    fun refreshOllamaBlocking() {
-        refreshOllama()
+    fun clearAllUsageData(openAiError: String? = null) {
+        clearUsageData(QuotaProviderType.OPEN_AI, openAiError)
+        states.keys.filter { it != QuotaProviderType.OPEN_AI }.forEach { clearUsageData(it) }
     }
 
-    fun refreshZaiBlocking() {
-        refreshZai()
-    }
-
-    fun refreshMiniMaxBlocking() {
-        refreshMiniMax()
-    }
-
-    fun refreshKimiBlocking() {
-        refreshKimi()
-    }
-
-    fun refreshGitHubBlocking() {
-        refreshGitHub()
-    }
-
-    fun refreshCursorBlocking() {
-        refreshCursor()
-    }
-
-    fun clearUsageData(error: String? = null) {
-        clearCodexUsageData(error)
-        clearOpenCodeUsageData()
-        clearOllamaUsageData()
-        clearZaiUsageData()
-        clearMiniMaxUsageData()
-        clearKimiUsageData()
-        clearGitHubUsageData()
-        clearCursorUsageData()
-    }
-
-    fun clearCodexUsageData(error: String? = null) {
-        settingsProvider()?.cachedOpenAiQuotaJson = null
-        openAiProvider?.clearData(error)
-        publishUpdate()
-    }
-
-    fun clearOpenCodeUsageData(error: String? = "No session cookie configured") {
-        openCodeProvider?.clearData(error)
-        settingsProvider()?.cachedOpenCodeQuotaJson = null
-        publishUpdate()
-    }
-
-    fun clearOllamaUsageData(error: String? = "No session cookie configured") {
-        ollamaProvider?.clearData(error)
-        settingsProvider()?.cachedOllamaQuotaJson = null
-        publishUpdate()
-    }
-
-    fun clearZaiUsageData(error: String? = "No Z.ai API key configured") {
-        zaiProvider?.clearData(error)
-        settingsProvider()?.cachedZaiQuotaJson = null
-        publishUpdate()
-    }
-
-    fun clearMiniMaxUsageData(error: String? = "MiniMax API key missing. Add a MiniMax API key in settings.") {
-        miniMaxProvider?.clearData(error)
-        settingsProvider()?.cachedMiniMaxQuotaJson = null
-        publishUpdate()
-    }
-
-    fun clearKimiUsageData(error: String? = "Kimi login required. Log in from settings.") {
-        kimiProvider?.clearData(error)
-        settingsProvider()?.cachedKimiQuotaJson = null
-        publishUpdate()
-    }
-
-    fun clearGitHubUsageData(error: String? = "GitHub login required. Log in from settings.") {
-        gitHubProvider?.clearData(error)
-        settingsProvider()?.cachedGitHubQuotaJson = null
-        publishUpdate()
-    }
-
-    fun clearCursorUsageData(error: String? = "No Cursor session cookie configured. Paste WorkosCursorSessionToken from cursor.com in settings.") {
-        cursorProvider?.clearData(error)
-        settingsProvider()?.cachedCursorQuotaJson = null
+    fun clearUsageData(type: QuotaProviderType, error: String? = null) {
+        val provider = provider(type) ?: return
+        provider.clearData(error ?: provider.notConfiguredMessage)
+        settingsProvider()?.setCachedQuotaJson(type, null)
         publishUpdate()
     }
 
     fun resetOpenCodeWorkspaceCache() {
-        openCodeProvider?.resetWorkspaceCache()
+        (provider(QuotaProviderType.OPEN_CODE) as? OpenCodeQuotaProvider)?.resetWorkspaceCache()
     }
 
     private fun scheduleRefresh() {
@@ -280,30 +126,13 @@ class QuotaUsageService(
 
     private fun hydrateCachedQuotas() {
         val settings = settingsProvider() ?: return
-        openAiProvider?.hydrateFromCache(settings)
-        openCodeProvider?.hydrateFromCache(settings)
-        ollamaProvider?.hydrateFromCache(settings)
-        zaiProvider?.hydrateFromCache(settings)
-        miniMaxProvider?.hydrateFromCache(settings)
-        kimiProvider?.hydrateFromCache(settings)
-        gitHubProvider?.hydrateFromCache(settings)
-        cursorProvider?.hydrateFromCache(settings)
+        states.values.forEach { it.provider.hydrateFromCache(settings) }
     }
 
     private fun refreshNow() {
-        val refreshes = listOf(
-            ::refreshOpenAi,
-            ::refreshOpenCode,
-            ::refreshOllama,
-            ::refreshZai,
-            ::refreshMiniMax,
-            ::refreshKimi,
-            ::refreshGitHub,
-            ::refreshCursor,
-        )
         val executor = AppExecutorUtil.getAppExecutorService()
-        val futures = refreshes.map { refresh ->
-            executor.submit(refresh)
+        val futures = states.keys.map { type ->
+            executor.submit { refreshProvider(type) }
         }
         futures.forEach { future ->
             runCatching { future.get() }
@@ -311,48 +140,18 @@ class QuotaUsageService(
         }
     }
 
-    private fun refreshOpenAi() {
-        refreshProvider(openAiProvider, refreshingOpenAi)
-    }
-
-    private fun refreshOpenCode() {
-        refreshProvider(openCodeProvider, refreshingOpenCode)
-    }
-
-    private fun refreshOllama() {
-        refreshProvider(ollamaProvider, refreshingOllama)
-    }
-
-    private fun refreshZai() {
-        refreshProvider(zaiProvider, refreshingZai)
-    }
-
-    private fun refreshMiniMax() {
-        refreshProvider(miniMaxProvider, refreshingMiniMax)
-    }
-
-    private fun refreshKimi() {
-        refreshProvider(kimiProvider, refreshingKimi)
-    }
-
-    private fun refreshGitHub() {
-        refreshProvider(gitHubProvider, refreshingGitHub)
-    }
-
-    private fun refreshCursor() {
-        refreshProvider(cursorProvider, refreshingCursor)
-    }
-
-    private fun refreshProvider(provider: QuotaProvider?, refreshing: AtomicBoolean) {
-        if (provider == null || !refreshing.compareAndSet(false, true)) {
+    private fun refreshProvider(type: QuotaProviderType) {
+        val state = states[type] ?: return
+        if (!state.refreshing.compareAndSet(false, true)) {
             return
         }
 
         try {
+            val provider = state.provider
             val settings = settingsProvider()
-            val oldFraction = getCachedUsageFraction(provider, settings)
+            val oldFraction = settings?.let(provider::cachedUsageFraction)
             provider.refresh()
-            val newFraction = getCurrentUsageFraction(provider)
+            val newFraction = provider.currentUsageFraction()
 
             val significantChange = oldFraction != null && newFraction != null &&
                 kotlin.math.abs(newFraction - oldFraction) >= MIN_USAGE_INCREASE
@@ -366,16 +165,8 @@ class QuotaUsageService(
             }
             publishUpdate()
         } finally {
-            refreshing.set(false)
+            state.refreshing.set(false)
         }
-    }
-
-    private fun getCachedUsageFraction(provider: QuotaProvider, settings: QuotaSettingsState?): Double? {
-        return settings?.let(provider::cachedUsageFraction)
-    }
-
-    private fun getCurrentUsageFraction(provider: QuotaProvider): Double? {
-        return provider.currentUsageFraction()
     }
 
     private fun resolveLastActiveSource(settings: QuotaSettingsState?): QuotaIndicatorSource {
@@ -388,27 +179,6 @@ class QuotaUsageService(
 
     private fun publishUpdate() {
         updatePublisher(currentSnapshot())
-    }
-
-    private fun currentSnapshot(): QuotaUsageSnapshot {
-        return QuotaUsageSnapshot(
-            openAiQuota = getLastQuota(),
-            openAiError = getLastError(),
-            openCodeQuota = getLastOpenCodeQuota(),
-            openCodeError = getLastOpenCodeError(),
-            ollamaQuota = getLastOllamaQuota(),
-            ollamaError = getLastOllamaError(),
-            zaiQuota = getLastZaiQuota(),
-            zaiError = getLastZaiError(),
-            miniMaxQuota = getLastMiniMaxQuota(),
-            miniMaxError = getLastMiniMaxError(),
-            kimiQuota = getLastKimiQuota(),
-            kimiError = getLastKimiError(),
-            gitHubQuota = getLastGitHubQuota(),
-            gitHubError = getLastGitHubError(),
-            cursorQuota = getLastCursorQuota(),
-            cursorError = getLastCursorError(),
-        )
     }
 
     override fun dispose() {

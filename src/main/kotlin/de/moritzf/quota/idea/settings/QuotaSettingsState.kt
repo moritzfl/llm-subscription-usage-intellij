@@ -133,6 +133,32 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         indicatorSource = source.name
     }
 
+    fun isHiddenFromPopup(provider: QuotaProviderType): Boolean {
+        return when (provider) {
+            QuotaProviderType.OPEN_AI -> hideOpenAiFromQuotaPopup
+            QuotaProviderType.OPEN_CODE -> hideOpenCodeFromQuotaPopup
+            QuotaProviderType.OLLAMA -> hideOllamaFromQuotaPopup
+            QuotaProviderType.ZAI -> hideZaiFromQuotaPopup
+            QuotaProviderType.MINIMAX -> hideMiniMaxFromQuotaPopup
+            QuotaProviderType.KIMI -> hideKimiFromQuotaPopup
+            QuotaProviderType.GITHUB -> hideGitHubFromQuotaPopup
+            QuotaProviderType.CURSOR -> hideCursorFromQuotaPopup
+        }
+    }
+
+    fun setHiddenFromPopup(provider: QuotaProviderType, hidden: Boolean) {
+        when (provider) {
+            QuotaProviderType.OPEN_AI -> hideOpenAiFromQuotaPopup = hidden
+            QuotaProviderType.OPEN_CODE -> hideOpenCodeFromQuotaPopup = hidden
+            QuotaProviderType.OLLAMA -> hideOllamaFromQuotaPopup = hidden
+            QuotaProviderType.ZAI -> hideZaiFromQuotaPopup = hidden
+            QuotaProviderType.MINIMAX -> hideMiniMaxFromQuotaPopup = hidden
+            QuotaProviderType.KIMI -> hideKimiFromQuotaPopup = hidden
+            QuotaProviderType.GITHUB -> hideGitHubFromQuotaPopup = hidden
+            QuotaProviderType.CURSOR -> hideCursorFromQuotaPopup = hidden
+        }
+    }
+
     fun cachedQuotaJson(provider: QuotaProviderType): String? {
         return when (provider) {
             QuotaProviderType.OPEN_AI -> cachedOpenAiQuotaJson

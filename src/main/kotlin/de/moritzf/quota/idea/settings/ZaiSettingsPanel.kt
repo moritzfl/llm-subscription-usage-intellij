@@ -8,6 +8,8 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
+import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
@@ -85,8 +87,8 @@ internal class ZaiSettingsPanel(
     fun updateZaiStatus() {
         val apiKeyStore = ZaiApiKeyStore.getInstance()
         val apiKey = apiKeyStore.load(onLoaded = ::refreshAfterApiKeyLoad)
-        val quota = QuotaUsageService.getInstance().getLastZaiQuota()
-        val error = QuotaUsageService.getInstance().getLastZaiError()
+        val quota = QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.ZAI) as? ZaiQuota
+        val error = QuotaUsageService.getInstance().getLastError(QuotaProviderType.ZAI)
 
         when {
             !apiKeyStore.isLoaded() -> {
@@ -114,9 +116,9 @@ internal class ZaiSettingsPanel(
     }
 
     fun updateZaiResponseArea() {
-        val quota = QuotaUsageService.getInstance().getLastZaiQuota()
-        val error = QuotaUsageService.getInstance().getLastZaiError()
-        val rawJson = QuotaUsageService.getInstance().getLastZaiResponseJson()
+        val quota = QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.ZAI) as? ZaiQuota
+        val error = QuotaUsageService.getInstance().getLastError(QuotaProviderType.ZAI)
+        val rawJson = QuotaUsageService.getInstance().getLastResponseJson(QuotaProviderType.ZAI)
 
         zaiJsonViewer.text = when {
             error != null && !rawJson.isNullOrBlank() -> "Error: $error\n\n$rawJson"
@@ -145,7 +147,7 @@ internal class ZaiSettingsPanel(
                     onSuccess = {
                         apiKeyField.text = API_KEY_PLACEHOLDER
                         validateApiKeyNow(apiKey)
-                        QuotaUsageService.getInstance().refreshZaiAsync()
+                        QuotaUsageService.getInstance().refreshAsync(QuotaProviderType.ZAI)
                     },
                     onFailure = { error ->
                         zaiStatusLabel.text = formatStatusText("Error: ${error.message ?: "Could not save API key"}", AuthStatusKind.DISCONNECTED)
@@ -162,7 +164,7 @@ internal class ZaiSettingsPanel(
             ZaiApiKeyStore.getInstance().clear()
             ApplicationManager.getApplication().invokeLater({
                 updateZaiStatus()
-                QuotaUsageService.getInstance().clearZaiUsageData()
+                QuotaUsageService.getInstance().clearUsageData(QuotaProviderType.ZAI)
             }, ModalityState.stateForComponent(modalityComponentProvider() ?: this@ZaiSettingsPanel))
         }
     }
