@@ -473,80 +473,6 @@ class OpenAiProxyServerTest {
     }
 
     @Test
-    fun convertsExplicitJunieCreateFileTaskToCreateCommandWithoutToolMetadata() {
-        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_CREATE_FILE_TEXT).use { upstream ->
-            val proxy = newProxy(upstream.baseUri)
-            try {
-                proxy.start()
-                val response = httpClient.send(
-                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
-                        .header("Authorization", "Bearer local-key")
-                        .header("Content-Type", "application/json")
-                        .POST(
-                            HttpRequest.BodyPublishers.ofString(
-                                "{\"model\":\"gpt-5.5\",\"messages\":[" +
-                                    "{\"role\":\"system\",\"content\":\"You are Junie. " +
-                                    "Use the special interface.\"}," +
-                                    "{\"role\":\"user\",\"content\":\"Create a file named issue.md " +
-                                    "containing exactly JUNIE_CREATE_TOKEN and then finish.\"}]}",
-                            ),
-                        )
-                        .build(),
-                    HttpResponse.BodyHandlers.ofString(),
-                )
-
-                assertEquals(200, response.statusCode())
-                val choice = parseObject(response.body())["choices"]!!.jsonArray[0].jsonObject
-                assertEquals("stop", choice["finish_reason"]!!.jsonPrimitive.content)
-                val content = choice["message"]!!.jsonObject["content"]!!.jsonPrimitive.content
-                assertTrue(content.contains("I will create `issue.md`"))
-                assertTrue(content.contains("<COMMAND>create issue.md\nJUNIE_CREATE_TOKEN</COMMAND>"))
-                assertFalse(content.contains("<COMMAND>submit</COMMAND>"))
-
-                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-            } finally {
-                proxy.stop()
-            }
-        }
-    }
-
-    @Test
-    fun extractsExactJunieCreateFileContentWithoutCapturingGenericRequestedText() {
-        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_CREATE_FILE_RETRY_TEXT).use { upstream ->
-            val proxy = newProxy(upstream.baseUri)
-            try {
-                proxy.start()
-                val response = httpClient.send(
-                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
-                        .header("Authorization", "Bearer local-key")
-                        .header("Content-Type", "application/json")
-                        .POST(
-                            HttpRequest.BodyPublishers.ofString(
-                                "{\"model\":\"gpt-5.5\",\"messages\":[" +
-                                    "{\"role\":\"system\",\"content\":\"You are Junie. " +
-                                    "Use the special interface.\"}," +
-                                    "{\"role\":\"user\",\"content\":\"Create a file named issue.md " +
-                                    "containing exactly JUNIE_IDE_DIAG_203600 and then finish.\"}]}",
-                            ),
-                        )
-                        .build(),
-                    HttpResponse.BodyHandlers.ofString(),
-                )
-
-                assertEquals(200, response.statusCode())
-                val content = parseObject(response.body())["choices"]!!.jsonArray[0]
-                    .jsonObject["message"]!!.jsonObject["content"]!!.jsonPrimitive.content
-                assertTrue(content.contains("<COMMAND>create issue.md\nJUNIE_IDE_DIAG_203600</COMMAND>"))
-                assertFalse(content.contains("<COMMAND>create issue.md\nrequested</COMMAND>"))
-
-                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-            } finally {
-                proxy.stop()
-            }
-        }
-    }
-
-    @Test
     fun convertsPlainJunieStreamingChatTextToSubmitCommandWithoutToolMetadata() {
         TestUpstream(responseBody = RESPONSE_STREAM_WITH_TEXT_DELTAS).use { upstream ->
             val proxy = newProxy(upstream.baseUri)
@@ -1358,21 +1284,6 @@ class OpenAiProxyServerTest {
             "\"id\":\"resp_1\",\"object\":\"response\",\"status\":\"completed\",\"output\":[]," +
             "\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n" +
             "data: [DONE]\n\n"
-        const val COMPLETED_RESPONSE_STREAM_WITH_CREATE_FILE_TEXT = "event: response.completed\n" +
-            "data: {\"type\":\"response.completed\",\"response\":{" +
-            "\"id\":\"resp_1\",\"object\":\"response\",\"status\":\"completed\"," +
-            "\"output\":[{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"" +
-            "I will create `issue.md` with exact content `JUNIE_CREATE_TOKEN`." +
-            "\"}]}],\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n"
-        const val COMPLETED_RESPONSE_STREAM_WITH_CREATE_FILE_RETRY_TEXT = "event: response.completed\n" +
-            "data: {\"type\":\"response.completed\",\"response\":{" +
-            "\"id\":\"resp_1\",\"object\":\"response\",\"status\":\"completed\"," +
-            "\"output\":[{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"" +
-            "The task requires creating one file at the project root named `issue.md` with exactly " +
-            "`JUNIE_IDE_DIAG_203600`. Previous attempts incorrectly described a tool call in text " +
-            "instead of using the actual tool interface. I will now use the proper file creation tool " +
-            "with an absolute path and exact requested content." +
-            "\"}]}],\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n"
         const val COMPLETED_RESPONSE_STREAM_WITH_JUNIE_PROTOCOL_TEXT = "event: response.completed\n" +
             "data: {\"type\":\"response.completed\",\"response\":{" +
             "\"id\":\"resp_1\",\"object\":\"response\",\"status\":\"completed\"," +

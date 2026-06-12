@@ -17,15 +17,6 @@ final class JunieCommandProtocolCompat {
             "<COMMAND(\\d{0,2})>.*?</COMMAND\\1>",
             Pattern.DOTALL
     );
-    private static final Pattern CREATE_FILE_NAMED_PATTERN = Pattern.compile(
-            "create\\s+a\\s+file\\s+named\\s+[`\"']?([^`\"'\\s]+)[`\"']?\\s+containing\\s+exactly\\s+[`\"']?([^`\"'\\s.,;]+)[`\"']?",
-            Pattern.CASE_INSENSITIVE | Pattern.DOTALL
-    );
-    private static final Pattern CREATE_FILE_TEXT_PATTERN = Pattern.compile(
-            "(?:create|creating)\\b.{0,120}?[`\"']([^`\"'\\s]+)[`\"'].{0,240}?" +
-                    "(?:(?:containing|with)\\s+exactly\\s+[`\"']?([^`\"'\\s.,;]+)[`\"']?|with\\s+exact\\s+content\\s+[`\"']([^`\"']+)[`\"'])",
-            Pattern.CASE_INSENSITIVE | Pattern.DOTALL
-    );
     private static final Pattern XML_TAG_PATTERN = Pattern.compile("</?[A-Z_]+>");
 
     private JunieCommandProtocolCompat() {}
@@ -213,7 +204,7 @@ final class JunieCommandProtocolCompat {
 
     static String wrapStreamingText(String toolName, String text) {
         if ("submit".equals(toolName)) {
-            return wrapStreamingSubmitText(text);
+            return wrapPlainText(text);
         }
         return wrapCommandText(toolName, text);
     }
@@ -233,17 +224,6 @@ final class JunieCommandProtocolCompat {
         }
     }
 
-    private static String wrapStreamingSubmitText(String text) {
-        if (hasCommand(text)) {
-            return text;
-        }
-        CreateFileTask task = createFileTask(text);
-        if (task != null) {
-            return wrapCreateFileText(text, task);
-        }
-        return wrapPlainText(text);
-    }
-
     private static String wrapCommandText(String toolName, String text) {
         String name = toolName == null || toolName.isBlank() ? "submit" : toolName;
         String argument = text == null ? "" : displayText(text).trim().replace("</COMMAND>", "<\\/COMMAND>");
@@ -251,47 +231,6 @@ final class JunieCommandProtocolCompat {
             return "<COMMAND>" + name + "</COMMAND>";
         }
         return "<COMMAND>" + name + " " + argument + "</COMMAND>";
-    }
-
-    private static String wrapCreateFileText(String text, CreateFileTask task) {
-        String thought = displayText(text).trim().replace("</THOUGHT>", "<\\/THOUGHT>");
-        if (thought.isBlank()) {
-            thought = "Create " + task.filename() + ".";
-        }
-        return "<THOUGHT>" + thought + "</THOUGHT>\n<COMMAND>create "
-                + task.filename() + "\n" + escapeCommandBody(task.content()) + "</COMMAND>";
-    }
-
-    private static String escapeCommandBody(String text) {
-        return text == null ? "" : text.replace("</COMMAND>", "<\\/COMMAND>");
-    }
-
-    private static CreateFileTask createFileTask(String text) {
-        if (text == null || text.isBlank()) {
-            return null;
-        }
-        java.util.regex.Matcher matcher = CREATE_FILE_NAMED_PATTERN.matcher(text);
-        if (!matcher.find()) {
-            matcher = CREATE_FILE_TEXT_PATTERN.matcher(text);
-            if (!matcher.find()) {
-                return null;
-            }
-        }
-        String filename = matcher.group(1).trim();
-        String content = firstMatchedGroup(matcher, 2, 3).trim();
-        if (filename.isBlank() || content.isBlank()) {
-            return null;
-        }
-        return new CreateFileTask(filename, content);
-    }
-
-    private static String firstMatchedGroup(java.util.regex.Matcher matcher, int... groupIndexes) {
-        for (int groupIndex : groupIndexes) {
-            if (groupIndex <= matcher.groupCount() && matcher.group(groupIndex) != null) {
-                return matcher.group(groupIndex);
-            }
-        }
-        return "";
     }
 
     private static boolean hasCommand(String text) {
@@ -413,6 +352,4 @@ final class JunieCommandProtocolCompat {
         return parts;
     }
 
-    private record CreateFileTask(String filename, String content) {
-    }
 }
