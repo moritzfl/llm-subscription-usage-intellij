@@ -1,5 +1,6 @@
 package de.moritzf.quota.cursor
 
+import de.moritzf.quota.shared.ProviderQuota
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
@@ -17,15 +18,17 @@ data class CursorQuota(
     val displayMessage: String = "",
     val autoModelDisplayMessage: String = "",
     val apiModelDisplayMessage: String = "",
-    var fetchedAt: Instant? = null,
-    @Transient var rawJson: String? = null,
-) {
+    override var fetchedAt: Instant? = null,
+    @Transient override var rawJson: String? = null,
+) : ProviderQuota {
     fun primaryUsagePercent(): Double? {
         spendLimit?.usagePercent()?.let { return it }
         return planUsage?.totalPercentUsed
     }
 
-    fun hasUsageState(): Boolean = planUsage != null || spendLimit != null
+    override fun hasUsageState(): Boolean = planUsage != null || spendLimit != null
+
+    override fun usageFraction(): Double? = primaryUsagePercent()?.let { it / 100.0 }
 }
 
 @Serializable

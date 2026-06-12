@@ -14,9 +14,9 @@ class MiniMaxQuotaProvider(
     private val settingsProvider: () -> QuotaSettingsState? = { runCatching { QuotaSettingsState.getInstance() }.getOrNull() },
 ) : CachedQuotaProvider<MiniMaxQuota>() {
     override val type = QuotaProviderType.MINIMAX
-    override fun currentUsageFraction(): Double? = lastQuotaRef.get()?.sessionUsage?.usagePercent?.let { it / 100.0 }
+    override fun currentUsageFraction(): Double? = lastQuotaRef.get()?.usageFraction()
     override fun cachedUsageFraction(settings: QuotaSettingsState): Double? {
-        return QuotaSnapshotCache.decodeMiniMaxQuota(settings.cachedMiniMaxQuotaJson)?.sessionUsage?.usagePercent?.let { it / 100.0 }
+        return QuotaSnapshotCache.decodeMiniMaxQuota(settings.cachedMiniMaxQuotaJson)?.usageFraction()
     }
     override fun getLastRawJson(): String? {
         lastRawJsonRef.get()?.let { return it }

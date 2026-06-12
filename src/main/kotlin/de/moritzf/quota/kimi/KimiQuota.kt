@@ -1,5 +1,6 @@
 package de.moritzf.quota.kimi
 
+import de.moritzf.quota.shared.ProviderQuota
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
@@ -10,10 +11,15 @@ data class KimiQuota(
     val plan: String = "",
     val sessionUsage: KimiUsageWindow? = null,
     val totalUsage: KimiUsageWindow? = null,
-    var fetchedAt: Instant? = null,
-    @Transient var rawJson: String? = null,
-) {
-    fun hasUsageState(): Boolean = sessionUsage != null || totalUsage != null
+    override var fetchedAt: Instant? = null,
+    @Transient override var rawJson: String? = null,
+) : ProviderQuota {
+    override fun hasUsageState(): Boolean = sessionUsage != null || totalUsage != null
+
+    override fun usageFraction(): Double? {
+        val windows = listOfNotNull(sessionUsage?.usagePercent, totalUsage?.usagePercent)
+        return windows.maxOrNull()?.let { it / 100.0 }
+    }
 }
 
 @Serializable

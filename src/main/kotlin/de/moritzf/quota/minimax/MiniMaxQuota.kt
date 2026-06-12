@@ -1,5 +1,6 @@
 package de.moritzf.quota.minimax
 
+import de.moritzf.quota.shared.ProviderQuota
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
@@ -10,10 +11,12 @@ data class MiniMaxQuota(
     val plan: String = "",
     val sessionUsage: MiniMaxUsageWindow? = null,
     val region: MiniMaxRegion = MiniMaxRegion.GLOBAL,
-    var fetchedAt: Instant? = null,
-    @Transient var rawJson: String? = null,
-) {
-    fun hasUsageState(): Boolean = sessionUsage != null
+    override var fetchedAt: Instant? = null,
+    @Transient override var rawJson: String? = null,
+) : ProviderQuota {
+    override fun hasUsageState(): Boolean = sessionUsage != null
+
+    override fun usageFraction(): Double? = sessionUsage?.usagePercent?.let { it / 100.0 }
 }
 
 @Serializable

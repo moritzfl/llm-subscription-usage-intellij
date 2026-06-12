@@ -50,8 +50,4 @@ class GitHubQuotaProvider(
             settings.updateTimestamp(type)
         }
     }
-
-    private fun GitHubQuota.usageFraction(): Double? {
-        return limitedWindows().maxOfOrNull { it.usagePercent }?.let { it / 100.0 }
-    }
 }

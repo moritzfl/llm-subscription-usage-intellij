@@ -58,9 +58,4 @@ class OllamaQuotaProvider(
             settings.updateTimestamp(type)
         }
     }
-
-    private fun OllamaQuota.usageFraction(): Double? {
-        val windows = listOfNotNull(sessionUsage?.usagePercent, weeklyUsage?.usagePercent)
-        return windows.maxOrNull()?.let { it / 100.0 }
-    }
 }

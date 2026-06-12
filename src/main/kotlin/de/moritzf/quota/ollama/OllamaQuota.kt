@@ -1,5 +1,6 @@
 package de.moritzf.quota.ollama
 
+import de.moritzf.quota.shared.ProviderQuota
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
@@ -12,11 +13,16 @@ data class OllamaQuota(
     val plan: String = "",
     val sessionUsage: OllamaUsageWindow? = null,
     val weeklyUsage: OllamaUsageWindow? = null,
-    var fetchedAt: Instant? = null,
-    @Transient var rawJson: String? = null,
-) {
-    fun hasUsageState(): Boolean {
+    override var fetchedAt: Instant? = null,
+    @Transient override var rawJson: String? = null,
+) : ProviderQuota {
+    override fun hasUsageState(): Boolean {
         return sessionUsage != null || weeklyUsage != null
+    }
+
+    override fun usageFraction(): Double? {
+        val windows = listOfNotNull(sessionUsage?.usagePercent, weeklyUsage?.usagePercent)
+        return windows.maxOrNull()?.let { it / 100.0 }
     }
 }
 

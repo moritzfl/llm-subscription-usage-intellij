@@ -56,13 +56,4 @@ class ZaiQuotaProvider(
             settings.updateTimestamp(type)
         }
     }
-
-    private fun ZaiQuota.usageFraction(): Double? {
-        val windows = listOfNotNull(
-            sessionUsage?.usagePercent,
-            weeklyUsage?.usagePercent,
-            webSearchUsage?.usagePercent,
-        )
-        return windows.maxOrNull()?.let { it / 100.0 }
-    }
 }

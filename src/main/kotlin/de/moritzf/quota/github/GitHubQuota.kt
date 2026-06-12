@@ -1,5 +1,6 @@
 package de.moritzf.quota.github
 
+import de.moritzf.quota.shared.ProviderQuota
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
@@ -18,10 +19,14 @@ data class GitHubQuota(
     val premiumInteractions: GitHubUsageWindow? = null,
     val chat: GitHubUsageWindow? = null,
     val completions: GitHubUsageWindow? = null,
-    var fetchedAt: Instant? = null,
-    @Transient var rawJson: String? = null,
-) {
-    fun hasUsageState(): Boolean = premiumInteractions != null || chat != null || completions != null
+    override var fetchedAt: Instant? = null,
+    @Transient override var rawJson: String? = null,
+) : ProviderQuota {
+    override fun hasUsageState(): Boolean = premiumInteractions != null || chat != null || completions != null
+
+    override fun usageFraction(): Double? {
+        return limitedWindows().maxOfOrNull { it.usagePercent }?.let { it / 100.0 }
+    }
 
     /** Windows in display priority order, limited ones first. */
     fun limitedWindows(): List<GitHubUsageWindow> =

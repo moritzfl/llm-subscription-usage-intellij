@@ -53,9 +53,4 @@ class KimiQuotaProvider(
             settings.updateTimestamp(type)
         }
     }
-
-    private fun KimiQuota.usageFraction(): Double? {
-        val windows = listOfNotNull(sessionUsage?.usagePercent, totalUsage?.usagePercent)
-        return windows.maxOrNull()?.let { it / 100.0 }
-    }
 }

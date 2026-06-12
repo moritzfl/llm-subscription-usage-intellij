@@ -1,5 +1,6 @@
 package de.moritzf.quota.opencode
 
+import de.moritzf.quota.shared.ProviderQuota
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
@@ -15,13 +16,22 @@ data class OpenCodeQuota(
     val mine: Boolean = false,
     val useBalance: Boolean = false,
     var availableBalance: Long? = null,
-    var fetchedAt: Instant? = null,
-    @Transient var rawJson: String? = null,
+    override var fetchedAt: Instant? = null,
+    @Transient override var rawJson: String? = null,
     @Transient var rawGoJson: String? = null,
     @Transient var rawBillingJson: String? = null,
-) {
-    fun hasUsageState(): Boolean {
+) : ProviderQuota {
+    override fun hasUsageState(): Boolean {
         return rollingUsage != null || weeklyUsage != null || monthlyUsage != null
+    }
+
+    override fun usageFraction(): Double? {
+        val windows = listOfNotNull(
+            rollingUsage?.usagePercent?.toDouble(),
+            weeklyUsage?.usagePercent?.toDouble(),
+            monthlyUsage?.usagePercent?.toDouble(),
+        )
+        return windows.maxOrNull()?.let { it / 100.0 }
     }
 
     fun hasAvailableBalance(): Boolean {

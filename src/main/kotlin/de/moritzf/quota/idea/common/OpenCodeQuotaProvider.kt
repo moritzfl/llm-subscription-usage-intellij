@@ -134,15 +134,6 @@ class OpenCodeQuotaProvider(
             exception.message?.contains("Could not parse OpenCode quota response") == true
     }
 
-    private fun OpenCodeQuota.usageFraction(): Double? {
-        val windows = listOfNotNull(
-            rollingUsage?.usagePercent?.toDouble(),
-            weeklyUsage?.usagePercent?.toDouble(),
-            monthlyUsage?.usagePercent?.toDouble(),
-        )
-        return windows.maxOrNull()?.let { it / 100.0 }
-    }
-
     companion object {
         private const val WORKSPACE_CACHE_TTL_MS = 30 * 60 * 1000L
     }

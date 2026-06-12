@@ -1,5 +1,6 @@
 package de.moritzf.quota.zai
 
+import de.moritzf.quota.shared.ProviderQuota
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
@@ -14,11 +15,20 @@ data class ZaiQuota(
     val sessionUsage: ZaiUsageWindow? = null,
     val weeklyUsage: ZaiUsageWindow? = null,
     val webSearchUsage: ZaiCountUsageWindow? = null,
-    var fetchedAt: Instant? = null,
-    @Transient var rawJson: String? = null,
-) {
-    fun hasUsageState(): Boolean {
+    override var fetchedAt: Instant? = null,
+    @Transient override var rawJson: String? = null,
+) : ProviderQuota {
+    override fun hasUsageState(): Boolean {
         return sessionUsage != null || weeklyUsage != null || webSearchUsage != null
+    }
+
+    override fun usageFraction(): Double? {
+        val windows = listOfNotNull(
+            sessionUsage?.usagePercent,
+            weeklyUsage?.usagePercent,
+            webSearchUsage?.usagePercent,
+        )
+        return windows.maxOrNull()?.let { it / 100.0 }
     }
 }
 

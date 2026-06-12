@@ -112,12 +112,4 @@ class OpenAiQuotaProvider(
             newQuota.reviewLimitReached = true
         }
     }
-
-    private fun OpenAiCodexQuota.usageFraction(): Double? {
-        val windows = listOfNotNull(
-            primary?.usedPercent, secondary?.usedPercent,
-            reviewPrimary?.usedPercent, reviewSecondary?.usedPercent,
-        )
-        return windows.maxOrNull()?.let { it / 100.0 }
-    }
 }
