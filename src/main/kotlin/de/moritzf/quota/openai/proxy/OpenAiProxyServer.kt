@@ -232,6 +232,7 @@ class OpenAiProxyServer(
         // as `insufficient_quota`. We advertise a static list rather than live-discovering
         // so Junie's model-discovery call stays instant and offline-tolerant.
         private val ADVERTISED_MODELS = listOf(
+            "gpt-5.3-codex-spark",
             "gpt-5.4",
             "gpt-5.4-mini",
             "gpt-5.5",

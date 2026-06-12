@@ -735,7 +735,7 @@ class OpenAiProxyServerTest {
                 assertEquals(200, response.statusCode())
                 val root = parseObject(response.body())
                 val models = root["data"]!!.jsonArray.map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertEquals(listOf("gpt-5.4", "gpt-5.4-mini", "gpt-5.5", "gpt-5.5-pro"), models)
+                assertEquals(listOf("gpt-5.3-codex-spark", "gpt-5.4", "gpt-5.4-mini", "gpt-5.5", "gpt-5.5-pro"), models)
                 assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
             } finally {
                 proxy.stop()
@@ -760,9 +760,9 @@ class OpenAiProxyServerTest {
                 assertEquals(200, response.statusCode())
                 val root = parseObject(response.body())
                 val firstModel = root["data"]!!.jsonArray[0].jsonObject
-                assertEquals("gpt-5.4", firstModel["id"]!!.jsonPrimitive.content)
-                assertEquals("gpt-5.4", firstModel["model_name"]!!.jsonPrimitive.content)
-                assertEquals("gpt-5.4", firstModel["litellm_params"]!!.jsonObject["model"]!!.jsonPrimitive.content)
+                assertEquals("gpt-5.3-codex-spark", firstModel["id"]!!.jsonPrimitive.content)
+                assertEquals("gpt-5.3-codex-spark", firstModel["model_name"]!!.jsonPrimitive.content)
+                assertEquals("gpt-5.3-codex-spark", firstModel["litellm_params"]!!.jsonObject["model"]!!.jsonPrimitive.content)
                 assertEquals("chat", firstModel["model_info"]!!.jsonObject["mode"]!!.jsonPrimitive.content)
                 assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
             } finally {
