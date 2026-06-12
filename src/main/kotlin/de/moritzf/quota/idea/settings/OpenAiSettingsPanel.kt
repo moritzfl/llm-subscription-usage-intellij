@@ -40,8 +40,8 @@ import javax.swing.text.JTextComponent
  */
 internal class OpenAiSettingsPanel(
     private val modalityComponentProvider: () -> JComponent? = { null },
-) : BorderLayoutPanel() {
-    val openAiHideFromPopupCheckBox = com.intellij.ui.components.JBCheckBox("Hide from quota popup")
+) : ProviderSettingsPanel() {
+    override val hideFromPopupCheckBox = com.intellij.ui.components.JBCheckBox("Hide from quota popup")
     val openAiProxyEnabledCheckBox = com.intellij.ui.components.JBCheckBox("Enable local OpenAI-compatible proxy")
     val openAiProxyLogRequestsCheckBox = com.intellij.ui.components.JBCheckBox("Log requests and responses to disk")
     private val statusLabel = JBLabel().apply { isVisible = false }
@@ -206,7 +206,7 @@ internal class OpenAiSettingsPanel(
 
         val codexConfigPanel = panel {
             row {
-                cell(openAiHideFromPopupCheckBox)
+                cell(hideFromPopupCheckBox)
             }
             row {
                 cell(statusLabel).gap(RightGap.SMALL)
@@ -284,6 +284,18 @@ internal class OpenAiSettingsPanel(
         super.removeNotify()
     }
 
+    override fun updateFields() {
+        updateAuthUi()
+        updateAccountFields()
+        updateProxyFields()
+    }
+
+    override fun updateStatus() {
+        updateAuthUi()
+        updateAccountFields()
+        updateProxyStatus()
+    }
+
     fun updateAuthUi() {
         val authService = QuotaAuthService.getInstance()
         val loggedIn = authService.isLoggedIn(QuotaProviderType.OPEN_AI)
@@ -306,7 +318,7 @@ internal class OpenAiSettingsPanel(
         emailField.text = if (authService.isLoggedIn(QuotaProviderType.OPEN_AI)) (QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.OPEN_AI) as? OpenAiCodexQuota)?.email else null.orEmpty()
     }
 
-    fun updateResponseArea() {
+    override fun updateResponseArea() {
         val json = QuotaUsageService.getInstance().getLastResponseJson(QuotaProviderType.OPEN_AI)
         codexResponseViewer.text = if (json.isNullOrBlank()) "No quota response yet." else json
         codexResponseViewer.setCaretPosition(0)

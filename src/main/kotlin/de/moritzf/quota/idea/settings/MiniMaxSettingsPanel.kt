@@ -25,8 +25,8 @@ import javax.swing.ScrollPaneConstants
 internal class MiniMaxSettingsPanel(
     private val modalityComponentProvider: () -> JComponent?,
     private val statusLabelDefaultForeground: Color? = null,
-) : BorderLayoutPanel() {
-    val miniMaxHideFromPopupCheckBox = com.intellij.ui.components.JBCheckBox("Hide from quota popup")
+) : ProviderSettingsPanel() {
+    override val hideFromPopupCheckBox = com.intellij.ui.components.JBCheckBox("Hide from quota popup")
     val regionComboBox = ComboBox(MiniMaxRegionPreference.entries.toTypedArray())
     private val apiKeyField = JBPasswordField().apply { columns = 40 }
     private val statusLabel = JBLabel().apply { isVisible = false }
@@ -34,7 +34,7 @@ internal class MiniMaxSettingsPanel(
 
     init {
         addToTop(panel {
-            row { cell(miniMaxHideFromPopupCheckBox) }
+            row { cell(hideFromPopupCheckBox) }
             row { cell(statusLabel) }
             row("Region:") { cell(regionComboBox) }
             row("API key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
@@ -50,14 +50,14 @@ internal class MiniMaxSettingsPanel(
         })
     }
 
-    fun updateMiniMaxFields() {
+    override fun updateFields() {
         val apiKey = MiniMaxApiKeyStore.getInstance().load(onLoaded = ::refreshAfterKeyLoad)
         apiKeyField.text = if (apiKey.isNullOrBlank()) "" else PLACEHOLDER
         regionComboBox.selectedItem = QuotaSettingsState.getInstance().miniMaxRegionPreference()
-        updateMiniMaxStatus()
+        updateStatus()
     }
 
-    fun updateMiniMaxStatus() {
+    override fun updateStatus() {
         val store = MiniMaxApiKeyStore.getInstance()
         val apiKey = store.load(onLoaded = ::refreshAfterKeyLoad)
         val quota = QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.MINIMAX) as? MiniMaxQuota
@@ -73,7 +73,7 @@ internal class MiniMaxSettingsPanel(
         statusLabel.isVisible = true
     }
 
-    fun updateMiniMaxResponseArea() {
+    override fun updateResponseArea() {
         val raw = QuotaUsageService.getInstance().getLastResponseJson(QuotaProviderType.MINIMAX)
         val error = QuotaUsageService.getInstance().getLastError(QuotaProviderType.MINIMAX)
         responseViewer.text = when {
@@ -93,7 +93,7 @@ internal class MiniMaxSettingsPanel(
             MiniMaxApiKeyStore.getInstance().save(apiKey)
             ApplicationManager.getApplication().invokeLater({
                 apiKeyField.text = if (apiKey.isNullOrBlank()) "" else PLACEHOLDER
-                updateMiniMaxStatus()
+                updateStatus()
                 QuotaUsageService.getInstance().refreshAsync(QuotaProviderType.MINIMAX)
             }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
         }
@@ -105,15 +105,15 @@ internal class MiniMaxSettingsPanel(
             MiniMaxApiKeyStore.getInstance().clear()
             ApplicationManager.getApplication().invokeLater({
                 apiKeyField.text = ""
-                updateMiniMaxStatus()
+                updateStatus()
                 QuotaUsageService.getInstance().clearUsageData(QuotaProviderType.MINIMAX)
             }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
         }
     }
 
     private fun refreshAfterKeyLoad() {
-        updateMiniMaxFields()
-        updateMiniMaxResponseArea()
+        updateFields()
+        updateResponseArea()
     }
 
     private fun setPending(text: String) {

@@ -28,8 +28,8 @@ import javax.swing.ScrollPaneConstants
 internal class ZaiSettingsPanel(
     private val modalityComponentProvider: () -> JComponent?,
     private val statusLabelDefaultForeground: Color? = null,
-) : BorderLayoutPanel() {
-    val zaiHideFromPopupCheckBox = com.intellij.ui.components.JBCheckBox("Hide from quota popup")
+) : ProviderSettingsPanel() {
+    override val hideFromPopupCheckBox = com.intellij.ui.components.JBCheckBox("Hide from quota popup")
     private val apiKeyField = JBPasswordField().apply {
         columns = 40
         toolTipText = "Z.ai API key from the Z.ai console"
@@ -42,7 +42,7 @@ internal class ZaiSettingsPanel(
     init {
         val configPanel = panel {
             row {
-                cell(zaiHideFromPopupCheckBox)
+                cell(hideFromPopupCheckBox)
             }
             row {
                 cell(zaiStatusLabel)
@@ -78,13 +78,13 @@ internal class ZaiSettingsPanel(
         )
     }
 
-    fun updateZaiFields() {
+    override fun updateFields() {
         val apiKey = ZaiApiKeyStore.getInstance().load(onLoaded = ::refreshAfterApiKeyLoad)
         apiKeyField.text = if (apiKey.isNullOrBlank()) "" else API_KEY_PLACEHOLDER
-        updateZaiStatus()
+        updateStatus()
     }
 
-    fun updateZaiStatus() {
+    override fun updateStatus() {
         val apiKeyStore = ZaiApiKeyStore.getInstance()
         val apiKey = apiKeyStore.load(onLoaded = ::refreshAfterApiKeyLoad)
         val quota = QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.ZAI) as? ZaiQuota
@@ -115,7 +115,7 @@ internal class ZaiSettingsPanel(
         zaiStatusLabel.isVisible = true
     }
 
-    fun updateZaiResponseArea() {
+    override fun updateResponseArea() {
         val quota = QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.ZAI) as? ZaiQuota
         val error = QuotaUsageService.getInstance().getLastError(QuotaProviderType.ZAI)
         val rawJson = QuotaUsageService.getInstance().getLastResponseJson(QuotaProviderType.ZAI)
@@ -163,7 +163,7 @@ internal class ZaiSettingsPanel(
         ApplicationManager.getApplication().executeOnPooledThread {
             ZaiApiKeyStore.getInstance().clear()
             ApplicationManager.getApplication().invokeLater({
-                updateZaiStatus()
+                updateStatus()
                 QuotaUsageService.getInstance().clearUsageData(QuotaProviderType.ZAI)
             }, ModalityState.stateForComponent(modalityComponentProvider() ?: this@ZaiSettingsPanel))
         }
@@ -204,8 +204,8 @@ internal class ZaiSettingsPanel(
             awaitingApiKeyLoadRefresh = false
             return
         }
-        updateZaiFields()
-        updateZaiResponseArea()
+        updateFields()
+        updateResponseArea()
     }
 
     private fun createResponseViewer(): com.intellij.ui.components.JBTextArea {

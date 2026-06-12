@@ -31,8 +31,8 @@ import javax.swing.ScrollPaneConstants
 internal class OpenCodeSettingsPanel(
     private val modalityComponentProvider: () -> JComponent?,
     private val statusLabelDefaultForeground: Color? = null,
-) : BorderLayoutPanel() {
-    val openCodeHideFromPopupCheckBox = com.intellij.ui.components.JBCheckBox("Hide from quota popup")
+) : ProviderSettingsPanel() {
+    override val hideFromPopupCheckBox = com.intellij.ui.components.JBCheckBox("Hide from quota popup")
     private val openCodeCookieField = JBPasswordField().apply {
         columns = 40
         toolTipText = "Session cookie from opencode.ai (extract from browser DevTools)"
@@ -61,7 +61,7 @@ internal class OpenCodeSettingsPanel(
 
         val openCodeConfigPanel = panel {
             row {
-                cell(openCodeHideFromPopupCheckBox)
+                cell(hideFromPopupCheckBox)
             }
             row {
                 cell(openCodeStatusLabel)
@@ -93,7 +93,7 @@ internal class OpenCodeSettingsPanel(
                     workspaceComboBox.isVisible = false
                     workspaceLabel.isVisible = false
                     workspaceLoadingLabel.isVisible = false
-                    updateOpenCodeStatus()
+                    updateStatus()
                     QuotaUsageService.getInstance().clearUsageData(QuotaProviderType.OPEN_CODE)
                 }
             }
@@ -118,7 +118,7 @@ internal class OpenCodeSettingsPanel(
         )
     }
 
-    fun updateOpenCodeFields() {
+    override fun updateFields() {
         val cookieStore = OpenCodeSessionCookieStore.getInstance()
         val cookie = cookieStore.load(onLoaded = ::refreshAfterCookieLoad)
         openCodeCookieField.text = if (cookie.isNullOrBlank()) "" else OPENCODE_COOKIE_PLACEHOLDER
@@ -135,10 +135,10 @@ internal class OpenCodeSettingsPanel(
             workspaceLabel.isVisible = false
             workspaceComboBox.isVisible = false
         }
-        updateOpenCodeStatus()
+        updateStatus()
     }
 
-    fun updateOpenCodeStatus() {
+    override fun updateStatus() {
         val cookieStore = OpenCodeSessionCookieStore.getInstance()
         val cookie = cookieStore.load(onLoaded = ::refreshAfterCookieLoad)
         val openCodeQuota = QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.OPEN_CODE) as? OpenCodeQuota
@@ -179,7 +179,7 @@ internal class OpenCodeSettingsPanel(
         openCodeStatusLabel.isVisible = true
     }
 
-    fun updateOpenCodeResponseArea() {
+    override fun updateResponseArea() {
         val quota = QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.OPEN_CODE) as? OpenCodeQuota
         val error = QuotaUsageService.getInstance().getLastError(QuotaProviderType.OPEN_CODE)
         val rawJson = QuotaUsageService.getInstance().getLastResponseJson(QuotaProviderType.OPEN_CODE)
@@ -237,7 +237,7 @@ internal class OpenCodeSettingsPanel(
                     workspaceLoadingLabel.isVisible = false
                     workspaceLabel.isVisible = true
                     workspaceComboBox.isVisible = true
-                    updateOpenCodeStatus()
+                    updateStatus()
                 }, ModalityState.stateForComponent(modalityComponentProvider() ?: this@OpenCodeSettingsPanel))
             } catch (e: Exception) {
                 ApplicationManager.getApplication().invokeLater({
@@ -246,7 +246,7 @@ internal class OpenCodeSettingsPanel(
                     workspaceLabel.isVisible = false
                     workspaceLoadingLabel.text = "Could not load workspaces: ${e.message}"
                     workspaceLoadingLabel.isVisible = true
-                    updateOpenCodeStatus()
+                    updateStatus()
                 }, ModalityState.stateForComponent(modalityComponentProvider() ?: this@OpenCodeSettingsPanel))
             }
         }
@@ -259,7 +259,7 @@ internal class OpenCodeSettingsPanel(
         awaitingCookieLoadRefresh = true
         ApplicationManager.getApplication().invokeLater({
             awaitingCookieLoadRefresh = false
-            updateOpenCodeFields()
+            updateFields()
         }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
     }
 

@@ -28,8 +28,8 @@ import javax.swing.ScrollPaneConstants
 internal class KimiSettingsPanel(
     private val modalityComponentProvider: () -> JComponent?,
     private val statusLabelDefaultForeground: Color? = null,
-) : BorderLayoutPanel() {
-    val kimiHideFromPopupCheckBox = com.intellij.ui.components.JBCheckBox("Hide from quota popup")
+) : ProviderSettingsPanel() {
+    override val hideFromPopupCheckBox = com.intellij.ui.components.JBCheckBox("Hide from quota popup")
     private val statusLabel = JBLabel().apply { isVisible = false }
     private val loginButton = createActionLink("Log In")
     private val cancelLoginButton = createActionLink("Cancel Login")
@@ -54,12 +54,12 @@ internal class KimiSettingsPanel(
         loginButton.addActionListener {
             val authService = KimiAuthService.getInstance()
             if (authService.isLoggedIn()) {
-                updateKimiStatus()
+                updateStatus()
                 return@addActionListener
             }
             loginButton.isEnabled = false
             authStatusMessage = AuthStatusMessage("Opening browser...", false, AuthStatusKind.PENDING)
-            updateKimiStatus()
+            updateStatus()
             authService.startLoginFlow(callback = { result ->
                 ApplicationManager.getApplication().invokeLater({
                     authStatusMessage = if (result.success) {
@@ -68,7 +68,7 @@ internal class KimiSettingsPanel(
                         AuthStatusMessage(result.message ?: "Login failed", true, AuthStatusKind.DISCONNECTED)
                     }
                     loginButton.isEnabled = true
-                    updateKimiStatus()
+                    updateStatus()
                     if (result.success) {
                         QuotaUsageService.getInstance().refreshAsync(QuotaProviderType.KIMI)
                     }
@@ -80,10 +80,10 @@ internal class KimiSettingsPanel(
                     userCodeLabel.text = if (userCode.isBlank()) "" else "Kimi code: $userCode"
                     userCodeLabel.isVisible = userCode.isNotBlank()
                     authStatusMessage = AuthStatusMessage("Waiting for browser authorization...", false, AuthStatusKind.PENDING)
-                    updateKimiStatus()
+                    updateStatus()
                 }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
             })
-            updateKimiStatus()
+            updateStatus()
         }
 
         cancelLoginButton.addActionListener {
@@ -93,7 +93,7 @@ internal class KimiSettingsPanel(
                 false,
                 if (aborted) AuthStatusKind.PENDING else AuthStatusKind.DISCONNECTED,
             )
-            updateKimiStatus()
+            updateStatus()
         }
 
         logoutButton.addActionListener {
@@ -103,13 +103,13 @@ internal class KimiSettingsPanel(
                 ApplicationManager.getApplication().invokeLater({
                     authStatusMessage = AuthStatusMessage("Logged out", false, AuthStatusKind.DISCONNECTED)
                     QuotaUsageService.getInstance().clearUsageData(QuotaProviderType.KIMI, "Not logged in")
-                    updateKimiStatus()
+                    updateStatus()
                 }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
             }
         }
 
         addToTop(panel {
-            row { cell(kimiHideFromPopupCheckBox) }
+            row { cell(hideFromPopupCheckBox) }
             row { cell(statusLabel).gap(RightGap.SMALL); cell(copyUrlButton) }
             row { cell(userCodeLabel) }
             row {
@@ -125,12 +125,12 @@ internal class KimiSettingsPanel(
         })
     }
 
-    fun updateKimiFields() {
+    override fun updateFields() {
         KimiCredentialsStore.getInstance().load(onLoaded = ::refreshAfterCredentialsLoad)
-        updateKimiStatus()
+        updateStatus()
     }
 
-    fun updateKimiStatus() {
+    override fun updateStatus() {
         val store = KimiCredentialsStore.getInstance()
         val credentials = store.load(onLoaded = ::refreshAfterCredentialsLoad)
         val inProgress = KimiAuthService.getInstance().isLoginInProgress()
@@ -158,7 +158,7 @@ internal class KimiSettingsPanel(
         }
     }
 
-    fun updateKimiResponseArea() {
+    override fun updateResponseArea() {
         val raw = QuotaUsageService.getInstance().getLastResponseJson(QuotaProviderType.KIMI)
         val error = QuotaUsageService.getInstance().getLastError(QuotaProviderType.KIMI)
         responseViewer.text = when {
@@ -171,8 +171,8 @@ internal class KimiSettingsPanel(
     }
 
     private fun refreshAfterCredentialsLoad() {
-        updateKimiFields()
-        updateKimiResponseArea()
+        updateFields()
+        updateResponseArea()
     }
 
     private fun setPending(text: String) {

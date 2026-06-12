@@ -28,8 +28,8 @@ import java.util.concurrent.atomic.AtomicLong
 internal class OllamaSettingsPanel(
     private val modalityComponentProvider: () -> JComponent?,
     private val statusLabelDefaultForeground: Color? = null,
-) : BorderLayoutPanel() {
-    val ollamaHideFromPopupCheckBox = com.intellij.ui.components.JBCheckBox("Hide from quota popup")
+) : ProviderSettingsPanel() {
+    override val hideFromPopupCheckBox = com.intellij.ui.components.JBCheckBox("Hide from quota popup")
     private val sessionCookieField = JBPasswordField().apply {
         columns = 40
         toolTipText = "__Secure-session cookie from ollama.com (extract from browser DevTools)"
@@ -46,7 +46,7 @@ internal class OllamaSettingsPanel(
     init {
         val ollamaConfigPanel = panel {
             row {
-                cell(ollamaHideFromPopupCheckBox)
+                cell(hideFromPopupCheckBox)
             }
             row {
                 cell(ollamaStatusLabel)
@@ -81,7 +81,7 @@ internal class OllamaSettingsPanel(
                     OllamaSessionCookieStore.getInstance().clear()
                     sessionCookieField.text = ""
                     cfClearanceField.text = ""
-                    updateOllamaStatus()
+                    updateStatus()
                     QuotaUsageService.getInstance().clearUsageData(QuotaProviderType.OLLAMA)
                 }
             }
@@ -97,15 +97,15 @@ internal class OllamaSettingsPanel(
         )
     }
 
-    fun updateOllamaFields() {
+    override fun updateFields() {
         val cookieStore = OllamaSessionCookieStore.getInstance()
         val sessionCookie = cookieStore.loadSessionCookie(onLoaded = ::refreshAfterCookieLoad)
         sessionCookieField.text = if (sessionCookie.isNullOrBlank()) "" else SESSION_COOKIE_PLACEHOLDER
         cfClearanceField.text = if (sessionCookie.isNullOrBlank()) "" else CF_PLACEHOLDER
-        updateOllamaStatus()
+        updateStatus()
     }
 
-    fun updateOllamaStatus() {
+    override fun updateStatus() {
         val cookieStore = OllamaSessionCookieStore.getInstance()
         val sessionCookie = cookieStore.loadSessionCookie(onLoaded = ::refreshAfterCookieLoad)
         val ollamaQuota = QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.OLLAMA) as? OllamaQuota
@@ -165,8 +165,8 @@ internal class OllamaSettingsPanel(
             awaitingCookieLoadRefresh = false
             return
         }
-        updateOllamaFields()
-        updateOllamaResponseArea()
+        updateFields()
+        updateResponseArea()
     }
 
     private fun setOllamaPendingStatus(text: String) {
@@ -175,7 +175,7 @@ internal class OllamaSettingsPanel(
         ollamaStatusLabel.isVisible = true
     }
 
-    fun updateOllamaResponseArea() {
+    override fun updateResponseArea() {
         val quota = QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.OLLAMA) as? OllamaQuota
         val error = QuotaUsageService.getInstance().getLastError(QuotaProviderType.OLLAMA)
         val rawJson = QuotaUsageService.getInstance().getLastResponseJson(QuotaProviderType.OLLAMA)

@@ -167,52 +167,15 @@ class QuotaSettingsConfigurable : Configurable {
             })
         }
 
-        val panelUpdaters: Map<QuotaProviderType, () -> Unit> = mapOf(
-            QuotaProviderType.OPEN_AI to {
-                openAiPanel.updateAccountFields()
-                openAiPanel.updateResponseArea()
-                openAiPanel.updateAuthUi()
-                openAiPanel.updateProxyStatus()
-            },
-            QuotaProviderType.OPEN_CODE to {
-                openCodePanel.updateOpenCodeResponseArea()
-                openCodePanel.updateOpenCodeStatus()
-            },
-            QuotaProviderType.OLLAMA to {
-                ollamaPanel.updateOllamaResponseArea()
-                ollamaPanel.updateOllamaStatus()
-            },
-            QuotaProviderType.ZAI to {
-                zaiPanel.updateZaiResponseArea()
-                zaiPanel.updateZaiStatus()
-            },
-            QuotaProviderType.MINIMAX to {
-                miniMaxPanel.updateMiniMaxResponseArea()
-                miniMaxPanel.updateMiniMaxStatus()
-            },
-            QuotaProviderType.GITHUB to {
-                gitHubPanel.updateGitHubResponseArea()
-                gitHubPanel.updateGitHubStatus()
-            },
-            QuotaProviderType.KIMI to {
-                kimiPanel.updateKimiResponseArea()
-                kimiPanel.updateKimiStatus()
-            },
-            QuotaProviderType.CURSOR to {
-                cursorPanel.updateCursorResponseArea()
-                cursorPanel.updateCursorStatus()
-            },
-        )
-
         connection = ApplicationManager.getApplication().messageBus.connect()
         connection!!.subscribe(QuotaUsageListener.TOPIC, object : QuotaUsageListener {
             override fun onQuotaUpdated(type: QuotaProviderType, quota: ProviderQuota?, error: String?) {
-                val updater = panelUpdaters[type] ?: return
+                val providerPanel = providerPanels()[type] ?: return
                 val currentPanel = rootComponent ?: panel ?: return
-                ApplicationManager.getApplication().invokeLater(
-                    updater,
-                    ModalityState.stateForComponent(currentPanel),
-                )
+                ApplicationManager.getApplication().invokeLater({
+                    providerPanel.updateResponseArea()
+                    providerPanel.updateStatus()
+                }, ModalityState.stateForComponent(currentPanel))
             }
         })
 
@@ -313,17 +276,7 @@ class QuotaSettingsConfigurable : Configurable {
     private fun rebuildServiceCards() {
         val cards = serviceCards ?: return
         cards.removeAll()
-        val providerPanels = mapOf(
-            QuotaProviderType.CURSOR to cursorPanel,
-            QuotaProviderType.KIMI to kimiPanel,
-            QuotaProviderType.GITHUB to gitHubPanel,
-            QuotaProviderType.MINIMAX to miniMaxPanel,
-            QuotaProviderType.OLLAMA to ollamaPanel,
-            QuotaProviderType.OPEN_AI to openAiPanel,
-            QuotaProviderType.OPEN_CODE to openCodePanel,
-            QuotaProviderType.ZAI to zaiPanel,
-        )
-        providerPanels.forEach { (type, panel) ->
+        providerPanels().forEach { (type, panel) ->
             cards.add(panel, type.id)
         }
         serviceCardLayout?.show(cards, QuotaProviderType.CURSOR.id)
@@ -424,24 +377,10 @@ class QuotaSettingsConfigurable : Configurable {
                 providerReorderPanel?.setOrder(QuotaSettingsState.getInstance().providerOrderList())
                 mcpSyncCheckBox?.isSelected = QuotaSettingsState.getInstance().syncIntellijMcpServerUrl
                 mcpSyncTargets = normalizeTargets(QuotaSettingsState.getInstance().mcpServerSyncTargets).toMutableList()
-                openAiPanel.updateAuthUi()
-                openAiPanel.updateAccountFields()
-                openAiPanel.updateResponseArea()
-                openAiPanel.updateProxyFields()
-                openCodePanel.updateOpenCodeResponseArea()
-                openCodePanel.updateOpenCodeFields()
-                ollamaPanel.updateOllamaFields()
-                ollamaPanel.updateOllamaResponseArea()
-                zaiPanel.updateZaiFields()
-                zaiPanel.updateZaiResponseArea()
-                miniMaxPanel.updateMiniMaxFields()
-                miniMaxPanel.updateMiniMaxResponseArea()
-                kimiPanel.updateKimiFields()
-                kimiPanel.updateKimiResponseArea()
-                gitHubPanel.updateGitHubFields()
-                gitHubPanel.updateGitHubResponseArea()
-                cursorPanel.updateCursorFields()
-                cursorPanel.updateCursorResponseArea()
+                providerPanels().values.forEach { providerPanel ->
+                    providerPanel.updateFields()
+                    providerPanel.updateResponseArea()
+                }
             }
 
             onIsModified {
@@ -467,17 +406,21 @@ class QuotaSettingsConfigurable : Configurable {
         }
     }
 
-    private fun hideFromPopupCheckBoxes(): Map<QuotaProviderType, JBCheckBox> {
+    private fun providerPanels(): Map<QuotaProviderType, ProviderSettingsPanel> {
         return mapOf(
-            QuotaProviderType.OPEN_AI to openAiPanel.openAiHideFromPopupCheckBox,
-            QuotaProviderType.OPEN_CODE to openCodePanel.openCodeHideFromPopupCheckBox,
-            QuotaProviderType.OLLAMA to ollamaPanel.ollamaHideFromPopupCheckBox,
-            QuotaProviderType.ZAI to zaiPanel.zaiHideFromPopupCheckBox,
-            QuotaProviderType.MINIMAX to miniMaxPanel.miniMaxHideFromPopupCheckBox,
-            QuotaProviderType.KIMI to kimiPanel.kimiHideFromPopupCheckBox,
-            QuotaProviderType.GITHUB to gitHubPanel.gitHubHideFromPopupCheckBox,
-            QuotaProviderType.CURSOR to cursorPanel.cursorHideFromPopupCheckBox,
+            QuotaProviderType.CURSOR to cursorPanel,
+            QuotaProviderType.GITHUB to gitHubPanel,
+            QuotaProviderType.KIMI to kimiPanel,
+            QuotaProviderType.MINIMAX to miniMaxPanel,
+            QuotaProviderType.OLLAMA to ollamaPanel,
+            QuotaProviderType.OPEN_AI to openAiPanel,
+            QuotaProviderType.OPEN_CODE to openCodePanel,
+            QuotaProviderType.ZAI to zaiPanel,
         )
+    }
+
+    private fun hideFromPopupCheckBoxes(): Map<QuotaProviderType, JBCheckBox> {
+        return providerPanels().mapValues { (_, panel) -> panel.hideFromPopupCheckBox }
     }
 
     private fun normalizeTargets(targets: List<McpServerSyncTarget>): List<McpServerSyncTarget> {

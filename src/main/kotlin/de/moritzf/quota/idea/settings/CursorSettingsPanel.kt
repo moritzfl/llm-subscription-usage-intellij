@@ -30,8 +30,8 @@ import java.util.concurrent.atomic.AtomicLong
 internal class CursorSettingsPanel(
     private val modalityComponentProvider: () -> JComponent?,
     private val statusLabelDefaultForeground: Color? = null,
-) : BorderLayoutPanel() {
-    val cursorHideFromPopupCheckBox = com.intellij.ui.components.JBCheckBox("Hide from quota popup")
+) : ProviderSettingsPanel() {
+    override val hideFromPopupCheckBox = com.intellij.ui.components.JBCheckBox("Hide from quota popup")
     private val sessionCookieField = JBPasswordField().apply {
         columns = 40
         toolTipText = "WorkosCursorSessionToken from cursor.com browser cookies"
@@ -44,7 +44,7 @@ internal class CursorSettingsPanel(
     init {
         val cursorConfigPanel = panel {
             row {
-                cell(cursorHideFromPopupCheckBox)
+                cell(hideFromPopupCheckBox)
             }
             row {
                 cell(cursorStatusLabel)
@@ -76,7 +76,7 @@ internal class CursorSettingsPanel(
                 button("Clear") {
                     CursorCredentialsStore.getInstance().clearSessionCookie()
                     sessionCookieField.text = ""
-                    updateCursorStatus()
+                    updateStatus()
                     QuotaUsageService.getInstance().clearUsageData(QuotaProviderType.CURSOR)
                 }
             }
@@ -92,7 +92,7 @@ internal class CursorSettingsPanel(
         )
     }
 
-    fun updateCursorFields() {
+    override fun updateFields() {
         val store = CursorCredentialsStore.getInstance()
         store.load(onLoaded = ::refreshAfterCredentialLoad)
         sessionCookieField.text = when {
@@ -101,10 +101,10 @@ internal class CursorSettingsPanel(
             else -> ""
         }
         updateAuthSourceLabel(store)
-        updateCursorStatus()
+        updateStatus()
     }
 
-    fun updateCursorStatus() {
+    override fun updateStatus() {
         val store = CursorCredentialsStore.getInstance()
         store.load(onLoaded = ::refreshAfterCredentialLoad)
         val cursorQuota = QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.CURSOR) as? CursorQuota
@@ -189,8 +189,8 @@ internal class CursorSettingsPanel(
     }
 
     private fun refreshAfterCredentialLoad() {
-        updateCursorFields()
-        updateCursorResponseArea()
+        updateFields()
+        updateResponseArea()
     }
 
     private fun setCursorPendingStatus(text: String) {
@@ -199,7 +199,7 @@ internal class CursorSettingsPanel(
         cursorStatusLabel.isVisible = true
     }
 
-    fun updateCursorResponseArea() {
+    override fun updateResponseArea() {
         val quota = QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.CURSOR) as? CursorQuota
         val error = QuotaUsageService.getInstance().getLastError(QuotaProviderType.CURSOR)
         val rawJson = QuotaUsageService.getInstance().getLastResponseJson(QuotaProviderType.CURSOR)
