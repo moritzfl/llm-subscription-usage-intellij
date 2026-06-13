@@ -28,4 +28,16 @@ class OpenAiUsageQuotaMcpToolsetTest {
         assertEquals(listOf("codex_image_generation"), imageTools.map { it.getAnnotation(McpTool::class.java).name })
         assertEquals(listOf(String::class.java, String::class.java), imageTools.single().parameterTypes.toList())
     }
+
+    @Test
+    fun kimiWebSearchUsesSingleToolWithConfigurableOptions() {
+        val kimiSearchTools = OpenAiUsageQuotaMcpToolset::class.java.declaredMethods
+            .filter { it.getAnnotation(McpTool::class.java)?.name?.startsWith("kimi_web_search") == true }
+
+        assertEquals(listOf("kimi_web_search"), kimiSearchTools.map { it.getAnnotation(McpTool::class.java).name })
+        assertEquals(
+            listOf(String::class.java, Int::class.java, Boolean::class.java),
+            kimiSearchTools.single().parameterTypes.toList(),
+        )
+    }
 }

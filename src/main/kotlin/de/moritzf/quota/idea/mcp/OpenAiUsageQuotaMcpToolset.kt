@@ -7,6 +7,9 @@ import com.intellij.openapi.project.ProjectManager
 import de.moritzf.quota.cursor.CursorQuotaClient
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
+import de.moritzf.quota.idea.kimi.KimiCredentialsStore
+import de.moritzf.quota.kimi.KimiQuotaException
+import de.moritzf.quota.kimi.KimiWebSearchClient
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.shared.JsonSupport
@@ -20,6 +23,7 @@ import java.nio.file.Path
  */
 class OpenAiUsageQuotaMcpToolset(
     private val codexClient: CodexMcpClient = CodexMcpClient.createDefault(),
+    private val kimiSearchClient: KimiWebSearchClient = KimiWebSearchClient.createDefault(),
 ) : McpToolset {
     @McpTool(name = "openai_usage_quota")
     @McpDescription(description = "Returns the latest OpenAI usage quota response JSON.")
@@ -92,6 +96,31 @@ class OpenAiUsageQuotaMcpToolset(
         @McpDescription(description = "Optional target image file path. Relative paths resolve against the open project root when available. Leave blank to return b64_json in the response. The extension selects any image format supported by the standard JDK ImageIO writers, such as png.") targetFile: String? = null,
     ): String {
         return codexResult(codexClient.imageGeneration(prompt, targetFile, projectBaseDirectory()))
+    }
+
+    @McpTool(name = "kimi_web_search")
+    @McpDescription(description = "Runs a Kimi subscription-backed web search using the existing Kimi login and returns the Kimi JSON response.")
+    fun kimi_web_search(
+        @McpDescription(description = "Search query to send to Kimi web search.") query: String,
+        @McpDescription(description = "Number of search results to request. Values are clamped to Kimi's 1-20 range.") limit: Int = KimiWebSearchClient.DEFAULT_LIMIT,
+        @McpDescription(description = "Whether to include fetched page content in the search results. This can substantially increase response size.") includeContent: Boolean = false,
+    ): String {
+        val store = KimiCredentialsStore.getInstance()
+        val credentials = store.loadBlocking()
+        if (credentials?.isUsable() != true) {
+            return errorResult("Kimi login required. Log in from settings.")
+        }
+        return try {
+            val result = kimiSearchClient.webSearch(credentials, query, limit, includeContent)
+            if (result.credentials != credentials) {
+                store.save(result.credentials)
+            }
+            result.body
+        } catch (exception: KimiQuotaException) {
+            errorResult(exception.message ?: "Kimi web search failed.")
+        } catch (exception: Exception) {
+            errorResult(exception.message ?: "Kimi web search failed.")
+        }
     }
 
     private fun quotaResult(

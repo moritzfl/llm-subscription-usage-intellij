@@ -1,10 +1,8 @@
 package de.moritzf.quota.kimi
 
-import de.moritzf.quota.idea.auth.OAuthUrlCodec
 import de.moritzf.quota.shared.JsonSupport
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
-import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.io.IOException
 import java.net.URI
@@ -16,10 +14,12 @@ import java.time.Duration
 open class KimiQuotaClient(
     private val httpClient: HttpClient = HttpClient.newHttpClient(),
     private val usageEndpoint: URI = USAGE_ENDPOINT,
-    private val tokenEndpoint: URI = TOKEN_ENDPOINT,
+    tokenEndpoint: URI = TOKEN_ENDPOINT,
 ) {
+    private val credentialRefresher = KimiCredentialRefresher(httpClient, tokenEndpoint)
+
     open fun fetchQuota(credentials: KimiCredentials): KimiFetchResult {
-        val usableCredentials = refreshIfNeeded(credentials)
+        val usableCredentials = credentialRefresher.refreshIfNeeded(credentials)
         val accessToken = usableCredentials.accessToken.ifBlank {
             throw KimiQuotaException("Kimi login required. Log in from settings.")
         }
@@ -46,51 +46,6 @@ open class KimiQuotaClient(
         return KimiFetchResult(quota, usableCredentials)
     }
 
-    private fun refreshIfNeeded(credentials: KimiCredentials): KimiCredentials {
-        val expiresAt = credentials.expiresAtEpochSeconds
-        if (credentials.accessToken.isNotBlank() && (expiresAt == null || expiresAt - Clock.System.now().epochSeconds > REFRESH_BUFFER_SECONDS)) {
-            return credentials
-        }
-        val refreshToken = credentials.refreshToken.ifBlank { return credentials }
-        return refreshCredentials(refreshToken)
-    }
-
-    private fun refreshCredentials(refreshToken: String): KimiCredentials {
-        val form = formEncode(
-            "client_id" to CLIENT_ID,
-            "grant_type" to "refresh_token",
-            "refresh_token" to refreshToken,
-        )
-        val builder = HttpRequest.newBuilder()
-            .uri(tokenEndpoint)
-            .timeout(Duration.ofSeconds(30))
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Accept", "application/json")
-        KimiDeviceHeaders.all().forEach { (key, value) -> builder.header(key, value) }
-        val request = builder.POST(HttpRequest.BodyPublishers.ofString(form)).build()
-        val response = send(request)
-        val status = response.statusCode()
-        val body = response.body()
-        if (status == 401 || status == 403) {
-            throw KimiQuotaException("Session expired. Log in to Kimi again from settings.", status, body)
-        }
-        if (status !in 200..299) {
-            throw KimiQuotaException("Token refresh failed (HTTP $status). Log in to Kimi again.", status, body)
-        }
-        val dto = try {
-            JsonSupport.json.decodeFromString<KimiTokenResponseDto>(body)
-        } catch (exception: Exception) {
-            throw KimiQuotaException("Could not parse Kimi token response.", status, body, exception)
-        }
-        return KimiCredentials(
-            accessToken = dto.accessToken.orEmpty(),
-            refreshToken = dto.refreshToken ?: refreshToken,
-            expiresAtEpochSeconds = dto.expiresIn?.let { Clock.System.now().epochSeconds + it.toDouble() },
-            scope = dto.scope,
-            tokenType = dto.tokenType ?: "Bearer",
-        )
-    }
-
     private fun send(request: HttpRequest): HttpResponse<String> {
         return try {
             httpClient.send(request, HttpResponse.BodyHandlers.ofString())
@@ -105,8 +60,6 @@ open class KimiQuotaClient(
     companion object {
         private val USAGE_ENDPOINT = URI.create("https://api.kimi.com/coding/v1/usages")
         private val TOKEN_ENDPOINT = URI.create("https://auth.kimi.com/api/oauth/token")
-        private const val CLIENT_ID = "17e5f671-d194-4dfb-9706-5516cb48c098"
-        private const val REFRESH_BUFFER_SECONDS = 300L
 
         fun parseQuota(body: String): KimiQuota {
             val dto = try {
@@ -156,8 +109,6 @@ open class KimiQuotaClient(
                 else -> level.removePrefix("LEVEL_").lowercase().replaceFirstChar { it.uppercase() }.let { "Kimi Code $it" }
             }
         }
-
-        private fun formEncode(vararg pairs: Pair<String, String>): String = OAuthUrlCodec.formEncode(*pairs)
     }
 }
 
@@ -197,12 +148,3 @@ private data class KimiUserDto(val membership: KimiMembershipDto? = null)
 
 @Serializable
 private data class KimiMembershipDto(val level: String? = null)
-
-@Serializable
-private data class KimiTokenResponseDto(
-    @SerialName("access_token") val accessToken: String? = null,
-    @SerialName("refresh_token") val refreshToken: String? = null,
-    @SerialName("expires_in") val expiresIn: Long? = null,
-    val scope: String? = null,
-    @SerialName("token_type") val tokenType: String? = null,
-)

@@ -1,6 +1,7 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+- Added Kimi web search MCP tooling backed by the existing Kimi login
 
 ## [0.17.3] - 2026-06-07
 - Preserve original raw provider responses in settings after IDE restarts
