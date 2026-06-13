@@ -47,4 +47,14 @@ class ModelAliasResolverTest {
         // The Codex backend rejects 'minimal'; the proxy maps it to the nearest accepted tier.
         assertEquals("low", resolver.clampReasoningEffort("gpt-5.5", "minimal"))
     }
+
+    @Test
+    fun clampsCodexMiniToEndpointSupportedEfforts() {
+        assertEquals("medium", resolver.clampReasoningEffort("codex-mini", "medium"))
+        assertEquals("high", resolver.clampReasoningEffort("codex-mini", "high"))
+        assertEquals("medium", resolver.clampReasoningEffort("codex-mini", "low"))
+        assertEquals("high", resolver.clampReasoningEffort("codex-mini", "xhigh"))
+        assertEquals("medium", resolver.clampReasoningEffort("codex-mini", "minimal"))
+        assertEquals("medium", resolver.clampReasoningEffort("codex-mini", "none"))
+    }
 }

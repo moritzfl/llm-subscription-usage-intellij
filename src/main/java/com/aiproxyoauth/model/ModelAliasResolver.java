@@ -37,6 +37,9 @@ public final class ModelAliasResolver {
         String modelName = model == null ? "" : model.toLowerCase(Locale.ROOT);
 
         if (isCodexMini(modelName)) {
+            // Tested against the live Codex /responses endpoint: codex-mini accepts only
+            // medium/high reasoning. Keep the request-time clamp even if unsupported aliases
+            // are not advertised, because clients can send stale or manual reasoning_effort values.
             return switch (effort) {
                 case "high", "xhigh" -> "high";
                 default -> "medium";
