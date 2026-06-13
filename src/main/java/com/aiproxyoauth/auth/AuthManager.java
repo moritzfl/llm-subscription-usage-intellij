@@ -2,6 +2,7 @@ package com.aiproxyoauth.auth;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.aiproxyoauth.config.ServerConfig;
+import com.aiproxyoauth.model.CodexClientVersionResolver;
 import com.aiproxyoauth.util.JwtParser;
 
 import java.net.http.HttpClient;
@@ -85,7 +86,7 @@ public class AuthManager implements CredentialsProvider {
         return Map.of(
                 "Authorization", "Bearer " + auth.accessToken(),
                 "chatgpt-account-id", auth.accountId(),
-                "OpenAI-Beta", "responses=experimental"
+                "version", CodexClientVersionResolver.resolve(config.codexVersion())
         );
     }
 

@@ -14,15 +14,21 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlinx.serialization.json.int
+import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 class CodexMcpClientTest {
     @Test
-    fun postsWebSearchToCodexSearchEndpointWithQuotaAuth() {
-        TestUpstream(responseBody = "{\"output\":\"search result\"}").use { upstream ->
+    fun postsWebSearchToCodexResponsesEndpointWithQuotaAuth() {
+        TestUpstream(
+            responseBody = sse(
+                """{"type":"response.output_text.delta","delta":"search "}""",
+                """{"type":"response.output_text.delta","delta":"result"}""",
+                """{"type":"response.completed","response":{"id":"resp_1","web_search":{"num_requests":1},"tool_usage":{"web_search":{"num_requests":1}}}}""",
+            ),
+        ).use { upstream ->
             val client = newClient(upstream.baseUri)
 
             val response = client.webSearch("OpenAI news")
@@ -31,48 +37,95 @@ class CodexMcpClientTest {
             assertEquals("search result", parseObject(response.body)["output"]!!.jsonPrimitive.content)
             val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
             assertEquals("POST", request.method)
-            assertEquals("/backend-api/codex/alpha/search", request.path)
+            assertEquals("/backend-api/codex/responses", request.path)
             assertEquals("Bearer codex-token", request.firstHeader("Authorization"))
             assertEquals("account-1", request.firstHeader("chatgpt-account-id"))
-            assertEquals("responses=experimental", request.firstHeader("OpenAI-Beta"))
+            assertEquals(TEST_CODEX_VERSION, request.firstHeader("version"))
+            assertNull(request.firstHeader("OpenAI-Beta"))
+            assertEquals("text/event-stream", request.firstHeader("Accept"))
 
             val body = parseObject(request.body)
             assertEquals("gpt-5.5", body["model"]!!.jsonPrimitive.content)
+            assertTrue(body["stream"]!!.jsonPrimitive.boolean)
+            assertFalse(body["store"]!!.jsonPrimitive.boolean)
             assertEquals(
-                "OpenAI news",
-                body["commands"]!!.jsonObject["search_query"]!!.jsonArray[0].jsonObject["q"]!!.jsonPrimitive.content,
+                "Search the web for: OpenAI news",
+                body["input"]!!.jsonArray[0].jsonObject["content"]!!.jsonArray[0]
+                    .jsonObject["text"]!!.jsonPrimitive.content,
             )
-            assertEquals(
-                "direct",
-                body["settings"]!!.jsonObject["allowed_callers"]!!.jsonArray[0].jsonPrimitive.content,
-            )
+            val tool = body["tools"]!!.jsonArray[0].jsonObject
+            assertEquals("web_search", tool["type"]!!.jsonPrimitive.content)
+            assertTrue(tool["external_web_access"]!!.jsonPrimitive.boolean)
+            assertEquals("text", tool["search_content_types"]!!.jsonArray[0].jsonPrimitive.content)
         }
     }
 
     @Test
-    fun postsImageGenerationToCodexImageEndpointWithQuotaAuth() {
-        TestUpstream(responseBody = "{\"created\":1,\"data\":[{\"b64_json\":\"cG5n\"}]}").use { upstream ->
+    fun postsImageGenerationToCodexResponsesEndpointWithQuotaAuth() {
+        TestUpstream(
+            responseBody = sse(
+                """{"type":"response.output_item.done","item":{"type":"image_generation_call","id":"ig_1","status":"generating","revised_prompt":"draw a tiny robot","result":"cG5n"}}""",
+                """{"type":"response.completed","response":{"id":"resp_1","tool_usage":{"image_gen":{"total_tokens":12}}}}""",
+            ),
+        ).use { upstream ->
             val client = newClient(upstream.baseUri)
 
             val response = client.imageGeneration("draw a tiny robot")
 
             assertFalse(response.isError)
-            assertEquals("cG5n", parseObject(response.body)["data"]!!.jsonArray[0].jsonObject["b64_json"]!!.jsonPrimitive.content)
+            val responseBody = parseObject(response.body)
+            assertEquals("cG5n", responseBody["data"]!!.jsonArray[0].jsonObject["b64_json"]!!.jsonPrimitive.content)
+            assertEquals(
+                "draw a tiny robot",
+                responseBody["data"]!!.jsonArray[0].jsonObject["revised_prompt"]!!.jsonPrimitive.content,
+            )
             val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
             assertEquals("POST", request.method)
-            assertEquals("/backend-api/codex/images/generations", request.path)
+            assertEquals("/backend-api/codex/responses", request.path)
             assertEquals("Bearer codex-token", request.firstHeader("Authorization"))
+            assertEquals("account-1", request.firstHeader("chatgpt-account-id"))
+            assertEquals(TEST_CODEX_VERSION, request.firstHeader("version"))
+            assertNull(request.firstHeader("OpenAI-Beta"))
 
             val body = parseObject(request.body)
-            assertEquals("draw a tiny robot", body["prompt"]!!.jsonPrimitive.content)
-            assertEquals("gpt-image-2", body["model"]!!.jsonPrimitive.content)
-            assertEquals(1, body["n"]!!.jsonPrimitive.int)
+            assertEquals("gpt-5.5", body["model"]!!.jsonPrimitive.content)
+            assertTrue(body["stream"]!!.jsonPrimitive.boolean)
+            assertEquals(
+                "draw a tiny robot",
+                body["input"]!!.jsonArray[0].jsonObject["content"]!!.jsonArray[0]
+                    .jsonObject["text"]!!.jsonPrimitive.content,
+            )
+            val tool = body["tools"]!!.jsonArray[0].jsonObject
+            assertEquals("image_generation", tool["type"]!!.jsonPrimitive.content)
+            assertEquals("png", tool["output_format"]!!.jsonPrimitive.content)
+        }
+    }
+
+    @Test
+    fun reportsResponsesFailedEventAsError() {
+        TestUpstream(
+            responseBody = sse(
+                """{"type":"response.failed","response":{"error":{"message":"usage limit reached"}}}""",
+            ),
+        ).use { upstream ->
+            val client = newClient(upstream.baseUri)
+
+            val response = client.webSearch("OpenAI news")
+
+            assertTrue(response.isError)
+            assertEquals("usage limit reached", parseObject(response.body)["error"]!!.jsonPrimitive.content)
         }
     }
 
     @Test
     fun refreshesTokenAndRetriesOnceAfterUpstream401() {
-        TestUpstream(responseBody = "{\"output\":\"search result\"}", failFirstRequests = 1, failStatus = 401).use { upstream ->
+        TestUpstream(
+            responseBody = sse(
+                """{"type":"response.output_text.delta","delta":"search result"}""",
+            ),
+            failFirstRequests = 1,
+            failStatus = 401,
+        ).use { upstream ->
             val tokens = ArrayDeque(listOf("stale-token", "fresh-token"))
             var refreshedWith: String? = null
             val client = CodexMcpClient(
@@ -83,6 +136,7 @@ class CodexMcpClientTest {
                     if (tokens.size > 1) tokens.removeFirst()
                     tokens.first()
                 },
+                codexVersionProvider = { TEST_CODEX_VERSION },
                 httpClient = httpClient,
                 upstreamBaseUri = upstream.baseUri,
             )
@@ -104,6 +158,7 @@ class CodexMcpClientTest {
             val client = CodexMcpClient(
                 accessTokenProvider = { null },
                 accountIdProvider = { "account-1" },
+                codexVersionProvider = { TEST_CODEX_VERSION },
                 httpClient = httpClient,
                 upstreamBaseUri = upstream.baseUri,
             )
@@ -123,13 +178,14 @@ class CodexMcpClientTest {
         return CodexMcpClient(
             accessTokenProvider = { "codex-token" },
             accountIdProvider = { "account-1" },
+            codexVersionProvider = { TEST_CODEX_VERSION },
             httpClient = httpClient,
             upstreamBaseUri = upstreamBaseUri,
         )
     }
 
     private class TestUpstream(
-        private val responseBody: String = "{\"ok\":true}",
+        private val responseBody: String = sse("""{"type":"response.output_text.delta","delta":"ok"}"""),
         private val responseStatus: Int = 200,
         private val failFirstRequests: Int = 0,
         private val failStatus: Int = 503,
@@ -151,7 +207,7 @@ class CodexMcpClientTest {
                 val failing = requestCount.incrementAndGet() <= failFirstRequests
                 val response = (if (failing) "{\"detail\":\"transient upstream failure\"}" else responseBody)
                     .toByteArray(Charsets.UTF_8)
-                exchange.responseHeaders.set("Content-Type", "application/json")
+                exchange.responseHeaders.set("Content-Type", "text/event-stream")
                 exchange.sendResponseHeaders(if (failing) failStatus else responseStatus, response.size.toLong())
                 exchange.responseBody.use { output -> output.write(response) }
             }
@@ -178,6 +234,11 @@ class CodexMcpClientTest {
     private fun parseObject(value: String) = JsonSupport.json.parseToJsonElement(value).jsonObject
 
     private companion object {
+        const val TEST_CODEX_VERSION = "0.999.0"
         val httpClient: HttpClient = HttpClient.newHttpClient()
+
+        fun sse(vararg payloads: String): String {
+            return payloads.joinToString(separator = "\n\n", postfix = "\n\n") { "data: $it" }
+        }
     }
 }

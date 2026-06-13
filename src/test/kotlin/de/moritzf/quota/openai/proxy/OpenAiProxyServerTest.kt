@@ -179,7 +179,8 @@ class OpenAiProxyServerTest {
                 assertEquals("/backend-api/codex/responses", request.path)
                 assertEquals("Bearer codex-token", request.firstHeader("Authorization"))
                 assertEquals("account-1", request.firstHeader("chatgpt-account-id"))
-                assertEquals("responses=experimental", request.firstHeader("OpenAI-Beta"))
+                assertEquals(TEST_CODEX_VERSION, request.firstHeader("version"))
+                assertNull(request.firstHeader("OpenAI-Beta"))
 
                 val upstreamBody = parseObject(request.body)
                 assertEquals("gpt-5.5", upstreamBody["model"]?.jsonPrimitive?.content)
@@ -524,6 +525,112 @@ class OpenAiProxyServerTest {
                 assertEquals(true, upstreamBody["stream"]?.jsonPrimitive?.boolean)
                 assertFalse("temperature" in upstreamBody)
                 assertFalse("max_output_tokens" in upstreamBody)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun proxiesHostedWebSearchThroughResponsesEndpoint() {
+        TestUpstream(responseBody = RESPONSE_STREAM_WITH_TEXT_DELTAS).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/responses"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"instructions\":\"Use web search.\"," +
+                                    "\"stream\":true,\"input\":[{\"type\":\"message\",\"role\":\"user\"," +
+                                    "\"content\":[{\"type\":\"input_text\",\"text\":\"Search OpenAI news\"}]}]," +
+                                    "\"tools\":[{\"type\":\"web_search\",\"external_web_access\":true," +
+                                    "\"search_context_size\":\"medium\"," +
+                                    "\"search_content_types\":[\"text\"]}]}"
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                assertTrue(response.body().contains("response.output_text.delta"))
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("POST", request.method)
+                assertEquals("/backend-api/codex/responses", request.path)
+                assertEquals("Bearer codex-token", request.firstHeader("Authorization"))
+                assertEquals("account-1", request.firstHeader("chatgpt-account-id"))
+                assertEquals(TEST_CODEX_VERSION, request.firstHeader("version"))
+                assertNull(request.firstHeader("OpenAI-Beta"))
+
+                val upstreamBody = parseObject(request.body)
+                assertEquals("gpt-5.5", upstreamBody["model"]!!.jsonPrimitive.content)
+                assertEquals("Use web search.", upstreamBody["instructions"]!!.jsonPrimitive.content)
+                assertEquals(false, upstreamBody["store"]!!.jsonPrimitive.boolean)
+                assertEquals(true, upstreamBody["stream"]!!.jsonPrimitive.boolean)
+                assertEquals(
+                    "Search OpenAI news",
+                    upstreamBody["input"]!!.jsonArray[0].jsonObject["content"]!!
+                        .jsonArray[0].jsonObject["text"]!!.jsonPrimitive.content,
+                )
+                val tool = upstreamBody["tools"]!!.jsonArray[0].jsonObject
+                assertEquals("web_search", tool["type"]!!.jsonPrimitive.content)
+                assertEquals(true, tool["external_web_access"]!!.jsonPrimitive.boolean)
+                assertEquals("medium", tool["search_context_size"]!!.jsonPrimitive.content)
+                assertEquals("text", tool["search_content_types"]!!.jsonArray[0].jsonPrimitive.content)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun proxiesHostedImageGenerationThroughResponsesEndpoint() {
+        TestUpstream(responseBody = HOSTED_IMAGE_GENERATION_RESPONSE_STREAM).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/responses"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"instructions\":\"Generate images.\"," +
+                                    "\"stream\":true,\"input\":[{\"type\":\"message\",\"role\":\"user\"," +
+                                    "\"content\":[{\"type\":\"input_text\",\"text\":\"Draw a cat\"}]}]," +
+                                    "\"tools\":[{\"type\":\"image_generation\",\"output_format\":\"png\"}]}"
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                assertTrue(response.body().contains("image_generation_call"))
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("POST", request.method)
+                assertEquals("/backend-api/codex/responses", request.path)
+                assertEquals("Bearer codex-token", request.firstHeader("Authorization"))
+                assertEquals("account-1", request.firstHeader("chatgpt-account-id"))
+                assertEquals(TEST_CODEX_VERSION, request.firstHeader("version"))
+                assertNull(request.firstHeader("OpenAI-Beta"))
+
+                val upstreamBody = parseObject(request.body)
+                assertEquals("gpt-5.5", upstreamBody["model"]!!.jsonPrimitive.content)
+                assertEquals("Generate images.", upstreamBody["instructions"]!!.jsonPrimitive.content)
+                assertEquals(false, upstreamBody["store"]!!.jsonPrimitive.boolean)
+                assertEquals(true, upstreamBody["stream"]!!.jsonPrimitive.boolean)
+                assertEquals(
+                    "Draw a cat",
+                    upstreamBody["input"]!!.jsonArray[0].jsonObject["content"]!!
+                        .jsonArray[0].jsonObject["text"]!!.jsonPrimitive.content,
+                )
+                val tool = upstreamBody["tools"]!!.jsonArray[0].jsonObject
+                assertEquals("image_generation", tool["type"]!!.jsonPrimitive.content)
+                assertEquals("png", tool["output_format"]!!.jsonPrimitive.content)
             } finally {
                 proxy.stop()
             }
@@ -1857,6 +1964,7 @@ class OpenAiProxyServerTest {
                 accessTokenProvider = { accessToken },
                 accountIdProvider = { "account-1" },
                 upstreamBaseUri = upstreamBaseUri,
+                codexVersionProvider = { TEST_CODEX_VERSION },
             ),
         )
     }
@@ -1928,6 +2036,7 @@ class OpenAiProxyServerTest {
 
     private companion object {
         val httpClient: HttpClient = HttpClient.newHttpClient()
+        const val TEST_CODEX_VERSION = "0.999.0"
         const val TEST_IMAGE_DATA_URL =
             "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
         const val COMPLETED_RESPONSE_STREAM_WITH_TEXT = "event: response.completed\n" +
@@ -1979,6 +2088,11 @@ class OpenAiProxyServerTest {
             "data: {\"type\":\"response.output_text.delta\",\"delta\":\"po\"}\n\n" +
             "event: response.output_text.delta\n" +
             "data: {\"type\":\"response.output_text.delta\",\"delta\":\"ng\"}\n\n" +
+            COMPLETED_RESPONSE_STREAM_WITH_TEXT
+        const val HOSTED_IMAGE_GENERATION_RESPONSE_STREAM = "event: response.output_item.done\n" +
+            "data: {\"type\":\"response.output_item.done\",\"item\":{\"id\":\"ig_1\"," +
+            "\"type\":\"image_generation_call\",\"status\":\"generating\"," +
+            "\"revised_prompt\":\"Draw a cat\",\"result\":\"cG5n\"}}\n\n" +
             COMPLETED_RESPONSE_STREAM_WITH_TEXT
 
         const val JUNIE_UPDATE_TEXT = "<UPDATE>\\n<PREVIOUS_STEP>\\nChecked the SDK state.\\n</PREVIOUS_STEP>\\n" +
