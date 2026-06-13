@@ -233,6 +233,123 @@ class OpenAiProxyServerTest {
     }
 
     @Test
+    fun proxiesImageGenerationThroughCodexImageEndpoint() {
+        TestUpstream(
+            responseContentType = "application/json",
+            responseBody = "{\"created\":1,\"data\":[{\"b64_json\":\"cG5n\"}],\"quality\":\"high\"}",
+        ).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/images/generations"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-image-2\",\"prompt\":\"paint a blue whale\"," +
+                                    "\"size\":\"1024x1024\",\"quality\":\"high\"}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                assertEquals(
+                    "cG5n",
+                    parseObject(response.body())["data"]!!.jsonArray[0].jsonObject["b64_json"]!!.jsonPrimitive.content,
+                )
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("POST", request.method)
+                assertEquals("/backend-api/codex/images/generations", request.path)
+                assertEquals("Bearer codex-token", request.firstHeader("Authorization"))
+                assertEquals("account-1", request.firstHeader("chatgpt-account-id"))
+                val upstreamBody = parseObject(request.body)
+                assertEquals("gpt-image-2", upstreamBody["model"]!!.jsonPrimitive.content)
+                assertEquals("paint a blue whale", upstreamBody["prompt"]!!.jsonPrimitive.content)
+                assertEquals("high", upstreamBody["quality"]!!.jsonPrimitive.content)
+                assertFalse("store" in upstreamBody)
+                assertFalse("stream" in upstreamBody)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun proxiesImageEditsThroughCodexImageEndpointWithoutV1Prefix() {
+        TestUpstream(
+            responseContentType = "application/json",
+            responseBody = "{\"created\":1,\"data\":[{\"b64_json\":\"cG5n\"}]}",
+        ).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/images/edits"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-image-2\",\"prompt\":\"add a red hat\"," +
+                                    "\"images\":[{\"image_url\":\"$TEST_IMAGE_DATA_URL\"}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/backend-api/codex/images/edits", request.path)
+                val upstreamBody = parseObject(request.body)
+                assertEquals("add a red hat", upstreamBody["prompt"]!!.jsonPrimitive.content)
+                assertEquals(
+                    TEST_IMAGE_DATA_URL,
+                    upstreamBody["images"]!!.jsonArray[0].jsonObject["image_url"]!!.jsonPrimitive.content,
+                )
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun mapsImageUpstreamQuotaErrorsToOpenAiEnvelope() {
+        TestUpstream(
+            responseStatus = 404,
+            responseContentType = "application/json",
+            responseBody = "{\"detail\":\"usage_limit_reached\"}",
+        ).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/images/generations"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-image-2\",\"prompt\":\"paint a blue whale\"}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(429, response.statusCode())
+                val error = parseObject(response.body())["error"]!!.jsonObject
+                assertEquals("insufficient_quota", error["type"]!!.jsonPrimitive.content)
+                assertEquals("insufficient_quota", error["code"]!!.jsonPrimitive.content)
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun sanitizesResponsesRequestsBeforeSendingToCodex() {
         TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
             val proxy = newProxy(upstream.baseUri)
