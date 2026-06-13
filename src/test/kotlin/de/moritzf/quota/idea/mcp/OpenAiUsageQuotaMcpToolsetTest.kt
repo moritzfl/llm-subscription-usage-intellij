@@ -19,4 +19,13 @@ class OpenAiUsageQuotaMcpToolsetTest {
                 .map { "${it.name}: ${it.returnType.name}" },
         )
     }
+
+    @Test
+    fun imageGenerationUsesSingleToolWithOptionalTargetFile() {
+        val imageTools = OpenAiUsageQuotaMcpToolset::class.java.declaredMethods
+            .filter { it.getAnnotation(McpTool::class.java)?.name?.startsWith("codex_image_generation") == true }
+
+        assertEquals(listOf("codex_image_generation"), imageTools.map { it.getAnnotation(McpTool::class.java).name })
+        assertEquals(listOf(String::class.java, String::class.java), imageTools.single().parameterTypes.toList())
+    }
 }

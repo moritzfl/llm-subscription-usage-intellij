@@ -18,6 +18,13 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
+import java.io.ByteArrayInputStream
+import java.nio.file.Files
+import java.nio.file.InvalidPathException
+import java.nio.file.Path
+import java.util.Base64
+import java.util.Locale
+import javax.imageio.ImageIO
 import java.net.URI
 import java.net.http.HttpClient
 import java.time.Duration
@@ -45,12 +52,26 @@ class CodexMcpClient(
         return postResponses(searchRequest(trimmedQuery), ::parseSearchResponse)
     }
 
-    fun imageGeneration(prompt: String): CodexMcpResponse {
+    fun imageGeneration(
+        prompt: String,
+        targetFile: String? = null,
+        baseDirectory: Path? = null,
+    ): CodexMcpResponse {
         val trimmedPrompt = prompt.trim()
         if (trimmedPrompt.isBlank()) {
             return CodexMcpResponse(errorJson("Image prompt is required."), true)
         }
-        return postResponses(imageGenerationRequest(trimmedPrompt), ::parseImageGenerationResponse)
+        val trimmedTarget = targetFile?.trim()
+        if (trimmedTarget.isNullOrBlank()) {
+            return postResponses(imageGenerationRequest(trimmedPrompt), ::parseImageGenerationResponse)
+        }
+        val outputTarget = resolveImageOutputTarget(trimmedTarget, baseDirectory)
+            ?: return CodexMcpResponse(errorJson("Image target file is required."), true)
+        outputTarget.error?.let { return CodexMcpResponse(errorJson(it), true) }
+
+        return postResponses(imageGenerationRequest(trimmedPrompt)) { body ->
+            parseImageGenerationToFileResponse(body, outputTarget.path!!, outputTarget.format!!)
+        }
     }
 
     private fun postResponses(
@@ -167,13 +188,51 @@ class CodexMcpClient(
     }
 
     private fun parseImageGenerationResponse(body: String): CodexMcpResponse {
+        firstFailedMessage(body)?.let { return CodexMcpResponse(errorJson(it), true) }
+        val imageResult = imageGenerationResult(body)
+            ?: return CodexMcpResponse(errorJson("Codex image generation returned no image data."), true)
+
+        return CodexMcpResponse(buildJsonObject {
+            imageResult.responseId?.let { put("response_id", it) }
+            putJsonArray("data") {
+                add(buildJsonObject {
+                    put("b64_json", imageResult.b64Json)
+                    imageResult.revisedPrompt?.let { put("revised_prompt", it) }
+                })
+            }
+            imageResult.toolUsage?.let { put("tool_usage", it) }
+        }.toString(), false)
+    }
+
+    private fun parseImageGenerationToFileResponse(
+        body: String,
+        targetFile: Path,
+        format: String,
+    ): CodexMcpResponse {
+        firstFailedMessage(body)?.let { return CodexMcpResponse(errorJson(it), true) }
+        val imageResult = imageGenerationResult(body)
+            ?: return CodexMcpResponse(errorJson("Codex image generation returned no image data."), true)
+
+        val writtenBytes = writeImageFile(imageResult.b64Json, targetFile, format)
+            ?: return CodexMcpResponse(errorJson("Could not write generated image as $format."), true)
+
+        return CodexMcpResponse(buildJsonObject {
+            imageResult.responseId?.let { put("response_id", it) }
+            put("output_file", targetFile.toString())
+            put("format", format)
+            put("bytes", writtenBytes)
+            imageResult.revisedPrompt?.let { put("revised_prompt", it) }
+            imageResult.toolUsage?.let { put("tool_usage", it) }
+        }.toString(), false)
+    }
+
+    private fun imageGenerationResult(body: String): ImageGenerationResult? {
         var responseId: String? = null
         var revisedPrompt: String? = null
         var b64Json: String? = null
         var toolUsage: JsonObject? = null
 
         for (event in responsesDataEvents(body)) {
-            failedMessage(event)?.let { return CodexMcpResponse(errorJson(it), true) }
             when (event.string("type")) {
                 "response.output_item.done" -> {
                     val item = event.obj("item")
@@ -191,18 +250,56 @@ class CodexMcpClient(
         }
 
         val image = b64Json?.takeIf { it.isNotBlank() }
-            ?: return CodexMcpResponse(errorJson("Codex image generation returned no image data."), true)
+            ?: return null
 
-        return CodexMcpResponse(buildJsonObject {
-            responseId?.let { put("response_id", it) }
-            putJsonArray("data") {
-                add(buildJsonObject {
-                    put("b64_json", image)
-                    revisedPrompt?.let { put("revised_prompt", it) }
-                })
-            }
-            toolUsage?.let { put("tool_usage", it) }
-        }.toString(), false)
+        return ImageGenerationResult(responseId, revisedPrompt, image, toolUsage)
+    }
+
+    private fun firstFailedMessage(body: String): String? {
+        return responsesDataEvents(body).firstNotNullOfOrNull(::failedMessage)
+    }
+
+    private fun resolveImageOutputTarget(targetFile: String, baseDirectory: Path?): ImageOutputTarget? {
+        val trimmedTarget = targetFile.trim()
+        if (trimmedTarget.isBlank()) {
+            return null
+        }
+        val path = try {
+            Path.of(trimmedTarget)
+        } catch (exception: InvalidPathException) {
+            return ImageOutputTarget(error = exception.message ?: "Invalid image target file path.")
+        }
+        val resolved = if (path.isAbsolute) {
+            path.normalize()
+        } else {
+            val base = (baseDirectory ?: Path.of(System.getProperty("user.dir"))).toAbsolutePath().normalize()
+            base.resolve(path).normalize()
+        }
+        val format = resolved.fileName?.toString()
+            ?.substringAfterLast('.', missingDelimiterValue = "")
+            ?.lowercase(Locale.ROOT)
+            ?.takeIf { it.isNotBlank() }
+            ?: return ImageOutputTarget(error = "Image target file must include an extension.")
+        if (format !in SUPPORTED_IMAGE_FORMATS) {
+            return ImageOutputTarget(
+                error = "Unsupported image format '$format'. Supported formats: ${SUPPORTED_IMAGE_FORMATS.sorted().joinToString(", ")}.",
+            )
+        }
+        return ImageOutputTarget(path = resolved, format = format)
+    }
+
+    private fun writeImageFile(b64Json: String, targetFile: Path, format: String): Long? {
+        val imageBytes = runCatching { Base64.getDecoder().decode(b64Json) }.getOrNull() ?: return null
+        val image = ImageIO.read(ByteArrayInputStream(imageBytes)) ?: return null
+        val parent = targetFile.parent
+        if (parent != null) {
+            Files.createDirectories(parent)
+        }
+        val written = ImageIO.write(image, format, targetFile.toFile())
+        if (!written) {
+            return null
+        }
+        return Files.size(targetFile)
     }
 
     private fun responsesDataEvents(body: String): Sequence<JsonObject> {
@@ -240,12 +337,28 @@ class CodexMcpClient(
 
     data class CodexMcpResponse(val body: String, val isError: Boolean)
 
+    private data class ImageGenerationResult(
+        val responseId: String?,
+        val revisedPrompt: String?,
+        val b64Json: String,
+        val toolUsage: JsonObject?,
+    )
+
+    private data class ImageOutputTarget(
+        val path: Path? = null,
+        val format: String? = null,
+        val error: String? = null,
+    )
+
     companion object {
         private const val RESPONSES_PATH = "/responses"
         private const val RESPONSES_MODEL = "gpt-5.5"
         private const val SEARCH_INSTRUCTIONS = "You are a concise assistant. Use web search when needed."
         private const val IMAGE_GENERATION_INSTRUCTIONS =
             "Use the image_generation tool to satisfy image requests. Return no extra commentary."
+        private val SUPPORTED_IMAGE_FORMATS = ImageIO.getWriterFormatNames()
+            .map { it.lowercase(Locale.ROOT) }
+            .toSet()
 
         fun createDefault(): CodexMcpClient {
             return CodexMcpClient(

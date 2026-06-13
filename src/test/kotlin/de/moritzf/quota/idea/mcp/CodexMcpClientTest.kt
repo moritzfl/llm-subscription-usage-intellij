@@ -6,6 +6,8 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.URI
 import java.net.http.HttpClient
+import java.nio.file.Files
+import java.nio.file.Path
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
@@ -18,6 +20,8 @@ import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
+import org.junit.jupiter.api.io.TempDir
 
 class CodexMcpClientTest {
     @Test
@@ -98,6 +102,48 @@ class CodexMcpClientTest {
             val tool = body["tools"]!!.jsonArray[0].jsonObject
             assertEquals("image_generation", tool["type"]!!.jsonPrimitive.content)
             assertEquals("png", tool["output_format"]!!.jsonPrimitive.content)
+        }
+    }
+
+    @Test
+    fun writesImageGenerationToTargetFile(@TempDir tempDir: Path) {
+        TestUpstream(
+            responseBody = sse(
+                """{"type":"response.output_item.done","item":{"type":"image_generation_call","id":"ig_1","status":"generating","revised_prompt":"draw a tiny robot","result":"$TEST_PNG_BASE64"}}""",
+                """{"type":"response.completed","response":{"id":"resp_1","tool_usage":{"image_gen":{"total_tokens":12}}}}""",
+            ),
+        ).use { upstream ->
+            val client = newClient(upstream.baseUri)
+
+            val response = client.imageGeneration("draw a tiny robot", "robot.png", tempDir)
+
+            assertFalse(response.isError)
+            val responseBody = parseObject(response.body)
+            val targetFile = tempDir.resolve("robot.png")
+            assertEquals(targetFile.toString(), responseBody["output_file"]!!.jsonPrimitive.content)
+            assertEquals("png", responseBody["format"]!!.jsonPrimitive.content)
+            assertTrue(responseBody["bytes"]!!.jsonPrimitive.long > 0)
+            assertEquals("draw a tiny robot", responseBody["revised_prompt"]!!.jsonPrimitive.content)
+            assertFalse("data" in responseBody)
+            assertTrue(Files.exists(targetFile))
+            val signature = Files.newInputStream(targetFile).use { it.readNBytes(8).toList() }
+            assertEquals(listOf(137, 80, 78, 71, 13, 10, 26, 10), signature.map { it.toInt() and 0xff })
+
+            val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+            assertEquals("/backend-api/codex/responses", request.path)
+        }
+    }
+
+    @Test
+    fun rejectsUnsupportedImageFileFormatBeforeCallingUpstream(@TempDir tempDir: Path) {
+        TestUpstream().use { upstream ->
+            val client = newClient(upstream.baseUri)
+
+            val response = client.imageGeneration("draw a tiny robot", "robot.txt", tempDir)
+
+            assertTrue(response.isError)
+            assertTrue(parseObject(response.body)["error"]!!.jsonPrimitive.content.contains("Unsupported image format 'txt'"))
+            assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
         }
     }
 
@@ -235,6 +281,8 @@ class CodexMcpClientTest {
 
     private companion object {
         const val TEST_CODEX_VERSION = "0.999.0"
+        const val TEST_PNG_BASE64 =
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
         val httpClient: HttpClient = HttpClient.newHttpClient()
 
         fun sse(vararg payloads: String): String {

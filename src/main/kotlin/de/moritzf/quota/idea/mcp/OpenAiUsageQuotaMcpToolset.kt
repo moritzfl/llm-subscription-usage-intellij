@@ -3,6 +3,7 @@ package de.moritzf.quota.idea.mcp
 import com.intellij.mcpserver.McpToolset
 import com.intellij.mcpserver.annotations.McpDescription
 import com.intellij.mcpserver.annotations.McpTool
+import com.intellij.openapi.project.ProjectManager
 import de.moritzf.quota.cursor.CursorQuotaClient
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
@@ -11,6 +12,7 @@ import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.shared.JsonSupport
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import java.nio.file.Path
 
 /**
  * Exposes the latest subscription usage JSON through IntelliJ's MCP server.
@@ -84,11 +86,12 @@ class OpenAiUsageQuotaMcpToolset(
     }
 
     @McpTool(name = "codex_image_generation")
-    @McpDescription(description = "Generates an image through the Codex subscription-backed image endpoint and returns the Codex JSON response, including b64_json data when successful.")
+    @McpDescription(description = "Generates an image through Codex. If targetFile is provided, writes the image there and returns JSON metadata; otherwise returns the Codex JSON response including b64_json data.")
     fun codex_image_generation(
         @McpDescription(description = "Image prompt to send to Codex image generation.") prompt: String,
+        @McpDescription(description = "Optional target image file path. Relative paths resolve against the open project root when available. Leave blank to return b64_json in the response. The extension selects any image format supported by the standard JDK ImageIO writers, such as png.") targetFile: String? = null,
     ): String {
-        return codexResult(codexClient.imageGeneration(prompt))
+        return codexResult(codexClient.imageGeneration(prompt, targetFile, projectBaseDirectory()))
     }
 
     private fun quotaResult(
@@ -113,6 +116,12 @@ class OpenAiUsageQuotaMcpToolset(
 
     private fun codexResult(response: CodexMcpClient.CodexMcpResponse): String {
         return response.body
+    }
+
+    private fun projectBaseDirectory(): Path? {
+        return ProjectManager.getInstance().openProjects.firstOrNull()
+            ?.basePath
+            ?.let(Path::of)
     }
 
     private fun successResult(text: String): String {
