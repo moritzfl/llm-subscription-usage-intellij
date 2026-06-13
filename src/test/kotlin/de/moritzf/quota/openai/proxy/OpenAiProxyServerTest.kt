@@ -194,6 +194,45 @@ class OpenAiProxyServerTest {
     }
 
     @Test
+    fun convertsChatCompletionImagePartsToResponsesImageInput() {
+        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"messages\":[" +
+                                    "{\"role\":\"user\",\"content\":[" +
+                                    "{\"type\":\"text\",\"text\":\"What is in this image?\"}," +
+                                    "{\"type\":\"image_url\",\"image_url\":{" +
+                                    "\"url\":\"$TEST_IMAGE_DATA_URL\",\"detail\":\"high\"}}]}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                val upstreamBody = parseObject(request.body)
+                val content = upstreamBody["input"]!!.jsonArray[0].jsonObject["content"]!!.jsonArray
+                assertEquals("input_text", content[0].jsonObject["type"]!!.jsonPrimitive.content)
+                val imagePart = content[1].jsonObject
+                assertEquals("input_image", imagePart["type"]!!.jsonPrimitive.content)
+                assertEquals(TEST_IMAGE_DATA_URL, imagePart["image_url"]!!.jsonPrimitive.content)
+                assertEquals("high", imagePart["detail"]!!.jsonPrimitive.content)
+                assertFalse("url" in imagePart)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun sanitizesResponsesRequestsBeforeSendingToCodex() {
         TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
             val proxy = newProxy(upstream.baseUri)
@@ -1061,6 +1100,50 @@ class OpenAiProxyServerTest {
     }
 
     @Test
+    fun preservesImageInputForJunieResponsesRequests() {
+        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/responses"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"stream\":false,\"store\":false," +
+                                    "\"input\":[" +
+                                    "{\"type\":\"message\",\"role\":\"system\",\"content\":" +
+                                    "\"You are Junie, an autonomous programmer developed by JetBrains.\"}," +
+                                    "{\"type\":\"message\",\"role\":\"user\",\"content\":[" +
+                                    "{\"type\":\"input_text\",\"text\":\"Describe the screenshot.\"}," +
+                                    "{\"type\":\"input_image\",\"image_url\":\"$TEST_IMAGE_DATA_URL\"," +
+                                    "\"detail\":\"original\"}]}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                val upstreamBody = parseObject(request.body)
+                assertTrue(upstreamBody["instructions"]!!.jsonPrimitive.content.contains("You are Junie"))
+                val input = upstreamBody["input"]!!.jsonArray
+                assertEquals(1, input.size)
+                val content = input[0].jsonObject["content"]!!.jsonArray
+                assertEquals("input_text", content[0].jsonObject["type"]!!.jsonPrimitive.content)
+                val imagePart = content[1].jsonObject
+                assertEquals("input_image", imagePart["type"]!!.jsonPrimitive.content)
+                assertEquals(TEST_IMAGE_DATA_URL, imagePart["image_url"]!!.jsonPrimitive.content)
+                assertEquals("original", imagePart["detail"]!!.jsonPrimitive.content)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun wrapsToollessJunieResponsesTextAsCommandProtocolInsteadOfToolCall() {
         TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
             val proxy = newProxy(upstream.baseUri)
@@ -1576,6 +1659,8 @@ class OpenAiProxyServerTest {
 
     private companion object {
         val httpClient: HttpClient = HttpClient.newHttpClient()
+        const val TEST_IMAGE_DATA_URL =
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
         const val COMPLETED_RESPONSE_STREAM_WITH_TEXT = "event: response.completed\n" +
             "data: {\"type\":\"response.completed\",\"response\":{" +
             "\"id\":\"resp_1\",\"object\":\"response\",\"status\":\"completed\"," +

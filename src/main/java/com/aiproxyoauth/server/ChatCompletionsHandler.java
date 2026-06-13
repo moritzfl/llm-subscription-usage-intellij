@@ -1056,11 +1056,11 @@ public class ChatCompletionsHandler implements Handler {
                         part.put("type", "input_image");
                         JsonNode imageUrl = item.get("image_url");
                         if (imageUrl != null && imageUrl.has("url")) {
-                            part.put("url", imageUrl.path("url").asText(""));
+                            part.put("image_url", imageUrl.path("url").asText(""));
                         }
-                        // Note: the OpenAI "detail" field ("low"/"high"/"auto") is intentionally
-                        // not forwarded — the upstream Responses API does not expose an equivalent
-                        // image resolution parameter.
+                        if (imageUrl != null && imageUrl.has("detail")) {
+                            part.put("detail", imageUrl.path("detail").asText(""));
+                        }
                         target.add(part);
                     }
                 }
