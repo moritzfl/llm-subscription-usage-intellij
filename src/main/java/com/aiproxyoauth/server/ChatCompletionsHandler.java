@@ -84,9 +84,9 @@ public class ChatCompletionsHandler implements Handler {
         boolean legacyFunctionCallProtocol = usesLegacyFunctions(body);
         AccessLogFields.mode(ctx, wantsStream ? "stream" : "sync");
         // When --models was specified, default to the first configured model.
-        // "gpt-5.2" is the last-resort fallback for when no models were configured and
-        // auto-discovery failed — in that case no better default is available without
-        // an extra ModelResolver call. Callers can always override via the "model" field.
+        // ServerConfig.DEFAULT_MODEL is the last-resort fallback for when no models were
+        // configured and auto-discovery failed — in that case no better default is available
+        // without an extra ModelResolver call. Callers can always override via the "model" field.
         String defaultModel = config.models() != null && !config.models().isEmpty()
                 ? config.models().getFirst() : ServerConfig.DEFAULT_MODEL;
         String model = body.path("model").asText(defaultModel);

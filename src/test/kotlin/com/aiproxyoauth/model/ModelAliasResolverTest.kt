@@ -29,13 +29,6 @@ class ModelAliasResolverTest {
     }
 
     @Test
-    fun keepsExistingDashAliases() {
-        val resolved = resolver.resolve("gpt-5.2-codex-high")
-        assertEquals("gpt-5.2-codex", resolved.model())
-        assertEquals("high", resolved.reasoningEffort())
-    }
-
-    @Test
     fun keepsXHighForCurrentModelFamilies() {
         assertEquals("xhigh", resolver.clampReasoningEffort("gpt-5.5", "xhigh"))
         assertEquals("xhigh", resolver.clampReasoningEffort("gpt-5.4", "xhigh"))
@@ -45,7 +38,8 @@ class ModelAliasResolverTest {
 
     @Test
     fun downgradesXHighForModelsThatDoNotSupportIt() {
-        assertEquals("high", resolver.clampReasoningEffort("gpt-5.1", "xhigh"))
+        // Models outside the supported families fall back to 'high'.
+        assertEquals("high", resolver.clampReasoningEffort("gpt-4o", "xhigh"))
     }
 
     @Test

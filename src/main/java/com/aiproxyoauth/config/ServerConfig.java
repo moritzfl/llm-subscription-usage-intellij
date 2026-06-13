@@ -34,7 +34,7 @@ public record ServerConfig(
     public static final String DEFAULT_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
     public static final String DEFAULT_ISSUER = "https://auth.openai.com";
     public static final String DEFAULT_INSTRUCTIONS = "";
-    public static final String DEFAULT_MODEL = "gpt-5.2";
+    public static final String DEFAULT_MODEL = "gpt-5.5";
     public static final String DEFAULT_REQUEST_LOG_DIR = Path.of("logs", "requests")
             .toAbsolutePath()
             .normalize()
