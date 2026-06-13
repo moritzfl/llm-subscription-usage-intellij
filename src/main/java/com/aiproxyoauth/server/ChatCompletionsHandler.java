@@ -260,14 +260,16 @@ public class ChatCompletionsHandler implements Handler {
             }
         }
 
-        // Reasoning effort
-        if (chatBody.has("reasoning_effort") && !chatBody.get("reasoning_effort").isNull()) {
+        // Reasoning effort. A tier baked into the model name (aliasReasoningEffort) is the
+        // user's explicit choice and wins over a separately supplied reasoning_effort, which
+        // for clients like Junie can be a stale per-model default.
+        String requestedEffort = aliasReasoningEffort != null
+                ? aliasReasoningEffort
+                : (chatBody.has("reasoning_effort") && !chatBody.get("reasoning_effort").isNull()
+                        ? chatBody.get("reasoning_effort").asText() : null);
+        if (requestedEffort != null) {
             ObjectNode reasoning = MAPPER.createObjectNode();
-            reasoning.put("effort", modelAliasResolver.clampReasoningEffort(model, chatBody.get("reasoning_effort").asText()));
-            upstream.set("reasoning", reasoning);
-        } else if (aliasReasoningEffort != null) {
-            ObjectNode reasoning = MAPPER.createObjectNode();
-            reasoning.put("effort", modelAliasResolver.clampReasoningEffort(model, aliasReasoningEffort));
+            reasoning.put("effort", modelAliasResolver.clampReasoningEffort(model, requestedEffort));
             upstream.set("reasoning", reasoning);
         }
 

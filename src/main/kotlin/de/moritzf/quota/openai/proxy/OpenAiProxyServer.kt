@@ -231,12 +231,25 @@ class OpenAiProxyServer(
         // model the subscription lacks returns an upstream error that the proxy surfaces
         // as `insufficient_quota`. We advertise a static list rather than live-discovering
         // so Junie's model-discovery call stays instant and offline-tolerant.
-        private val ADVERTISED_MODELS = listOf(
-            "gpt-5.3-codex-spark",
+        // gpt-5.5-pro is intentionally absent: the Codex backend rejects it for ChatGPT
+        // accounts ("not supported when using Codex with a ChatGPT account").
+        private val ADVERTISED_BASE_MODELS = listOf(
+            "gpt-5.5",
             "gpt-5.4",
             "gpt-5.4-mini",
-            "gpt-5.5",
-            "gpt-5.5-pro",
+            "gpt-5.3-codex-spark",
         )
+
+        // Reasoning tiers the Codex backend accepts for every advertised model (verified
+        // against the live backend). `minimal` is excluded — upstream rejects it — and
+        // `none` is omitted because it is not one of the levels clients surface.
+        // Junie derives its reasoning-tier selector from model NAMES of the form
+        // "<base> (<level>)"; opencode and other clients ignore the suffixed entries and
+        // send the bare base model plus a separate reasoning-effort option instead.
+        private val REASONING_TIERS = listOf("low", "medium", "high", "xhigh")
+
+        private val ADVERTISED_MODELS: List<String> = ADVERTISED_BASE_MODELS.flatMap { base ->
+            listOf(base) + REASONING_TIERS.map { tier -> "$base ($tier)" }
+        }
     }
 }

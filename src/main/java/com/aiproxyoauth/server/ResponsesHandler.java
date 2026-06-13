@@ -202,7 +202,9 @@ public class ResponsesHandler implements Handler {
         ObjectNode reasoning = reasoningNode != null && reasoningNode.isObject()
                 ? ((ObjectNode) reasoningNode).deepCopy()
                 : MAPPER.createObjectNode();
-        String requestedEffort = reasoning.path("effort").asText(aliasEffort);
+        // A tier baked into the model name (aliasEffort) is the user's explicit choice and
+        // wins over a separately supplied reasoning.effort.
+        String requestedEffort = aliasEffort != null ? aliasEffort : reasoning.path("effort").asText(null);
         String clampedEffort = modelAliasResolver.clampReasoningEffort(normalized.path("model").asText(), requestedEffort);
         if (clampedEffort != null) {
             reasoning.put("effort", clampedEffort);

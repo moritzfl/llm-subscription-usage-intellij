@@ -719,6 +719,68 @@ class OpenAiProxyServerTest {
     }
 
     @Test
+    fun reasoningTierSuffixForwardsBaseModelAndEffortUpstream() {
+        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5 (xhigh)\",\"messages\":[" +
+                                    "{\"role\":\"user\",\"content\":\"hi\"}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                val upstreamBody = parseObject(request.body)
+                assertEquals("gpt-5.5", upstreamBody["model"]!!.jsonPrimitive.content)
+                assertEquals("xhigh", upstreamBody["reasoning"]!!.jsonObject["effort"]!!.jsonPrimitive.content)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun reasoningTierSuffixWinsOverSeparateReasoningEffort() {
+        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5 (high)\",\"reasoning_effort\":\"medium\"," +
+                                    "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                val upstreamBody = parseObject(request.body)
+                assertEquals("gpt-5.5", upstreamBody["model"]!!.jsonPrimitive.content)
+                assertEquals("high", upstreamBody["reasoning"]!!.jsonObject["effort"]!!.jsonPrimitive.content)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun returnsConfiguredModelsLocallyWithoutUpstreamRequest() {
         TestUpstream().use { upstream ->
             val proxy = newProxy(upstream.baseUri)
@@ -735,7 +797,20 @@ class OpenAiProxyServerTest {
                 assertEquals(200, response.statusCode())
                 val root = parseObject(response.body())
                 val models = root["data"]!!.jsonArray.map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertEquals(listOf("gpt-5.3-codex-spark", "gpt-5.4", "gpt-5.4-mini", "gpt-5.5", "gpt-5.5-pro"), models)
+                // Each base model is advertised bare plus one entry per reasoning tier so Junie
+                // can build its tier selector from the model names.
+                assertEquals(
+                    listOf(
+                        "gpt-5.5", "gpt-5.5 (low)", "gpt-5.5 (medium)", "gpt-5.5 (high)", "gpt-5.5 (xhigh)",
+                        "gpt-5.4", "gpt-5.4 (low)", "gpt-5.4 (medium)", "gpt-5.4 (high)", "gpt-5.4 (xhigh)",
+                        "gpt-5.4-mini", "gpt-5.4-mini (low)", "gpt-5.4-mini (medium)", "gpt-5.4-mini (high)", "gpt-5.4-mini (xhigh)",
+                        "gpt-5.3-codex-spark", "gpt-5.3-codex-spark (low)", "gpt-5.3-codex-spark (medium)",
+                        "gpt-5.3-codex-spark (high)", "gpt-5.3-codex-spark (xhigh)",
+                    ),
+                    models,
+                )
+                // gpt-5.5-pro is not advertised: the Codex backend rejects it for ChatGPT accounts.
+                assertFalse(models.any { it.startsWith("gpt-5.5-pro") })
                 assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
             } finally {
                 proxy.stop()
@@ -760,9 +835,9 @@ class OpenAiProxyServerTest {
                 assertEquals(200, response.statusCode())
                 val root = parseObject(response.body())
                 val firstModel = root["data"]!!.jsonArray[0].jsonObject
-                assertEquals("gpt-5.3-codex-spark", firstModel["id"]!!.jsonPrimitive.content)
-                assertEquals("gpt-5.3-codex-spark", firstModel["model_name"]!!.jsonPrimitive.content)
-                assertEquals("gpt-5.3-codex-spark", firstModel["litellm_params"]!!.jsonObject["model"]!!.jsonPrimitive.content)
+                assertEquals("gpt-5.5", firstModel["id"]!!.jsonPrimitive.content)
+                assertEquals("gpt-5.5", firstModel["model_name"]!!.jsonPrimitive.content)
+                assertEquals("gpt-5.5", firstModel["litellm_params"]!!.jsonObject["model"]!!.jsonPrimitive.content)
                 assertEquals("chat", firstModel["model_info"]!!.jsonObject["mode"]!!.jsonPrimitive.content)
                 assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
             } finally {
