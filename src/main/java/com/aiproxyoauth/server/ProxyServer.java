@@ -101,12 +101,15 @@ public class ProxyServer {
                     new ChatCompletionsHandler(client, config, usageTracker, requestLogger, instructionsProvider);
             javalinConfig.routes.post("/v1/chat/completions", chatCompletionsHandler);
             javalinConfig.routes.post("/chat/completions", chatCompletionsHandler);
-            ImagesHandler imageGenerationsHandler = new ImagesHandler(client, requestLogger, "/images/generations");
+            CodexJsonHandler imageGenerationsHandler = new CodexJsonHandler(client, requestLogger, "/images/generations");
             javalinConfig.routes.post("/v1/images/generations", imageGenerationsHandler);
             javalinConfig.routes.post("/images/generations", imageGenerationsHandler);
-            ImagesHandler imageEditsHandler = new ImagesHandler(client, requestLogger, "/images/edits");
+            CodexJsonHandler imageEditsHandler = new CodexJsonHandler(client, requestLogger, "/images/edits");
             javalinConfig.routes.post("/v1/images/edits", imageEditsHandler);
             javalinConfig.routes.post("/images/edits", imageEditsHandler);
+            CodexJsonHandler alphaSearchHandler = new CodexJsonHandler(client, requestLogger, "/alpha/search");
+            javalinConfig.routes.post("/v1/alpha/search", alphaSearchHandler);
+            javalinConfig.routes.post("/alpha/search", alphaSearchHandler);
 
             // Missing upstream credentials surface as 401 so clients show the real cause
             // (e.g. "OpenAI login required") instead of a generic server error.

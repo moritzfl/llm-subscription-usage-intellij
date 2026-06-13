@@ -350,6 +350,50 @@ class OpenAiProxyServerTest {
     }
 
     @Test
+    fun proxiesAlphaSearchThroughCodexSearchEndpoint() {
+        TestUpstream(
+            responseContentType = "application/json",
+            responseBody = "{\"encrypted_output\":\"ciphertext\",\"output\":\"search result\"}",
+        ).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/alpha/search"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"id\":\"search-session\",\"model\":\"gpt-5.5\"," +
+                                    "\"commands\":{\"search_query\":[{\"q\":\"OpenAI news\"}]}}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                assertEquals("search result", parseObject(response.body())["output"]!!.jsonPrimitive.content)
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("POST", request.method)
+                assertEquals("/backend-api/codex/alpha/search", request.path)
+                assertEquals("Bearer codex-token", request.firstHeader("Authorization"))
+                assertEquals("account-1", request.firstHeader("chatgpt-account-id"))
+                val upstreamBody = parseObject(request.body)
+                assertEquals("search-session", upstreamBody["id"]!!.jsonPrimitive.content)
+                assertEquals("gpt-5.5", upstreamBody["model"]!!.jsonPrimitive.content)
+                assertEquals(
+                    "OpenAI news",
+                    upstreamBody["commands"]!!.jsonObject["search_query"]!!.jsonArray[0].jsonObject["q"]!!
+                        .jsonPrimitive.content,
+                )
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun sanitizesResponsesRequestsBeforeSendingToCodex() {
         TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
             val proxy = newProxy(upstream.baseUri)

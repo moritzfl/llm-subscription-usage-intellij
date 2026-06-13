@@ -14,14 +14,14 @@ import java.util.Map;
 
 import static com.aiproxyoauth.server.JsonHelper.MAPPER;
 
-public class ImagesHandler implements Handler {
+public class CodexJsonHandler implements Handler {
 
     private final CodexHttpClient client;
     private final RequestLogger requestLogger;
     private final UpstreamErrorMapper upstreamErrorMapper = new UpstreamErrorMapper();
     private final String upstreamPath;
 
-    public ImagesHandler(CodexHttpClient client, RequestLogger requestLogger, String upstreamPath) {
+    public CodexJsonHandler(CodexHttpClient client, RequestLogger requestLogger, String upstreamPath) {
         this.client = client;
         this.requestLogger = requestLogger;
         this.upstreamPath = upstreamPath;
