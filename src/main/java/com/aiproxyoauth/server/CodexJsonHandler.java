@@ -10,11 +10,18 @@ import org.jetbrains.annotations.NotNull;
 import java.io.InputStream;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 
 import static com.aiproxyoauth.server.JsonHelper.MAPPER;
 
 public class CodexJsonHandler implements Handler {
+
+    private static final List<String> FORWARDED_RESPONSE_HEADERS = List.of(
+            "x-codex-turn-state",
+            "x-models-etag",
+            "x-reasoning-included",
+            "openai-model");
 
     private final CodexHttpClient client;
     private final RequestLogger requestLogger;
@@ -69,6 +76,7 @@ public class CodexJsonHandler implements Handler {
 
             ctx.status(upstream.statusCode());
             ctx.contentType(responseContentType(upstream));
+            copySelectedResponseHeaders(ctx, upstream);
             AccessLogFields.responseBytes(ctx, rawBody.getBytes(StandardCharsets.UTF_8).length);
             ctx.result(rawBody);
         }
@@ -91,5 +99,11 @@ public class CodexJsonHandler implements Handler {
 
     private static <T> Map<String, java.util.List<String>> responseHeaders(HttpResponse<T> response) {
         return response.headers() == null ? Map.of() : response.headers().map();
+    }
+
+    private static <T> void copySelectedResponseHeaders(Context ctx, HttpResponse<T> response) {
+        for (String header : FORWARDED_RESPONSE_HEADERS) {
+            response.headers().firstValue(header).ifPresent(value -> ctx.header(header, value));
+        }
     }
 }

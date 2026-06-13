@@ -394,6 +394,59 @@ class OpenAiProxyServerTest {
     }
 
     @Test
+    fun proxiesResponsesCompactThroughCodexCompactEndpoint() {
+        TestUpstream(
+            responseContentType = "application/json",
+            responseHeaders = mapOf("x-codex-turn-state" to "turn-state-1"),
+            responseBody = "{\"output\":[{\"type\":\"message\",\"role\":\"assistant\"," +
+                "\"content\":[{\"type\":\"output_text\",\"text\":\"summary\"}]}]}",
+        ).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/responses/compact"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"input\":[{\"type\":\"message\"," +
+                                    "\"role\":\"user\",\"content\":[{\"type\":\"input_text\"," +
+                                    "\"text\":\"summarize\"}]}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                assertEquals(
+                    "turn-state-1",
+                    response.headers().firstValue("x-codex-turn-state").orElse(null),
+                )
+                assertEquals(
+                    "summary",
+                    parseObject(response.body())["output"]!!.jsonArray[0]
+                        .jsonObject["content"]!!.jsonArray[0].jsonObject["text"]!!.jsonPrimitive.content,
+                )
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("POST", request.method)
+                assertEquals("/backend-api/codex/responses/compact", request.path)
+                assertEquals("Bearer codex-token", request.firstHeader("Authorization"))
+                val upstreamBody = parseObject(request.body)
+                assertEquals("gpt-5.5", upstreamBody["model"]!!.jsonPrimitive.content)
+                assertEquals(
+                    "summarize",
+                    upstreamBody["input"]!!.jsonArray[0].jsonObject["content"]!!
+                        .jsonArray[0].jsonObject["text"]!!.jsonPrimitive.content,
+                )
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun sanitizesResponsesRequestsBeforeSendingToCodex() {
         TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
             val proxy = newProxy(upstream.baseUri)
@@ -1765,6 +1818,7 @@ class OpenAiProxyServerTest {
     private class TestUpstream(
         private val responseBody: String = "{\"ok\":true}",
         private val responseContentType: String = "text/event-stream",
+        private val responseHeaders: Map<String, String> = emptyMap(),
         private val responseStatus: Int = 200,
         private val failFirstRequests: Int = 0,
         private val failStatus: Int = 503,
@@ -1788,6 +1842,9 @@ class OpenAiProxyServerTest {
                 val response = (if (failing) "{\"detail\":\"transient upstream failure\"}" else responseBody)
                     .toByteArray(Charsets.UTF_8)
                 exchange.responseHeaders.set("Content-Type", if (failing) "application/json" else responseContentType)
+                if (!failing) {
+                    responseHeaders.forEach { (name, value) -> exchange.responseHeaders.set(name, value) }
+                }
                 exchange.sendResponseHeaders(if (failing) failStatus else responseStatus, response.size.toLong())
                 exchange.responseBody.use { output -> output.write(response) }
             }
