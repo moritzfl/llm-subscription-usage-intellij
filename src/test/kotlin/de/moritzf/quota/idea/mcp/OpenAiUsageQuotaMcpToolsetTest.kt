@@ -40,4 +40,28 @@ class OpenAiUsageQuotaMcpToolsetTest {
             kimiSearchTools.single().parameterTypes.toList(),
         )
     }
+
+    @Test
+    fun zaiWebSearchUsesSingleToolWithConfigurableOptions() {
+        val searchTools = OpenAiUsageQuotaMcpToolset::class.java.declaredMethods
+            .filter { it.getAnnotation(McpTool::class.java)?.name?.startsWith("zai_web_search") == true }
+
+        assertEquals(listOf("zai_web_search"), searchTools.map { it.getAnnotation(McpTool::class.java).name })
+        assertEquals(
+            listOf(String::class.java, Int::class.java, Boolean::class.java),
+            searchTools.single().parameterTypes.toList(),
+        )
+    }
+
+    @Test
+    fun miniMaxWebSearchUsesSingleToolWithConfigurableOptions() {
+        val searchTools = OpenAiUsageQuotaMcpToolset::class.java.declaredMethods
+            .filter { it.getAnnotation(McpTool::class.java)?.name?.startsWith("minimax_web_search") == true }
+
+        assertEquals(listOf("minimax_web_search"), searchTools.map { it.getAnnotation(McpTool::class.java).name })
+        assertEquals(
+            listOf(String::class.java, Int::class.java, Boolean::class.java),
+            searchTools.single().parameterTypes.toList(),
+        )
+    }
 }

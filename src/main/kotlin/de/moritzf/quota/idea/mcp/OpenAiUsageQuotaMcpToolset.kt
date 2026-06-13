@@ -8,11 +8,20 @@ import de.moritzf.quota.cursor.CursorQuotaClient
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.kimi.KimiCredentialsStore
+import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
+import de.moritzf.quota.idea.settings.QuotaSettingsState
+import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 import de.moritzf.quota.kimi.KimiQuotaException
 import de.moritzf.quota.kimi.KimiWebSearchClient
+import de.moritzf.quota.minimax.MiniMaxQuotaException
+import de.moritzf.quota.minimax.MiniMaxRegion
+import de.moritzf.quota.minimax.MiniMaxRegionPreference
+import de.moritzf.quota.minimax.MiniMaxWebSearchClient
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.zai.ZaiQuotaException
+import de.moritzf.quota.zai.ZaiWebSearchClient
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.nio.file.Path
@@ -24,6 +33,8 @@ import java.nio.file.Path
 class OpenAiUsageQuotaMcpToolset(
     private val codexClient: CodexMcpClient = CodexMcpClient.createDefault(),
     private val kimiSearchClient: KimiWebSearchClient = KimiWebSearchClient.createDefault(),
+    private val zaiSearchClient: ZaiWebSearchClient = ZaiWebSearchClient.createDefault(),
+    private val miniMaxSearchClient: MiniMaxWebSearchClient = MiniMaxWebSearchClient.createDefault(),
 ) : McpToolset {
     @McpTool(name = "openai_usage_quota")
     @McpDescription(description = "Returns the latest OpenAI usage quota response JSON.")
@@ -123,6 +134,50 @@ class OpenAiUsageQuotaMcpToolset(
         }
     }
 
+    @McpTool(name = "zai_web_search")
+    @McpDescription(description = "Runs a Z.ai web search using the configured Z.ai API key and returns normalized JSON results.")
+    fun zai_web_search(
+        @McpDescription(description = "Search query to send to Z.ai web search.") query: String,
+        @McpDescription(description = "Number of search results to request. Values are clamped to 1-20.") limit: Int = ZaiWebSearchClient.DEFAULT_LIMIT,
+        @McpDescription(description = "Whether to include full result content in addition to snippets when returned by Z.ai.") includeContent: Boolean = false,
+    ): String {
+        val apiKey = ZaiApiKeyStore.getInstance().loadBlocking()
+        if (apiKey.isNullOrBlank()) {
+            return errorResult("Z.ai API key missing. Add a Z.ai API key in settings.")
+        }
+        return try {
+            zaiSearchClient.webSearch(apiKey, query, limit, includeContent)
+        } catch (exception: ZaiQuotaException) {
+            errorResult(exception.message ?: "Z.ai web search failed.")
+        } catch (exception: Exception) {
+            errorResult(exception.message ?: "Z.ai web search failed.")
+        }
+    }
+
+    @McpTool(name = "minimax_web_search")
+    @McpDescription(description = "Runs a MiniMax Token Plan web search using the configured MiniMax API key and returns normalized JSON results.")
+    fun minimax_web_search(
+        @McpDescription(description = "Search query to send to MiniMax web search.") query: String,
+        @McpDescription(description = "Number of search results to return from MiniMax results. Values are clamped to 1-20.") limit: Int = MiniMaxWebSearchClient.DEFAULT_LIMIT,
+        @McpDescription(description = "Whether to include full result content in addition to snippets when returned by MiniMax.") includeContent: Boolean = false,
+    ): String {
+        val apiKey = MiniMaxApiKeyStore.getInstance().loadBlocking()
+        if (apiKey.isNullOrBlank()) {
+            return errorResult("MiniMax API key missing. Add a MiniMax API key in settings.")
+        }
+        var lastException: Exception? = null
+        for (region in miniMaxSearchRegions()) {
+            try {
+                return miniMaxSearchClient.webSearch(apiKey, region, query, limit, includeContent)
+            } catch (exception: MiniMaxQuotaException) {
+                lastException = exception
+            } catch (exception: Exception) {
+                lastException = exception
+            }
+        }
+        return errorResult(lastException?.message ?: "MiniMax web search failed.")
+    }
+
     private fun quotaResult(
         type: QuotaProviderType,
         emptyMessage: String,
@@ -151,6 +206,14 @@ class OpenAiUsageQuotaMcpToolset(
         return ProjectManager.getInstance().openProjects.firstOrNull()
             ?.basePath
             ?.let(Path::of)
+    }
+
+    private fun miniMaxSearchRegions(): List<MiniMaxRegion> {
+        return when (runCatching { QuotaSettingsState.getInstance().miniMaxRegionPreference() }.getOrDefault(MiniMaxRegionPreference.AUTO)) {
+            MiniMaxRegionPreference.GLOBAL -> listOf(MiniMaxRegion.GLOBAL)
+            MiniMaxRegionPreference.CN -> listOf(MiniMaxRegion.CN)
+            MiniMaxRegionPreference.AUTO -> listOf(MiniMaxRegion.GLOBAL, MiniMaxRegion.CN)
+        }
     }
 
     private fun successResult(text: String): String {

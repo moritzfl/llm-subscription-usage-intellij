@@ -1,6 +1,7 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+- Added Z.ai and MiniMax web search MCP tooling backed by configured API keys
 - Added Kimi web search MCP tooling backed by the existing Kimi login
 
 ## [0.17.3] - 2026-06-07
