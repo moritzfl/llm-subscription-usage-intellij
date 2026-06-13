@@ -1,6 +1,5 @@
 package de.moritzf.quota.openai.proxy
 
-import com.aiproxyoauth.auth.AuthRequiredException
 import com.aiproxyoauth.auth.CredentialsProvider
 import com.aiproxyoauth.config.ServerConfig
 import com.aiproxyoauth.model.ModelResolver
@@ -62,7 +61,7 @@ class OpenAiProxyServer(
         try {
             val models = ADVERTISED_MODELS
             val config = serverConfig(localApiKey, models)
-            val credentialsProvider = QuotaCredentialsProvider(accessTokenProvider, accountIdProvider, tokenRefresher)
+            val credentialsProvider = QuotaCodexCredentialsProvider(accessTokenProvider, accountIdProvider, tokenRefresher)
             val client = SanitizingCodexHttpClient(config, httpClient, credentialsProvider)
             val proxyServer = ProxyServer(
                 config,
@@ -118,42 +117,6 @@ class OpenAiProxyServer(
 
     private fun debugLog(message: String) {
         debugLogger?.invoke(message)
-    }
-
-    /**
-     * Pure delegating [CredentialsProvider]: it never refreshes or persists tokens itself.
-     * Header tokens come from the IDE auth service (which transparently refreshes on local
-     * expiry), and an upstream 401 is routed back to that service via [tokenRefresher] so
-     * the IDE's secure-storage login/refresh logic remains the sole owner of credentials.
-     */
-    private class QuotaCredentialsProvider(
-        private val accessTokenProvider: () -> String?,
-        private val accountIdProvider: () -> String?,
-        private val tokenRefresher: (staleAccessToken: String?) -> String?,
-    ) : CredentialsProvider {
-        @Throws(Exception::class)
-        override fun getAuthHeaders(): Map<String, String> {
-            val accessToken = accessTokenProvider()?.trim().takeUnless { it.isNullOrBlank() }
-                ?: throw AuthRequiredException("OpenAI login required: log in on the OpenAI settings tab, then retry.")
-            val headers = linkedMapOf(
-                "Authorization" to "Bearer $accessToken",
-                "OpenAI-Beta" to "responses=experimental",
-            )
-            val accountId = accountIdProvider()?.trim().takeUnless { it.isNullOrBlank() }
-            if (accountId != null) {
-                headers["chatgpt-account-id"] = accountId
-            }
-            return headers
-        }
-
-        override fun refreshAfterUnauthorized(rejectedAuthorizationHeader: String?): Boolean {
-            // Key the refresh on the exact token the rejected request carried — not on any
-            // shared mutable slot — so concurrent 401s on different tokens dedupe correctly.
-            val staleToken = rejectedAuthorizationHeader
-                ?.removePrefix("Bearer ")?.trim()?.takeUnless { it.isEmpty() }
-            val tokenAfterRefresh = tokenRefresher(staleToken)
-            return tokenAfterRefresh != null && tokenAfterRefresh != staleToken
-        }
     }
 
     private class SanitizingCodexHttpClient(

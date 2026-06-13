@@ -18,7 +18,9 @@ import kotlinx.serialization.json.put
  * Exposes the latest subscription usage JSON through IntelliJ's MCP server.
  * Each tool must stay a discrete annotated method; the bodies delegate to [quotaResult].
  */
-class OpenAiUsageQuotaMcpToolset : McpToolset {
+class OpenAiUsageQuotaMcpToolset(
+    private val codexClient: CodexMcpClient = CodexMcpClient.createDefault(),
+) : McpToolset {
     @McpTool(name = "openai_usage_quota")
     @McpDescription(description = "Returns the latest OpenAI usage quota response JSON.")
     fun openai_usage_quota(): McpToolCallResult {
@@ -75,6 +77,22 @@ class OpenAiUsageQuotaMcpToolset : McpToolset {
         }
     }
 
+    @McpTool(name = "codex_web_search")
+    @McpDescription(description = "Runs a Codex subscription-backed web search using the existing OpenAI login and returns the Codex JSON response.")
+    fun codex_web_search(
+        @McpDescription(description = "Search query to send to Codex web search.") query: String,
+    ): McpToolCallResult {
+        return codexResult(codexClient.webSearch(query))
+    }
+
+    @McpTool(name = "codex_image_generation")
+    @McpDescription(description = "Generates an image through the Codex subscription-backed image endpoint and returns the Codex JSON response, including b64_json data when successful.")
+    fun codex_image_generation(
+        @McpDescription(description = "Image prompt to send to Codex image generation.") prompt: String,
+    ): McpToolCallResult {
+        return codexResult(codexClient.imageGeneration(prompt))
+    }
+
     private fun quotaResult(
         type: QuotaProviderType,
         emptyMessage: String,
@@ -93,6 +111,10 @@ class OpenAiUsageQuotaMcpToolset : McpToolset {
             return errorResult(emptyMessage)
         }
         return successResult(payload)
+    }
+
+    private fun codexResult(response: CodexMcpClient.CodexMcpResponse): McpToolCallResult {
+        return McpToolCallResult(arrayOf(McpToolCallResultContent.Text(response.body)), null, response.isError)
     }
 
     private fun successResult(text: String): McpToolCallResult {
