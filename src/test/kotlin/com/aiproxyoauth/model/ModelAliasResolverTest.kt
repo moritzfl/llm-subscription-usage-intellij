@@ -32,7 +32,6 @@ class ModelAliasResolverTest {
     fun keepsXHighForCurrentModelFamilies() {
         assertEquals("xhigh", resolver.clampReasoningEffort("gpt-5.5", "xhigh"))
         assertEquals("xhigh", resolver.clampReasoningEffort("gpt-5.4", "xhigh"))
-        assertEquals("xhigh", resolver.clampReasoningEffort("gpt-5.4-mini", "xhigh"))
         assertEquals("xhigh", resolver.clampReasoningEffort("gpt-5.3-codex-spark", "xhigh"))
     }
 
@@ -56,5 +55,7 @@ class ModelAliasResolverTest {
         assertEquals("high", resolver.clampReasoningEffort("codex-mini", "xhigh"))
         assertEquals("medium", resolver.clampReasoningEffort("codex-mini", "minimal"))
         assertEquals("medium", resolver.clampReasoningEffort("codex-mini", "none"))
+        assertEquals("medium", resolver.clampReasoningEffort("gpt-5.4-mini", "low"))
+        assertEquals("high", resolver.clampReasoningEffort("gpt-5.4-mini", "xhigh"))
     }
 }

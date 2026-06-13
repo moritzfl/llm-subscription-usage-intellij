@@ -36,8 +36,8 @@ public final class ModelAliasResolver {
         String effort = requestedEffort.strip().toLowerCase(Locale.ROOT);
         String modelName = model == null ? "" : model.toLowerCase(Locale.ROOT);
 
-        if (isCodexMini(modelName)) {
-            // Tested against the live Codex /responses endpoint: codex-mini accepts only
+        if (isMiniModel(modelName)) {
+            // Tested against the live Codex /responses endpoint: mini models accept only
             // medium/high reasoning. Keep the request-time clamp even if unsupported aliases
             // are not advertised, because clients can send stale or manual reasoning_effort values.
             return switch (effort) {
@@ -61,8 +61,8 @@ public final class ModelAliasResolver {
         return effort;
     }
 
-    private boolean isCodexMini(String modelName) {
-        return modelName.contains("codex-mini");
+    private boolean isMiniModel(String modelName) {
+        return modelName.endsWith("-mini") || modelName.contains("codex-mini");
     }
 
     private boolean isCodexModel(String modelName) {

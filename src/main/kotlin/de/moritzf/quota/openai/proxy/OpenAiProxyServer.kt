@@ -240,16 +240,18 @@ class OpenAiProxyServer(
             "gpt-5.3-codex-spark",
         )
 
-        // Reasoning tiers the Codex backend accepts for every advertised model (verified
-        // against the live backend). `minimal` is excluded — upstream rejects it — and
-        // `none` is omitted because it is not one of the levels clients surface.
+        // Reasoning tiers the Codex backend accepts for the advertised non-mini models
+        // (verified against the live backend). `minimal` is excluded — upstream rejects
+        // it — and `none` is omitted because it is not one of the levels clients surface.
         // Junie derives its reasoning-tier selector from model NAMES of the form
         // "<base> (<level>)"; opencode and other clients ignore the suffixed entries and
         // send the bare base model plus a separate reasoning-effort option instead.
         private val REASONING_TIERS = listOf("low", "medium", "high", "xhigh")
+        private val MINI_REASONING_TIERS = listOf("medium", "high")
 
         private val ADVERTISED_MODELS: List<String> = ADVERTISED_BASE_MODELS.flatMap { base ->
-            listOf(base) + REASONING_TIERS.map { tier -> "$base ($tier)" }
+            val tiers = if (base.endsWith("-mini")) MINI_REASONING_TIERS else REASONING_TIERS
+            listOf(base) + tiers.map { tier -> "$base ($tier)" }
         }
     }
 }

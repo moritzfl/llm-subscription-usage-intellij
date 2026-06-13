@@ -919,13 +919,13 @@ class OpenAiProxyServerTest {
                 assertEquals(200, response.statusCode())
                 val root = parseObject(response.body())
                 val models = root["data"]!!.jsonArray.map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                // Each base model is advertised bare plus one entry per reasoning tier so Junie
-                // can build its tier selector from the model names.
+                // Each base model is advertised bare plus one entry per supported reasoning tier
+                // so Junie can build its tier selector from the model names.
                 assertEquals(
                     listOf(
                         "gpt-5.5", "gpt-5.5 (low)", "gpt-5.5 (medium)", "gpt-5.5 (high)", "gpt-5.5 (xhigh)",
                         "gpt-5.4", "gpt-5.4 (low)", "gpt-5.4 (medium)", "gpt-5.4 (high)", "gpt-5.4 (xhigh)",
-                        "gpt-5.4-mini", "gpt-5.4-mini (low)", "gpt-5.4-mini (medium)", "gpt-5.4-mini (high)", "gpt-5.4-mini (xhigh)",
+                        "gpt-5.4-mini", "gpt-5.4-mini (medium)", "gpt-5.4-mini (high)",
                         "gpt-5.3-codex-spark", "gpt-5.3-codex-spark (low)", "gpt-5.3-codex-spark (medium)",
                         "gpt-5.3-codex-spark (high)", "gpt-5.3-codex-spark (xhigh)",
                     ),
