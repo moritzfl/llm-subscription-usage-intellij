@@ -447,6 +447,57 @@ class OpenAiProxyServerTest {
     }
 
     @Test
+    fun proxiesMemoryTraceSummarizeThroughCodexMemoriesEndpoint() {
+        TestUpstream(
+            responseContentType = "application/json",
+            responseBody = "{\"output\":[{\"trace_summary\":\"trace summary\"," +
+                "\"memory_summary\":\"memory summary\"}]}",
+        ).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/memories/trace_summarize"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"traces\":[{\"id\":\"trace-1\"," +
+                                    "\"metadata\":{\"source_path\":\"/tmp/trace.json\"}," +
+                                    "\"items\":[{\"type\":\"message\",\"role\":\"user\"," +
+                                    "\"content\":[{\"type\":\"input_text\",\"text\":\"remember this\"}]}]}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                assertEquals(
+                    "memory summary",
+                    parseObject(response.body())["output"]!!.jsonArray[0].jsonObject["memory_summary"]!!
+                        .jsonPrimitive.content,
+                )
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("POST", request.method)
+                assertEquals("/backend-api/codex/memories/trace_summarize", request.path)
+                assertEquals("Bearer codex-token", request.firstHeader("Authorization"))
+                assertEquals("account-1", request.firstHeader("chatgpt-account-id"))
+                val upstreamBody = parseObject(request.body)
+                assertEquals("gpt-5.5", upstreamBody["model"]!!.jsonPrimitive.content)
+                assertEquals("trace-1", upstreamBody["traces"]!!.jsonArray[0].jsonObject["id"]!!.jsonPrimitive.content)
+                assertEquals(
+                    "/tmp/trace.json",
+                    upstreamBody["traces"]!!.jsonArray[0].jsonObject["metadata"]!!
+                        .jsonObject["source_path"]!!.jsonPrimitive.content,
+                )
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun sanitizesResponsesRequestsBeforeSendingToCodex() {
         TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
             val proxy = newProxy(upstream.baseUri)

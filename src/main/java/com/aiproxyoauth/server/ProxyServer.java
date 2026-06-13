@@ -100,6 +100,9 @@ public class ProxyServer {
             CodexJsonHandler compactHandler = new CodexJsonHandler(client, requestLogger, "/responses/compact");
             javalinConfig.routes.post("/v1/responses/compact", compactHandler);
             javalinConfig.routes.post("/responses/compact", compactHandler);
+            CodexJsonHandler memoriesHandler = new CodexJsonHandler(client, requestLogger, "/memories/trace_summarize");
+            javalinConfig.routes.post("/v1/memories/trace_summarize", memoriesHandler);
+            javalinConfig.routes.post("/memories/trace_summarize", memoriesHandler);
             ChatCompletionsHandler chatCompletionsHandler =
                     new ChatCompletionsHandler(client, config, usageTracker, requestLogger, instructionsProvider);
             javalinConfig.routes.post("/v1/chat/completions", chatCompletionsHandler);
