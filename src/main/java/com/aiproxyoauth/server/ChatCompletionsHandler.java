@@ -56,10 +56,14 @@ public class ChatCompletionsHandler implements Handler {
         String requestId = shouldUseRequestContext() ? requestId(ctx) : requestLogger.nextRequestId();
         String bodyStr = ctx.body();
         requestLogger.logInbound(requestId, ctx, bodyStr);
-        JsonNode body = MAPPER.readTree(bodyStr);
-
-        if (body == null || !body.isObject()) {
-            JsonHelper.toErrorResponse(ctx, "Request body must be a JSON object.");
+        JsonNode body;
+        try {
+            body = RequestValidator.parseJsonObject(ctx, bodyStr);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            RequestValidator.rejectMalformedJson(ctx, e);
+            return;
+        }
+        if (body == null) {
             return;
         }
 

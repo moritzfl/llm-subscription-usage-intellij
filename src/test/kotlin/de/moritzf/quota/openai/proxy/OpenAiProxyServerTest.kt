@@ -25,6 +25,128 @@ import kotlinx.serialization.json.jsonPrimitive
 
 class OpenAiProxyServerTest {
     @Test
+    fun rejectsInvalidLocalApiKeyBeforeCallingUpstream() {
+        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Authorization", "Bearer wrong-local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(401, response.statusCode())
+                val error = parseObject(response.body())["error"]!!.jsonObject
+                assertEquals("auth_error", error["type"]?.jsonPrimitive?.content)
+                assertEquals("Invalid or missing API key.", error["message"]?.jsonPrimitive?.content)
+                assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun forwardsUnknownModelAndSurfacesUpstreamRejection() {
+        TestUpstream(
+            responseStatus = 400,
+            responseContentType = "application/json",
+            responseBody = "{\"error\":{\"message\":\"Unknown model: future-model\",\"type\":\"invalid_request_error\",\"param\":\"model\",\"code\":\"model_not_found\"}}",
+        ).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"future-model\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(400, response.statusCode())
+                val error = parseObject(response.body())["error"]!!.jsonObject
+                assertEquals("invalid_request_error", error["type"]?.jsonPrimitive?.content)
+                assertEquals("Unknown model: future-model", error["message"]?.jsonPrimitive?.content)
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                val upstreamBody = parseObject(request.body)
+                assertEquals("future-model", upstreamBody["model"]?.jsonPrimitive?.content)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun rejectsMalformedChatCompletionJsonBeforeCallingUpstream() {
+        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString("{\"model\":\"gpt-5.5\",\"messages\":"))
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(400, response.statusCode())
+                val error = parseObject(response.body())["error"]!!.jsonObject
+                assertEquals("invalid_request_error", error["type"]?.jsonPrimitive?.content)
+                assertEquals("Malformed JSON request body.", error["message"]?.jsonPrimitive?.content)
+                assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun wrapsGenericUpstreamFailureAsOpenAiError() {
+        TestUpstream(
+            responseStatus = 502,
+            responseContentType = "application/json",
+            responseBody = "{\"detail\":\"upstream gateway exploded\"}",
+        ).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/responses"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString("{\"model\":\"gpt-5.5\",\"input\":[]}"))
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(502, response.statusCode())
+                val error = parseObject(response.body())["error"]!!.jsonObject
+                assertEquals("upstream_error", error["type"]?.jsonPrimitive?.content)
+                assertEquals("upstream gateway exploded", error["message"]?.jsonPrimitive?.content)
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun proxiesChatCompletionsThroughAIProxyOauthWithQuotaAuthentication() {
         TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
             val proxy = newProxy(upstream.baseUri)
