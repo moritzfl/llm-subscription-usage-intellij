@@ -57,22 +57,6 @@ internal class OllamaSettingsPanel(
                 cell(ollamaStatusLabel)
             }
             row {
-                label("API key enables Ollama MCP web search. Usage quota still uses the session cookie below.")
-            }
-            row("API key:") {
-                cell(apiKeyField)
-                    .resizableColumn()
-                    .align(AlignX.FILL)
-            }
-            row {
-                button("Save API Key") {
-                    saveApiKeyNow()
-                }
-                button("Clear API Key") {
-                    clearApiKeyNow()
-                }
-            }
-            row {
                 label("Extract from ollama.com → DevTools → Storage → Cookies. Paste __Secure-session (required) and cf_clearance (optional).")
             }
             row("Session cookie (__Secure-session):") {
@@ -104,6 +88,22 @@ internal class OllamaSettingsPanel(
                     cfClearanceField.text = ""
                     updateStatus()
                     QuotaUsageService.getInstance().clearUsageData(QuotaProviderType.OLLAMA)
+                }
+            }
+            row {
+                label("Optional: add an Ollama API key to enable MCP web search. Quota fetching still uses the session cookie above.")
+            }
+            row("API key:") {
+                cell(apiKeyField)
+                    .resizableColumn()
+                    .align(AlignX.FILL)
+            }
+            row {
+                button("Save API Key") {
+                    saveApiKeyNow()
+                }
+                button("Clear API Key") {
+                    clearApiKeyNow()
                 }
             }
             separator()
