@@ -5,6 +5,7 @@ import com.intellij.mcpserver.annotations.McpDescription
 import com.intellij.mcpserver.annotations.McpTool
 import com.intellij.openapi.project.ProjectManager
 import de.moritzf.quota.cursor.CursorQuotaClient
+import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.kimi.KimiCredentialsStore
@@ -25,8 +26,10 @@ import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.zai.ZaiQuotaException
 import de.moritzf.quota.zai.ZaiWebSearchClient
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import java.nio.file.Path
 
 /**
@@ -94,6 +97,59 @@ class OpenAiUsageQuotaMcpToolset(
         return quotaResult(QuotaProviderType.CURSOR, "No Cursor usage response available") { service ->
             service.getLastResponseJson(QuotaProviderType.CURSOR)?.let(CursorQuotaClient::normalizeRawJson)
         }
+    }
+
+    @McpTool(name = "web_search_tools_status")
+    @McpDescription(description = "Returns which MCP web search tools have the required local credentials configured. Does not call provider search APIs.")
+    fun web_search_tools_status(): String {
+        val statuses = listOf(
+            searchToolStatus(
+                tool = "codex_web_search",
+                provider = "OpenAI Codex",
+                missingReason = "OpenAI login required. Log in from settings.",
+            ) { !QuotaAuthService.getInstance().getAccessTokenBlocking(QuotaProviderType.OPEN_AI).isNullOrBlank() },
+            searchToolStatus(
+                tool = "kimi_web_search",
+                provider = "Kimi",
+                missingReason = "Kimi login required. Log in from settings.",
+            ) { KimiCredentialsStore.getInstance().loadBlocking()?.isUsable() == true },
+            searchToolStatus(
+                tool = "zai_web_search",
+                provider = "Z.ai",
+                missingReason = "Z.ai API key missing. Add a Z.ai API key in settings.",
+            ) { !ZaiApiKeyStore.getInstance().loadBlocking().isNullOrBlank() },
+            searchToolStatus(
+                tool = "minimax_web_search",
+                provider = "MiniMax",
+                missingReason = "MiniMax API key missing. Add a MiniMax API key in settings.",
+            ) { !MiniMaxApiKeyStore.getInstance().loadBlocking().isNullOrBlank() },
+            searchToolStatus(
+                tool = "ollama_web_search",
+                provider = "Ollama",
+                missingReason = "Ollama API key missing. Add an Ollama API key in settings.",
+            ) { !OllamaApiKeyStore.getInstance().loadBlocking().isNullOrBlank() },
+        )
+
+        return buildJsonObject {
+            put("check", "credentials")
+            put("note", "This status does not call provider search APIs.")
+            putJsonArray("available_tools") {
+                statuses.filter { it.available }.forEach { add(it.tool) }
+            }
+            putJsonArray("tools") {
+                statuses.forEach { status ->
+                    add(buildJsonObject {
+                        put("tool", status.tool)
+                        put("provider", status.provider)
+                        put("configured", status.configured)
+                        put("available", status.available)
+                        if (!status.available) {
+                            put("reason", status.reason)
+                        }
+                    })
+                }
+            }
+        }.toString()
     }
 
     @McpTool(name = "codex_web_search")
@@ -240,6 +296,22 @@ class OpenAiUsageQuotaMcpToolset(
         }
     }
 
+    private fun searchToolStatus(
+        tool: String,
+        provider: String,
+        missingReason: String,
+        isConfigured: () -> Boolean,
+    ): SearchToolStatus {
+        val configured = runCatching { isConfigured() }.getOrDefault(false)
+        return SearchToolStatus(
+            tool = tool,
+            provider = provider,
+            configured = configured,
+            available = configured,
+            reason = if (configured) null else missingReason,
+        )
+    }
+
     private fun successResult(text: String): String {
         return text
     }
@@ -247,4 +319,12 @@ class OpenAiUsageQuotaMcpToolset(
     private fun errorResult(errorMessage: String): String {
         return buildJsonObject { put("error", errorMessage) }.toString()
     }
+
+    private data class SearchToolStatus(
+        val tool: String,
+        val provider: String,
+        val configured: Boolean,
+        val available: Boolean,
+        val reason: String?,
+    )
 }

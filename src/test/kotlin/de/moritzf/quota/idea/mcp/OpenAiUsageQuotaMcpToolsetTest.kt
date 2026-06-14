@@ -30,6 +30,15 @@ class OpenAiUsageQuotaMcpToolsetTest {
     }
 
     @Test
+    fun webSearchToolsStatusUsesSingleNoArgTool() {
+        val statusTools = OpenAiUsageQuotaMcpToolset::class.java.declaredMethods
+            .filter { it.getAnnotation(McpTool::class.java)?.name?.startsWith("web_search_tools_status") == true }
+
+        assertEquals(listOf("web_search_tools_status"), statusTools.map { it.getAnnotation(McpTool::class.java).name })
+        assertEquals(emptyList(), statusTools.single().parameterTypes.toList())
+    }
+
+    @Test
     fun kimiWebSearchUsesSingleToolWithConfigurableOptions() {
         val kimiSearchTools = OpenAiUsageQuotaMcpToolset::class.java.declaredMethods
             .filter { it.getAnnotation(McpTool::class.java)?.name?.startsWith("kimi_web_search") == true }

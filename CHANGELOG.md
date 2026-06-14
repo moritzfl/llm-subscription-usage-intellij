@@ -1,6 +1,7 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+- Added an MCP web search status tool to report which search providers have local credentials configured
 - Added Ollama web search MCP tooling backed by a configured Ollama API key while keeping quota fetching on session cookies
 - Added Z.ai and MiniMax web search MCP tooling backed by configured API keys
 - Added Kimi web search MCP tooling backed by the existing Kimi login
