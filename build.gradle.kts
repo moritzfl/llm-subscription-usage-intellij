@@ -1,5 +1,8 @@
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+import org.jetbrains.intellij.platform.gradle.extensions.excludeCoroutines
+import org.jetbrains.intellij.platform.gradle.extensions.excludeKotlinStdlib
+import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 
 plugins {
     alias(libs.plugins.kotlin.jvm) // Kotlin support
@@ -36,6 +39,11 @@ sourceSets {
 // Set the JVM language level used to build the project.
 kotlin {
     jvmToolchain(21)
+    compilerOptions {
+        // IntelliJ 2025.3 bundles Kotlin 2.2.x; do not emit calls requiring a newer stdlib.
+        apiVersion.set(KotlinVersion.KOTLIN_2_2)
+        languageVersion.set(KotlinVersion.KOTLIN_2_2)
+    }
 }
 
 // Configure project's dependencies
@@ -50,16 +58,23 @@ repositories {
 
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/version_catalogs.html
 dependencies {
-    implementation(libs.kotlinx.datetime)
+    implementation(libs.kotlinx.datetime) {
+        excludeKotlinStdlib()
+        excludeCoroutines()
+    }
     implementation(libs.snakeyaml.engine)
     implementation(libs.tomlj)
     implementation(libs.jsoup)
-    implementation(libs.javalin)
+    implementation(libs.javalin) {
+        excludeKotlinStdlib()
+        excludeCoroutines()
+    }
     implementation(libs.jackson.databind)
     implementation(libs.picocli)
-    compileOnly(libs.kotlinx.serialization.json)
-    runtimeOnly(libs.kotlinx.serialization.json)
-    runtimeOnly(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.serialization.json) {
+        excludeKotlinStdlib()
+        excludeCoroutines()
+    }
 
     testImplementation(libs.kotlin.test.junit5)
     testRuntimeOnly(libs.junit4)
