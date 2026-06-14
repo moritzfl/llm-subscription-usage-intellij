@@ -1,10 +1,11 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
-- Added an MCP web search status tool to report which search providers have local credentials configured
-- Added Ollama web search MCP tooling backed by a configured Ollama API key while keeping quota fetching on session cookies
-- Added Z.ai and MiniMax web search MCP tooling backed by configured API keys
-- Added Kimi web search MCP tooling backed by the existing Kimi login
+- Added support for **GitHub Copilot** subscription usage quotas, including GitHub device login, popup/indicator display, settings, caching, and MCP usage access.
+- Added a local **OpenAI-compatible proxy** backed by the existing OpenAI/Codex login for clients such as JetBrains Junie, with copyable base URL/API key setup and optional request/response logging.
+- Added hosted Codex MCP tools for web search and image generation, including saving generated images directly to a file.
+- Added MCP web search tools for **Kimi**, **Z.ai**, **MiniMax**, and **Ollama**, plus a status tool that reports which search providers are configured before callers try them.
+- Improved quota display consistency by showing provider usage as percentages more consistently and labeling quota windows by duration where available.
 
 ## [0.17.3] - 2026-06-07
 - Preserve original raw provider responses in settings after IDE restarts

@@ -1,8 +1,10 @@
 # LLM Subscription Usage
 
-Track your LLM subscription usage quotas directly in IntelliJ IDEA — in the status bar, a detailed popup, through IDE chat tools, and in local AI client MCP configs.
+Track and use your LLM subscriptions directly in IntelliJ IDEA — in the status bar, a detailed popup, through IDE chat tools, local AI client MCP configs, and a local OpenAI-compatible proxy.
 
-**Supports:** OpenAI (ChatGPT), GitHub Copilot, OpenCode Go, Ollama Cloud, Z.ai, MiniMax, and Kimi.
+This plugin started as a simple OpenAI quota checker. It has grown into a multi-provider subscription companion and now includes capabilities beyond quota display, such as hosted web search/image-generation MCP tools and a Codex-backed local proxy. The goal is to help you get the most value from the subscriptions you already pay for.
+
+**Supports:** OpenAI (ChatGPT), Cursor, GitHub Copilot, OpenCode Go, Ollama Cloud, Z.ai, MiniMax, and Kimi.
 
 <table align="center">
   <tr>
@@ -41,15 +43,26 @@ Track your LLM subscription usage quotas directly in IntelliJ IDEA — in the st
 - Next reset times
 - Last refresh timestamps
 
-**MCP Integration** — Exposes quota data to IntelliJ's built-in chat via the Model Context Protocol, so you can query usage without switching contexts. It can also sync the currently running IntelliJ MCP server URL into JSON/TOML/YAML config files for local AI clients.
+**MCP Integration** — Exposes quota data and supported hosted capabilities to IntelliJ's built-in chat via the Model Context Protocol. It can also sync the currently running IntelliJ MCP server URL into JSON/TOML/YAML config files for local AI clients.
+
+Individual MCP tools can be enabled or disabled in the IDE settings under `Tools` > `MCP Server` > `Exposed Tools`.
+
+**MCP Web Search** — Search the web through subscription-backed provider APIs without leaving the IDE. Supported search providers:
+- OpenAI/Codex via the existing OpenAI login
+- Kimi via the existing Kimi login
+- Z.ai via API key
+- MiniMax via API key
+- Ollama via API key
+
+**MCP Image Generation** — Generate images through hosted Codex tooling and optionally save the result directly to a file.
+
+**OpenAI-Compatible Proxy** — Serves a local OpenAI-compatible API backed by your Codex subscription, so tools like JetBrains Junie can use it as a custom LLM provider.
 
 **Customizable Display** — Drag-and-drop to reorder providers in the popup. Choose whether the indicator lives in the status bar or main toolbar.
 
 **Automatic Refresh** — Quotas refresh every 5 minutes in the background, plus on login and when opening the popup.
 
-**Secure OAuth** — Login via browser OAuth inside IDE settings. Credentials stored in IntelliJ Password Safe.
-
-**OpenAI-Compatible Proxy** — Serves a local OpenAI-compatible API backed by your Codex subscription, so tools like JetBrains Junie can use it as a custom LLM provider.
+**Secure Credential Storage** — OAuth tokens, API keys, session cookies, and device-flow credentials are stored in IntelliJ Password Safe.
 
 ---
 
