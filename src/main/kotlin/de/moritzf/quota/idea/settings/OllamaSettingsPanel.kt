@@ -11,6 +11,7 @@ import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.idea.common.QuotaUsageService
+import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
 import de.moritzf.quota.idea.ollama.OllamaSessionCookieStore
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.ollama.OllamaQuotaClient
@@ -30,6 +31,10 @@ internal class OllamaSettingsPanel(
     private val statusLabelDefaultForeground: Color? = null,
 ) : ProviderSettingsPanel() {
     override val hideFromPopupCheckBox = com.intellij.ui.components.JBCheckBox("Hide from quota popup")
+    private val apiKeyField = JBPasswordField().apply {
+        columns = 40
+        toolTipText = "Ollama API key from ollama.com/settings/keys (used for MCP web search only)"
+    }
     private val sessionCookieField = JBPasswordField().apply {
         columns = 40
         toolTipText = "__Secure-session cookie from ollama.com (extract from browser DevTools)"
@@ -52,6 +57,22 @@ internal class OllamaSettingsPanel(
                 cell(ollamaStatusLabel)
             }
             row {
+                label("API key enables Ollama MCP web search. Usage quota still uses the session cookie below.")
+            }
+            row("API key:") {
+                cell(apiKeyField)
+                    .resizableColumn()
+                    .align(AlignX.FILL)
+            }
+            row {
+                button("Save API Key") {
+                    saveApiKeyNow()
+                }
+                button("Clear API Key") {
+                    clearApiKeyNow()
+                }
+            }
+            row {
                 label("Extract from ollama.com → DevTools → Storage → Cookies. Paste __Secure-session (required) and cf_clearance (optional).")
             }
             row("Session cookie (__Secure-session):") {
@@ -65,7 +86,7 @@ internal class OllamaSettingsPanel(
                     .align(AlignX.FILL)
             }
             row {
-                button("Save") {
+                button("Save Cookies") {
                     val sessionCookie = String(sessionCookieField.password)
                     val cfClearance = String(cfClearanceField.password).ifBlank { null }
                     if (sessionCookie.isNotBlank() && sessionCookie != SESSION_COOKIE_PLACEHOLDER) {
@@ -77,7 +98,7 @@ internal class OllamaSettingsPanel(
                         QuotaUsageService.getInstance().refreshAsync(QuotaProviderType.OLLAMA)
                     }
                 }
-                button("Clear") {
+                button("Clear Cookies") {
                     OllamaSessionCookieStore.getInstance().clear()
                     sessionCookieField.text = ""
                     cfClearanceField.text = ""
@@ -98,26 +119,35 @@ internal class OllamaSettingsPanel(
     }
 
     override fun updateFields() {
+        val apiKeyStore = OllamaApiKeyStore.getInstance()
         val cookieStore = OllamaSessionCookieStore.getInstance()
+        val apiKey = apiKeyStore.load(onLoaded = ::refreshAfterCredentialLoad)
         val sessionCookie = cookieStore.loadSessionCookie(onLoaded = ::refreshAfterCookieLoad)
+        apiKeyField.text = if (apiKey.isNullOrBlank()) "" else API_KEY_PLACEHOLDER
         sessionCookieField.text = if (sessionCookie.isNullOrBlank()) "" else SESSION_COOKIE_PLACEHOLDER
         cfClearanceField.text = if (sessionCookie.isNullOrBlank()) "" else CF_PLACEHOLDER
         updateStatus()
     }
 
     override fun updateStatus() {
+        val apiKeyStore = OllamaApiKeyStore.getInstance()
         val cookieStore = OllamaSessionCookieStore.getInstance()
+        val apiKey = apiKeyStore.load(onLoaded = ::refreshAfterCredentialLoad)
         val sessionCookie = cookieStore.loadSessionCookie(onLoaded = ::refreshAfterCookieLoad)
         val ollamaQuota = QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.OLLAMA) as? OllamaQuota
         val ollamaError = QuotaUsageService.getInstance().getLastError(QuotaProviderType.OLLAMA)
 
         when {
-            !cookieStore.isLoaded() -> {
-                ollamaStatusLabel.text = formatStatusText("Loading session cookie...", AuthStatusKind.PENDING)
+            !apiKeyStore.isLoaded() || !cookieStore.isLoaded() -> {
+                ollamaStatusLabel.text = formatStatusText("Loading Ollama credentials...", AuthStatusKind.PENDING)
+                ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
+            }
+            sessionCookie.isNullOrBlank() && apiKey.isNullOrBlank() -> {
+                ollamaStatusLabel.text = formatStatusText("No session cookie configured for quota; no API key configured for web search", AuthStatusKind.DISCONNECTED)
                 ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
             sessionCookie.isNullOrBlank() -> {
-                ollamaStatusLabel.text = formatStatusText("No session cookie configured", AuthStatusKind.DISCONNECTED)
+                ollamaStatusLabel.text = formatStatusText("API key stored for web search; no session cookie configured for quota", AuthStatusKind.CONNECTED)
                 ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
             ollamaError != null -> {
@@ -129,11 +159,31 @@ internal class OllamaSettingsPanel(
                 ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
             else -> {
-                ollamaStatusLabel.text = formatStatusText("Session cookie stored securely", AuthStatusKind.CONNECTED)
+                val text = if (apiKey.isNullOrBlank()) {
+                    "Session cookie stored securely"
+                } else {
+                    "Session cookie and API key stored securely"
+                }
+                ollamaStatusLabel.text = formatStatusText(text, AuthStatusKind.CONNECTED)
                 ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
         }
         ollamaStatusLabel.isVisible = true
+    }
+
+    private fun saveApiKeyNow() {
+        val apiKey = String(apiKeyField.password).trim()
+        if (apiKey.isNotBlank() && apiKey != API_KEY_PLACEHOLDER) {
+            OllamaApiKeyStore.getInstance().save(apiKey)
+            apiKeyField.text = API_KEY_PLACEHOLDER
+            updateStatus()
+        }
+    }
+
+    private fun clearApiKeyNow() {
+        OllamaApiKeyStore.getInstance().clear()
+        apiKeyField.text = ""
+        updateStatus()
     }
 
     private fun validateCookieNow(sessionCookie: String, cfClearance: String?) {
@@ -169,6 +219,11 @@ internal class OllamaSettingsPanel(
         updateResponseArea()
     }
 
+    private fun refreshAfterCredentialLoad() {
+        updateFields()
+        updateResponseArea()
+    }
+
     private fun setOllamaPendingStatus(text: String) {
         ollamaStatusLabel.text = formatStatusText(text, AuthStatusKind.PENDING)
         ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
@@ -188,7 +243,7 @@ internal class OllamaSettingsPanel(
             else -> {
                 try {
                     de.moritzf.quota.shared.JsonSupport.json.encodeToString(
-                        de.moritzf.quota.ollama.OllamaQuota.serializer(),
+                        OllamaQuota.serializer(),
                         quota,
                     )
                 } catch (exception: Exception) {
@@ -229,6 +284,7 @@ internal class OllamaSettingsPanel(
     }
 
     private companion object {
+        private const val API_KEY_PLACEHOLDER = "********"
         private const val SESSION_COOKIE_PLACEHOLDER = "********"
         private const val CF_PLACEHOLDER = "********"
     }

@@ -64,4 +64,16 @@ class OpenAiUsageQuotaMcpToolsetTest {
             searchTools.single().parameterTypes.toList(),
         )
     }
+
+    @Test
+    fun ollamaWebSearchUsesSingleToolWithConfigurableOptions() {
+        val searchTools = OpenAiUsageQuotaMcpToolset::class.java.declaredMethods
+            .filter { it.getAnnotation(McpTool::class.java)?.name?.startsWith("ollama_web_search") == true }
+
+        assertEquals(listOf("ollama_web_search"), searchTools.map { it.getAnnotation(McpTool::class.java).name })
+        assertEquals(
+            listOf(String::class.java, Int::class.java, Boolean::class.java),
+            searchTools.single().parameterTypes.toList(),
+        )
+    }
 }

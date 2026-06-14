@@ -9,6 +9,7 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.kimi.KimiCredentialsStore
 import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
+import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 import de.moritzf.quota.kimi.KimiQuotaException
@@ -18,6 +19,8 @@ import de.moritzf.quota.minimax.MiniMaxRegion
 import de.moritzf.quota.minimax.MiniMaxRegionPreference
 import de.moritzf.quota.minimax.MiniMaxWebSearchClient
 import de.moritzf.quota.ollama.OllamaQuota
+import de.moritzf.quota.ollama.OllamaQuotaException
+import de.moritzf.quota.ollama.OllamaWebSearchClient
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.zai.ZaiQuotaException
@@ -35,6 +38,7 @@ class OpenAiUsageQuotaMcpToolset(
     private val kimiSearchClient: KimiWebSearchClient = KimiWebSearchClient.createDefault(),
     private val zaiSearchClient: ZaiWebSearchClient = ZaiWebSearchClient.createDefault(),
     private val miniMaxSearchClient: MiniMaxWebSearchClient = MiniMaxWebSearchClient.createDefault(),
+    private val ollamaSearchClient: OllamaWebSearchClient = OllamaWebSearchClient.createDefault(),
 ) : McpToolset {
     @McpTool(name = "openai_usage_quota")
     @McpDescription(description = "Returns the latest OpenAI usage quota response JSON.")
@@ -176,6 +180,26 @@ class OpenAiUsageQuotaMcpToolset(
             }
         }
         return errorResult(lastException?.message ?: "MiniMax web search failed.")
+    }
+
+    @McpTool(name = "ollama_web_search")
+    @McpDescription(description = "Runs an Ollama web search using the configured Ollama API key and returns normalized JSON results.")
+    fun ollama_web_search(
+        @McpDescription(description = "Search query to send to Ollama web search.") query: String,
+        @McpDescription(description = "Number of search results to request. Values are clamped to Ollama's 1-10 range.") limit: Int = OllamaWebSearchClient.DEFAULT_LIMIT,
+        @McpDescription(description = "Whether to include full result content in addition to snippets when returned by Ollama.") includeContent: Boolean = false,
+    ): String {
+        val apiKey = OllamaApiKeyStore.getInstance().loadBlocking()
+        if (apiKey.isNullOrBlank()) {
+            return errorResult("Ollama API key missing. Add an Ollama API key in settings.")
+        }
+        return try {
+            ollamaSearchClient.webSearch(apiKey, query, limit, includeContent)
+        } catch (exception: OllamaQuotaException) {
+            errorResult(exception.message ?: "Ollama web search failed.")
+        } catch (exception: Exception) {
+            errorResult(exception.message ?: "Ollama web search failed.")
+        }
     }
 
     private fun quotaResult(

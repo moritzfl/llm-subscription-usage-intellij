@@ -1,7 +1,7 @@
 package de.moritzf.quota.ollama
 
 /**
- * Exception raised when the Ollama Cloud usage endpoint returns an unexpected response.
+ * Exception raised when an Ollama Cloud endpoint returns an unexpected response.
  */
 class OllamaQuotaException(
     message: String,
