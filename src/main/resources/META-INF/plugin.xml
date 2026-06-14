@@ -4,7 +4,11 @@
     <vendor>Moritzf</vendor>
 
     <description>
-        Tracks LLM subscription usage quotas in the IDE status bar and popup, including OpenAI, GitHub Copilot, Cursor, OpenCode Go, Ollama Cloud, Z.ai, MiniMax, and Kimi limits. Exposes quota data through IntelliJ MCP tools and can sync the currently running IntelliJ MCP server URL into JSON config files for local AI clients.
+        Track and use your LLM subscriptions directly in the IDE. The plugin shows normalized subscription usage quotas in the status bar, main toolbar, and detailed popup for OpenAI, GitHub Copilot, Cursor, OpenCode Go, Ollama Cloud, Z.ai, MiniMax, and Kimi.
+
+        It also exposes subscription-backed capabilities through IntelliJ MCP tools: quota data, hosted web search for OpenAI/Codex, Kimi, Z.ai, MiniMax, and Ollama, Codex image generation with optional file output, and MCP web-search readiness status. The built-in MCP server URL sync keeps JSON, TOML, and YAML client config files pointed at IntelliJ's active MCP endpoint.
+
+        For tools that speak the OpenAI API, the plugin can run a local OpenAI-compatible proxy backed by your existing OpenAI/Codex login. Credentials are stored in IntelliJ Password Safe.
     </description>
 
     <depends>com.intellij.modules.platform</depends>
