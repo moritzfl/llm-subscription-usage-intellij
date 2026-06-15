@@ -60,7 +60,77 @@ class CodexMcpClientTest {
             val tool = body["tools"]!!.jsonArray[0].jsonObject
             assertEquals("web_search", tool["type"]!!.jsonPrimitive.content)
             assertTrue(tool["external_web_access"]!!.jsonPrimitive.boolean)
+            assertEquals("medium", tool["search_context_size"]!!.jsonPrimitive.content)
             assertEquals("text", tool["search_content_types"]!!.jsonArray[0].jsonPrimitive.content)
+        }
+    }
+
+    @Test
+    fun postsConfigurableWebSearchOptionsAndReturnsSourceMetadata() {
+        TestUpstream(
+            responseBody = sse(
+                """{"type":"response.output_text.done","text":"answer with source"}""",
+                """{"type":"response.output_item.done","item":{"type":"web_search_call","id":"ws_1","status":"completed","action":{"type":"search","query":"OpenAI docs","sources":[{"url":"https://openai.com","title":"OpenAI"}]}}}""",
+                """{"type":"response.output_item.done","item":{"type":"message","content":[{"type":"output_text","text":"answer","annotations":[{"type":"url_citation","start_index":0,"end_index":6,"url":"https://openai.com","title":"OpenAI"}]}]}}""",
+                """{"type":"response.completed","response":{"id":"resp_1"}}""",
+            ),
+        ).use { upstream ->
+            val client = newClient(upstream.baseUri)
+
+            val response = client.webSearch(
+                query = "OpenAI docs",
+                searchContextSize = "HIGH",
+                includeSources = true,
+                externalWebAccess = false,
+                allowedDomains = "OpenAI.com,docs.openai.com",
+                blockedDomains = "reddit.com",
+            )
+
+            assertFalse(response.isError)
+            val responseBody = parseObject(response.body)
+            assertEquals("answer with source", responseBody["output"]!!.jsonPrimitive.content)
+            assertEquals("resp_1", responseBody["response_id"]!!.jsonPrimitive.content)
+            val webSearchCall = responseBody["web_search_calls"]!!.jsonArray[0].jsonObject
+            assertEquals("ws_1", webSearchCall["id"]!!.jsonPrimitive.content)
+            assertEquals(
+                "https://openai.com",
+                webSearchCall["action"]!!.jsonObject["sources"]!!.jsonArray[0].jsonObject["url"]!!
+                    .jsonPrimitive.content,
+            )
+            assertEquals(
+                "https://openai.com",
+                responseBody["annotations"]!!.jsonArray[0].jsonObject["url"]!!.jsonPrimitive.content,
+            )
+
+            val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+            val body = parseObject(request.body)
+            assertEquals(
+                "web_search_call.action.sources",
+                body["include"]!!.jsonArray[0].jsonPrimitive.content,
+            )
+            val tool = body["tools"]!!.jsonArray[0].jsonObject
+            assertFalse(tool["external_web_access"]!!.jsonPrimitive.boolean)
+            assertEquals("high", tool["search_context_size"]!!.jsonPrimitive.content)
+            val filters = tool["filters"]!!.jsonObject
+            assertEquals("openai.com", filters["allowed_domains"]!!.jsonArray[0].jsonPrimitive.content)
+            assertEquals("docs.openai.com", filters["allowed_domains"]!!.jsonArray[1].jsonPrimitive.content)
+            assertEquals("reddit.com", filters["blocked_domains"]!!.jsonArray[0].jsonPrimitive.content)
+        }
+    }
+
+    @Test
+    fun rejectsInvalidWebSearchDomainFiltersBeforeCallingUpstream() {
+        TestUpstream().use { upstream ->
+            val client = newClient(upstream.baseUri)
+
+            val response = client.webSearch(
+                query = "OpenAI docs",
+                allowedDomains = "https://openai.com",
+            )
+
+            assertTrue(response.isError)
+            assertTrue(parseObject(response.body)["error"]!!.jsonPrimitive.content.contains("Invalid Codex web search options"))
+            assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
         }
     }
 

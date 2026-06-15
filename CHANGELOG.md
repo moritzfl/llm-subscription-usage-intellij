@@ -3,7 +3,7 @@
 ## [Unreleased]
 - Added support for **GitHub Copilot** subscription usage quotas, including GitHub device login, popup/indicator display, settings, caching, and MCP usage access.
 - Added a local **OpenAI-compatible proxy** backed by the existing OpenAI/Codex login for clients such as JetBrains Junie, with copyable base URL/API key setup and optional request/response logging.
-- Added hosted Codex MCP tools for web search and image generation, including saving generated images directly to a file.
+- Added hosted Codex MCP tools for web search and image generation, including configurable search controls/source metadata and saving generated images directly to a file.
 - Added MCP web search tools for **Kimi**, **Z.ai**, **MiniMax**, and **Ollama**, plus a status tool that reports which search providers are configured before callers try them.
 - Improved quota display consistency by showing provider usage as percentages more consistently and labeling quota windows by duration where available.
 

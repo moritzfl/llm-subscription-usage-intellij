@@ -54,6 +54,8 @@ Individual MCP tools can be enabled or disabled in the IDE settings under `Tools
 - MiniMax via API key
 - Ollama via API key
 
+OpenAI/Codex search supports context-size, live-access, domain-filter, and optional source metadata controls.
+
 **MCP Image Generation** — Generate images through hosted Codex tooling and optionally save the result directly to a file.
 
 **OpenAI-Compatible Proxy** — Serves a local OpenAI-compatible API backed by your Codex subscription, so tools like JetBrains Junie can use it as a custom LLM provider.

@@ -156,8 +156,22 @@ class OpenAiUsageQuotaMcpToolset(
     @McpDescription(description = "Runs a Codex subscription-backed web search using the existing OpenAI login and returns the Codex JSON response.")
     fun codex_web_search(
         @McpDescription(description = "Search query to send to Codex web search.") query: String,
+        @McpDescription(description = "Search context size: low, medium, or high. Higher values can improve detailed answers but may cost more and take longer.") searchContextSize: String = "medium",
+        @McpDescription(description = "Whether to request the complete sources list from the web search call when available.") includeSources: Boolean = false,
+        @McpDescription(description = "Whether the hosted search tool may fetch live web content. Set false for cached/indexed results only.") externalWebAccess: Boolean = true,
+        @McpDescription(description = "Optional comma-separated domains to allow, for example openai.com,example.org. Leave blank for no allow filter.") allowedDomains: String? = null,
+        @McpDescription(description = "Optional comma-separated domains to block, for example reddit.com,quora.com. Leave blank for no block filter.") blockedDomains: String? = null,
     ): String {
-        return codexResult(codexClient.webSearch(query))
+        return codexResult(
+            codexClient.webSearch(
+                query,
+                searchContextSize,
+                includeSources,
+                externalWebAccess,
+                allowedDomains,
+                blockedDomains,
+            ),
+        )
     }
 
     @McpTool(name = "codex_image_generation")

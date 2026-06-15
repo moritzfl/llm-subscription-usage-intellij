@@ -10,6 +10,7 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.openai.proxy.OpenAiProxyServer
 import de.moritzf.quota.openai.proxy.QuotaCodexCredentialsProvider
 import de.moritzf.quota.shared.JsonSupport
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -44,12 +45,32 @@ class CodexMcpClient(
         QuotaCodexCredentialsProvider(accessTokenProvider, accountIdProvider, tokenRefresher, codexVersionProvider),
     )
 
-    fun webSearch(query: String): CodexMcpResponse {
+    fun webSearch(
+        query: String,
+        searchContextSize: String = DEFAULT_SEARCH_CONTEXT_SIZE,
+        includeSources: Boolean = false,
+        externalWebAccess: Boolean = true,
+        allowedDomains: String? = null,
+        blockedDomains: String? = null,
+    ): CodexMcpResponse {
         val trimmedQuery = query.trim()
         if (trimmedQuery.isBlank()) {
             return CodexMcpResponse(errorJson("Search query is required."), true)
         }
-        return postResponses(searchRequest(trimmedQuery), ::parseSearchResponse)
+        val options = webSearchOptions(
+            searchContextSize,
+            includeSources,
+            externalWebAccess,
+            allowedDomains,
+            blockedDomains,
+        ) ?: return CodexMcpResponse(
+            errorJson(
+                "Invalid Codex web search options. searchContextSize must be one of low, medium, high; " +
+                    "allowedDomains and blockedDomains must be comma-separated domain names, up to 100 each.",
+            ),
+            true,
+        )
+        return postResponses(searchRequest(trimmedQuery, options), ::parseSearchResponse)
     }
 
     fun imageGeneration(
@@ -102,7 +123,7 @@ class CodexMcpClient(
         }
     }
 
-    private fun searchRequest(query: String): JsonObject {
+    private fun searchRequest(query: String, options: WebSearchOptions): JsonObject {
         return buildJsonObject {
             put("model", RESPONSES_MODEL)
             put("instructions", SEARCH_INSTRUCTIONS)
@@ -112,10 +133,27 @@ class CodexMcpClient(
             putJsonArray("tools") {
                 add(buildJsonObject {
                     put("type", "web_search")
-                    put("external_web_access", true)
-                    put("search_context_size", "medium")
+                    put("external_web_access", options.externalWebAccess)
+                    put("search_context_size", options.searchContextSize)
                     putJsonArray("search_content_types") { add("text") }
+                    if (options.allowedDomains.isNotEmpty() || options.blockedDomains.isNotEmpty()) {
+                        put("filters", buildJsonObject {
+                            if (options.allowedDomains.isNotEmpty()) {
+                                putJsonArray("allowed_domains") {
+                                    options.allowedDomains.forEach { add(it) }
+                                }
+                            }
+                            if (options.blockedDomains.isNotEmpty()) {
+                                putJsonArray("blocked_domains") {
+                                    options.blockedDomains.forEach { add(it) }
+                                }
+                            }
+                        })
+                    }
                 })
+            }
+            if (options.includeSources) {
+                putJsonArray("include") { add("web_search_call.action.sources") }
             }
             put("store", false)
             put("stream", true)
@@ -159,17 +197,37 @@ class CodexMcpClient(
         var responseId: String? = null
         var webSearchUsage: JsonObject? = null
         var toolUsage: JsonObject? = null
+        val webSearchCalls = mutableListOf<JsonObject>()
+        val seenWebSearchCalls = mutableSetOf<String>()
+        val annotations = mutableListOf<JsonObject>()
+        val seenAnnotations = mutableSetOf<String>()
 
         for (event in responsesDataEvents(body)) {
             failedMessage(event)?.let { return CodexMcpResponse(errorJson(it), true) }
             when (event.string("type")) {
                 "response.output_text.delta" -> output.append(event.string("delta").orEmpty())
                 "response.output_text.done" -> outputTextDone = event.string("text")
+                "response.output_item.done" -> collectSearchMetadata(
+                    event.obj("item"),
+                    webSearchCalls,
+                    seenWebSearchCalls,
+                    annotations,
+                    seenAnnotations,
+                )
                 "response.completed" -> {
                     val response = event.obj("response")
                     responseId = response?.string("id") ?: responseId
                     webSearchUsage = response?.obj("web_search") ?: webSearchUsage
                     toolUsage = response?.obj("tool_usage") ?: toolUsage
+                    response?.array("output")?.forEach { item ->
+                        collectSearchMetadata(
+                            item.asObjectOrNull(),
+                            webSearchCalls,
+                            seenWebSearchCalls,
+                            annotations,
+                            seenAnnotations,
+                        )
+                    }
                 }
             }
         }
@@ -184,7 +242,69 @@ class CodexMcpClient(
             responseId?.let { put("response_id", it) }
             webSearchUsage?.let { put("web_search", it) }
             toolUsage?.let { put("tool_usage", it) }
+            if (webSearchCalls.isNotEmpty()) {
+                putJsonArray("web_search_calls") { webSearchCalls.forEach { add(it) } }
+            }
+            if (annotations.isNotEmpty()) {
+                putJsonArray("annotations") { annotations.forEach { add(it) } }
+            }
         }.toString(), false)
+    }
+
+    private fun collectSearchMetadata(
+        item: JsonObject?,
+        webSearchCalls: MutableList<JsonObject>,
+        seenWebSearchCalls: MutableSet<String>,
+        annotations: MutableList<JsonObject>,
+        seenAnnotations: MutableSet<String>,
+    ) {
+        when (item?.string("type")) {
+            "web_search_call" -> addUniqueJsonObject(item, webSearchCalls, seenWebSearchCalls)
+            "message" -> item.array("content")?.forEach { content ->
+                val contentObject = content.asObjectOrNull() ?: return@forEach
+                contentObject.array("annotations")?.forEach { annotation ->
+                    addUniqueJsonObject(annotation.asObjectOrNull() ?: return@forEach, annotations, seenAnnotations)
+                }
+            }
+        }
+    }
+
+    private fun addUniqueJsonObject(
+        value: JsonObject,
+        target: MutableList<JsonObject>,
+        seen: MutableSet<String>,
+    ) {
+        val key = value.string("id") ?: value.toString()
+        if (seen.add(key)) {
+            target += value
+        }
+    }
+
+    private fun webSearchOptions(
+        searchContextSize: String,
+        includeSources: Boolean,
+        externalWebAccess: Boolean,
+        allowedDomains: String?,
+        blockedDomains: String?,
+    ): WebSearchOptions? {
+        val contextSize = searchContextSize.trim().lowercase(Locale.ROOT)
+            .takeIf { it in SEARCH_CONTEXT_SIZES }
+            ?: return null
+        val allowed = parseDomainList(allowedDomains) ?: return null
+        val blocked = parseDomainList(blockedDomains) ?: return null
+        return WebSearchOptions(contextSize, includeSources, externalWebAccess, allowed, blocked)
+    }
+
+    private fun parseDomainList(rawDomains: String?): List<String>? {
+        val domains = rawDomains
+            ?.split(',', '\n')
+            ?.map { it.trim().lowercase(Locale.ROOT).trim('.') }
+            ?.filter { it.isNotBlank() }
+            .orEmpty()
+        if (domains.size > MAX_SEARCH_FILTER_DOMAINS) {
+            return null
+        }
+        return domains.takeIf { list -> list.all { DOMAIN_PATTERN.matches(it) } }
     }
 
     private fun parseImageGenerationResponse(body: String): CodexMcpResponse {
@@ -331,11 +451,27 @@ class CodexMcpClient(
         return this[name].asObjectOrNull()
     }
 
+    private fun JsonObject.array(name: String): JsonArray? {
+        return this[name].asArrayOrNull()
+    }
+
     private fun JsonElement?.asObjectOrNull(): JsonObject? {
         return this as? JsonObject
     }
 
+    private fun JsonElement?.asArrayOrNull(): JsonArray? {
+        return this as? JsonArray
+    }
+
     data class CodexMcpResponse(val body: String, val isError: Boolean)
+
+    private data class WebSearchOptions(
+        val searchContextSize: String,
+        val includeSources: Boolean,
+        val externalWebAccess: Boolean,
+        val allowedDomains: List<String>,
+        val blockedDomains: List<String>,
+    )
 
     private data class ImageGenerationResult(
         val responseId: String?,
@@ -353,9 +489,13 @@ class CodexMcpClient(
     companion object {
         private const val RESPONSES_PATH = "/responses"
         private const val RESPONSES_MODEL = "gpt-5.5"
+        private const val DEFAULT_SEARCH_CONTEXT_SIZE = "medium"
+        private const val MAX_SEARCH_FILTER_DOMAINS = 100
         private const val SEARCH_INSTRUCTIONS = "You are a concise assistant. Use web search when needed."
         private const val IMAGE_GENERATION_INSTRUCTIONS =
             "Use the image_generation tool to satisfy image requests. Return no extra commentary."
+        private val SEARCH_CONTEXT_SIZES = setOf("low", "medium", "high")
+        private val DOMAIN_PATTERN = Regex("^[a-z0-9.-]+$")
         private val SUPPORTED_IMAGE_FORMATS = ImageIO.getWriterFormatNames()
             .map { it.lowercase(Locale.ROOT) }
             .toSet()

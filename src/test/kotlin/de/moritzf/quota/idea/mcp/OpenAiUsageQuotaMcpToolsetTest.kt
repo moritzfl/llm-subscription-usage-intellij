@@ -39,6 +39,25 @@ class OpenAiUsageQuotaMcpToolsetTest {
     }
 
     @Test
+    fun codexWebSearchUsesSingleToolWithConfigurableOptions() {
+        val searchTools = OpenAiUsageQuotaMcpToolset::class.java.declaredMethods
+            .filter { it.getAnnotation(McpTool::class.java)?.name?.startsWith("codex_web_search") == true }
+
+        assertEquals(listOf("codex_web_search"), searchTools.map { it.getAnnotation(McpTool::class.java).name })
+        assertEquals(
+            listOf(
+                String::class.java,
+                String::class.java,
+                Boolean::class.java,
+                Boolean::class.java,
+                String::class.java,
+                String::class.java,
+            ),
+            searchTools.single().parameterTypes.toList(),
+        )
+    }
+
+    @Test
     fun kimiWebSearchUsesSingleToolWithConfigurableOptions() {
         val kimiSearchTools = OpenAiUsageQuotaMcpToolset::class.java.declaredMethods
             .filter { it.getAnnotation(McpTool::class.java)?.name?.startsWith("kimi_web_search") == true }
