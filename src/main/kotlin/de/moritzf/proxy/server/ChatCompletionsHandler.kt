@@ -22,7 +22,6 @@ import de.moritzf.proxy.server.JunieCommandProtocolCompat.wrapStreamingText
 import de.moritzf.proxy.server.RequestValidator.parseJsonObject
 import de.moritzf.proxy.server.RequestValidator.rejectMalformedJson
 import de.moritzf.proxy.server.UpstreamRetry.withRetries
-import de.moritzf.proxy.sse.ServerSentEvent
 import de.moritzf.proxy.sse.SseCollector.collectCompletedResponse
 import de.moritzf.proxy.sse.SseParser.iterateEvents
 import de.moritzf.proxy.transport.CodexHttpClient
@@ -45,7 +44,6 @@ import java.util.ArrayList
 import java.util.HashSet
 import java.util.LinkedHashMap
 import java.util.UUID
-import java.util.function.Consumer
 class ChatCompletionsHandler(
     private val client: CodexHttpClient,
     private val config: ServerConfig,
@@ -548,10 +546,10 @@ class ChatCompletionsHandler(
         // Send initial role chunk
         writeSseChunk(ctx, os, createChunk(id, created, model, createAssistantRoleDelta(), null))
         try {
-            iterateEvents(upstreamBody, Consumer { event: ServerSentEvent ->
+            iterateEvents(upstreamBody) events@{ event ->
                 try {
                     val eventData = event.data()
-                    if (eventData.isNullOrEmpty()) return@Consumer
+                    if (eventData.isNullOrEmpty()) return@events
                     if ("[DONE]" == eventData) {
                         // If upstream sends [DONE] without a response.completed event (e.g. on
                         // error mid-stream), emit a synthetic finish chunk so clients don't hang
@@ -565,10 +563,10 @@ class ChatCompletionsHandler(
                         addResponseBytes(ctx, doneBytes.size.toLong())
                         os.flush()
                         doneSent[0] = true
-                        return@Consumer
+                        return@events
                     }
                     val parsed: JsonNode? = MAPPER.readTree(eventData)
-                    if (parsed == null || !parsed.isObject) return@Consumer
+                    if (parsed == null || !parsed.isObject) return@events
                     val eventType = parsed.path("type").asText(if (event.event() != null) event.event() else "")
                     when (eventType) {
                         "response.output_text.delta" -> {
@@ -811,7 +809,7 @@ class ChatCompletionsHandler(
                     LOG.warn("Error processing SSE event", e)
                     throw RuntimeException(e)
                 }
-            })
+            }
         } finally {
             // Guarantee a finish chunk + [DONE] are sent even if the upstream stream
             // ends abnormally (no [DONE] event and no response.completed).
