@@ -53,7 +53,7 @@ class AuthManager(
             lock.unlock()
         }
         val refreshed = ensureFresh()
-        if (refreshed.accessToken().isNullOrEmpty()) {
+        if (refreshed.accessToken().isEmpty()) {
             return false
         }
         val rejectedToken = stripBearer(rejectedAuthorizationHeader)
