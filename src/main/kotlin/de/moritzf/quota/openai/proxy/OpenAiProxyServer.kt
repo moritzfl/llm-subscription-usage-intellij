@@ -134,7 +134,7 @@ class OpenAiProxyServer(
         @Throws(Exception::class)
         override fun request(
             path: String,
-            method: String,
+            method: String?,
             body: String?,
             extraHeaders: Map<String, String>?,
         ): HttpResponse<InputStream> {
@@ -144,7 +144,7 @@ class OpenAiProxyServer(
         @Throws(Exception::class)
         override fun request(
             path: String,
-            method: String,
+            method: String?,
             body: String?,
             extraHeaders: Map<String, String>?,
             requestId: String?,
@@ -156,7 +156,7 @@ class OpenAiProxyServer(
         @Throws(Exception::class)
         override fun requestString(
             path: String,
-            method: String,
+            method: String?,
             body: String?,
             extraHeaders: Map<String, String>?,
         ): HttpResponse<String> {
