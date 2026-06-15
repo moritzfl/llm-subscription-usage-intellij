@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
 import io.javalin.http.Context
+import java.io.InputStream
 import java.nio.charset.StandardCharsets
 object JsonHelper {
     /** Shared mapper: alias to [Json.MAPPER]. */
@@ -43,16 +44,7 @@ object JsonHelper {
         error.put("code", code)
         return error
     }
-    fun mapFinishReason(finishReason: String?): String? {
-        return when (finishReason) {
-            null -> null
-            "stop" -> "stop"
-            "length", "max_output_tokens" -> "length"
-            "tool-calls", "tool_calls" -> "tool_calls"
-            "content-filter", "content_filter" -> "content_filter"
-            else -> null
-        }
-    }
+    fun readUtf8Body(input: InputStream): String = String(input.readAllBytes(), StandardCharsets.UTF_8)
     fun toUsage(usageNode: JsonNode?): ObjectNode {
         val usage = Json.MAPPER.createObjectNode()
         if (usageNode == null || !usageNode.isObject) {
@@ -79,9 +71,6 @@ object JsonHelper {
             usage.set<ObjectNode>("completion_tokens_details", completionDetails)
         }
         return usage
-    }
-    fun toUpstreamErrorBody(raw: String?, status: Int): String {
-        return toUpstreamErrorBody(raw, status, null)
     }
     /**
      * Normalizes any upstream error payload to the OpenAI `{"error":{...}}` envelope,

@@ -5,7 +5,6 @@ import de.moritzf.proxy.model.CodexInstructionsProvider
 import de.moritzf.proxy.model.ModelAliasResolver
 import de.moritzf.proxy.server.AccessLogFields.addResponseBytes
 import de.moritzf.proxy.server.AccessLogFields.mode
-import de.moritzf.proxy.server.AccessLogFields.responseBytes
 import de.moritzf.proxy.server.AccessLogFields.upstreamStatus
 import de.moritzf.proxy.server.JsonHelper.errorObject
 import de.moritzf.proxy.server.JsonHelper.MAPPER
@@ -19,14 +18,12 @@ import de.moritzf.proxy.server.JunieCommandProtocolCompat.isJunieRequest
 import de.moritzf.proxy.server.JunieCommandProtocolCompat.textFromToolArguments
 import de.moritzf.proxy.server.JunieCommandProtocolCompat.wrapPlainText
 import de.moritzf.proxy.server.JunieCommandProtocolCompat.wrapStreamingText
-import de.moritzf.proxy.server.RequestValidator.parseJsonObject
-import de.moritzf.proxy.server.RequestValidator.rejectMalformedJson
+import de.moritzf.proxy.server.RequestValidator.parseLoggedJsonObject
 import de.moritzf.proxy.server.UpstreamRetry.withRetries
 import de.moritzf.proxy.sse.SseCollector.collectCompletedResponse
 import de.moritzf.proxy.sse.SseParser.iterateEvents
 import de.moritzf.proxy.transport.CodexHttpClient
 import de.moritzf.proxy.usage.UsageTracker
-import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.node.ObjectNode
@@ -49,24 +46,14 @@ class ChatCompletionsHandler(
     private val config: ServerConfig,
     private val usageTracker: UsageTracker,
     private val requestLogger: RequestLogger,
-    private val instructionsProvider: CodexInstructionsProvider,
+    instructionsProvider: CodexInstructionsProvider,
 ) : Handler {
     private val modelAliasResolver = ModelAliasResolver()
     private val upstreamErrorMapper = UpstreamErrorMapper()
     private val requestMapper = ChatCompletionsRequestMapper(config.store, instructionsProvider, modelAliasResolver)
     override fun handle(ctx: Context) {
         val requestId = if (shouldUseRequestContext()) requestId(ctx) else requestLogger.nextRequestId()
-        val bodyStr = ctx.body()
-        requestLogger.logInbound(requestId, ctx, bodyStr)
-        val body = try {
-            parseJsonObject(ctx, bodyStr)
-        } catch (e: JsonProcessingException) {
-            rejectMalformedJson(ctx, e)
-            return
-        }
-        if (body == null) {
-            return
-        }
+        val body = parseLoggedJsonObject(ctx, requestLogger, requestId) ?: return
         val messagesNode = body.get("messages")
         if (messagesNode == null || !messagesNode.isArray) {
             toErrorResponse(ctx, "`messages` must be an array.")
@@ -111,22 +98,11 @@ class ChatCompletionsHandler(
         }
         upstreamStatus(ctx, upstream.statusCode())
         ctx.header("x-litellm-model-id", upstreamModel)
+        if (upstream.statusCode() !in 200..<300) {
+            upstreamErrorMapper.writeResponse(ctx, requestLogger, requestId, upstream)
+            return
+        }
         upstream.body().use { responseStream ->
-            if (upstream.statusCode() !in 200..<300) {
-                val rawBody = String(responseStream.readAllBytes(), StandardCharsets.UTF_8)
-                val mapped = upstreamErrorMapper.map(upstream.statusCode(), rawBody)
-                requestLogger.logUpstreamResponse(
-                    requestId,
-                    mapped.statusCode,
-                    responseHeaders(upstream),
-                    mapped.body
-                )
-                ctx.status(mapped.statusCode)
-                ctx.contentType(JsonHelper.JSON_CONTENT_TYPE)
-                responseBytes(ctx, mapped.body.toByteArray(StandardCharsets.UTF_8).size.toLong())
-                ctx.result(mapped.body)
-                return
-            }
             if (wantsStream) {
                 streamToClient(
                     ctx, responseStream, upstreamModel, junieTextToolName, junieNativeToolName,
@@ -166,15 +142,15 @@ class ChatCompletionsHandler(
     }
     private fun hasModernToolDefinitions(body: JsonNode): Boolean {
         val tools = body.get("tools")
-        return tools != null && tools.isArray() && !tools.isEmpty()
+        return tools != null && tools.isArray && !tools.isEmpty
     }
     private fun usesLegacyFunctions(body: JsonNode): Boolean {
         val functions = body.get("functions")
-        if (functions == null || !functions.isArray() || functions.isEmpty()) {
+        if (functions == null || !functions.isArray || functions.isEmpty) {
             return false
         }
         val tools = body.get("tools")
-        return tools == null || !tools.isArray() || tools.isEmpty()
+        return tools == null || !tools.isArray || tools.isEmpty
     }
     private fun requestId(ctx: Context): String {
         var requestId = ctx.attribute<String>(AccessLogFields.REQUEST_ID)
@@ -201,11 +177,7 @@ class ChatCompletionsHandler(
         }
         val id = "chatcmpl_" + UUID.randomUUID()
         val created = System.currentTimeMillis() / 1000
-        val result: ObjectNode = MAPPER.createObjectNode()
-        result.put("id", id)
-        result.put("object", "chat.completion")
-        result.put("created", created)
-        result.put("model", model)
+        val result = createResponseEnvelope(id, created, model, "chat.completion")
         val choices: ArrayNode = MAPPER.createArrayNode()
         val choice: ObjectNode = MAPPER.createObjectNode()
         choice.put("index", 0)
@@ -215,13 +187,13 @@ class ChatCompletionsHandler(
         val reasoningContent = StringBuilder()
         val toolCalls: ArrayNode = MAPPER.createArrayNode()
         val output = completedResponse.get("output")
-        if (output != null && output.isArray()) {
+        if (output != null && output.isArray) {
             for (item in output) {
                 val type = item.path("type").asText("")
                 when (type) {
                     "message" -> {
                         val content = item.get("content")
-                        if (content != null && content.isArray()) {
+                        if (content != null && content.isArray) {
                             for (part in content) {
                                 if ("output_text" == part.path("type").asText()) {
                                     textContent.append(part.path("text").asText(""))
@@ -246,7 +218,7 @@ class ChatCompletionsHandler(
         val collectedText: String = truncateAtStopSequence(textContent.toString(), stopSequences(requestBody))
         if (junieTextToolName != null) {
             var content = collectedText
-            if (content.isBlank() && !toolCalls.isEmpty()) {
+            if (content.isBlank() && !toolCalls.isEmpty) {
                 content = toolCallText(toolCalls, junieTextToolName)
             }
             message.put("content", wrapStreamingText(junieTextToolName, content))
@@ -270,21 +242,21 @@ class ChatCompletionsHandler(
         // Junie requires every assistant turn to contain a tool call. If the model
         // answered with plain text only, synthesize a call to the fallback tool
         // (submit/answer) carrying that text.
-        if (junieNativeToolName != null && toolCalls.isEmpty()) {
+        if (junieNativeToolName != null && toolCalls.isEmpty) {
             toolCalls.add(chatToolCall(junieNativeToolName, collectedText))
         }
-        if (legacyFunctionCallProtocol && !message.has("function_call") && !toolCalls.isEmpty()) {
+        if (legacyFunctionCallProtocol && !message.has("function_call") && !toolCalls.isEmpty) {
             message.set<JsonNode?>("function_call", toLegacyFunctionCall(toolCalls.get(0)))
-        } else if (!toolCalls.isEmpty()) {
+        } else if (!toolCalls.isEmpty) {
             message.set<JsonNode?>("tool_calls", toolCalls)
         }
         val hasFunctionCall = message.has("function_call")
         val status = completedResponse.path("status").asText("")
         val finishReason = when (status) {
-            "completed" -> if (hasFunctionCall) "function_call" else if (toolCalls.isEmpty()) "stop" else "tool_calls"
+            "completed" -> if (hasFunctionCall) "function_call" else if (toolCalls.isEmpty) "stop" else "tool_calls"
             "incomplete" -> "length"
             "failed", "cancelled" -> "stop"
-            else -> if (hasFunctionCall) "function_call" else if (toolCalls.isEmpty()) "stop" else "tool_calls"
+            else -> if (hasFunctionCall) "function_call" else if (toolCalls.isEmpty) "stop" else "tool_calls"
         }
         applyStopFinishDetails(choice, message, stopSequences(requestBody))
         choice.set<JsonNode?>("message", message)
@@ -293,7 +265,7 @@ class ChatCompletionsHandler(
         result.set<JsonNode?>("choices", choices)
         val usageNode = completedResponse.get("usage")
         usageTracker.record(
-            ctx.attribute<String?>("keyName"),
+            ctx.attribute("keyName"),
             if (usageNode != null) usageNode.path("input_tokens").asLong(0) else 0,
             if (usageNode != null) usageNode.path("output_tokens").asLong(0) else 0
         )
@@ -305,21 +277,13 @@ class ChatCompletionsHandler(
         ctx.result(responseBody)
     }
     private fun toolCallText(toolCalls: ArrayNode, preferredToolName: String): String {
-        var fallback = ""
-        for (toolCall in toolCalls) {
-            val function = toolCall.path("function")
-            val text = textFromToolArguments(
-                function.path("name").asText(preferredToolName),
-                function.path("arguments").asText("")
-            )
-            if (fallback.isBlank()) {
-                fallback = text
-            }
-            if (preferredToolName == function.path("name").asText("")) {
-                return text
-            }
-        }
-        return fallback
+        return preferredToolArgumentText(
+            toolCalls,
+            { true },
+            { it.path("function").path("name").asText(preferredToolName) },
+            { preferredToolName == it.path("function").path("name").asText("") },
+            { it.path("function").path("arguments").asText("") },
+        )
     }
     private fun toLegacyFunctionCall(toolCall: JsonNode): ObjectNode {
         val function = toolCall.path("function")
@@ -434,19 +398,7 @@ class ChatCompletionsHandler(
                                 junieArgumentBuffer.append(argDelta)
                             } else if (index != null && argDelta.isNotEmpty()) {
                                 argsEmittedIndexes.add(index)
-                                val tcArray: ArrayNode = MAPPER.createArrayNode()
-                                val tc: ObjectNode = MAPPER.createObjectNode()
-                                tc.put("index", index)
-                                val func: ObjectNode = MAPPER.createObjectNode()
-                                func.put("arguments", argDelta)
-                                tc.set<JsonNode?>("function", func)
-                                tcArray.add(tc)
-                                writeSseChunk(
-                                    ctx, os, createChunk(
-                                        id, created, model,
-                                        createToolCallsDelta(tcArray), null
-                                    )
-                                )
+                                writeToolArgumentsDelta(ctx, os, id, created, model, index, argDelta)
                             }
                         }
                         "response.output_item.done" -> {
@@ -461,19 +413,7 @@ class ChatCompletionsHandler(
                                 val arguments = item.path("arguments").asText("")
                                 if (index != null && arguments.isNotEmpty() && !argsEmittedIndexes.contains(index)) {
                                     argsEmittedIndexes.add(index)
-                                    val tcArray: ArrayNode = MAPPER.createArrayNode()
-                                    val tc: ObjectNode = MAPPER.createObjectNode()
-                                    tc.put("index", index)
-                                    val func: ObjectNode = MAPPER.createObjectNode()
-                                    func.put("arguments", arguments)
-                                    tc.set<JsonNode?>("function", func)
-                                    tcArray.add(tc)
-                                    writeSseChunk(
-                                        ctx, os, createChunk(
-                                            id, created, model,
-                                            createToolCallsDelta(tcArray), null
-                                        )
-                                    )
+                                    writeToolArgumentsDelta(ctx, os, id, created, model, index, arguments)
                                 }
                             }
                         }
@@ -570,21 +510,14 @@ class ChatCompletionsHandler(
                             // `stream_options.include_usage` behavior.
                             val usageNode = if (response != null) response.get("usage") else null
                             usageTracker.record(
-                                ctx.attribute<String?>("keyName"),
+                                ctx.attribute("keyName"),
                                 if (usageNode != null) usageNode.path("input_tokens").asLong(0) else 0,
                                 if (usageNode != null) usageNode.path("output_tokens").asLong(0) else 0
                             )
                             val includeUsage = requestBody.path("stream_options")
                                 .path("include_usage").asBoolean(false)
                             if (includeUsage) {
-                                val usageChunk: ObjectNode = MAPPER.createObjectNode()
-                                usageChunk.put("id", id)
-                                usageChunk.put("object", "chat.completion.chunk")
-                                usageChunk.put("created", created)
-                                usageChunk.put("model", model)
-                                usageChunk.set<JsonNode?>("choices", MAPPER.createArrayNode())
-                                usageChunk.set<JsonNode?>("usage", toUsage(usageNode))
-                                writeSseChunk(ctx, os, usageChunk)
+                                writeSseChunk(ctx, os, createUsageChunk(id, created, model, usageNode))
                             }
                         }
                         "response.failed", "response.cancelled" -> {
@@ -640,13 +573,10 @@ class ChatCompletionsHandler(
      */
     private fun applyStopFinishDetails(choice: ObjectNode, message: ObjectNode, stopSequences: List<String>) {
         val contentNode = message.get("content")
-        if (contentNode == null || !contentNode.isTextual()) {
+        if (contentNode == null || !contentNode.isTextual) {
             return
         }
-        val cut: StopCut? = cutAtStopSequence(contentNode.asText(), stopSequences)
-        if (cut == null) {
-            return
-        }
+        val cut: StopCut = cutAtStopSequence(contentNode.asText(), stopSequences) ?: return
         message.put("content", cut.content)
         choice.set<JsonNode?>("finish_details", finishDetails(cut.sequence))
     }
@@ -658,8 +588,8 @@ class ChatCompletionsHandler(
     }
     private fun completedOutputText(response: JsonNode?): String {
         val text = StringBuilder()
-        val output = if (response != null) response.get("output") else null
-        if (output == null || !output.isArray()) {
+        val output = response?.get("output")
+        if (output == null || !output.isArray) {
             return ""
         }
         for (item in output) {
@@ -667,7 +597,7 @@ class ChatCompletionsHandler(
                 continue
             }
             val content = item.get("content")
-            if (content == null || !content.isArray()) {
+            if (content == null || !content.isArray) {
                 continue
             }
             for (part in content) {
@@ -695,23 +625,39 @@ class ChatCompletionsHandler(
         return content
     }
     private fun completedToolArgumentText(response: JsonNode?, toolName: String): String {
-        val output = if (response != null) response.get("output") else null
-        if (output == null || !output.isArray()) {
+        val output = response?.get("output")
+        if (output == null || !output.isArray) {
             return ""
         }
+        return preferredToolArgumentText(
+            output,
+            { "function_call" == it.path("type").asText("") },
+            { it.path("name").asText(toolName) },
+            { toolName == it.path("name").asText("") },
+            { it.path("arguments").asText("") },
+        )
+    }
+
+    private fun preferredToolArgumentText(
+        items: Iterable<JsonNode>,
+        include: (JsonNode) -> Boolean,
+        name: (JsonNode) -> String,
+        isPreferred: (JsonNode) -> Boolean,
+        arguments: (JsonNode) -> String,
+    ): String {
         var fallback = ""
-        for (item in output) {
-            if ("function_call" != item.path("type").asText("")) {
+        for (item in items) {
+            if (!include(item)) {
                 continue
             }
             val text = textFromToolArguments(
-                item.path("name").asText(toolName),
-                item.path("arguments").asText("")
+                name(item),
+                arguments(item),
             )
             if (fallback.isBlank()) {
                 fallback = text
             }
-            if (toolName == item.path("name").asText("")) {
+            if (isPreferred(item)) {
                 return text
             }
         }
@@ -721,11 +667,7 @@ class ChatCompletionsHandler(
         id: String, created: Long, model: String,
         delta: ObjectNode, finishReason: String?
     ): ObjectNode {
-        val chunk: ObjectNode = MAPPER.createObjectNode()
-        chunk.put("id", id)
-        chunk.put("object", "chat.completion.chunk")
-        chunk.put("created", created)
-        chunk.put("model", model)
+        val chunk = createResponseEnvelope(id, created, model, "chat.completion.chunk")
         val choices: ArrayNode = MAPPER.createArrayNode()
         val choice: ObjectNode = MAPPER.createObjectNode()
         choice.put("index", 0)
@@ -754,6 +696,38 @@ class ChatCompletionsHandler(
         delta.set<JsonNode?>("tool_calls", toolCalls)
         return delta
     }
+    private fun writeToolArgumentsDelta(
+        ctx: Context,
+        os: OutputStream,
+        id: String,
+        created: Long,
+        model: String,
+        index: Int,
+        arguments: String,
+    ) {
+        val tcArray: ArrayNode = MAPPER.createArrayNode()
+        val tc: ObjectNode = MAPPER.createObjectNode()
+        tc.put("index", index)
+        val func: ObjectNode = MAPPER.createObjectNode()
+        func.put("arguments", arguments)
+        tc.set<JsonNode?>("function", func)
+        tcArray.add(tc)
+        writeSseChunk(ctx, os, createChunk(id, created, model, createToolCallsDelta(tcArray), null))
+    }
+    private fun createUsageChunk(id: String, created: Long, model: String, usageNode: JsonNode?): ObjectNode {
+        val usageChunk = createResponseEnvelope(id, created, model, "chat.completion.chunk")
+        usageChunk.set<JsonNode?>("choices", MAPPER.createArrayNode())
+        usageChunk.set<JsonNode?>("usage", toUsage(usageNode))
+        return usageChunk
+    }
+    private fun createResponseEnvelope(id: String, created: Long, model: String, objectType: String): ObjectNode {
+        val response = MAPPER.createObjectNode()
+        response.put("id", id)
+        response.put("object", objectType)
+        response.put("created", created)
+        response.put("model", model)
+        return response
+    }
     private fun createEmptyDelta(): ObjectNode {
         return MAPPER.createObjectNode()
     }
@@ -766,21 +740,15 @@ class ChatCompletionsHandler(
     }
     companion object {
         private val LOG: Logger = LoggerFactory.getLogger(ChatCompletionsHandler::class.java)
-        private fun <T> responseHeaders(response: HttpResponse<T>): Map<String, List<String>> {
-            return response.headers()?.map() ?: emptyMap()
-        }
         private fun stopSequences(body: JsonNode?): List<String> {
-            val stop = if (body != null) body.get("stop") else null
-            if (stop == null) {
-                return emptyList()
-            }
-            if (stop.isTextual() && !stop.asText().isEmpty()) {
+            val stop = body?.get("stop") ?: return emptyList()
+            if (stop.isTextual && !stop.asText().isEmpty()) {
                 return listOf(stop.asText())
             }
-            if (stop.isArray()) {
+            if (stop.isArray) {
                 val sequences: MutableList<String> = ArrayList<String>()
                 for (sequence in stop) {
-                    if (sequence.isTextual() && !sequence.asText().isEmpty()) {
+                    if (sequence.isTextual && !sequence.asText().isEmpty()) {
                         sequences.add(sequence.asText())
                     }
                 }
@@ -804,7 +772,10 @@ class ChatCompletionsHandler(
             var firedSequence: String? = null
             for (sequence in stopSequences) {
                 val start = text.indexOf(sequence)
-                if (start >= 0 && (earliestStart < 0 || start < earliestStart)) {
+                if (start == -1) {
+                    continue
+                }
+                if (earliestStart == -1 || start < earliestStart) {
                     earliestStart = start
                     firedSequence = sequence
                 }
@@ -813,7 +784,7 @@ class ChatCompletionsHandler(
         }
         private fun appendReasoningSummary(target: StringBuilder, reasoningItem: JsonNode) {
             val summary = reasoningItem.get("summary")
-            if (summary == null || !summary.isArray()) {
+            if (summary == null || !summary.isArray) {
                 return
             }
             for (part in summary) {

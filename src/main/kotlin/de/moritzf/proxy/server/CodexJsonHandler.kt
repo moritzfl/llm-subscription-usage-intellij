@@ -1,7 +1,6 @@
 package de.moritzf.proxy.server
 import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.proxy.transport.CodexHttpClient
-import com.fasterxml.jackson.core.JsonProcessingException
 import io.javalin.http.Context
 import io.javalin.http.Handler
 import java.net.http.HttpResponse
@@ -14,17 +13,7 @@ class CodexJsonHandler(
     private val upstreamErrorMapper = UpstreamErrorMapper()
     override fun handle(ctx: Context) {
         val requestId = requestId(ctx)
-        val bodyStr = ctx.body()
-        requestLogger.logInbound(requestId, ctx, bodyStr)
-        val body = try {
-            RequestValidator.parseJsonObject(ctx, bodyStr)
-        } catch (exception: JsonProcessingException) {
-            RequestValidator.rejectMalformedJson(ctx, exception)
-            return
-        }
-        if (body == null) {
-            return
-        }
+        val body = RequestValidator.parseLoggedJsonObject(ctx, requestLogger, requestId) ?: return
         AccessLogFields.mode(ctx, "sync")
         val upstream = UpstreamRetry.withRetries(ctx.header("x-litellm-num-retries")) {
             client.request(
@@ -37,17 +26,12 @@ class CodexJsonHandler(
             )
         }
         AccessLogFields.upstreamStatus(ctx, upstream.statusCode())
+        if (upstream.statusCode() !in 200..<300) {
+            upstreamErrorMapper.writeResponse(ctx, requestLogger, requestId, upstream)
+            return
+        }
         upstream.body().use { responseStream ->
-            val rawBody = String(responseStream.readAllBytes(), StandardCharsets.UTF_8)
-            if (upstream.statusCode() !in 200..<300) {
-                val mapped = upstreamErrorMapper.map(upstream.statusCode(), rawBody)
-                requestLogger.logUpstreamResponse(requestId, mapped.statusCode, responseHeaders(upstream), mapped.body)
-                ctx.status(mapped.statusCode)
-                ctx.contentType(JsonHelper.JSON_CONTENT_TYPE)
-                AccessLogFields.responseBytes(ctx, mapped.body.toByteArray(StandardCharsets.UTF_8).size.toLong())
-                ctx.result(mapped.body)
-                return
-            }
+            val rawBody = JsonHelper.readUtf8Body(responseStream)
             ctx.status(upstream.statusCode())
             ctx.contentType(responseContentType(upstream))
             copySelectedResponseHeaders(ctx, upstream)
@@ -73,9 +57,6 @@ class CodexJsonHandler(
         private fun <T> responseContentType(response: HttpResponse<T>): String {
             val contentType = response.headers().firstValue("Content-Type")
             return if (contentType.isPresent) contentType.get() else JsonHelper.JSON_CONTENT_TYPE
-        }
-        private fun <T> responseHeaders(response: HttpResponse<T>): Map<String, List<String>> {
-            return response.headers()?.map() ?: emptyMap()
         }
         private fun <T> copySelectedResponseHeaders(ctx: Context, response: HttpResponse<T>) {
             FORWARDED_RESPONSE_HEADERS.forEach { header ->

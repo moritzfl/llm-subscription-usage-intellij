@@ -1,6 +1,7 @@
 package de.moritzf.proxy
 
 import de.moritzf.proxy.config.ServerConfig
+import de.moritzf.proxy.config.HostBinding
 import de.moritzf.proxy.sse.SseParser
 import de.moritzf.proxy.util.Json
 import java.io.ByteArrayInputStream
@@ -10,7 +11,6 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
 import java.time.Duration
-import java.util.Locale
 
 internal data class StartupProbeResult(
     val success: Boolean,
@@ -173,23 +173,9 @@ internal object StartupProbe {
         return ServerConfig.DEFAULT_MODEL
     }
 
+    @Suppress("HttpUrlsUsage")
     private fun startupProbeUrl(config: ServerConfig): String {
-        val host = clientHostForBindHost(config.host)
-        return "http://${hostForUri(host)}:${config.port}/v1/chat/completions"
-    }
-
-    private fun clientHostForBindHost(host: String?): String {
-        if (host.isNullOrBlank()) {
-            return ServerConfig.DEFAULT_HOST
-        }
-        val normalized = host.trim().lowercase(Locale.ROOT)
-        if (normalized == "0.0.0.0" || normalized == "::" || normalized == "0:0:0:0:0:0:0:0") {
-            return ServerConfig.DEFAULT_HOST
-        }
-        return host.trim()
-    }
-
-    private fun hostForUri(host: String): String {
-        return if (host.contains(":") && !host.startsWith("[")) "[$host]" else host
+        val host = HostBinding.clientHostForBindHost(config.host)
+        return "http://${HostBinding.hostForUri(host)}:${config.port}/v1/chat/completions"
     }
 }

@@ -154,13 +154,13 @@ class ServerConfig(
         if (port !in 1..65535) {
             throw IllegalArgumentException("Port must be in range 1-65535, got: $port")
         }
-        if (!isLocalOnlyHost(this.host) && this.apiKeys.isEmpty() && adminKey == null) {
+        if (!HostBinding.isLocalOnlyHost(this.host) && this.apiKeys.isEmpty() && adminKey == null) {
             throw IllegalArgumentException(
                 "API key enforcement is required when binding to a non-loopback host: ${this.host}",
             )
         }
     }
-    fun requiresApiKeyEnforcement(): Boolean = !isLocalOnlyHost(host)
+    fun requiresApiKeyEnforcement(): Boolean = !HostBinding.isLocalOnlyHost(host)
     companion object {
         const val DEFAULT_HOST: String = "127.0.0.1"
         const val DEFAULT_PORT: Int = 10531
@@ -206,16 +206,6 @@ class ServerConfig(
                 return DEFAULT_CODEX_INSTRUCTIONS_CACHE_DIR
             }
             return Path.of(cacheDir).toAbsolutePath().normalize().toString()
-        }
-        private fun isLocalOnlyHost(host: String?): Boolean {
-            if (host.isNullOrBlank()) {
-                return true
-            }
-            val normalized = host.trim().lowercase(Locale.ROOT)
-            return normalized == "localhost" ||
-                normalized == "::1" ||
-                normalized == "0:0:0:0:0:0:0:1" ||
-                normalized.startsWith("127.")
         }
     }
 }

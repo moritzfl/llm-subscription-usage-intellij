@@ -7,7 +7,6 @@ import de.moritzf.proxy.sse.SseCollector
 import de.moritzf.proxy.state.ResponsesState
 import de.moritzf.proxy.transport.CodexHttpClient
 import de.moritzf.proxy.usage.UsageTracker
-import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.ObjectNode
 import io.javalin.http.Context
@@ -54,17 +53,7 @@ class ResponsesHandler : Handler {
 
     fun create(ctx: Context) {
         val requestId = if (shouldUseRequestContext()) requestId(ctx) else requestLogger.nextRequestId()
-        val bodyStr = ctx.body()
-        requestLogger.logInbound(requestId, ctx, bodyStr)
-        val body = try {
-            RequestValidator.parseJsonObject(ctx, bodyStr)
-        } catch (exception: JsonProcessingException) {
-            RequestValidator.rejectMalformedJson(ctx, exception)
-            return
-        }
-        if (body == null) {
-            return
-        }
+        val body = RequestValidator.parseLoggedJsonObject(ctx, requestLogger, requestId) ?: return
         val wantsStream = body.path("stream").asBoolean(false)
         AccessLogFields.mode(ctx, if (wantsStream) "stream" else "sync")
         // The replay cache emulates previous_response_id/item_reference for store=false.
@@ -87,15 +76,7 @@ class ResponsesHandler : Handler {
         AccessLogFields.upstreamStatus(ctx, upstream.statusCode())
         ctx.header("x-litellm-model-id", normalized.path("model").asText(""))
         if (upstream.statusCode() !in 200..<300) {
-            upstream.body().use { stream ->
-                val rawBody = String(stream.readAllBytes(), StandardCharsets.UTF_8)
-                val mapped = upstreamErrorMapper.map(upstream.statusCode(), rawBody)
-                requestLogger.logUpstreamResponse(requestId, mapped.statusCode, responseHeaders(upstream), mapped.body)
-                ctx.status(mapped.statusCode)
-                ctx.contentType(JsonHelper.JSON_CONTENT_TYPE)
-                AccessLogFields.responseBytes(ctx, mapped.body.toByteArray(StandardCharsets.UTF_8).size.toLong())
-                ctx.result(mapped.body)
-            }
+            upstreamErrorMapper.writeResponse(ctx, requestLogger, requestId, upstream)
             return
         }
         if (wantsStream) {
@@ -409,9 +390,6 @@ class ResponsesHandler : Handler {
             }
             val type = item.path("type").asText("message")
             return type == "message"
-        }
-        private fun <T> responseHeaders(response: HttpResponse<T>): Map<String, List<String>> {
-            return response.headers()?.map() ?: emptyMap()
         }
     }
 }

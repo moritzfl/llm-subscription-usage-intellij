@@ -56,7 +56,7 @@ internal class ChatCompletionsRequestMapper(
                         item.set<JsonNode?>("content", content)
                         input.add(item)
                     }
-                    if (toolCalls != null && toolCalls.isArray()) {
+                    if (toolCalls != null && toolCalls.isArray) {
                         for (tc in toolCalls) {
                             val funcCall: ObjectNode = MAPPER.createObjectNode()
                             funcCall.put("type", "function_call")
@@ -90,40 +90,40 @@ internal class ChatCompletionsRequestMapper(
         upstream.put("instructions", instr)
 
         // Optional parameters.
-        if (chatBody.has("temperature") && !chatBody.get("temperature").isNull()) {
+        if (chatBody.has("temperature") && !chatBody.get("temperature").isNull) {
             upstream.set<JsonNode?>("temperature", chatBody.get("temperature"))
         }
-        if (chatBody.has("top_p") && !chatBody.get("top_p").isNull()) {
+        if (chatBody.has("top_p") && !chatBody.get("top_p").isNull) {
             upstream.set<JsonNode?>("top_p", chatBody.get("top_p"))
         }
         // max_completion_tokens (newer SDK) takes precedence over deprecated max_tokens.
-        if (chatBody.has("max_completion_tokens") && !chatBody.get("max_completion_tokens").isNull()) {
+        if (chatBody.has("max_completion_tokens") && !chatBody.get("max_completion_tokens").isNull) {
             upstream.put("max_output_tokens", chatBody.get("max_completion_tokens").asInt())
-        } else if (chatBody.has("max_tokens") && !chatBody.get("max_tokens").isNull()) {
+        } else if (chatBody.has("max_tokens") && !chatBody.get("max_tokens").isNull) {
             upstream.put("max_output_tokens", chatBody.get("max_tokens").asInt())
         }
 
         val tools: ArrayNode = MAPPER.createArrayNode()
         addModernTools(tools, chatBody.get("tools"))
         addLegacyFunctions(tools, chatBody.get("functions"))
-        if (!tools.isEmpty()) {
+        if (!tools.isEmpty) {
             upstream.set<JsonNode?>("tools", tools)
         }
 
         // Tool choice.
-        if (chatBody.has("tool_choice") && !chatBody.get("tool_choice").isNull()) {
+        if (chatBody.has("tool_choice") && !chatBody.get("tool_choice").isNull) {
             upstream.set<JsonNode?>("tool_choice", chatBody.get("tool_choice"))
-        } else if (chatBody.has("function_call") && !chatBody.get("function_call").isNull()) {
+        } else if (chatBody.has("function_call") && !chatBody.get("function_call").isNull) {
             setLegacyFunctionCallChoice(upstream, chatBody.get("function_call"))
         }
 
         // Structured output: chat `response_format` json_schema maps to Responses `text.format`.
         val responseFormat = chatBody.get("response_format")
-        if (responseFormat != null && responseFormat.isObject()
+        if (responseFormat != null && responseFormat.isObject
             && "json_schema" == responseFormat.path("type").asText()
         ) {
             val jsonSchema = responseFormat.get("json_schema")
-            if (jsonSchema != null && jsonSchema.isObject()) {
+            if (jsonSchema != null && jsonSchema.isObject) {
                 val format: ObjectNode = MAPPER.createObjectNode()
                 format.put("type", "json_schema")
                 if (jsonSchema.hasNonNull("name")) {
@@ -144,10 +144,8 @@ internal class ChatCompletionsRequestMapper(
         // Reasoning effort. A tier baked into the model name (aliasReasoningEffort) is the
         // user's explicit choice and wins over a separately supplied reasoning_effort, which
         // for clients like Junie can be a stale per-model default.
-        val requestedEffort = if (aliasReasoningEffort != null)
-            aliasReasoningEffort
-        else
-            if (chatBody.has("reasoning_effort") && !chatBody.get("reasoning_effort").isNull())
+        val requestedEffort = aliasReasoningEffort ?:
+            if (chatBody.has("reasoning_effort") && !chatBody.get("reasoning_effort").isNull)
                 chatBody.get("reasoning_effort").asText()
             else
                 null
@@ -161,7 +159,7 @@ internal class ChatCompletionsRequestMapper(
     }
 
     private fun addModernTools(tools: ArrayNode, toolDefinitions: JsonNode?) {
-        if (toolDefinitions == null || !toolDefinitions.isArray()) {
+        if (toolDefinitions == null || !toolDefinitions.isArray) {
             return
         }
         for (toolDef in toolDefinitions) {
@@ -174,7 +172,7 @@ internal class ChatCompletionsRequestMapper(
     }
 
     private fun addLegacyFunctions(tools: ArrayNode, functionDefinitions: JsonNode?) {
-        if (functionDefinitions == null || !functionDefinitions.isArray()) {
+        if (functionDefinitions == null || !functionDefinitions.isArray) {
             return
         }
         for (functionDef in functionDefinitions) {
@@ -182,6 +180,7 @@ internal class ChatCompletionsRequestMapper(
         }
     }
 
+    @Suppress("RemoveExplicitTypeArguments")
     private fun addFunctionTool(tools: ArrayNode, func: JsonNode) {
         val name = func.path("name").asText("")
         if (name.isBlank()) {
@@ -206,7 +205,7 @@ internal class ChatCompletionsRequestMapper(
     }
 
     private fun setLegacyFunctionCallChoice(upstream: ObjectNode, functionCall: JsonNode) {
-        if (functionCall.isTextual()) {
+        if (functionCall.isTextual) {
             val choice = functionCall.asText()
             if (!choice.isBlank()) {
                 upstream.put("tool_choice", choice)
@@ -224,11 +223,11 @@ internal class ChatCompletionsRequestMapper(
 
     private fun extractTextContent(content: JsonNode?): String {
         if (content == null) return ""
-        if (content.isTextual()) return content.asText()
-        if (content.isArray()) {
+        if (content.isTextual) return content.asText()
+        if (content.isArray) {
             val sb = StringBuilder()
             for (part in content) {
-                if (part.isObject() && "text" == part.path("type").asText()) {
+                if (part.isObject && "text" == part.path("type").asText()) {
                     val text = part.path("text").asText("")
                     if (!text.isEmpty()) {
                         sb.append(text)
@@ -242,14 +241,14 @@ internal class ChatCompletionsRequestMapper(
 
     private fun addContentParts(target: ArrayNode, content: JsonNode?) {
         if (content == null) return
-        if (content.isTextual()) {
+        if (content.isTextual) {
             val part: ObjectNode = MAPPER.createObjectNode()
             part.put("type", "input_text")
             part.put("text", content.asText())
             target.add(part)
-        } else if (content.isArray()) {
+        } else if (content.isArray) {
             for (item in content) {
-                if (item.isObject()) {
+                if (item.isObject) {
                     val type = item.path("type").asText("")
                     if ("text" == type) {
                         val part: ObjectNode = MAPPER.createObjectNode()

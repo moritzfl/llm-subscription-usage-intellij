@@ -1,6 +1,7 @@
 package de.moritzf.proxy
 import de.moritzf.proxy.auth.AuthFileResolver
 import de.moritzf.proxy.auth.AuthManager
+import de.moritzf.proxy.config.HostBinding
 import de.moritzf.proxy.config.ServerConfig
 import de.moritzf.proxy.model.ModelResolver
 import de.moritzf.proxy.server.ApiKeyStore
@@ -15,7 +16,6 @@ import picocli.CommandLine.Option
 import java.net.http.HttpClient
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.Locale
 import java.util.concurrent.Callable
 @Command(
     name = "AIProxyOauth",
@@ -274,7 +274,7 @@ class AIProxyOauth : Callable<Int> {
         startupProbe: StartupProbeResult?,
     ) {
         val out = spec.commandLine().out
-        val url = "http://${config.host}:${config.port}/v1"
+        val url = proxyEndpointUrl(config)
         out.println()
         out.println("OpenAI OAuth Proxy Server started")
         out.println("  Endpoint: $url")
@@ -307,6 +307,10 @@ class AIProxyOauth : Callable<Int> {
         }
         out.println()
     }
+
+    @Suppress("HttpUrlsUsage")
+    private fun proxyEndpointUrl(config: ServerConfig): String = "http://${config.host}:${config.port}/v1"
+
     private fun setupShutdownHook(server: ProxyServer, authHttpClient: HttpClient, apiKeyStore: ApiKeyStore) {
         Runtime.getRuntime().addShutdownHook(
             Thread(
@@ -322,7 +326,7 @@ class AIProxyOauth : Callable<Int> {
     }
     companion object {
         internal fun describeNetworkAccess(host: String?): String {
-            return if (isLocalOnlyHost(host)) "Local access only" else "Full network access"
+            return if (HostBinding.isLocalOnlyHost(host)) "Local access only" else "Full network access"
         }
         internal fun describeCors(config: ServerConfig): String {
             if (config.allowAnyCors) {
@@ -332,16 +336,6 @@ class AIProxyOauth : Callable<Int> {
                 return config.allowedCorsOrigins.joinToString(", ")
             }
             return "disabled"
-        }
-        private fun isLocalOnlyHost(host: String?): Boolean {
-            if (host.isNullOrBlank()) {
-                return true
-            }
-            val normalized = host.trim().lowercase(Locale.ROOT)
-            return normalized == "localhost" ||
-                    normalized == "::1" ||
-                    normalized == "0:0:0:0:0:0:0:1" ||
-                    normalized.startsWith("127.")
         }
         internal fun findExistingAuthFile(authFilePath: String?): String? {
             for (candidate in AuthFileResolver.resolveCandidates(authFilePath)) {
