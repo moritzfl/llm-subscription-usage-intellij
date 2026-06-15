@@ -1,8 +1,8 @@
 package de.moritzf.quota.openai.proxy
 
-import com.aiproxyoauth.auth.AuthRequiredException
-import com.aiproxyoauth.auth.CredentialsProvider
-import com.aiproxyoauth.model.CodexClientVersionResolver
+import de.moritzf.proxy.auth.AuthRequiredException
+import de.moritzf.proxy.auth.CredentialsProvider
+import de.moritzf.proxy.model.CodexClientVersionResolver
 
 /**
  * Delegates Codex auth to the IDE auth service; token storage and refresh stay outside

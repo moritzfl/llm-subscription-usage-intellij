@@ -1,13 +1,13 @@
 package de.moritzf.quota.openai.proxy
 
-import com.aiproxyoauth.auth.CredentialsProvider
-import com.aiproxyoauth.config.ServerConfig
-import com.aiproxyoauth.model.CodexClientVersionResolver
-import com.aiproxyoauth.model.ModelResolver
-import com.aiproxyoauth.server.ApiKeyStore
-import com.aiproxyoauth.server.ProxyServer
-import com.aiproxyoauth.transport.CodexHttpClient
-import com.aiproxyoauth.usage.UsageTracker
+import de.moritzf.proxy.auth.CredentialsProvider
+import de.moritzf.proxy.config.ServerConfig
+import de.moritzf.proxy.model.CodexClientVersionResolver
+import de.moritzf.proxy.model.ModelResolver
+import de.moritzf.proxy.server.ApiKeyStore
+import de.moritzf.proxy.server.ProxyServer
+import de.moritzf.proxy.transport.CodexHttpClient
+import de.moritzf.proxy.usage.UsageTracker
 import de.moritzf.quota.shared.JsonSupport
 import java.io.InputStream
 import java.net.URI

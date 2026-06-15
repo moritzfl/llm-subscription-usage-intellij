@@ -1,6 +1,6 @@
 package de.moritzf.quota.openai.proxy
 
-import com.aiproxyoauth.logging.RequestLogger
+import de.moritzf.proxy.logging.RequestLogger
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.FileTime

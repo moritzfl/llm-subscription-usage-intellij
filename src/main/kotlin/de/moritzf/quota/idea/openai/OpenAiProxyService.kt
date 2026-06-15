@@ -1,6 +1,6 @@
 package de.moritzf.quota.idea.openai
 
-import com.aiproxyoauth.util.ApiKeyUtils
+import de.moritzf.proxy.util.ApiKeyUtils
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service

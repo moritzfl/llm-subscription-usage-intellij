@@ -1,10 +1,10 @@
 package de.moritzf.quota.idea.mcp
 
-import com.aiproxyoauth.auth.AuthRequiredException
-import com.aiproxyoauth.config.ServerConfig
-import com.aiproxyoauth.model.CodexClientVersionResolver
-import com.aiproxyoauth.server.UpstreamErrorMapper
-import com.aiproxyoauth.transport.CodexHttpClient
+import de.moritzf.proxy.auth.AuthRequiredException
+import de.moritzf.proxy.config.ServerConfig
+import de.moritzf.proxy.model.CodexClientVersionResolver
+import de.moritzf.proxy.server.UpstreamErrorMapper
+import de.moritzf.proxy.transport.CodexHttpClient
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.openai.proxy.OpenAiProxyServer
