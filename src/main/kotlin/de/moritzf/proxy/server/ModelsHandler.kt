@@ -1,9 +1,7 @@
 package de.moritzf.proxy.server
-
 import de.moritzf.proxy.model.ModelResolver
 import io.javalin.http.Context
 import io.javalin.http.Handler
-
 class ModelsHandler(
     private val modelResolver: ModelResolver,
 ) : Handler {

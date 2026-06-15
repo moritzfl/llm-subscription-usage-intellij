@@ -10,22 +10,22 @@ class ModelAliasResolverTest {
     @Test
     fun parsesReasoningTierSuffixIntoBaseModelAndEffort() {
         val resolved = resolver.resolve("gpt-5.5 (xhigh)")
-        assertEquals("gpt-5.5", resolved.model())
-        assertEquals("xhigh", resolved.reasoningEffort())
+        assertEquals("gpt-5.5", resolved.model)
+        assertEquals("xhigh", resolved.reasoningEffort)
     }
 
     @Test
     fun parsesSuffixCaseInsensitivelyAndTrimsWhitespace() {
         val resolved = resolver.resolve("gpt-5.4-mini  (High)")
-        assertEquals("gpt-5.4-mini", resolved.model())
-        assertEquals("high", resolved.reasoningEffort())
+        assertEquals("gpt-5.4-mini", resolved.model)
+        assertEquals("high", resolved.reasoningEffort)
     }
 
     @Test
     fun leavesBareModelUntouched() {
         val resolved = resolver.resolve("gpt-5.5")
-        assertEquals("gpt-5.5", resolved.model())
-        assertNull(resolved.reasoningEffort())
+        assertEquals("gpt-5.5", resolved.model)
+        assertNull(resolved.reasoningEffort)
     }
 
     @Test

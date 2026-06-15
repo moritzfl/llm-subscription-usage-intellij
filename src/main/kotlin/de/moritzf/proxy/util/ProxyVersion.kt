@@ -1,8 +1,6 @@
 package de.moritzf.proxy.util
-
 import java.io.IOException
 import java.util.Properties
-
 /**
  * Resolves the proxy's version from the `aiproxyoauth-version.properties` resource
  * that the build generates from the Gradle `pluginVersion` property, so every surface
@@ -13,10 +11,7 @@ object ProxyVersion {
     private const val VERSION_RESOURCE = "/aiproxyoauth-version.properties"
     private const val DEV_VERSION = "dev"
     private val version = resolve()
-
-    @JvmStatic
     fun get(): String = version
-
     private fun resolve(): String {
         return try {
             ProxyVersion::class.java.getResourceAsStream(VERSION_RESOURCE)?.use { input ->

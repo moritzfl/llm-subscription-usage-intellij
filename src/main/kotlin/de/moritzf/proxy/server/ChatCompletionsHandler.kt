@@ -1,5 +1,4 @@
 package de.moritzf.proxy.server
-
 import de.moritzf.proxy.config.ServerConfig
 import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.proxy.model.CodexInstructionsProvider
@@ -47,7 +46,6 @@ import java.util.HashSet
 import java.util.LinkedHashMap
 import java.util.UUID
 import java.util.function.Consumer
-
 class ChatCompletionsHandler(
     private val client: CodexHttpClient,
     private val config: ServerConfig,
@@ -57,8 +55,6 @@ class ChatCompletionsHandler(
 ) : Handler {
     private val modelAliasResolver = ModelAliasResolver()
     private val upstreamErrorMapper = UpstreamErrorMapper()
-
-    @Throws(Exception::class)
     override fun handle(ctx: Context) {
         val requestId = if (shouldUseRequestContext()) requestId(ctx) else requestLogger.nextRequestId()
         val bodyStr = ctx.body()
@@ -72,13 +68,11 @@ class ChatCompletionsHandler(
         if (body == null) {
             return
         }
-
         val messagesNode = body.get("messages")
         if (messagesNode == null || !messagesNode.isArray) {
             toErrorResponse(ctx, "`messages` must be an array.")
             return
         }
-
         val wantsStream = body.path("stream").asBoolean(false)
         val junieCommandProtocol = isJunieRequest(body)
         val junieToolName = if (junieCommandProtocol) fallbackToolName(body) else null
@@ -97,7 +91,7 @@ class ChatCompletionsHandler(
         // ServerConfig.DEFAULT_MODEL is the last-resort fallback for when no models were
         // configured and auto-discovery failed — in that case no better default is available
         // without an extra ModelResolver call. Callers can always override via the "model" field.
-        val configuredModels = config.models()
+        val configuredModels = config.models
         val defaultModel = if (!configuredModels.isNullOrEmpty()) {
             configuredModels.first()
         } else {
@@ -105,36 +99,33 @@ class ChatCompletionsHandler(
         }
         val model = body.path("model").asText(defaultModel)
         val resolvedModel = modelAliasResolver.resolve(model)
-        val upstreamModel = resolvedModel.model() ?: model
-
+        val upstreamModel = resolvedModel.model ?: model
         // Build upstream Responses API request
-        val upstreamBody = buildUpstreamBody(body, upstreamModel, resolvedModel.reasoningEffort())
-        val promptCacheKey = if (config.forwardPromptCacheHeaders())
+        val upstreamBody = buildUpstreamBody(body, upstreamModel, resolvedModel.reasoningEffort)
+        val promptCacheKey = if (config.forwardPromptCacheHeaders)
             upstreamBody.path("prompt_cache_key").asText(null)
         else
             null
-
         // Always stream upstream
         val upstream = withRetries(ctx.header("x-litellm-num-retries")) {
             sendUpstream(upstreamBody, requestId, promptCacheKey)
         }
         upstreamStatus(ctx, upstream.statusCode())
         ctx.header("x-litellm-model-id", upstreamModel)
-
         upstream.body().use { responseStream ->
             if (upstream.statusCode() !in 200..<300) {
                 val rawBody = String(responseStream.readAllBytes(), StandardCharsets.UTF_8)
                 val mapped = upstreamErrorMapper.map(upstream.statusCode(), rawBody)
                 requestLogger.logUpstreamResponse(
                     requestId,
-                    mapped.statusCode(),
+                    mapped.statusCode,
                     responseHeaders(upstream),
-                    mapped.body()
+                    mapped.body
                 )
-                ctx.status(mapped.statusCode())
+                ctx.status(mapped.statusCode)
                 ctx.contentType(JsonHelper.JSON_CONTENT_TYPE)
-                responseBytes(ctx, mapped.body().toByteArray(StandardCharsets.UTF_8).size.toLong())
-                ctx.result(mapped.body())
+                responseBytes(ctx, mapped.body.toByteArray(StandardCharsets.UTF_8).size.toLong())
+                ctx.result(mapped.body)
                 return
             }
             if (wantsStream) {
@@ -150,17 +141,14 @@ class ChatCompletionsHandler(
             }
         }
     }
-
     private fun buildUpstreamBody(chatBody: JsonNode, model: String, aliasReasoningEffort: String?): ObjectNode {
         val upstream: ObjectNode = MAPPER.createObjectNode()
         upstream.put("model", model)
         upstream.put("stream", true)
-        upstream.put("store", config.store())
-
+        upstream.put("store", config.store)
         // Convert messages to Responses API format
         val input: ArrayNode = MAPPER.createArrayNode()
         val instructions = StringBuilder()
-
         val messages = chatBody.get("messages")
         for (msg in messages) {
             val role = msg.path("role").asText("")
@@ -172,7 +160,6 @@ class ChatCompletionsHandler(
                         instructions.append(text)
                     }
                 }
-
                 "user" -> {
                     val item: ObjectNode = MAPPER.createObjectNode()
                     item.put("type", "message")
@@ -182,11 +169,9 @@ class ChatCompletionsHandler(
                     item.set<JsonNode?>("content", content)
                     input.add(item)
                 }
-
                 "assistant" -> {
                     val text = extractTextContent(msg.get("content"))
                     val toolCalls = msg.get("tool_calls")
-
                     if (!text.isEmpty()) {
                         val item: ObjectNode = MAPPER.createObjectNode()
                         item.put("type", "message")
@@ -199,7 +184,6 @@ class ChatCompletionsHandler(
                         item.set<JsonNode?>("content", content)
                         input.add(item)
                     }
-
                     if (toolCalls != null && toolCalls.isArray()) {
                         for (tc in toolCalls) {
                             val funcCall: ObjectNode = MAPPER.createObjectNode()
@@ -214,7 +198,6 @@ class ChatCompletionsHandler(
                         }
                     }
                 }
-
                 "tool" -> {
                     val item: ObjectNode = MAPPER.createObjectNode()
                     item.put("type", "function_call_output")
@@ -225,16 +208,13 @@ class ChatCompletionsHandler(
                 }
             }
         }
-
         upstream.set<JsonNode?>("input", input)
-
         // Set instructions
         var instr = instructions.toString()
         if (instr.isEmpty()) {
             instr = instructionsProvider.instructionsForModel(model)
         }
         upstream.put("instructions", instr)
-
         // Optional parameters
         if (chatBody.has("temperature") && !chatBody.get("temperature").isNull()) {
             upstream.set<JsonNode?>("temperature", chatBody.get("temperature"))
@@ -248,21 +228,18 @@ class ChatCompletionsHandler(
         } else if (chatBody.has("max_tokens") && !chatBody.get("max_tokens").isNull()) {
             upstream.put("max_output_tokens", chatBody.get("max_tokens").asInt())
         }
-
         val tools: ArrayNode = MAPPER.createArrayNode()
         addModernTools(tools, chatBody.get("tools"))
         addLegacyFunctions(tools, chatBody.get("functions"))
         if (!tools.isEmpty()) {
             upstream.set<JsonNode?>("tools", tools)
         }
-
         // Tool choice
         if (chatBody.has("tool_choice") && !chatBody.get("tool_choice").isNull()) {
             upstream.set<JsonNode?>("tool_choice", chatBody.get("tool_choice"))
         } else if (chatBody.has("function_call") && !chatBody.get("function_call").isNull()) {
             setLegacyFunctionCallChoice(upstream, chatBody.get("function_call"))
         }
-
         // Structured output: chat `response_format` json_schema maps to Responses `text.format`.
         val responseFormat = chatBody.get("response_format")
         if (responseFormat != null && responseFormat.isObject()
@@ -286,26 +263,23 @@ class ChatCompletionsHandler(
                 upstream.set<JsonNode?>("text", text)
             }
         }
-
         // Reasoning effort. A tier baked into the model name (aliasReasoningEffort) is the
         // user's explicit choice and wins over a separately supplied reasoning_effort, which
         // for clients like Junie can be a stale per-model default.
         val requestedEffort = if (aliasReasoningEffort != null)
             aliasReasoningEffort
         else
-            (if (chatBody.has("reasoning_effort") && !chatBody.get("reasoning_effort").isNull())
+            if (chatBody.has("reasoning_effort") && !chatBody.get("reasoning_effort").isNull())
                 chatBody.get("reasoning_effort").asText()
             else
-                null)
+                null
         if (requestedEffort != null) {
             val reasoning: ObjectNode = MAPPER.createObjectNode()
             reasoning.put("effort", modelAliasResolver.clampReasoningEffort(model, requestedEffort))
             upstream.set<JsonNode?>("reasoning", reasoning)
         }
-
         return upstream
     }
-
     private fun addModernTools(tools: ArrayNode, toolDefinitions: JsonNode?) {
         if (toolDefinitions == null || !toolDefinitions.isArray()) {
             return
@@ -318,7 +292,6 @@ class ChatCompletionsHandler(
             }
         }
     }
-
     private fun addLegacyFunctions(tools: ArrayNode, functionDefinitions: JsonNode?) {
         if (functionDefinitions == null || !functionDefinitions.isArray()) {
             return
@@ -327,7 +300,6 @@ class ChatCompletionsHandler(
             addFunctionTool(tools, functionDef)
         }
     }
-
     private fun addFunctionTool(tools: ArrayNode, func: JsonNode) {
         val name = func.path("name").asText("")
         if (name.isBlank()) {
@@ -350,7 +322,6 @@ class ChatCompletionsHandler(
         }
         tools.add(tool)
     }
-
     private fun setLegacyFunctionCallChoice(upstream: ObjectNode, functionCall: JsonNode) {
         if (functionCall.isTextual()) {
             val choice = functionCall.asText()
@@ -367,8 +338,6 @@ class ChatCompletionsHandler(
             upstream.set<JsonNode?>("tool_choice", toolChoice)
         }
     }
-
-    @Throws(Exception::class)
     private fun sendUpstream(
         upstreamBody: ObjectNode,
         requestId: String,
@@ -390,16 +359,13 @@ class ChatCompletionsHandler(
             mapOf("Content-Type" to "application/json")
         )
     }
-
     private fun shouldUseRequestContext(): Boolean {
-        return config.fullRequestLogging() || config.forwardPromptCacheHeaders()
+        return config.fullRequestLogging || config.forwardPromptCacheHeaders
     }
-
     private fun hasModernToolDefinitions(body: JsonNode): Boolean {
         val tools = body.get("tools")
         return tools != null && tools.isArray() && !tools.isEmpty()
     }
-
     private fun usesLegacyFunctions(body: JsonNode): Boolean {
         val functions = body.get("functions")
         if (functions == null || !functions.isArray() || functions.isEmpty()) {
@@ -408,7 +374,6 @@ class ChatCompletionsHandler(
         val tools = body.get("tools")
         return tools == null || !tools.isArray() || tools.isEmpty()
     }
-
     private fun requestId(ctx: Context): String {
         var requestId = ctx.attribute<String>(AccessLogFields.REQUEST_ID)
         if (requestId.isNullOrBlank()) {
@@ -417,8 +382,6 @@ class ChatCompletionsHandler(
         }
         return requestId
     }
-
-    @Throws(Exception::class)
     private fun nonStreamToClient(
         ctx: Context, upstreamBody: InputStream, model: String,
         junieTextProtocol: Boolean, junieTextToolName: String?,
@@ -426,7 +389,6 @@ class ChatCompletionsHandler(
         legacyFunctionCallProtocol: Boolean, requestBody: JsonNode
     ) {
         val completedResponse = collectCompletedResponse(upstreamBody)
-
         val upstreamStatus = completedResponse.path("status").asText("")
         if ("failed" == upstreamStatus || "cancelled" == upstreamStatus) {
             val errorMessage = completedResponse.path("error").path("message")
@@ -435,27 +397,21 @@ class ChatCompletionsHandler(
             toErrorResponse(ctx, errorMessage, 502, "upstream_error")
             return
         }
-
         val id = "chatcmpl_" + UUID.randomUUID()
         val created = System.currentTimeMillis() / 1000
-
         val result: ObjectNode = MAPPER.createObjectNode()
         result.put("id", id)
         result.put("object", "chat.completion")
         result.put("created", created)
         result.put("model", model)
-
         val choices: ArrayNode = MAPPER.createArrayNode()
         val choice: ObjectNode = MAPPER.createObjectNode()
         choice.put("index", 0)
-
         val message: ObjectNode = MAPPER.createObjectNode()
         message.put("role", "assistant")
-
         val textContent = StringBuilder()
         val reasoningContent = StringBuilder()
         val toolCalls: ArrayNode = MAPPER.createArrayNode()
-
         val output = completedResponse.get("output")
         if (output != null && output.isArray()) {
             for (item in output) {
@@ -471,7 +427,6 @@ class ChatCompletionsHandler(
                             }
                         }
                     }
-
                     "function_call" -> {
                         val tc: ObjectNode = MAPPER.createObjectNode()
                         tc.put("id", item.path("call_id").asText(""))
@@ -482,14 +437,11 @@ class ChatCompletionsHandler(
                         tc.set<JsonNode?>("function", func)
                         toolCalls.add(tc)
                     }
-
                     "reasoning" -> appendReasoningSummary(reasoningContent, item)
                 }
             }
         }
-
         val collectedText: String = truncateAtStopSequence(textContent.toString(), stopSequences(requestBody))
-
         if (junieTextToolName != null) {
             var content = collectedText
             if (content.isBlank() && !toolCalls.isEmpty()) {
@@ -524,7 +476,6 @@ class ChatCompletionsHandler(
         } else if (!toolCalls.isEmpty()) {
             message.set<JsonNode?>("tool_calls", toolCalls)
         }
-
         val hasFunctionCall = message.has("function_call")
         val status = completedResponse.path("status").asText("")
         val finishReason = when (status) {
@@ -533,13 +484,11 @@ class ChatCompletionsHandler(
             "failed", "cancelled" -> "stop"
             else -> if (hasFunctionCall) "function_call" else if (toolCalls.isEmpty()) "stop" else "tool_calls"
         }
-
         applyStopFinishDetails(choice, message, stopSequences(requestBody))
         choice.set<JsonNode?>("message", message)
         choice.put("finish_reason", finishReason)
         choices.add(choice)
         result.set<JsonNode?>("choices", choices)
-
         val usageNode = completedResponse.get("usage")
         usageTracker.record(
             ctx.attribute<String?>("keyName"),
@@ -547,14 +496,12 @@ class ChatCompletionsHandler(
             if (usageNode != null) usageNode.path("output_tokens").asLong(0) else 0
         )
         result.set<JsonNode?>("usage", toUsage(usageNode))
-
         val responseBody: String = MAPPER.writeValueAsString(result)
         requestLogger.logClientResponse(requestId(ctx), 200, responseBody)
         ctx.status(200)
         ctx.contentType(JsonHelper.JSON_CONTENT_TYPE)
         ctx.result(responseBody)
     }
-
     private fun toolCallText(toolCalls: ArrayNode, preferredToolName: String): String {
         var fallback = ""
         for (toolCall in toolCalls) {
@@ -572,7 +519,6 @@ class ChatCompletionsHandler(
         }
         return fallback
     }
-
     private fun toLegacyFunctionCall(toolCall: JsonNode): ObjectNode {
         val function = toolCall.path("function")
         val legacyFunctionCall: ObjectNode = MAPPER.createObjectNode()
@@ -581,7 +527,6 @@ class ChatCompletionsHandler(
         return legacyFunctionCall
     }
 
-    @Throws(Exception::class)
     private fun streamToClient(
         ctx: Context, upstreamBody: InputStream, model: String,
         junieTextToolName: String?, junieNativeToolName: String?,
@@ -602,7 +547,6 @@ class ChatCompletionsHandler(
 
         // Send initial role chunk
         writeSseChunk(ctx, os, createChunk(id, created, model, createAssistantRoleDelta(), null))
-
         try {
             iterateEvents(upstreamBody, Consumer { event: ServerSentEvent ->
                 try {
@@ -623,12 +567,9 @@ class ChatCompletionsHandler(
                         doneSent[0] = true
                         return@Consumer
                     }
-
                     val parsed: JsonNode? = MAPPER.readTree(eventData)
                     if (parsed == null || !parsed.isObject) return@Consumer
-
                     val eventType = parsed.path("type").asText(if (event.event() != null) event.event() else "")
-
                     when (eventType) {
                         "response.output_text.delta" -> {
                             val delta = parsed.path("delta").asText("")
@@ -648,7 +589,6 @@ class ChatCompletionsHandler(
                                 }
                             }
                         }
-
                         "response.output_item.added" -> {
                             val item = parsed.get("item")
                             if (item != null && "function_call" == item.path("type").asText()) {
@@ -662,7 +602,6 @@ class ChatCompletionsHandler(
                                 if (itemId.isNotEmpty()) {
                                     toolIndexes[itemId] = nextIndex
                                 }
-
                                 val tcArray: ArrayNode = MAPPER.createArrayNode()
                                 val tc: ObjectNode = MAPPER.createObjectNode()
                                 tc.put("index", nextIndex)
@@ -673,7 +612,6 @@ class ChatCompletionsHandler(
                                 func.put("arguments", "")
                                 tc.set<JsonNode?>("function", func)
                                 tcArray.add(tc)
-
                                 if (!junieStreamingTextFallback) {
                                     writeSseChunk(
                                         ctx, os, createChunk(
@@ -684,7 +622,6 @@ class ChatCompletionsHandler(
                                 }
                             }
                         }
-
                         "response.function_call_arguments.delta" -> {
                             val callId = parsed.path("call_id").asText(
                                 parsed.path("item_id").asText("")
@@ -702,7 +639,6 @@ class ChatCompletionsHandler(
                                 func.put("arguments", argDelta)
                                 tc.set<JsonNode?>("function", func)
                                 tcArray.add(tc)
-
                                 writeSseChunk(
                                     ctx, os, createChunk(
                                         id, created, model,
@@ -711,7 +647,6 @@ class ChatCompletionsHandler(
                                 )
                             }
                         }
-
                         "response.output_item.done" -> {
                             // Safety net: if no argument deltas were forwarded for this call
                             // (e.g. unexpected event ids), emit the complete arguments from the
@@ -731,7 +666,6 @@ class ChatCompletionsHandler(
                                     func.put("arguments", arguments)
                                     tc.set<JsonNode?>("function", func)
                                     tcArray.add(tc)
-
                                     writeSseChunk(
                                         ctx, os, createChunk(
                                             id, created, model,
@@ -741,7 +675,6 @@ class ChatCompletionsHandler(
                                 }
                             }
                         }
-
                         "response.completed" -> {
                             val response = parsed.get("response")
                             val status = if (response != null) response.path("status").asText("") else ""
@@ -822,7 +755,6 @@ class ChatCompletionsHandler(
                                     else -> "stop"
                                 }
                             }
-
                             // Finish chunk
                             val finishChunk = createChunk(id, created, model, createEmptyDelta(), fr)
                             if (stopFinishDetails != null) {
@@ -831,7 +763,6 @@ class ChatCompletionsHandler(
                             }
                             writeSseChunk(ctx, os, finishChunk)
                             finishSent[0] = true
-
                             // Usage is tracked internally always, but the usage chunk is only
                             // emitted when the client opted in — matching OpenAI/LiteLLM
                             // `stream_options.include_usage` behavior.
@@ -854,7 +785,6 @@ class ChatCompletionsHandler(
                                 writeSseChunk(ctx, os, usageChunk)
                             }
                         }
-
                         "response.failed", "response.cancelled" -> {
                             val response = parsed.get("response")
                             val errorMsg = if (response != null)
@@ -899,9 +829,7 @@ class ChatCompletionsHandler(
             os.flush()
         }
     }
-
     private data class StopCut(val content: String, val sequence: String)
-
     /**
      * Standard OpenAI/LiteLLM semantics exclude the fired stop sequence from the
      * returned content. Junie restores it client-side when `finish_details` names the
@@ -920,14 +848,12 @@ class ChatCompletionsHandler(
         message.put("content", cut.content)
         choice.set<JsonNode?>("finish_details", finishDetails(cut.sequence))
     }
-
     private fun finishDetails(stopSequence: String): ObjectNode {
         val finishDetails: ObjectNode = MAPPER.createObjectNode()
         finishDetails.put("type", "stop")
         finishDetails.put("stop", stopSequence)
         return finishDetails
     }
-
     private fun completedOutputText(response: JsonNode?): String {
         val text = StringBuilder()
         val output = if (response != null) response.get("output") else null
@@ -950,7 +876,6 @@ class ChatCompletionsHandler(
         }
         return text.toString()
     }
-
     private fun junieFallbackContent(
         response: JsonNode?, toolName: String,
         textBuffer: StringBuilder, argumentBuffer: StringBuilder
@@ -967,7 +892,6 @@ class ChatCompletionsHandler(
         }
         return content
     }
-
     private fun completedToolArgumentText(response: JsonNode?, toolName: String): String {
         val output = if (response != null) response.get("output") else null
         if (output == null || !output.isArray()) {
@@ -991,7 +915,6 @@ class ChatCompletionsHandler(
         }
         return fallback
     }
-
     private fun createChunk(
         id: String, created: Long, model: String,
         delta: ObjectNode, finishReason: String?
@@ -1001,7 +924,6 @@ class ChatCompletionsHandler(
         chunk.put("object", "chat.completion.chunk")
         chunk.put("created", created)
         chunk.put("model", model)
-
         val choices: ArrayNode = MAPPER.createArrayNode()
         val choice: ObjectNode = MAPPER.createObjectNode()
         choice.put("index", 0)
@@ -1013,33 +935,26 @@ class ChatCompletionsHandler(
         }
         choices.add(choice)
         chunk.set<JsonNode?>("choices", choices)
-
         return chunk
     }
-
     private fun createAssistantRoleDelta(): ObjectNode {
         val delta: ObjectNode = MAPPER.createObjectNode()
         delta.put("role", "assistant")
         return delta
     }
-
     private fun createContentDelta(content: String): ObjectNode {
         val delta: ObjectNode = MAPPER.createObjectNode()
         delta.put("content", content)
         return delta
     }
-
     private fun createToolCallsDelta(toolCalls: ArrayNode): ObjectNode {
         val delta: ObjectNode = MAPPER.createObjectNode()
         delta.set<JsonNode?>("tool_calls", toolCalls)
         return delta
     }
-
     private fun createEmptyDelta(): ObjectNode {
         return MAPPER.createObjectNode()
     }
-
-    @Throws(Exception::class)
     private fun writeSseChunk(ctx: Context, os: OutputStream, data: JsonNode) {
         val line = "data: " + MAPPER.writeValueAsString(data) + "\n\n"
         val bytes = line.toByteArray(StandardCharsets.UTF_8)
@@ -1047,7 +962,6 @@ class ChatCompletionsHandler(
         addResponseBytes(ctx, bytes.size.toLong())
         os.flush()
     }
-
     private fun extractTextContent(content: JsonNode?): String {
         if (content == null) return ""
         if (content.isTextual()) return content.asText()
@@ -1065,7 +979,6 @@ class ChatCompletionsHandler(
         }
         return ""
     }
-
     private fun addContentParts(target: ArrayNode, content: JsonNode?) {
         if (content == null) return
         if (content.isTextual()) {
@@ -1098,14 +1011,11 @@ class ChatCompletionsHandler(
             }
         }
     }
-
     companion object {
         private val LOG: Logger = LoggerFactory.getLogger(ChatCompletionsHandler::class.java)
-
         private fun <T> responseHeaders(response: HttpResponse<T>): Map<String, List<String>> {
             return response.headers()?.map() ?: emptyMap()
         }
-
         private fun stopSequences(body: JsonNode?): List<String> {
             val stop = if (body != null) body.get("stop") else null
             if (stop == null) {
@@ -1125,7 +1035,6 @@ class ChatCompletionsHandler(
             }
             return emptyList()
         }
-
         /**
          * The upstream Responses API has no `stop` parameter, so emulate it client-side.
          * This inclusive variant keeps the sequence in the text; it runs before the Junie
@@ -1136,7 +1045,6 @@ class ChatCompletionsHandler(
             val cut: StopCut? = cutAtStopSequence(text, stopSequences)
             return if (cut != null) cut.content + cut.sequence else text
         }
-
         /** Returns the text before the first stop sequence plus the fired sequence, or null when none fired.  */
         private fun cutAtStopSequence(text: String, stopSequences: List<String>): StopCut? {
             var earliestStart = -1
@@ -1150,7 +1058,6 @@ class ChatCompletionsHandler(
             }
             return if (firedSequence != null) StopCut(text.substring(0, earliestStart), firedSequence) else null
         }
-
         private fun appendReasoningSummary(target: StringBuilder, reasoningItem: JsonNode) {
             val summary = reasoningItem.get("summary")
             if (summary == null || !summary.isArray()) {

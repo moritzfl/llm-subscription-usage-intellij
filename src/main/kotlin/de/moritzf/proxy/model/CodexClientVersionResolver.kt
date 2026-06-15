@@ -1,5 +1,4 @@
 package de.moritzf.proxy.model
-
 import de.moritzf.proxy.util.Json
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -11,15 +10,11 @@ import java.time.Duration
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
-
 object CodexClientVersionResolver {
     const val FALLBACK_CODEX_CLIENT_VERSION: String = "0.121.0"
-
     private val VERSION_PATTERN = Regex("\\b\\d+\\.\\d+\\.\\d+\\b")
     private const val REGISTRY_URL = "https://registry.npmjs.org/@openai/codex/latest"
     private val cache = ConcurrentHashMap<String, String>()
-
-    @JvmStatic
     fun resolve(configuredVersion: String?): String {
         val trimmedVersion = configuredVersion?.trim()
         if (!trimmedVersion.isNullOrEmpty()) {
@@ -38,8 +33,6 @@ object CodexClientVersionResolver {
                 }
         }
     }
-
-    @JvmStatic
     fun resolveLocalCodexVersion(): String? {
         for (command in localCodexVersionCommands(isWindows())) {
             val version = normalizeVersion(runVersionCommand(command))
@@ -49,8 +42,6 @@ object CodexClientVersionResolver {
         }
         return null
     }
-
-    @JvmStatic
     fun localCodexVersionCommands(windows: Boolean): List<List<String>> {
         return if (windows) {
             listOf(
@@ -62,12 +53,9 @@ object CodexClientVersionResolver {
             listOf(listOf("codex", "--version"))
         }
     }
-
     private fun isWindows(): Boolean {
         return System.getProperty("os.name", "").lowercase(Locale.ROOT).contains("win")
     }
-
-    @JvmStatic
     fun runVersionCommand(command: List<String>): String? {
         var process: Process? = null
         return try {
@@ -97,8 +85,6 @@ object CodexClientVersionResolver {
             process?.destroy()
         }
     }
-
-    @JvmStatic
     fun resolveRemoteCodexVersion(): String? {
         return try {
             val request = HttpRequest.newBuilder()
@@ -117,8 +103,6 @@ object CodexClientVersionResolver {
             null
         }
     }
-
-    @JvmStatic
     fun normalizeVersion(raw: String?): String? {
         return raw?.let { VERSION_PATTERN.find(it)?.value }
     }

@@ -20,7 +20,6 @@ class ModelResolver(
 
     private val modelsLock = ReentrantLock()
 
-    @Throws(Exception::class)
     fun resolveModels(): List<String> {
         if (!configuredModels.isNullOrEmpty()) {
             return CollectionUtils.uniqueStrings(configuredModels)
@@ -50,11 +49,9 @@ class ModelResolver(
 
     fun resolveCodexClientVersion(): String = CodexClientVersionResolver.resolve(codexVersion)
 
-    @Throws(Exception::class)
     private fun fetchAvailableModels(): List<String> {
         val clientVersion = resolveCodexClientVersion()
         val path = "/models?client_version=" + URLEncoder.encode(clientVersion, StandardCharsets.UTF_8)
-
         val response = client.requestString(path, "GET", null, null)
 
         if (response.statusCode() !in 200..<300) {

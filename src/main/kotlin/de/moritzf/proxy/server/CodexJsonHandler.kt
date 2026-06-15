@@ -1,5 +1,4 @@
 package de.moritzf.proxy.server
-
 import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.proxy.transport.CodexHttpClient
 import com.fasterxml.jackson.core.JsonProcessingException
@@ -7,14 +6,12 @@ import io.javalin.http.Context
 import io.javalin.http.Handler
 import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
-
 class CodexJsonHandler(
     private val client: CodexHttpClient,
     private val requestLogger: RequestLogger,
     private val upstreamPath: String,
 ) : Handler {
     private val upstreamErrorMapper = UpstreamErrorMapper()
-
     override fun handle(ctx: Context) {
         val requestId = requestId(ctx)
         val bodyStr = ctx.body()
@@ -28,7 +25,6 @@ class CodexJsonHandler(
         if (body == null) {
             return
         }
-
         AccessLogFields.mode(ctx, "sync")
         val upstream = UpstreamRetry.withRetries(ctx.header("x-litellm-num-retries")) {
             client.request(
@@ -41,7 +37,6 @@ class CodexJsonHandler(
             )
         }
         AccessLogFields.upstreamStatus(ctx, upstream.statusCode())
-
         upstream.body().use { responseStream ->
             val rawBody = String(responseStream.readAllBytes(), StandardCharsets.UTF_8)
             if (upstream.statusCode() !in 200..<300) {
@@ -53,7 +48,6 @@ class CodexJsonHandler(
                 ctx.result(mapped.body)
                 return
             }
-
             ctx.status(upstream.statusCode())
             ctx.contentType(responseContentType(upstream))
             copySelectedResponseHeaders(ctx, upstream)
@@ -61,7 +55,6 @@ class CodexJsonHandler(
             ctx.result(rawBody)
         }
     }
-
     private fun requestId(ctx: Context): String {
         var requestId = ctx.attribute<String>(AccessLogFields.REQUEST_ID)
         if (requestId.isNullOrBlank()) {
@@ -70,7 +63,6 @@ class CodexJsonHandler(
         }
         return requestId
     }
-
     companion object {
         private val FORWARDED_RESPONSE_HEADERS = listOf(
             "x-codex-turn-state",
@@ -78,16 +70,13 @@ class CodexJsonHandler(
             "x-reasoning-included",
             "openai-model",
         )
-
         private fun <T> responseContentType(response: HttpResponse<T>): String {
             val contentType = response.headers().firstValue("Content-Type")
             return if (contentType.isPresent) contentType.get() else JsonHelper.JSON_CONTENT_TYPE
         }
-
         private fun <T> responseHeaders(response: HttpResponse<T>): Map<String, List<String>> {
             return response.headers()?.map() ?: emptyMap()
         }
-
         private fun <T> copySelectedResponseHeaders(ctx: Context, response: HttpResponse<T>) {
             FORWARDED_RESPONSE_HEADERS.forEach { header ->
                 response.headers().firstValue(header).ifPresent { value -> ctx.header(header, value) }

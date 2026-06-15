@@ -1,5 +1,4 @@
 package de.moritzf.proxy.transport
-
 import de.moritzf.proxy.auth.CredentialsProvider
 import de.moritzf.proxy.config.ServerConfig
 import de.moritzf.proxy.logging.RequestLogger
@@ -17,13 +16,11 @@ import java.nio.file.Path
 import java.util.Optional
 import java.util.concurrent.Executors
 import javax.net.ssl.SSLSession
-
 open class CodexHttpClient {
     private val httpClient: HttpClient
     private val credentialsProvider: CredentialsProvider
     private val baseUrl: String
     private val requestLogger: RequestLogger
-
     constructor(config: ServerConfig, credentialsProvider: CredentialsProvider) : this(
         config,
         HttpClient.newBuilder()
@@ -32,17 +29,13 @@ open class CodexHttpClient {
             .build(),
         credentialsProvider,
     )
-
     constructor(config: ServerConfig, httpClient: HttpClient, credentialsProvider: CredentialsProvider) {
         this.credentialsProvider = credentialsProvider
-        baseUrl = config.baseUrl()
+        baseUrl = config.baseUrl
         this.httpClient = httpClient
-        requestLogger = RequestLogger(config.fullRequestLogging(), Path.of(config.requestLogDir()))
+        requestLogger = RequestLogger(config.fullRequestLogging, Path.of(config.requestLogDir))
     }
-
     open fun getHttpClient(): HttpClient = httpClient
-
-    @Throws(Exception::class)
     open fun request(
         path: String,
         method: String?,
@@ -51,8 +44,6 @@ open class CodexHttpClient {
     ): HttpResponse<InputStream> {
         return request(path, method, body, extraHeaders, null, null)
     }
-
-    @Throws(Exception::class)
     open fun request(
         path: String,
         method: String?,
@@ -85,7 +76,6 @@ open class CodexHttpClient {
         }
         return withLoggedStreamingBody(response, logRequestId)
     }
-
     /**
      * With full request logging enabled, tees the streaming body so the bytes that
      * actually flowed are logged once the stream is consumed or closed. Without it,
@@ -109,8 +99,6 @@ open class CodexHttpClient {
         }
         return BodyReplacingHttpResponse(response, tee)
     }
-
-    @Throws(Exception::class)
     open fun requestString(
         path: String,
         method: String?,
@@ -132,7 +120,6 @@ open class CodexHttpClient {
         requestLogger.logUpstreamResponse(requestId, response.statusCode(), responseHeaders(response), response.body())
         return response
     }
-
     /**
      * Asks the credentials provider to refresh after an upstream 401, passing the exact
      * Authorization header the rejected request carried so the provider can deduplicate
@@ -148,8 +135,6 @@ open class CodexHttpClient {
             false
         }
     }
-
-    @Throws(Exception::class)
     private fun buildRequest(
         path: String,
         method: String?,
@@ -161,10 +146,8 @@ open class CodexHttpClient {
     ): HttpRequest {
         val targetUrl = UrlResolver.resolveTargetUrl(path, baseUrl)
         val loggedHeaders = LinkedHashMap<String, String>()
-
         val builder = HttpRequest.newBuilder()
             .uri(URI.create(targetUrl))
-
         authHeaders.forEach { (name, value) ->
             builder.header(name, value)
             loggedHeaders[name] = value
@@ -179,17 +162,14 @@ open class CodexHttpClient {
             loggedHeaders[CONVERSATION_ID_HEADER] = promptCacheKey
             loggedHeaders[SESSION_ID_HEADER] = promptCacheKey
         }
-
         if (!body.isNullOrEmpty()) {
             builder.method(method ?: "POST", HttpRequest.BodyPublishers.ofString(body))
         } else {
             builder.method(method ?: "GET", HttpRequest.BodyPublishers.noBody())
         }
-
         requestLogger.logUpstreamRequest(requestId, method ?: "GET", path, loggedHeaders, body)
         return builder.build()
     }
-
     /**
      * Copies everything read through it into a bounded buffer and hands the captured
      * text to [onComplete] exactly once, at EOF or close, whichever comes first.
@@ -202,7 +182,6 @@ open class CodexHttpClient {
         private var truncated = false
         private var completed = false
 
-        @Throws(IOException::class)
         override fun read(): Int {
             val byte = super.read()
             if (byte == -1) {
@@ -213,7 +192,6 @@ open class CodexHttpClient {
             return byte
         }
 
-        @Throws(IOException::class)
         override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
             val count = super.read(buffer, offset, length)
             if (count == -1) {
@@ -224,7 +202,6 @@ open class CodexHttpClient {
             return count
         }
 
-        @Throws(IOException::class)
         override fun close() {
             complete()
             super.close()
@@ -242,7 +219,6 @@ open class CodexHttpClient {
                 truncated = true
             }
         }
-
         private fun complete() {
             if (completed) {
                 return
@@ -251,47 +227,34 @@ open class CodexHttpClient {
             val body = captured.toString(StandardCharsets.UTF_8)
             onComplete(if (truncated) "$body\n[capture truncated]" else body)
         }
-
         companion object {
             private const val MAX_CAPTURE_BYTES = 256 * 1024
         }
     }
-
     /** Delegates everything to the original response except the (tee-wrapped) body. */
     private class BodyReplacingHttpResponse(
         private val delegate: HttpResponse<InputStream>,
         private val replacementBody: InputStream,
     ) : HttpResponse<InputStream> {
         override fun statusCode(): Int = delegate.statusCode()
-
         override fun request(): HttpRequest = delegate.request()
-
         override fun previousResponse(): Optional<HttpResponse<InputStream>> = delegate.previousResponse()
-
         override fun headers(): HttpHeaders = delegate.headers()
-
         override fun body(): InputStream = replacementBody
-
         override fun sslSession(): Optional<SSLSession> = delegate.sslSession()
-
         override fun uri(): URI = delegate.uri()
-
         override fun version(): HttpClient.Version = delegate.version()
     }
-
     companion object {
         private val CONVERSATION_ID_HEADER = codexIdHeader("conversation")
         private val SESSION_ID_HEADER = codexIdHeader("session")
-
         private fun codexIdHeader(prefix: String): String = prefix + "_id"
-
         private fun drainQuietly(response: HttpResponse<InputStream>) {
             try {
                 response.body()?.use { it.readAllBytes() }
             } catch (_: Exception) {
             }
         }
-
         private fun <T> responseHeaders(response: HttpResponse<T>): Map<String, List<String>> {
             return response.headers()?.map() ?: emptyMap()
         }

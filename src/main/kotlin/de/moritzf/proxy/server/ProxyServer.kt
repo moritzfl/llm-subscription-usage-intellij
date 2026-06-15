@@ -1,5 +1,4 @@
 package de.moritzf.proxy.server
-
 import de.moritzf.proxy.auth.AuthRequiredException
 import de.moritzf.proxy.config.ServerConfig
 import de.moritzf.proxy.logging.RequestLogger
@@ -14,7 +13,6 @@ import java.nio.file.Path
 import java.time.Duration
 import java.time.Instant
 import org.slf4j.LoggerFactory
-
 class ProxyServer(
     private val config: ServerConfig,
     client: CodexHttpClient,
@@ -23,59 +21,53 @@ class ProxyServer(
     apiKeyStore: ApiKeyStore,
 ) {
     private val app: Javalin
-
     init {
         if (config.requiresApiKeyEnforcement() && !apiKeyStore.isEnforcing()) {
-            throw IllegalStateException("API key enforcement is required when binding to a non-loopback host: ${config.host()}")
+            throw IllegalStateException("API key enforcement is required when binding to a non-loopback host: ${config.host}")
         }
-        val requestLogger = RequestLogger(config.fullRequestLogging(), Path.of(config.requestLogDir()))
-        val instructionsProvider = if (config.codexInstructionsMode() == "latest-codex") {
+        val requestLogger = RequestLogger(config.fullRequestLogging, Path.of(config.requestLogDir))
+        val instructionsProvider = if (config.codexInstructionsMode == "latest-codex") {
             CodexInstructionsProvider(
                 CodexInstructionsProvider.Mode.LATEST_CODEX,
-                config.instructions(),
-                Path.of(config.codexInstructionsCacheDir()),
+                config.instructions,
+                Path.of(config.codexInstructionsCacheDir),
                 Duration.ofMinutes(15),
                 client.getHttpClient(),
             )
         } else {
-            CodexInstructionsProvider(config.instructions())
+            CodexInstructionsProvider(config.instructions)
         }
-
         app = Javalin.create { javalinConfig ->
             javalinConfig.concurrency.useVirtualThreads = true
             javalinConfig.startup.showJavalinBanner = false
-
-            if (config.allowAnyCors() || config.allowedCorsOrigins().isNotEmpty()) {
+            if (config.allowAnyCors || config.allowedCorsOrigins.isNotEmpty()) {
                 javalinConfig.bundledPlugins.enableCors { cors ->
                     cors.addRule { rule ->
-                        if (config.allowAnyCors()) {
+                        if (config.allowAnyCors) {
                             rule.anyHost()
                         } else {
-                            val first = config.allowedCorsOrigins().first()
-                            val rest = config.allowedCorsOrigins().drop(1).toTypedArray()
+                            val first = config.allowedCorsOrigins.first()
+                            val rest = config.allowedCorsOrigins.drop(1).toTypedArray()
                             rule.allowHost(first, *rest)
                         }
                     }
                 }
             }
-
             javalinConfig.routes.before { ctx ->
                 ctx.attribute(AccessLogFields.REQUEST_ID, requestLogger.nextRequestId())
                 ctx.attribute(AccessLogFields.START_NANOS, System.nanoTime())
             }
             // Per-request stdout lines are CLI behavior; embedders (the IDE plugin) keep
             // their process output clean and disable this via config.
-            if (config.consoleAccessLog()) {
+            if (config.consoleAccessLog) {
                 javalinConfig.routes.after(::logAccessLine)
             }
-
             // API key enforcement (opt-in: only when keys are configured)
             // Enforcement is evaluated once at startup. Keys can be hot-reloaded (which keys
             // are valid changes), but enforcement cannot be toggled on/off without a restart.
             if (apiKeyStore.isEnforcing()) {
                 javalinConfig.routes.beforeMatched { ctx -> authenticateRequest(ctx, apiKeyStore) }
             }
-
             // Routes. LiteLLM serves every API route both with and without the /v1
             // prefix, and clients differ in which variant they call (Junie appends
             // /v1/... to a prefix-less base URL) - mirror that here.
@@ -111,42 +103,33 @@ class ProxyServer(
             val alphaSearchHandler = CodexJsonHandler(client, requestLogger, "/alpha/search")
             javalinConfig.routes.post("/v1/alpha/search", alphaSearchHandler)
             javalinConfig.routes.post("/alpha/search", alphaSearchHandler)
-
             // Missing upstream credentials surface as 401 so clients show the real cause
             // (e.g. "OpenAI login required") instead of a generic server error.
             javalinConfig.routes.exception(AuthRequiredException::class.java) { exception, ctx ->
                 LOG.warn("Rejected {} {}: {}", ctx.method(), ctx.path(), exception.message)
                 JsonHelper.toErrorResponse(ctx, exception.message, 401, "authentication_error")
             }
-
             // Global exception handler.
             javalinConfig.routes.exception(Exception::class.java) { exception, ctx ->
                 LOG.error("Unhandled request failure for {} {}", ctx.method(), ctx.path(), exception)
                 JsonHelper.toErrorResponse(ctx, "Unexpected server error.", 500, "server_error")
             }
-
             // 404 handler.
             javalinConfig.routes.error(404) { ctx ->
                 JsonHelper.toErrorResponse(ctx, "Route not found.", 404, "not_found_error")
             }
         }
     }
-
     fun start() {
-        app.start(config.host(), config.port())
+        app.start(config.host, config.port)
     }
-
     fun stop() {
         app.stop()
     }
-
     @Suppress("unused")
     fun getApp(): Javalin = app
-
     companion object {
         private val LOG = LoggerFactory.getLogger(ProxyServer::class.java)
-
-        @JvmStatic
         fun authenticateRequest(ctx: Context, apiKeyStore: ApiKeyStore) {
             // Health probes are unauthenticated, matching LiteLLM's liveliness/readiness endpoints.
             if (ctx.path() == "/health" || ctx.path().startsWith("/health/")) return
@@ -171,22 +154,18 @@ class ProxyServer(
                 ctx.attribute("keyFingerprint", ApiKeyUtils.fingerprint(key!!))
             }
         }
-
         private fun livenessProbe(ctx: Context) {
             // LiteLLM answers its liveliness probes with this literal JSON string.
             JsonHelper.toJsonResponse(ctx, "I'm alive!")
         }
-
         private fun readinessProbe(ctx: Context) {
             JsonHelper.toJsonResponse(ctx, mapOf("status" to "healthy"))
         }
-
         private fun isCorsPreflight(ctx: Context): Boolean {
             return ctx.method().name.equals("OPTIONS", ignoreCase = true) &&
                 ctx.header("Origin") != null &&
                 ctx.header("Access-Control-Request-Method") != null
         }
-
         private fun logAccessLine(ctx: Context) {
             val startNanos = ctx.attribute<Long>(AccessLogFields.START_NANOS)
             val durationMillis = if (startNanos == null) {
@@ -210,12 +189,10 @@ class ProxyServer(
                 valueOrDefault(responseBytes(ctx), "0"),
             )
         }
-
         private fun accessLogStatus(ctx: Context, responseStatus: Int): Int {
             val upstreamStatus = ctx.attribute<Int>(AccessLogFields.UPSTREAM_STATUS)
             return upstreamStatus ?: responseStatus
         }
-
         private fun responseBytes(ctx: Context): String {
             val recordedBytes = ctx.attribute<Long>(AccessLogFields.RESPONSE_BYTES)
             if (recordedBytes != null) {
@@ -223,7 +200,6 @@ class ProxyServer(
             }
             return getContentLength(ctx.res().getHeader("Content-Length"))
         }
-
         private fun getContentLength(contentLength: String?): String {
             if (contentLength.isNullOrBlank()) {
                 return "0"
@@ -236,7 +212,6 @@ class ProxyServer(
             }
             return trimmed
         }
-
         private fun valueOrDefault(value: Any?, defaultValue: String): String {
             if (value == null) {
                 return defaultValue

@@ -1,39 +1,31 @@
 package de.moritzf.proxy.sse
-
 import de.moritzf.proxy.util.Json
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.node.ObjectNode
 import java.io.IOException
 import java.io.InputStream
-
 object SseCollector {
-    @JvmStatic
-    @Throws(IOException::class)
     fun collectCompletedResponse(input: InputStream): JsonNode {
         var latestResponse: JsonNode? = null
         var failedResponse: JsonNode? = null
         var latestError: JsonNode? = null
         val outputTextDeltas = StringBuilder()
         val completedItems = mutableListOf<JsonNode>()
-
         for (event in SseParser.parse(input)) {
             val data = event.data()
             if (data.isNullOrEmpty()) {
                 continue
             }
-
             try {
                 val parsed = Json.MAPPER.readTree(data)
                 if (parsed == null || !parsed.isObject) {
                     continue
                 }
-
                 if (event.event() == "error") {
                     latestError = parsed
                     continue
                 }
-
                 val eventType = parsed.path("type").asText(event.event().orEmpty())
                 when (eventType) {
                     "response.output_text.delta" -> {
@@ -64,7 +56,6 @@ object SseCollector {
             } catch (_: Exception) {
             }
         }
-
         if (latestResponse == null) {
             latestResponse = failedResponse
         }
@@ -83,16 +74,13 @@ object SseCollector {
             }
             return completed
         }
-
         val errorInfo = latestError?.let { " Last error: $it" }.orEmpty()
         throw IOException("No completed response found in SSE stream.$errorInfo")
     }
-
     private fun hasOutputItems(response: JsonNode): Boolean {
         val output = response.get("output")
         return output != null && output.isArray && !output.isEmpty
     }
-
     private fun containsOutputText(response: JsonNode): Boolean {
         val output = response.get("output")
         if (output == null || !output.isArray) {
@@ -111,7 +99,6 @@ object SseCollector {
         }
         return false
     }
-
     private fun appendOutputText(response: JsonNode, text: String): JsonNode {
         val copy = response.deepCopy<ObjectNode>()
         val existingOutput = copy.get("output")
@@ -120,17 +107,14 @@ object SseCollector {
         } else {
             Json.MAPPER.createArrayNode().also { copy.set<ArrayNode>("output", it) }
         }
-
         val message = Json.MAPPER.createObjectNode()
         message.put("type", "message")
         message.put("role", "assistant")
-
         val content = Json.MAPPER.createArrayNode()
         val textPart = Json.MAPPER.createObjectNode()
         textPart.put("type", "output_text")
         textPart.put("text", text)
         content.add(textPart)
-
         message.set<ArrayNode>("content", content)
         output.add(message)
         return copy

@@ -1,11 +1,8 @@
 package de.moritzf.proxy.util
-
 import com.fasterxml.jackson.databind.JsonNode
 import java.nio.charset.StandardCharsets
 import java.util.Base64
-
 object JwtParser {
-    @JvmStatic
     fun parseClaims(token: String?): JsonNode? {
         if (token == null || !token.contains('.')) {
             return null
@@ -28,8 +25,6 @@ object JwtParser {
             null
         }
     }
-
-    @JvmStatic
     fun deriveAccountId(idToken: String?): String? {
         val claims = parseClaims(idToken) ?: return null
         val authClaim = claims.get("https://api.openai.com/auth")

@@ -113,7 +113,7 @@ class CodexMcpClient(
                 parser(response.body())
             } else {
                 val mapped = upstreamErrorMapper.map(response.statusCode(), response.body())
-                CodexMcpResponse(mapped.body(), true)
+                CodexMcpResponse(mapped.body, true)
             }
         } catch (exception: AuthRequiredException) {
             CodexMcpResponse(errorJson(exception.message ?: "OpenAI login required."), true)

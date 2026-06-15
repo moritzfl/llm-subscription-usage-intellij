@@ -1,5 +1,4 @@
 package de.moritzf.proxy.server
-
 import de.moritzf.proxy.util.ApiKeyUtils
 import com.intellij.concurrency.virtualThreads.IntelliJVirtualThreads
 import java.io.IOException
@@ -10,7 +9,6 @@ import java.nio.file.StandardWatchEventKinds
 import java.nio.file.WatchService
 import java.nio.file.attribute.FileTime
 import java.util.concurrent.atomic.AtomicReference
-
 /**
  * Thread-safe, hot-reloadable API key store.
  *
@@ -31,33 +29,25 @@ class ApiKeyStore(
         val keys: Map<String, String>,
         val adminKey: String?,
     )
-
     private val inlineKeys: Map<String, String> = inlineKeys.toMap()
     private val filePath: String? = filePath?.takeIf { it.isNotBlank() }
     private val snapshot = AtomicReference(buildSnapshot(this.inlineKeys, emptyMap()))
-
     @Volatile
     private var lastModified: FileTime = FileTime.fromMillis(0)
-
     @Volatile
     private var watchThread: Thread? = null
-
     /** Returns the key owner name, or null if not found. */
     fun lookup(key: String?): String? = key?.let { snapshot.get().keys[it] }
-
     /** Returns the current admin key, or null if none configured. */
     fun adminKey(): String? = snapshot.get().adminKey
-
     /** True when any key enforcement is active (keys or admin key present). */
     fun isEnforcing(): Boolean {
         val current = snapshot.get()
         return current.keys.isNotEmpty() || current.adminKey != null
     }
-
     /** Exposed for testing: the file timestamp at the time of last successful load. */
     @Suppress("unused")
     fun lastModified(): FileTime = lastModified
-
     /**
      * Re-reads the keys file and atomically swaps the live snapshot.
      * On error or empty result, logs a warning and keeps the existing snapshot.
@@ -84,7 +74,6 @@ class ApiKeyStore(
             System.err.println("Warning: Failed to reload API keys from $currentFilePath: ${exception.message}")
         }
     }
-
     /**
      * Reloads only when the file's last-modified timestamp is newer than the last
      * successful load. Called on every 401 as a backstop for missed WatchService events.
@@ -99,7 +88,6 @@ class ApiKeyStore(
         } catch (_: IOException) {
         }
     }
-
     /**
      * Starts a virtual thread that watches the keys file's parent directory for
      * ENTRY_MODIFY events. No-op if no file path is configured or the directory
@@ -125,12 +113,10 @@ class ApiKeyStore(
             }
         }
     }
-
     /** Interrupts the WatchService thread. Safe to call if watching was never started. */
     fun stopWatching() {
         watchThread?.interrupt()
     }
-
     private fun watchKeysFile(watcher: WatchService, dir: Path, path: Path) {
         dir.register(watcher, StandardWatchEventKinds.ENTRY_MODIFY)
         while (!Thread.currentThread().isInterrupted) {
@@ -144,11 +130,9 @@ class ApiKeyStore(
             key.reset()
         }
     }
-
     private fun buildSnapshot(inline: Map<String, String>, fileKeys: Map<String, String>): Snapshot {
         val merged = HashMap(inline)
         merged.putAll(fileKeys)
-
         var adminKey = cliAdminKey
         if (adminKey == null) {
             for ((key, value) in merged) {

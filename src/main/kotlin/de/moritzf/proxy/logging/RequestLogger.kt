@@ -1,5 +1,4 @@
 package de.moritzf.proxy.logging
-
 import de.moritzf.proxy.util.Json
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.intellij.concurrency.virtualThreads.IntelliJVirtualThreads
@@ -14,7 +13,6 @@ import java.time.Instant
 import java.util.Comparator
 import java.util.Locale
 import java.util.UUID
-
 @Suppress("UnstableApiUsage")
 class RequestLogger(
     private val enabled: Boolean,
@@ -26,11 +24,8 @@ class RequestLogger(
             IntelliJVirtualThreads.ofVirtual().start(::pruneOldLogs)
         }
     }
-
     fun isEnabled(): Boolean = enabled
-
     fun nextRequestId(): String = "req_" + UUID.randomUUID().toString().replace("-", "")
-
     fun logInbound(requestId: String, ctx: Context, body: String?) {
         if (!enabled) {
             return
@@ -43,7 +38,6 @@ class RequestLogger(
         putBody(entry, body)
         write(entry, requestId, "inbound")
     }
-
     fun logUpstreamRequest(
         requestId: String,
         method: String,
@@ -61,7 +55,6 @@ class RequestLogger(
         putBody(entry, body)
         write(entry, requestId, "upstream_request")
     }
-
     fun logUpstreamResponse(
         requestId: String,
         status: Int,
@@ -77,7 +70,6 @@ class RequestLogger(
         putBody(entry, bodyPreview)
         write(entry, requestId, "upstream_response")
     }
-
     fun logClientResponse(requestId: String, status: Int, body: String?) {
         if (!enabled) {
             return
@@ -87,7 +79,6 @@ class RequestLogger(
         putBody(entry, body)
         write(entry, requestId, "client_response")
     }
-
     /**
      * Deletes log files older than [MAX_LOG_AGE], then trims the directory to
      * [MAX_LOG_FILES] newest entries. Best-effort: failures are ignored so a
@@ -104,10 +95,8 @@ class RequestLogger(
                     .filter { it.fileName.toString().endsWith(".json") }
                     .toList()
                     .toMutableList()
-
                 val cutoffMillis = System.currentTimeMillis() - MAX_LOG_AGE.toMillis()
                 files.removeIf { deleteIfOlderThan(it, cutoffMillis) }
-
                 if (files.size > MAX_LOG_FILES) {
                     files.sortWith(Comparator.comparingLong(::lastModifiedMillis))
                     val excess = files.size - MAX_LOG_FILES
@@ -119,7 +108,6 @@ class RequestLogger(
         } catch (_: IOException) {
         }
     }
-
     private fun write(entry: ObjectNode, requestId: String?, stage: String) {
         try {
             Files.createDirectories(logDir)
@@ -138,18 +126,15 @@ class RequestLogger(
             System.err.println("Warning: failed to write request log: ${exception.message}")
         }
     }
-
     private data class BodyCapture(
         val body: String,
         val truncated: Boolean,
     )
-
     companion object {
         private const val MAX_BODY_BYTES = 256 * 1024
         private const val REDACTED = "[REDACTED]"
         private const val MAX_LOG_FILES = 2_000
         private val MAX_LOG_AGE: Duration = Duration.ofDays(7)
-
         private fun baseEntry(requestId: String, stage: String): ObjectNode {
             val entry = Json.MAPPER.createObjectNode()
             entry.put("request_id", requestId)
@@ -157,7 +142,6 @@ class RequestLogger(
             entry.put("stage", stage)
             return entry
         }
-
         private fun redactStringHeaders(headers: Map<String, String>?): ObjectNode {
             val node = Json.MAPPER.createObjectNode()
             headers?.forEach { (name, value) ->
@@ -165,7 +149,6 @@ class RequestLogger(
             }
             return node
         }
-
         private fun redactListHeaders(headers: Map<String, List<String>>?): ObjectNode {
             val node = Json.MAPPER.createObjectNode()
             headers?.forEach { (name, values) ->
@@ -176,7 +159,6 @@ class RequestLogger(
             }
             return node
         }
-
         private fun isSensitiveHeader(name: String?): Boolean {
             if (name == null) {
                 return false
@@ -191,13 +173,11 @@ class RequestLogger(
                 normalized.contains("secret") ||
                 normalized.contains("key")
         }
-
         private fun putBody(entry: ObjectNode, body: String?) {
             val capture = captureBody(body)
             entry.put("body", capture.body)
             entry.put("truncated", capture.truncated)
         }
-
         private fun captureBody(body: String?): BodyCapture {
             if (body == null) {
                 return BodyCapture("", false)
@@ -208,11 +188,9 @@ class RequestLogger(
             }
             return BodyCapture(String(bytes, 0, MAX_BODY_BYTES, StandardCharsets.UTF_8), true)
         }
-
         private fun safeFilePart(value: String): String {
             return value.replace(Regex("[^A-Za-z0-9._-]"), "_")
         }
-
         private fun deleteIfOlderThan(path: Path, cutoffMillis: Long): Boolean {
             if (lastModifiedMillis(path) < cutoffMillis) {
                 deleteQuietly(path)
@@ -220,7 +198,6 @@ class RequestLogger(
             }
             return false
         }
-
         private fun lastModifiedMillis(path: Path): Long {
             return try {
                 Files.getLastModifiedTime(path).toMillis()
@@ -228,7 +205,6 @@ class RequestLogger(
                 Long.MAX_VALUE
             }
         }
-
         private fun deleteQuietly(path: Path) {
             try {
                 Files.deleteIfExists(path)

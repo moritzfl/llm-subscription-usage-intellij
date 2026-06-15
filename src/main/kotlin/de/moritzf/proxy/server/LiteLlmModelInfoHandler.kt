@@ -1,9 +1,7 @@
 package de.moritzf.proxy.server
-
 import de.moritzf.proxy.model.ModelResolver
 import io.javalin.http.Context
 import io.javalin.http.Handler
-
 class LiteLlmModelInfoHandler(
     private val modelResolver: ModelResolver,
 ) : Handler {
@@ -16,12 +14,10 @@ class LiteLlmModelInfoHandler(
             JsonHelper.toErrorResponse(ctx, message, 502, "upstream_error")
         }
     }
-
     private fun modelInfo(id: String): Map<String, Any> {
         val litellmParams = linkedMapOf<String, Any>(
             "model" to id,
         )
-
         val modelInfo = linkedMapOf<String, Any>(
             "id" to id,
             "mode" to "chat",
@@ -40,7 +36,6 @@ class LiteLlmModelInfoHandler(
             "output_cost_per_token" to 0.0,
             "cache_read_input_token_cost" to 0.0,
         )
-
         return linkedMapOf(
             "id" to id,
             "model_name" to id,

@@ -1,5 +1,4 @@
 package de.moritzf.proxy.server
-
 import de.moritzf.proxy.config.ServerConfig
 import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.proxy.model.CodexInstructionsProvider
@@ -19,7 +18,6 @@ import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
 import java.util.Collections
 import java.util.LinkedHashMap
-
 class ResponsesHandler : Handler {
     private val client: CodexHttpClient
     private val config: ServerConfig
@@ -36,7 +34,6 @@ class ResponsesHandler : Handler {
             }
         },
     )
-
     constructor(
         client: CodexHttpClient,
         config: ServerConfig,
@@ -51,12 +48,10 @@ class ResponsesHandler : Handler {
         this.instructionsProvider = instructionsProvider
     }
 
-    @Throws(Exception::class)
     override fun handle(ctx: Context) {
         create(ctx)
     }
 
-    @Throws(Exception::class)
     fun create(ctx: Context) {
         val requestId = if (shouldUseRequestContext()) requestId(ctx) else requestLogger.nextRequestId()
         val bodyStr = ctx.body()
@@ -70,32 +65,27 @@ class ResponsesHandler : Handler {
         if (body == null) {
             return
         }
-
         val wantsStream = body.path("stream").asBoolean(false)
         AccessLogFields.mode(ctx, if (wantsStream) "stream" else "sync")
-
         // The replay cache emulates previous_response_id/item_reference for store=false.
         // It is opt-in (clients like Junie always inline full history), so when disabled we
         // forward the body as-is and skip the second SSE parse it would otherwise require.
-        val state = if (config.enableResponsesReplayCache()) replayStateFor(ctx) else null
+        val state = if (config.enableResponsesReplayCache) replayStateFor(ctx) else null
         val objectBody = body as ObjectNode
         val expanded = state?.expandRequestBody(objectBody) ?: objectBody
-
         // Normalize body.
-        val normalized = requestSanitizer.sanitize(normalizeBody(expanded), config.store())
-        val promptCacheKey = if (config.forwardPromptCacheHeaders()) {
+        val normalized = requestSanitizer.sanitize(normalizeBody(expanded), config.store)
+        val promptCacheKey = if (config.forwardPromptCacheHeaders) {
             normalized.path("prompt_cache_key").asText(null)
         } else {
             null
         }
-
         // Forward to upstream.
         val upstream = UpstreamRetry.withRetries(ctx.header("x-litellm-num-retries")) {
             sendUpstream(normalized, requestId, promptCacheKey)
         }
         AccessLogFields.upstreamStatus(ctx, upstream.statusCode())
         ctx.header("x-litellm-model-id", normalized.path("model").asText(""))
-
         if (upstream.statusCode() !in 200..<300) {
             upstream.body().use { stream ->
                 val rawBody = String(stream.readAllBytes(), StandardCharsets.UTF_8)
@@ -108,7 +98,6 @@ class ResponsesHandler : Handler {
             }
             return
         }
-
         if (wantsStream) {
             // Stream SSE directly to client. The recorder runs only when the replay cache is
             // enabled; otherwise the bytes pass straight through without a second parse.
@@ -168,27 +157,22 @@ class ResponsesHandler : Handler {
             }
         }
     }
-
     private fun normalizeBody(body: ObjectNode): ObjectNode {
         val normalized: ObjectNode = body.deepCopy()
         normalized.put("stream", true)
         val requestedModel = normalized.path("model").asText(ServerConfig.DEFAULT_MODEL)
         val resolvedModel = modelAliasResolver.resolve(requestedModel)
-        if (!resolvedModel.model().isNullOrBlank()) {
-            normalized.put("model", resolvedModel.model())
+        if (!resolvedModel.model.isNullOrBlank()) {
+            normalized.put("model", resolvedModel.model)
         }
-
         hoistSystemMessagesIntoInstructions(normalized)
-
         if (!normalized.has("instructions") || !normalized.get("instructions").isTextual) {
             normalized.put("instructions", instructionsProvider.instructionsForModel(normalized.path("model").asText()))
         }
-
         if (!normalized.has("store")) {
-            normalized.put("store", config.store())
+            normalized.put("store", config.store)
         }
-
-        val aliasEffort = resolvedModel.reasoningEffort()
+        val aliasEffort = resolvedModel.reasoningEffort
         val reasoningNode = normalized.get("reasoning")
         val reasoning: ObjectNode = if (reasoningNode != null && reasoningNode.isObject) {
             reasoningNode.deepCopy()
@@ -203,10 +187,8 @@ class ResponsesHandler : Handler {
             reasoning.put("effort", clampedEffort)
             normalized.set<ObjectNode>("reasoning", reasoning)
         }
-
         return normalized
     }
-
     /**
      * The Codex backend rejects requests containing system-role input items
      * ("System messages are not allowed"). Clients such as Junie's Responses client
@@ -218,7 +200,6 @@ class ResponsesHandler : Handler {
         if (input == null || !input.isArray) {
             return
         }
-
         val systemTexts = StringBuilder()
         val filteredInput = JsonHelper.MAPPER.createArrayNode()
         for (item in input) {
@@ -234,7 +215,6 @@ class ResponsesHandler : Handler {
             }
             filteredInput.add(item)
         }
-
         if (systemTexts.isEmpty()) {
             return
         }
@@ -251,8 +231,6 @@ class ResponsesHandler : Handler {
         }
         normalized.put("instructions", combined)
     }
-
-    @Throws(Exception::class)
     private fun sendUpstream(
         normalized: ObjectNode,
         requestId: String,
@@ -276,11 +254,9 @@ class ResponsesHandler : Handler {
             mapOf("Content-Type" to "application/json"),
         )
     }
-
     private fun shouldUseRequestContext(): Boolean {
-        return config.fullRequestLogging() || config.forwardPromptCacheHeaders()
+        return config.fullRequestLogging || config.forwardPromptCacheHeaders
     }
-
     private fun requestId(ctx: Context): String {
         var requestId = ctx.attribute<String>(AccessLogFields.REQUEST_ID)
         if (requestId.isNullOrBlank()) {
@@ -289,7 +265,6 @@ class ResponsesHandler : Handler {
         }
         return requestId
     }
-
     private fun recordStreamingCompletion(
         ctx: Context,
         eventType: String?,
@@ -305,12 +280,10 @@ class ResponsesHandler : Handler {
             if (parsed == null || !parsed.isObject) {
                 return false
             }
-
             val parsedEventType = parsed.path("type").asText(eventType ?: "")
             if (parsedEventType != "response.completed") {
                 return false
             }
-
             val response = parsed.get("response")
             if (response != null && response.isObject) {
                 recordUsage(ctx, response.get("usage"))
@@ -322,7 +295,6 @@ class ResponsesHandler : Handler {
         }
         return false
     }
-
     private fun recordUsage(ctx: Context, usageNode: JsonNode?) {
         usageTracker.record(
             ctx.attribute("keyName"),
@@ -330,7 +302,6 @@ class ResponsesHandler : Handler {
             usageNode?.path("output_tokens")?.asLong(0) ?: 0,
         )
     }
-
     private fun replayStateFor(ctx: Context): ResponsesState {
         val isAdmin = ctx.attribute<Boolean>("isAdmin") == true
         val keyFingerprint = ctx.attribute<String>("keyFingerprint")
@@ -347,12 +318,10 @@ class ResponsesHandler : Handler {
         } else {
             "open"
         }
-
         synchronized(replayStates) {
             return replayStates.computeIfAbsent(namespace) { ResponsesState() }
         }
     }
-
     private inner class StreamingCompletionRecorder(
         private val ctx: Context,
         private val state: ResponsesState,
@@ -363,7 +332,6 @@ class ResponsesHandler : Handler {
         private var eventType: String? = null
         private var recorded = false
         private var bookkeepingDisabled = false
-
         fun accept(buffer: ByteArray, length: Int) {
             if (bookkeepingDisabled) {
                 return
@@ -382,7 +350,6 @@ class ResponsesHandler : Handler {
                 }
             }
         }
-
         fun finish() {
             if (bookkeepingDisabled) {
                 return
@@ -395,7 +362,6 @@ class ResponsesHandler : Handler {
                 dispatchEvent()
             }
         }
-
         private fun acceptLine(rawLine: String) {
             var line = rawLine
             if (line.endsWith("\r")) {
@@ -417,7 +383,6 @@ class ResponsesHandler : Handler {
                 dataLines.add(value)
             }
         }
-
         private fun dispatchEvent() {
             if (!recorded) {
                 val data = if (dataLines.isEmpty()) null else dataLines.joinToString("\n")
@@ -426,7 +391,6 @@ class ResponsesHandler : Handler {
             eventType = null
             dataLines.clear()
         }
-
         private fun disableBookkeeping() {
             bookkeepingDisabled = true
             recorded = true
@@ -435,11 +399,9 @@ class ResponsesHandler : Handler {
             eventType = null
         }
     }
-
     companion object {
         private const val MAX_REPLAY_NAMESPACES = 512
         private const val MAX_SSE_BOOKKEEPING_LINE_BYTES = 64 * 1024
-
         private fun isSystemMessageItem(item: JsonNode): Boolean {
             val role = item.path("role").asText("")
             if (role != "system" && role != "developer") {
@@ -448,7 +410,6 @@ class ResponsesHandler : Handler {
             val type = item.path("type").asText("message")
             return type == "message"
         }
-
         private fun <T> responseHeaders(response: HttpResponse<T>): Map<String, List<String>> {
             return response.headers()?.map() ?: emptyMap()
         }
