@@ -27,6 +27,7 @@ import java.awt.datatransfer.StringSelection
 import java.util.concurrent.atomic.AtomicLong
 import javax.swing.JButton
 import javax.swing.JComponent
+import javax.swing.JTabbedPane
 import javax.swing.JToggleButton
 import javax.swing.JScrollPane
 import javax.swing.ScrollPaneConstants
@@ -204,7 +205,7 @@ internal class OpenAiSettingsPanel(
             onLogout?.invoke()
         }
 
-        val codexConfigPanel = panel {
+        val usageTrackingConfigPanel = panel {
             row {
                 cell(hideFromPopupCheckBox)
             }
@@ -228,49 +229,62 @@ internal class OpenAiSettingsPanel(
                     .resizableColumn()
                     .align(AlignX.FILL)
             }
-            separator()
-            row {
-                cell(openAiProxyEnabledCheckBox)
-                    .comment("Serves an OpenAI-compatible API on localhost that forwards requests to your Codex subscription.")
-            }
-            indent {
-                row("Port:") {
-                    cell(proxyPortField).gap(RightGap.SMALL)
-                    cell(copyProxyBaseUrlButton)
-                }
-                row("API key:") {
-                    cell(proxyApiKeyField)
-                        .resizableColumn()
-                        .align(AlignX.FILL)
-                        .gap(RightGap.SMALL)
-                    cell(toggleProxyApiKeyVisibilityButton).gap(RightGap.SMALL)
-                    cell(copyProxyApiKeyButton).gap(RightGap.SMALL)
-                    cell(generateProxyApiKeyButton)
-                }
-                row {
-                    cell(openAiProxyLogRequestsCheckBox)
-                        .comment(
-                            "Writes full request and response bodies (prompts, tool output, file contents) to a " +
-                                "temp folder. Sensitive — leave off unless debugging. Logs are pruned automatically.",
-                        )
-                }
-                row {
-                    cell(proxyApiKeyHintLabel)
-                }
-                row {
-                    cell(proxyStatusLabel)
-                }
-            }
-            separator()
         }
 
-        addToTop(codexConfigPanel)
-        addToCenter(
-            BorderLayoutPanel().apply {
-                addToTop(JBLabel("Last quota response:"))
-                addToCenter(createResponseViewerPanel(codexResponseViewer))
-            },
-        )
+        val usageTrackingPanel = BorderLayoutPanel().apply {
+            isOpaque = false
+            addToTop(usageTrackingConfigPanel)
+            addToCenter(
+                BorderLayoutPanel().apply {
+                    addToTop(JBLabel("Last quota response:"))
+                    addToCenter(createResponseViewerPanel(codexResponseViewer))
+                },
+            )
+        }
+
+        val proxyPanel = BorderLayoutPanel().apply {
+            isOpaque = false
+            addToTop(panel {
+                row {
+                    cell(openAiProxyEnabledCheckBox)
+                        .comment("Serves an OpenAI-compatible API on localhost that forwards requests to your Codex subscription.")
+                }
+                indent {
+                    row("Port:") {
+                        cell(proxyPortField).gap(RightGap.SMALL)
+                        cell(copyProxyBaseUrlButton)
+                    }
+                    row("API key:") {
+                        cell(proxyApiKeyField)
+                            .resizableColumn()
+                            .align(AlignX.FILL)
+                            .gap(RightGap.SMALL)
+                        cell(toggleProxyApiKeyVisibilityButton).gap(RightGap.SMALL)
+                        cell(copyProxyApiKeyButton).gap(RightGap.SMALL)
+                        cell(generateProxyApiKeyButton)
+                    }
+                    row {
+                        cell(openAiProxyLogRequestsCheckBox)
+                            .comment(
+                                "Writes full request and response bodies (prompts, tool output, file contents) to a " +
+                                    "temp folder. Sensitive — leave off unless debugging. Logs are pruned automatically.",
+                            )
+                    }
+                    row {
+                        cell(proxyApiKeyHintLabel)
+                    }
+                    row {
+                        cell(proxyStatusLabel)
+                    }
+                }
+            })
+        }
+
+        addToCenter(JTabbedPane().apply {
+            isOpaque = false
+            addTab("Usage Tracking", usageTrackingPanel)
+            addTab("Proxy", proxyPanel)
+        })
     }
 
     override fun addNotify() {
