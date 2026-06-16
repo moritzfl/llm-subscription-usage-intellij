@@ -22,6 +22,37 @@ class ProviderReorderPanelTest {
         assertTrue(QuotaProviderType.SUPERGROK.id in providerIds)
     }
 
+    @Test
+    fun selectsFirstProviderFromCustomOrder() {
+        val order = QuotaProviderType.defaultProviderOrder().withFirst(QuotaProviderType.SUPERGROK)
+        val panel = ProviderReorderPanel(
+            initialOrder = order,
+            onOrderChanged = {},
+            onProviderSelected = {},
+        )
+
+        assertEquals(QuotaProviderType.SUPERGROK, panel.getSelectedProvider())
+    }
+
+    @Test
+    fun resetOrderSelectsFirstProviderFromNewOrder() {
+        var selected: QuotaProviderType? = null
+        val panel = ProviderReorderPanel(
+            initialOrder = QuotaProviderType.defaultProviderOrder(),
+            onOrderChanged = {},
+            onProviderSelected = { selected = it },
+        )
+
+        panel.setOrder(QuotaProviderType.defaultProviderOrder().withFirst(QuotaProviderType.KIMI))
+
+        assertEquals(QuotaProviderType.KIMI, panel.getSelectedProvider())
+        assertEquals(QuotaProviderType.KIMI, selected)
+    }
+
+    private fun List<QuotaProviderType>.withFirst(type: QuotaProviderType): List<QuotaProviderType> {
+        return listOf(type) + filterNot { it == type }
+    }
+
     private fun JPanel.findProviderIds(): Set<String> {
         val result = mutableSetOf<String>()
         fun collect(component: java.awt.Component) {

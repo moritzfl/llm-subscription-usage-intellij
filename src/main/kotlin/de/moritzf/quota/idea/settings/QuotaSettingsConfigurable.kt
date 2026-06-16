@@ -284,7 +284,10 @@ class QuotaSettingsConfigurable : Configurable {
         providerPanels().forEach { (type, panel) ->
             cards.add(panel, type.id)
         }
-        serviceCardLayout?.show(cards, QuotaProviderType.CURSOR.id)
+        val selectedProvider = providerReorderPanel?.getSelectedProvider()
+            ?: QuotaSettingsState.getInstance().providerOrderList().firstOrNull()
+            ?: QuotaProviderType.defaultProviderOrder().first()
+        serviceCardLayout?.show(cards, selectedProvider.id)
     }
 
     private fun buildIndicatorConfigPanel(): DialogPanel {
