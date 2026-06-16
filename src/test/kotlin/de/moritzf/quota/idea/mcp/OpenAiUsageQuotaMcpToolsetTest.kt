@@ -39,6 +39,15 @@ class OpenAiUsageQuotaMcpToolsetTest {
     }
 
     @Test
+    fun superGrokUsageQuotaUsesSingleNoArgTool() {
+        val quotaTools = OpenAiUsageQuotaMcpToolset::class.java.declaredMethods
+            .filter { it.getAnnotation(McpTool::class.java)?.name?.startsWith("supergrok_usage_quota") == true }
+
+        assertEquals(listOf("supergrok_usage_quota"), quotaTools.map { it.getAnnotation(McpTool::class.java).name })
+        assertEquals(emptyList(), quotaTools.single().parameterTypes.toList())
+    }
+
+    @Test
     fun codexWebSearchUsesSingleToolWithConfigurableOptions() {
         val searchTools = OpenAiUsageQuotaMcpToolset::class.java.declaredMethods
             .filter { it.getAnnotation(McpTool::class.java)?.name?.startsWith("codex_web_search") == true }

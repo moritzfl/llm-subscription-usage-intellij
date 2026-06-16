@@ -44,6 +44,7 @@ internal class ProviderReorderPanel(
         ProviderInfo(QuotaProviderType.OLLAMA, QuotaIcons.OLLAMA),
         ProviderInfo(QuotaProviderType.OPEN_AI, QuotaIcons.OPENAI),
         ProviderInfo(QuotaProviderType.OPEN_CODE, QuotaIcons.OPENCODE),
+        ProviderInfo(QuotaProviderType.SUPERGROK, QuotaIcons.SUPERGROK),
         ProviderInfo(QuotaProviderType.ZAI, QuotaIcons.ZAI),
     ).sortedBy { it.type.displayName }
 

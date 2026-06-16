@@ -12,6 +12,7 @@ import de.moritzf.quota.openai.UsageWindow
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.ProviderQuota
+import de.moritzf.quota.supergrok.SuperGrokQuota
 import de.moritzf.quota.zai.ZaiQuota
 import kotlinx.datetime.Instant
 import kotlinx.serialization.KSerializer
@@ -32,6 +33,7 @@ internal object QuotaSnapshotCache {
         QuotaProviderType.KIMI to EnvelopeQuotaCodec(KimiQuota.serializer()),
         QuotaProviderType.GITHUB to EnvelopeQuotaCodec(GitHubQuota.serializer()),
         QuotaProviderType.CURSOR to EnvelopeQuotaCodec(CursorQuota.serializer()),
+        QuotaProviderType.SUPERGROK to EnvelopeQuotaCodec(SuperGrokQuota.serializer()),
     )
 
     @Suppress("UNCHECKED_CAST")

@@ -53,6 +53,16 @@ class OAuthUrlCodecTest {
     }
 
     @Test
+    fun parseCallbackUriUsesConfiguredCallbackPath() {
+        val redirectUri = "http://127.0.0.1:56121/callback"
+
+        val relative = OAuthUrlCodec.parseCallbackUri("/callback?code=abc&state=xyz", redirectUri)
+
+        assertEquals("/callback", relative.path)
+        assertEquals("code=abc&state=xyz", relative.rawQuery)
+    }
+
+    @Test
     fun parseCallbackUriSupportsQueryOnlyAndBlankValues() {
         val redirectUri = "http://localhost:1455/auth/callback"
 

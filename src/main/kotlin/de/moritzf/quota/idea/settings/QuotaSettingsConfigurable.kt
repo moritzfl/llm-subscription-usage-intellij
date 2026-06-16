@@ -52,6 +52,7 @@ class QuotaSettingsConfigurable : Configurable {
     private lateinit var miniMaxPanel: MiniMaxSettingsPanel
     private lateinit var openCodePanel: OpenCodeSettingsPanel
     private lateinit var ollamaPanel: OllamaSettingsPanel
+    private lateinit var superGrokPanel: SuperGrokSettingsPanel
     private lateinit var zaiPanel: ZaiSettingsPanel
 
     private var locationComboBox: ComboBox<QuotaIndicatorLocation>? = null
@@ -96,6 +97,10 @@ class QuotaSettingsConfigurable : Configurable {
             statusLabelDefaultForeground = statusLabelDefaultForeground,
         )
         ollamaPanel = OllamaSettingsPanel(
+            modalityComponentProvider = { panel ?: rootComponent },
+            statusLabelDefaultForeground = statusLabelDefaultForeground,
+        )
+        superGrokPanel = SuperGrokSettingsPanel(
             modalityComponentProvider = { panel ?: rootComponent },
             statusLabelDefaultForeground = statusLabelDefaultForeground,
         )
@@ -415,6 +420,7 @@ class QuotaSettingsConfigurable : Configurable {
             QuotaProviderType.OLLAMA to ollamaPanel,
             QuotaProviderType.OPEN_AI to openAiPanel,
             QuotaProviderType.OPEN_CODE to openCodePanel,
+            QuotaProviderType.SUPERGROK to superGrokPanel,
             QuotaProviderType.ZAI to zaiPanel,
         )
     }

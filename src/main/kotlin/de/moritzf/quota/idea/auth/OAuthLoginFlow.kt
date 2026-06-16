@@ -43,6 +43,7 @@ class OAuthLoginFlow private constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + exceptionHandler)
     private var server: HttpServer? = null
     private var serverExecutor: ExecutorService? = null
+    private val callbackPath: String = URI.create(config.redirectUri).path.takeIf { it.isNotBlank() } ?: "/auth/callback"
 
     suspend fun waitForCallback(): OAuthCallbackResult {
         return try {
@@ -76,7 +77,7 @@ class OAuthLoginFlow private constructor(
             engine.createContext("/auth/ping") { exchange ->
                 handlePing(exchange)
             }
-            engine.createContext("/auth/callback") { exchange ->
+            engine.createContext(callbackPath) { exchange ->
                 handleCallback(exchange)
             }
             engine.start()
@@ -217,6 +218,9 @@ class OAuthLoginFlow private constructor(
                 "response_type" to "code",
                 "state" to state,
             )
+            if (config.includeNonce) {
+                params["nonce"] = generateState()
+            }
             params.putAll(config.extraParameters)
             return "${config.authorizationEndpoint}?${OAuthUrlCodec.formEncode(params)}"
         }

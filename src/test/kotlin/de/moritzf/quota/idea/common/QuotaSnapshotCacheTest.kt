@@ -6,6 +6,7 @@ import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.shared.ProviderQuota
+import de.moritzf.quota.supergrok.SuperGrokQuota
 import de.moritzf.quota.zai.ZaiQuota
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -20,6 +21,7 @@ class QuotaSnapshotCacheTest {
         assertEquals("kimi raw", roundTrip(QuotaProviderType.KIMI, KimiQuota(plan = "Pro"), "kimi raw").rawJson)
         assertEquals("github raw", roundTrip(QuotaProviderType.GITHUB, GitHubQuota(plan = "Copilot Pro"), "github raw").rawJson)
         assertEquals("cursor raw", roundTrip(QuotaProviderType.CURSOR, CursorQuota(planName = "Pro"), "cursor raw").rawJson)
+        assertEquals("supergrok raw", roundTrip(QuotaProviderType.SUPERGROK, SuperGrokQuota(), "supergrok raw").rawJson)
     }
 
     @Test

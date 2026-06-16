@@ -46,8 +46,9 @@ object OAuthUrlCodec {
         if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
             return URI.create(trimmed)
         }
-        if (trimmed.startsWith("/auth/callback")) {
-            return URI.create(redirectUri + trimmed.removePrefix("/auth/callback"))
+        val callbackPath = URI.create(redirectUri).path.takeIf { it.isNotBlank() } ?: "/auth/callback"
+        if (trimmed.startsWith(callbackPath)) {
+            return URI.create(redirectUri + trimmed.removePrefix(callbackPath))
         }
         return URI.create("$redirectUri?$trimmed")
     }

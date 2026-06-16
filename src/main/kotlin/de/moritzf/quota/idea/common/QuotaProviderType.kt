@@ -6,6 +6,7 @@ enum class QuotaProviderType(val id: String, val displayName: String) {
     OPEN_AI("openai", "OpenAI"),
     OPEN_CODE("opencode", "OpenCode"),
     OLLAMA("ollama", "Ollama"),
+    SUPERGROK("supergrok", "SuperGrok"),
     ZAI("zai", "Z.ai"),
     MINIMAX("minimax", "MiniMax"),
     KIMI("kimi", "Kimi");

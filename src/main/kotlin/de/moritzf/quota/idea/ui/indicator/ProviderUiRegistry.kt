@@ -18,6 +18,7 @@ import de.moritzf.quota.idea.ui.popup.OllamaPopupSection
 import de.moritzf.quota.idea.ui.popup.OpenAiPopupSection
 import de.moritzf.quota.idea.ui.popup.OpenCodePopupSection
 import de.moritzf.quota.idea.ui.popup.ProviderPopupSection
+import de.moritzf.quota.idea.ui.popup.SuperGrokPopupSection
 import de.moritzf.quota.idea.ui.popup.ZaiPopupSection
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 import de.moritzf.quota.kimi.KimiQuota
@@ -26,6 +27,7 @@ import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.shared.ProviderQuota
+import de.moritzf.quota.supergrok.SuperGrokQuota
 import de.moritzf.quota.zai.ZaiQuota
 import javax.swing.Icon
 import kotlin.math.roundToInt
@@ -71,6 +73,7 @@ internal object ProviderUiRegistry {
         KimiUi,
         GitHubUi,
         CursorUi,
+        SuperGrokUi,
     ).associateBy { it.type }
 
     fun forType(type: QuotaProviderType): ProviderUi = all.getValue(type)
@@ -301,4 +304,31 @@ private object CursorUi : ProviderUi {
     }
 
     override fun createPopupSection() = CursorPopupSection()
+}
+
+private object SuperGrokUi : ProviderUi {
+    override val type = QuotaProviderType.SUPERGROK
+    override val icon: Icon get() = QuotaIcons.SUPERGROK
+
+    override fun tooltip(quota: ProviderQuota?, error: String?) =
+        buildSuperGrokTooltipText(quota as? SuperGrokQuota, error)
+
+    override fun barText(quota: ProviderQuota?, error: String?) =
+        superGrokBarDisplayText(quota as? SuperGrokQuota, error)
+
+    override fun displayPercent(quota: ProviderQuota?, error: String?) =
+        (quota as? SuperGrokQuota)?.let(::superGrokIndicatorState)?.percent ?: -1
+
+    override fun periodElapsedFraction(quota: ProviderQuota?, error: String?) =
+        superGrokPeriodElapsedFraction(quota as? SuperGrokQuota, error)
+
+    override fun authState(): ProviderAuthState {
+        return if (QuotaAuthService.getInstance().isLoggedIn(QuotaProviderType.SUPERGROK)) {
+            ProviderAuthState.AUTHENTICATED
+        } else {
+            ProviderAuthState.UNAUTHENTICATED
+        }
+    }
+
+    override fun createPopupSection() = SuperGrokPopupSection()
 }

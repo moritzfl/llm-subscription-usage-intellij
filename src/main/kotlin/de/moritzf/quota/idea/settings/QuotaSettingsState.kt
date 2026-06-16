@@ -236,7 +236,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
 
     companion object {
         const val DEFAULT_PROVIDER_ORDER =
-            "cursor,github,kimi,minimax,ollama,openai,opencode,zai"
+            "cursor,github,kimi,minimax,ollama,openai,opencode,supergrok,zai"
 
         @JvmStatic
         fun getInstance(): QuotaSettingsState {

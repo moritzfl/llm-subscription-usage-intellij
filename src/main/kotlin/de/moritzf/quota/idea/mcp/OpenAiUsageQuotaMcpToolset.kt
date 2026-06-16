@@ -99,6 +99,12 @@ class OpenAiUsageQuotaMcpToolset(
         }
     }
 
+    @McpTool(name = "supergrok_usage_quota")
+    @McpDescription(description = "Returns the latest SuperGrok usage quota response JSON.")
+    fun supergrok_usage_quota(): String {
+        return quotaResult(QuotaProviderType.SUPERGROK, "No SuperGrok usage response available")
+    }
+
     @McpTool(name = "web_search_tools_status")
     @McpDescription(description = "Returns which MCP web search tools have the required local credentials configured. Does not call provider search APIs.")
     fun web_search_tools_status(): String {

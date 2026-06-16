@@ -23,6 +23,7 @@ import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.supergrok.SuperGrokQuota
 import java.awt.Component
 import java.awt.Cursor
 import java.awt.event.MouseAdapter
@@ -62,6 +63,11 @@ internal data class OllamaIndicatorState(
 )
 
 internal data class ZaiIndicatorState(
+    val percent: Int,
+    val resetsAt: Instant?,
+)
+
+internal data class SuperGrokIndicatorState(
     val percent: Int,
     val resetsAt: Instant?,
 )
@@ -408,6 +414,26 @@ internal fun zaiBarDisplayText(quota: ZaiQuota?, error: String?): String {
     return if (reset != null) "$text • $reset" else text
 }
 
+internal fun buildSuperGrokTooltipText(quota: SuperGrokQuota?, error: String?): String {
+    if (error != null) return "SuperGrok quota: $error"
+    if (quota == null) return "SuperGrok quota: loading"
+    val window = quota.creditUsage ?: return "SuperGrok quota: no usage data"
+    val percent = clampPercent(window.usagePercent.roundToInt())
+    val reset = QuotaUiUtil.formatResetCompact(window.resetsAt) ?: "unknown"
+    val plan = quota.plan.takeIf { it.isNotBlank() } ?: "unknown plan"
+    val cap = quota.onDemandCap?.takeIf { it > 0 }?.let { " • PAYG cap $it" }.orEmpty()
+    return "SuperGrok quota:\n$plan credits: $percent% used • $reset$cap"
+}
+
+internal fun superGrokBarDisplayText(quota: SuperGrokQuota?, error: String?): String {
+    if (error != null) return "error"
+    if (quota == null) return "loading..."
+    val state = superGrokIndicatorState(quota) ?: return "no data"
+    val reset = QuotaUiUtil.formatResetCompact(state.resetsAt)
+    val text = "${state.percent}%"
+    return if (reset != null) "$text • $reset" else text
+}
+
 internal fun buildQuotaTooltipText(quota: OpenAiCodexQuota?, error: String?): String {
     val authService = QuotaAuthService.getInstance()
     return buildQuotaTooltipText(quota, error, authService.isLoggedIn(QuotaProviderType.OPEN_AI))
@@ -674,6 +700,16 @@ internal fun zaiIndicatorState(quota: ZaiQuota): ZaiIndicatorState? {
         percent = clampPercent(window.usagePercent.roundToInt()),
         resetsAt = window.resetsAt,
     )
+}
+
+internal fun superGrokIndicatorState(quota: SuperGrokQuota): SuperGrokIndicatorState? {
+    val window = quota.creditUsage ?: return null
+    val percent = if (window.usagePercent >= 100.0 || window.used >= window.limit) {
+        100
+    } else {
+        clampPercent(window.usagePercent.roundToInt())
+    }
+    return SuperGrokIndicatorState(percent, window.resetsAt)
 }
 
 internal fun indicatorQuotaState(quota: OpenAiCodexQuota?): IndicatorQuotaState? {

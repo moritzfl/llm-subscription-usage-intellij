@@ -13,6 +13,7 @@ enum class QuotaIndicatorSource(
     OPEN_AI("OpenAI", QuotaProviderType.OPEN_AI),
     OPEN_CODE("OpenCode", QuotaProviderType.OPEN_CODE),
     OLLAMA("Ollama", QuotaProviderType.OLLAMA),
+    SUPERGROK("SuperGrok", QuotaProviderType.SUPERGROK),
     ZAI("Z.ai", QuotaProviderType.ZAI),
     LAST_USED("Last used");
 

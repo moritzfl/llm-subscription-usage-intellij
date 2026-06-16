@@ -29,6 +29,7 @@ class QuotaUsageService(
         KimiQuotaProvider(),
         GitHubQuotaProvider(),
         CursorQuotaProvider(),
+        SuperGrokQuotaProvider(),
     ),
     private val settingsProvider: () -> QuotaSettingsState? = {
         runCatching { QuotaSettingsState.getInstance() }.getOrNull()

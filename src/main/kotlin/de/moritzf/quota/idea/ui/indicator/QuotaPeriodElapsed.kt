@@ -16,6 +16,8 @@ import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.UsageWindow
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.opencode.OpenCodeUsageWindow
+import de.moritzf.quota.supergrok.SuperGrokQuota
+import de.moritzf.quota.supergrok.SuperGrokUsageWindow
 import de.moritzf.quota.zai.ZaiCountUsageWindow
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.zai.ZaiUsageWindow
@@ -105,6 +107,12 @@ internal fun KimiUsageWindow.periodElapsedFraction(now: Instant = Clock.System.n
 }
 
 internal fun GitHubUsageWindow.periodElapsedFraction(now: Instant = Clock.System.now()): Double? {
+    val durationMs = periodDurationMs ?: return null
+    val resetAt = resetsAt ?: return null
+    return computePeriodElapsedFraction(durationMs, resetAt, now)
+}
+
+internal fun SuperGrokUsageWindow.periodElapsedFraction(now: Instant = Clock.System.now()): Double? {
     val durationMs = periodDurationMs ?: return null
     val resetAt = resetsAt ?: return null
     return computePeriodElapsedFraction(durationMs, resetAt, now)
@@ -230,4 +238,11 @@ internal fun cursorPeriodElapsedFraction(quota: CursorQuota?, error: String?): D
         return null
     }
     return quota.planUsage?.periodElapsedFraction()
+}
+
+internal fun superGrokPeriodElapsedFraction(quota: SuperGrokQuota?, error: String?): Double? {
+    if (error != null || quota == null) {
+        return null
+    }
+    return quota.creditUsage?.periodElapsedFraction()
 }

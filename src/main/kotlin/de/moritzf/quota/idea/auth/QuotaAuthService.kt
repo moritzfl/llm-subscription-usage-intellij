@@ -42,8 +42,8 @@ class QuotaAuthService(
     private val tokenOperationsFactory: (QuotaProviderType, OAuthClientConfig) -> OAuthTokenOperations = { _, config ->
         OAuthTokenClient(httpClient, config)
     },
-    private val credentialStoreFactory: (QuotaProviderType) -> OAuthCredentialStore = {
-        OAuthCredentialsStore("LLM Subscription Usage OAuth", "openai-oauth")
+    private val credentialStoreFactory: (QuotaProviderType) -> OAuthCredentialStore = { type ->
+        OAuthCredentialsStore("LLM Subscription Usage OAuth", "${type.id}-oauth")
     },
 ) : Disposable {
     private val providerStates = ConcurrentHashMap<QuotaProviderType, ProviderAuthState>()
@@ -53,7 +53,7 @@ class QuotaAuthService(
     }
 
     private inner class ProviderAuthState(val type: QuotaProviderType) {
-        val config = OAuthClientConfig.openAiUsageQuotaDefaults()
+        val config = OAuthClientConfig.forProvider(type)
         val tokenOperations: OAuthTokenOperations = tokenOperationsFactory(type, config)
         val credentialStore: OAuthCredentialStore = credentialStoreFactory(type)
         
@@ -69,6 +69,7 @@ class QuotaAuthService(
 
     init {
         refreshCacheAsync(QuotaProviderType.OPEN_AI)
+        refreshCacheAsync(QuotaProviderType.SUPERGROK)
     }
 
     fun startLoginFlow(type: QuotaProviderType, callback: (LoginResult) -> Unit, onAuthUrl: ((String) -> Unit)? = null) {
@@ -370,7 +371,7 @@ class QuotaAuthService(
 
         @JvmStatic
         fun parseUri(type: QuotaProviderType, value: String): URI {
-            return OAuthLoginFlow.parseUri(value, OAuthClientConfig.openAiUsageQuotaDefaults().redirectUri)
+            return OAuthLoginFlow.parseUri(value, OAuthClientConfig.forProvider(type).redirectUri)
         }
 
         private fun isExpired(credentials: OAuthCredentials): Boolean {
