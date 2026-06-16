@@ -9,7 +9,7 @@ changelog = "2.5.0"
 kover = "0.9.8"
 junit-platform-launcher = "6.1.0"
 jsoup = "1.22.2"
-javalin = "7.2.0"
+javalin = "7.2.2"
 jackson = "2.22.0"
 picocli = "4.7.7"
 
