@@ -100,6 +100,49 @@ class SuperGrokQuotaClientTest {
         assertEquals(403, exception.statusCode)
     }
 
+    @Test
+    fun fetchQuotaRetriesGrokBillingTimeout() {
+        val httpClient = FakeHttpClient(
+            FakeResponseSpec(BILLING_TIMEOUT_RESPONSE, status = 400),
+            FakeResponseSpec(BILLING_RESPONSE),
+            FakeResponseSpec(SETTINGS_RESPONSE),
+        )
+        val client = SuperGrokQuotaClient(httpClient, URI.create("https://grok.test/v1/"))
+
+        val quota = client.fetchQuota("token-123")
+
+        assertEquals("SuperGrok Heavy", quota.plan)
+        assertEquals(
+            listOf(
+                "https://grok.test/v1/billing",
+                "https://grok.test/v1/billing",
+                "https://grok.test/v1/settings",
+            ),
+            httpClient.requests.map { it.uri().toString() },
+        )
+    }
+
+    @Test
+    fun fetchQuotaReportsGrokBillingTimeoutAfterRetry() {
+        val httpClient = FakeHttpClient(
+            FakeResponseSpec(BILLING_TIMEOUT_RESPONSE, status = 400),
+            FakeResponseSpec(BILLING_TIMEOUT_RESPONSE, status = 400),
+        )
+        val client = SuperGrokQuotaClient(httpClient, URI.create("https://grok.test/v1/"))
+
+        val exception = assertFailsWith<SuperGrokQuotaException> {
+            client.fetchQuota("token-123")
+        }
+
+        assertEquals(
+            "Grok billing request timed out. The Grok billing API cancelled the request before returning usage data; try again later.",
+            exception.message,
+        )
+        assertEquals(400, exception.statusCode)
+        assertEquals(null, exception.rawBody)
+        assertEquals(2, httpClient.requests.size)
+    }
+
     private data class FakeResponseSpec(val body: String, val status: Int = 200)
 
     private class FakeHttpClient(private vararg val responses: FakeResponseSpec) : HttpClient() {
@@ -168,5 +211,7 @@ class SuperGrokQuotaClientTest {
               "subscription_tier_display": "SuperGrok Heavy"
             }
         """.trimIndent()
+
+        private const val BILLING_TIMEOUT_RESPONSE = """{"code":"The operation was cancelled","error":"Timeout expired"}"""
     }
 }

@@ -9,12 +9,14 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.net.http.HttpTimeoutException
 import java.time.Duration
 
 open class SuperGrokQuotaClient(
@@ -52,22 +54,31 @@ open class SuperGrokQuotaClient(
             .GET()
             .build()
 
-        val response = send(request)
-        val status = response.statusCode()
-        val body = response.body()
-        if (status == 401 || status == 403) {
-            throw SuperGrokQuotaException("Grok auth expired. Log in to SuperGrok again from settings.", status, body)
+        for (attempt in 1..BILLING_REQUEST_ATTEMPTS) {
+            val response = send(request)
+            val status = response.statusCode()
+            val body = response.body()
+            if (status == 401 || status == 403) {
+                throw SuperGrokQuotaException("Grok auth expired. Log in to SuperGrok again from settings.", status, body)
+            }
+            if (status !in 200..299) {
+                if (!required) return null
+                if (isGrokBillingTimeout(status, body)) {
+                    if (attempt < BILLING_REQUEST_ATTEMPTS) continue
+                    throw SuperGrokQuotaException(GROK_BILLING_TIMEOUT_MESSAGE, status)
+                }
+                throw SuperGrokQuotaException("Grok billing request failed (HTTP $status). Try again later.", status, body)
+            }
+            return body
         }
-        if (status !in 200..299) {
-            if (!required) return null
-            throw SuperGrokQuotaException("Grok billing request failed (HTTP $status). Try again later.", status, body)
-        }
-        return body
+        throw SuperGrokQuotaException(GROK_BILLING_TIMEOUT_MESSAGE)
     }
 
     private fun send(request: HttpRequest): HttpResponse<String> {
         return try {
             httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        } catch (exception: HttpTimeoutException) {
+            throw SuperGrokQuotaException(GROK_BILLING_TIMEOUT_MESSAGE, 0, null, exception)
         } catch (exception: IOException) {
             throw SuperGrokQuotaException("Grok billing request failed. Check your connection.", 0, null, exception)
         } catch (exception: InterruptedException) {
@@ -84,6 +95,9 @@ open class SuperGrokQuotaClient(
         private const val SETTINGS_PATH = "settings"
         private const val TOKEN_AUTH_HEADER = "xai-grok-cli"
         private const val AUTH_SOURCE = "xai-oauth-cli-proxy"
+        private const val BILLING_REQUEST_ATTEMPTS = 2
+        private const val GROK_BILLING_TIMEOUT_MESSAGE =
+            "Grok billing request timed out. The Grok billing API cancelled the request before returning usage data; try again later."
 
         fun parseQuota(
             billingJson: String,
@@ -145,6 +159,16 @@ open class SuperGrokQuotaClient(
         private fun rawElement(value: String): JsonElement {
             return runCatching { JsonSupport.json.parseToJsonElement(value) }
                 .getOrElse { JsonPrimitive(value) }
+        }
+
+        private fun isGrokBillingTimeout(status: Int, body: String): Boolean {
+            if (status != 400) return false
+            val payload = runCatching { JsonSupport.json.parseToJsonElement(body) as? JsonObject }.getOrNull()
+                ?: return false
+            val code = (payload["code"] as? JsonPrimitive)?.contentOrNull
+            val error = (payload["error"] as? JsonPrimitive)?.contentOrNull
+            return code.equals("The operation was cancelled", ignoreCase = true) &&
+                error.equals("Timeout expired", ignoreCase = true)
         }
     }
 }
