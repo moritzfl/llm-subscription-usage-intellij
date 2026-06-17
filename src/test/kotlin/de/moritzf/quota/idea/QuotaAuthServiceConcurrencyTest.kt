@@ -181,6 +181,36 @@ class QuotaAuthServiceConcurrencyTest {
     }
 
     @Test
+    fun clearingSuperGrokCredentialsDoesNotClearOpenAiCredentials() {
+        val openAiStore = InMemoryCredentialStore(validCredentials(accessToken = "openai-token", refreshToken = "openai-refresh"))
+        val superGrokStore = InMemoryCredentialStore(validCredentials(accessToken = "grok-token", refreshToken = "grok-refresh"))
+        val stores = mapOf(
+            QuotaProviderType.OPEN_AI to openAiStore,
+            QuotaProviderType.SUPERGROK to superGrokStore,
+        )
+        val service = createService(
+            credentialStoreFactory = { type -> stores[type] ?: InMemoryCredentialStore(null) },
+            tokenOperations = TestTokenOperations(
+                onRefresh = { error("Refresh should not be called for valid credentials") },
+            ),
+        )
+
+        try {
+            assertEquals("openai-token", service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
+            assertEquals("grok-token", service.getAccessTokenBlocking(QuotaProviderType.SUPERGROK))
+
+            service.clearCredentials(QuotaProviderType.SUPERGROK)
+
+            assertEquals("openai-token", service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
+            assertEquals("openai-token", openAiStore.current()?.accessToken)
+            assertNull(service.getAccessTokenBlocking(QuotaProviderType.SUPERGROK))
+            assertNull(superGrokStore.current())
+        } finally {
+            service.dispose()
+        }
+    }
+
+    @Test
     fun concurrentForceRefreshForSameRejectedTokenRefreshesOnlyOnce() {
         // Upstream-401 scenario: credentials are locally valid, but Codex rejected them.
         val store = InMemoryCredentialStore(validCredentials(accessToken = "old-token", refreshToken = "refresh-token"))
@@ -316,12 +346,22 @@ class QuotaAuthServiceConcurrencyTest {
         store: OAuthCredentialStore,
         tokenOperations: OAuthTokenOperations,
     ): QuotaAuthService {
+        return createService(
+            credentialStoreFactory = { store },
+            tokenOperations = tokenOperations,
+        )
+    }
+
+    private fun createService(
+        credentialStoreFactory: (QuotaProviderType) -> OAuthCredentialStore,
+        tokenOperations: OAuthTokenOperations,
+    ): QuotaAuthService {
         val testScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         return QuotaAuthService(
             scope = testScope,
             httpClient = HttpClient.newHttpClient(),
             tokenOperationsFactory = { _, _ -> tokenOperations },
-            credentialStoreFactory = { store },
+            credentialStoreFactory = credentialStoreFactory,
         )
     }
 

@@ -43,7 +43,7 @@ class QuotaAuthService(
         OAuthTokenClient(httpClient, config)
     },
     private val credentialStoreFactory: (QuotaProviderType) -> OAuthCredentialStore = { type ->
-        OAuthCredentialsStore("LLM Subscription Usage OAuth", "${type.id}-oauth")
+        OAuthCredentialsStore.forProvider(type)
     },
 ) : Disposable {
     private val providerStates = ConcurrentHashMap<QuotaProviderType, ProviderAuthState>()
