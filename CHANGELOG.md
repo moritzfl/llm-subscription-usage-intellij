@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-06-17
+- Fixed SuperGrok billing timeout responses by retrying transient Grok cancellations and showing a clearer timeout error.
+- Fixed OAuth credential isolation so logging out of SuperGrok cannot clear OpenAI credentials.
+- Improved OAuth token expiry handling by deriving expiry from `expires_in`, JWT `exp`, or a safe one-hour fallback.
+
 ## [1.1.0] - 2026-06-17
 - Added support for **SuperGrok** monthly credit usage quotas via plugin-managed xAI/Grok OAuth and the Grok CLI billing API, including indicator, popup, settings, cache, and MCP usage access.
 - Fixed provider settings so opening the settings page selects the first provider in the custom popup order instead of the alphabetically first provider.
