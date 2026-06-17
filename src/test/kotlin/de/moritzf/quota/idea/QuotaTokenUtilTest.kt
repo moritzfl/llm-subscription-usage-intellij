@@ -52,6 +52,20 @@ class QuotaTokenUtilTest {
         assertNull(QuotaTokenUtil.extractChatGptAccountId("   "))
     }
 
+    @Test
+    fun extractJwtExpiresAtMsReturnsExpClaimInMilliseconds() {
+        val token = buildToken("""{"exp": 1767225600}""")
+
+        assertEquals(1_767_225_600_000L, QuotaTokenUtil.extractJwtExpiresAtMs(token))
+    }
+
+    @Test
+    fun extractJwtExpiresAtMsReturnsNullWhenExpIsMissingOrInvalid() {
+        assertNull(QuotaTokenUtil.extractJwtExpiresAtMs(buildToken("""{"sub":"user-1"}""")))
+        assertNull(QuotaTokenUtil.extractJwtExpiresAtMs(buildToken("""{"exp":"not-a-number"}""")))
+        assertNull(QuotaTokenUtil.extractJwtExpiresAtMs("not-a-jwt"))
+    }
+
     private fun buildToken(@Language("JSON") payloadJson: String): String {
         @Language("JSON")
         val headerJson = """

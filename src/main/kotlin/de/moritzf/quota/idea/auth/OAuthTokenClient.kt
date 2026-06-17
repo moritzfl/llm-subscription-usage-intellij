@@ -88,10 +88,19 @@ class OAuthTokenClient(
             ?: throw IOException("Token response did not return an access token")
         return OAuthCredentials(
             accessToken = accessToken,
-            expiresAt = System.currentTimeMillis() + tokenResponse.expiresIn * 1000L,
+            expiresAt = resolveExpiresAtMs(tokenResponse, accessToken),
             accountId = resolveAccountId(tokenResponse),
             hd = QuotaTokenUtil.extractGoogleHd(tokenResponse.idToken)
         )
+    }
+
+    private fun resolveExpiresAtMs(tokenResponse: OAuthTokenResponseDto, accessToken: String): Long {
+        val now = System.currentTimeMillis()
+        if (tokenResponse.expiresIn > 0) {
+            return now + tokenResponse.expiresIn * 1000L
+        }
+        return QuotaTokenUtil.extractJwtExpiresAtMs(accessToken)
+            ?: now + DEFAULT_EXPIRES_IN_MS
     }
 
     private fun parseResponse(body: String): OAuthTokenResponseDto {
@@ -124,5 +133,6 @@ class OAuthTokenClient(
 
     companion object {
         private val LOG = Logger.getInstance(OAuthTokenClient::class.java)
+        private const val DEFAULT_EXPIRES_IN_MS = 60 * 60 * 1000L
     }
 }

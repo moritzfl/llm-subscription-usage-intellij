@@ -57,6 +57,14 @@ object QuotaTokenUtil {
         return payload["hd"]?.toString()?.removeSurrounding("\"")?.takeUnless { it.isBlank() }
     }
 
+    @JvmStatic
+    fun extractJwtExpiresAtMs(token: String?): Long? {
+        val payload = extractPayload(token) ?: return null
+        val seconds = payload["exp"]?.toString()?.removeSurrounding("\"")?.toLongOrNull()
+            ?: return null
+        return seconds.takeIf { it > 0 }?.times(1000L)
+    }
+
     @OptIn(ExperimentalEncodingApi::class)
     private fun extractPayload(token: String?): kotlinx.serialization.json.JsonObject? {
         if (token.isNullOrBlank()) return null
