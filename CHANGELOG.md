@@ -1,7 +1,11 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+
+## [1.1.0] - 2026-06-17
 - Added support for **SuperGrok** monthly credit usage quotas via plugin-managed xAI/Grok OAuth and the Grok CLI billing API, including indicator, popup, settings, cache, and MCP usage access.
+- Fixed provider settings so opening the settings page selects the first provider in the custom popup order instead of the alphabetically first provider.
+- Split OpenAI/Codex settings into separate **Usage Tracking** and **Proxy** tabs.
 
 ## [1.0.0] - 2026-06-16
 - Added a local **OpenAI-compatible proxy** backed by the existing OpenAI/Codex login for clients such as JetBrains Junie, with copyable base URL/API key setup and optional request/response logging.
