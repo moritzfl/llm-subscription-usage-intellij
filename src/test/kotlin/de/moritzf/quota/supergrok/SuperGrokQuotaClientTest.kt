@@ -1,6 +1,6 @@
 package de.moritzf.quota.supergrok
 
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import java.net.Authenticator
 import java.net.CookieHandler
 import java.net.ProxySelector

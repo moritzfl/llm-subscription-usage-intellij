@@ -1,8 +1,8 @@
 package de.moritzf.quota.minimax
 
 import de.moritzf.quota.shared.JsonSupport
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.io.IOException

@@ -21,8 +21,8 @@ import de.moritzf.quota.supergrok.SuperGrokUsageWindow
 import de.moritzf.quota.zai.ZaiCountUsageWindow
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.zai.ZaiUsageWindow
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Clock
+import kotlin.time.Instant
 import java.time.Duration
 
 internal object QuotaPeriodDurations {

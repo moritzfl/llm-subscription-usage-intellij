@@ -1,7 +1,7 @@
 package de.moritzf.quota.openai.dto
 
 import de.moritzf.quota.openai.UsageWindow
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.time.Duration

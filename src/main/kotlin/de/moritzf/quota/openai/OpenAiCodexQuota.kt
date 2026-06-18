@@ -1,7 +1,7 @@
 package de.moritzf.quota.openai
 
 import de.moritzf.quota.shared.ProviderQuota
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 
 /**

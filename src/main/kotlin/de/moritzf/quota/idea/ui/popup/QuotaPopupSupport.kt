@@ -275,5 +275,5 @@ private class QuotaPopupContentPanel(
 
 private data class UpdatedAtRawItem(
     val icon: UpdatedAtIcon,
-    val fetchedAt: kotlinx.datetime.Instant?,
+    val fetchedAt: kotlin.time.Instant?,
 )

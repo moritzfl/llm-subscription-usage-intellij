@@ -1,7 +1,7 @@
 package de.moritzf.quota.openai
 
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Clock
+import kotlin.time.Instant
 import org.intellij.lang.annotations.Language
 import java.net.Authenticator
 import java.net.CookieHandler

@@ -10,7 +10,6 @@ import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorLocation
 import de.moritzf.quota.idea.ui.popup.QuotaPopupLocation
 import de.moritzf.quota.idea.ui.popup.QuotaPopupSupport
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.wm.CustomStatusBarWidget
 import com.intellij.openapi.wm.StatusBar
 import com.intellij.util.messages.MessageBusConnection
 import javax.swing.JComponent
@@ -18,7 +17,7 @@ import javax.swing.JComponent
 /**
  * Status bar widget that displays the current quota state and shows a detailed popup.
  */
-class QuotaStatusBarWidget(private val project: Project) : CustomStatusBarWidget {
+class QuotaStatusBarWidget(private val project: Project) : CustomComponentStatusBarWidget() {
     private val connection: MessageBusConnection
     private val widgetComponent = QuotaIndicatorComponent(horizontalPadding = 4) { component, _ ->
         QuotaPopupSupport.showPopup(project, component, QuotaPopupLocation.ABOVE)

@@ -1,7 +1,7 @@
 package de.moritzf.quota.idea.ui
 
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Clock
+import kotlin.time.Instant
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.Duration

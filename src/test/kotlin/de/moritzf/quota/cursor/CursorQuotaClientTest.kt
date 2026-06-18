@@ -7,7 +7,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 
 class CursorQuotaClientTest {
     @Test

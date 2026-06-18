@@ -43,6 +43,7 @@ kotlin {
         // IntelliJ 2025.3 bundles Kotlin 2.2.x; do not emit calls requiring a newer stdlib.
         apiVersion.set(KotlinVersion.KOTLIN_2_2)
         languageVersion.set(KotlinVersion.KOTLIN_2_2)
+        optIn.add("kotlin.time.ExperimentalTime")
     }
 }
 

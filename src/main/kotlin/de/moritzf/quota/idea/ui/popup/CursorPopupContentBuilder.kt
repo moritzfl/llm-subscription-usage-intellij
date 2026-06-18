@@ -175,7 +175,7 @@ internal class CursorPopupSection : ProviderPopupSection() {
         update("API usage", info, percent)
     }
 
-    private fun WindowBlockPanel.updatePercentUsage(percentUsed: Double, resetsAt: kotlinx.datetime.Instant?, label: String) {
+    private fun WindowBlockPanel.updatePercentUsage(percentUsed: Double, resetsAt: kotlin.time.Instant?, label: String) {
         val percent = clampPercent(percentUsed.roundToInt())
         var info = "$percent% used"
         QuotaUiUtil.formatReset(resetsAt)?.let { info += " - $it" }

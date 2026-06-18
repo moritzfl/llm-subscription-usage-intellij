@@ -19,7 +19,7 @@ import de.moritzf.quota.openai.isCreditsDepleted
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.openai.UsageWindow
 import de.moritzf.quota.opencode.OpenCodeUsageWindow
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import java.time.Duration
 import kotlin.test.Test
 import kotlin.test.assertEquals

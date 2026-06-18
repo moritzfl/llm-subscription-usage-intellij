@@ -29,7 +29,7 @@ import java.awt.Cursor
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.util.Locale
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import javax.swing.Icon
 import javax.swing.JComponent
 import javax.swing.SwingConstants
@@ -640,7 +640,7 @@ private fun OpenCodeUsageWindow.isExhausted(): Boolean {
 
 internal data class CursorIndicatorState(
     val percent: Int,
-    val resetsAt: kotlinx.datetime.Instant?,
+    val resetsAt: Instant?,
 )
 
 internal fun cursorIndicatorState(quota: CursorQuota): CursorIndicatorState? {

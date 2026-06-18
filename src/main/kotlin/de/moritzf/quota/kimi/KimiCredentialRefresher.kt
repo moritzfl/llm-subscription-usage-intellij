@@ -2,7 +2,7 @@ package de.moritzf.quota.kimi
 
 import de.moritzf.quota.idea.auth.OAuthUrlCodec
 import de.moritzf.quota.shared.JsonSupport
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.io.IOException

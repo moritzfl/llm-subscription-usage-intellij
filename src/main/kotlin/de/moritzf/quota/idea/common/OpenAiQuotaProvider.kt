@@ -5,7 +5,7 @@ import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.OpenAiCodexQuotaClient
 import de.moritzf.quota.openai.OpenAiCodexQuotaException
 import de.moritzf.quota.openai.UsageWindow
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 
 /**
  * Fetches and caches OpenAI Codex quota data.

@@ -1,6 +1,6 @@
 package de.moritzf.quota.shared
 
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 
 /**
  * Common contract implemented by every provider quota model so the IDE plumbing

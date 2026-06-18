@@ -10,7 +10,7 @@ import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorData
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.opencode.OpenCodeUsageWindow
 import de.moritzf.quota.openai.UsageWindow
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import java.time.Duration
 import kotlin.test.Test
 import kotlin.test.assertEquals

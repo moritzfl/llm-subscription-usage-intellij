@@ -240,7 +240,7 @@ internal class McpServerSyncTargetsDialog(
         private val textFieldWithBrowseButton = TextFieldWithBrowseButton()
 
         init {
-            val descriptor = FileChooserDescriptorFactory.createSingleFileDescriptor()
+            val descriptor = FileChooserDescriptorFactory.singleFile()
                 .withTitle("Select JSON/TOML/YAML File")
                 .withDescription("Choose the JSON, TOML, or YAML configuration file to update.")
                 .withShowHiddenFiles(true)

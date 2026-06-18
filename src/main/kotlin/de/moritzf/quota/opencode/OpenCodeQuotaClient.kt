@@ -1,7 +1,7 @@
 package de.moritzf.quota.opencode
 
 import de.moritzf.quota.shared.JsonSupport
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
