@@ -1,20 +1,28 @@
 package de.moritzf.quota.idea.ui.popup
 
+import com.intellij.icons.AllIcons
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.ui.Messages
+import com.intellij.ui.components.ActionLink
 import de.moritzf.quota.idea.ui.QuotaUiUtil
+import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.ui.indicator.clampPercent
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.OpenAiCredits
+import de.moritzf.quota.openai.RateLimitResetCredit
 import de.moritzf.quota.openai.OpenAiSpendControl
 import de.moritzf.quota.openai.UsageWindow
 import de.moritzf.quota.openai.formatApproxMessages
 import de.moritzf.quota.openai.isAssignedCreditsQuota
-import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.util.ui.JBUI
 import de.moritzf.quota.shared.ProviderQuota
+import javax.swing.JLabel
 import javax.swing.JPanel
 import kotlin.math.roundToInt
 import java.util.Locale
+import java.awt.Cursor
+import java.awt.FlowLayout
 
 internal class OpenAiPopupSection : ProviderPopupSection() {
     private val separator = createSeparatedBlock()
@@ -23,6 +31,10 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
     private val primaryBlock = WindowBlockPanel(3)
     private val secondaryBlock = WindowBlockPanel(5)
     private val creditsBlock = WindowBlockPanel(5)
+    private val resetCreditsPanel = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(3), 0)).apply {
+        isOpaque = false
+        border = JBUI.Borders.emptyTop(5)
+    }
     private val reviewSeparator = createSeparatedBlock()
     private val reviewTitle = createSectionTitleLabel("Code Review", QuotaIcons.OPENAI).apply { border = JBUI.Borders.emptyTop(0) }
     private val reviewPrimaryBlock = WindowBlockPanel(3)
@@ -36,6 +48,7 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
         add(primaryBlock)
         add(secondaryBlock)
         add(creditsBlock)
+        add(resetCreditsPanel)
         add(reviewSeparator)
         add(reviewTitle)
         add(reviewPrimaryBlock)
@@ -89,6 +102,7 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
                 } else {
                     creditsBlock.clear()
                 }
+                updateResetCredits(quota.resetCreditsAvailableCount, quota.resetCredits)
 
                 reviewSeparator.isVisible = hasReviewData
                 reviewTitle.isVisible = hasReviewData
@@ -108,6 +122,7 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
         primaryBlock.isVisible = false
         secondaryBlock.isVisible = false
         creditsBlock.isVisible = false
+        resetCreditsPanel.isVisible = false
         reviewSeparator.isVisible = false
         reviewTitle.isVisible = false
         reviewPrimaryBlock.isVisible = false
@@ -130,6 +145,49 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
     ) {
         val (info, percent) = describeAssignedCredits(credits, spendControl, rateLimitReachedType)
         update("Assigned credits", info, percent)
+    }
+
+    private fun updateResetCredits(availableCount: Int, resetCredits: List<RateLimitResetCredit>) {
+        resetCreditsPanel.removeAll()
+        if (availableCount <= 0) {
+            resetCreditsPanel.isVisible = false
+            return
+        }
+
+        resetCreditsPanel.add(JLabel("Resets available: $availableCount"))
+        resetCreditsPanel.add(ActionLink("Reset") { confirmAndReset(resetCredits.firstOrNull()?.creditId) }.apply {
+            icon = AllIcons.Actions.Restart
+            toolTipText = "Redeem one Codex reset"
+            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+        })
+        resetCreditsPanel.isVisible = true
+    }
+
+    private fun confirmAndReset(creditId: String?) {
+        val result = Messages.showYesNoDialog(
+            "Redeem one Codex reset credit now?",
+            "Reset Codex Limits",
+            "Reset",
+            "Cancel",
+            AllIcons.Actions.Restart,
+        )
+        if (result != Messages.YES) {
+            return
+        }
+
+        resetCreditsPanel.components.filterIsInstance<ActionLink>().forEach { it.isEnabled = false }
+        ApplicationManager.getApplication().executeOnPooledThread {
+            runCatching { QuotaUsageService.getInstance().consumeOpenAiResetCredit(creditId) }
+                .onFailure { exception ->
+                    ApplicationManager.getApplication().invokeLater {
+                        Messages.showErrorDialog(
+                            this,
+                            exception.message ?: "Reset request failed",
+                            "Reset Codex Limits",
+                        )
+                    }
+                }
+        }
     }
 
     private fun describeAssignedCredits(

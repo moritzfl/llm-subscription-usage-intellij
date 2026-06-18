@@ -14,6 +14,9 @@ class OpenAiQuotaProvider(
     private val quotaFetcher: (String, String?) -> OpenAiCodexQuota = { accessToken, accountId ->
         OpenAiCodexQuotaClient().fetchQuota(accessToken, accountId)
     },
+    private val resetCreditConsumer: (String, String?, String?) -> Unit = { accessToken, accountId, creditId ->
+        OpenAiCodexQuotaClient().consumeResetCredit(accessToken, accountId, creditId)
+    },
     private val accessTokenProvider: () -> String? = { QuotaAuthService.getInstance().getAccessTokenBlocking() },
     private val accountIdProvider: () -> String? = { QuotaAuthService.getInstance().getAccountId() },
 ) : CachedQuotaProvider<OpenAiCodexQuota>() {
@@ -35,6 +38,14 @@ class OpenAiQuotaProvider(
         } catch (exception: Exception) {
             storeError(exception.message ?: "Request failed")
         }
+    }
+
+    fun consumeResetCredit(creditId: String?) {
+        val accessToken = accessTokenProvider()
+        if (accessToken.isNullOrBlank()) {
+            throw IllegalStateException("Not logged in")
+        }
+        resetCreditConsumer(accessToken, accountIdProvider(), creditId)
     }
 
     private fun applyHysteresis(oldQuota: OpenAiCodexQuota?, newQuota: OpenAiCodexQuota) {

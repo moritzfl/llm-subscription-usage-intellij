@@ -398,6 +398,140 @@ class OpenAiCodexQuotaClientTest {
         assertNull(quota.primary)
     }
 
+    @Test
+    fun customDeserializationMapsEmbeddedResetCreditsCount() {
+        @Language("JSON")
+        val json = """
+            {
+              "rate_limit": {
+                "primary_window": { "used_percent": 12.3 }
+              },
+              "rate_limit_reset_credits": {
+                "available_count": 2
+              }
+            }
+        """.trimIndent()
+
+        val quota = deserializeQuota(json)
+
+        assertEquals(2, quota.resetCreditsAvailableCount)
+        assertTrue(quota.resetCredits.isEmpty())
+    }
+
+    @Test
+    fun fetchQuotaLoadsAvailableResetCredits() {
+        @Language("JSON")
+        val usageJson = """
+            {
+              "rate_limit": {
+                "primary_window": { "used_percent": 12.3 }
+              }
+            }
+        """.trimIndent()
+        @Language("JSON")
+        val resetsJson = """
+            {
+              "available_count": 1,
+              "credits": [
+                { "credit_id": "credit-1" }
+              ]
+            }
+        """.trimIndent()
+
+        val client = OpenAiCodexQuotaClient(
+            RoutingStubHttpClient(
+                mapOf(
+                    "/backend-api/wham/usage" to StubResponse(200, usageJson),
+                    "/backend-api/wham/rate-limit-reset-credits" to StubResponse(200, resetsJson),
+                ),
+            ),
+        )
+        val quota = client.fetchQuota("token", "account-1")
+
+        assertEquals(1, quota.resetCreditsAvailableCount)
+        assertEquals(1, quota.resetCredits.size)
+        assertEquals("credit-1", quota.resetCredits.single().creditId)
+    }
+
+    @Test
+    fun fetchQuotaIgnoresUnavailableResetCreditsEndpoint() {
+        @Language("JSON")
+        val usageJson = """
+            {
+              "rate_limit": {
+                "primary_window": { "used_percent": 12.3 }
+              }
+            }
+        """.trimIndent()
+
+        val client = OpenAiCodexQuotaClient(
+            RoutingStubHttpClient(
+                mapOf(
+                    "/backend-api/wham/usage" to StubResponse(200, usageJson),
+                    "/backend-api/wham/rate-limit-reset-credits" to StubResponse(404, "{}"),
+                ),
+            ),
+        )
+        val quota = client.fetchQuota("token", "account-1")
+
+        assertEquals(0, quota.resetCreditsAvailableCount)
+        assertTrue(quota.resetCredits.isEmpty())
+    }
+
+    @Test
+    fun fetchQuotaKeepsEmbeddedResetCreditsWhenSeparateEndpointUnavailable() {
+        @Language("JSON")
+        val usageJson = """
+            {
+              "rate_limit": {
+                "primary_window": { "used_percent": 12.3 }
+              },
+              "rate_limit_reset_credits": {
+                "available_count": 2
+              }
+            }
+        """.trimIndent()
+
+        val client = OpenAiCodexQuotaClient(
+            RoutingStubHttpClient(
+                mapOf(
+                    "/backend-api/wham/usage" to StubResponse(200, usageJson),
+                    "/backend-api/wham/rate-limit-reset-credits" to StubResponse(404, "{}"),
+                ),
+            ),
+        )
+        val quota = client.fetchQuota("token", "account-1")
+
+        assertEquals(2, quota.resetCreditsAvailableCount)
+        assertTrue(quota.resetCredits.isEmpty())
+    }
+
+    @Test
+    fun consumeResetCreditPostsCreditAndRedeemRequest() {
+        @Language("JSON")
+        val responseJson = """{ "code": "reset", "windows_reset": 1 }"""
+        var capturedRequest: HttpRequest? = null
+        val client = OpenAiCodexQuotaClient(
+            object : StubHttpClient(200, responseJson) {
+                override fun <T> send(
+                    request: HttpRequest,
+                    responseBodyHandler: HttpResponse.BodyHandler<T>
+                ): HttpResponse<T> {
+                    capturedRequest = request
+                    return super.send(request, responseBodyHandler)
+                }
+            },
+        )
+
+        val response = client.consumeResetCredit("token", "account-1", "credit-1")
+
+        assertEquals("/backend-api/wham/rate-limit-reset-credits/consume", capturedRequest?.uri()?.path)
+        assertEquals("POST", capturedRequest?.method())
+        assertEquals("application/json", capturedRequest?.headers()?.firstValue("Content-Type")?.orElse(null))
+        assertEquals("reset", response.code)
+        assertEquals(1, response.windowsReset)
+    }
+
     private fun deserializeQuota(@Language("JSON") json: String): OpenAiCodexQuota {
         return JsonSupport.json.decodeFromString(json)
     }
@@ -406,7 +540,7 @@ class OpenAiCodexQuotaClientTest {
         return OpenAiCodexQuotaClient(StubHttpClient(statusCode, body), URI.create("https://example.com/usage"))
     }
 
-    private class StubHttpClient(private val statusCode: Int, private val body: String) : HttpClient() {
+    private open class StubHttpClient(private val statusCode: Int, private val body: String) : HttpClient() {
         override fun cookieHandler(): Optional<CookieHandler> = Optional.empty()
 
         override fun connectTimeout(): Optional<Duration> = Optional.empty()
@@ -469,5 +603,18 @@ class OpenAiCodexQuotaClientTest {
         override fun uri(): URI = request.uri()
 
         override fun version(): HttpClient.Version = HttpClient.Version.HTTP_1_1
+    }
+
+    private data class StubResponse(val statusCode: Int, val body: String)
+
+    private class RoutingStubHttpClient(private val responses: Map<String, StubResponse>) : StubHttpClient(404, "{}") {
+        override fun <T> send(
+            request: HttpRequest,
+            responseBodyHandler: HttpResponse.BodyHandler<T>
+        ): HttpResponse<T> {
+            val response = responses[request.uri().path] ?: StubResponse(404, "{}")
+            @Suppress("UNCHECKED_CAST")
+            return StubHttpResponse(request, response.statusCode, response.body) as HttpResponse<T>
+        }
     }
 }

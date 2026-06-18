@@ -1,6 +1,7 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+- Added Codex reset credit display and one-click reset redemption in the quota popup, with confirmation before consuming a reset.
 
 ## [1.1.1] - 2026-06-17
 - Fixed SuperGrok billing timeout responses by retrying transient Grok cancellations and showing a clearer timeout error.

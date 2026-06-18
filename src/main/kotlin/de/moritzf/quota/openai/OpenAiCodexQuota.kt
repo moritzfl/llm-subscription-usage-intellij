@@ -25,6 +25,8 @@ class OpenAiCodexQuota(
     var credits: OpenAiCredits? = null,
     var spendControl: OpenAiSpendControl? = null,
     var rateLimitReachedType: String? = null,
+    var resetCreditsAvailableCount: Int = 0,
+    var resetCredits: List<RateLimitResetCredit> = emptyList(),
 ) : ProviderQuota {
     fun hasUsableWindows(): Boolean {
         return primary != null || secondary != null || reviewPrimary != null || reviewSecondary != null
@@ -67,7 +69,9 @@ class OpenAiCodexQuota(
             "email=${if (email == null) "null" else "<redacted>"}, " +
             "credits=$credits, " +
             "spendControl=$spendControl, " +
-            "rateLimitReachedType=$rateLimitReachedType" +
+            "rateLimitReachedType=$rateLimitReachedType, " +
+            "resetCreditsAvailableCount=$resetCreditsAvailableCount, " +
+            "resetCredits=${resetCredits.size}" +
             ")"
     }
 }

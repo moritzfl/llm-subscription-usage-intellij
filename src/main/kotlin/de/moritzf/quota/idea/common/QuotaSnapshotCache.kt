@@ -8,6 +8,7 @@ import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.OpenAiCredits
 import de.moritzf.quota.openai.OpenAiSpendControl
+import de.moritzf.quota.openai.RateLimitResetCredit
 import de.moritzf.quota.openai.UsageWindow
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.shared.JsonSupport
@@ -129,6 +130,8 @@ private data class CachedOpenAiQuota(
     val credits: OpenAiCredits? = null,
     val spendControl: OpenAiSpendControl? = null,
     val rateLimitReachedType: String? = null,
+    val resetCreditsAvailableCount: Int = 0,
+    val resetCredits: List<RateLimitResetCredit> = emptyList(),
 ) {
     fun toQuota(): OpenAiCodexQuota {
         return OpenAiCodexQuota(
@@ -147,6 +150,8 @@ private data class CachedOpenAiQuota(
             credits = credits,
             spendControl = spendControl,
             rateLimitReachedType = rateLimitReachedType,
+            resetCreditsAvailableCount = resetCreditsAvailableCount,
+            resetCredits = resetCredits,
         )
     }
 
@@ -168,6 +173,8 @@ private data class CachedOpenAiQuota(
                 credits = quota.credits,
                 spendControl = quota.spendControl,
                 rateLimitReachedType = quota.rateLimitReachedType,
+                resetCreditsAvailableCount = quota.resetCreditsAvailableCount,
+                resetCredits = quota.resetCredits,
             )
         }
     }

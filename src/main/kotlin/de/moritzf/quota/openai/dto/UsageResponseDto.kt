@@ -1,6 +1,7 @@
 package de.moritzf.quota.openai.dto
 
 import de.moritzf.quota.openai.OpenAiCodexQuota
+import de.moritzf.quota.openai.RateLimitResetCredits
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -18,6 +19,7 @@ data class UsageResponseDto(
     val credits: CreditsDto? = null,
     @SerialName("spend_control") val spendControl: SpendControlDto? = null,
     @SerialName("rate_limit_reached_type") val rateLimitReachedType: RateLimitReachedTypeDto? = null,
+    @SerialName("rate_limit_reset_credits") val rateLimitResetCredits: RateLimitResetCredits? = null,
 ) {
     fun toQuota(): OpenAiCodexQuota {
         return OpenAiCodexQuota(
@@ -35,6 +37,8 @@ data class UsageResponseDto(
             credits = credits?.toCredits(),
             spendControl = spendControl?.toSpendControl(),
             rateLimitReachedType = rateLimitReachedType?.type?.takeUnless { it.isEmpty() },
+            resetCreditsAvailableCount = rateLimitResetCredits?.effectiveAvailableCount() ?: 0,
+            resetCredits = rateLimitResetCredits?.credits.orEmpty(),
         )
     }
 

@@ -120,6 +120,11 @@ class QuotaUsageService(
         (provider(QuotaProviderType.OPEN_CODE) as? OpenCodeQuotaProvider)?.resetWorkspaceCache()
     }
 
+    fun consumeOpenAiResetCredit(creditId: String?) {
+        (provider(QuotaProviderType.OPEN_AI) as? OpenAiQuotaProvider)?.consumeResetCredit(creditId)
+        refreshProvider(QuotaProviderType.OPEN_AI)
+    }
+
     private fun scheduleRefresh() {
         val minutes = maxOf(1, settingsProvider()?.refreshMinutes ?: 5)
         scheduled = scheduler.scheduleWithFixedDelay(::refreshNow, 0, minutes.toLong(), TimeUnit.MINUTES)
