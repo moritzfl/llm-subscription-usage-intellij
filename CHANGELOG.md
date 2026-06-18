@@ -1,6 +1,8 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+
+## [1.2.0] - 2026-06-18
 - Added Codex reset credit display and one-click reset redemption in the quota popup, with confirmation before consuming a reset.
 
 ## [1.1.1] - 2026-06-17
