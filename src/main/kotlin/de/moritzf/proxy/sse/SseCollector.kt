@@ -1,54 +1,56 @@
 package de.moritzf.proxy.sse
-import de.moritzf.proxy.util.Json
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.node.ArrayNode
-import com.fasterxml.jackson.databind.node.ObjectNode
+import de.moritzf.proxy.server.JsonHelper
+import de.moritzf.proxy.server.MutableJsonArray
+import de.moritzf.proxy.server.MutableJsonObject
+import de.moritzf.proxy.server.createArrayNode
+import de.moritzf.proxy.server.createObjectNode
+import de.moritzf.proxy.server.hasNonNull
+import de.moritzf.proxy.server.stringPath
 import java.io.IOException
 import java.io.InputStream
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 object SseCollector {
-    fun collectCompletedResponse(input: InputStream): JsonNode {
-        var latestResponse: JsonNode? = null
-        var failedResponse: JsonNode? = null
-        var latestError: JsonNode? = null
+    fun collectCompletedResponse(input: InputStream): JsonObject {
+        var latestResponse: JsonObject? = null
+        var failedResponse: JsonObject? = null
+        var latestError: JsonObject? = null
         val outputTextDeltas = StringBuilder()
-        val completedItems = mutableListOf<JsonNode>()
+        val completedItems = mutableListOf<JsonObject>()
         for (event in SseParser.parse(input)) {
             val data = event.data()
             if (data.isNullOrEmpty()) {
                 continue
             }
             try {
-                val parsed = Json.MAPPER.readTree(data)
-                if (parsed == null || !parsed.isObject) {
-                    continue
-                }
+                val parsed = JsonHelper.parseToJsonElementOrNull(data) as? JsonObject ?: continue
                 if (event.event() == "error") {
                     latestError = parsed
                     continue
                 }
-                val eventType = parsed.path("type").asText(event.event().orEmpty())
+                val eventType = parsed.stringPath("type", event.event().orEmpty())
                 when (eventType) {
                     "response.output_text.delta" -> {
-                        val delta = parsed.path("delta").asText("")
+                        val delta = parsed.stringPath("delta", "")
                         if (delta.isNotEmpty()) {
                             outputTextDeltas.append(delta)
                         }
                     }
                     "response.output_item.done" -> {
-                        val item = parsed.get("item")
-                        if (item != null && item.isObject) {
+                        val item = parsed["item"]
+                        if (item is JsonObject) {
                             completedItems.add(item)
                         }
                     }
                     "response.completed" -> {
-                        val response = parsed.get("response")
-                        if (response != null && response.isObject) {
+                        val response = parsed["response"]
+                        if (response is JsonObject) {
                             latestResponse = response
                         }
                     }
                     "response.failed", "response.cancelled" -> {
-                        val response = parsed.get("response")
-                        if (response != null && response.isObject) {
+                        val response = parsed["response"]
+                        if (response is JsonObject) {
                             failedResponse = response
                         }
                     }
@@ -63,11 +65,11 @@ object SseCollector {
         if (response != null) {
             var completed = response
             if (!hasOutputItems(completed) && completedItems.isNotEmpty()) {
-                val copy = completed.deepCopy<ObjectNode>()
-                val output = Json.MAPPER.createArrayNode()
+                val copy = MutableJsonObject(completed)
+                val output = createArrayNode()
                 completedItems.forEach(output::add)
-                copy.set<ArrayNode>("output", output)
-                completed = copy
+                copy.set("output", output)
+                completed = copy.build()
             }
             if (outputTextDeltas.isNotEmpty() && !containsOutputText(completed)) {
                 return appendOutputText(completed, outputTextDeltas.toString())
@@ -77,46 +79,42 @@ object SseCollector {
         val errorInfo = latestError?.let { " Last error: $it" }.orEmpty()
         throw IOException("No completed response found in SSE stream.$errorInfo")
     }
-    private fun hasOutputItems(response: JsonNode): Boolean {
-        val output = response.get("output")
-        return output != null && output.isArray && !output.isEmpty
+    private fun hasOutputItems(response: JsonObject): Boolean {
+        val output = response["output"] as? JsonArray
+        return output != null && output.isNotEmpty()
     }
-    private fun containsOutputText(response: JsonNode): Boolean {
-        val output = response.get("output")
-        if (output == null || !output.isArray) {
-            return false
-        }
+    private fun containsOutputText(response: JsonObject): Boolean {
+        val output = response["output"] as? JsonArray ?: return false
         for (item in output) {
-            val content = item.get("content")
-            if (content == null || !content.isArray) {
-                continue
-            }
+            val content = (item as? JsonObject)?.get("content") as? JsonArray ?: continue
             for (part in content) {
-                if (part.path("type").asText() == "output_text" && part.hasNonNull("text")) {
+                val partObject = part as? JsonObject ?: continue
+                if (partObject.stringPath("type") == "output_text" && partObject.hasNonNull("text")) {
                     return true
                 }
             }
         }
         return false
     }
-    private fun appendOutputText(response: JsonNode, text: String): JsonNode {
-        val copy = response.deepCopy<ObjectNode>()
+    private fun appendOutputText(response: JsonObject, text: String): JsonObject {
+        val copy = MutableJsonObject(response)
         val existingOutput = copy.get("output")
-        val output = if (existingOutput != null && existingOutput.isArray) {
-            existingOutput as ArrayNode
+        val output: MutableJsonArray = if (existingOutput is JsonArray) {
+            MutableJsonArray(existingOutput)
         } else {
-            Json.MAPPER.createArrayNode().also { copy.set<ArrayNode>("output", it) }
+            createArrayNode()
         }
-        val message = Json.MAPPER.createObjectNode()
+        val message = createObjectNode()
         message.put("type", "message")
         message.put("role", "assistant")
-        val content = Json.MAPPER.createArrayNode()
-        val textPart = Json.MAPPER.createObjectNode()
+        val content = createArrayNode()
+        val textPart = createObjectNode()
         textPart.put("type", "output_text")
         textPart.put("text", text)
         content.add(textPart)
-        message.set<ArrayNode>("content", content)
+        message.set("content", content)
         output.add(message)
-        return copy
+        copy.set("output", output)
+        return copy.build()
     }
 }

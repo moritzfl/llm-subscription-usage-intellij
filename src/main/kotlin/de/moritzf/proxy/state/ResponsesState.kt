@@ -1,8 +1,13 @@
 package de.moritzf.proxy.state
-import de.moritzf.proxy.util.Json
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.node.ArrayNode
-import com.fasterxml.jackson.databind.node.ObjectNode
+import de.moritzf.proxy.server.MutableJsonArray
+import de.moritzf.proxy.server.MutableJsonObject
+import de.moritzf.proxy.server.createArrayNode
+import de.moritzf.proxy.server.isTextual
+import de.moritzf.proxy.server.stringPathOrNull
+import de.moritzf.proxy.server.textOrNull
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 /**
  * Bounded in-memory compatibility cache for Responses API replay references.
  *
@@ -11,11 +16,11 @@ import com.fasterxml.jackson.databind.node.ObjectNode
  */
 class ResponsesState {
     private data class CachedResponse(
-        val input: ArrayNode,
-        val output: ArrayNode,
+        val input: JsonArray,
+        val output: JsonArray,
     )
-    private val items = object : LinkedHashMap<String, JsonNode>(16, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, JsonNode>?): Boolean {
+    private val items = object : LinkedHashMap<String, JsonObject>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, JsonObject>?): Boolean {
             return size > MAX_ITEM_CACHE_SIZE
         }
     }
@@ -26,16 +31,16 @@ class ResponsesState {
     }
     @Synchronized
     @Suppress("unused")
-    fun requiresCachedState(body: JsonNode): Boolean {
-        if (body.has("previous_response_id") && body.get("previous_response_id").isTextual) {
+    fun requiresCachedState(body: JsonObject): Boolean {
+        if (body["previous_response_id"].isTextual()) {
             return true
         }
-        val input = body.get("input")
-        if (input != null && input.isArray) {
+        val input = body["input"]
+        if (input is JsonArray) {
             for (item in input) {
-                if (item.isObject &&
-                    item.path("type").asText(null) == "item_reference" &&
-                    item.has("id") && item.get("id").isTextual
+                val itemObject = item as? JsonObject ?: continue
+                if (itemObject.stringPathOrNull("type") == "item_reference" &&
+                    itemObject["id"].isTextual()
                 ) {
                     return true
                 }
@@ -44,91 +49,80 @@ class ResponsesState {
         return false
     }
     @Synchronized
-    fun expandRequestBody(body: ObjectNode): ObjectNode {
-        val nextBody: ObjectNode = body.deepCopy()
+    fun expandRequestBody(body: MutableJsonObject): MutableJsonObject {
+        val nextBody = body.deepCopy()
         var previousResponseId: String? = null
-        if (body.has("previous_response_id") && body.get("previous_response_id").isTextual) {
-            previousResponseId = body.get("previous_response_id").asText()
+        if (body.get("previous_response_id").isTextual()) {
+            previousResponseId = body.get("previous_response_id").textOrNull
         }
         val previousHistory = if (previousResponseId != null) responses[previousResponseId] else null
         val directInput = body.get("input")
-        val expandedInput = if (directInput != null && directInput.isArray) {
-            expandInput(directInput as ArrayNode)
+        val expandedInput = if (directInput is JsonArray) {
+            expandInput(directInput)
         } else {
             null
         }
         if (previousHistory != null) {
-            val combined = Json.MAPPER.createArrayNode()
-            combined.addAll(previousHistory.input.deepCopy())
-            combined.addAll(previousHistory.output.deepCopy())
+            val combined = createArrayNode()
+            combined.addAll(previousHistory.input.asIterable())
+            combined.addAll(previousHistory.output.asIterable())
             if (expandedInput != null) {
                 combined.addAll(expandedInput)
             }
-            nextBody.set<ArrayNode>("input", combined)
+            nextBody.set("input", combined)
             nextBody.remove("previous_response_id")
             return nextBody
         }
         if (expandedInput != null) {
-            nextBody.set<ArrayNode>("input", expandedInput)
+            nextBody.set("input", expandedInput)
         }
         return nextBody
     }
     @Synchronized
-    fun rememberResponse(response: JsonNode?, requestBody: JsonNode?) {
-        if (response == null || !response.isObject) {
-            return
-        }
-        val responseId = if (response.has("id") && response.get("id").isTextual) {
-            response.get("id").asText()
-        } else {
-            null
-        }
-        val outputNode = response.get("output")
-        val output = Json.MAPPER.createArrayNode()
-        if (outputNode != null && outputNode.isArray) {
+    fun rememberResponse(response: JsonElement?, requestBody: JsonElement?) {
+        val responseObject = response as? JsonObject ?: return
+        val responseId = responseObject["id"].textOrNull
+        val outputNode = responseObject["output"]
+        val output = createArrayNode()
+        if (outputNode is JsonArray) {
             for (item in outputNode) {
-                if (item.isObject) {
-                    output.add(item.deepCopy())
-                    val itemId = if (item.has("id") && item.get("id").isTextual) {
-                        item.get("id").asText()
-                    } else {
-                        null
-                    }
-                    if (itemId != null) {
-                        items.remove(itemId)
-                        items[itemId] = item.deepCopy()
-                    }
+                val itemObject = item as? JsonObject ?: continue
+                output.add(itemObject)
+                val itemId = itemObject["id"].textOrNull
+                if (itemId != null) {
+                    items.remove(itemId)
+                    items[itemId] = itemObject
                 }
             }
         }
         if (responseId != null && requestBody != null) {
-            val input = Json.MAPPER.createArrayNode()
-            val inputNode = requestBody.get("input")
-            if (inputNode != null && inputNode.isArray) {
-                for (item in inputNode) {
-                    input.add(item.deepCopy())
-                }
+            val input = createArrayNode()
+            val requestObject = requestBody as? JsonObject
+            val inputNode = requestObject?.get("input")
+            if (inputNode is JsonArray) {
+                input.addAll(inputNode.asIterable())
             }
             responses.remove(responseId)
-            responses[responseId] = CachedResponse(input, output)
+            responses[responseId] = CachedResponse(input.build(), output.build())
         }
     }
     // Must be called from a synchronized context (items is not thread-safe on its own).
-    private fun expandInput(input: ArrayNode): ArrayNode {
-        val expanded = Json.MAPPER.createArrayNode()
+    private fun expandInput(input: JsonArray): MutableJsonArray {
+        val expanded = createArrayNode()
         for (item in input) {
-            if (item.isObject &&
-                item.path("type").asText(null) == "item_reference" &&
-                item.has("id") && item.get("id").isTextual
+            val itemObject = item as? JsonObject
+            if (itemObject != null &&
+                itemObject.stringPathOrNull("type") == "item_reference" &&
+                itemObject["id"].isTextual()
             ) {
-                val id = item.get("id").asText()
+                val id = itemObject["id"].textOrNull.orEmpty()
                 val cached = items[id]
                 if (cached != null) {
-                    expanded.add(cached.deepCopy())
+                    expanded.add(cached)
                     continue
                 }
             }
-            expanded.add(item.deepCopy())
+            expanded.add(item)
         }
         return expanded
     }
