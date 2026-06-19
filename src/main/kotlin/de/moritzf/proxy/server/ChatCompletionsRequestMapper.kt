@@ -1,86 +1,90 @@
 package de.moritzf.proxy.server
 
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.node.ArrayNode
-import com.fasterxml.jackson.databind.node.ObjectNode
 import de.moritzf.proxy.model.CodexInstructionsProvider
 import de.moritzf.proxy.model.ModelAliasResolver
-import de.moritzf.proxy.server.JsonHelper.MAPPER
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.intOrNull
 
 internal class ChatCompletionsRequestMapper(
     private val store: Boolean,
     private val instructionsProvider: CodexInstructionsProvider,
     private val modelAliasResolver: ModelAliasResolver,
 ) {
-    fun build(chatBody: JsonNode, model: String, aliasReasoningEffort: String?): ObjectNode {
-        val upstream: ObjectNode = MAPPER.createObjectNode()
+    fun build(chatBody: JsonObject, model: String, aliasReasoningEffort: String?): MutableJsonObject {
+        val upstream = createObjectNode()
         upstream.put("model", model)
         upstream.put("stream", true)
         upstream.put("store", store)
 
         // Convert messages to Responses API format.
-        val input: ArrayNode = MAPPER.createArrayNode()
+        val input = createArrayNode()
         val instructions = StringBuilder()
-        val messages = chatBody.get("messages")
-        for (msg in messages) {
-            val role = msg.path("role").asText("")
+        val messages = chatBody["messages"] as? JsonArray ?: JsonArray(emptyList())
+        for (messageElement in messages) {
+            val msg = messageElement as? JsonObject ?: continue
+            val role = msg.stringPath("role", "")
             when (role) {
                 "system", "developer" -> {
-                    val text = extractTextContent(msg.get("content"))
-                    if (!text.isEmpty()) {
-                        if (!instructions.isEmpty()) instructions.append("\n")
+                    val text = extractTextContent(msg["content"])
+                    if (text.isNotEmpty()) {
+                        if (instructions.isNotEmpty()) instructions.append("\n")
                         instructions.append(text)
                     }
                 }
                 "user" -> {
-                    val item: ObjectNode = MAPPER.createObjectNode()
+                    val item = createObjectNode()
                     item.put("type", "message")
                     item.put("role", "user")
-                    val content: ArrayNode = MAPPER.createArrayNode()
-                    addContentParts(content, msg.get("content"))
-                    item.set<JsonNode?>("content", content)
+                    val content = createArrayNode()
+                    addContentParts(content, msg["content"])
+                    item.set("content", content)
                     input.add(item)
                 }
                 "assistant" -> {
-                    val text = extractTextContent(msg.get("content"))
-                    val toolCalls = msg.get("tool_calls")
-                    if (!text.isEmpty()) {
-                        val item: ObjectNode = MAPPER.createObjectNode()
+                    val text = extractTextContent(msg["content"])
+                    val toolCalls = msg["tool_calls"]
+                    if (text.isNotEmpty()) {
+                        val item = createObjectNode()
                         item.put("type", "message")
                         item.put("role", "assistant")
-                        val content: ArrayNode = MAPPER.createArrayNode()
-                        val textPart: ObjectNode = MAPPER.createObjectNode()
+                        val content = createArrayNode()
+                        val textPart = createObjectNode()
                         textPart.put("type", "output_text")
                         textPart.put("text", text)
                         content.add(textPart)
-                        item.set<JsonNode?>("content", content)
+                        item.set("content", content)
                         input.add(item)
                     }
-                    if (toolCalls != null && toolCalls.isArray) {
-                        for (tc in toolCalls) {
-                            val funcCall: ObjectNode = MAPPER.createObjectNode()
+                    if (toolCalls is JsonArray) {
+                        for (toolCallElement in toolCalls) {
+                            val tc = toolCallElement as? JsonObject ?: continue
+                            val funcCall = createObjectNode()
                             funcCall.put("type", "function_call")
-                            funcCall.put("call_id", tc.path("id").asText(""))
-                            val func = tc.get("function")
+                            funcCall.put("call_id", tc.stringPath("id", ""))
+                            val func = tc["function"] as? JsonObject
                             if (func != null) {
-                                funcCall.put("name", func.path("name").asText(""))
-                                funcCall.put("arguments", func.path("arguments").asText("{}"))
+                                funcCall.put("name", func.stringPath("name", ""))
+                                funcCall.put("arguments", func.stringPath("arguments", "{}"))
                             }
                             input.add(funcCall)
                         }
                     }
                 }
                 "tool" -> {
-                    val item: ObjectNode = MAPPER.createObjectNode()
+                    val item = createObjectNode()
                     item.put("type", "function_call_output")
-                    item.put("call_id", msg.path("tool_call_id").asText(""))
-                    val content = extractTextContent(msg.get("content"))
+                    item.put("call_id", msg.stringPath("tool_call_id", ""))
+                    val content = extractTextContent(msg["content"])
                     item.put("output", content)
                     input.add(item)
                 }
             }
         }
-        upstream.set<JsonNode?>("input", input)
+        upstream.set("input", input)
 
         // Set instructions.
         var instr = instructions.toString()
@@ -90,54 +94,49 @@ internal class ChatCompletionsRequestMapper(
         upstream.put("instructions", instr)
 
         // Optional parameters.
-        if (chatBody.has("temperature") && !chatBody.get("temperature").isNull) {
-            upstream.set<JsonNode?>("temperature", chatBody.get("temperature"))
-        }
-        if (chatBody.has("top_p") && !chatBody.get("top_p").isNull) {
-            upstream.set<JsonNode?>("top_p", chatBody.get("top_p"))
-        }
+        chatBody["temperature"]?.takeUnless { it is JsonNull }?.let { upstream.set("temperature", it) }
+        chatBody["top_p"]?.takeUnless { it is JsonNull }?.let { upstream.set("top_p", it) }
         // max_completion_tokens (newer SDK) takes precedence over deprecated max_tokens.
-        if (chatBody.has("max_completion_tokens") && !chatBody.get("max_completion_tokens").isNull) {
-            upstream.put("max_output_tokens", chatBody.get("max_completion_tokens").asInt())
-        } else if (chatBody.has("max_tokens") && !chatBody.get("max_tokens").isNull) {
-            upstream.put("max_output_tokens", chatBody.get("max_tokens").asInt())
+        val maxCompletionTokens = (chatBody["max_completion_tokens"] as? JsonPrimitive)?.intOrNull
+        val maxTokens = (chatBody["max_tokens"] as? JsonPrimitive)?.intOrNull
+        when {
+            maxCompletionTokens != null -> upstream.put("max_output_tokens", maxCompletionTokens)
+            maxTokens != null -> upstream.put("max_output_tokens", maxTokens)
         }
 
-        val tools: ArrayNode = MAPPER.createArrayNode()
-        addModernTools(tools, chatBody.get("tools"))
-        addLegacyFunctions(tools, chatBody.get("functions"))
-        if (!tools.isEmpty) {
-            upstream.set<JsonNode?>("tools", tools)
+        val tools = createArrayNode()
+        addModernTools(tools, chatBody["tools"])
+        addLegacyFunctions(tools, chatBody["functions"])
+        if (!tools.isEmpty()) {
+            upstream.set("tools", tools)
         }
 
         // Tool choice.
-        if (chatBody.has("tool_choice") && !chatBody.get("tool_choice").isNull) {
-            upstream.set<JsonNode?>("tool_choice", chatBody.get("tool_choice"))
-        } else if (chatBody.has("function_call") && !chatBody.get("function_call").isNull) {
-            setLegacyFunctionCallChoice(upstream, chatBody.get("function_call"))
+        chatBody["tool_choice"]?.takeUnless { it is JsonNull }?.let {
+            upstream.set("tool_choice", it)
+        } ?: chatBody["function_call"]?.takeUnless { it is JsonNull }?.let {
+            setLegacyFunctionCallChoice(upstream, it)
         }
 
         // Structured output: chat `response_format` json_schema maps to Responses `text.format`.
-        val responseFormat = chatBody.get("response_format")
-        if (responseFormat != null && responseFormat.isObject
-            && "json_schema" == responseFormat.path("type").asText()
-        ) {
-            val jsonSchema = responseFormat.get("json_schema")
-            if (jsonSchema != null && jsonSchema.isObject) {
-                val format: ObjectNode = MAPPER.createObjectNode()
+        val responseFormat = chatBody["response_format"] as? JsonObject
+        if (responseFormat != null && responseFormat.stringPath("type") == "json_schema") {
+            val jsonSchema = responseFormat["json_schema"] as? JsonObject
+            if (jsonSchema != null) {
+                val format = createObjectNode()
                 format.put("type", "json_schema")
                 if (jsonSchema.hasNonNull("name")) {
-                    format.set<JsonNode?>("name", jsonSchema.get("name"))
+                    format.set("name", jsonSchema["name"]!!)
                 }
                 if (jsonSchema.hasNonNull("strict")) {
-                    format.set<JsonNode?>("strict", jsonSchema.get("strict"))
+                    format.set("strict", jsonSchema["strict"]!!)
                 }
                 if (jsonSchema.hasNonNull("schema")) {
-                    format.set<JsonNode?>("schema", jsonSchema.get("schema"))
+                    format.set("schema", jsonSchema["schema"]!!)
                 }
-                val text: ObjectNode = MAPPER.createObjectNode()
-                text.set<JsonNode?>("format", format)
-                upstream.set<JsonNode?>("text", text)
+                val text = createObjectNode()
+                text.set("format", format)
+                upstream.set("text", text)
             }
         }
 
@@ -145,91 +144,87 @@ internal class ChatCompletionsRequestMapper(
         // user's explicit choice and wins over a separately supplied reasoning_effort, which
         // for clients like Junie can be a stale per-model default.
         val requestedEffort = aliasReasoningEffort ?:
-            if (chatBody.has("reasoning_effort") && !chatBody.get("reasoning_effort").isNull)
-                chatBody.get("reasoning_effort").asText()
-            else
-                null
+            chatBody["reasoning_effort"]?.takeUnless { it is JsonNull }?.let { (it as? JsonPrimitive)?.content }
         if (requestedEffort != null) {
-            val reasoning: ObjectNode = MAPPER.createObjectNode()
+            val reasoning = createObjectNode()
             reasoning.put("effort", modelAliasResolver.clampReasoningEffort(model, requestedEffort))
-            upstream.set<JsonNode?>("reasoning", reasoning)
+            upstream.set("reasoning", reasoning)
         }
 
         return upstream
     }
 
-    private fun addModernTools(tools: ArrayNode, toolDefinitions: JsonNode?) {
-        if (toolDefinitions == null || !toolDefinitions.isArray) {
-            return
-        }
-        for (toolDef in toolDefinitions) {
-            if ("function" != toolDef.path("type").asText()) continue
-            val func = toolDef.get("function")
+    private fun addModernTools(tools: MutableJsonArray, toolDefinitions: JsonElement?) {
+        val definitions = toolDefinitions as? JsonArray ?: return
+        for (toolDefElement in definitions) {
+            val toolDef = toolDefElement as? JsonObject ?: continue
+            if (toolDef.stringPath("type") != "function") continue
+            val func = toolDef["function"] as? JsonObject
             if (func != null) {
                 addFunctionTool(tools, func)
             }
         }
     }
 
-    private fun addLegacyFunctions(tools: ArrayNode, functionDefinitions: JsonNode?) {
-        if (functionDefinitions == null || !functionDefinitions.isArray) {
-            return
-        }
-        for (functionDef in functionDefinitions) {
+    private fun addLegacyFunctions(tools: MutableJsonArray, functionDefinitions: JsonElement?) {
+        val definitions = functionDefinitions as? JsonArray ?: return
+        for (functionDefElement in definitions) {
+            val functionDef = functionDefElement as? JsonObject ?: continue
             addFunctionTool(tools, functionDef)
         }
     }
 
-    @Suppress("RemoveExplicitTypeArguments")
-    private fun addFunctionTool(tools: ArrayNode, func: JsonNode) {
-        val name = func.path("name").asText("")
+    private fun addFunctionTool(tools: MutableJsonArray, func: JsonObject) {
+        val name = func.stringPath("name", "")
         if (name.isBlank()) {
             return
         }
-        val tool: ObjectNode = MAPPER.createObjectNode()
+        val tool = createObjectNode()
         tool.put("type", "function")
         tool.put("name", name)
-        if (func.has("description")) {
-            tool.put("description", func.path("description").asText(""))
+        if (func.containsKey("description")) {
+            tool.put("description", func.stringPath("description", ""))
         }
-        if (func.has("parameters")) {
-            tool.set<JsonNode?>("parameters", func.get("parameters"))
+        if (func.containsKey("parameters")) {
+            tool.set("parameters", func["parameters"]!!)
         } else {
-            val defaultParams: ObjectNode = MAPPER.createObjectNode()
+            val defaultParams = createObjectNode()
             defaultParams.put("type", "object")
-            defaultParams.set<JsonNode?>("properties", MAPPER.createObjectNode())
+            defaultParams.set("properties", createObjectNode())
             defaultParams.put("additionalProperties", true)
-            tool.set<JsonNode?>("parameters", defaultParams)
+            tool.set("parameters", defaultParams)
         }
         tools.add(tool)
     }
 
-    private fun setLegacyFunctionCallChoice(upstream: ObjectNode, functionCall: JsonNode) {
-        if (functionCall.isTextual) {
-            val choice = functionCall.asText()
-            if (!choice.isBlank()) {
+    private fun setLegacyFunctionCallChoice(upstream: MutableJsonObject, functionCall: JsonElement) {
+        if (functionCall.isTextual()) {
+            val choice = functionCall.text
+            if (choice.isNotBlank()) {
                 upstream.put("tool_choice", choice)
             }
             return
         }
-        val name = functionCall.path("name").asText("")
-        if (!name.isBlank()) {
-            val toolChoice: ObjectNode = MAPPER.createObjectNode()
+        val functionCallObject = functionCall as? JsonObject ?: return
+        val name = functionCallObject.stringPath("name", "")
+        if (name.isNotBlank()) {
+            val toolChoice = createObjectNode()
             toolChoice.put("type", "function")
             toolChoice.put("name", name)
-            upstream.set<JsonNode?>("tool_choice", toolChoice)
+            upstream.set("tool_choice", toolChoice)
         }
     }
 
-    private fun extractTextContent(content: JsonNode?): String {
+    private fun extractTextContent(content: JsonElement?): String {
         if (content == null) return ""
-        if (content.isTextual) return content.asText()
-        if (content.isArray) {
+        if (content.isTextual()) return content.text
+        if (content is JsonArray) {
             val sb = StringBuilder()
-            for (part in content) {
-                if (part.isObject && "text" == part.path("type").asText()) {
-                    val text = part.path("text").asText("")
-                    if (!text.isEmpty()) {
+            for (partElement in content) {
+                val part = partElement as? JsonObject ?: continue
+                if (part.stringPath("type") == "text") {
+                    val text = part.stringPath("text", "")
+                    if (text.isNotEmpty()) {
                         sb.append(text)
                     }
                 }
@@ -239,34 +234,33 @@ internal class ChatCompletionsRequestMapper(
         return ""
     }
 
-    private fun addContentParts(target: ArrayNode, content: JsonNode?) {
+    private fun addContentParts(target: MutableJsonArray, content: JsonElement?) {
         if (content == null) return
-        if (content.isTextual) {
-            val part: ObjectNode = MAPPER.createObjectNode()
+        if (content.isTextual()) {
+            val part = createObjectNode()
             part.put("type", "input_text")
-            part.put("text", content.asText())
+            part.put("text", content.text)
             target.add(part)
-        } else if (content.isArray) {
-            for (item in content) {
-                if (item.isObject) {
-                    val type = item.path("type").asText("")
-                    if ("text" == type) {
-                        val part: ObjectNode = MAPPER.createObjectNode()
-                        part.put("type", "input_text")
-                        part.put("text", item.path("text").asText(""))
-                        target.add(part)
-                    } else if ("image_url" == type) {
-                        val part: ObjectNode = MAPPER.createObjectNode()
-                        part.put("type", "input_image")
-                        val imageUrl = item.get("image_url")
-                        if (imageUrl != null && imageUrl.has("url")) {
-                            part.put("image_url", imageUrl.path("url").asText(""))
-                        }
-                        if (imageUrl != null && imageUrl.has("detail")) {
-                            part.put("detail", imageUrl.path("detail").asText(""))
-                        }
-                        target.add(part)
+        } else if (content is JsonArray) {
+            for (itemElement in content) {
+                val item = itemElement as? JsonObject ?: continue
+                val type = item.stringPath("type", "")
+                if (type == "text") {
+                    val part = createObjectNode()
+                    part.put("type", "input_text")
+                    part.put("text", item.stringPath("text", ""))
+                    target.add(part)
+                } else if (type == "image_url") {
+                    val part = createObjectNode()
+                    part.put("type", "input_image")
+                    val imageUrl = item["image_url"] as? JsonObject
+                    if (imageUrl != null && imageUrl.containsKey("url")) {
+                        part.put("image_url", imageUrl.stringPath("url", ""))
                     }
+                    if (imageUrl != null && imageUrl.containsKey("detail")) {
+                        part.put("detail", imageUrl.stringPath("detail", ""))
+                    }
+                    target.add(part)
                 }
             }
         }
