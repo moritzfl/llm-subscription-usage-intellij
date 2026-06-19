@@ -72,7 +72,7 @@ internal class GitHubPopupSection : ProviderPopupSection() {
     }
 
     private fun bindWindow(block: WindowBlockPanel, window: GitHubUsageWindow?) {
-        if (window == null) {
+        if (window == null || window.unlimited) {
             block.isVisible = false
             block.clear()
             return
@@ -90,10 +90,6 @@ internal class GitHubPopupSection : ProviderPopupSection() {
     }
 
     private fun WindowBlockPanel.updateGitHub(window: GitHubUsageWindow) {
-        if (window.unlimited) {
-            update(window.label, "unlimited", 0)
-            return
-        }
         val percent = clampPercent(window.usagePercent.roundToInt())
         val resetText = QuotaUiUtil.formatReset(window.resetsAt)
         var info = "$percent% used"

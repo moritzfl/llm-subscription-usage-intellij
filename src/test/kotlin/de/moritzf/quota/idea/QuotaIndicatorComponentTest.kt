@@ -1,6 +1,9 @@
 package de.moritzf.quota.idea
 
+import de.moritzf.quota.github.GitHubQuota
+import de.moritzf.quota.github.GitHubUsageWindow
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorComponent
+import de.moritzf.quota.idea.ui.indicator.buildGitHubTooltipText
 import de.moritzf.quota.idea.ui.indicator.openCodeBarDisplayText
 import de.moritzf.quota.idea.ui.indicator.ollamaBarDisplayText
 import de.moritzf.quota.idea.ui.indicator.buildOpenCodeTooltipText
@@ -145,6 +148,22 @@ class QuotaIndicatorComponentTest {
         assertEquals("loading...", indicatorBarDisplayText(quota, error = null, loggedIn = true))
         assertEquals(-1, indicatorDisplayPercent(quota, error = null, loggedIn = true))
         assertEquals("OpenAI usage quota: loading", buildQuotaTooltipText(quota, error = null, loggedIn = true))
+    }
+
+    @Test
+    fun githubTooltipHidesUnlimitedWindows() {
+        val quota = GitHubQuota(
+            plan = "Copilot Individual",
+            premiumInteractions = GitHubUsageWindow(label = "Premium requests", usagePercent = 26.833),
+            chat = GitHubUsageWindow(label = "Chat", unlimited = true),
+            completions = GitHubUsageWindow(label = "Completions", unlimited = true),
+        )
+
+        val tooltip = buildGitHubTooltipText(quota, error = null)
+
+        assertTrue(tooltip.contains("Premium requests: 27%"))
+        assertFalse(tooltip.contains("Chat"))
+        assertFalse(tooltip.contains("Completions"))
     }
 
     @Test

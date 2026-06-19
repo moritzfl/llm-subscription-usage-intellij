@@ -11,7 +11,7 @@ import java.time.Duration
  *
  * Paid plans report percentage-based snapshots for premium interactions and chat;
  * the free tier reports absolute chat/completions counters. Windows that the API
- * marks as unlimited are kept so the UI can label them instead of showing 0%.
+ * marks as unlimited are kept for snapshots/API output, but display helpers hide them.
  */
 @Serializable
 data class GitHubQuota(

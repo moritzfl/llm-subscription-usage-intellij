@@ -377,12 +377,8 @@ internal fun buildGitHubTooltipText(quota: GitHubQuota?, error: String?): String
     if (quota == null) return "GitHub Copilot quota: loading"
     val plan = quota.plan.ifBlank { "GitHub Copilot" }
     val parts = mutableListOf<String>()
-    listOfNotNull(quota.premiumInteractions, quota.chat, quota.completions).forEach { window ->
-        if (window.unlimited) {
-            parts.add("${window.label}: unlimited")
-        } else {
-            parts.add("${window.label}: ${clampPercent(window.usagePercent.roundToInt())}% • ${QuotaUiUtil.formatResetCompact(window.resetsAt) ?: "unknown"}")
-        }
+    quota.limitedWindows().forEach { window ->
+        parts.add("${window.label}: ${clampPercent(window.usagePercent.roundToInt())}% • ${QuotaUiUtil.formatResetCompact(window.resetsAt) ?: "unknown"}")
     }
     if (parts.isEmpty()) return "$plan: no usage data"
     return "$plan:\n${parts.joinToString("\n")}"
