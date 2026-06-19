@@ -40,10 +40,9 @@ sourceSets {
 kotlin {
     jvmToolchain(21)
     compilerOptions {
-        // IntelliJ 2025.3 bundles Kotlin 2.2.x; do not emit calls requiring a newer stdlib.
-        apiVersion.set(KotlinVersion.KOTLIN_2_2)
-        languageVersion.set(KotlinVersion.KOTLIN_2_2)
-        optIn.add("kotlin.time.ExperimentalTime")
+        // IntelliJ 2026.1 bundles Kotlin 2.3.x; do not emit calls requiring a newer stdlib.
+        apiVersion.set(KotlinVersion.KOTLIN_2_3)
+        languageVersion.set(KotlinVersion.KOTLIN_2_3)
     }
 }
 
@@ -59,10 +58,6 @@ repositories {
 
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/version_catalogs.html
 dependencies {
-    implementation(libs.kotlinx.datetime) {
-        excludeKotlinStdlib()
-        excludeCoroutines()
-    }
     implementation(libs.snakeyaml.engine)
     implementation(libs.tomlj)
     implementation(libs.jsoup)

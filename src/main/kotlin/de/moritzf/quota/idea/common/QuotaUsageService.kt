@@ -163,7 +163,7 @@ class QuotaUsageService(
                 kotlin.math.abs(newFraction - oldFraction) >= MIN_USAGE_INCREASE
 
             if (significantChange && newFraction > oldFraction) {
-                (settings ?: settingsProvider())?.lastActiveSource = provider.type.id
+                settings.lastActiveSource = provider.type.id
             }
 
             if (oldFraction == null || significantChange) {
