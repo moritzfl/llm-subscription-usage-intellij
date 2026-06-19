@@ -1,9 +1,9 @@
 package de.moritzf.proxy.logging
 import de.moritzf.proxy.server.MutableJsonObject
+import de.moritzf.proxy.server.ProxyCall
 import de.moritzf.proxy.server.createObjectNode
 import de.moritzf.proxy.util.Json
 import com.intellij.concurrency.virtualThreads.IntelliJVirtualThreads
-import io.javalin.http.Context
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -27,15 +27,15 @@ class RequestLogger(
     }
     fun isEnabled(): Boolean = enabled
     fun nextRequestId(): String = "req_" + UUID.randomUUID().toString().replace("-", "")
-    fun logInbound(requestId: String, ctx: Context, body: String?) {
+    fun logInbound(requestId: String, ctx: ProxyCall, body: String?) {
         if (!enabled) {
             return
         }
         val entry = baseEntry(requestId, "inbound")
-        entry.put("method", ctx.method().name)
+        entry.put("method", ctx.method())
         entry.put("path", ctx.path())
-        entry.put("status", ctx.statusCode())
-        entry.set("headers", redactStringHeaders(ctx.headerMap()))
+        entry.put("status", ctx.responseStatus())
+        entry.set("headers", redactStringHeaders(ctx.headers()))
         putBody(entry, body)
         write(entry, requestId, "inbound")
     }

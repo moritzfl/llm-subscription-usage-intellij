@@ -7,19 +7,22 @@ import de.moritzf.proxy.sse.SseCollector
 import de.moritzf.proxy.state.ResponsesState
 import de.moritzf.proxy.transport.CodexHttpClient
 import de.moritzf.proxy.usage.UsageTracker
-import io.javalin.http.Context
-import io.javalin.http.Handler
+import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.response.respondOutputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
 import java.util.Collections
 import java.util.LinkedHashMap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-class ResponsesHandler : Handler {
+class ResponsesHandler {
     private val client: CodexHttpClient
     private val config: ServerConfig
     private val usageTracker: UsageTracker
@@ -49,11 +52,11 @@ class ResponsesHandler : Handler {
         this.instructionsProvider = instructionsProvider
     }
 
-    override fun handle(ctx: Context) {
+    suspend fun handle(ctx: ProxyCall) {
         create(ctx)
     }
 
-    fun create(ctx: Context) {
+    suspend fun create(ctx: ProxyCall) {
         val requestId = if (shouldUseRequestContext()) requestId(ctx) else requestLogger.nextRequestId()
         val body = RequestValidator.parseLoggedJsonObject(ctx, requestLogger, requestId) ?: return
         val wantsStream = body.booleanPath("stream", false)
@@ -73,11 +76,13 @@ class ResponsesHandler : Handler {
             null
         }
         // Forward to upstream.
-        val upstream = UpstreamRetry.withRetries(ctx.header("x-litellm-num-retries")) {
-            sendUpstream(normalized, requestId, promptCacheKey)
+        val upstream = withContext(Dispatchers.IO) {
+            UpstreamRetry.withRetries(ctx.header("x-litellm-num-retries")) {
+                sendUpstream(normalized, requestId, promptCacheKey)
+            }
         }
         AccessLogFields.upstreamStatus(ctx, upstream.statusCode())
-        ctx.header("x-litellm-model-id", (normalized.get("model") as? JsonPrimitive)?.content ?: "")
+        ctx.responseHeader("x-litellm-model-id", (normalized.get("model") as? JsonPrimitive)?.content ?: "")
         if (upstream.statusCode() !in 200..<300) {
             upstreamErrorMapper.writeResponse(ctx, requestLogger, requestId, upstream)
             return
@@ -87,8 +92,10 @@ class ResponsesHandler : Handler {
             // enabled; otherwise the bytes pass straight through without a second parse.
             JsonHelper.setSseHeaders(ctx)
             val recorder = if (state != null) StreamingCompletionRecorder(ctx, state, expandedJson) else null
-            upstream.body().use { stream ->
-                ctx.res().outputStream.use { output ->
+            ctx.handled = true
+            ctx.call.respondOutputStream(ContentType.parse(JsonHelper.SSE_CONTENT_TYPE), HttpStatusCode.OK) {
+                val output = this
+                upstream.body().use { stream ->
                     val buffer = ByteArray(8192)
                     while (true) {
                         val bytesRead = stream.read(buffer)
@@ -100,9 +107,9 @@ class ResponsesHandler : Handler {
                         recorder?.accept(buffer, bytesRead)
                         output.flush()
                     }
+                    recorder?.finish()
                 }
             }
-            recorder?.finish()
         } else {
             // Collect completed response from SSE.
             upstream.body().use { stream ->
@@ -248,16 +255,16 @@ class ResponsesHandler : Handler {
     private fun shouldUseRequestContext(): Boolean {
         return config.fullRequestLogging || config.forwardPromptCacheHeaders
     }
-    private fun requestId(ctx: Context): String {
-        var requestId = ctx.attribute<String>(AccessLogFields.REQUEST_ID)
+    private fun requestId(ctx: ProxyCall): String {
+        var requestId = ctx.getAttribute(AccessLogFields.REQUEST_ID)
         if (requestId.isNullOrBlank()) {
             requestId = requestLogger.nextRequestId()
-            ctx.attribute(AccessLogFields.REQUEST_ID, requestId)
+            ctx.setAttribute(AccessLogFields.REQUEST_ID, requestId)
         }
         return requestId
     }
     private fun recordStreamingCompletion(
-        ctx: Context,
+        ctx: ProxyCall,
         eventType: String?,
         data: String?,
         state: ResponsesState,
@@ -286,18 +293,18 @@ class ResponsesHandler : Handler {
         }
         return false
     }
-    private fun recordUsage(ctx: Context, usageNode: JsonElement?) {
+    private fun recordUsage(ctx: ProxyCall, usageNode: JsonElement?) {
         usageTracker.record(
-            ctx.attribute("keyName"),
+            ctx.getAttribute(ProxyCallAttributes.KEY_NAME),
             usageNode.longPath("input_tokens", 0L),
             usageNode.longPath("output_tokens", 0L),
         )
     }
-    private fun replayStateFor(ctx: Context): ResponsesState {
-        val isAdmin = ctx.attribute<Boolean>("isAdmin") == true
-        val keyFingerprint = ctx.attribute<String>("keyFingerprint")
-        val adminKeyFingerprint = ctx.attribute<String>("adminKeyFingerprint")
-        val keyName = ctx.attribute<String>("keyName")
+    private fun replayStateFor(ctx: ProxyCall): ResponsesState {
+        val isAdmin = ctx.getAttribute(ProxyCallAttributes.IS_ADMIN) == true
+        val keyFingerprint = ctx.getAttribute(ProxyCallAttributes.KEY_FINGERPRINT)
+        val adminKeyFingerprint = ctx.getAttribute(ProxyCallAttributes.ADMIN_KEY_FINGERPRINT)
+        val keyName = ctx.getAttribute(ProxyCallAttributes.KEY_NAME)
         val namespace = if (isAdmin && adminKeyFingerprint != null) {
             "admin-fp:$adminKeyFingerprint"
         } else if (keyFingerprint != null) {
@@ -314,7 +321,7 @@ class ResponsesHandler : Handler {
         }
     }
     private inner class StreamingCompletionRecorder(
-        private val ctx: Context,
+        private val ctx: ProxyCall,
         private val state: ResponsesState,
         private val expandedRequest: JsonElement,
     ) {

@@ -1,22 +1,28 @@
 package de.moritzf.proxy.server
-import io.javalin.http.Context
+
+import io.ktor.util.AttributeKey
+
 object AccessLogFields {
-    const val REQUEST_ID: String = "requestId"
-    const val START_NANOS: String = "accessLogStartNanos"
-    const val MODE: String = "accessLogMode"
-    const val UPSTREAM_STATUS: String = "accessLogUpstreamStatus"
-    const val RESPONSE_BYTES: String = "accessLogResponseBytes"
-    fun mode(ctx: Context, mode: String) {
-        ctx.attribute(MODE, mode)
+    val REQUEST_ID = AttributeKey<String>("requestId")
+    val START_NANOS = AttributeKey<Long>("accessLogStartNanos")
+    val MODE = AttributeKey<String>("accessLogMode")
+    val UPSTREAM_STATUS = AttributeKey<Int>("accessLogUpstreamStatus")
+    val RESPONSE_BYTES = AttributeKey<Long>("accessLogResponseBytes")
+
+    fun mode(ctx: ProxyCall, mode: String) {
+        ctx.setAttribute(MODE, mode)
     }
-    fun upstreamStatus(ctx: Context, status: Int) {
-        ctx.attribute(UPSTREAM_STATUS, status)
+
+    fun upstreamStatus(ctx: ProxyCall, status: Int) {
+        ctx.setAttribute(UPSTREAM_STATUS, status)
     }
-    fun responseBytes(ctx: Context, bytes: Long) {
-        ctx.attribute(RESPONSE_BYTES, bytes.coerceAtLeast(0L))
+
+    fun responseBytes(ctx: ProxyCall, bytes: Long) {
+        ctx.setAttribute(RESPONSE_BYTES, bytes.coerceAtLeast(0L))
     }
-    fun addResponseBytes(ctx: Context, bytes: Long) {
-        val current = ctx.attribute<Long>(RESPONSE_BYTES)
+
+    fun addResponseBytes(ctx: ProxyCall, bytes: Long) {
+        val current = ctx.getAttribute(RESPONSE_BYTES)
         responseBytes(ctx, (current ?: 0L) + bytes.coerceAtLeast(0L))
     }
 }

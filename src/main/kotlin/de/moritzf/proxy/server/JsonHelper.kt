@@ -1,7 +1,11 @@
 package de.moritzf.proxy.server
 
 import de.moritzf.proxy.util.Json
-import io.javalin.http.Context
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.withCharset
+import io.ktor.server.response.respondText
 import java.io.InputStream
 import java.nio.charset.StandardCharsets
 import kotlinx.serialization.json.JsonArray
@@ -27,13 +31,12 @@ object JsonHelper {
     const val SSE_CONTENT_TYPE: String = "text/event-stream; charset=utf-8"
     const val JSON_CONTENT_TYPE: String = "application/json; charset=utf-8"
 
-    fun toJsonResponse(ctx: Context, body: Any?) {
+    suspend fun toJsonResponse(ctx: ProxyCall, body: Any?) {
         toJsonResponse(ctx, body, 200)
     }
 
-    fun toJsonResponse(ctx: Context, body: Any?, status: Int) {
-        ctx.status(status)
-        ctx.contentType(JSON_CONTENT_TYPE)
+    suspend fun toJsonResponse(ctx: ProxyCall, body: Any?, status: Int) {
+        ctx.setStatus(status)
         try {
             val json = when (body) {
                 is JsonElement -> JSON.encodeToString(JsonElement.serializer(), body)
@@ -48,27 +51,41 @@ object JsonHelper {
                 else -> body.toString()
             }
             AccessLogFields.responseBytes(ctx, json.toByteArray(StandardCharsets.UTF_8).size.toLong())
-            ctx.result(json)
+            ctx.handled = true
+            ctx.call.respondText(
+                json,
+                ContentType.Application.Json.withCharset(StandardCharsets.UTF_8),
+                HttpStatusCode.fromValue(status),
+            )
         } catch (_: Exception) {
             val fallback = "{}"
             AccessLogFields.responseBytes(ctx, fallback.toByteArray(StandardCharsets.UTF_8).size.toLong())
-            ctx.result(fallback)
+            ctx.handled = true
+            ctx.call.respondText(
+                fallback,
+                ContentType.Application.Json.withCharset(StandardCharsets.UTF_8),
+                HttpStatusCode.fromValue(status),
+            )
         }
     }
 
-    fun toJsonResponse(ctx: Context, body: JsonElement, status: Int) {
-        ctx.status(status)
-        ctx.contentType(JSON_CONTENT_TYPE)
+    suspend fun toJsonResponse(ctx: ProxyCall, body: JsonElement, status: Int) {
+        ctx.setStatus(status)
         val json = JSON.encodeToString(JsonElement.serializer(), body)
         AccessLogFields.responseBytes(ctx, json.toByteArray(StandardCharsets.UTF_8).size.toLong())
-        ctx.result(json)
+        ctx.handled = true
+        ctx.call.respondText(
+            json,
+            ContentType.Application.Json.withCharset(StandardCharsets.UTF_8),
+            HttpStatusCode.fromValue(status),
+        )
     }
 
-    fun toErrorResponse(ctx: Context, message: String?) {
+    suspend fun toErrorResponse(ctx: ProxyCall, message: String?) {
         toErrorResponse(ctx, message, 400, "invalid_request_error")
     }
 
-    fun toErrorResponse(ctx: Context, message: String?, status: Int, type: String) {
+    suspend fun toErrorResponse(ctx: ProxyCall, message: String?, status: Int, type: String) {
         val root = buildJsonObject {
             putJsonObject("error") {
                 put("message", message)
@@ -158,11 +175,10 @@ object JsonHelper {
         }
     }
 
-    fun setSseHeaders(ctx: Context) {
-        ctx.contentType(SSE_CONTENT_TYPE)
-        ctx.header("Cache-Control", "no-cache, no-transform")
-        ctx.header("Connection", "keep-alive")
-        ctx.header("X-Accel-Buffering", "no")
+    fun setSseHeaders(ctx: ProxyCall) {
+        ctx.responseHeader(HttpHeaders.CacheControl, "no-cache, no-transform")
+        ctx.responseHeader(HttpHeaders.Connection, "keep-alive")
+        ctx.responseHeader("X-Accel-Buffering", "no")
     }
 
     fun encodeToString(element: JsonElement): String = JSON.encodeToString(JsonElement.serializer(), element)

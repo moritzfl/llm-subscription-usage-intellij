@@ -1,6 +1,9 @@
 package de.moritzf.proxy.server
 import de.moritzf.proxy.logging.RequestLogger
-import io.javalin.http.Context
+import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.withCharset
+import io.ktor.server.response.respondText
 import java.io.InputStream
 import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
@@ -19,8 +22,8 @@ class UpstreamErrorMapper {
         val errorType = if (quotaExhausted) "insufficient_quota" else null
         return MappedUpstreamError(status, JsonHelper.toUpstreamErrorBody(upstreamBody, status, errorType))
     }
-    fun writeResponse(
-        ctx: Context,
+    suspend fun writeResponse(
+        ctx: ProxyCall,
         requestLogger: RequestLogger,
         requestId: String,
         upstream: HttpResponse<InputStream>,
@@ -28,10 +31,14 @@ class UpstreamErrorMapper {
         upstream.body().use { stream ->
             val mapped = map(upstream.statusCode(), JsonHelper.readUtf8Body(stream))
             requestLogger.logUpstreamResponse(requestId, mapped.statusCode, responseHeaders(upstream), mapped.body)
-            ctx.status(mapped.statusCode)
-            ctx.contentType(JsonHelper.JSON_CONTENT_TYPE)
+            ctx.setStatus(mapped.statusCode)
             AccessLogFields.responseBytes(ctx, mapped.body.toByteArray(StandardCharsets.UTF_8).size.toLong())
-            ctx.result(mapped.body)
+            ctx.handled = true
+            ctx.call.respondText(
+                mapped.body,
+                ContentType.Application.Json.withCharset(StandardCharsets.UTF_8),
+                HttpStatusCode.fromValue(mapped.statusCode),
+            )
         }
     }
     private fun isQuotaExhausted(upstreamBody: String?): Boolean {

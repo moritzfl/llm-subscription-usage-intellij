@@ -23,11 +23,15 @@ import de.moritzf.proxy.sse.SseCollector.collectCompletedResponse
 import de.moritzf.proxy.sse.SseParser.iterateEvents
 import de.moritzf.proxy.transport.CodexHttpClient
 import de.moritzf.proxy.usage.UsageTracker
-import io.javalin.http.Context
-import io.javalin.http.Handler
+import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.response.respondOutputStream
+import io.ktor.server.response.respondText
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.IOException
@@ -46,11 +50,11 @@ class ChatCompletionsHandler(
     private val usageTracker: UsageTracker,
     private val requestLogger: RequestLogger,
     instructionsProvider: CodexInstructionsProvider,
-) : Handler {
+) {
     private val modelAliasResolver = ModelAliasResolver()
     private val upstreamErrorMapper = UpstreamErrorMapper()
     private val requestMapper = ChatCompletionsRequestMapper(config.store, instructionsProvider, modelAliasResolver)
-    override fun handle(ctx: Context) {
+    suspend fun handle(ctx: ProxyCall) {
         val requestId = if (shouldUseRequestContext()) requestId(ctx) else requestLogger.nextRequestId()
         val body = parseLoggedJsonObject(ctx, requestLogger, requestId) ?: return
         val messagesNode = body["messages"]
@@ -92,11 +96,13 @@ class ChatCompletionsHandler(
         else
             null
         // Always stream upstream
-        val upstream = withRetries(ctx.header("x-litellm-num-retries")) {
-            sendUpstream(upstreamBody, requestId, promptCacheKey)
+        val upstream = withContext(Dispatchers.IO) {
+            withRetries(ctx.header("x-litellm-num-retries")) {
+                sendUpstream(upstreamBody, requestId, promptCacheKey)
+            }
         }
         upstreamStatus(ctx, upstream.statusCode())
-        ctx.header("x-litellm-model-id", upstreamModel)
+        ctx.responseHeader("x-litellm-model-id", upstreamModel)
         if (upstream.statusCode() !in 200..<300) {
             upstreamErrorMapper.writeResponse(ctx, requestLogger, requestId, upstream)
             return
@@ -151,16 +157,16 @@ class ChatCompletionsHandler(
         val tools = body["tools"]
         return tools !is JsonArray || tools.isEmpty()
     }
-    private fun requestId(ctx: Context): String {
-        var requestId = ctx.attribute<String>(AccessLogFields.REQUEST_ID)
+    private fun requestId(ctx: ProxyCall): String {
+        var requestId = ctx.getAttribute(AccessLogFields.REQUEST_ID)
         if (requestId.isNullOrBlank()) {
             requestId = requestLogger.nextRequestId()
-            ctx.attribute(AccessLogFields.REQUEST_ID, requestId)
+            ctx.setAttribute(AccessLogFields.REQUEST_ID, requestId)
         }
         return requestId
     }
-    private fun nonStreamToClient(
-        ctx: Context, upstreamBody: InputStream, model: String,
+    private suspend fun nonStreamToClient(
+        ctx: ProxyCall, upstreamBody: InputStream, model: String,
         junieTextProtocol: Boolean, junieTextToolName: String?,
         junieNativeToolName: String?, junieNativeProtocol: Boolean,
         legacyFunctionCallProtocol: Boolean, requestBody: JsonObject
@@ -269,16 +275,16 @@ class ChatCompletionsHandler(
         result.set("choices", choices)
         val usageNode = completedResponse["usage"]
         usageTracker.record(
-            ctx.attribute("keyName"),
+            ctx.getAttribute(ProxyCallAttributes.KEY_NAME),
             usageNode.longPath("input_tokens", 0),
             usageNode.longPath("output_tokens", 0)
         )
         result.set("usage", toUsage(usageNode))
         val responseBody: String = JsonHelper.encodeToString(result.build())
         requestLogger.logClientResponse(requestId(ctx), 200, responseBody)
-        ctx.status(200)
-        ctx.contentType(JsonHelper.JSON_CONTENT_TYPE)
-        ctx.result(responseBody)
+        ctx.setStatus(200)
+        ctx.handled = true
+        ctx.call.respondText(responseBody, ContentType.Application.Json, HttpStatusCode.OK)
     }
     private fun toolCallText(toolCalls: MutableJsonArray, preferredToolName: String): String {
         return preferredToolArgumentText(
@@ -297,28 +303,29 @@ class ChatCompletionsHandler(
         return legacyFunctionCall
     }
 
-    private fun streamToClient(
-        ctx: Context, upstreamBody: InputStream, model: String,
+    private suspend fun streamToClient(
+        ctx: ProxyCall, upstreamBody: InputStream, model: String,
         junieTextToolName: String?, junieNativeToolName: String?,
         junieNativeProtocol: Boolean, requestBody: JsonObject
     ) {
         setSseHeaders(ctx)
-        val os: OutputStream = ctx.res().outputStream
+        ctx.handled = true
+        ctx.call.respondOutputStream(ContentType.parse(JsonHelper.SSE_CONTENT_TYPE), HttpStatusCode.OK) {
+            val os = this
+            val id = "chatcmpl_" + UUID.randomUUID()
+            val created = System.currentTimeMillis() / 1000
+            val toolIndexes: MutableMap<String, Int> = LinkedHashMap()
+            val argsEmittedIndexes: MutableSet<Int> = HashSet()
+            val junieStreamingTextFallback = junieTextToolName != null
+            val junieTextBuffer = StringBuilder()
+            val junieArgumentBuffer = StringBuilder()
+            val doneSent = booleanArrayOf(false)
+            val finishSent = booleanArrayOf(false)
 
-        val id = "chatcmpl_" + UUID.randomUUID()
-        val created = System.currentTimeMillis() / 1000
-        val toolIndexes: MutableMap<String, Int> = LinkedHashMap()
-        val argsEmittedIndexes: MutableSet<Int> = HashSet()
-        val junieStreamingTextFallback = junieTextToolName != null
-        val junieTextBuffer = StringBuilder()
-        val junieArgumentBuffer = StringBuilder()
-        val doneSent = booleanArrayOf(false)
-        val finishSent = booleanArrayOf(false)
-
-        // Send initial role chunk
-        writeSseChunk(ctx, os, createChunk(id, created, model, createAssistantRoleDelta(), null))
-        try {
-            iterateEvents(upstreamBody) events@{ event ->
+            // Send initial role chunk
+            writeSseChunk(ctx, os, createChunk(id, created, model, createAssistantRoleDelta(), null))
+            try {
+                iterateEvents(upstreamBody) events@{ event ->
                 try {
                     val eventData = event.data()
                     if (eventData.isNullOrEmpty()) return@events
@@ -513,7 +520,7 @@ class ChatCompletionsHandler(
                             // `stream_options.include_usage` behavior.
                             val usageNode = response?.get("usage")
                             usageTracker.record(
-                                ctx.attribute("keyName"),
+                                ctx.getAttribute(ProxyCallAttributes.KEY_NAME),
                                 usageNode.longPath("input_tokens", 0),
                                 usageNode.longPath("output_tokens", 0)
                             )
@@ -548,21 +555,22 @@ class ChatCompletionsHandler(
                     throw RuntimeException(e)
                 }
             }
-        } finally {
-            // Guarantee a finish chunk + [DONE] are sent even if the upstream stream
-            // ends abnormally (no [DONE] event and no response.completed).
-            if (!doneSent[0]) {
-                try {
-                    if (!finishSent[0]) {
-                        writeSseChunk(ctx, os, createChunk(id, created, model, createEmptyDelta(), "stop"))
+            } finally {
+                // Guarantee a finish chunk + [DONE] are sent even if the upstream stream
+                // ends abnormally (no [DONE] event and no response.completed).
+                if (!doneSent[0]) {
+                    try {
+                        if (!finishSent[0]) {
+                            writeSseChunk(ctx, os, createChunk(id, created, model, createEmptyDelta(), "stop"))
+                        }
+                        val doneBytes = "data: [DONE]\n\n".toByteArray(StandardCharsets.UTF_8)
+                        os.write(doneBytes)
+                        addResponseBytes(ctx, doneBytes.size.toLong())
+                    } catch (_: Exception) {
                     }
-                    val doneBytes = "data: [DONE]\n\n".toByteArray(StandardCharsets.UTF_8)
-                    os.write(doneBytes)
-                    addResponseBytes(ctx, doneBytes.size.toLong())
-                } catch (_: Exception) {
                 }
+                os.flush()
             }
-            os.flush()
         }
     }
     private data class StopCut(val content: String, val sequence: String)
@@ -711,7 +719,7 @@ class ChatCompletionsHandler(
         return delta
     }
     private fun writeToolArgumentsDelta(
-        ctx: Context,
+        ctx: ProxyCall,
         os: OutputStream,
         id: String,
         created: Long,
@@ -745,7 +753,7 @@ class ChatCompletionsHandler(
     private fun createEmptyDelta(): MutableJsonObject {
         return createObjectNode()
     }
-    private fun writeSseChunk(ctx: Context, os: OutputStream, data: MutableJsonObject) {
+    private fun writeSseChunk(ctx: ProxyCall, os: OutputStream, data: MutableJsonObject) {
         val line = "data: " + JsonHelper.encodeToString(data.build()) + "\n\n"
         val bytes = line.toByteArray(StandardCharsets.UTF_8)
         os.write(bytes)

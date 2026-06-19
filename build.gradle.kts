@@ -61,10 +61,6 @@ dependencies {
     implementation(libs.snakeyaml.engine)
     implementation(libs.tomlj)
     implementation(libs.jsoup)
-    implementation(libs.javalin) {
-        excludeKotlinStdlib()
-        excludeCoroutines()
-    }
     implementation(libs.picocli)
     implementation(libs.kotlinx.serialization.json) {
         excludeKotlinStdlib()

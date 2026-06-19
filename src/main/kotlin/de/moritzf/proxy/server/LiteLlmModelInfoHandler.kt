@@ -1,11 +1,9 @@
 package de.moritzf.proxy.server
 import de.moritzf.proxy.model.ModelResolver
-import io.javalin.http.Context
-import io.javalin.http.Handler
 class LiteLlmModelInfoHandler(
     private val modelResolver: ModelResolver,
-) : Handler {
-    override fun handle(ctx: Context) {
+) {
+    suspend fun handle(ctx: ProxyCall) {
         try {
             val data = modelResolver.resolveModels().map(::modelInfo)
             JsonHelper.toJsonResponse(ctx, mapOf("data" to data))

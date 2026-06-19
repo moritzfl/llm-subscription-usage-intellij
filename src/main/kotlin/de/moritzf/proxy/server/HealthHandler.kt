@@ -1,13 +1,11 @@
 package de.moritzf.proxy.server
 import de.moritzf.proxy.util.ProxyVersion
-import io.javalin.http.Context
-import io.javalin.http.Handler
 import java.util.function.LongSupplier
 class HealthHandler(
     private val nanoTime: LongSupplier = LongSupplier { System.nanoTime() },
     private val startedAtNanos: Long = System.nanoTime(),
-) : Handler {
-    override fun handle(ctx: Context) {
+) {
+    suspend fun handle(ctx: ProxyCall) {
         val response = linkedMapOf<String, Any>(
             "ok" to true,
             "service" to SERVICE_NAME,
