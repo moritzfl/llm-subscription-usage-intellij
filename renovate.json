@@ -13,23 +13,5 @@
       "/(^|/)gradle\\.properties$/",
       "/(^|/)gradle/libs\\.versions\\.toml$/"
     ]
-  },
-  "packageRules": [
-    {
-      "description": "Keep Kotlin serialization compatible with the IntelliJ 2025.3 bundled Kotlin runtime.",
-      "matchPackageNames": [
-        "org.jetbrains.kotlinx:kotlinx-serialization-json",
-        "org.jetbrains.kotlinx:kotlinx-serialization-json-jvm"
-      ],
-      "allowedVersions": "<1.10.0"
-    },
-    {
-      "description": "Keep kotlinx-datetime on the 0.6.x-compatible artifact line until the quota models migrate.",
-      "matchPackageNames": [
-        "org.jetbrains.kotlinx:kotlinx-datetime",
-        "org.jetbrains.kotlinx:kotlinx-datetime-jvm"
-      ],
-      "allowedVersions": "/-0\\.6\\.x-compat$/"
-    }
-  ]
+  }
 }
