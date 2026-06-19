@@ -9,7 +9,6 @@ kover = "0.9.8"
 junit-platform-launcher = "6.1.0"
 jsoup = "1.22.2"
 javalin = "7.2.2"
-jackson = "2.22.0"
 picocli = "4.7.7"
 
 [libraries]
@@ -21,7 +20,6 @@ tomlj = { group = "org.tomlj", name = "tomlj", version.ref = "tomlj" }
 snakeyaml-engine = { group = "org.snakeyaml", name = "snakeyaml-engine", version.ref = "snakeyaml-engine" }
 jsoup = { group = "org.jsoup", name = "jsoup", version.ref = "jsoup" }
 javalin = { group = "io.javalin", name = "javalin", version.ref = "javalin" }
-jackson-databind = { group = "com.fasterxml.jackson.core", name = "jackson-databind", version.ref = "jackson" }
 picocli = { group = "info.picocli", name = "picocli", version.ref = "picocli" }
 
 [plugins]

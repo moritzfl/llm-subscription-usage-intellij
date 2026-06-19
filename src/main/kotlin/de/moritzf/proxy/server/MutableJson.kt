@@ -173,11 +173,11 @@ class MutableJsonArray(initial: JsonArray = JsonArray(emptyList())) {
 }
 
 /**
- * Convenience factory for creating a mutable JSON object, equivalent to Jackson's `ObjectMapper.createObjectNode()`.
+ * Convenience factory for creating a mutable JSON object.
  */
 fun createObjectNode(): MutableJsonObject = MutableJsonObject()
 
 /**
- * Convenience factory for creating a mutable JSON array, equivalent to Jackson's `ObjectMapper.createArrayNode()`.
+ * Convenience factory for creating a mutable JSON array.
  */
 fun createArrayNode(): MutableJsonArray = MutableJsonArray()

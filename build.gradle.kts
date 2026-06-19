@@ -65,7 +65,6 @@ dependencies {
         excludeKotlinStdlib()
         excludeCoroutines()
     }
-    implementation(libs.jackson.databind)
     implementation(libs.picocli)
     implementation(libs.kotlinx.serialization.json) {
         excludeKotlinStdlib()
