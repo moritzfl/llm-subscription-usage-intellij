@@ -10,7 +10,7 @@ import kotlinx.serialization.json.booleanOrNull
 class ResponsesRequestSanitizer {
     fun sanitize(body: MutableJsonObject, defaultStore: Boolean): MutableJsonObject {
         val sanitized = body.deepCopy()
-        val store = if (sanitized.has("store")) {
+        val store = if (sanitized.get("store") != null) {
             (sanitized.get("store") as? JsonPrimitive)?.booleanOrNull ?: false
         } else {
             defaultStore

@@ -7,8 +7,6 @@ import de.moritzf.proxy.sse.SseCollector
 import de.moritzf.proxy.state.ResponsesState
 import de.moritzf.proxy.transport.CodexHttpClient
 import de.moritzf.proxy.usage.UsageTracker
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.node.ObjectNode
 import io.javalin.http.Context
 import io.javalin.http.Handler
 import java.io.ByteArrayOutputStream
@@ -17,6 +15,10 @@ import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
 import java.util.Collections
 import java.util.LinkedHashMap
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 class ResponsesHandler : Handler {
     private val client: CodexHttpClient
     private val config: ServerConfig
@@ -54,18 +56,19 @@ class ResponsesHandler : Handler {
     fun create(ctx: Context) {
         val requestId = if (shouldUseRequestContext()) requestId(ctx) else requestLogger.nextRequestId()
         val body = RequestValidator.parseLoggedJsonObject(ctx, requestLogger, requestId) ?: return
-        val wantsStream = body.path("stream").asBoolean(false)
+        val wantsStream = body.booleanPath("stream", false)
         AccessLogFields.mode(ctx, if (wantsStream) "stream" else "sync")
         // The replay cache emulates previous_response_id/item_reference for store=false.
         // It is opt-in (clients like Junie always inline full history), so when disabled we
         // forward the body as-is and skip the second SSE parse it would otherwise require.
         val state = if (config.enableResponsesReplayCache) replayStateFor(ctx) else null
-        val objectBody = body as ObjectNode
-        val expanded = state?.expandRequestBody(objectBody) ?: objectBody
+        val mutableBody = MutableJsonObject(body)
+        val expanded = state?.expandRequestBody(mutableBody) ?: mutableBody
+        val expandedJson = expanded.build()
         // Normalize body.
         val normalized = requestSanitizer.sanitize(normalizeBody(expanded), config.store)
         val promptCacheKey = if (config.forwardPromptCacheHeaders) {
-            normalized.path("prompt_cache_key").asText(null)
+            (normalized.get("prompt_cache_key") as? JsonPrimitive)?.content
         } else {
             null
         }
@@ -74,7 +77,7 @@ class ResponsesHandler : Handler {
             sendUpstream(normalized, requestId, promptCacheKey)
         }
         AccessLogFields.upstreamStatus(ctx, upstream.statusCode())
-        ctx.header("x-litellm-model-id", normalized.path("model").asText(""))
+        ctx.header("x-litellm-model-id", (normalized.get("model") as? JsonPrimitive)?.content ?: "")
         if (upstream.statusCode() !in 200..<300) {
             upstreamErrorMapper.writeResponse(ctx, requestLogger, requestId, upstream)
             return
@@ -83,7 +86,7 @@ class ResponsesHandler : Handler {
             // Stream SSE directly to client. The recorder runs only when the replay cache is
             // enabled; otherwise the bytes pass straight through without a second parse.
             JsonHelper.setSseHeaders(ctx)
-            val recorder = if (state != null) StreamingCompletionRecorder(ctx, state, expanded) else null
+            val recorder = if (state != null) StreamingCompletionRecorder(ctx, state, expandedJson) else null
             upstream.body().use { stream ->
                 ctx.res().outputStream.use { output ->
                     val buffer = ByteArray(8192)
@@ -104,23 +107,23 @@ class ResponsesHandler : Handler {
             // Collect completed response from SSE.
             upstream.body().use { stream ->
                 var completed = SseCollector.collectCompletedResponse(stream)
-                val status = completed.path("status").asText("")
+                val status = completed.stringPath("status", "")
                 if (status == "failed" || status == "cancelled") {
-                    val errorMessage = completed.path("error").path("message").asText("Upstream response $status.")
+                    val errorMessage = completed.pathOrNull("error").stringPath("message", "Upstream response $status.")
                     requestLogger.logClientResponse(requestId, 502, errorMessage)
                     JsonHelper.toErrorResponse(ctx, errorMessage, 502, "upstream_error")
                     return
                 }
-                if (JunieCommandProtocolCompat.isJunieRequest(expanded)) {
+                if (JunieCommandProtocolCompat.isJunieRequest(expandedJson)) {
                     completed = if (JunieCommandProtocolCompat.hasFunctionCallOutput(completed)) {
                         // Native tool protocol: Junie shows message text verbatim as the step
                         // thought, so reformat the <UPDATE> plan markup into readable text.
                         JunieCommandProtocolCompat.formatUpdateMarkupInResponse(completed) ?: completed
                     } else {
-                        val declaredToolName = JunieCommandProtocolCompat.declaredFallbackToolName(expanded)
+                        val declaredToolName = JunieCommandProtocolCompat.declaredFallbackToolName(expandedJson)
                         if (declaredToolName != null) {
                             JunieCommandProtocolCompat.toToolResponse(completed, declaredToolName) ?: completed
-                        } else if (!JunieCommandProtocolCompat.hasToolDefinitions(expanded)) {
+                        } else if (!JunieCommandProtocolCompat.hasToolDefinitions(expandedJson)) {
                             // Tool-less Junie requests are the <THOUGHT>/<COMMAND> text protocol;
                             // a synthetic call to an undeclared tool would not parse as a command.
                             JunieCommandProtocolCompat.wrapCompletedResponse(completed) ?: completed
@@ -131,42 +134,48 @@ class ResponsesHandler : Handler {
                         }
                     }
                 }
-                recordUsage(ctx, completed.get("usage"))
+                recordUsage(ctx, completed["usage"])
                 // Best-effort same-process replay cache only; nothing is persisted locally.
-                state?.rememberResponse(completed, expanded)
+                state?.rememberResponse(completed, expandedJson)
                 JsonHelper.toJsonResponse(ctx, completed)
             }
         }
     }
-    private fun normalizeBody(body: ObjectNode): ObjectNode {
-        val normalized: ObjectNode = body.deepCopy()
+    private fun normalizeBody(body: MutableJsonObject): MutableJsonObject {
+        val normalized = body.deepCopy()
         normalized.put("stream", true)
-        val requestedModel = normalized.path("model").asText(ServerConfig.DEFAULT_MODEL)
+        val requestedModel = (normalized.get("model") as? JsonPrimitive)?.content ?: ServerConfig.DEFAULT_MODEL
         val resolvedModel = modelAliasResolver.resolve(requestedModel)
         if (!resolvedModel.model.isNullOrBlank()) {
             normalized.put("model", resolvedModel.model)
         }
         hoistSystemMessagesIntoInstructions(normalized)
-        if (!normalized.has("instructions") || !normalized.get("instructions").isTextual) {
-            normalized.put("instructions", instructionsProvider.instructionsForModel(normalized.path("model").asText()))
+        if (!normalized.has("instructions") || !normalized.get("instructions").isTextual()) {
+            normalized.put(
+                "instructions",
+                instructionsProvider.instructionsForModel((normalized.get("model") as? JsonPrimitive)?.content ?: ""),
+            )
         }
-        if (!normalized.has("store")) {
+        if (normalized.get("store") == null) {
             normalized.put("store", config.store)
         }
         val aliasEffort = resolvedModel.reasoningEffort
         val reasoningNode = normalized.get("reasoning")
-        val reasoning: ObjectNode = if (reasoningNode != null && reasoningNode.isObject) {
-            reasoningNode.deepCopy()
+        val reasoning = if (reasoningNode is JsonObject) {
+            MutableJsonObject(reasoningNode)
         } else {
-            JsonHelper.MAPPER.createObjectNode()
+            createObjectNode()
         }
         // A tier baked into the model name (aliasEffort) is the user's explicit choice and
         // wins over a separately supplied reasoning.effort.
-        val requestedEffort = aliasEffort ?: reasoning.path("effort").asText(null)
-        val clampedEffort = modelAliasResolver.clampReasoningEffort(normalized.path("model").asText(), requestedEffort)
+        val requestedEffort = aliasEffort ?: (reasoning.get("effort") as? JsonPrimitive)?.content
+        val clampedEffort = modelAliasResolver.clampReasoningEffort(
+            (normalized.get("model") as? JsonPrimitive)?.content ?: "",
+            requestedEffort,
+        )
         if (clampedEffort != null) {
             reasoning.put("effort", clampedEffort)
-            normalized.set<ObjectNode>("reasoning", reasoning)
+            normalized.set("reasoning", reasoning)
         }
         return normalized
     }
@@ -176,16 +185,16 @@ class ResponsesHandler : Handler {
      * always send their system prompt as an input message, so move that text into
      * the `instructions` field instead.
      */
-    private fun hoistSystemMessagesIntoInstructions(normalized: ObjectNode) {
+    private fun hoistSystemMessagesIntoInstructions(normalized: MutableJsonObject) {
         val input = normalized.get("input")
-        if (input == null || !input.isArray) {
+        if (input !is JsonArray) {
             return
         }
         val systemTexts = StringBuilder()
-        val filteredInput = JsonHelper.MAPPER.createArrayNode()
+        val filteredInput = createArrayNode()
         for (item in input) {
-            if (item.isObject && isSystemMessageItem(item)) {
-                val text = JunieCommandProtocolCompat.messageText(item.get("content"))
+            if (item is JsonObject && isSystemMessageItem(item)) {
+                val text = JunieCommandProtocolCompat.messageText(item["content"])
                 if (text.isNotEmpty()) {
                     if (systemTexts.isNotEmpty()) {
                         systemTexts.append('\n')
@@ -199,9 +208,10 @@ class ResponsesHandler : Handler {
         if (systemTexts.isEmpty()) {
             return
         }
-        normalized.set<ObjectNode>("input", filteredInput)
-        val existingInstructions = if (normalized.path("instructions").isTextual) {
-            normalized.get("instructions").asText().trim()
+        normalized.set("input", filteredInput)
+        val instructions = normalized.get("instructions")
+        val existingInstructions = if (instructions.isTextual()) {
+            instructions.text.trim()
         } else {
             ""
         }
@@ -213,11 +223,11 @@ class ResponsesHandler : Handler {
         normalized.put("instructions", combined)
     }
     private fun sendUpstream(
-        normalized: ObjectNode,
+        normalized: MutableJsonObject,
         requestId: String,
         promptCacheKey: String?
     ): HttpResponse<InputStream> {
-        val payload = JsonHelper.MAPPER.writeValueAsString(normalized)
+        val payload = JsonHelper.encodeToString(normalized.build())
         if (shouldUseRequestContext()) {
             return client.request(
                 "/responses",
@@ -251,23 +261,23 @@ class ResponsesHandler : Handler {
         eventType: String?,
         data: String?,
         state: ResponsesState,
-        expandedRequest: JsonNode,
+        expandedRequest: JsonElement,
     ): Boolean {
         try {
             if (data.isNullOrEmpty() || data == "[DONE]") {
                 return false
             }
-            val parsed = JsonHelper.MAPPER.readTree(data)
-            if (parsed == null || !parsed.isObject) {
+            val parsed = JsonHelper.parseToJsonElementOrNull(data)
+            if (parsed !is JsonObject) {
                 return false
             }
-            val parsedEventType = parsed.path("type").asText(eventType ?: "")
+            val parsedEventType = parsed.stringPath("type", eventType ?: "")
             if (parsedEventType != "response.completed") {
                 return false
             }
-            val response = parsed.get("response")
-            if (response != null && response.isObject) {
-                recordUsage(ctx, response.get("usage"))
+            val response = parsed["response"]
+            if (response is JsonObject) {
+                recordUsage(ctx, response["usage"])
                 state.rememberResponse(response, expandedRequest)
                 return true
             }
@@ -276,11 +286,11 @@ class ResponsesHandler : Handler {
         }
         return false
     }
-    private fun recordUsage(ctx: Context, usageNode: JsonNode?) {
+    private fun recordUsage(ctx: Context, usageNode: JsonElement?) {
         usageTracker.record(
             ctx.attribute("keyName"),
-            usageNode?.path("input_tokens")?.asLong(0) ?: 0,
-            usageNode?.path("output_tokens")?.asLong(0) ?: 0,
+            usageNode.longPath("input_tokens", 0L),
+            usageNode.longPath("output_tokens", 0L),
         )
     }
     private fun replayStateFor(ctx: Context): ResponsesState {
@@ -306,7 +316,7 @@ class ResponsesHandler : Handler {
     private inner class StreamingCompletionRecorder(
         private val ctx: Context,
         private val state: ResponsesState,
-        private val expandedRequest: JsonNode,
+        private val expandedRequest: JsonElement,
     ) {
         private val lineBuffer = ByteArrayOutputStream()
         private val dataLines = ArrayList<String>()
@@ -383,12 +393,12 @@ class ResponsesHandler : Handler {
     companion object {
         private const val MAX_REPLAY_NAMESPACES = 512
         private const val MAX_SSE_BOOKKEEPING_LINE_BYTES = 64 * 1024
-        private fun isSystemMessageItem(item: JsonNode): Boolean {
-            val role = item.path("role").asText("")
+        private fun isSystemMessageItem(item: JsonObject): Boolean {
+            val role = item.stringPath("role", "")
             if (role != "system" && role != "developer") {
                 return false
             }
-            val type = item.path("type").asText("message")
+            val type = item.stringPath("type", "message")
             return type == "message"
         }
     }
