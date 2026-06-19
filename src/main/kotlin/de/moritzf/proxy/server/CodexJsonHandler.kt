@@ -41,12 +41,12 @@ class CodexJsonHandler(
             ctx.setStatus(upstream.statusCode())
             copySelectedResponseHeaders(ctx, upstream)
             AccessLogFields.responseBytes(ctx, rawBody.toByteArray(StandardCharsets.UTF_8).size.toLong())
-            ctx.handled = true
             ctx.call.respondText(
                 rawBody,
                 ContentType.parse(responseContentType(upstream)).withCharset(StandardCharsets.UTF_8),
                 HttpStatusCode.fromValue(upstream.statusCode()),
             )
+            ctx.handled = true
         }
     }
     private fun requestId(ctx: ProxyCall): String {

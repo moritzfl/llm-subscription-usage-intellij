@@ -55,21 +55,21 @@ object JsonHelper {
                 else -> JSON.encodeToString(JsonElement.serializer(), JsonPrimitive(body.toString()))
             }
             AccessLogFields.responseBytes(ctx, json.toByteArray(StandardCharsets.UTF_8).size.toLong())
-            ctx.handled = true
             ctx.call.respondText(
                 json,
                 ContentType.Application.Json.withCharset(StandardCharsets.UTF_8),
                 HttpStatusCode.fromValue(status),
             )
+            ctx.handled = true
         } catch (_: Exception) {
             val fallback = "{}"
             AccessLogFields.responseBytes(ctx, fallback.toByteArray(StandardCharsets.UTF_8).size.toLong())
-            ctx.handled = true
             ctx.call.respondText(
                 fallback,
                 ContentType.Application.Json.withCharset(StandardCharsets.UTF_8),
                 HttpStatusCode.fromValue(status),
             )
+            ctx.handled = true
         }
     }
 
@@ -77,12 +77,12 @@ object JsonHelper {
         ctx.setStatus(status)
         val json = JSON.encodeToString(JsonElement.serializer(), body)
         AccessLogFields.responseBytes(ctx, json.toByteArray(StandardCharsets.UTF_8).size.toLong())
-        ctx.handled = true
         ctx.call.respondText(
             json,
             ContentType.Application.Json.withCharset(StandardCharsets.UTF_8),
             HttpStatusCode.fromValue(status),
         )
+        ctx.handled = true
     }
 
     suspend fun toErrorResponse(ctx: ProxyCall, message: String?) {

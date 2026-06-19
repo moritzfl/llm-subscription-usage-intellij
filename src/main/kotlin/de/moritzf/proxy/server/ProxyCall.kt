@@ -33,7 +33,7 @@ class ProxyCall(val call: ApplicationCall) {
 
     fun responseContentLength(): String? = call.response.headers[HttpHeaders.ContentLength]
 
-    fun responseStatus(): Int = call.response.status()?.value ?: 200
+    fun responseStatus(): Int = call.response.status()?.value ?: 0
 
     fun setStatus(status: Int) {
         call.response.status(HttpStatusCode.fromValue(status))

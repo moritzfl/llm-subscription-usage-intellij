@@ -124,9 +124,9 @@ class ProxyServer(
         applyCorsHeaders(ctx)
         try {
             if (isCorsPreflight(ctx)) {
-                ctx.handled = true
                 ctx.setStatus(HttpStatusCode.NoContent.value)
                 ctx.call.respondText("", status = HttpStatusCode.NoContent)
+                ctx.handled = true
                 return
             }
             if (apiKeyStore.isEnforcing()) {
@@ -138,10 +138,10 @@ class ProxyServer(
             handler(ctx)
         } catch (exception: AuthRequiredException) {
             LOG.warn("Rejected {} {}: {}", ctx.method(), ctx.path(), exception.message)
-            JsonHelper.toErrorResponse(ctx, exception.message, 401, "authentication_error")
+            if (!ctx.handled) JsonHelper.toErrorResponse(ctx, exception.message, 401, "authentication_error")
         } catch (exception: Exception) {
             LOG.error("Unhandled request failure for {} {}", ctx.method(), ctx.path(), exception)
-            JsonHelper.toErrorResponse(ctx, "Unexpected server error.", 500, "server_error")
+            if (!ctx.handled) JsonHelper.toErrorResponse(ctx, "Unexpected server error.", 500, "server_error")
         } finally {
             if (config.consoleAccessLog) {
                 logAccessLine(ctx)

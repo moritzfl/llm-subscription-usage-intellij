@@ -92,7 +92,6 @@ class ResponsesHandler {
             // enabled; otherwise the bytes pass straight through without a second parse.
             JsonHelper.setSseHeaders(ctx)
             val recorder = if (state != null) StreamingCompletionRecorder(ctx, state, expandedJson) else null
-            ctx.handled = true
             ctx.call.respondOutputStream(ContentType.parse(JsonHelper.SSE_CONTENT_TYPE), HttpStatusCode.OK) {
                 val output = this
                 upstream.body().use { stream ->
@@ -110,6 +109,7 @@ class ResponsesHandler {
                     recorder?.finish()
                 }
             }
+            ctx.handled = true
         } else {
             // Collect completed response from SSE.
             upstream.body().use { stream ->

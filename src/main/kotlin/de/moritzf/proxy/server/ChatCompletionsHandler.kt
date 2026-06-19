@@ -283,8 +283,8 @@ class ChatCompletionsHandler(
         val responseBody: String = JsonHelper.encodeToString(result.build())
         requestLogger.logClientResponse(requestId(ctx), 200, responseBody)
         ctx.setStatus(200)
-        ctx.handled = true
         ctx.call.respondText(responseBody, ContentType.Application.Json, HttpStatusCode.OK)
+        ctx.handled = true
     }
     private fun toolCallText(toolCalls: MutableJsonArray, preferredToolName: String): String {
         return preferredToolArgumentText(
@@ -309,7 +309,6 @@ class ChatCompletionsHandler(
         junieNativeProtocol: Boolean, requestBody: JsonObject
     ) {
         setSseHeaders(ctx)
-        ctx.handled = true
         ctx.call.respondOutputStream(ContentType.parse(JsonHelper.SSE_CONTENT_TYPE), HttpStatusCode.OK) {
             val os = this
             val id = "chatcmpl_" + UUID.randomUUID()
@@ -572,6 +571,7 @@ class ChatCompletionsHandler(
                 os.flush()
             }
         }
+        ctx.handled = true
     }
     private data class StopCut(val content: String, val sequence: String)
     private fun addFinishDetailsToFirstChoice(chunk: MutableJsonObject, finishDetails: MutableJsonObject) {

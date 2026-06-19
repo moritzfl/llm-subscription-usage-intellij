@@ -33,12 +33,12 @@ class UpstreamErrorMapper {
             requestLogger.logUpstreamResponse(requestId, mapped.statusCode, responseHeaders(upstream), mapped.body)
             ctx.setStatus(mapped.statusCode)
             AccessLogFields.responseBytes(ctx, mapped.body.toByteArray(StandardCharsets.UTF_8).size.toLong())
-            ctx.handled = true
             ctx.call.respondText(
                 mapped.body,
                 ContentType.Application.Json.withCharset(StandardCharsets.UTF_8),
                 HttpStatusCode.fromValue(mapped.statusCode),
             )
+            ctx.handled = true
         }
     }
     private fun isQuotaExhausted(upstreamBody: String?): Boolean {
