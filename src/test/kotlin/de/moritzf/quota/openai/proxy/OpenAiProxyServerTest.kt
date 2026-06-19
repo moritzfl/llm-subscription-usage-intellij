@@ -1397,11 +1397,22 @@ class OpenAiProxyServerTest {
                         .build(),
                     HttpResponse.BodyHandlers.ofString(),
                 )
+                val liveliness = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/health/liveliness"))
+                        .GET()
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
 
                 assertEquals(200, health.statusCode())
                 assertEquals(true, parseObject(health.body())["ok"]!!.jsonPrimitive.boolean)
                 assertEquals(200, readiness.statusCode())
                 assertEquals("healthy", parseObject(readiness.body())["status"]!!.jsonPrimitive.content)
+                assertEquals(200, liveliness.statusCode())
+                assertEquals(
+                    "I'm alive!",
+                    JsonSupport.json.parseToJsonElement(liveliness.body()).jsonPrimitive.content,
+                )
                 assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
             } finally {
                 proxy.stop()

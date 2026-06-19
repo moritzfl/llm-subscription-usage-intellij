@@ -39,7 +39,11 @@ object JsonHelper {
         ctx.setStatus(status)
         try {
             val json = when (body) {
+                null -> JSON.encodeToString(JsonElement.serializer(), JsonNull)
                 is JsonElement -> JSON.encodeToString(JsonElement.serializer(), body)
+                is String -> JSON.encodeToString(JsonElement.serializer(), JsonPrimitive(body))
+                is Number -> JSON.encodeToString(JsonElement.serializer(), JsonPrimitive(body))
+                is Boolean -> JSON.encodeToString(JsonElement.serializer(), JsonPrimitive(body))
                 is Map<*, *> -> {
                     val element = mapToJsonElement(body)
                     JSON.encodeToString(JsonElement.serializer(), element)
@@ -48,7 +52,7 @@ object JsonHelper {
                     val element = listToJsonElement(body)
                     JSON.encodeToString(JsonElement.serializer(), element)
                 }
-                else -> body.toString()
+                else -> JSON.encodeToString(JsonElement.serializer(), JsonPrimitive(body.toString()))
             }
             AccessLogFields.responseBytes(ctx, json.toByteArray(StandardCharsets.UTF_8).size.toLong())
             ctx.handled = true
