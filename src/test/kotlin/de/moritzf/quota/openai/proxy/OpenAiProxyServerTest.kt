@@ -1380,6 +1380,169 @@ class OpenAiProxyServerTest {
     }
 
     @Test
+    fun servesHealthReadinessWithoutAuthenticationOrUpstreamRequest() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val health = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/health"))
+                        .GET()
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+                val readiness = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/health/readiness"))
+                        .GET()
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, health.statusCode())
+                assertEquals(true, parseObject(health.body())["ok"]!!.jsonPrimitive.boolean)
+                assertEquals(200, readiness.statusCode())
+                assertEquals("healthy", parseObject(readiness.body())["status"]!!.jsonPrimitive.content)
+                assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun handlesCorsPreflightWithoutAuthenticationOrUpstreamRequest() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Origin", "https://client.example")
+                        .header("Access-Control-Request-Method", "POST")
+                        .header("Access-Control-Request-Headers", "authorization,x-smoke")
+                        .method("OPTIONS", HttpRequest.BodyPublishers.noBody())
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(204, response.statusCode())
+                assertEquals("*", response.headers().firstValue("Access-Control-Allow-Origin").orElse(null))
+                assertEquals(
+                    "GET,POST,OPTIONS",
+                    response.headers().firstValue("Access-Control-Allow-Methods").orElse(null),
+                )
+                assertEquals(
+                    "authorization,x-smoke",
+                    response.headers().firstValue("Access-Control-Allow-Headers").orElse(null),
+                )
+                assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun servesJsonNotFoundEnvelopeForUnknownGetRoute() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/not-a-route"))
+                        .header("Authorization", "Bearer local-key")
+                        .GET()
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(404, response.statusCode())
+                val error = parseObject(response.body())["error"]!!.jsonObject
+                assertEquals("not_found_error", error["type"]!!.jsonPrimitive.content)
+                assertEquals("Route not found.", error["message"]!!.jsonPrimitive.content)
+                assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun servesResponsesStreamWithSseHeaders() {
+        TestUpstream(responseBody = RESPONSE_STREAM_WITH_TEXT_DELTAS).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/responses"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"stream\":true,\"input\":[]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                assertTrue(
+                    response.headers().firstValue("Content-Type").orElse("").startsWith("text/event-stream"),
+                )
+                assertEquals("no-cache, no-transform", response.headers().firstValue("Cache-Control").orElse(null))
+                assertEquals("no", response.headers().firstValue("X-Accel-Buffering").orElse(null))
+                assertTrue(response.body().contains("response.output_text.delta"))
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun reportsUsageForAuthenticatedLocalKey() {
+        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val completion = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+                val usage = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/usage"))
+                        .header("Authorization", "Bearer local-key")
+                        .GET()
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, completion.statusCode())
+                assertEquals(200, usage.statusCode())
+                val root = parseObject(usage.body())
+                val local = root["keys"]!!.jsonArray.single().jsonObject
+                assertEquals("local", local["name"]!!.jsonPrimitive.content)
+                assertEquals("1", local["prompt_tokens"]!!.jsonPrimitive.content)
+                assertEquals("1", local["completion_tokens"]!!.jsonPrimitive.content)
+                assertEquals("2", root["total"]!!.jsonObject["total_tokens"]!!.jsonPrimitive.content)
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun rejectsRequestsWithoutLocalApiKey() {
         TestUpstream().use { upstream ->
             val proxy = newProxy(upstream.baseUri)
