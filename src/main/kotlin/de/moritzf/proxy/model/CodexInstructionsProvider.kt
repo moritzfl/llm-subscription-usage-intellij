@@ -1,6 +1,11 @@
 package de.moritzf.proxy.model
+import de.moritzf.proxy.server.createObjectNode
+import de.moritzf.proxy.server.intPath
+import de.moritzf.proxy.server.longPath
+import de.moritzf.proxy.server.pathOrNull
+import de.moritzf.proxy.server.stringPath
+import de.moritzf.proxy.server.stringPathOrNull
 import de.moritzf.proxy.util.Json
-import com.fasterxml.jackson.databind.JsonNode
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
@@ -14,6 +19,9 @@ import java.time.Instant
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 class CodexInstructionsProvider(
     mode: Mode?,
     configuredInstructions: String?,
@@ -109,13 +117,13 @@ class CodexInstructionsProvider(
             return null
         }
         return try {
-            val node = Files.newBufferedReader(cacheFile).use { reader -> Json.MAPPER.readTree(reader) }
+            val node = Files.newBufferedReader(cacheFile).use { reader -> Json.INSTANCE.parseToJsonElement(reader.readText()) }
             val loaded = CacheEntry(
-                node.path("modelFamily").asText(modelFamily),
-                node.path("sourceUrl").asText(sourceUri(modelFamily).toString()),
-                textOrNull(node.get("etag")),
+                node.stringPath("modelFamily", modelFamily),
+                node.stringPath("sourceUrl", sourceUri(modelFamily).toString()),
+                textOrNull(node.pathOrNull("etag")),
                 parseInstant(node),
-                node.path("instructions").asText(""),
+                node.stringPath("instructions", ""),
             )
             memoryCache[modelFamily] = loaded
             loaded
@@ -125,7 +133,7 @@ class CodexInstructionsProvider(
     }
 
     private fun saveCache(entry: CacheEntry) {
-        val node = Json.MAPPER.createObjectNode()
+        val node = createObjectNode()
         node.put("modelFamily", entry.modelFamily)
         node.put("sourceUrl", entry.sourceUrl)
         if (entry.etag != null) {
@@ -136,8 +144,9 @@ class CodexInstructionsProvider(
         node.put("fetchedAtEpochMillis", entry.fetchedAt.toEpochMilli())
         node.put("instructions", entry.instructions)
         Files.createDirectories(cacheDir)
+        val prettyJson = kotlinx.serialization.json.Json { prettyPrint = true }
         Files.newBufferedWriter(cacheFile(entry.modelFamily)).use { writer ->
-            Json.MAPPER.writerWithDefaultPrettyPrinter().writeValue(writer, node)
+            writer.write(prettyJson.encodeToString(JsonObject.serializer(), node.build()))
         }
         memoryCache[entry.modelFamily] = entry
     }
@@ -206,10 +215,10 @@ class CodexInstructionsProvider(
                 return ""
             }
             try {
-                val parsed = Json.MAPPER.readTree(body)
-                val instructions = parsed.get("instructions")
-                if (instructions != null && instructions.isTextual) {
-                    return instructions.asText()
+                val parsed = Json.INSTANCE.parseToJsonElement(body)
+                val instructions = parsed.pathOrNull("instructions")
+                if (instructions is JsonPrimitive && instructions.isString) {
+                    return instructions.content
                 }
             } catch (_: Exception) {
             }
@@ -226,18 +235,18 @@ class CodexInstructionsProvider(
             }
             return null
         }
-        private fun textOrNull(node: JsonNode?): String? {
-            return if (node != null && node.isTextual) node.asText() else null
+        private fun textOrNull(node: JsonElement?): String? {
+            return if (node is JsonPrimitive && node.isString) node.content else null
         }
-        private fun parseInstant(node: JsonNode): Instant {
-            var fetchedAt = node.path("fetchedAt").asText(null)
+        private fun parseInstant(node: JsonElement): Instant {
+            var fetchedAt = node.stringPathOrNull("fetchedAt")
             if (fetchedAt.isNullOrBlank()) {
-                fetchedAt = node.path("timestamp").asText(null)
+                fetchedAt = node.stringPathOrNull("timestamp")
             }
             if (!fetchedAt.isNullOrBlank()) {
                 return Instant.parse(fetchedAt)
             }
-            val epochMillis = node.path("fetchedAtEpochMillis").asLong(0L)
+            val epochMillis = node.longPath("fetchedAtEpochMillis", 0L)
             return if (epochMillis > 0) Instant.ofEpochMilli(epochMillis) else Instant.EPOCH
         }
         private fun defaultCacheDir(): Path = Path.of("cache", "codex-instructions")

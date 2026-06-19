@@ -1,6 +1,7 @@
 package de.moritzf.proxy.logging
+import de.moritzf.proxy.server.MutableJsonObject
+import de.moritzf.proxy.server.createObjectNode
 import de.moritzf.proxy.util.Json
-import com.fasterxml.jackson.databind.node.ObjectNode
 import com.intellij.concurrency.virtualThreads.IntelliJVirtualThreads
 import io.javalin.http.Context
 import java.io.IOException
@@ -34,7 +35,7 @@ class RequestLogger(
         entry.put("method", ctx.method().name)
         entry.put("path", ctx.path())
         entry.put("status", ctx.statusCode())
-        entry.set<ObjectNode>("headers", redactStringHeaders(ctx.headerMap()))
+        entry.set("headers", redactStringHeaders(ctx.headerMap()))
         putBody(entry, body)
         write(entry, requestId, "inbound")
     }
@@ -51,7 +52,7 @@ class RequestLogger(
         val entry = baseEntry(requestId, "upstream_request")
         entry.put("method", method)
         entry.put("path", path)
-        entry.set<ObjectNode>("headers", redactStringHeaders(headers))
+        entry.set("headers", redactStringHeaders(headers))
         putBody(entry, body)
         write(entry, requestId, "upstream_request")
     }
@@ -66,7 +67,7 @@ class RequestLogger(
         }
         val entry = baseEntry(requestId, "upstream_response")
         entry.put("status", status)
-        entry.set<ObjectNode>("headers", redactListHeaders(headers))
+        entry.set("headers", redactListHeaders(headers))
         putBody(entry, bodyPreview)
         write(entry, requestId, "upstream_response")
     }
@@ -108,7 +109,7 @@ class RequestLogger(
         } catch (_: IOException) {
         }
     }
-    private fun write(entry: ObjectNode, requestId: String?, stage: String) {
+    private fun write(entry: MutableJsonObject, requestId: String?, stage: String) {
         try {
             Files.createDirectories(logDir)
             val safeRequestId = safeFilePart(requestId ?: "unknown")
@@ -117,7 +118,7 @@ class RequestLogger(
             )
             Files.writeString(
                 file,
-                Json.MAPPER.writeValueAsString(entry),
+                Json.INSTANCE.encodeToString(kotlinx.serialization.json.JsonObject.serializer(), entry.build()),
                 StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE_NEW,
                 StandardOpenOption.WRITE,
@@ -135,27 +136,28 @@ class RequestLogger(
         private const val REDACTED = "[REDACTED]"
         private const val MAX_LOG_FILES = 2_000
         private val MAX_LOG_AGE: Duration = Duration.ofDays(7)
-        private fun baseEntry(requestId: String, stage: String): ObjectNode {
-            val entry = Json.MAPPER.createObjectNode()
+        private fun baseEntry(requestId: String, stage: String): MutableJsonObject {
+            val entry = createObjectNode()
             entry.put("request_id", requestId)
             entry.put("timestamp", Instant.now().toString())
             entry.put("stage", stage)
             return entry
         }
-        private fun redactStringHeaders(headers: Map<String, String>?): ObjectNode {
-            val node = Json.MAPPER.createObjectNode()
+        private fun redactStringHeaders(headers: Map<String, String>?): MutableJsonObject {
+            val node = createObjectNode()
             headers?.forEach { (name, value) ->
                 node.put(name, if (isSensitiveHeader(name)) REDACTED else value)
             }
             return node
         }
-        private fun redactListHeaders(headers: Map<String, List<String>>?): ObjectNode {
-            val node = Json.MAPPER.createObjectNode()
+        private fun redactListHeaders(headers: Map<String, List<String>>?): MutableJsonObject {
+            val node = createObjectNode()
             headers?.forEach { (name, values) ->
-                val array = node.putArray(name)
+                val array = de.moritzf.proxy.server.createArrayNode()
                 values.forEach { value ->
                     array.add(if (isSensitiveHeader(name)) REDACTED else value)
                 }
+                node.set(name, array)
             }
             return node
         }
@@ -173,7 +175,7 @@ class RequestLogger(
                 normalized.contains("secret") ||
                 normalized.contains("key")
         }
-        private fun putBody(entry: ObjectNode, body: String?) {
+        private fun putBody(entry: MutableJsonObject, body: String?) {
             val capture = captureBody(body)
             entry.put("body", capture.body)
             entry.put("truncated", capture.truncated)
