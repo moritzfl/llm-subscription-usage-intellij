@@ -19,7 +19,7 @@ class CodexJsonHandler(
             client.request(
                 upstreamPath,
                 "POST",
-                JsonHelper.MAPPER.writeValueAsString(body),
+                JsonHelper.encodeToString(body),
                 mapOf("Content-Type" to "application/json"),
                 requestId,
                 null,

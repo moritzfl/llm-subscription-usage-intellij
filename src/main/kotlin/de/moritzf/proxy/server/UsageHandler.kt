@@ -1,7 +1,5 @@
 package de.moritzf.proxy.server
 import de.moritzf.proxy.usage.UsageTracker
-import com.fasterxml.jackson.databind.node.ArrayNode
-import com.fasterxml.jackson.databind.node.ObjectNode
 import io.javalin.http.Context
 import io.javalin.http.Handler
 class UsageHandler(
@@ -16,11 +14,11 @@ class UsageHandler(
         } else {
             mapOf(keyName to (tracker.snapshot()[keyName] ?: UsageTracker.KeyStats(0, 0)))
         }
-        val keys = JsonHelper.MAPPER.createArrayNode()
+        val keys = createArrayNode()
         var totalPrompt = 0L
         var totalCompletion = 0L
         snapshot.forEach { (name, stats) ->
-            val keyEntry = JsonHelper.MAPPER.createObjectNode()
+            val keyEntry = createObjectNode()
             keyEntry.put("name", name)
             keyEntry.put("prompt_tokens", stats.promptTokens)
             keyEntry.put("completion_tokens", stats.completionTokens)
@@ -29,13 +27,13 @@ class UsageHandler(
             totalPrompt += stats.promptTokens
             totalCompletion += stats.completionTokens
         }
-        val total = JsonHelper.MAPPER.createObjectNode()
+        val total = createObjectNode()
         total.put("prompt_tokens", totalPrompt)
         total.put("completion_tokens", totalCompletion)
         total.put("total_tokens", totalPrompt + totalCompletion)
-        val root = JsonHelper.MAPPER.createObjectNode()
-        root.set<ArrayNode>("keys", keys)
-        root.set<ObjectNode>("total", total)
-        JsonHelper.toJsonResponse(ctx, root)
+        val root = createObjectNode()
+        root.set("keys", keys)
+        root.set("total", total)
+        JsonHelper.toJsonResponse(ctx, root.build())
     }
 }
