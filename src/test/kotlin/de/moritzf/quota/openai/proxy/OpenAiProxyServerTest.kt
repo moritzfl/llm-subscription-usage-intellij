@@ -1936,7 +1936,10 @@ class OpenAiProxyServerTest {
                     HttpResponse.BodyHandlers.ofString(),
                 )
                 assertEquals(200, liveliness.statusCode())
-                assertTrue(liveliness.body().contains("alive"))
+                assertEquals(
+                    "I'm alive!",
+                    JsonSupport.json.parseToJsonElement(liveliness.body()).jsonPrimitive.content,
+                )
             } finally {
                 proxy.stop()
             }
