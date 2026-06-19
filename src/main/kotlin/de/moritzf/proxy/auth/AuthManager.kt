@@ -1,8 +1,11 @@
 package de.moritzf.proxy.auth
+import de.moritzf.proxy.server.hasKey
 import de.moritzf.proxy.config.ServerConfig
 import de.moritzf.proxy.model.CodexClientVersionResolver
 import de.moritzf.proxy.util.JwtParser
-import com.fasterxml.jackson.databind.JsonNode
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import java.net.http.HttpClient
 import java.util.concurrent.locks.ReentrantLock
 class AuthManager(
@@ -82,10 +85,16 @@ class AuthManager(
             if (accessToken.isNullOrEmpty()) {
                 return true
             }
-            val claims: JsonNode? = JwtParser.parseClaims(accessToken)
-            if (claims != null && claims.has("exp") && claims.get("exp").isNumber) {
-                val expiryMs = claims.get("exp").asLong() * 1000
-                return expiryMs <= System.currentTimeMillis() + REFRESH_EXPIRY_MARGIN_MS
+            val claims: JsonObject? = JwtParser.parseClaims(accessToken)
+            if (claims != null && claims.hasKey("exp")) {
+                val exp = claims["exp"]
+                if (exp is JsonPrimitive) {
+                    val expValue = exp.longOrNull
+                    if (expValue != null) {
+                        val expiryMs = expValue * 1000
+                        return expiryMs <= System.currentTimeMillis() + REFRESH_EXPIRY_MARGIN_MS
+                    }
+                }
             }
             return false
         }

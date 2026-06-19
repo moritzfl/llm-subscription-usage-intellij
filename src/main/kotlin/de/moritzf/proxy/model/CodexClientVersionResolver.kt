@@ -1,5 +1,6 @@
 package de.moritzf.proxy.model
 import de.moritzf.proxy.util.Json
+import kotlinx.serialization.json.JsonPrimitive
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.URI
@@ -97,8 +98,9 @@ object CodexClientVersionResolver {
             if (response.statusCode() !in 200..299) {
                 return null
             }
-            val version = Json.MAPPER.readTree(response.body()).get("version")
-            if (version != null && version.isTextual) normalizeVersion(version.asText()) else null
+            val root = Json.INSTANCE.parseToJsonElement(response.body()) as? kotlinx.serialization.json.JsonObject
+            val version = root?.get("version")
+            if (version is JsonPrimitive && version.isString) normalizeVersion(version.content) else null
         } catch (_: Exception) {
             null
         }

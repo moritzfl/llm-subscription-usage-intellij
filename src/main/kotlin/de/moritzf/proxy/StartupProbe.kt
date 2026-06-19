@@ -2,6 +2,9 @@ package de.moritzf.proxy
 
 import de.moritzf.proxy.config.ServerConfig
 import de.moritzf.proxy.config.HostBinding
+import de.moritzf.proxy.server.JsonHelper
+import de.moritzf.proxy.server.isArray
+import de.moritzf.proxy.server.isTextual
 import de.moritzf.proxy.sse.SseParser
 import de.moritzf.proxy.util.Json
 import java.io.ByteArrayInputStream
@@ -11,6 +14,10 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
 import java.time.Duration
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 internal data class StartupProbeResult(
     val success: Boolean,
@@ -79,21 +86,22 @@ internal object StartupProbe {
             return extractStreamingResponseText(responseBody)
         }
         return try {
-            val root = Json.MAPPER.readTree(responseBody)
-            val choices = root.get("choices")
-            if (choices == null || !choices.isArray || choices.isEmpty) {
+            val root = Json.INSTANCE.parseToJsonElement(responseBody) as? JsonObject
+                ?: return "<missing choices[0].message.content>"
+            val choices = root["choices"]
+            if (choices !is JsonArray || choices.isEmpty()) {
                 return "<missing choices[0].message.content>"
             }
-            val firstChoice = choices.get(0)
-            val message = firstChoice?.get("message")
+            val firstChoice = choices[0] as? JsonObject
+            val message = firstChoice?.get("message") as? JsonObject
             val content = message?.get("content") ?: return "<missing choices[0].message.content>"
-            if (content.isNull) {
+            if (content is JsonNull) {
                 return "<null choices[0].message.content>"
             }
-            if (content.isTextual) {
-                return formatText(content.asText())
+            if (content is JsonPrimitive && content.isString) {
+                return formatText(content.content)
             }
-            formatText(Json.MAPPER.writeValueAsString(content))
+            formatText(JsonHelper.encodeToString(content))
         } catch (_: Exception) {
             "<unparseable response body: ${formatText(responseBody)}>"
         }
@@ -112,20 +120,20 @@ internal object StartupProbe {
                 if (data == "[DONE]") {
                     break
                 }
-                val root = Json.MAPPER.readTree(data)
-                val choices = root.get("choices")
-                if (choices == null || !choices.isArray) {
+                val root = Json.INSTANCE.parseToJsonElement(data) as? JsonObject ?: continue
+                val choices = root["choices"]
+                if (choices !is JsonArray) {
                     continue
                 }
                 for (choice in choices) {
-                    val delta = choice.get("delta")
-                    val content = delta?.get("content") ?: continue
-                    if (content.isNull) {
+                    val delta = (choice as? JsonObject)?.get("delta") as? JsonObject ?: continue
+                    val content = delta["content"] ?: continue
+                    if (content is JsonNull) {
                         sawNullContent = true
-                    } else if (content.isTextual) {
-                        text.append(content.asText())
+                    } else if (content is JsonPrimitive && content.isString) {
+                        text.append(content.content)
                     } else {
-                        text.append(Json.MAPPER.writeValueAsString(content))
+                        text.append(JsonHelper.encodeToString(content))
                     }
                 }
             }

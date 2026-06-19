@@ -1,10 +1,15 @@
 package de.moritzf.proxy.util
-import com.fasterxml.jackson.databind.ObjectMapper
+
+import kotlinx.serialization.json.Json
+
 /**
- * Shared Jackson ObjectMapper instance. All packages that need JSON
+ * Shared kotlinx.serialization Json instance. All packages that need JSON
  * serialization/deserialization should use this rather than importing
  * the server-layer JsonHelper, which would create circular dependencies.
  */
 object Json {
-    val MAPPER: ObjectMapper = ObjectMapper()
+    val INSTANCE: Json = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+    }
 }

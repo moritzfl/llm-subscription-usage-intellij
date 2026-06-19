@@ -1,9 +1,10 @@
 package de.moritzf.proxy.util
-import com.fasterxml.jackson.databind.JsonNode
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import java.nio.charset.StandardCharsets
 import java.util.Base64
 object JwtParser {
-    fun parseClaims(token: String?): JsonNode? {
+    fun parseClaims(token: String?): JsonObject? {
         if (token == null || !token.contains('.')) {
             return null
         }
@@ -19,19 +20,18 @@ object JwtParser {
             }
             val decoded = Base64.getUrlDecoder().decode(padded)
             val payload = String(decoded, StandardCharsets.UTF_8)
-            val node = Json.MAPPER.readTree(payload)
-            node.takeIf { it.isObject }
+            Json.INSTANCE.parseToJsonElement(payload) as? JsonObject
         } catch (_: Exception) {
             null
         }
     }
     fun deriveAccountId(idToken: String?): String? {
         val claims = parseClaims(idToken) ?: return null
-        val authClaim = claims.get("https://api.openai.com/auth")
-        if (authClaim != null && authClaim.isObject) {
-            val accountId = authClaim.get("chatgpt_account_id")
-            if (accountId != null && accountId.isTextual && accountId.asText().isNotEmpty()) {
-                return accountId.asText()
+        val authClaim = claims["https://api.openai.com/auth"]
+        if (authClaim is JsonObject) {
+            val accountId = authClaim["chatgpt_account_id"]
+            if (accountId is JsonPrimitive && accountId.isString && accountId.content.isNotEmpty()) {
+                return accountId.content
             }
         }
         return null

@@ -1,9 +1,12 @@
 package de.moritzf.proxy.auth
 import de.moritzf.proxy.config.ServerConfig
+import de.moritzf.proxy.server.hasKey
+import de.moritzf.proxy.server.createObjectNode
 import de.moritzf.proxy.util.Json
 import de.moritzf.proxy.util.JwtParser
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.node.ObjectNode
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
@@ -22,6 +25,7 @@ import java.time.Instant
 object AuthLoader {
     private const val REFRESH_EXPIRY_MARGIN_MS = 5 * 60 * 1000L
     private const val REFRESH_INTERVAL_MS = 55 * 60 * 1000L
+    private val PRETTY_JSON = kotlinx.serialization.json.Json { prettyPrint = true }
     class AuthResult(
         val accessToken: String,
         val accountId: String,
@@ -49,13 +53,13 @@ object AuthLoader {
         }
         val candidates = AuthFileResolver.resolveCandidates(authFilePath)
         var foundPath: String? = null
-        var authData: JsonNode? = null
+        var authData: JsonObject? = null
         for (candidate in candidates) {
             try {
                 val path = Path.of(candidate)
                 if (Files.exists(path)) {
-                    val parsed = Files.newBufferedReader(path).use { reader -> Json.MAPPER.readTree(reader) }
-                    if (parsed != null && parsed.isObject) {
+                    val parsed = Json.INSTANCE.parseToJsonElement(Files.readString(path)) as? JsonObject
+                    if (parsed != null) {
                         foundPath = candidate
                         authData = parsed
                         break
@@ -65,9 +69,9 @@ object AuthLoader {
             }
         }
         if (authData == null) {
-            authData = Json.MAPPER.createObjectNode()
+            authData = JsonObject(emptyMap())
         }
-        val tokensNode = authData.get("tokens")
+        val tokensNode = authData["tokens"] as? JsonObject
         var accessToken = getStringField(tokensNode, "access_token")
         var idToken = getStringField(tokensNode, "id_token")
         var refreshToken = getStringField(tokensNode, "refresh_token")
@@ -113,10 +117,16 @@ object AuthLoader {
             return true
         }
         val claims = JwtParser.parseClaims(accessToken)
-        if (claims != null && claims.has("exp") && claims.get("exp").isNumber) {
-            val expiryMs = claims.get("exp").asLong() * 1000
-            if (expiryMs <= System.currentTimeMillis() + REFRESH_EXPIRY_MARGIN_MS) {
-                return true
+        if (claims != null && claims.hasKey("exp")) {
+            val exp = claims["exp"]
+            if (exp is JsonPrimitive) {
+                val expValue = exp.longOrNull
+                if (expValue != null) {
+                    val expiryMs = expValue * 1000
+                    if (expiryMs <= System.currentTimeMillis() + REFRESH_EXPIRY_MARGIN_MS) {
+                        return true
+                    }
+                }
             }
         }
         if (!lastRefresh.isNullOrEmpty()) {
@@ -140,7 +150,7 @@ object AuthLoader {
         tokenUrl: String,
         httpClient: HttpClient,
     ): RefreshResult? {
-        val body = Json.MAPPER.createObjectNode()
+        val body = createObjectNode()
         body.put("grant_type", "refresh_token")
         body.put("refresh_token", refreshToken)
         body.put("client_id", clientId)
@@ -148,16 +158,14 @@ object AuthLoader {
         val request = HttpRequest.newBuilder()
             .uri(URI.create(tokenUrl))
             .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString(Json.MAPPER.writeValueAsString(body)))
+            .POST(HttpRequest.BodyPublishers.ofString(Json.INSTANCE.encodeToString(JsonObject.serializer(), body.build())))
             .build()
         val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         if (response.statusCode() !in 200..<300) {
             return null
         }
-        val payload = Json.MAPPER.readTree(response.body())
-        if (payload == null || !payload.isObject) {
-            return null
-        }
+        val payload = Json.INSTANCE.parseToJsonElement(response.body()) as? JsonObject
+            ?: return null
         val newAccessToken = getStringField(payload, "access_token")
         if (newAccessToken.isNullOrEmpty()) {
             return null
@@ -176,7 +184,7 @@ object AuthLoader {
     }
     private fun writeAuthFile(
         filePath: String,
-        originalData: JsonNode,
+        originalData: JsonObject,
         idToken: String?,
         accessToken: String?,
         refreshToken: String?,
@@ -184,17 +192,13 @@ object AuthLoader {
         lastRefresh: String?,
     ) {
         try {
-            val root: ObjectNode = if (originalData.isObject) {
-                originalData.deepCopy()
-            } else {
-                Json.MAPPER.createObjectNode()
-            }
-            val tokens = Json.MAPPER.createObjectNode()
+            val root = de.moritzf.proxy.server.MutableJsonObject(originalData)
+            val tokens = createObjectNode()
             if (idToken != null) tokens.put("id_token", idToken)
             if (accessToken != null) tokens.put("access_token", accessToken)
             if (refreshToken != null) tokens.put("refresh_token", refreshToken)
             if (accountId != null) tokens.put("account_id", accountId)
-            root.set<ObjectNode>("tokens", tokens)
+            root.set("tokens", tokens)
             root.put("last_refresh", lastRefresh)
             val path = Path.of(filePath)
             val parent = path.parent
@@ -204,7 +208,7 @@ object AuthLoader {
             val tmp = path.resolveSibling(path.fileName.toString() + ".tmp")
             // Set strict permissions BEFORE writing any content.
             setStrictFilePermissions(tmp)
-            Files.writeString(tmp, Json.MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(root))
+            Files.writeString(tmp, PRETTY_JSON.encodeToString(JsonObject.serializer(), root.build()))
             Files.move(tmp, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
         } catch (exception: Exception) {
             System.err.println("Warning: failed to write auth file to $filePath: $exception")
@@ -251,11 +255,11 @@ object AuthLoader {
             System.err.println("Warning: could not set strict file permissions on $path: ${exception.message}")
         }
     }
-    private fun getStringField(node: JsonNode?, field: String): String? {
-        if (node == null || !node.has(field)) {
+    private fun getStringField(node: JsonObject?, field: String): String? {
+        if (node == null || !node.hasKey(field)) {
             return null
         }
-        val value = node.get(field)
-        return if (value.isTextual && value.asText().isNotEmpty()) value.asText() else null
+        val value = node[field]
+        return if (value is JsonPrimitive && value.isString && value.content.isNotEmpty()) value.content else null
     }
 }

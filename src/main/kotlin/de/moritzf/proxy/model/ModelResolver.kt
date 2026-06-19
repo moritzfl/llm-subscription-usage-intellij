@@ -1,11 +1,19 @@
 package de.moritzf.proxy.model
 
+import de.moritzf.proxy.server.booleanPath
+import de.moritzf.proxy.server.hasKey
+import de.moritzf.proxy.server.isObject
+import de.moritzf.proxy.server.isTextual
+import de.moritzf.proxy.server.pathOrNull
 import de.moritzf.proxy.transport.CodexHttpClient
 import de.moritzf.proxy.util.CollectionUtils
 import de.moritzf.proxy.util.Json
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.locks.ReentrantLock
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 class ModelResolver(
     private val client: CodexHttpClient,
@@ -59,16 +67,17 @@ class ModelResolver(
             throw RuntimeException(message ?: "Failed to load models from Codex.")
         }
 
-        val parsed = Json.MAPPER.readTree(response.body())
-        val modelsNode = parsed.get("models")
-        if (modelsNode == null || !modelsNode.isArray) {
+        val parsed = Json.INSTANCE.parseToJsonElement(response.body()) as? JsonObject
+            ?: throw RuntimeException("Codex returned a malformed models response.")
+        val modelsNode = parsed["models"]
+        if (modelsNode !is JsonArray) {
             throw RuntimeException("Codex returned a malformed models response.")
         }
 
         var models = modelsNode.mapNotNull { model ->
-            val slug = model.get("slug")
-            if (slug != null && slug.isTextual && slug.asText().isNotEmpty()) {
-                slug.asText()
+            val slug = (model as? JsonObject)?.get("slug")
+            if (slug is JsonPrimitive && slug.isString && slug.content.isNotEmpty()) {
+                slug.content
             } else {
                 null
             }
@@ -90,16 +99,16 @@ class ModelResolver(
                 return null
             }
             try {
-                val parsed = Json.MAPPER.readTree(bodyText)
-                val detail = parsed.get("detail")
-                if (detail != null && detail.isTextual && detail.asText().isNotEmpty()) {
-                    return detail.asText()
+                val parsed = Json.INSTANCE.parseToJsonElement(bodyText) as? JsonObject ?: return bodyText
+                val detail = parsed["detail"]
+                if (detail is JsonPrimitive && detail.isString && detail.content.isNotEmpty()) {
+                    return detail.content
                 }
-                val error = parsed.get("error")
-                if (error != null && error.isObject) {
-                    val message = error.get("message")
-                    if (message != null && message.isTextual) {
-                        return message.asText()
+                val error = parsed["error"]
+                if (error is JsonObject) {
+                    val message = error["message"]
+                    if (message is JsonPrimitive && message.isString) {
+                        return message.content
                     }
                 }
             } catch (_: Exception) {
