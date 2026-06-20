@@ -102,6 +102,89 @@ class CursorQuotaClientTest {
     }
 
     @Test
+    fun parseUsageSummaryExtractsModernAndLegacyUsage() {
+        val usageSummaryJson = """
+            {
+              "billingCycleStart": "2026-02-01T00:00:00.000Z",
+              "billingCycleEnd": "2026-03-01T00:00:00.000Z",
+              "membershipType": "team",
+              "autoModelSelectedDisplayMessage": "You've used 12% of your included total usage",
+              "namedModelSelectedDisplayMessage": "You've used 25% of your included API usage",
+              "individualUsage": {
+                "plan": {
+                  "enabled": true,
+                  "used": 1250,
+                  "limit": 10000,
+                  "remaining": 8750,
+                  "autoPercentUsed": 12.5,
+                  "apiPercentUsed": 25,
+                  "totalPercentUsed": 12.5
+                },
+                "onDemand": {
+                  "enabled": true,
+                  "used": 2500,
+                  "limit": 5000,
+                  "remaining": 2500
+                }
+              },
+              "teamUsage": {
+                "onDemand": {
+                  "enabled": true,
+                  "used": 8000,
+                  "limit": 10000,
+                  "remaining": 2000
+                }
+              }
+            }
+        """.trimIndent()
+        val userInfoJson = """
+            {
+              "email": "dev@example.com",
+              "name": "Dev",
+              "sub": "user_123"
+            }
+        """.trimIndent()
+        val requestUsageJson = """
+            {
+              "gpt-4": {
+                "numRequests": 120,
+                "numRequestsTotal": 150,
+                "maxRequestUsage": 500
+              },
+              "startOfMonth": "2026-02-01"
+            }
+        """.trimIndent()
+
+        val quota = CursorQuotaClient.parseUsageSummary(usageSummaryJson, userInfoJson, requestUsageJson)
+
+        assertEquals("dev@example.com", quota.email)
+        assertEquals("team", quota.membershipType)
+        assertEquals("You've used 12% of your included total usage", quota.autoModelDisplayMessage)
+        assertEquals("You've used 25% of your included API usage", quota.apiModelDisplayMessage)
+
+        val planUsage = assertNotNull(quota.planUsage)
+        assertEquals(12.5, planUsage.totalPercentUsed)
+        assertEquals(12.5, planUsage.totalSpendUsd)
+        assertEquals(100.0, planUsage.limitUsd)
+        assertEquals(Instant.parse("2026-03-01T00:00:00Z"), planUsage.billingCycleEnd)
+
+        val requestUsage = assertNotNull(quota.requestUsage)
+        assertEquals(150, requestUsage.used)
+        assertEquals(500, requestUsage.limit)
+        assertEquals(30.0, requestUsage.usagePercent())
+
+        val onDemand = assertNotNull(quota.onDemandUsage)
+        assertEquals(25.0, onDemand.usedUsd)
+        assertEquals(50.0, onDemand.limitUsd)
+        assertEquals(50.0, onDemand.usagePercent())
+
+        val teamOnDemand = assertNotNull(quota.teamOnDemandUsage)
+        assertEquals(80.0, teamOnDemand.usedUsd)
+        assertEquals(100.0, teamOnDemand.limitUsd)
+        assertEquals(80.0, teamOnDemand.usagePercent())
+    }
+
+    @Test
     fun buildRawJsonPreservesStringEmbeddedPayload() {
         val periodUsageJson = """{"displayMessage":"You've hit your usage limit","planUsage":{"totalPercentUsed":12}}"""
         val planInfoJson = """{"planInfo":{"planName":"Pro"}}"""

@@ -1,5 +1,9 @@
 package de.moritzf.quota.idea
 
+import de.moritzf.quota.cursor.CursorPlanUsage
+import de.moritzf.quota.cursor.CursorQuota
+import de.moritzf.quota.cursor.CursorRequestUsage
+import de.moritzf.quota.cursor.CursorSpendLimit
 import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.github.GitHubUsageWindow
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorComponent
@@ -164,6 +168,29 @@ class QuotaIndicatorComponentTest {
         assertTrue(tooltip.contains("Premium requests: 27%"))
         assertFalse(tooltip.contains("Chat"))
         assertFalse(tooltip.contains("Completions"))
+    }
+
+    @Test
+    fun cursorIndicatorPrefersIncludedUsageOverTeamSpend() {
+        val quota = CursorQuota(
+            planUsage = CursorPlanUsage(totalPercentUsed = 12.0),
+            spendLimit = CursorSpendLimit(pooledLimitUsd = 100.0, pooledUsedUsd = 100.0),
+        )
+
+        assertEquals("12%", de.moritzf.quota.idea.ui.indicator.cursorBarDisplayText(quota, error = null))
+        assertEquals(12, de.moritzf.quota.idea.ui.indicator.cursorIndicatorState(quota)?.percent)
+        assertTrue(de.moritzf.quota.idea.ui.indicator.buildCursorTooltipText(quota, error = null).contains("Included: 12%"))
+    }
+
+    @Test
+    fun cursorIndicatorUsesLegacyRequestUsageWhenPresent() {
+        val quota = CursorQuota(
+            planUsage = CursorPlanUsage(totalPercentUsed = 12.0),
+            requestUsage = CursorRequestUsage(used = 150, limit = 500),
+        )
+
+        assertEquals("30%", de.moritzf.quota.idea.ui.indicator.cursorBarDisplayText(quota, error = null))
+        assertEquals(30, de.moritzf.quota.idea.ui.indicator.cursorIndicatorState(quota)?.percent)
     }
 
     @Test

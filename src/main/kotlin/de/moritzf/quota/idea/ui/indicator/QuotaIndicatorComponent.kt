@@ -341,14 +341,23 @@ internal fun buildCursorTooltipText(quota: CursorQuota?, error: String?): String
         ?: quota.membershipType.takeIf { it.isNotBlank() }
         ?: "Cursor"
     val parts = mutableListOf<String>()
+    quota.requestUsage?.usagePercent()?.let {
+        parts.add("Requests: ${clampPercent(it.roundToInt())}%")
+    }
     quota.planUsage?.let {
-        parts.add("Plan: ${clampPercent(it.totalPercentUsed.roundToInt())}% • ${QuotaUiUtil.formatResetCompact(it.billingCycleEnd) ?: "unknown"}")
-        if (it.autoPercentUsed > 0.0) {
+        parts.add("Included: ${clampPercent(it.totalPercentUsed.roundToInt())}% • ${QuotaUiUtil.formatResetCompact(it.billingCycleEnd) ?: "unknown"}")
+        if (quota.requestUsage == null && it.autoPercentUsed > 0.0) {
             parts.add("Auto: ${clampPercent(it.autoPercentUsed.roundToInt())}%")
         }
-        if (it.apiPercentUsed > 0.0) {
+        if (quota.requestUsage == null && it.apiPercentUsed > 0.0) {
             parts.add("API: ${clampPercent(it.apiPercentUsed.roundToInt())}%")
         }
+    }
+    quota.onDemandUsage?.let {
+        parts.add("On-demand: ${formatCursorUsdUsage(it.usedUsd, it.limitUsd)}")
+    }
+    quota.teamOnDemandUsage?.let {
+        parts.add("Team on-demand: ${formatCursorUsdUsage(it.usedUsd, it.limitUsd)}")
     }
     quota.spendLimit?.usagePercent()?.let {
         parts.add("Team spend: ${clampPercent(it.roundToInt())}%")
@@ -640,9 +649,8 @@ internal data class CursorIndicatorState(
 )
 
 internal fun cursorIndicatorState(quota: CursorQuota): CursorIndicatorState? {
-    val spendPercent = quota.spendLimit?.usagePercent()
     val planUsage = quota.planUsage
-    val percent = spendPercent ?: planUsage?.totalPercentUsed ?: return null
+    val percent = quota.primaryUsagePercent() ?: return null
     val resetsAt = planUsage?.billingCycleEnd
     if (percent >= 100.0) {
         return CursorIndicatorState(percent = 100, resetsAt = resetsAt)
@@ -651,6 +659,22 @@ internal fun cursorIndicatorState(quota: CursorQuota): CursorIndicatorState? {
         percent = clampPercent(percent.roundToInt()),
         resetsAt = resetsAt,
     )
+}
+
+private fun formatCursorUsdUsage(used: Double, limit: Double?): String {
+    if (limit == null || limit <= 0.0) {
+        return "$${formatCompactUsd(used)} used"
+    }
+    val percent = clampPercent(((used / limit) * 100.0).roundToInt())
+    return "$percent% ($${formatCompactUsd(used)} / $${formatCompactUsd(limit)})"
+}
+
+private fun formatCompactUsd(value: Double): String {
+    return if (value >= 100.0) {
+        value.roundToInt().toString()
+    } else {
+        String.format(Locale.US, "%.2f", value)
+    }
 }
 
 internal fun ollamaIndicatorState(quota: de.moritzf.quota.ollama.OllamaQuota): OllamaIndicatorState? {

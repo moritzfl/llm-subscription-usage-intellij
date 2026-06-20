@@ -1,7 +1,9 @@
 package de.moritzf.quota.idea.ui.popup
 
 import de.moritzf.quota.cursor.CursorPlanUsage
+import de.moritzf.quota.cursor.CursorOnDemandUsage
 import de.moritzf.quota.cursor.CursorQuota
+import de.moritzf.quota.cursor.CursorRequestUsage
 import de.moritzf.quota.cursor.CursorSpendLimit
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
@@ -22,6 +24,8 @@ internal class CursorPopupSection : ProviderPopupSection() {
     private val includedUsageBlock = WindowBlockPanel(5)
     private val autoBlock = WindowBlockPanel(5)
     private val apiBlock = WindowBlockPanel(5)
+    private val onDemandBlock = WindowBlockPanel(5)
+    private val teamOnDemandBlock = WindowBlockPanel(5)
     private val spendBlock = WindowBlockPanel(5)
 
     init {
@@ -33,6 +37,8 @@ internal class CursorPopupSection : ProviderPopupSection() {
         add(includedUsageBlock)
         add(autoBlock)
         add(apiBlock)
+        add(onDemandBlock)
+        add(teamOnDemandBlock)
         add(spendBlock)
         hideAll()
     }
@@ -63,6 +69,7 @@ internal class CursorPopupSection : ProviderPopupSection() {
             else -> {
                 val planUsage = quota.planUsage
                 val spendLimit = quota.spendLimit
+                val requestUsage = quota.requestUsage
 
                 val limitWarning = getLimitWarning(quota)
                 warningLabel.isVisible = limitWarning != null
@@ -76,15 +83,26 @@ internal class CursorPopupSection : ProviderPopupSection() {
                 titleLabel.text = if (planTitle != null) "$CURSOR_LABEL ($planTitle)" else CURSOR_LABEL
 
                 planUsage?.let { includedSpendBlock.updateIncludedSpend(it) } ?: includedSpendBlock.clear()
-                includedUsageBlock.updateIncludedUsage(quota, planUsage)
-
-                if (planUsage != null && shouldShowAutoUsage(planUsage, quota)) {
-                    autoBlock.updatePercentUsage(planUsage.autoPercentUsed, planUsage.billingCycleEnd, "Auto")
-                } else {
+                if (requestUsage != null) {
+                    includedUsageBlock.updateRequestUsage(requestUsage, planUsage?.billingCycleEnd)
                     autoBlock.clear()
+                    apiBlock.clear()
+                } else {
+                    includedUsageBlock.updateIncludedUsage(quota, planUsage)
+
+                    if (planUsage != null && shouldShowAutoUsage(planUsage, quota)) {
+                        autoBlock.updatePercentUsage(planUsage.autoPercentUsed, planUsage.billingCycleEnd, "Auto")
+                    } else {
+                        autoBlock.clear()
+                    }
+
+                    planUsage?.let { apiBlock.updateApiUsage(it) } ?: apiBlock.clear()
                 }
 
-                planUsage?.let { apiBlock.updateApiUsage(it) } ?: apiBlock.clear()
+                quota.onDemandUsage?.let { onDemandBlock.updateOnDemandUsage(it, planUsage?.billingCycleEnd, "On-demand") }
+                    ?: onDemandBlock.clear()
+                quota.teamOnDemandUsage?.let { teamOnDemandBlock.updateOnDemandUsage(it, planUsage?.billingCycleEnd, "Team on-demand") }
+                    ?: teamOnDemandBlock.clear()
                 spendLimit?.let { spendBlock.updateSpendLimit(it) } ?: spendBlock.clear()
             }
         }
@@ -101,6 +119,8 @@ internal class CursorPopupSection : ProviderPopupSection() {
         includedUsageBlock.isVisible = false
         autoBlock.isVisible = false
         apiBlock.isVisible = false
+        onDemandBlock.isVisible = false
+        teamOnDemandBlock.isVisible = false
         spendBlock.isVisible = false
     }
 
@@ -123,6 +143,16 @@ internal class CursorPopupSection : ProviderPopupSection() {
             }
         }
         if (quota.displayMessage.isNotBlank() && isLimitNotice(quota.displayMessage)) {
+            return true
+        }
+        val requestUsage = quota.requestUsage
+        if (requestUsage != null && requestUsage.limit > 0 && requestUsage.used >= requestUsage.limit) {
+            return true
+        }
+        if ((quota.onDemandUsage?.usagePercent() ?: 0.0) >= 100.0) {
+            return true
+        }
+        if ((quota.teamOnDemandUsage?.usagePercent() ?: 0.0) >= 100.0) {
             return true
         }
         val spendLimit = quota.spendLimit ?: return false
@@ -175,11 +205,37 @@ internal class CursorPopupSection : ProviderPopupSection() {
         update("API usage", info, percent)
     }
 
+    private fun WindowBlockPanel.updateRequestUsage(usage: CursorRequestUsage, resetsAt: kotlin.time.Instant?) {
+        val percent = usage.usagePercent()?.roundToInt()?.let(::clampPercent) ?: 0
+        var info = "${usage.used} / ${usage.limit} requests used"
+        QuotaUiUtil.formatReset(resetsAt)?.let { info += " - $it" }
+        update("Requests", info, percent)
+    }
+
     private fun WindowBlockPanel.updatePercentUsage(percentUsed: Double, resetsAt: kotlin.time.Instant?, label: String) {
         val percent = clampPercent(percentUsed.roundToInt())
         var info = "$percent% used"
         QuotaUiUtil.formatReset(resetsAt)?.let { info += " - $it" }
         update("$label usage", info, percent)
+    }
+
+    private fun WindowBlockPanel.updateOnDemandUsage(
+        usage: CursorOnDemandUsage,
+        resetsAt: kotlin.time.Instant?,
+        label: String,
+    ) {
+        val percent = usage.usagePercent()?.roundToInt()?.let(::clampPercent) ?: 0
+        var info = if (usage.limitUsd != null && usage.limitUsd > 0.0) {
+            "$${formatUsd(usage.usedUsd)} / $${formatUsd(usage.limitUsd)} used"
+        } else {
+            "$${formatUsd(usage.usedUsd)} used"
+        }
+        val remaining = usage.remainingUsd
+        if (remaining != null && remaining > 0.0) {
+            info += " ($${formatUsd(remaining)} remaining)"
+        }
+        QuotaUiUtil.formatReset(resetsAt)?.let { info += " - $it" }
+        update(label, info, percent)
     }
 
     private fun WindowBlockPanel.updateSpendLimit(spendLimit: CursorSpendLimit) {
