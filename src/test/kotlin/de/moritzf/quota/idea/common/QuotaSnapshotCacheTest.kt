@@ -5,6 +5,7 @@ import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.ollama.OllamaQuota
+import de.moritzf.quota.openai.OpenAiUsageResponseFixtures.proliteWithAdditionalRateLimits
 import de.moritzf.quota.shared.ProviderQuota
 import de.moritzf.quota.supergrok.SuperGrokQuota
 import de.moritzf.quota.zai.ZaiQuota
@@ -65,6 +66,23 @@ class QuotaSnapshotCacheTest {
         assertTrue(raw.contains("Pro"))
         assertTrue(raw.contains("42"))
         assertTrue(raw.contains("123"))
+    }
+
+    @Test
+    fun preservesOpenAiExtraRateLimits() {
+        val quota = proliteWithAdditionalRateLimits()
+
+        val decoded = QuotaSnapshotCache.decode(
+            QuotaProviderType.OPEN_AI,
+            QuotaSnapshotCache.encode(QuotaProviderType.OPEN_AI, quota),
+        ) as de.moritzf.quota.openai.OpenAiCodexQuota
+
+        assertEquals(2, decoded.extraRateLimits.size)
+        assertEquals("codex-spark", decoded.extraRateLimits[0].id)
+        assertEquals("Codex Spark 5-hour", decoded.extraRateLimits[0].title)
+        assertEquals(quota.extraRateLimits[0].window.usedPercent, decoded.extraRateLimits[0].window.usedPercent)
+        assertEquals(quota.extraRateLimits[0].window.windowDuration, decoded.extraRateLimits[0].window.windowDuration)
+        assertEquals(quota.extraRateLimits[0].window.resetsAt, decoded.extraRateLimits[0].window.resetsAt)
     }
 
     private fun <Q : ProviderQuota> roundTrip(type: QuotaProviderType, quota: Q, raw: String): ProviderQuota {

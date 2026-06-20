@@ -6,6 +6,7 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.URI
 import java.net.http.HttpClient
+import java.util.ArrayDeque
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
@@ -112,6 +113,47 @@ class KimiWebSearchClientTest {
     }
 
     @Test
+    fun refreshesCredentialsAndRetriesAfterUnauthorizedSearch() {
+        TestKimiServer(
+            searchResponses = listOf(
+                401 to "{\"error\":\"expired\"}",
+                200 to "{\"search_results\":[]}",
+            ),
+            tokenBody = """
+                {
+                  "access_token": "fresh-token",
+                  "refresh_token": "refresh-2",
+                  "expires_in": 3600
+                }
+            """.trimIndent(),
+        ).use { server ->
+            val client = newClient(server)
+
+            val result = client.webSearch(
+                KimiCredentials(
+                    accessToken = "stale-token",
+                    refreshToken = "refresh-1",
+                    expiresAtEpochSeconds = 9_999_999_999.0,
+                ),
+                "Kimi Code news",
+            )
+
+            assertEquals("fresh-token", result.credentials.accessToken)
+            assertEquals("refresh-2", result.credentials.refreshToken)
+
+            val firstSearch = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
+            assertEquals("/search", firstSearch.path)
+            assertEquals("Bearer stale-token", firstSearch.firstHeader("Authorization"))
+            val tokenRequest = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
+            assertEquals("/token", tokenRequest.path)
+            assertTrue(tokenRequest.body.contains("refresh_token=refresh-1"))
+            val retrySearch = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
+            assertEquals("/search", retrySearch.path)
+            assertEquals("Bearer fresh-token", retrySearch.firstHeader("Authorization"))
+        }
+    }
+
+    @Test
     fun enforcesLimitAndContentOptionOnReturnedResults() {
         TestKimiServer(
             searchBody = """
@@ -190,10 +232,12 @@ class KimiWebSearchClientTest {
     private class TestKimiServer(
         private val searchBody: String = "{\"search_results\":[]}",
         private val searchStatus: Int = 200,
+        searchResponses: List<Pair<Int, String>>? = null,
         private val tokenBody: String = "{\"access_token\":\"fresh-token\",\"expires_in\":3600}",
         private val tokenStatus: Int = 200,
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
+        private val queuedSearchResponses = ArrayDeque(searchResponses ?: listOf(searchStatus to searchBody))
         private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
 
@@ -208,7 +252,7 @@ class KimiWebSearchClientTest {
                 )
 
                 val (status, body) = when (exchange.requestURI.rawPath) {
-                    "/search" -> searchStatus to searchBody
+                    "/search" -> nextSearchResponse()
                     "/token" -> tokenStatus to tokenBody
                     else -> 404 to "{}"
                 }
@@ -219,6 +263,13 @@ class KimiWebSearchClientTest {
             }
             server.start()
             baseUri = URI.create("http://127.0.0.1:${server.address.port}")
+        }
+
+        private fun nextSearchResponse(): Pair<Int, String> {
+            if (queuedSearchResponses.size > 1) {
+                return queuedSearchResponses.removeFirst()
+            }
+            return queuedSearchResponses.firstOrNull() ?: (searchStatus to searchBody)
         }
 
         override fun close() {

@@ -288,6 +288,15 @@ class OpenAiCodexQuotaClientTest {
         assertEquals(listOf(0, 0), quota.credits?.approxLocalMessages)
         assertEquals(listOf(0, 0), quota.credits?.approxCloudMessages)
         assertNull(quota.rateLimitReachedType)
+        assertEquals(2, quota.extraRateLimits.size)
+        assertEquals("codex-spark", quota.extraRateLimits[0].id)
+        assertEquals("Codex Spark 5-hour", quota.extraRateLimits[0].title)
+        assertEquals(0.0, quota.extraRateLimits[0].window.usedPercent, 0.0)
+        assertEquals(Duration.ofMinutes(300), quota.extraRateLimits[0].window.windowDuration)
+        assertEquals(Instant.fromEpochSeconds(1776120541), quota.extraRateLimits[0].window.resetsAt)
+        assertEquals("codex-spark-weekly", quota.extraRateLimits[1].id)
+        assertEquals("Codex Spark Weekly", quota.extraRateLimits[1].title)
+        assertEquals(Duration.ofMinutes(10080), quota.extraRateLimits[1].window.windowDuration)
     }
 
     @Test
@@ -416,6 +425,53 @@ class OpenAiCodexQuotaClientTest {
 
         assertEquals(2, quota.resetCreditsAvailableCount)
         assertTrue(quota.resetCredits.isEmpty())
+    }
+
+    @Test
+    fun customDeserializationMapsAdditionalRateLimitsGenerically() {
+        @Language("JSON")
+        val json = """
+            {
+              "additional_rate_limits": [
+                {
+                  "limit_name": "GPT-5.3-Codex-Falcon",
+                  "metered_feature": "codex_falcon",
+                  "rate_limit": {
+                    "primary_window": {
+                      "used_percent": 20,
+                      "limit_window_seconds": 3600
+                    },
+                    "secondary_window": {
+                      "used_percent": 40,
+                      "limit_window_seconds": 604800
+                    }
+                  }
+                },
+                {
+                  "metered_feature": "codex_bear_mode",
+                  "rate_limit": {
+                    "primary_window": {
+                      "used_percent": 60,
+                      "limit_window_seconds": 7200
+                    }
+                  }
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val quota = deserializeQuota(json)
+
+        assertEquals(3, quota.extraRateLimits.size)
+        assertEquals("codex-falcon", quota.extraRateLimits[0].id)
+        assertEquals("Codex Falcon Hourly", quota.extraRateLimits[0].title)
+        assertEquals(Duration.ofHours(1), quota.extraRateLimits[0].window.windowDuration)
+        assertEquals("codex-falcon-weekly", quota.extraRateLimits[1].id)
+        assertEquals("Codex Falcon Weekly", quota.extraRateLimits[1].title)
+        assertEquals(Duration.ofDays(7), quota.extraRateLimits[1].window.windowDuration)
+        assertEquals("codex-bear-mode", quota.extraRateLimits[2].id)
+        assertEquals("Codex Bear Mode 2-hour", quota.extraRateLimits[2].title)
+        assertEquals(Duration.ofHours(2), quota.extraRateLimits[2].window.windowDuration)
     }
 
     @Test

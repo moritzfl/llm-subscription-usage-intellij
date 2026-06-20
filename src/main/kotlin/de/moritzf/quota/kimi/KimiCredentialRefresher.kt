@@ -21,7 +21,11 @@ internal class KimiCredentialRefresher(
         if (credentials.accessToken.isNotBlank() && (expiresAt == null || expiresAt - Clock.System.now().epochSeconds > REFRESH_BUFFER_SECONDS)) {
             return credentials
         }
-        val refreshToken = credentials.refreshToken.ifBlank { return credentials }
+        return refresh(credentials) ?: credentials
+    }
+
+    fun refresh(credentials: KimiCredentials): KimiCredentials? {
+        val refreshToken = credentials.refreshToken.ifBlank { return null }
         return refreshCredentials(refreshToken)
     }
 
@@ -52,8 +56,10 @@ internal class KimiCredentialRefresher(
         } catch (exception: Exception) {
             throw KimiQuotaException("Could not parse Kimi token response.", status, body, exception)
         }
+        val accessToken = dto.accessToken?.takeIf { it.isNotBlank() }
+            ?: throw KimiQuotaException("Kimi token refresh did not return an access token.", status, body)
         return KimiCredentials(
-            accessToken = dto.accessToken.orEmpty(),
+            accessToken = accessToken,
             refreshToken = dto.refreshToken ?: refreshToken,
             expiresAtEpochSeconds = dto.expiresIn?.let { Clock.System.now().epochSeconds + it.toDouble() },
             scope = dto.scope,

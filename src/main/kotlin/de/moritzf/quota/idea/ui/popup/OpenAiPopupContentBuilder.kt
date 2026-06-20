@@ -35,6 +35,7 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
         isOpaque = false
         border = JBUI.Borders.emptyTop(5)
     }
+    private val extraLimitBlocks = mutableListOf<WindowBlockPanel>()
     private val reviewSeparator = createSeparatedBlock()
     private val reviewTitle = createSectionTitleLabel("Code Review", QuotaIcons.OPENAI).apply { border = JBUI.Borders.emptyTop(0) }
     private val reviewPrimaryBlock = WindowBlockPanel(3)
@@ -103,6 +104,12 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
                     creditsBlock.clear()
                 }
                 updateResetCredits(quota.resetCreditsAvailableCount, quota.resetCredits)
+                ensureExtraLimitBlockCount(quota.extraRateLimits.size)
+                extraLimitBlocks.forEachIndexed { index, block ->
+                    quota.extraRateLimits.getOrNull(index)?.let { extra ->
+                        block.updateNamedWindow(extra.window, extra.title)
+                    } ?: block.clear()
+                }
 
                 reviewSeparator.isVisible = hasReviewData
                 reviewTitle.isVisible = hasReviewData
@@ -123,6 +130,7 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
         secondaryBlock.isVisible = false
         creditsBlock.isVisible = false
         resetCreditsPanel.isVisible = false
+        extraLimitBlocks.forEach { it.isVisible = false }
         reviewSeparator.isVisible = false
         reviewTitle.isVisible = false
         reviewPrimaryBlock.isVisible = false
@@ -132,10 +140,30 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
     private fun WindowBlockPanel.updateWindow(window: UsageWindow, fallbackLabel: String) {
         val percent = clampPercent(window.usedPercent.roundToInt())
         val title = describeWindowLabel(window, fallbackLabel)
+        updateWindowContent(window, title, percent)
+    }
+
+    private fun WindowBlockPanel.updateNamedWindow(window: UsageWindow, title: String) {
+        val percent = clampPercent(window.usedPercent.roundToInt())
+        updateWindowContent(window, title, percent)
+    }
+
+    private fun WindowBlockPanel.updateWindowContent(window: UsageWindow, title: String, percent: Int) {
         val resetText = QuotaUiUtil.formatReset(window.resetsAt)
         var info = "$percent% used"
         if (resetText != null) info += " - $resetText"
         update(title, info, percent)
+    }
+
+    private fun ensureExtraLimitBlockCount(count: Int) {
+        if (count <= extraLimitBlocks.size) return
+        repeat(count - extraLimitBlocks.size) {
+            val block = WindowBlockPanel(5)
+            extraLimitBlocks.add(block)
+            val resetIndex = getComponentZOrder(resetCreditsPanel).takeIf { it >= 0 } ?: componentCount
+            add(block, resetIndex)
+        }
+        revalidate()
     }
 
     private fun WindowBlockPanel.updateAssignedCredits(

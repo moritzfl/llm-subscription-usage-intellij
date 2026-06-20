@@ -31,14 +31,21 @@ open class KimiWebSearchClient(
             throw KimiQuotaException("Search query is required.")
         }
 
-        val usableCredentials = credentialRefresher.refreshIfNeeded(credentials)
-        val accessToken = usableCredentials.accessToken.ifBlank {
+        var usableCredentials = credentialRefresher.refreshIfNeeded(credentials)
+        var accessToken = usableCredentials.accessToken.ifBlank {
             throw KimiQuotaException("Kimi login required. Log in from settings.")
         }
 
         val resultLimit = limit.coerceIn(MIN_LIMIT, MAX_LIMIT)
-        val request = searchRequest(accessToken, trimmedQuery, resultLimit, includeContent)
-        val response = send(request)
+        var response = send(searchRequest(accessToken, trimmedQuery, resultLimit, includeContent))
+        if (response.statusCode().isUnauthorized()) {
+            usableCredentials = credentialRefresher.refresh(usableCredentials)
+                ?: throw KimiQuotaException("Session expired. Log in to Kimi again from settings.", response.statusCode(), response.body())
+            accessToken = usableCredentials.accessToken.ifBlank {
+                throw KimiQuotaException("Kimi login required. Log in from settings.")
+            }
+            response = send(searchRequest(accessToken, trimmedQuery, resultLimit, includeContent))
+        }
         val status = response.statusCode()
         val body = response.body()
         if (status == 401 || status == 403) {
@@ -85,6 +92,8 @@ open class KimiWebSearchClient(
             throw KimiQuotaException("Request failed. Check your connection.", 0, null, exception)
         }
     }
+
+    private fun Int.isUnauthorized(): Boolean = this == 401 || this == 403
 
     private fun parseSearchResponse(body: String, limit: Int, includeContent: Boolean): String {
         val dto = try {

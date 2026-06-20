@@ -27,16 +27,17 @@ class OpenAiCodexQuota(
     var rateLimitReachedType: String? = null,
     var resetCreditsAvailableCount: Int = 0,
     var resetCredits: List<RateLimitResetCredit> = emptyList(),
+    var extraRateLimits: List<OpenAiExtraRateLimit> = emptyList(),
 ) : ProviderQuota {
     fun hasUsableWindows(): Boolean {
-        return primary != null || secondary != null || reviewPrimary != null || reviewSecondary != null
+        return primary != null || secondary != null || reviewPrimary != null || reviewSecondary != null || extraRateLimits.isNotEmpty()
     }
 
     override fun usageFraction(): Double? {
         val windows = listOfNotNull(
             primary?.usedPercent, secondary?.usedPercent,
             reviewPrimary?.usedPercent, reviewSecondary?.usedPercent,
-        )
+        ) + extraRateLimits.map { it.window.usedPercent }
         return windows.maxOrNull()?.let { it / 100.0 }
     }
 
@@ -71,7 +72,14 @@ class OpenAiCodexQuota(
             "spendControl=$spendControl, " +
             "rateLimitReachedType=$rateLimitReachedType, " +
             "resetCreditsAvailableCount=$resetCreditsAvailableCount, " +
-            "resetCredits=${resetCredits.size}" +
+            "resetCredits=${resetCredits.size}, " +
+            "extraRateLimits=${extraRateLimits.size}" +
             ")"
     }
 }
+
+data class OpenAiExtraRateLimit(
+    val id: String,
+    val title: String,
+    val window: UsageWindow,
+)

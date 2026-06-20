@@ -2,6 +2,7 @@ package de.moritzf.quota.idea.common
 
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.OpenAiCredits
+import de.moritzf.quota.openai.OpenAiExtraRateLimit
 import de.moritzf.quota.openai.OpenAiSpendControl
 import de.moritzf.quota.openai.RateLimitResetCredit
 import de.moritzf.quota.openai.UsageWindow
@@ -177,6 +178,7 @@ private data class CachedOpenAiQuota(
     val rateLimitReachedType: String? = null,
     val resetCreditsAvailableCount: Int = 0,
     val resetCredits: List<RateLimitResetCredit> = emptyList(),
+    val extraRateLimits: List<CachedOpenAiExtraRateLimit> = emptyList(),
 ) {
     fun toQuota(): OpenAiCodexQuota {
         return OpenAiCodexQuota(
@@ -197,6 +199,7 @@ private data class CachedOpenAiQuota(
             rateLimitReachedType = rateLimitReachedType,
             resetCreditsAvailableCount = resetCreditsAvailableCount,
             resetCredits = resetCredits,
+            extraRateLimits = extraRateLimits.map { it.toExtraRateLimit() },
         )
     }
 
@@ -220,6 +223,28 @@ private data class CachedOpenAiQuota(
                 rateLimitReachedType = quota.rateLimitReachedType,
                 resetCreditsAvailableCount = quota.resetCreditsAvailableCount,
                 resetCredits = quota.resetCredits,
+                extraRateLimits = quota.extraRateLimits.map(CachedOpenAiExtraRateLimit::fromExtraRateLimit),
+            )
+        }
+    }
+}
+
+@Serializable
+private data class CachedOpenAiExtraRateLimit(
+    val id: String,
+    val title: String,
+    val window: CachedUsageWindow,
+) {
+    fun toExtraRateLimit(): OpenAiExtraRateLimit {
+        return OpenAiExtraRateLimit(id, title, window.toUsageWindow())
+    }
+
+    companion object {
+        fun fromExtraRateLimit(limit: OpenAiExtraRateLimit): CachedOpenAiExtraRateLimit {
+            return CachedOpenAiExtraRateLimit(
+                id = limit.id,
+                title = limit.title,
+                window = CachedUsageWindow.fromUsageWindow(limit.window),
             )
         }
     }

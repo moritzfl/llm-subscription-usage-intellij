@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-06-19
+- Dropped IntelliJ IDEA 2025.x support, raising the minimum supported version to 2026.1 so the plugin can use newer Kotlin and bundled Ktor APIs.
+- Show Codex Spark and other model-specific Codex quotas separately from the main Codex usage windows when OpenAI reports additional rate limits.
+- Improved the local OpenAI-compatible proxy while preserving the existing client-facing API, including LiteLLM-compatible routes, scalar JSON responses, streaming responses, CORS preflight handling, usage reporting, and double-response safety.
+- Restricted the integrated proxy's default CORS behavior to loopback browser origins.
+- Added GitHub Enterprise host support for GitHub Copilot login and usage requests.
+- Hid unlimited GitHub Copilot chat and completion windows from the popup and tooltip so only actionable limits are shown.
+- Updated Cursor usage parsing for the modern usage-summary API, legacy request quotas, and on-demand/team budget fields.
+- Fixed Kimi token refresh so stale access tokens can recover after an upstream 401/403 when a refresh token is available.
+- Fixed Z.ai quota reset windows by mapping days, hours, minutes, and weeks to the correct units.
+- Redacted secret-like fields from cached raw provider responses while preserving quota counters for debugging.
+
 ## [1.2.0] - 2026-06-18
 - Added Codex reset credit display and one-click reset redemption in the quota popup, with confirmation before consuming a reset.
 

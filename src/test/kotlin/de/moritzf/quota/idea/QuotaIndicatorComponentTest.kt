@@ -22,6 +22,7 @@ import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.OpenAiUsageResponseFixtures.businessMemberAssignedCreditsDepleted
 import de.moritzf.quota.openai.OpenAiUsageResponseFixtures.businessMemberWithAssignedCredits
 import de.moritzf.quota.openai.OpenAiUsageResponseFixtures.plusWithRateLimitsAndZeroPurchasedCredits
+import de.moritzf.quota.openai.OpenAiUsageResponseFixtures.proliteWithAdditionalRateLimits
 import de.moritzf.quota.openai.isCreditsDepleted
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.openai.UsageWindow
@@ -131,6 +132,16 @@ class QuotaIndicatorComponentTest {
         assertEquals(1, indicatorDisplayPercent(quota, error = null, loggedIn = true))
         assertFalse(quota.isCreditsDepleted())
         assertFalse(buildQuotaTooltipText(quota, error = null, loggedIn = true).contains("Assigned credits"))
+    }
+
+    @Test
+    fun tooltipShowsSparkWindowsSeparately() {
+        val quota = proliteWithAdditionalRateLimits()
+
+        val tooltip = buildQuotaTooltipText(quota, error = null, loggedIn = true)
+
+        assertTrue(tooltip.contains("Codex Spark 5-hour: 0%"))
+        assertTrue(tooltip.contains("Codex Spark Weekly: 0%"))
     }
 
     @Test

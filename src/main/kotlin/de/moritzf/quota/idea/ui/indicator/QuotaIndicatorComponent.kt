@@ -505,6 +505,9 @@ internal fun buildQuotaTooltipText(quota: OpenAiCodexQuota?, error: String?, log
 
     addWindow(quota.primary, "Primary")
     addWindow(quota.secondary, "Secondary")
+    quota.extraRateLimits.forEach { extra ->
+        addWindow(extra.window, extra.title)
+    }
     
     val hasCodexWindows = quota.primary != null || quota.secondary != null
     val hasReviewWindows = quota.reviewPrimary != null || quota.reviewSecondary != null

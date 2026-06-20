@@ -19,19 +19,18 @@ open class KimiQuotaClient(
     private val credentialRefresher = KimiCredentialRefresher(httpClient, tokenEndpoint)
 
     open fun fetchQuota(credentials: KimiCredentials): KimiFetchResult {
-        val usableCredentials = credentialRefresher.refreshIfNeeded(credentials)
-        val accessToken = usableCredentials.accessToken.ifBlank {
+        var usableCredentials = credentialRefresher.refreshIfNeeded(credentials)
+        var response = fetchQuotaResponse(usableCredentials.accessToken.ifBlank {
             throw KimiQuotaException("Kimi login required. Log in from settings.")
+        })
+        if (response.statusCode().isUnauthorized()) {
+            usableCredentials = credentialRefresher.refresh(usableCredentials)
+                ?: throw KimiQuotaException("Session expired. Log in to Kimi again from settings.", response.statusCode(), response.body())
+            response = fetchQuotaResponse(usableCredentials.accessToken.ifBlank {
+                throw KimiQuotaException("Kimi login required. Log in from settings.")
+            })
         }
 
-        val request = HttpRequest.newBuilder()
-            .uri(usageEndpoint)
-            .timeout(Duration.ofSeconds(30))
-            .header("Authorization", "Bearer $accessToken")
-            .header("Accept", "application/json")
-            .GET()
-            .build()
-        val response = send(request)
         val status = response.statusCode()
         val body = response.body()
         if (status == 401 || status == 403) {
@@ -45,6 +44,19 @@ open class KimiQuotaClient(
         quota.rawJson = body
         return KimiFetchResult(quota, usableCredentials)
     }
+
+    private fun fetchQuotaResponse(accessToken: String): HttpResponse<String> {
+        val request = HttpRequest.newBuilder()
+            .uri(usageEndpoint)
+            .timeout(Duration.ofSeconds(30))
+            .header("Authorization", "Bearer $accessToken")
+            .header("Accept", "application/json")
+            .GET()
+            .build()
+        return send(request)
+    }
+
+    private fun Int.isUnauthorized(): Boolean = this == 401 || this == 403
 
     private fun send(request: HttpRequest): HttpResponse<String> {
         return try {
