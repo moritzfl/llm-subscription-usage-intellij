@@ -1,6 +1,7 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+- Removed deprecated IntelliJ status bar API usage from the plugin verifier report.
 
 ## [1.3.0] - 2026-06-19
 - Dropped IntelliJ IDEA 2025.x support, raising the minimum supported version to 2026.1 so the plugin can use newer Kotlin and bundled Ktor APIs.
