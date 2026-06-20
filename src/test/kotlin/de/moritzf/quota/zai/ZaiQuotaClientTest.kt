@@ -39,7 +39,7 @@ class ZaiQuotaClientTest {
                   {
                     "type": "TOKENS_LIMIT",
                     "unit": 6,
-                    "number": 7,
+                    "number": 1,
                     "usage": 1000000000,
                     "currentValue": 420000000,
                     "percentage": 42,
@@ -71,8 +71,43 @@ class ZaiQuotaClientTest {
         assertEquals(1828, webSearchUsage.used)
         assertEquals(4000, webSearchUsage.limit)
         assertEquals(45.0, webSearchUsage.usagePercent)
-        assertEquals(30 * 86_400_000L, webSearchUsage.periodDurationMs)
+        assertEquals(60_000L, webSearchUsage.periodDurationMs)
         assertEquals(1773273600000, webSearchUsage.resetsAt?.toEpochMilliseconds())
+    }
+
+    @Test
+    fun parseQuotaMapsUnitOneAsDaysAndSortsTokenWindows() {
+        val subscriptionJson = """{"success":true,"data":[]}"""
+        val quotaJson = """
+            {
+              "success": true,
+              "data": {
+                "limits": [
+                  {
+                    "type": "TOKENS_LIMIT",
+                    "unit": 1,
+                    "number": 2,
+                    "usage": 100,
+                    "currentValue": 20,
+                    "percentage": 20
+                  },
+                  {
+                    "type": "TOKENS_LIMIT",
+                    "unit": 3,
+                    "number": 5,
+                    "usage": 100,
+                    "currentValue": 10,
+                    "percentage": 10
+                  }
+                ]
+              }
+            }
+        """.trimIndent()
+
+        val quota = ZaiQuotaClient.parseQuota(subscriptionJson, quotaJson)
+
+        assertEquals(5 * 3_600_000L, assertNotNull(quota.sessionUsage).periodDurationMs)
+        assertEquals(2 * 86_400_000L, assertNotNull(quota.weeklyUsage).periodDurationMs)
     }
 
     @Test

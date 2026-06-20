@@ -106,8 +106,11 @@ open class ZaiQuotaClient(
             val subscription = subscriptions.data.firstOrNull { it.status?.equals("VALID", ignoreCase = true) == true }
                 ?: subscriptions.data.firstOrNull()
             val limits = quotaResponse.data?.limits.orEmpty()
-            val session = limits.firstOrNull { it.type == "TOKENS_LIMIT" && it.unit == 3 && it.number == 5 }
-            val weekly = limits.firstOrNull { it.type == "TOKENS_LIMIT" && it.unit == 6 && it.number == 7 }
+            val tokenLimits = limits
+                .filter { it.type == "TOKENS_LIMIT" }
+                .sortedWith(compareBy<ZaiLimitDto> { it.durationMillis() ?: Long.MAX_VALUE })
+            val session = tokenLimits.firstOrNull()
+            val weekly = tokenLimits.takeIf { it.size >= 2 }?.lastOrNull()
             val webSearch = limits.firstOrNull { it.type == "TIME_LIMIT" }
             val subscriptionReset = subscription?.nextRenewTime?.let(::parseResetDate)
 
@@ -140,12 +143,10 @@ open class ZaiQuotaClient(
         private fun ZaiLimitDto.durationMillis(): Long? {
             val value = number ?: return null
             return when (unit) {
-                1 -> value * 1_000L
-                2 -> value * 60_000L
+                1 -> value * 86_400_000L
                 3 -> value * 3_600_000L
-                4 -> value * 86_400_000L
-                5 -> value * 30L * 86_400_000L
-                6 -> value * 86_400_000L
+                5 -> value * 60_000L
+                6 -> value * 7L * 86_400_000L
                 else -> null
             }
         }
