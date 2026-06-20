@@ -16,7 +16,6 @@ import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaProviderRegistry
 import de.moritzf.quota.idea.common.QuotaUsageListener
-import de.moritzf.quota.idea.common.ProviderSettingsPanelContext
 import de.moritzf.quota.idea.mcp.McpServerSyncTarget
 import de.moritzf.quota.idea.mcp.McpServerUrlSyncService
 import de.moritzf.quota.idea.mcp.McpServerStatusState
@@ -72,9 +71,7 @@ class QuotaSettingsConfigurable : Configurable {
             modalityComponentProvider = { panel ?: rootComponent },
             statusLabelDefaultForeground = statusLabelDefaultForeground,
         )
-        QuotaProviderRegistry.all.forEach { registration ->
-            providerPanelsByType[registration.type] = registration.settingsPanelFactory(providerPanelContext)
-        }
+        providerPanelsByType.putAll(ProviderSettingsRegistry.createPanels(providerPanelContext))
 
         locationComboBox = createIndicatorComboBox(QuotaIndicatorLocation.entries.toTypedArray())
         displayModeComboBox = createIndicatorComboBox(QuotaDisplayMode.entries.toTypedArray())

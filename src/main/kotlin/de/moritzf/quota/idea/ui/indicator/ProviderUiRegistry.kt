@@ -65,9 +65,23 @@ internal interface ProviderUi {
 }
 
 internal object ProviderUiRegistry {
-    val all: Map<QuotaProviderType, ProviderUi> = QuotaProviderRegistry.all.associate { it.type to it.ui }
+    private val byType: Map<QuotaProviderType, ProviderUi> = listOf(
+        CursorUi,
+        GitHubUi,
+        KimiUi,
+        MiniMaxUi,
+        OllamaUi,
+        OpenAiUi,
+        OpenCodeUi,
+        SuperGrokUi,
+        ZaiUi,
+    ).associateBy { it.type }
 
-    fun forType(type: QuotaProviderType): ProviderUi = QuotaProviderRegistry.get(type).ui
+    val all: Map<QuotaProviderType, ProviderUi> = QuotaProviderRegistry.defaultProviderOrder().associateWith { type ->
+        byType.getValue(type)
+    }
+
+    fun forType(type: QuotaProviderType): ProviderUi = all.getValue(type)
 }
 
 internal object OpenAiUi : ProviderUi {

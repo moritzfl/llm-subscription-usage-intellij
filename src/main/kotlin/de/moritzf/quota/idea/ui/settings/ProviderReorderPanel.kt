@@ -6,6 +6,7 @@ import com.intellij.util.IconUtil
 import com.intellij.util.ui.JBUI
 import de.moritzf.quota.idea.common.QuotaProviderRegistry
 import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.idea.ui.indicator.ProviderUiRegistry
 import java.awt.AlphaComposite
 import java.awt.BorderLayout
 import java.awt.Color
@@ -36,9 +37,8 @@ internal class ProviderReorderPanel(
     private val onProviderSelected: (QuotaProviderType) -> Unit,
 ) : JPanel(BorderLayout()) {
 
-    private val providers = QuotaProviderRegistry.all
+    private val providers = ProviderUiRegistry.all.values
         .map { ProviderInfo(it.type, it.icon) }
-        .sortedBy { it.type.displayName }
 
     private val iconsPanel = object : JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(8), 0)) {
         override fun paintComponent(g: Graphics) {

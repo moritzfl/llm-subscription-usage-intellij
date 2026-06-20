@@ -5,7 +5,6 @@ import com.intellij.mcpserver.annotations.McpDescription
 import com.intellij.mcpserver.annotations.McpTool
 import com.intellij.openapi.project.ProjectManager
 import de.moritzf.quota.idea.auth.QuotaAuthService
-import de.moritzf.quota.idea.common.QuotaProviderRegistry
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.kimi.KimiCredentialsStore
@@ -268,7 +267,7 @@ class OpenAiUsageQuotaMcpToolset(
     }
 
     private fun quotaResult(type: QuotaProviderType): String {
-        val registration = QuotaProviderRegistry.get(type)
+        val registration = UsageQuotaMcpRegistry.get(type)
         val usageService = QuotaUsageService.getInstance()
         usageService.refreshBlocking(type)
 
@@ -277,9 +276,9 @@ class OpenAiUsageQuotaMcpToolset(
             return errorResult(error)
         }
 
-        val payload = registration.usageMcp.json(usageService, type)
+        val payload = registration.json(usageService, type)
         if (payload.isNullOrBlank()) {
-            return errorResult(registration.usageMcp.emptyMessage)
+            return errorResult(registration.emptyMessage)
         }
         return successResult(payload)
     }

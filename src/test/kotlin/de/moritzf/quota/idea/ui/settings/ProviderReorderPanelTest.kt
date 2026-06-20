@@ -1,7 +1,8 @@
 package de.moritzf.quota.idea.ui.settings
 
-import de.moritzf.quota.idea.common.QuotaProviderRegistry
 import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.idea.settings.ProviderSettingsRegistry
+import de.moritzf.quota.idea.ui.indicator.ProviderUiRegistry
 import javax.swing.JComponent
 import javax.swing.JPanel
 import kotlin.test.Test
@@ -19,8 +20,14 @@ class ProviderReorderPanelTest {
 
         val providerIds = panel.findProviderIds()
 
-        assertEquals(QuotaProviderRegistry.all.map { it.type.id }.toSet(), providerIds)
+        assertEquals(ProviderUiRegistry.all.keys.map { it.id }.toSet(), providerIds)
         assertTrue(QuotaProviderType.SUPERGROK.id in providerIds)
+    }
+
+    @Test
+    fun uiAndSettingsRegistriesCoverEveryProviderType() {
+        assertEquals(QuotaProviderType.entries.toSet(), ProviderUiRegistry.all.keys)
+        assertEquals(QuotaProviderType.entries.toSet(), ProviderSettingsRegistry.all.keys)
     }
 
     @Test

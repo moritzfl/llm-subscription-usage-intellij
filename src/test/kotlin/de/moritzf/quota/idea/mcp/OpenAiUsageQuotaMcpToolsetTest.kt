@@ -1,11 +1,17 @@
 package de.moritzf.quota.idea.mcp
 
 import com.intellij.mcpserver.annotations.McpTool
+import de.moritzf.quota.idea.common.QuotaProviderType
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class OpenAiUsageQuotaMcpToolsetTest {
+    @Test
+    fun usageQuotaMcpRegistryCoversEveryProviderType() {
+        assertEquals(QuotaProviderType.entries.toSet(), UsageQuotaMcpRegistry.all.keys)
+    }
+
     @Test
     fun mcpToolsReturnBridgeSafeStrings() {
         val toolMethods = OpenAiUsageQuotaMcpToolset::class.java.declaredMethods
