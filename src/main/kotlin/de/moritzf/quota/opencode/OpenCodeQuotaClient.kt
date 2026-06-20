@@ -32,8 +32,6 @@ open class OpenCodeQuotaClient(
         val encodedArgs = java.net.URLEncoder.encode(argsJson, Charsets.UTF_8)
         val uri = URI.create("${endpoint}?id=$functionId&args=$encodedArgs")
 
-        LOG.info("Fetching OpenCode quota: $uri")
-
         val request = HttpRequest.newBuilder()
             .uri(uri)
             .timeout(Duration.ofSeconds(30))
@@ -49,8 +47,6 @@ open class OpenCodeQuotaClient(
         val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         val status = response.statusCode()
         val body = response.body()
-
-        LOG.info("OpenCode quota response: status=$status, body=${body.take(200)}")
 
         if (status !in 200..299) {
             throw OpenCodeQuotaException("OpenCode quota request failed: HTTP $status", status, body)
@@ -126,7 +122,6 @@ open class OpenCodeQuotaClient(
             try {
                 val quota = fetchQuota(sessionCookie, workspaceId)
                 if (quota.hasUsageState() || quota.hasAvailableBalance()) {
-                    LOG.info("Found OpenCode quota data in workspace: $workspaceId")
                     return workspaceId
                 }
             } catch (exception: OpenCodeQuotaException) {
@@ -145,7 +140,6 @@ open class OpenCodeQuotaClient(
 
     private fun fetchWorkspaceList(sessionCookie: String): List<Pair<String, String>> {
         val uri = URI.create("https://opencode.ai/_server?id=$WORKSPACES_FUNCTION_ID&args=%5B%5D")
-        LOG.info("Fetching workspace list: $uri")
 
         val request = HttpRequest.newBuilder()
             .uri(uri)
@@ -158,7 +152,6 @@ open class OpenCodeQuotaClient(
             .build()
 
         val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-        LOG.info("Workspace list response: status=${response.statusCode()}, body=${response.body().take(200)}")
 
         if (response.statusCode() == 401 || response.statusCode() == 403) {
             throw OpenCodeQuotaException(

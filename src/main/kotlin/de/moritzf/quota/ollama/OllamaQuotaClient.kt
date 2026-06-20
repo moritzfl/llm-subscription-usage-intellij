@@ -11,7 +11,6 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
-import java.util.logging.Logger
 
 /**
  * HTTP client for fetching Ollama Cloud usage quota by scraping ollama.com/settings.
@@ -35,13 +34,9 @@ open class OllamaQuotaClient(
             .GET()
             .build()
 
-        LOG.info("Fetching Ollama quota from $endpoint")
-
         val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         val status = response.statusCode()
         val body = response.body()
-
-        LOG.info("Ollama quota response: status=$status, bodyLen=${body.length}")
 
         if (status == 401 || status == 403) {
             throw OllamaQuotaException(
@@ -76,7 +71,6 @@ open class OllamaQuotaClient(
         @JvmField
         val DEFAULT_ENDPOINT: URI = URI.create("https://ollama.com/settings")
 
-        private val LOG = Logger.getLogger(OllamaQuotaClient::class.java.name)
         private val PLAN_VALUES = setOf("free", "pro", "max")
 
         /**
