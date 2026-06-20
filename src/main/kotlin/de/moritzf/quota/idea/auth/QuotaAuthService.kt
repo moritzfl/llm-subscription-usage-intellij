@@ -347,15 +347,6 @@ class QuotaAuthService(
         scope.cancel()
     }
 
-    class LoginResult private constructor(@JvmField val success: Boolean, @JvmField val message: String?) {
-        companion object {
-            @JvmStatic
-            fun success(): LoginResult = LoginResult(true, null)
-
-            @JvmStatic
-            fun error(message: String): LoginResult = LoginResult(false, message)
-        }
-    }
 
     companion object {
         private val LOG = Logger.getInstance(QuotaAuthService::class.java)

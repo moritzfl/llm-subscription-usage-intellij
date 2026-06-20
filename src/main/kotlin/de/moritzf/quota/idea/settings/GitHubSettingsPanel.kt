@@ -11,6 +11,7 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.github.GitHubQuota
+import de.moritzf.quota.idea.auth.AuthService
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.github.GitHubAuthService
 import de.moritzf.quota.idea.github.GitHubCredentialsStore
@@ -59,7 +60,7 @@ internal class GitHubSettingsPanel(
         }
 
         loginButton.addActionListener {
-            val authService = GitHubAuthService.getInstance()
+            val authService: AuthService = GitHubAuthService.getInstance()
             if (authService.isLoggedIn()) {
                 updateStatus()
                 return@addActionListener
@@ -96,7 +97,7 @@ internal class GitHubSettingsPanel(
         }
 
         cancelLoginButton.addActionListener {
-            val aborted = GitHubAuthService.getInstance().abortLogin("Login canceled")
+            val aborted = (GitHubAuthService.getInstance() as AuthService).abortLogin("Login canceled")
             authStatusMessage = AuthStatusMessage(
                 if (aborted) "Login canceled" else "No login in progress",
                 false,
@@ -108,7 +109,7 @@ internal class GitHubSettingsPanel(
         logoutButton.addActionListener {
             setPending("Clearing credentials...")
             ApplicationManager.getApplication().executeOnPooledThread {
-                GitHubAuthService.getInstance().clearCredentials()
+                (GitHubAuthService.getInstance() as AuthService).clearCredentials()
                 ApplicationManager.getApplication().invokeLater({
                     authStatusMessage = AuthStatusMessage("Logged out", false, AuthStatusKind.DISCONNECTED)
                     QuotaUsageService.getInstance().clearUsageData(QuotaProviderType.GITHUB, "Not logged in")
@@ -146,7 +147,7 @@ internal class GitHubSettingsPanel(
     override fun updateStatus() {
         val store = GitHubCredentialsStore.getInstance()
         val credentials = store.load(onLoaded = ::refreshAfterCredentialsLoad)
-        val inProgress = GitHubAuthService.getInstance().isLoginInProgress()
+        val inProgress = (GitHubAuthService.getInstance() as AuthService).isLoginInProgress()
         val quota = QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.GITHUB) as? GitHubQuota
         val error = QuotaUsageService.getInstance().getLastError(QuotaProviderType.GITHUB)
         val fallbackMessage = when {

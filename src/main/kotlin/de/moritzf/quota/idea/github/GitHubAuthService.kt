@@ -7,6 +7,8 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import de.moritzf.quota.github.GitHubDeviceTokenPollResult
 import de.moritzf.quota.github.GitHubOAuthClient
+import de.moritzf.quota.idea.auth.AuthService
+import de.moritzf.quota.idea.auth.LoginResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -15,9 +17,7 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * GitHub device-flow login. Unlike browser-redirect OAuth, the user must enter
- * the user code at the verification URL, so [startLoginFlow] reports the code via
- * [onVerificationUrl] before the polling loop begins.
+ * GitHub device-flow login.
  */
 @Service(Service.Level.APP)
 class GitHubAuthService(
@@ -25,12 +25,12 @@ class GitHubAuthService(
     private val oauthClient: GitHubOAuthClient = GitHubOAuthClient(),
     private val credentialsStore: GitHubCredentialsStore = GitHubCredentialsStore.getInstance(),
     private val browserOpener: (String) -> Unit = BrowserUtil::browse,
-) : Disposable {
+) : Disposable, AuthService {
     private val loginInProgress = AtomicBoolean(false)
 
-    fun startLoginFlow(callback: (GitHubLoginResult) -> Unit, onVerificationUrl: ((String, String) -> Unit)? = null) {
+    override fun startLoginFlow(callback: (LoginResult) -> Unit, onVerificationUrl: ((String, String) -> Unit)?) {
         if (!loginInProgress.compareAndSet(false, true)) {
-            callback(GitHubLoginResult.error("Login already in progress"))
+            callback(LoginResult.error("Login already in progress"))
             return
         }
         scope.launch {
@@ -38,7 +38,7 @@ class GitHubAuthService(
                 runLoginFlow(onVerificationUrl)
             } catch (exception: Exception) {
                 LOG.warn("GitHub login failed", exception)
-                GitHubLoginResult.error(exception.message ?: "Login failed")
+                LoginResult.error(exception.message ?: "Login failed")
             } finally {
                 loginInProgress.set(false)
             }
@@ -46,11 +46,11 @@ class GitHubAuthService(
         }
     }
 
-    fun isLoginInProgress(): Boolean = loginInProgress.get()
+    override fun isLoginInProgress(): Boolean = loginInProgress.get()
 
-    fun isLoggedIn(): Boolean = credentialsStore.load()?.isUsable() == true
+    override fun isLoggedIn(): Boolean = credentialsStore.load()?.isUsable() == true
 
-    fun abortLogin(reason: String? = null): Boolean {
+    override fun abortLogin(reason: String?): Boolean {
         val aborted = loginInProgress.getAndSet(false)
         if (aborted) {
             LOG.info(reason ?: "GitHub login canceled")
@@ -58,15 +58,15 @@ class GitHubAuthService(
         return aborted
     }
 
-    fun clearCredentials() {
+    override fun clearCredentials() {
         abortLogin("GitHub logged out")
         credentialsStore.clear()
     }
 
-    private fun runLoginFlow(onVerificationUrl: ((String, String) -> Unit)?): GitHubLoginResult {
+    private fun runLoginFlow(onVerificationUrl: ((String, String) -> Unit)?): LoginResult {
         val authorization = oauthClient.requestDeviceAuthorization()
         if (authorization.deviceCode.isBlank() || authorization.userCode.isBlank()) {
-            return GitHubLoginResult.error("GitHub did not return a usable device code")
+            return LoginResult.error("GitHub did not return a usable device code")
         }
         onVerificationUrl?.invoke(authorization.verificationUri, authorization.userCode)
         browserOpener(authorization.verificationUri)
@@ -80,7 +80,7 @@ class GitHubAuthService(
             when (val result = oauthClient.pollDeviceToken(authorization.deviceCode)) {
                 is GitHubDeviceTokenPollResult.Authorized -> {
                     credentialsStore.save(result.credentials)
-                    return GitHubLoginResult.success()
+                    return LoginResult.success()
                 }
                 is GitHubDeviceTokenPollResult.Pending -> {
                     intervalSeconds = when {
@@ -91,19 +91,13 @@ class GitHubAuthService(
                 }
             }
         }
-        return if (loginInProgress.get()) GitHubLoginResult.error("Authentication timed out") else GitHubLoginResult.error("Login canceled")
+        return if (loginInProgress.get()) LoginResult.error("Authentication timed out") else LoginResult.error("Login canceled")
     }
 
     override fun dispose() {
         scope.cancel()
     }
 
-    class GitHubLoginResult private constructor(val success: Boolean, val message: String?) {
-        companion object {
-            fun success(): GitHubLoginResult = GitHubLoginResult(true, null)
-            fun error(message: String): GitHubLoginResult = GitHubLoginResult(false, message)
-        }
-    }
 
     companion object {
         private val LOG = Logger.getInstance(GitHubAuthService::class.java)

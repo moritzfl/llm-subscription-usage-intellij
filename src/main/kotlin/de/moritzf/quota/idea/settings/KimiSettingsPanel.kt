@@ -11,6 +11,7 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.kimi.KimiQuota
+import de.moritzf.quota.idea.auth.AuthService
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.kimi.KimiAuthService
 import de.moritzf.quota.idea.kimi.KimiCredentialsStore
@@ -52,7 +53,7 @@ internal class KimiSettingsPanel(
         }
 
         loginButton.addActionListener {
-            val authService = KimiAuthService.getInstance()
+            val authService: AuthService = KimiAuthService.getInstance()
             if (authService.isLoggedIn()) {
                 updateStatus()
                 return@addActionListener
@@ -87,7 +88,7 @@ internal class KimiSettingsPanel(
         }
 
         cancelLoginButton.addActionListener {
-            val aborted = KimiAuthService.getInstance().abortLogin("Login canceled")
+            val aborted = (KimiAuthService.getInstance() as AuthService).abortLogin("Login canceled")
             authStatusMessage = AuthStatusMessage(
                 if (aborted) "Login canceled" else "No login in progress",
                 false,
@@ -99,7 +100,7 @@ internal class KimiSettingsPanel(
         logoutButton.addActionListener {
             setPending("Clearing credentials...")
             ApplicationManager.getApplication().executeOnPooledThread {
-                KimiAuthService.getInstance().clearCredentials()
+                (KimiAuthService.getInstance() as AuthService).clearCredentials()
                 ApplicationManager.getApplication().invokeLater({
                     authStatusMessage = AuthStatusMessage("Logged out", false, AuthStatusKind.DISCONNECTED)
                     QuotaUsageService.getInstance().clearUsageData(QuotaProviderType.KIMI, "Not logged in")
@@ -133,7 +134,7 @@ internal class KimiSettingsPanel(
     override fun updateStatus() {
         val store = KimiCredentialsStore.getInstance()
         val credentials = store.load(onLoaded = ::refreshAfterCredentialsLoad)
-        val inProgress = KimiAuthService.getInstance().isLoginInProgress()
+        val inProgress = (KimiAuthService.getInstance() as AuthService).isLoginInProgress()
         val quota = QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.KIMI) as? KimiQuota
         val error = QuotaUsageService.getInstance().getLastError(QuotaProviderType.KIMI)
         val fallbackMessage = when {

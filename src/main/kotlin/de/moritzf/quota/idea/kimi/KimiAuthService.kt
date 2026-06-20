@@ -7,6 +7,8 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import de.moritzf.quota.kimi.KimiDeviceTokenPollResult
 import de.moritzf.quota.kimi.KimiOAuthClient
+import de.moritzf.quota.idea.auth.AuthService
+import de.moritzf.quota.idea.auth.LoginResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,12 +22,12 @@ class KimiAuthService(
     private val oauthClient: KimiOAuthClient = KimiOAuthClient(),
     private val credentialsStore: KimiCredentialsStore = KimiCredentialsStore.getInstance(),
     private val browserOpener: (String) -> Unit = BrowserUtil::browse,
-) : Disposable {
+) : Disposable, AuthService {
     private val loginInProgress = AtomicBoolean(false)
 
-    fun startLoginFlow(callback: (KimiLoginResult) -> Unit, onVerificationUrl: ((String, String) -> Unit)? = null) {
+    override fun startLoginFlow(callback: (LoginResult) -> Unit, onVerificationUrl: ((String, String) -> Unit)?) {
         if (!loginInProgress.compareAndSet(false, true)) {
-            callback(KimiLoginResult.error("Login already in progress"))
+            callback(LoginResult.error("Login already in progress"))
             return
         }
         scope.launch {
@@ -33,7 +35,7 @@ class KimiAuthService(
                 runLoginFlow(onVerificationUrl)
             } catch (exception: Exception) {
                 LOG.warn("Kimi login failed", exception)
-                KimiLoginResult.error(exception.message ?: "Login failed")
+                LoginResult.error(exception.message ?: "Login failed")
             } finally {
                 loginInProgress.set(false)
             }
@@ -41,11 +43,11 @@ class KimiAuthService(
         }
     }
 
-    fun isLoginInProgress(): Boolean = loginInProgress.get()
+    override fun isLoginInProgress(): Boolean = loginInProgress.get()
 
-    fun isLoggedIn(): Boolean = credentialsStore.load()?.isUsable() == true
+    override fun isLoggedIn(): Boolean = credentialsStore.load()?.isUsable() == true
 
-    fun abortLogin(reason: String? = null): Boolean {
+    override fun abortLogin(reason: String?): Boolean {
         val aborted = loginInProgress.getAndSet(false)
         if (aborted) {
             LOG.info(reason ?: "Kimi login canceled")
@@ -53,15 +55,15 @@ class KimiAuthService(
         return aborted
     }
 
-    fun clearCredentials() {
+    override fun clearCredentials() {
         abortLogin("Kimi logged out")
         credentialsStore.clear()
     }
 
-    private fun runLoginFlow(onVerificationUrl: ((String, String) -> Unit)?): KimiLoginResult {
+    private fun runLoginFlow(onVerificationUrl: ((String, String) -> Unit)?): LoginResult {
         val authorization = oauthClient.requestDeviceAuthorization()
         if (authorization.deviceCode.isBlank() || authorization.verificationUriComplete.isBlank()) {
-            return KimiLoginResult.error("Kimi did not return a usable verification URL")
+            return LoginResult.error("Kimi did not return a usable verification URL")
         }
         onVerificationUrl?.invoke(authorization.verificationUriComplete, authorization.userCode)
         browserOpener(authorization.verificationUriComplete)
@@ -73,7 +75,7 @@ class KimiAuthService(
             when (val result = oauthClient.pollDeviceToken(authorization.deviceCode)) {
                 is KimiDeviceTokenPollResult.Authorized -> {
                     credentialsStore.save(result.credentials)
-                    return KimiLoginResult.success()
+                    return LoginResult.success()
                 }
                 is KimiDeviceTokenPollResult.Pending -> {
                     if (result.nextIntervalSeconds > 0) {
@@ -83,19 +85,13 @@ class KimiAuthService(
             }
             Thread.sleep(intervalSeconds * 1000L)
         }
-        return if (loginInProgress.get()) KimiLoginResult.error("Authentication timed out") else KimiLoginResult.error("Login canceled")
+        return if (loginInProgress.get()) LoginResult.error("Authentication timed out") else LoginResult.error("Login canceled")
     }
 
     override fun dispose() {
         scope.cancel()
     }
 
-    class KimiLoginResult private constructor(val success: Boolean, val message: String?) {
-        companion object {
-            fun success(): KimiLoginResult = KimiLoginResult(true, null)
-            fun error(message: String): KimiLoginResult = KimiLoginResult(false, message)
-        }
-    }
 
     companion object {
         private val LOG = Logger.getInstance(KimiAuthService::class.java)

@@ -13,3 +13,21 @@ interface OAuthTokenOperations {
 
     suspend fun refreshCredentials(existing: OAuthCredentials): OAuthCredentials
 }
+
+class LoginResult private constructor(@JvmField val success: Boolean, @JvmField val message: String?) {
+    companion object {
+        @JvmStatic
+        fun success(): LoginResult = LoginResult(true, null)
+
+        @JvmStatic
+        fun error(message: String): LoginResult = LoginResult(false, message)
+    }
+}
+
+interface AuthService {
+    fun startLoginFlow(callback: (LoginResult) -> Unit, onVerificationUrl: ((String, String) -> Unit)? = null)
+    fun isLoggedIn(): Boolean
+    fun isLoginInProgress(): Boolean
+    fun abortLogin(reason: String? = null): Boolean
+    fun clearCredentials()
+}
