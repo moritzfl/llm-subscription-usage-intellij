@@ -28,7 +28,8 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 
 fun main(args: Array<String>) {
-    val credentials = if ("--login" in args) {
+    val options = parseStandaloneOptions(args)
+    val credentials = if (options.login) {
         loginCredentials().also(::saveCredentialsToDotEnv)
     } else {
         loadCredentials()
@@ -49,6 +50,8 @@ fun main(args: Array<String>) {
         debugLogger = debugLogger(),
         fullRequestLogging = env("OPENAI_PROXY_LOG_REQUESTS").toBooleanFlag(),
         requestLogDir = env("OPENAI_PROXY_REQUEST_LOG_DIR") ?: DEFAULT_REQUEST_LOG_DIR,
+        allowAnyCors = options.allowAnyCors || env("OPENAI_PROXY_ALLOW_ANY_CORS").toBooleanFlag(),
+        allowedCorsOrigins = options.corsOrigins + parseCommaSeparatedList(env("OPENAI_PROXY_CORS_ORIGINS")),
         consoleAccessLog = true,
     )
     Runtime.getRuntime().addShutdownHook(Thread { proxy.stop() })
@@ -56,6 +59,44 @@ fun main(args: Array<String>) {
     println("OpenAI standalone proxy listening at http://127.0.0.1:$port")
     println("Use OPENAI_PROXY_API_KEY as the local bearer token.")
     CountDownLatch(1).await()
+}
+
+internal data class StandaloneProxyOptions(
+    val login: Boolean = false,
+    val allowAnyCors: Boolean = false,
+    val corsOrigins: List<String> = emptyList(),
+)
+
+internal fun parseStandaloneOptions(args: Array<String>): StandaloneProxyOptions {
+    var login = false
+    var allowAnyCors = false
+    val corsOrigins = mutableListOf<String>()
+    var index = 0
+    while (index < args.size) {
+        val arg = args[index]
+        when {
+            arg == "--login" -> login = true
+            arg == "--allow-any-cors" -> allowAnyCors = true
+            arg == "--cors-origin" || arg == "--cors-url" -> {
+                index += 1
+                require(index < args.size) { "$arg requires a value" }
+                corsOrigins += parseCommaSeparatedList(args[index])
+            }
+            arg.startsWith("--cors-origin=") -> corsOrigins += parseCommaSeparatedList(arg.substringAfter('='))
+            arg.startsWith("--cors-url=") -> corsOrigins += parseCommaSeparatedList(arg.substringAfter('='))
+            else -> error("Unknown argument: $arg")
+        }
+        index += 1
+    }
+    return StandaloneProxyOptions(login, allowAnyCors, corsOrigins)
+}
+
+private fun parseCommaSeparatedList(value: String?): List<String> {
+    return value
+        ?.split(',')
+        ?.map { it.trim() }
+        ?.filter { it.isNotEmpty() }
+        .orEmpty()
 }
 
 @Volatile

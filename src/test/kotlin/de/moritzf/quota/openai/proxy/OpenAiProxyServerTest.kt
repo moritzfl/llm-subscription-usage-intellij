@@ -2,6 +2,7 @@ package de.moritzf.quota.openai.proxy
 
 import com.sun.net.httpserver.HttpServer
 import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.proxy.server.ProxyServer
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -1421,14 +1422,14 @@ class OpenAiProxyServerTest {
     }
 
     @Test
-    fun handlesCorsPreflightWithoutAuthenticationOrUpstreamRequest() {
+    fun handlesLocalCorsPreflightWithoutAuthenticationOrUpstreamRequest() {
         TestUpstream().use { upstream ->
             val proxy = newProxy(upstream.baseUri)
             try {
                 proxy.start()
                 val response = httpClient.send(
                     HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
-                        .header("Origin", "https://client.example")
+                        .header("Origin", "http://localhost:5173")
                         .header("Access-Control-Request-Method", "POST")
                         .header("Access-Control-Request-Headers", "authorization,x-smoke")
                         .method("OPTIONS", HttpRequest.BodyPublishers.noBody())
@@ -1437,7 +1438,10 @@ class OpenAiProxyServerTest {
                 )
 
                 assertEquals(204, response.statusCode())
-                assertEquals("*", response.headers().firstValue("Access-Control-Allow-Origin").orElse(null))
+                assertEquals(
+                    "http://localhost:5173",
+                    response.headers().firstValue("Access-Control-Allow-Origin").orElse(null),
+                )
                 assertEquals(
                     "GET,POST,OPTIONS",
                     response.headers().firstValue("Access-Control-Allow-Methods").orElse(null),
@@ -1451,6 +1455,72 @@ class OpenAiProxyServerTest {
                 proxy.stop()
             }
         }
+    }
+
+    @Test
+    fun doesNotAllowNonLocalCorsPreflightByDefault() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Origin", "https://client.example")
+                        .header("Access-Control-Request-Method", "POST")
+                        .method("OPTIONS", HttpRequest.BodyPublishers.noBody())
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(204, response.statusCode())
+                assertEquals(null, response.headers().firstValue("Access-Control-Allow-Origin").orElse(null))
+                assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun handlesConfiguredNonLocalCorsPreflightWithoutAuthenticationOrUpstreamRequest() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri, allowedCorsOrigins = listOf("https://client.example"))
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Origin", "https://client.example")
+                        .header("Access-Control-Request-Method", "POST")
+                        .method("OPTIONS", HttpRequest.BodyPublishers.noBody())
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(204, response.statusCode())
+                assertEquals(
+                    "https://client.example",
+                    response.headers().firstValue("Access-Control-Allow-Origin").orElse(null),
+                )
+                assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun corsPolicyAllowsLoopbackAliasesAndConfiguredOrigins() {
+        assertTrue(ProxyServer.isAllowedCorsOrigin("http://localhost:5173", emptyList()))
+        assertTrue(ProxyServer.isAllowedCorsOrigin("http://app.localhost:5173", emptyList()))
+        assertTrue(ProxyServer.isAllowedCorsOrigin("http://127.24.0.1:3000", emptyList()))
+        assertTrue(ProxyServer.isAllowedCorsOrigin("http://[::1]:3000", emptyList()))
+        assertFalse(ProxyServer.isAllowedCorsOrigin("https://client.example", emptyList()))
+        assertTrue(
+            ProxyServer.isAllowedCorsOrigin(
+                "https://client.example",
+                listOf("https://client.example/"),
+            ),
+        )
     }
 
     @Test
@@ -2131,6 +2201,7 @@ class OpenAiProxyServerTest {
     private fun newProxy(
         upstreamBaseUri: URI,
         accessToken: String? = "codex-token",
+        allowedCorsOrigins: List<String> = emptyList(),
     ): TestProxy {
         val port = freePort()
         return TestProxy(
@@ -2142,6 +2213,7 @@ class OpenAiProxyServerTest {
                 accountIdProvider = { "account-1" },
                 upstreamBaseUri = upstreamBaseUri,
                 codexVersionProvider = { TEST_CODEX_VERSION },
+                allowedCorsOrigins = allowedCorsOrigins,
             ),
         )
     }

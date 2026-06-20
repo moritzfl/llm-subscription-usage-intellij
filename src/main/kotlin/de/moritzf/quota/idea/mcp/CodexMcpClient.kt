@@ -532,7 +532,7 @@ class CodexMcpClient(
                 false,
                 emptyMap(),
                 null,
-                true,
+                false,
                 emptyList(),
                 false,
                 null,

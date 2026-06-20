@@ -49,9 +49,9 @@ class AIProxyOauth : Callable<Int> {
     @Option(names = ["--allow-any-cors"], description = ["Allow browser requests from any Origin. Default: false"])
     private var allowAnyCors = false
     @Option(
-        names = ["--cors-origin"],
+        names = ["--cors-origin", "--cors-url"],
         split = ",",
-        description = ["Browser Origin allowed by CORS. Can be repeated or comma-separated."],
+        description = ["Additional browser Origin allowed by CORS. Localhost origins are allowed by default. Can be repeated or comma-separated."],
     )
     private var corsOrigins: List<String>? = null
     @Option(
@@ -333,9 +333,9 @@ class AIProxyOauth : Callable<Int> {
                 return "any origin"
             }
             if (config.allowedCorsOrigins.isNotEmpty()) {
-                return config.allowedCorsOrigins.joinToString(", ")
+                return "localhost origins, plus ${config.allowedCorsOrigins.joinToString(", ")}"
             }
-            return "disabled"
+            return "localhost origins"
         }
         internal fun findExistingAuthFile(authFilePath: String?): String? {
             for (candidate in AuthFileResolver.resolveCandidates(authFilePath)) {

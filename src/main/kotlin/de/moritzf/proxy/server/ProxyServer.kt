@@ -22,9 +22,11 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.options
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
+import java.net.URI
 import java.nio.file.Path
 import java.time.Duration
 import java.time.Instant
+import java.util.Locale
 import org.slf4j.LoggerFactory
 
 class ProxyServer(
@@ -150,13 +152,10 @@ class ProxyServer(
     }
 
     private fun applyCorsHeaders(ctx: ProxyCall) {
-        if (!config.allowAnyCors && config.allowedCorsOrigins.isEmpty()) {
-            return
-        }
         val origin = ctx.header(HttpHeaders.Origin)
         val allowedOrigin = if (config.allowAnyCors) {
             "*"
-        } else if (origin != null && config.allowedCorsOrigins.contains(origin)) {
+        } else if (origin != null && isAllowedCorsOrigin(origin, config.allowedCorsOrigins)) {
             origin
         } else {
             null
@@ -218,6 +217,46 @@ class ProxyServer(
                 ctx.header(HttpHeaders.Origin) != null &&
                 ctx.header(HttpHeaders.AccessControlRequestMethod) != null
         }
+
+        internal fun isAllowedCorsOrigin(origin: String, additionalAllowedOrigins: List<String>): Boolean {
+            val parsed = parseCorsOrigin(origin) ?: return false
+            if (isLoopbackCorsHost(parsed.host)) {
+                return true
+            }
+            return additionalAllowedOrigins.any { allowed -> parseCorsOrigin(allowed) == parsed }
+        }
+
+        private fun parseCorsOrigin(origin: String): CorsOrigin? {
+            val uri = runCatching { URI(origin.trim()) }.getOrNull() ?: return null
+            val scheme = uri.scheme?.lowercase(Locale.ROOT) ?: return null
+            if (scheme != "http" && scheme != "https") return null
+            if (!uri.rawPath.isNullOrBlank() && uri.rawPath != "/") return null
+            if (uri.rawQuery != null || uri.rawFragment != null) return null
+            val host = uri.host?.removeSurrounding("[", "]")?.lowercase(Locale.ROOT)?.trimEnd('.') ?: return null
+            return CorsOrigin(scheme, host, uri.port.takeIf { it >= 0 })
+        }
+
+        private fun isLoopbackCorsHost(host: String): Boolean {
+            return host == "localhost" ||
+                host.endsWith(".localhost") ||
+                isIpv4Loopback(host) ||
+                host == "::1" ||
+                host == "0:0:0:0:0:0:0:1"
+        }
+
+        private fun isIpv4Loopback(host: String): Boolean {
+            val parts = host.split('.')
+            if (parts.size != 4 || parts[0] != "127") return false
+            return parts.drop(1).all { part ->
+                part.isNotEmpty() && part.length <= 3 && part.all(Char::isDigit) && part.toIntOrNull() in 0..255
+            }
+        }
+
+        private data class CorsOrigin(
+            val scheme: String,
+            val host: String,
+            val port: Int?,
+        )
 
         private fun logAccessLine(ctx: ProxyCall) {
             val startNanos = ctx.getAttribute(AccessLogFields.START_NANOS)

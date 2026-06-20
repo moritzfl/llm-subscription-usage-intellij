@@ -7,6 +7,26 @@ import kotlin.test.assertTrue
 
 class StandaloneOpenAiProxyTest {
     @Test
+    fun standaloneOptionsParseCorsFlags() {
+        val options = parseStandaloneOptions(
+            arrayOf(
+                "--login",
+                "--cors-origin",
+                "https://client.example,http://localhost:5173",
+                "--cors-url=https://other.example",
+                "--allow-any-cors",
+            ),
+        )
+
+        assertEquals(true, options.login)
+        assertEquals(true, options.allowAnyCors)
+        assertEquals(
+            listOf("https://client.example", "http://localhost:5173", "https://other.example"),
+            options.corsOrigins,
+        )
+    }
+
+    @Test
     fun tokenResponseCapturesRefreshTokenExpiryAndAccount() {
         val before = System.currentTimeMillis()
         val credentials = credentialsFromTokenResponse(
