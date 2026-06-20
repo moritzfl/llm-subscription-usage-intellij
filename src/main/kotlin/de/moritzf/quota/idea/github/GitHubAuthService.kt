@@ -9,6 +9,7 @@ import de.moritzf.quota.github.GitHubDeviceTokenPollResult
 import de.moritzf.quota.github.GitHubOAuthClient
 import de.moritzf.quota.idea.auth.AuthService
 import de.moritzf.quota.idea.auth.LoginResult
+import de.moritzf.quota.idea.settings.QuotaSettingsState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -22,7 +23,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 @Service(Service.Level.APP)
 class GitHubAuthService(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-    private val oauthClient: GitHubOAuthClient = GitHubOAuthClient(),
+    private val oauthClientProvider: () -> GitHubOAuthClient = {
+        GitHubOAuthClient.forHost(QuotaSettingsState.getInstance().githubEnterpriseHost)
+    },
     private val credentialsStore: GitHubCredentialsStore = GitHubCredentialsStore.getInstance(),
     private val browserOpener: (String) -> Unit = BrowserUtil::browse,
 ) : Disposable, AuthService {
@@ -64,6 +67,7 @@ class GitHubAuthService(
     }
 
     private fun runLoginFlow(onVerificationUrl: ((String, String) -> Unit)?): LoginResult {
+        val oauthClient = oauthClientProvider()
         val authorization = oauthClient.requestDeviceAuthorization()
         if (authorization.deviceCode.isBlank() || authorization.userCode.isBlank()) {
             return LoginResult.error("GitHub did not return a usable device code")

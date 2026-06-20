@@ -40,6 +40,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var openAiProxyEnabled: Boolean = false
     var openAiProxyPort: Int = OpenAiProxyService.DEFAULT_PORT
     var openAiProxyLogRequests: Boolean = false
+    var githubEnterpriseHost: String = ""
 
     // Legacy per-provider fields kept only so settings written by older
     // versions still deserialize; loadState migrates them into the maps.
@@ -115,6 +116,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         openAiProxyEnabled = state.openAiProxyEnabled
         openAiProxyPort = OpenAiProxyService.sanitizePort(state.openAiProxyPort.takeIf { it > 0 } ?: OpenAiProxyService.DEFAULT_PORT)
         openAiProxyLogRequests = state.openAiProxyLogRequests
+        githubEnterpriseHost = state.githubEnterpriseHost.trim()
     }
 
     @Suppress("DEPRECATION")

@@ -4,6 +4,7 @@ import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.github.GitHubQuotaClient
 import de.moritzf.quota.github.GitHubQuotaException
 import de.moritzf.quota.idea.github.GitHubCredentialsStore
+import de.moritzf.quota.idea.settings.QuotaSettingsState
 
 class GitHubQuotaProvider(
     private val client: GitHubQuotaClient = GitHubQuotaClient(),
@@ -18,7 +19,11 @@ class GitHubQuotaProvider(
             return
         }
         try {
-            val quota = client.fetchQuota(credentials)
+            val settings = QuotaSettingsState.getInstance()
+            val quota = client.fetchQuota(
+                credentials = credentials,
+                enterpriseHost = settings.githubEnterpriseHost,
+            )
             storeQuota(quota, quota.rawJson)
         } catch (exception: GitHubQuotaException) {
             storeError(exception.message ?: "Request failed", exception.rawBody)

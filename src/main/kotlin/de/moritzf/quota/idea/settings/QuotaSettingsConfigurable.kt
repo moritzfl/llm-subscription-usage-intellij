@@ -301,6 +301,8 @@ class QuotaSettingsConfigurable : Configurable {
                 val openAiProxyPortChanged = openAiPanel.isProxyPortModified()
                 val openAiProxyApiKeyChanged = openAiPanel.isProxyApiKeyModified()
                 val openAiProxyLogRequestsChanged = openAiPanel.openAiProxyLogRequestsCheckBox.isSelected != state.openAiProxyLogRequests
+                val gitHubPanel = gitHubPanel()
+                val gitHubEnterpriseHostChanged = gitHubPanel.normalizedEnterpriseHostForStorage() != state.githubEnterpriseHost
                 if (locationChanged) {
                     state.setLocation(selectedLocation)
                 }
@@ -322,16 +324,18 @@ class QuotaSettingsConfigurable : Configurable {
                 state.openAiProxyEnabled = openAiPanel.openAiProxyEnabledCheckBox.isSelected
                 state.openAiProxyPort = OpenAiProxyService.sanitizePort(openAiPanel.proxyPort())
                 state.openAiProxyLogRequests = openAiPanel.openAiProxyLogRequestsCheckBox.isSelected
+                state.githubEnterpriseHost = gitHubPanel.normalizedEnterpriseHostForStorage()
                 if (openAiProxyApiKeyChanged) {
                     openAiPanel.saveProxyApiKeyBlocking()
                 }
-                if (locationChanged || displayModeChanged || sourceChanged || popupVisibilityChanged || miniMaxRegionChanged || providerOrderChanged || mcpSyncChanged || mcpTargetsChanged || openAiProxyEnabledChanged || openAiProxyPortChanged || openAiProxyApiKeyChanged || openAiProxyLogRequestsChanged) {
+                if (locationChanged || displayModeChanged || sourceChanged || popupVisibilityChanged || miniMaxRegionChanged || providerOrderChanged || mcpSyncChanged || mcpTargetsChanged || openAiProxyEnabledChanged || openAiProxyPortChanged || openAiProxyApiKeyChanged || openAiProxyLogRequestsChanged || gitHubEnterpriseHostChanged) {
                     ApplicationManager.getApplication().messageBus
                         .syncPublisher(QuotaSettingsListener.TOPIC)
                         .onSettingsChanged()
                     McpServerUrlSyncService.getInstance().reloadFromSettings()
                     OpenAiProxyService.getInstance().reloadFromSettings()
                     openAiPanel.refreshAfterApply()
+                    gitHubPanel.updateFields()
                     if (state.syncIntellijMcpServerUrl) {
                         McpServerUrlSyncService.getInstance().syncNowAsync()
                     }
@@ -347,6 +351,7 @@ class QuotaSettingsConfigurable : Configurable {
                 hideFromPopupCheckBoxes().forEach { (type, checkBox) ->
                     checkBox.isSelected = QuotaSettingsState.getInstance().isHiddenFromPopup(type)
                 }
+                gitHubPanel().enterpriseHostField.text = QuotaSettingsState.getInstance().githubEnterpriseHost
                 miniMaxPanel().regionComboBox.selectedItem = QuotaSettingsState.getInstance().miniMaxRegionPreference()
                 providerReorderPanel?.setOrder(QuotaSettingsState.getInstance().providerOrderList())
                 mcpSyncCheckBox?.isSelected = QuotaSettingsState.getInstance().syncIntellijMcpServerUrl
@@ -373,7 +378,8 @@ class QuotaSettingsConfigurable : Configurable {
                     openAiPanel().openAiProxyEnabledCheckBox.isSelected != state.openAiProxyEnabled ||
                     openAiPanel().isProxyPortModified() ||
                     openAiPanel().isProxyApiKeyModified() ||
-                    openAiPanel().openAiProxyLogRequestsCheckBox.isSelected != state.openAiProxyLogRequests
+                    openAiPanel().openAiProxyLogRequestsCheckBox.isSelected != state.openAiProxyLogRequests ||
+                    gitHubPanel().normalizedEnterpriseHostForStorage() != state.githubEnterpriseHost
             }
         }.apply {
             preferredFocusedComponent = locationComboBox
@@ -383,6 +389,8 @@ class QuotaSettingsConfigurable : Configurable {
     private fun openAiPanel(): OpenAiSettingsPanel = providerPanelsByType.getValue(QuotaProviderType.OPEN_AI) as OpenAiSettingsPanel
 
     private fun miniMaxPanel(): MiniMaxSettingsPanel = providerPanelsByType.getValue(QuotaProviderType.MINIMAX) as MiniMaxSettingsPanel
+
+    private fun gitHubPanel(): GitHubSettingsPanel = providerPanelsByType.getValue(QuotaProviderType.GITHUB) as GitHubSettingsPanel
 
     private fun hideFromPopupCheckBoxes(): Map<QuotaProviderType, JBCheckBox> {
         return providerPanelsByType.mapValues { (_, panel) -> panel.hideFromPopupCheckBox }

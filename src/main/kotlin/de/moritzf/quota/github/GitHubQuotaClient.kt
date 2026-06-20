@@ -14,13 +14,17 @@ import java.time.Duration
 
 open class GitHubQuotaClient(
     private val httpClient: HttpClient = HttpClient.newHttpClient(),
-    private val usageEndpoint: URI = USAGE_ENDPOINT,
+    private val usageEndpointOverride: URI? = null,
 ) {
-    open fun fetchQuota(credentials: GitHubCredentials): GitHubQuota {
+    open fun fetchQuota(
+        credentials: GitHubCredentials,
+        enterpriseHost: String? = null,
+    ): GitHubQuota {
         val accessToken = credentials.accessToken.ifBlank {
             throw GitHubQuotaException("GitHub login required. Log in from settings.")
         }
 
+        val usageEndpoint = usageEndpointOverride ?: usageEndpoint(enterpriseHost)
         val request = HttpRequest.newBuilder()
             .uri(usageEndpoint)
             .timeout(Duration.ofSeconds(30))
@@ -60,10 +64,40 @@ open class GitHubQuotaClient(
     }
 
     companion object {
-        private val USAGE_ENDPOINT = URI.create("https://api.github.com/copilot_internal/user")
+        private const val DEFAULT_HOST = "github.com"
+        private const val DEFAULT_API_HOST = "api.github.com"
 
         /** Copilot quota windows reset monthly; the API only reports the reset date. */
         private const val MONTH_DURATION_MS = 30L * 24 * 60 * 60 * 1000
+
+        fun usageEndpoint(enterpriseHost: String?): URI {
+            return URI.create("https://${apiHost(enterpriseHost)}/copilot_internal/user")
+        }
+
+        fun apiHost(enterpriseHost: String?): String {
+            val host = normalizedEnterpriseHost(enterpriseHost)
+            if (host == DEFAULT_HOST) return DEFAULT_API_HOST
+            if (host.startsWith("api.")) return host
+            return "api.$host"
+        }
+
+        fun normalizedEnterpriseHost(raw: String?): String {
+            var host = raw?.trim().orEmpty()
+            if (host.isBlank()) return DEFAULT_HOST
+            val componentsValue = if (host.contains("://")) host else "https://$host"
+            val parsed = runCatching { URI.create(componentsValue) }.getOrNull()
+            val parsedHost = parsed?.host
+            if (!parsedHost.isNullOrBlank()) {
+                host = parsedHost
+                if (parsed.port >= 0) {
+                    host += ":${parsed.port}"
+                }
+            } else {
+                host = host.removePrefix("https://").removePrefix("http://")
+                    .substringBefore('/')
+            }
+            return host.trim('.').lowercase().ifBlank { DEFAULT_HOST }
+        }
 
         fun parseQuota(body: String): GitHubQuota {
             val dto = try {
@@ -89,6 +123,7 @@ open class GitHubQuotaClient(
                 completions = completions,
             )
         }
+
 
         private fun GitHubQuotaSnapshotDto.toWindow(label: String, resetsAt: Instant?): GitHubUsageWindow? {
             if (unlimited == true) {

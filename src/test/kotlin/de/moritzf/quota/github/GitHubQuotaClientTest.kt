@@ -87,6 +87,22 @@ class GitHubQuotaClientTest {
     }
 
     @Test
+    fun usageEndpointUsesEnterpriseApiHost() {
+        assertEquals(
+            "https://api.github.com/copilot_internal/user",
+            GitHubQuotaClient.usageEndpoint(null).toString(),
+        )
+        assertEquals(
+            "https://api.github.example.com/copilot_internal/user",
+            GitHubQuotaClient.usageEndpoint("https://github.example.com/some/path").toString(),
+        )
+        assertEquals(
+            "https://api.github.example.com/copilot_internal/user",
+            GitHubQuotaClient.usageEndpoint("api.github.example.com").toString(),
+        )
+    }
+
+    @Test
     fun parseQuotaReportsInvalidPayload() {
         val body = "not json"
 

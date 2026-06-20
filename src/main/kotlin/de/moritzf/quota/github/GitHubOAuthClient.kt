@@ -21,6 +21,7 @@ class GitHubOAuthClient(
     private val httpClient: HttpClient = HttpClient.newHttpClient(),
     private val deviceCodeEndpoint: URI = DEVICE_CODE_ENDPOINT,
     private val accessTokenEndpoint: URI = ACCESS_TOKEN_ENDPOINT,
+    private val defaultVerificationUri: String = DEFAULT_VERIFICATION_URI,
 ) {
     fun requestDeviceAuthorization(): GitHubDeviceAuthorization {
         val response = postForm(
@@ -40,7 +41,7 @@ class GitHubOAuthClient(
         return GitHubDeviceAuthorization(
             userCode = dto.userCode.orEmpty(),
             deviceCode = dto.deviceCode.orEmpty(),
-            verificationUri = dto.verificationUri ?: DEFAULT_VERIFICATION_URI,
+            verificationUri = dto.verificationUri ?: defaultVerificationUri,
             expiresInSeconds = dto.expiresIn ?: 900,
             intervalSeconds = dto.interval ?: 5,
         )
@@ -98,8 +99,8 @@ class GitHubOAuthClient(
     }
 
     companion object {
-        private val DEVICE_CODE_ENDPOINT = URI.create("https://github.com/login/device/code")
-        private val ACCESS_TOKEN_ENDPOINT = URI.create("https://github.com/login/oauth/access_token")
+        private val DEVICE_CODE_ENDPOINT = deviceCodeEndpoint(null)
+        private val ACCESS_TOKEN_ENDPOINT = accessTokenEndpoint(null)
         private const val DEFAULT_VERIFICATION_URI = "https://github.com/login/device"
 
         /** Publicly documented client id for GitHub Copilot IDE integrations (device flow needs no secret). */
@@ -109,6 +110,23 @@ class GitHubOAuthClient(
         private const val SCOPE = "read:user"
 
         internal const val USER_AGENT = "openai-usage-quota-intellij"
+
+        fun forHost(enterpriseHost: String?): GitHubOAuthClient {
+            val host = GitHubQuotaClient.normalizedEnterpriseHost(enterpriseHost)
+            return GitHubOAuthClient(
+                deviceCodeEndpoint = deviceCodeEndpoint(host),
+                accessTokenEndpoint = accessTokenEndpoint(host),
+                defaultVerificationUri = "https://$host/login/device",
+            )
+        }
+
+        fun deviceCodeEndpoint(enterpriseHost: String?): URI {
+            return URI.create("https://${GitHubQuotaClient.normalizedEnterpriseHost(enterpriseHost)}/login/device/code")
+        }
+
+        fun accessTokenEndpoint(enterpriseHost: String?): URI {
+            return URI.create("https://${GitHubQuotaClient.normalizedEnterpriseHost(enterpriseHost)}/login/oauth/access_token")
+        }
     }
 }
 

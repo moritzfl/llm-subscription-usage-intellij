@@ -5,6 +5,8 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBTextField
+import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
@@ -16,6 +18,7 @@ import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.github.GitHubAuthService
 import de.moritzf.quota.idea.github.GitHubCredentialsStore
 import de.moritzf.quota.idea.ui.QuotaUiUtil
+import de.moritzf.quota.github.GitHubQuotaClient
 import java.awt.Color
 import java.awt.Dimension
 import java.awt.Font
@@ -31,6 +34,10 @@ internal class GitHubSettingsPanel(
     private val statusLabelDefaultForeground: Color? = null,
 ) : ProviderSettingsPanel() {
     override val hideFromPopupCheckBox = com.intellij.ui.components.JBCheckBox("Hide from quota popup")
+    val enterpriseHostField = JBTextField().apply {
+        emptyText.text = "github.com or github.example.com"
+        columns = 36
+    }
     private val statusLabel = JBLabel().apply { isVisible = false }
     private val loginButton = createActionLink("Log In")
     private val cancelLoginButton = createActionLink("Cancel Login")
@@ -120,6 +127,7 @@ internal class GitHubSettingsPanel(
 
         addToTop(panel {
             row { cell(hideFromPopupCheckBox) }
+            row("Enterprise host:") { cell(enterpriseHostField).resizableColumn().align(AlignX.FILL) }
             row {
                 cell(statusLabel).gap(RightGap.SMALL)
                 cell(copyUrlButton).gap(RightGap.SMALL)
@@ -141,6 +149,8 @@ internal class GitHubSettingsPanel(
 
     override fun updateFields() {
         GitHubCredentialsStore.getInstance().load(onLoaded = ::refreshAfterCredentialsLoad)
+        val settings = QuotaSettingsState.getInstance()
+        enterpriseHostField.text = settings.githubEnterpriseHost
         updateStatus()
     }
 
@@ -191,6 +201,11 @@ internal class GitHubSettingsPanel(
         updateResponseArea()
     }
 
+    fun normalizedEnterpriseHostForStorage(): String {
+        val normalized = GitHubQuotaClient.normalizedEnterpriseHost(enterpriseHostField.text)
+        return if (normalized == "github.com") "" else normalized
+    }
+
     private fun setPending(text: String) {
         authStatusMessage = AuthStatusMessage(text, false, AuthStatusKind.PENDING)
         statusLabel.text = formatStatusText(text, AuthStatusKind.PENDING)
@@ -233,4 +248,5 @@ internal class GitHubSettingsPanel(
         }
         return "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
     }
+
 }
