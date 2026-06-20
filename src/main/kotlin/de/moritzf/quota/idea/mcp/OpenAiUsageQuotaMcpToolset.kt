@@ -4,8 +4,8 @@ import com.intellij.mcpserver.McpToolset
 import com.intellij.mcpserver.annotations.McpDescription
 import com.intellij.mcpserver.annotations.McpTool
 import com.intellij.openapi.project.ProjectManager
-import de.moritzf.quota.cursor.CursorQuotaClient
 import de.moritzf.quota.idea.auth.QuotaAuthService
+import de.moritzf.quota.idea.common.QuotaProviderRegistry
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.kimi.KimiCredentialsStore
@@ -19,11 +19,8 @@ import de.moritzf.quota.minimax.MiniMaxQuotaException
 import de.moritzf.quota.minimax.MiniMaxRegion
 import de.moritzf.quota.minimax.MiniMaxRegionPreference
 import de.moritzf.quota.minimax.MiniMaxWebSearchClient
-import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.ollama.OllamaQuotaException
 import de.moritzf.quota.ollama.OllamaWebSearchClient
-import de.moritzf.quota.opencode.OpenCodeQuota
-import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.zai.ZaiQuotaException
 import de.moritzf.quota.zai.ZaiWebSearchClient
 import kotlinx.serialization.json.add
@@ -46,63 +43,55 @@ class OpenAiUsageQuotaMcpToolset(
     @McpTool(name = "openai_usage_quota")
     @McpDescription(description = "Returns the latest OpenAI usage quota response JSON.")
     fun openai_usage_quota(): String {
-        return quotaResult(QuotaProviderType.OPEN_AI, "No usage response available")
+        return quotaResult(QuotaProviderType.OPEN_AI)
     }
 
     @McpTool(name = "opencode_usage_quota")
     @McpDescription(description = "Returns the latest OpenCode Go usage quota response JSON.")
     fun opencode_usage_quota(): String {
-        return quotaResult(QuotaProviderType.OPEN_CODE, "No OpenCode usage response available") { service ->
-            val quota = service.getLastQuota(QuotaProviderType.OPEN_CODE) as? OpenCodeQuota ?: return@quotaResult null
-            runCatching { JsonSupport.json.encodeToString(OpenCodeQuota.serializer(), quota) }.getOrNull()
-        }
+        return quotaResult(QuotaProviderType.OPEN_CODE)
     }
 
     @McpTool(name = "ollama_usage_quota")
     @McpDescription(description = "Returns the latest Ollama Cloud usage quota response JSON.")
     fun ollama_usage_quota(): String {
-        return quotaResult(QuotaProviderType.OLLAMA, "No Ollama usage response available") { service ->
-            val quota = service.getLastQuota(QuotaProviderType.OLLAMA) as? OllamaQuota ?: return@quotaResult null
-            runCatching { JsonSupport.json.encodeToString(OllamaQuota.serializer(), quota) }.getOrNull()
-        }
+        return quotaResult(QuotaProviderType.OLLAMA)
     }
 
     @McpTool(name = "zai_usage_quota")
     @McpDescription(description = "Returns the latest Z.ai usage quota response JSON.")
     fun zai_usage_quota(): String {
-        return quotaResult(QuotaProviderType.ZAI, "No Z.ai usage response available")
+        return quotaResult(QuotaProviderType.ZAI)
     }
 
     @McpTool(name = "minimax_usage_quota")
     @McpDescription(description = "Returns the latest MiniMax usage quota response JSON.")
     fun minimax_usage_quota(): String {
-        return quotaResult(QuotaProviderType.MINIMAX, "No MiniMax usage response available")
+        return quotaResult(QuotaProviderType.MINIMAX)
     }
 
     @McpTool(name = "kimi_usage_quota")
     @McpDescription(description = "Returns the latest Kimi usage quota response JSON.")
     fun kimi_usage_quota(): String {
-        return quotaResult(QuotaProviderType.KIMI, "No Kimi usage response available")
+        return quotaResult(QuotaProviderType.KIMI)
     }
 
     @McpTool(name = "github_usage_quota")
     @McpDescription(description = "Returns the latest GitHub Copilot usage quota response JSON.")
     fun github_usage_quota(): String {
-        return quotaResult(QuotaProviderType.GITHUB, "No GitHub usage response available")
+        return quotaResult(QuotaProviderType.GITHUB)
     }
 
     @McpTool(name = "cursor_usage_quota")
     @McpDescription(description = "Returns the latest Cursor usage quota response JSON.")
     fun cursor_usage_quota(): String {
-        return quotaResult(QuotaProviderType.CURSOR, "No Cursor usage response available") { service ->
-            service.getLastResponseJson(QuotaProviderType.CURSOR)?.let(CursorQuotaClient::normalizeRawJson)
-        }
+        return quotaResult(QuotaProviderType.CURSOR)
     }
 
     @McpTool(name = "supergrok_usage_quota")
     @McpDescription(description = "Returns the latest SuperGrok usage quota response JSON.")
     fun supergrok_usage_quota(): String {
-        return quotaResult(QuotaProviderType.SUPERGROK, "No SuperGrok usage response available")
+        return quotaResult(QuotaProviderType.SUPERGROK)
     }
 
     @McpTool(name = "web_search_tools_status")
@@ -278,11 +267,8 @@ class OpenAiUsageQuotaMcpToolset(
         }
     }
 
-    private fun quotaResult(
-        type: QuotaProviderType,
-        emptyMessage: String,
-        json: (QuotaUsageService) -> String? = { it.getLastResponseJson(type) },
-    ): String {
+    private fun quotaResult(type: QuotaProviderType): String {
+        val registration = QuotaProviderRegistry.get(type)
         val usageService = QuotaUsageService.getInstance()
         usageService.refreshBlocking(type)
 
@@ -291,9 +277,9 @@ class OpenAiUsageQuotaMcpToolset(
             return errorResult(error)
         }
 
-        val payload = json(usageService)
+        val payload = registration.usageMcp.json(usageService, type)
         if (payload.isNullOrBlank()) {
-            return errorResult(emptyMessage)
+            return errorResult(registration.usageMcp.emptyMessage)
         }
         return successResult(payload)
     }

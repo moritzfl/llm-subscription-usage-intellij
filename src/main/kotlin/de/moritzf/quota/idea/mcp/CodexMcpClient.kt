@@ -389,11 +389,13 @@ class CodexMcpClient(
         } catch (exception: InvalidPathException) {
             return ImageOutputTarget(error = exception.message ?: "Invalid image target file path.")
         }
-        val resolved = if (path.isAbsolute) {
-            path.normalize()
-        } else {
-            val base = (baseDirectory ?: Path.of(System.getProperty("user.dir"))).toAbsolutePath().normalize()
-            base.resolve(path).normalize()
+        if (path.isAbsolute) {
+            return ImageOutputTarget(error = "Image target file must be relative to the project directory.")
+        }
+        val base = (baseDirectory ?: Path.of(System.getProperty("user.dir"))).toAbsolutePath().normalize()
+        val resolved = base.resolve(path).normalize()
+        if (!resolved.startsWith(base)) {
+            return ImageOutputTarget(error = "Image target file must stay inside the project directory.")
         }
         val format = resolved.fileName?.toString()
             ?.substringAfterLast('.', missingDelimiterValue = "")

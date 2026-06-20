@@ -10,7 +10,9 @@ import de.moritzf.quota.supergrok.SuperGrokQuota
 import de.moritzf.quota.zai.ZaiQuota
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 class QuotaSnapshotCacheTest {
     @Test
@@ -33,6 +35,36 @@ class QuotaSnapshotCacheTest {
         assertNotNull(decoded)
         assertEquals("Pro", decoded.plan)
         assertEquals(null, decoded.rawJson)
+    }
+
+    @Test
+    fun redactsSecretLikeFieldsFromPersistedRawResponses() {
+        val quota = OllamaQuota(plan = "Pro")
+        quota.rawJson = """
+            {
+              "plan": "Pro",
+              "access_token": "access-secret",
+              "headers": {
+                "Authorization": "Bearer secret",
+                "x-api-key": "api-secret"
+              },
+              "total_tokens": 123,
+              "items": [
+                {"refreshToken": "refresh-secret", "usage": 42}
+              ]
+            }
+        """.trimIndent()
+
+        val decoded = QuotaSnapshotCache.decode(QuotaProviderType.OLLAMA, QuotaSnapshotCache.encode(QuotaProviderType.OLLAMA, quota))!!
+        val raw = assertNotNull(decoded.rawJson)
+
+        assertFalse(raw.contains("access-secret"))
+        assertFalse(raw.contains("Bearer secret"))
+        assertFalse(raw.contains("api-secret"))
+        assertFalse(raw.contains("refresh-secret"))
+        assertTrue(raw.contains("Pro"))
+        assertTrue(raw.contains("42"))
+        assertTrue(raw.contains("123"))
     }
 
     private fun <Q : ProviderQuota> roundTrip(type: QuotaProviderType, quota: Q, raw: String): ProviderQuota {

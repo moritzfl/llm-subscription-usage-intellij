@@ -1,23 +1,21 @@
 package de.moritzf.quota.idea.common
 
-import de.moritzf.quota.cursor.CursorQuota
-import de.moritzf.quota.github.GitHubQuota
-import de.moritzf.quota.kimi.KimiQuota
-import de.moritzf.quota.minimax.MiniMaxQuota
-import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.OpenAiCredits
 import de.moritzf.quota.openai.OpenAiSpendControl
 import de.moritzf.quota.openai.RateLimitResetCredit
 import de.moritzf.quota.openai.UsageWindow
-import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.ProviderQuota
-import de.moritzf.quota.supergrok.SuperGrokQuota
-import de.moritzf.quota.zai.ZaiQuota
 import kotlin.time.Instant
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 import java.time.Duration
 
 /**
@@ -25,21 +23,9 @@ import java.time.Duration
  * New providers register a single codec entry in [codecs].
  */
 internal object QuotaSnapshotCache {
-    private val codecs: Map<QuotaProviderType, QuotaCodec<out ProviderQuota>> = mapOf(
-        QuotaProviderType.OPEN_AI to OpenAiQuotaCodec,
-        QuotaProviderType.OPEN_CODE to PlainQuotaCodec(OpenCodeQuota.serializer()),
-        QuotaProviderType.OLLAMA to EnvelopeQuotaCodec(OllamaQuota.serializer()),
-        QuotaProviderType.ZAI to EnvelopeQuotaCodec(ZaiQuota.serializer()),
-        QuotaProviderType.MINIMAX to EnvelopeQuotaCodec(MiniMaxQuota.serializer()),
-        QuotaProviderType.KIMI to EnvelopeQuotaCodec(KimiQuota.serializer()),
-        QuotaProviderType.GITHUB to EnvelopeQuotaCodec(GitHubQuota.serializer()),
-        QuotaProviderType.CURSOR to EnvelopeQuotaCodec(CursorQuota.serializer()),
-        QuotaProviderType.SUPERGROK to EnvelopeQuotaCodec(SuperGrokQuota.serializer()),
-    )
-
     @Suppress("UNCHECKED_CAST")
     private fun codecFor(type: QuotaProviderType): QuotaCodec<ProviderQuota>? =
-        codecs[type] as QuotaCodec<ProviderQuota>?
+        QuotaProviderRegistry.getOrNull(type)?.snapshotCodec as QuotaCodec<ProviderQuota>?
 
     fun encode(type: QuotaProviderType, quota: ProviderQuota): String? = codecFor(type)?.encode(quota)
 
@@ -59,13 +45,13 @@ internal interface QuotaCodec<Q : ProviderQuota> {
 }
 
 /** Persists the quota together with its transient raw upstream response. */
-private class EnvelopeQuotaCodec<Q : ProviderQuota>(
+internal class EnvelopeQuotaCodec<Q : ProviderQuota>(
     private val serializer: KSerializer<Q>,
 ) : QuotaCodec<Q> {
     private val envelopeSerializer = CachedQuotaEnvelope.serializer(serializer)
 
     override fun encode(quota: Q): String? {
-        val envelope = CachedQuotaEnvelope(quota, quota.rawJson)
+        val envelope = CachedQuotaEnvelope(quota, RawResponseRedactor.redact(quota.rawJson))
         return runCatching { JsonSupport.json.encodeToString(envelopeSerializer, envelope) }.getOrNull()
     }
 
@@ -84,7 +70,7 @@ private class EnvelopeQuotaCodec<Q : ProviderQuota>(
 }
 
 /** Persists the bare quota payload without an envelope. */
-private class PlainQuotaCodec<Q : ProviderQuota>(
+internal class PlainQuotaCodec<Q : ProviderQuota>(
     private val serializer: KSerializer<Q>,
 ) : QuotaCodec<Q> {
     override fun encode(quota: Q): String? {
@@ -102,8 +88,67 @@ private data class CachedQuotaEnvelope<Q>(
     val rawResponse: String? = null,
 )
 
+internal object RawResponseRedactor {
+    private const val REDACTED = "[REDACTED]"
+    private val exactSensitiveNames = setOf(
+        "authorization",
+        "proxy_authorization",
+        "cookie",
+        "set_cookie",
+        "access_token",
+        "refresh_token",
+        "id_token",
+        "api_key",
+        "apikey",
+        "password",
+        "secret",
+    )
+    private val tokenCountNames = setOf(
+        "total_tokens",
+        "input_tokens",
+        "output_tokens",
+        "prompt_tokens",
+        "completion_tokens",
+        "cached_tokens",
+        "reasoning_tokens",
+    )
+    private val sensitiveNameFragments = listOf("secret", "password", "cookie")
+
+    fun redact(raw: String?): String? {
+        if (raw.isNullOrBlank()) return raw
+        val element = runCatching { JsonSupport.json.parseToJsonElement(raw) }.getOrNull() ?: return raw
+        return runCatching { redactElement(element).toString() }.getOrDefault(raw)
+    }
+
+    private fun redactElement(element: JsonElement): JsonElement {
+        return when (element) {
+            is JsonObject -> buildJsonObject {
+                element.forEach { (key, value) ->
+                    put(key, if (isSensitiveName(key)) JsonPrimitive(REDACTED) else redactElement(value))
+                }
+            }
+            is JsonArray -> buildJsonArray {
+                element.forEach { add(redactElement(it)) }
+            }
+            else -> element
+        }
+    }
+
+    private fun isSensitiveName(name: String): Boolean {
+        val normalized = name
+            .replace(Regex("([a-z])([A-Z])"), "$1_$2")
+            .lowercase()
+            .replace('-', '_')
+        return normalized in exactSensitiveNames ||
+            normalized.endsWith("_key") ||
+            normalized.endsWith("key") && normalized.startsWith("api") ||
+            normalized.endsWith("_token") && normalized !in tokenCountNames ||
+            sensitiveNameFragments.any { normalized.contains(it) }
+    }
+}
+
 /** OpenAI keeps a bespoke cache shape that flattens windows to epoch-millis timestamps. */
-private object OpenAiQuotaCodec : QuotaCodec<OpenAiCodexQuota> {
+internal object OpenAiQuotaCodec : QuotaCodec<OpenAiCodexQuota> {
     override fun encode(quota: OpenAiCodexQuota): String? {
         return runCatching { JsonSupport.json.encodeToString(CachedOpenAiQuota.fromQuota(quota)) }.getOrNull()
     }

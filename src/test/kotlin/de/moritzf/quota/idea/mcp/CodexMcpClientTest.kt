@@ -218,6 +218,32 @@ class CodexMcpClientTest {
     }
 
     @Test
+    fun rejectsAbsoluteImageTargetBeforeCallingUpstream(@TempDir tempDir: Path) {
+        TestUpstream().use { upstream ->
+            val client = newClient(upstream.baseUri)
+
+            val response = client.imageGeneration("draw a tiny robot", tempDir.resolve("robot.png").toString(), tempDir)
+
+            assertTrue(response.isError)
+            assertTrue(parseObject(response.body)["error"]!!.jsonPrimitive.content.contains("must be relative"))
+            assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
+        }
+    }
+
+    @Test
+    fun rejectsImageTargetOutsideProjectBeforeCallingUpstream(@TempDir tempDir: Path) {
+        TestUpstream().use { upstream ->
+            val client = newClient(upstream.baseUri)
+
+            val response = client.imageGeneration("draw a tiny robot", "../robot.png", tempDir)
+
+            assertTrue(response.isError)
+            assertTrue(parseObject(response.body)["error"]!!.jsonPrimitive.content.contains("inside the project"))
+            assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
+        }
+    }
+
+    @Test
     fun reportsResponsesFailedEventAsError() {
         TestUpstream(
             responseBody = sse(

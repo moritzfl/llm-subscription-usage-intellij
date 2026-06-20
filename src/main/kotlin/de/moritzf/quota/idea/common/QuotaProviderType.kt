@@ -19,9 +19,9 @@ enum class QuotaProviderType(val id: String, val displayName: String) {
             return entries.firstOrNull { it.name == normalized }
         }
 
-        fun alphabeticalOrder(): List<QuotaProviderType> = entries.sortedBy { it.displayName }
+        fun alphabeticalOrder(): List<QuotaProviderType> = QuotaProviderRegistry.defaultProviderOrder()
 
-        fun defaultProviderOrder(): List<QuotaProviderType> = alphabeticalOrder()
+        fun defaultProviderOrder(): List<QuotaProviderType> = QuotaProviderRegistry.defaultProviderOrder()
 
         /**
          * Preserves [storedOrder] while inserting any newly added providers:
@@ -29,32 +29,7 @@ enum class QuotaProviderType(val id: String, val displayName: String) {
          * their alphabetical predecessor when present in the current order.
          */
         fun mergeProviderOrder(storedOrder: List<QuotaProviderType>): List<QuotaProviderType> {
-            val allProviders = alphabeticalOrder()
-            val validStored = storedOrder.filter { it in allProviders }
-            if (validStored.isEmpty()) {
-                return allProviders
-            }
-
-            val result = validStored.toMutableList()
-            val missing = allProviders.filter { it !in result }
-            for (provider in missing) {
-                val providerIndex = allProviders.indexOf(provider)
-                if (providerIndex == 0) {
-                    result.add(0, provider)
-                    continue
-                }
-
-                val predecessor = allProviders[providerIndex - 1]
-                val insertAfter = result.indexOfLast { it == predecessor }
-                val insertIndex = if (insertAfter >= 0) {
-                    insertAfter + 1
-                } else {
-                    val fallback = result.indexOfLast { allProviders.indexOf(it) < providerIndex }
-                    if (fallback >= 0) fallback + 1 else 0
-                }
-                result.add(insertIndex, provider)
-            }
-            return result
+            return QuotaProviderRegistry.mergeProviderOrder(storedOrder)
         }
     }
 }

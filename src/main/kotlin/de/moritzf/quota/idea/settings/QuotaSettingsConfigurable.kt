@@ -14,7 +14,9 @@ import com.intellij.util.messages.MessageBusConnection
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.idea.common.QuotaProviderRegistry
 import de.moritzf.quota.idea.common.QuotaUsageListener
+import de.moritzf.quota.idea.common.ProviderSettingsPanelContext
 import de.moritzf.quota.idea.mcp.McpServerSyncTarget
 import de.moritzf.quota.idea.mcp.McpServerUrlSyncService
 import de.moritzf.quota.idea.mcp.McpServerStatusState
@@ -45,15 +47,7 @@ class QuotaSettingsConfigurable : Configurable {
     private var connection: MessageBusConnection? = null
     private var updatingDisplayModeChoices: Boolean = false
 
-    private lateinit var cursorPanel: CursorSettingsPanel
-    private lateinit var openAiPanel: OpenAiSettingsPanel
-    private lateinit var kimiPanel: KimiSettingsPanel
-    private lateinit var gitHubPanel: GitHubSettingsPanel
-    private lateinit var miniMaxPanel: MiniMaxSettingsPanel
-    private lateinit var openCodePanel: OpenCodeSettingsPanel
-    private lateinit var ollamaPanel: OllamaSettingsPanel
-    private lateinit var superGrokPanel: SuperGrokSettingsPanel
-    private lateinit var zaiPanel: ZaiSettingsPanel
+    private val providerPanelsByType = linkedMapOf<QuotaProviderType, ProviderSettingsPanel>()
 
     private var locationComboBox: ComboBox<QuotaIndicatorLocation>? = null
     private var displayModeComboBox: ComboBox<QuotaDisplayMode>? = null
@@ -73,41 +67,14 @@ class QuotaSettingsConfigurable : Configurable {
     override fun createComponent(): JComponent? {
         val statusLabelDefaultForeground = UIManager.getColor("Label.foreground")
 
-        cursorPanel = CursorSettingsPanel(
+        providerPanelsByType.clear()
+        val providerPanelContext = ProviderSettingsPanelContext(
             modalityComponentProvider = { panel ?: rootComponent },
             statusLabelDefaultForeground = statusLabelDefaultForeground,
         )
-        openAiPanel = OpenAiSettingsPanel(
-            modalityComponentProvider = { panel ?: rootComponent },
-        )
-        kimiPanel = KimiSettingsPanel(
-            modalityComponentProvider = { panel ?: rootComponent },
-            statusLabelDefaultForeground = statusLabelDefaultForeground,
-        )
-        gitHubPanel = GitHubSettingsPanel(
-            modalityComponentProvider = { panel ?: rootComponent },
-            statusLabelDefaultForeground = statusLabelDefaultForeground,
-        )
-        miniMaxPanel = MiniMaxSettingsPanel(
-            modalityComponentProvider = { panel ?: rootComponent },
-            statusLabelDefaultForeground = statusLabelDefaultForeground,
-        )
-        openCodePanel = OpenCodeSettingsPanel(
-            modalityComponentProvider = { panel ?: rootComponent },
-            statusLabelDefaultForeground = statusLabelDefaultForeground,
-        )
-        ollamaPanel = OllamaSettingsPanel(
-            modalityComponentProvider = { panel ?: rootComponent },
-            statusLabelDefaultForeground = statusLabelDefaultForeground,
-        )
-        superGrokPanel = SuperGrokSettingsPanel(
-            modalityComponentProvider = { panel ?: rootComponent },
-            statusLabelDefaultForeground = statusLabelDefaultForeground,
-        )
-        zaiPanel = ZaiSettingsPanel(
-            modalityComponentProvider = { panel ?: rootComponent },
-            statusLabelDefaultForeground = statusLabelDefaultForeground,
-        )
+        QuotaProviderRegistry.all.forEach { registration ->
+            providerPanelsByType[registration.type] = registration.settingsPanelFactory(providerPanelContext)
+        }
 
         locationComboBox = createIndicatorComboBox(QuotaIndicatorLocation.entries.toTypedArray())
         displayModeComboBox = createIndicatorComboBox(QuotaDisplayMode.entries.toTypedArray())
@@ -175,7 +142,7 @@ class QuotaSettingsConfigurable : Configurable {
         connection = ApplicationManager.getApplication().messageBus.connect()
         connection!!.subscribe(QuotaUsageListener.TOPIC, object : QuotaUsageListener {
             override fun onQuotaUpdated(type: QuotaProviderType, quota: ProviderQuota?, error: String?) {
-                val providerPanel = providerPanels()[type] ?: return
+                val providerPanel = providerPanelsByType[type] ?: return
                 val currentPanel = rootComponent ?: panel ?: return
                 ApplicationManager.getApplication().invokeLater({
                     providerPanel.updateResponseArea()
@@ -214,6 +181,7 @@ class QuotaSettingsConfigurable : Configurable {
         serviceCards = null
         serviceCardLayout = null
         updatingDisplayModeChoices = false
+        providerPanelsByType.clear()
         mcpSyncCheckBox = null
         configureMcpSyncTargetsButton = null
         mcpServerStatusTimer?.stop()
@@ -281,12 +249,12 @@ class QuotaSettingsConfigurable : Configurable {
     private fun rebuildServiceCards() {
         val cards = serviceCards ?: return
         cards.removeAll()
-        providerPanels().forEach { (type, panel) ->
+        providerPanelsByType.forEach { (type, panel) ->
             cards.add(panel, type.id)
         }
         val selectedProvider = providerReorderPanel?.getSelectedProvider()
             ?: QuotaSettingsState.getInstance().providerOrderList().firstOrNull()
-            ?: QuotaProviderType.defaultProviderOrder().first()
+            ?: QuotaProviderRegistry.defaultProviderOrder().first()
         serviceCardLayout?.show(cards, selectedProvider.id)
     }
 
@@ -326,11 +294,12 @@ class QuotaSettingsConfigurable : Configurable {
                 val popupVisibilityChanged = hideFromPopupCheckBoxes().any { (type, checkBox) ->
                     checkBox.isSelected != state.isHiddenFromPopup(type)
                 }
-                val miniMaxRegionChanged = miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference()
+                val miniMaxRegionChanged = miniMaxPanel().regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference()
                 val providerOrderChanged = providerReorderPanel?.getOrder()?.joinToString(",") { it.id } != state.providerOrder
                 val normalizedMcpTargets = normalizeTargets(mcpSyncTargets)
                 val mcpSyncChanged = mcpSyncCheckBox?.isSelected != state.syncIntellijMcpServerUrl
                 val mcpTargetsChanged = normalizedMcpTargets != normalizeTargets(state.mcpServerSyncTargets)
+                val openAiPanel = openAiPanel()
                 val openAiProxyEnabledChanged = openAiPanel.openAiProxyEnabledCheckBox.isSelected != state.openAiProxyEnabled
                 val openAiProxyPortChanged = openAiPanel.isProxyPortModified()
                 val openAiProxyApiKeyChanged = openAiPanel.isProxyApiKeyModified()
@@ -347,7 +316,7 @@ class QuotaSettingsConfigurable : Configurable {
                 hideFromPopupCheckBoxes().forEach { (type, checkBox) ->
                     state.setHiddenFromPopup(type, checkBox.isSelected)
                 }
-                state.minimaxRegionPreference = (miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference ?: MiniMaxRegionPreference.AUTO).name
+                state.minimaxRegionPreference = (miniMaxPanel().regionComboBox.selectedItem as? MiniMaxRegionPreference ?: MiniMaxRegionPreference.AUTO).name
                 if (providerOrderChanged) {
                     state.providerOrder = providerReorderPanel?.getOrder()?.joinToString(",") { it.id } ?: state.providerOrder
                 }
@@ -381,11 +350,11 @@ class QuotaSettingsConfigurable : Configurable {
                 hideFromPopupCheckBoxes().forEach { (type, checkBox) ->
                     checkBox.isSelected = QuotaSettingsState.getInstance().isHiddenFromPopup(type)
                 }
-                miniMaxPanel.regionComboBox.selectedItem = QuotaSettingsState.getInstance().miniMaxRegionPreference()
+                miniMaxPanel().regionComboBox.selectedItem = QuotaSettingsState.getInstance().miniMaxRegionPreference()
                 providerReorderPanel?.setOrder(QuotaSettingsState.getInstance().providerOrderList())
                 mcpSyncCheckBox?.isSelected = QuotaSettingsState.getInstance().syncIntellijMcpServerUrl
                 mcpSyncTargets = normalizeTargets(QuotaSettingsState.getInstance().mcpServerSyncTargets).toMutableList()
-                providerPanels().values.forEach { providerPanel ->
+                providerPanelsByType.values.forEach { providerPanel ->
                     providerPanel.updateFields()
                     providerPanel.updateResponseArea()
                 }
@@ -400,36 +369,26 @@ class QuotaSettingsConfigurable : Configurable {
                     QuotaDisplayMode.sanitizeFor(selectedLocation, selectedDisplayMode) != state.displayMode() ||
                     selectedSource != state.source() ||
                     hideFromPopupCheckBoxes().any { (type, checkBox) -> checkBox.isSelected != state.isHiddenFromPopup(type) } ||
-                    miniMaxPanel.regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference() ||
+                    miniMaxPanel().regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference() ||
                     providerReorderPanel?.getOrder()?.joinToString(",") { it.id } != state.providerOrder ||
                     mcpSyncCheckBox?.isSelected != state.syncIntellijMcpServerUrl ||
                     normalizeTargets(mcpSyncTargets) != normalizeTargets(state.mcpServerSyncTargets) ||
-                    openAiPanel.openAiProxyEnabledCheckBox.isSelected != state.openAiProxyEnabled ||
-                    openAiPanel.isProxyPortModified() ||
-                    openAiPanel.isProxyApiKeyModified() ||
-                    openAiPanel.openAiProxyLogRequestsCheckBox.isSelected != state.openAiProxyLogRequests
+                    openAiPanel().openAiProxyEnabledCheckBox.isSelected != state.openAiProxyEnabled ||
+                    openAiPanel().isProxyPortModified() ||
+                    openAiPanel().isProxyApiKeyModified() ||
+                    openAiPanel().openAiProxyLogRequestsCheckBox.isSelected != state.openAiProxyLogRequests
             }
         }.apply {
             preferredFocusedComponent = locationComboBox
         }
     }
 
-    private fun providerPanels(): Map<QuotaProviderType, ProviderSettingsPanel> {
-        return mapOf(
-            QuotaProviderType.CURSOR to cursorPanel,
-            QuotaProviderType.GITHUB to gitHubPanel,
-            QuotaProviderType.KIMI to kimiPanel,
-            QuotaProviderType.MINIMAX to miniMaxPanel,
-            QuotaProviderType.OLLAMA to ollamaPanel,
-            QuotaProviderType.OPEN_AI to openAiPanel,
-            QuotaProviderType.OPEN_CODE to openCodePanel,
-            QuotaProviderType.SUPERGROK to superGrokPanel,
-            QuotaProviderType.ZAI to zaiPanel,
-        )
-    }
+    private fun openAiPanel(): OpenAiSettingsPanel = providerPanelsByType.getValue(QuotaProviderType.OPEN_AI) as OpenAiSettingsPanel
+
+    private fun miniMaxPanel(): MiniMaxSettingsPanel = providerPanelsByType.getValue(QuotaProviderType.MINIMAX) as MiniMaxSettingsPanel
 
     private fun hideFromPopupCheckBoxes(): Map<QuotaProviderType, JBCheckBox> {
-        return providerPanels().mapValues { (_, panel) -> panel.hideFromPopupCheckBox }
+        return providerPanelsByType.mapValues { (_, panel) -> panel.hideFromPopupCheckBox }
     }
 
     private fun normalizeTargets(targets: List<McpServerSyncTarget>): List<McpServerSyncTarget> {

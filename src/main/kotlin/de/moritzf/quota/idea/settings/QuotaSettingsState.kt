@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.settings
 
 import com.intellij.openapi.application.ApplicationManager
+import de.moritzf.quota.idea.common.QuotaProviderRegistry
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaSnapshotCache
 import de.moritzf.quota.idea.mcp.McpServerSyncTarget
@@ -172,7 +173,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
             .map { it.trim() }
             .filter { it.isNotBlank() }
             .mapNotNull { QuotaProviderType.fromId(it) }
-        return QuotaProviderType.mergeProviderOrder(stored)
+        return QuotaProviderRegistry.mergeProviderOrder(stored)
     }
 
     fun displayMode(): QuotaDisplayMode = QuotaDisplayMode.fromStorageValue(statusBarDisplayMode)
@@ -223,20 +224,21 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     }
 
     fun lastUsedSource(): QuotaIndicatorSource {
-        val updates = QuotaProviderType.entries.associateWith { provider ->
-            lastUpdate(provider).takeIf { it > 0 }
+        val updates = QuotaProviderRegistry.all.associate { registration ->
+            val provider = registration.type
+            provider to (lastUpdate(provider).takeIf { it > 0 }
                 ?: QuotaSnapshotCache.decode(provider, cachedQuotaJson(provider))?.fetchedAt?.toEpochMilliseconds()
-                ?: 0L
+                ?: 0L)
         }
         if (updates.values.max() == 0L) return QuotaIndicatorSource.OPEN_AI
-        val latest = QuotaProviderType.alphabeticalOrder().maxByOrNull { updates.getValue(it) }
+        val latest = QuotaProviderRegistry.defaultProviderOrder().maxByOrNull { updates.getValue(it) }
         return QuotaIndicatorSource.entries.firstOrNull { it.providerType == latest }
             ?: QuotaIndicatorSource.OPEN_AI
     }
 
     companion object {
-        const val DEFAULT_PROVIDER_ORDER =
-            "cursor,github,kimi,minimax,ollama,openai,opencode,supergrok,zai"
+        val DEFAULT_PROVIDER_ORDER: String
+            get() = QuotaProviderRegistry.defaultProviderOrderStorageValue()
 
         @JvmStatic
         fun getInstance(): QuotaSettingsState {

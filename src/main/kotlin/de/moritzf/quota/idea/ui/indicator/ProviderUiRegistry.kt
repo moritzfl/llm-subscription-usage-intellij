@@ -3,6 +3,7 @@ package de.moritzf.quota.idea.ui.indicator
 import de.moritzf.quota.cursor.CursorQuota
 import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.idea.auth.QuotaAuthService
+import de.moritzf.quota.idea.common.QuotaProviderRegistry
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.cursor.CursorCredentialsStore
 import de.moritzf.quota.idea.github.GitHubCredentialsStore
@@ -64,22 +65,12 @@ internal interface ProviderUi {
 }
 
 internal object ProviderUiRegistry {
-    val all: Map<QuotaProviderType, ProviderUi> = listOf(
-        OpenAiUi,
-        OpenCodeUi,
-        OllamaUi,
-        ZaiUi,
-        MiniMaxUi,
-        KimiUi,
-        GitHubUi,
-        CursorUi,
-        SuperGrokUi,
-    ).associateBy { it.type }
+    val all: Map<QuotaProviderType, ProviderUi> = QuotaProviderRegistry.all.associate { it.type to it.ui }
 
-    fun forType(type: QuotaProviderType): ProviderUi = all.getValue(type)
+    fun forType(type: QuotaProviderType): ProviderUi = QuotaProviderRegistry.get(type).ui
 }
 
-private object OpenAiUi : ProviderUi {
+internal object OpenAiUi : ProviderUi {
     override val type = QuotaProviderType.OPEN_AI
     override val icon: Icon get() = QuotaIcons.OPENAI
     override val updatedAtLabel = "Codex"
@@ -111,7 +102,7 @@ private object OpenAiUi : ProviderUi {
     private fun isLoggedIn() = QuotaAuthService.getInstance().isLoggedIn(QuotaProviderType.OPEN_AI)
 }
 
-private object OpenCodeUi : ProviderUi {
+internal object OpenCodeUi : ProviderUi {
     override val type = QuotaProviderType.OPEN_CODE
     override val icon: Icon get() = QuotaIcons.OPENCODE
 
@@ -138,7 +129,7 @@ private object OpenCodeUi : ProviderUi {
     override fun createPopupSection() = OpenCodePopupSection()
 }
 
-private object OllamaUi : ProviderUi {
+internal object OllamaUi : ProviderUi {
     override val type = QuotaProviderType.OLLAMA
     override val icon: Icon get() = QuotaIcons.OLLAMA
 
@@ -166,7 +157,7 @@ private object OllamaUi : ProviderUi {
     override fun createPopupSection() = OllamaPopupSection()
 }
 
-private object ZaiUi : ProviderUi {
+internal object ZaiUi : ProviderUi {
     override val type = QuotaProviderType.ZAI
     override val icon: Icon get() = QuotaIcons.ZAI
 
@@ -194,7 +185,7 @@ private object ZaiUi : ProviderUi {
     override fun createPopupSection() = ZaiPopupSection()
 }
 
-private object MiniMaxUi : ProviderUi {
+internal object MiniMaxUi : ProviderUi {
     override val type = QuotaProviderType.MINIMAX
     override val icon: Icon get() = QuotaIcons.MINIMAX
 
@@ -222,7 +213,7 @@ private object MiniMaxUi : ProviderUi {
     override fun createPopupSection() = MiniMaxPopupSection()
 }
 
-private object KimiUi : ProviderUi {
+internal object KimiUi : ProviderUi {
     override val type = QuotaProviderType.KIMI
     override val icon: Icon get() = QuotaIcons.KIMI
 
@@ -250,7 +241,7 @@ private object KimiUi : ProviderUi {
     override fun createPopupSection() = KimiPopupSection()
 }
 
-private object GitHubUi : ProviderUi {
+internal object GitHubUi : ProviderUi {
     override val type = QuotaProviderType.GITHUB
     override val icon: Icon get() = QuotaIcons.GITHUB
 
@@ -278,7 +269,7 @@ private object GitHubUi : ProviderUi {
     override fun createPopupSection() = GitHubPopupSection()
 }
 
-private object CursorUi : ProviderUi {
+internal object CursorUi : ProviderUi {
     override val type = QuotaProviderType.CURSOR
     override val icon: Icon get() = QuotaIcons.CURSOR
 
@@ -306,7 +297,7 @@ private object CursorUi : ProviderUi {
     override fun createPopupSection() = CursorPopupSection()
 }
 
-private object SuperGrokUi : ProviderUi {
+internal object SuperGrokUi : ProviderUi {
     override val type = QuotaProviderType.SUPERGROK
     override val icon: Icon get() = QuotaIcons.SUPERGROK
 

@@ -2,6 +2,7 @@ package de.moritzf.quota.openai.proxy
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import de.moritzf.quota.openai.dto.OAuthTokenResponseDto
 import de.moritzf.quota.shared.JsonSupport
 import java.awt.Desktop
 import java.net.InetAddress
@@ -21,8 +22,10 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import java.net.URLDecoder
 import java.net.URLEncoder
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 
 fun main(args: Array<String>) {
     val credentials = if ("--login" in args) {
@@ -30,18 +33,19 @@ fun main(args: Array<String>) {
     } else {
         loadCredentials()
     }
-    val accessToken = credentials.accessToken ?: error(
-        "OPENAI_PROXY_ACCESS_TOKEN, .env, OPENAI_PROXY_CREDENTIALS_FILE with accessToken/access_token, or --login is required",
+    val credentialManager = StandaloneCredentialManager(credentials)
+    val accessToken = credentialManager.accessToken() ?: error(
+        "OPENAI_PROXY_ACCESS_TOKEN or OPENAI_PROXY_REFRESH_TOKEN, .env, OPENAI_PROXY_CREDENTIALS_FILE, or --login is required",
     )
     val localApiKey = env("OPENAI_PROXY_API_KEY") ?: DEFAULT_LOCAL_API_KEY
     val port = env("OPENAI_PROXY_PORT")?.toIntOrNull() ?: DEFAULT_PORT
-    val accountId = credentials.accountId
 
     val proxy = OpenAiProxyServer(
         port = port,
         localApiKeyProvider = { localApiKey },
-        accessTokenProvider = { accessToken },
-        accountIdProvider = { accountId },
+        accessTokenProvider = { credentialManager.accessToken() },
+        accountIdProvider = { credentialManager.accountId() },
+        tokenRefresher = credentialManager::refreshAfterRejected,
         debugLogger = debugLogger(),
         fullRequestLogging = env("OPENAI_PROXY_LOG_REQUESTS").toBooleanFlag(),
         requestLogDir = env("OPENAI_PROXY_REQUEST_LOG_DIR") ?: DEFAULT_REQUEST_LOG_DIR,
@@ -184,12 +188,48 @@ private fun exchangeAuthorizationCode(code: String, verifier: String): Standalon
         .build()
     val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
     check(response.statusCode() in 200..299) { "Token exchange failed: HTTP ${response.statusCode()} ${response.body()}" }
-    val root = JsonSupport.json.parseToJsonElement(response.body()).jsonObject
-    val accessToken = root["access_token"]?.jsonPrimitive?.content ?: error("Token response did not include access_token")
+    return credentialsFromTokenResponse(response.body())
+}
+
+private fun refreshCredentials(refreshToken: String, fallback: StandaloneCredentials): StandaloneCredentials {
+    val body = formEncode(
+        "grant_type" to "refresh_token",
+        "client_id" to OAUTH_CLIENT_ID,
+        "refresh_token" to refreshToken,
+    )
+    val request = HttpRequest.newBuilder(URI.create(OAUTH_TOKEN_ENDPOINT))
+        .timeout(Duration.ofSeconds(30))
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .header("Accept", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(body))
+        .build()
+    val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
+    check(response.statusCode() in 200..299) { "Token refresh failed: HTTP ${response.statusCode()} ${response.body()}" }
+    val refreshed = credentialsFromTokenResponse(response.body())
+    return refreshed.copy(
+        refreshToken = refreshed.refreshToken ?: fallback.refreshToken,
+        accountId = refreshed.accountId ?: fallback.accountId,
+    )
+}
+
+internal fun credentialsFromTokenResponse(body: String): StandaloneCredentials {
+    val response = JsonSupport.json.decodeFromString<OAuthTokenResponseDto>(body)
+    val accessToken = response.accessToken?.takeIf { it.isNotBlank() }
+        ?: error("Token response did not include access_token")
+    val expiresAt = resolveExpiresAt(accessToken, response.expiresIn)
     return StandaloneCredentials(
         accessToken = accessToken,
-        accountId = extractChatGptAccountId(accessToken),
+        refreshToken = response.refreshToken?.takeIf { it.isNotBlank() },
+        expiresAt = expiresAt,
+        accountId = extractChatGptAccountId(response.idToken) ?: extractChatGptAccountId(accessToken),
     )
+}
+
+private fun resolveExpiresAt(accessToken: String, expiresInSeconds: Long): Long {
+    if (expiresInSeconds > 0) {
+        return System.currentTimeMillis() + expiresInSeconds * 1000L
+    }
+    return extractJwtExpiresAtMs(accessToken) ?: 0L
 }
 
 private fun buildAuthorizationUrl(challenge: String, state: String): String {
@@ -242,8 +282,8 @@ private fun sha256Base64Url(value: String): String {
     return Base64.getUrlEncoder().withoutPadding().encodeToString(digest)
 }
 
-private fun extractChatGptAccountId(jwt: String): String? {
-    val payload = jwt.split('.').getOrNull(1) ?: return null
+private fun extractChatGptAccountId(jwt: String?): String? {
+    val payload = jwt?.split('.')?.getOrNull(1) ?: return null
     val json = runCatching { String(Base64.getUrlDecoder().decode(payload), Charsets.UTF_8) }.getOrNull() ?: return null
     val root = runCatching { JsonSupport.json.parseToJsonElement(json).jsonObject }.getOrNull() ?: return null
     return root["https://api.openai.com/auth"]?.jsonObject
@@ -251,10 +291,19 @@ private fun extractChatGptAccountId(jwt: String): String? {
         ?: root["email"]?.jsonPrimitive?.content
 }
 
+private fun extractJwtExpiresAtMs(jwt: String): Long? {
+    val payload = jwt.split('.').getOrNull(1) ?: return null
+    val json = runCatching { String(Base64.getUrlDecoder().decode(payload), Charsets.UTF_8) }.getOrNull() ?: return null
+    val root = runCatching { JsonSupport.json.parseToJsonElement(json).jsonObject }.getOrNull() ?: return null
+    return root["exp"]?.jsonPrimitive?.longOrNull?.times(1000L)
+}
+
 private fun loadCredentials(): StandaloneCredentials {
     val fileCredentials = env("OPENAI_PROXY_CREDENTIALS_FILE")?.let(::credentialsFromFile)
     return StandaloneCredentials(
         accessToken = env("OPENAI_PROXY_ACCESS_TOKEN") ?: fileCredentials?.accessToken,
+        refreshToken = env("OPENAI_PROXY_REFRESH_TOKEN") ?: fileCredentials?.refreshToken,
+        expiresAt = env("OPENAI_PROXY_EXPIRES_AT")?.toLongOrNull() ?: fileCredentials?.expiresAt ?: 0L,
         accountId = env("OPENAI_PROXY_ACCOUNT_ID") ?: fileCredentials?.accountId,
     )
 }
@@ -283,6 +332,10 @@ private fun saveCredentialsToDotEnv(credentials: StandaloneCredentials) {
     val accessToken = credentials.accessToken?.takeIf { it.isNotBlank() } ?: return
     val existing = loadDotEnv(DOT_ENV_PATH).toMutableMap()
     existing["OPENAI_PROXY_ACCESS_TOKEN"] = accessToken
+    credentials.refreshToken?.takeIf { it.isNotBlank() }?.let { existing["OPENAI_PROXY_REFRESH_TOKEN"] = it }
+    if (credentials.expiresAt > 0) {
+        existing["OPENAI_PROXY_EXPIRES_AT"] = credentials.expiresAt.toString()
+    }
     credentials.accountId?.takeIf { it.isNotBlank() }?.let { existing["OPENAI_PROXY_ACCOUNT_ID"] = it }
     existing.putIfAbsent("OPENAI_PROXY_API_KEY", DEFAULT_LOCAL_API_KEY)
     existing.putIfAbsent("OPENAI_PROXY_PORT", DEFAULT_PORT.toString())
@@ -331,15 +384,57 @@ private fun credentialsFromFile(filePath: String): StandaloneCredentials {
     return StandaloneCredentials(
         accessToken = root["accessToken"]?.jsonPrimitive?.content
             ?: root["access_token"]?.jsonPrimitive?.content,
+        refreshToken = root["refreshToken"]?.jsonPrimitive?.contentOrNull
+            ?: root["refresh_token"]?.jsonPrimitive?.contentOrNull,
+        expiresAt = root["expiresAt"]?.jsonPrimitive?.longOrNull
+            ?: root["expires_at"]?.jsonPrimitive?.longOrNull
+            ?: 0L,
         accountId = root["accountId"]?.jsonPrimitive?.content
             ?: root["account_id"]?.jsonPrimitive?.content,
     )
 }
 
-private data class StandaloneCredentials(
+private class StandaloneCredentialManager(initialCredentials: StandaloneCredentials) {
+    private var credentials = initialCredentials
+
+    @Synchronized
+    fun accessToken(): String? {
+        if (credentials.accessToken.isNullOrBlank() || credentials.isExpired()) {
+            refreshLocked()?.let { return it.accessToken }
+        }
+        return credentials.accessToken
+    }
+
+    @Synchronized
+    fun accountId(): String? = credentials.accountId
+
+    @Synchronized
+    fun refreshAfterRejected(staleAccessToken: String?): String? {
+        if (!staleAccessToken.isNullOrBlank() && credentials.accessToken != staleAccessToken) {
+            return credentials.accessToken
+        }
+        return refreshLocked()?.accessToken
+    }
+
+    private fun refreshLocked(): StandaloneCredentials? {
+        val refreshToken = credentials.refreshToken?.takeIf { it.isNotBlank() } ?: return null
+        return runCatching { refreshCredentials(refreshToken, credentials) }
+            .onSuccess { refreshed ->
+                credentials = refreshed
+                saveCredentialsToDotEnv(refreshed)
+            }
+            .getOrNull()
+    }
+}
+
+internal data class StandaloneCredentials(
     val accessToken: String? = null,
+    val refreshToken: String? = null,
+    val expiresAt: Long = 0L,
     val accountId: String? = null,
-)
+) {
+    fun isExpired(): Boolean = expiresAt > 0 && System.currentTimeMillis() >= expiresAt - TOKEN_EXPIRY_SKEW_MS
+}
 
 private data class OAuthCallback(
     val code: String? = null,
@@ -354,4 +449,5 @@ private const val OAUTH_CALLBACK_PORT = 1455
 private const val DEFAULT_LOCAL_API_KEY = "sk-quota-standalone-local"
 private const val DEFAULT_PORT = 14622
 private const val DEFAULT_REQUEST_LOG_DIR = "logs/openai-proxy-requests"
+private const val TOKEN_EXPIRY_SKEW_MS = 5 * 60 * 1000L
 private val DOT_ENV_PATH: Path = Path.of(".env")

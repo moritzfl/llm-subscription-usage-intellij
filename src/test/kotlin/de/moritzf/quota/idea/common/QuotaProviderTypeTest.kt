@@ -23,6 +23,23 @@ class QuotaProviderTypeTest {
     }
 
     @Test
+    fun registryCoversEveryProviderTypeOnce() {
+        assertEquals(
+            QuotaProviderType.entries.toSet(),
+            QuotaProviderRegistry.all.map { it.type }.toSet(),
+        )
+        assertEquals(QuotaProviderRegistry.all.size, QuotaProviderRegistry.all.map { it.type }.toSet().size)
+    }
+
+    @Test
+    fun registryCreatesOneProviderPerRegistration() {
+        assertEquals(
+            QuotaProviderRegistry.all.map { it.type },
+            QuotaProviderRegistry.createProviders().map { it.type },
+        )
+    }
+
+    @Test
     fun mergeProviderOrderUsesAlphabeticalDefaultWhenStoredOrderEmpty() {
         assertEquals(QuotaProviderType.defaultProviderOrder(), QuotaProviderType.mergeProviderOrder(emptyList()))
     }

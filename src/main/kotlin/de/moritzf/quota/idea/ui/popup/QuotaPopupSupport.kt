@@ -12,6 +12,7 @@ import com.intellij.util.messages.MessageBusConnection
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.common.ProviderSnapshot
+import de.moritzf.quota.idea.common.QuotaProviderRegistry
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageListener
 import de.moritzf.quota.idea.common.QuotaUsageService
@@ -156,7 +157,7 @@ private class QuotaPopupContentPanel(
     }
 
     private val sections: Map<QuotaProviderType, ProviderPopupSection> =
-        QuotaProviderType.alphabeticalOrder().associateWith { type ->
+        QuotaProviderRegistry.defaultProviderOrder().associateWith { type ->
             ProviderUiRegistry.forType(type).createPopupSection()
         }
 

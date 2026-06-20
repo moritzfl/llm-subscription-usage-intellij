@@ -20,17 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 @Service(Service.Level.APP)
 class QuotaUsageService(
-    providers: List<QuotaProvider> = listOf(
-        OpenAiQuotaProvider(),
-        OpenCodeQuotaProvider(),
-        OllamaQuotaProvider(),
-        ZaiQuotaProvider(),
-        MiniMaxQuotaProvider(),
-        KimiQuotaProvider(),
-        GitHubQuotaProvider(),
-        CursorQuotaProvider(),
-        SuperGrokQuotaProvider(),
-    ),
+    providers: List<QuotaProvider> = QuotaProviderRegistry.createProviders(),
     private val settingsProvider: () -> QuotaSettingsState? = {
         runCatching { QuotaSettingsState.getInstance() }.getOrNull()
     },

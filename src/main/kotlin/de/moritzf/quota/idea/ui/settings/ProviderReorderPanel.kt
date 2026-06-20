@@ -4,8 +4,8 @@ import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.IconUtil
 import com.intellij.util.ui.JBUI
+import de.moritzf.quota.idea.common.QuotaProviderRegistry
 import de.moritzf.quota.idea.common.QuotaProviderType
-import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import java.awt.AlphaComposite
 import java.awt.BorderLayout
 import java.awt.Color
@@ -36,17 +36,9 @@ internal class ProviderReorderPanel(
     private val onProviderSelected: (QuotaProviderType) -> Unit,
 ) : JPanel(BorderLayout()) {
 
-    private val providers = listOf(
-        ProviderInfo(QuotaProviderType.CURSOR, QuotaIcons.CURSOR),
-        ProviderInfo(QuotaProviderType.GITHUB, QuotaIcons.GITHUB),
-        ProviderInfo(QuotaProviderType.KIMI, QuotaIcons.KIMI),
-        ProviderInfo(QuotaProviderType.MINIMAX, QuotaIcons.MINIMAX),
-        ProviderInfo(QuotaProviderType.OLLAMA, QuotaIcons.OLLAMA),
-        ProviderInfo(QuotaProviderType.OPEN_AI, QuotaIcons.OPENAI),
-        ProviderInfo(QuotaProviderType.OPEN_CODE, QuotaIcons.OPENCODE),
-        ProviderInfo(QuotaProviderType.SUPERGROK, QuotaIcons.SUPERGROK),
-        ProviderInfo(QuotaProviderType.ZAI, QuotaIcons.ZAI),
-    ).sortedBy { it.type.displayName }
+    private val providers = QuotaProviderRegistry.all
+        .map { ProviderInfo(it.type, it.icon) }
+        .sortedBy { it.type.displayName }
 
     private val iconsPanel = object : JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(8), 0)) {
         override fun paintComponent(g: Graphics) {
@@ -75,14 +67,14 @@ internal class ProviderReorderPanel(
     }
 
     private var currentOrder: List<QuotaProviderType> =
-        QuotaProviderType.mergeProviderOrder(
+        QuotaProviderRegistry.mergeProviderOrder(
             initialOrder.filter { type -> providers.any { it.type == type } },
         )
 
     /** -1 = no active drop target. Otherwise the index where the dragged item would be inserted. */
     private var dropIndex: Int = -1
 
-    private var selectedProvider: QuotaProviderType = currentOrder.firstOrNull() ?: QuotaProviderType.defaultProviderOrder().first()
+    private var selectedProvider: QuotaProviderType = currentOrder.firstOrNull() ?: QuotaProviderRegistry.defaultProviderOrder().first()
     
     private var dragStartTime: Long = 0
     private var dragStartPoint: Point? = null
@@ -106,7 +98,7 @@ internal class ProviderReorderPanel(
     fun getSelectedProvider(): QuotaProviderType = selectedProvider
 
     fun setOrder(order: List<QuotaProviderType>) {
-        currentOrder = QuotaProviderType.mergeProviderOrder(
+        currentOrder = QuotaProviderRegistry.mergeProviderOrder(
             order.filter { type -> providers.any { it.type == type } },
         )
         selectedProvider = currentOrder.firstOrNull() ?: selectedProvider
