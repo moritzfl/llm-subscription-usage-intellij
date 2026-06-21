@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-06-21
+- Fixed GitHub Copilot proxy model discovery so the proxy uses Copilot's live model metadata more accurately, including current GPT, Gemini, MAI, and Anthropic model routing.
+- Fixed GitHub Copilot streaming chat compatibility for strict OpenAI clients by normalizing Copilot stream chunks into OpenAI-shaped responses.
+- Hid Anthropic-only GitHub Copilot models from `/v1/models` while keeping them available through `/v1/model/info` and `/v1/messages` for Anthropic-compatible clients.
+- Allowed prefixed fallback model IDs for GitHub Copilot, OpenCode Zen, and Ollama Cloud when provider model discovery is stale.
+
 ## [1.4.1] - 2026-06-21
 - Ollama and OpenCode Zen proxy models now use clear provider prefixes (`ol-` and `oc-`) to avoid name collisions with similarly named models from other providers.
 - Kimi proxy models are now labeled as Kimi Code, making it clearer which Kimi subscription endpoint they use.
