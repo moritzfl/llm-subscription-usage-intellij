@@ -53,8 +53,9 @@ Individual MCP tools can be enabled or disabled in the IDE settings under `Tools
 - Z.ai via API key
 - MiniMax via API key
 - Ollama via API key
+- SuperGrok/xAI via the existing SuperGrok login
 
-OpenAI/Codex search supports context-size, live-access, domain-filter, and optional source metadata controls.
+OpenAI/Codex search supports context-size, live-access, domain-filter, and optional source metadata controls. SuperGrok/xAI search supports model selection and domain filters.
 
 **MCP Image Generation** — Generate images through hosted Codex tooling and optionally save the result directly to a file.
 

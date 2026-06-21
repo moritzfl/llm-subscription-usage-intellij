@@ -1,6 +1,7 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+- Added SuperGrok/xAI web search as an MCP tool using the existing SuperGrok login.
 - Added unified proxy support for Kimi, MiniMax, Ollama, OpenCode Zen, and Z.ai alongside the existing OpenAI, SuperGrok, and GitHub Copilot providers.
 - Removed deprecated IntelliJ status bar API usage from the plugin verifier report.
 

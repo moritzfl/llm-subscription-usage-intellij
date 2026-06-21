@@ -20,6 +20,8 @@ import de.moritzf.quota.minimax.MiniMaxRegionPreference
 import de.moritzf.quota.minimax.MiniMaxWebSearchClient
 import de.moritzf.quota.ollama.OllamaQuotaException
 import de.moritzf.quota.ollama.OllamaWebSearchClient
+import de.moritzf.quota.supergrok.SuperGrokQuotaException
+import de.moritzf.quota.supergrok.SuperGrokWebSearchClient
 import de.moritzf.quota.zai.ZaiQuotaException
 import de.moritzf.quota.zai.ZaiWebSearchClient
 import kotlinx.serialization.json.add
@@ -38,6 +40,7 @@ class OpenAiUsageQuotaMcpToolset(
     private val zaiSearchClient: ZaiWebSearchClient = ZaiWebSearchClient.createDefault(),
     private val miniMaxSearchClient: MiniMaxWebSearchClient = MiniMaxWebSearchClient.createDefault(),
     private val ollamaSearchClient: OllamaWebSearchClient = OllamaWebSearchClient.createDefault(),
+    private val superGrokSearchClient: SuperGrokWebSearchClient = SuperGrokWebSearchClient.createDefault(),
 ) : McpToolset {
     @McpTool(name = "openai_usage_quota")
     @McpDescription(description = "Returns the latest OpenAI usage quota response JSON.")
@@ -122,6 +125,11 @@ class OpenAiUsageQuotaMcpToolset(
                 provider = "Ollama",
                 missingReason = "Ollama API key missing. Add an Ollama API key in settings.",
             ) { !OllamaApiKeyStore.getInstance().loadBlocking().isNullOrBlank() },
+            searchToolStatus(
+                tool = "supergrok_web_search",
+                provider = "SuperGrok",
+                missingReason = "Grok login required. Log in from SuperGrok settings.",
+            ) { !QuotaAuthService.getInstance().getAccessTokenBlocking(QuotaProviderType.SUPERGROK).isNullOrBlank() },
         )
 
         return buildJsonObject {
@@ -263,6 +271,44 @@ class OpenAiUsageQuotaMcpToolset(
             errorResult(exception.message ?: "Ollama web search failed.")
         } catch (exception: Exception) {
             errorResult(exception.message ?: "Ollama web search failed.")
+        }
+    }
+
+    @McpTool(name = "supergrok_web_search")
+    @McpDescription(description = "Runs a SuperGrok/xAI web search using the existing SuperGrok login and returns normalized JSON results.")
+    fun supergrok_web_search(
+        @McpDescription(description = "Search query to send to Grok web search.") query: String,
+        @McpDescription(description = "xAI model to use for the Responses API web search request.") model: String = SuperGrokWebSearchClient.DEFAULT_MODEL,
+        @McpDescription(description = "Optional comma-separated domains to allow, up to 5. Leave blank for no allow filter.") allowedDomains: String? = null,
+        @McpDescription(description = "Optional comma-separated domains to exclude, up to 5. Leave blank for no exclude filter.") excludedDomains: String? = null,
+        @McpDescription(description = "Maximum output tokens for the Grok answer. Values are clamped to Grok's safe local range.") maxOutputTokens: Int = SuperGrokWebSearchClient.DEFAULT_MAX_OUTPUT_TOKENS,
+    ): String {
+        val authService = QuotaAuthService.getInstance()
+        val token = authService.getAccessTokenBlocking(QuotaProviderType.SUPERGROK)
+        if (token.isNullOrBlank()) {
+            return errorResult("Grok login required. Log in from SuperGrok settings.")
+        }
+        fun runSearch(accessToken: String): String {
+            return superGrokSearchClient.webSearch(accessToken, query, model, allowedDomains, excludedDomains, maxOutputTokens)
+        }
+        return try {
+            runSearch(token)
+        } catch (exception: SuperGrokQuotaException) {
+            if (exception.statusCode == 401 || exception.statusCode == 403) {
+                val refreshed = authService.forceRefreshBlocking(QuotaProviderType.SUPERGROK, token)
+                if (!refreshed.isNullOrBlank()) {
+                    return try {
+                        runSearch(refreshed)
+                    } catch (retryException: SuperGrokQuotaException) {
+                        errorResult(retryException.message ?: "Grok web search failed.")
+                    } catch (retryException: Exception) {
+                        errorResult(retryException.message ?: "Grok web search failed.")
+                    }
+                }
+            }
+            errorResult(exception.message ?: "Grok web search failed.")
+        } catch (exception: Exception) {
+            errorResult(exception.message ?: "Grok web search failed.")
         }
     }
 
