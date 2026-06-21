@@ -35,6 +35,7 @@ class KimiSubscriptionProxyProviderTest {
                 val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
                     .map { it.jsonObject["id"]!!.jsonPrimitive.content }
                 assertEquals(listOf(KimiSubscriptionProxyProvider.MODEL_ID), ids)
+                assertEquals("Kimi Code", proxy.provider.models().single().providerName)
             } finally {
                 proxy.server.stop()
             }
@@ -74,6 +75,7 @@ class KimiSubscriptionProxyProviderTest {
         )
         return TestProxy(
             port,
+            provider,
             SubscriptionProxyServer(
                 port = port,
                 localApiKeyProvider = { "local-key" },
@@ -104,7 +106,11 @@ class KimiSubscriptionProxyProviderTest {
         )
     }
 
-    private data class TestProxy(val port: Int, val server: SubscriptionProxyServer)
+    private data class TestProxy(
+        val port: Int,
+        val provider: KimiSubscriptionProxyProvider,
+        val server: SubscriptionProxyServer,
+    )
 
     private class TestUpstream : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()

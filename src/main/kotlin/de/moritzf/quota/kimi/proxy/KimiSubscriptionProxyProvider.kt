@@ -94,7 +94,7 @@ class KimiSubscriptionProxyProvider(
     companion object {
         const val ID = "kimi"
         const val MODEL_ID = "kimi-for-coding"
-        private const val DISPLAY_NAME = "Kimi"
+        private const val DISPLAY_NAME = "Kimi Code"
         private const val LITELLM_PROVIDER = "kimi"
         private val OPENAI_COMPATIBLE_BASE_URI = URI.create("https://api.kimi.com/coding/v1")
         private val ANTHROPIC_COMPATIBLE_BASE_URI = URI.create("https://api.kimi.com/coding")
