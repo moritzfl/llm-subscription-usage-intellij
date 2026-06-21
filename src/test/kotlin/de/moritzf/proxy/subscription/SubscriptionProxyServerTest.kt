@@ -121,6 +121,40 @@ class SubscriptionProxyServerTest {
     }
 
     @Test
+    fun modelsEndpointOmitsAnthropicOnlyModelsButModelInfoIncludesThem() {
+        TestUpstream().use { upstream ->
+            val server = newServer(
+                providers = listOf(
+                    fakeProvider(
+                        "github",
+                        "GitHub Copilot",
+                        upstream.baseUri,
+                        "gh-token",
+                        "gh-claude-sonnet-4.6",
+                        "claude-sonnet-4.6",
+                        routes = setOf(SubscriptionProxyRoute.ANTHROPIC_MESSAGES),
+                    ),
+                    fakeProvider("github2", "GitHub Copilot", upstream.baseUri, "gh-token", "gh-gpt-5.4", "gpt-5.4"),
+                ),
+            )
+            try {
+                server.start()
+
+                val models = get(server.port, "/v1/models")
+                val modelIds = parseObject(models.body())["data"]!!.jsonArray.map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                assertEquals(listOf("gh-gpt-5.4"), modelIds)
+
+                val info = get(server.port, "/v1/model/info")
+                val infoIds = parseObject(info.body())["data"]!!.jsonArray.map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                assertTrue("gh-claude-sonnet-4.6" in infoIds)
+                assertTrue("gh-gpt-5.4" in infoIds)
+            } finally {
+                server.stop()
+            }
+        }
+    }
+
+    @Test
     fun rejectsInvalidLocalApiKeyBeforeCallingUpstream() {
         TestUpstream().use { upstream ->
             val server = newServer(
@@ -211,6 +245,7 @@ class SubscriptionProxyServerTest {
         localModel: String,
         upstreamModel: String,
         isDefault: Boolean = false,
+        routes: Set<SubscriptionProxyRoute> = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, SubscriptionProxyRoute.RESPONSES),
     ): SubscriptionProxyProvider {
         return PassThroughSubscriptionProxyProvider(
             id = id,
@@ -222,7 +257,7 @@ class SubscriptionProxyServerTest {
                 PassThroughSubscriptionProxyProvider.ModelMapping(
                     localId = localModel,
                     upstreamId = upstreamModel,
-                    supportedRoutes = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, SubscriptionProxyRoute.RESPONSES),
+                    supportedRoutes = routes,
                     isDefault = isDefault,
                 ),
             ) },

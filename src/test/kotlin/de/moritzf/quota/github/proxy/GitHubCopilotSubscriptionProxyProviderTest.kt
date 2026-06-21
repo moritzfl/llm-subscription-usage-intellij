@@ -24,7 +24,7 @@ import kotlinx.serialization.json.jsonPrimitive
 
 class GitHubCopilotSubscriptionProxyProviderTest {
     @Test
-    fun advertisesCopilotModelsWithGhPrefix() {
+    fun advertisesOpenAiCompatibleCopilotModelsWithGhPrefix() {
         TestUpstream().use { upstream ->
             val proxy = newProxy(upstream.baseUri)
             try {
@@ -36,9 +36,6 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     .map { it.jsonObject["id"]!!.jsonPrimitive.content }
                 assertEquals(
                     listOf(
-                        "gh-claude-haiku-4.5",
-                        "gh-claude-sonnet-4.5",
-                        "gh-claude-sonnet-4.6",
                         "gh-gemini-2.5-pro",
                         "gh-gemini-3-flash-preview",
                         "gh-gemini-3.1-pro-preview",
@@ -52,6 +49,8 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     ids,
                 )
                 assertFalse("gh-gpt-5.5" in ids)
+                assertFalse("gh-claude-haiku-4.5" in ids)
+                assertFalse("gh-claude-sonnet-4.6" in ids)
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/models", request.path)
                 assertEquals("Bearer github-token", request.firstHeader("Authorization"))

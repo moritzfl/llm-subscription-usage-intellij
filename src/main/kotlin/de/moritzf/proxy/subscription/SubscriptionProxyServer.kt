@@ -131,7 +131,7 @@ class SubscriptionProxyServer(
 
     private suspend fun models(ctx: ProxyCall) {
         val catalog = catalog()
-        val data = catalog.models.map { model ->
+        val data = catalog.models.filter(::isOpenAiCompatibleModel).map { model ->
             linkedMapOf<String, Any>(
                 "id" to model.localId,
                 "object" to "model",
@@ -269,6 +269,12 @@ class SubscriptionProxyServer(
 
     private fun supportedEndpoints(model: SubscriptionProxyModel): List<String> {
         return model.supportedRoutes.map { route -> "/v1${route.normalizedPath}" }
+    }
+
+    private fun isOpenAiCompatibleModel(model: SubscriptionProxyModel): Boolean {
+        return model.supportedRoutes.any { route ->
+            route == SubscriptionProxyRoute.CHAT_COMPLETIONS || route == SubscriptionProxyRoute.RESPONSES
+        }
     }
 
     companion object {
