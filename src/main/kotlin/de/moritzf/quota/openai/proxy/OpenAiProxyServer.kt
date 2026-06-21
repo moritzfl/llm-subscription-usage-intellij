@@ -225,5 +225,7 @@ class OpenAiProxyServer(
             val tiers = if (base.endsWith("-mini")) MINI_REASONING_TIERS else REASONING_TIERS
             listOf(base) + tiers.map { tier -> "$base ($tier)" }
         }
+
+        fun advertisedModels(): List<String> = ADVERTISED_MODELS
     }
 }

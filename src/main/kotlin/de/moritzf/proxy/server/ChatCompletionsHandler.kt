@@ -57,6 +57,10 @@ class ChatCompletionsHandler(
     suspend fun handle(ctx: ProxyCall) {
         val requestId = if (shouldUseRequestContext()) requestId(ctx) else requestLogger.nextRequestId()
         val body = parseLoggedJsonObject(ctx, requestLogger, requestId) ?: return
+        handleParsed(ctx, requestId, body)
+    }
+
+    suspend fun handleParsed(ctx: ProxyCall, requestId: String, body: JsonObject) {
         val messagesNode = body["messages"]
         if (messagesNode !is JsonArray) {
             toErrorResponse(ctx, "`messages` must be an array.")

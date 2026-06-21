@@ -59,6 +59,10 @@ class ResponsesHandler {
     suspend fun create(ctx: ProxyCall) {
         val requestId = if (shouldUseRequestContext()) requestId(ctx) else requestLogger.nextRequestId()
         val body = RequestValidator.parseLoggedJsonObject(ctx, requestLogger, requestId) ?: return
+        handleParsed(ctx, requestId, body)
+    }
+
+    suspend fun handleParsed(ctx: ProxyCall, requestId: String, body: JsonObject) {
         val wantsStream = body.booleanPath("stream", false)
         AccessLogFields.mode(ctx, if (wantsStream) "stream" else "sync")
         // The replay cache emulates previous_response_id/item_reference for store=false.
