@@ -75,7 +75,7 @@ internal class ProviderReorderPanel(
     private var dropIndex: Int = -1
 
     private var selectedProvider: QuotaProviderType = currentOrder.firstOrNull() ?: QuotaProviderRegistry.defaultProviderOrder().first()
-    
+
     private var dragStartTime: Long = 0
     private var dragStartPoint: Point? = null
 
@@ -121,9 +121,9 @@ internal class ProviderReorderPanel(
             val label = iconsPanel.getComponent(i) as? JBLabel ?: continue
             val providerId = label.getClientProperty("providerId") as? String ?: continue
             val isSelected = providerId == selectedProvider.id
-            
+
             if (isSelected) {
-                label.background = JBColor(Color(0, 0, 0, 20), Color(255, 255, 255, 30))
+                label.background = selectedProviderBackground()
                 label.isOpaque = true
                 label.border = BorderFactory.createCompoundBorder(
                     BorderFactory.createLineBorder(JBColor(Color(0x4285F4), Color(0x8AB4F8)), 2, true),
@@ -177,9 +177,9 @@ internal class ProviderReorderPanel(
             preferredSize = Dimension(itemWidth, itemHeight)
             minimumSize = Dimension(itemWidth, itemHeight)
             maximumSize = Dimension(itemWidth, itemHeight)
-            
+
             if (isSelected) {
-                background = JBColor(Color(0, 0, 0, 20), Color(255, 255, 255, 30))
+                background = selectedProviderBackground()
                 isOpaque = true
                 border = BorderFactory.createCompoundBorder(
                     BorderFactory.createLineBorder(JBColor(Color(0x4285F4), Color(0x8AB4F8)), 2, true),
@@ -192,7 +192,7 @@ internal class ProviderReorderPanel(
                     JBUI.Borders.empty(4, 6),
                 )
             }
-            
+
             cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
             toolTipText = "Click to select, drag to reorder ${provider.type.displayName}"
             transferHandler = ProviderTransferHandler()
@@ -203,10 +203,10 @@ internal class ProviderReorderPanel(
                     selectedProvider = provider.type
                     updateSelectionVisuals()
                     onProviderSelected(provider.type)
-                    
+
                     dragStartTime = System.currentTimeMillis()
                     dragStartPoint = javax.swing.SwingUtilities.convertPoint(this@apply, e.point, iconsPanel)
-                    
+
                     val handler = transferHandler ?: return
                     handler.exportAsDrag(this@apply, e, TransferHandler.MOVE)
                 }
@@ -217,7 +217,7 @@ internal class ProviderReorderPanel(
 
                 override fun mouseEntered(e: MouseEvent) {
                     if (provider.type != selectedProvider) {
-                        background = JBColor(Color(0, 0, 0, 10), Color(255, 255, 255, 15))
+                        background = hoveredProviderBackground()
                         isOpaque = true
                         repaint()
                     }
@@ -265,12 +265,12 @@ internal class ProviderReorderPanel(
 
             val pt = support.dropLocation.dropPoint
             val iconsPt = if (target == iconsPanel) pt else javax.swing.SwingUtilities.convertPoint(target, pt, iconsPanel)
-            
+
             val itemWidth = JBUI.scale(83)
             val now = System.currentTimeMillis()
             val timeMet = now - dragStartTime >= 500
             val distanceMet = dragStartPoint?.let { Math.abs(iconsPt.x - it.x) >= itemWidth / 2 } ?: false
-            
+
             if (timeMet || distanceMet) {
                 val newIndex = insertionIndexFor(iconsPt)
                 if (newIndex != dropIndex) {
@@ -283,7 +283,7 @@ internal class ProviderReorderPanel(
                     iconsPanel.repaint()
                 }
             }
-            
+
             return true
         }
 
@@ -302,7 +302,7 @@ internal class ProviderReorderPanel(
             dropIndex = -1
             dragStartPoint = null
             iconsPanel.repaint()
-            
+
             moveProvider(draggedId, insertIndex)
             return true
         }
@@ -314,6 +314,20 @@ internal class ProviderReorderPanel(
     )
 
     companion object {
+        private fun selectedProviderBackground(): Color {
+            return JBColor.namedColor(
+                "List.selectionInactiveBackground",
+                JBColor(Color(0xDCEBFA), Color(0x2F4359)),
+            )
+        }
+
+        private fun hoveredProviderBackground(): Color {
+            return JBColor.namedColor(
+                "List.hoverBackground",
+                JBColor(Color(0xF2F6FA), Color(0x34383D)),
+            )
+        }
+
         fun scaleToSize(icon: Icon, targetSize: Int, component: JComponent): Icon {
             val maxDim = maxOf(icon.iconWidth, icon.iconHeight)
             if (maxDim <= 0) return icon

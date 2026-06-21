@@ -13,6 +13,7 @@ import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.messages.MessageBusConnection
 import com.intellij.util.ui.JBUI
+import com.intellij.util.ui.UIUtil
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaProviderRegistry
@@ -372,7 +373,8 @@ class QuotaSettingsConfigurable : Configurable {
 
     private fun buildSubscriptionUsageTab(): JComponent {
         return BorderLayoutPanel().apply {
-            isOpaque = false
+            background = UIUtil.getPanelBackground()
+            isOpaque = true
             addToTop(panel {
                 row("Indicator location:") {
                     cell(locationComboBox!!)
@@ -388,11 +390,13 @@ class QuotaSettingsConfigurable : Configurable {
                 }
             })
             addToCenter(BorderLayoutPanel().apply {
-                isOpaque = false
+                background = UIUtil.getPanelBackground()
+                isOpaque = true
                 border = JBUI.Borders.emptyTop(16)
                 addToTop(JSeparator())
                 addToCenter(BorderLayoutPanel().apply {
-                    isOpaque = false
+                    background = UIUtil.getPanelBackground()
+                    isOpaque = true
                     addToTop(providerReorderPanel!!)
                     addToCenter(serviceCards!!)
                 })
