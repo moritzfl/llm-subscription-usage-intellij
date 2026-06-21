@@ -19,6 +19,7 @@ class OllamaSubscriptionProxyProvider(
         litellmProvider = LITELLM_PROVIDER,
         baseUri = upstreamBaseUri,
         apiKeyProvider = apiKeyProvider,
+        localIdPrefix = PREFIX,
         httpClient = httpClient,
         fullRequestLogging = fullRequestLogging,
         requestLogDir = requestLogDir,
@@ -37,6 +38,7 @@ class OllamaSubscriptionProxyProvider(
 
     companion object {
         const val ID = "ollama"
+        const val PREFIX = "ol-"
         private const val DISPLAY_NAME = "Ollama"
         private const val LITELLM_PROVIDER = "ollama"
         val DEFAULT_UPSTREAM_BASE_URI: URI = URI.create("https://ollama.com/v1")

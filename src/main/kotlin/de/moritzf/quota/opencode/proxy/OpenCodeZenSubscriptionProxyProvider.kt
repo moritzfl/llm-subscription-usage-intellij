@@ -38,7 +38,7 @@ class OpenCodeZenSubscriptionProxyProvider(
 
     companion object {
         const val ID = "opencode"
-        const val PREFIX = "opencode-"
+        const val PREFIX = "oc-"
         private const val DISPLAY_NAME = "OpenCode Zen"
         private const val LITELLM_PROVIDER = "opencode"
         val DEFAULT_UPSTREAM_BASE_URI: URI = URI.create("https://opencode.ai/zen/v1")
