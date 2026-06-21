@@ -11,6 +11,7 @@ import de.moritzf.proxy.server.RequestValidator
 import de.moritzf.proxy.server.UsageHandler
 import de.moritzf.proxy.server.stringPath
 import de.moritzf.proxy.usage.UsageTracker
+import de.moritzf.proxy.util.ApiKeyUtils
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
@@ -119,7 +120,7 @@ class SubscriptionProxyServer(
                 ctx.handled = true
                 return
             }
-            apiKeyStore?.let { ProxyServer.authenticateRequest(ctx, it) }
+            apiKeyStore?.let { authenticateRequest(ctx, it) }
             if (ctx.handled) return
             handler(ctx)
         } catch (exception: Exception) {
@@ -186,6 +187,33 @@ class SubscriptionProxyServer(
             HttpHeaders.AccessControlAllowHeaders,
             ctx.header(HttpHeaders.AccessControlRequestHeaders) ?: "Authorization,Content-Type,X-LiteLLM-Num-Retries,x-api-key",
         )
+    }
+
+    private suspend fun authenticateRequest(ctx: ProxyCall, apiKeyStore: ApiKeyStore) {
+        if (ctx.path() == "/health" || ctx.path().startsWith("/health/")) return
+        if (isCorsPreflight(ctx)) return
+        val key = localApiKey(ctx)
+        if (key != null && key == apiKeyStore.adminKey()) {
+            ctx.setAttribute(de.moritzf.proxy.server.ProxyCallAttributes.IS_ADMIN, true)
+            ctx.setAttribute(de.moritzf.proxy.server.ProxyCallAttributes.ADMIN_KEY_FINGERPRINT, ApiKeyUtils.fingerprint(key))
+            return
+        }
+        val name = if (key != null) apiKeyStore.lookup(key) else null
+        if (name == null) {
+            apiKeyStore.reloadIfFileChanged()
+            JsonHelper.toErrorResponse(ctx, "Invalid or missing API key.", 401, "auth_error")
+            ctx.handled = true
+            return
+        }
+        ctx.setAttribute(de.moritzf.proxy.server.ProxyCallAttributes.KEY_NAME, name)
+        ctx.setAttribute(de.moritzf.proxy.server.ProxyCallAttributes.KEY_FINGERPRINT, ApiKeyUtils.fingerprint(key!!))
+    }
+
+    private fun localApiKey(ctx: ProxyCall): String? {
+        val auth = ctx.header(HttpHeaders.Authorization)
+        val bearer = if (auth != null && auth.startsWith("Bearer ")) auth.substring(7).trim() else null
+        return bearer?.takeIf { it.isNotBlank() }
+            ?: ctx.header("x-api-key")?.trim()?.takeIf { it.isNotBlank() }
     }
 
     private fun liteLlmInfo(model: SubscriptionProxyModel): Map<String, Any> {

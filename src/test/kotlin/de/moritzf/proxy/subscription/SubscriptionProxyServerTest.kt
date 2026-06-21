@@ -158,13 +158,13 @@ class SubscriptionProxyServerTest {
             litellmProvider = id,
             baseUri = upstreamBaseUri,
             accessTokenProvider = { token },
-            modelMappings = listOf(
+            modelMappingsProvider = { listOf(
                 PassThroughSubscriptionProxyProvider.ModelMapping(
                     localId = localModel,
                     upstreamId = upstreamModel,
                     supportedRoutes = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, SubscriptionProxyRoute.RESPONSES),
                 ),
-            ),
+            ) },
             requestLogger = RequestLogger(false, Files.createTempDirectory("subscription-proxy-test-logs")),
         )
     }

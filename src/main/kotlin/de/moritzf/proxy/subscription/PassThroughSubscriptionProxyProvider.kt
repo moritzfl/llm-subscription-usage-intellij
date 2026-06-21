@@ -6,7 +6,6 @@ import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.server.ProxyCall
 import de.moritzf.proxy.server.UpstreamErrorMapper
 import de.moritzf.proxy.server.createObjectNode
-import de.moritzf.proxy.transport.UrlResolver
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -33,8 +32,9 @@ class PassThroughSubscriptionProxyProvider(
     private val baseUri: URI,
     private val accessTokenProvider: () -> String?,
     private val tokenRefresher: (staleAccessToken: String?) -> String? = { null },
-    private val modelMappings: List<ModelMapping>,
+    private val modelMappingsProvider: () -> List<ModelMapping>,
     private val defaultHeaders: Map<String, String> = emptyMap(),
+    private val requestHeadersProvider: (SubscriptionProxyRequest) -> Map<String, String> = { emptyMap() },
     private val httpClient: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(30))
         .build(),
@@ -46,7 +46,7 @@ class PassThroughSubscriptionProxyProvider(
 
     override fun models(): List<SubscriptionProxyModel> {
         if (!isConfigured()) return emptyList()
-        return modelMappings.map { mapping ->
+        return modelMappingsProvider().map { mapping ->
             SubscriptionProxyModel(
                 localId = mapping.localId,
                 upstreamId = mapping.upstreamId,
@@ -110,7 +110,7 @@ class PassThroughSubscriptionProxyProvider(
         val upstreamBody = rewriteModel(request.body, request.model.upstreamId)
         val payload = JsonHelper.encodeToString(upstreamBody)
         val upstreamPath = request.route.upstreamPath
-        val targetUrl = UrlResolver.resolveTargetUrl(upstreamPath, baseUri.toString())
+        val targetUrl = resolveUpstreamUrl(upstreamPath)
         val loggedHeaders = LinkedHashMap<String, String>()
         val builder = HttpRequest.newBuilder(URI.create(targetUrl))
             .header(HttpHeaders.Authorization, "Bearer $accessToken")
@@ -120,6 +120,10 @@ class PassThroughSubscriptionProxyProvider(
             loggedHeaders[name] = value
         }
         defaultHeaders.forEach { (name, value) ->
+            builder.setHeader(name, value)
+            loggedHeaders[name] = value
+        }
+        requestHeadersProvider(request).forEach { (name, value) ->
             builder.setHeader(name, value)
             loggedHeaders[name] = value
         }
@@ -156,6 +160,10 @@ class PassThroughSubscriptionProxyProvider(
             }
         }
         ctx.handled = true
+    }
+
+    private fun resolveUpstreamUrl(path: String): String {
+        return baseUri.toString().trimEnd('/') + "/" + path.trimStart('/')
     }
 
     data class ModelMapping(
