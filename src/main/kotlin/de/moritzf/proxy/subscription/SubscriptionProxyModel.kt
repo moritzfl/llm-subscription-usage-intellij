@@ -23,6 +23,7 @@ data class SubscriptionProxyModel(
     val supportsPromptCaching: Boolean = false,
     val maxInputTokens: Int? = null,
     val maxOutputTokens: Int? = null,
+    val isDefault: Boolean = false,
 )
 
 data class SubscriptionProxyRequest(

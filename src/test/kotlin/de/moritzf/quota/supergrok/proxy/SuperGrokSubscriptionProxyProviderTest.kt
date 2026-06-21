@@ -44,6 +44,47 @@ class SuperGrokSubscriptionProxyProviderTest {
     }
 
     @Test
+    fun doesNotAdvertiseFallbackModelWhenDiscoveryIsEmpty() {
+        TestUpstream(modelsBody = "{\"object\":\"list\",\"data\":[]}").use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = get(proxy.port, "/v1/models")
+
+                assertEquals(200, response.statusCode())
+                val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
+                    .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                assertEquals(emptyList(), ids)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun skipsImageAndVideoModelsForChatProxyRoutes() {
+        val modelsBody = "{\"object\":\"list\",\"data\":[" +
+            "{\"id\":\"grok-4.3\",\"prompt_text_token_price\":12500,\"completion_text_token_price\":25000}," +
+            "{\"id\":\"grok-imagine-image\",\"image_price\":200000000}," +
+            "{\"id\":\"grok-imagine-video-1.5\"}" +
+            "]}"
+        TestUpstream(modelsBody = modelsBody).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = get(proxy.port, "/v1/models")
+
+                assertEquals(200, response.statusCode())
+                val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
+                    .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                assertEquals(listOf("grok-4.3"), ids)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun forwardsResponsesWithNativeGrokModel() {
         TestUpstream().use { upstream ->
             val proxy = newProxy(upstream.baseUri)
@@ -108,7 +149,9 @@ class SuperGrokSubscriptionProxyProviderTest {
         fun stop() = server.stop()
     }
 
-    private class TestUpstream : AutoCloseable {
+    private class TestUpstream(
+        private val modelsBody: String = "{\"object\":\"list\",\"data\":[{\"id\":\"grok-4.3\"}]}",
+    ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
         private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
@@ -122,7 +165,7 @@ class SuperGrokSubscriptionProxyProviderTest {
                     body = body,
                 )
                 val responseBody = if (exchange.requestURI.rawPath.endsWith("/models")) {
-                    "{\"object\":\"list\",\"data\":[{\"id\":\"grok-4.3\"}]}"
+                    modelsBody
                 } else {
                     "{\"id\":\"resp_1\",\"output\":[]}"
                 }

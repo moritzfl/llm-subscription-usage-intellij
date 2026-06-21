@@ -15,7 +15,7 @@ class SubscriptionModelCatalog(
         require(duplicates.isEmpty()) {
             "Duplicate advertised proxy model IDs: ${duplicates.sorted().joinToString(", ")}"
         }
-        models = collected.sortedBy { it.localId }
+        models = collected
         modelsByLocalId = models.associateBy { it.localId }
     }
 
@@ -25,5 +25,11 @@ class SubscriptionModelCatalog(
 
     fun providerFor(model: SubscriptionProxyModel): SubscriptionProxyProvider? {
         return providersById[model.providerId]?.takeIf { it.isConfigured() }
+    }
+
+    fun defaultModel(route: SubscriptionProxyRoute): SubscriptionProxyModel? {
+        val routeModels = models.filter { route in it.supportedRoutes }
+        return routeModels.firstOrNull { it.isDefault }
+            ?: routeModels.maxByOrNull { it.localId }
     }
 }

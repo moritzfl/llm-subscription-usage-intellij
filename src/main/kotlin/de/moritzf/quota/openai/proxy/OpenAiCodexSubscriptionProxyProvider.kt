@@ -97,6 +97,7 @@ class OpenAiCodexSubscriptionProxyProvider(
                 supportsPromptCaching = true,
                 maxInputTokens = 272_000,
                 maxOutputTokens = 128_000,
+                isDefault = id == OpenAiProxyServer.defaultAdvertisedModel(),
             )
         }
     }

@@ -21,6 +21,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 
 class GitHubCopilotSubscriptionProxyProvider(
@@ -77,6 +78,7 @@ class GitHubCopilotSubscriptionProxyProvider(
                 supportsVision = true,
                 maxInputTokens = model.maxInputTokens,
                 maxOutputTokens = model.maxOutputTokens,
+                isDefault = model.isDefault,
             )
         }
     }
@@ -124,6 +126,7 @@ class GitHubCopilotSubscriptionProxyProvider(
             supportedRoutes = supportedRoutes(item["supported_endpoints"] as? JsonArray),
             maxInputTokens = intField(item, "max_input_tokens") ?: intField(item, "max_context_window_tokens"),
             maxOutputTokens = intField(item, "max_output_tokens"),
+            isDefault = boolField(item, "is_default") ?: boolField(item, "default") ?: false,
         )
     }
 
@@ -153,6 +156,7 @@ class GitHubCopilotSubscriptionProxyProvider(
         val supportedRoutes: Set<SubscriptionProxyRoute>,
         val maxInputTokens: Int?,
         val maxOutputTokens: Int?,
+        val isDefault: Boolean,
     )
 
     private data class ModelCache(
@@ -176,6 +180,10 @@ class GitHubCopilotSubscriptionProxyProvider(
 
         private fun intField(item: JsonObject, name: String): Int? {
             return (item[name] as? JsonPrimitive)?.contentOrNull?.toIntOrNull()
+        }
+
+        private fun boolField(item: JsonObject, name: String): Boolean? {
+            return (item[name] as? JsonPrimitive)?.booleanOrNull
         }
 
         private fun containsImageInput(element: JsonElement?): Boolean {

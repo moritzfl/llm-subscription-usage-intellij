@@ -18,8 +18,10 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 
 class SuperGrokSubscriptionProxyProvider(
@@ -62,33 +64,33 @@ class SuperGrokSubscriptionProxyProvider(
     }
 
     private fun modelMappings(): List<PassThroughSubscriptionProxyProvider.ModelMapping> {
-        val ids = modelIds().ifEmpty { DEFAULT_MODELS }
-        return ids.map { id ->
+        return remoteModels().map { model ->
             PassThroughSubscriptionProxyProvider.ModelMapping(
-                localId = id,
-                upstreamId = id,
+                localId = model.id,
+                upstreamId = model.id,
                 supportedRoutes = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, SubscriptionProxyRoute.RESPONSES),
                 supportsPromptCaching = false,
+                isDefault = model.isDefault,
             )
         }
     }
 
     @OptIn(ExperimentalTime::class)
-    private fun modelIds(): List<String> {
+    private fun remoteModels(): List<RemoteModel> {
         val now = Clock.System.now()
         val cached = modelCache
         if (cached != null && now - cached.fetchedAt < CACHE_TTL) {
-            return cached.ids
+            return cached.models
         }
         val token = accessTokenProvider().trimmedOrNull() ?: return emptyList()
-        val ids = runCatching { fetchModelIds(token) }.getOrDefault(emptyList())
-        if (ids.isNotEmpty()) {
-            modelCache = ModelCache(ids, now)
+        val models = runCatching { fetchModels(token) }.getOrDefault(emptyList())
+        if (models.isNotEmpty()) {
+            modelCache = ModelCache(models, now)
         }
-        return ids
+        return models
     }
 
-    private fun fetchModelIds(token: String): List<String> {
+    private fun fetchModels(token: String): List<RemoteModel> {
         val request = HttpRequest.newBuilder(URI.create(UrlResolver.resolveTargetUrl("/models", upstreamBaseUri.toString())))
             .timeout(Duration.ofSeconds(30))
             .header("Authorization", "Bearer $token")
@@ -100,14 +102,40 @@ class SuperGrokSubscriptionProxyProvider(
         if (response.statusCode() !in 200..299) return emptyList()
         val root = JsonHelper.parseToJsonElementOrNull(response.body()) as? JsonObject ?: return emptyList()
         val data = root["data"] as? JsonArray ?: return emptyList()
-        return data.mapNotNull { item ->
-            val id = (item as? JsonObject)?.get("id") as? JsonPrimitive
-            id?.contentOrNull?.takeIf { it.isNotBlank() }
-        }.distinct()
+        return data.mapNotNull { parseRemoteModel(it) }.distinctBy { it.id }
+    }
+
+    private fun parseRemoteModel(element: JsonElement): RemoteModel? {
+        val item = element as? JsonObject ?: return null
+        val id = (item["id"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() } ?: return null
+        if (!supportsTextInference(id, item)) return null
+        return RemoteModel(
+            id = id,
+            isDefault = booleanField(item, "is_default") ?: booleanField(item, "default") ?: false,
+        )
+    }
+
+    private data class RemoteModel(
+        val id: String,
+        val isDefault: Boolean,
+    )
+
+    private fun booleanField(item: JsonObject, name: String): Boolean? {
+        return (item[name] as? JsonPrimitive)?.booleanOrNull
+    }
+
+    private fun supportsTextInference(id: String, item: JsonObject): Boolean {
+        if (item["prompt_text_token_price"] != null || item["completion_text_token_price"] != null) {
+            return true
+        }
+        if (item["image_price"] != null || id.contains("imagine", ignoreCase = true)) {
+            return false
+        }
+        return true
     }
 
     private data class ModelCache(
-        val ids: List<String>,
+        val models: List<RemoteModel>,
         val fetchedAt: Instant,
     )
 
@@ -116,7 +144,6 @@ class SuperGrokSubscriptionProxyProvider(
         private const val DISPLAY_NAME = "SuperGrok"
         private const val LITELLM_PROVIDER = "xai"
         val DEFAULT_UPSTREAM_BASE_URI: URI = URI.create("https://api.x.ai/v1")
-        private val DEFAULT_MODELS = listOf("grok-4.3")
         private val CACHE_TTL = 5.minutes
         private val DEFAULT_REQUEST_LOG_DIR = System.getProperty("java.io.tmpdir") +
             "/openai-usage-quota-intellij/subscription-proxy-supergrok-requests"

@@ -154,9 +154,18 @@ class SubscriptionProxyServer(
         AccessLogFields.mode(ctx, if (ctx.header(HttpHeaders.Accept)?.contains("text/event-stream") == true) "stream" else "proxy")
         val requestId = ctx.getAttribute(AccessLogFields.REQUEST_ID) ?: requestLogger.nextRequestId()
         val body = RequestValidator.parseLoggedJsonObject(ctx, requestLogger, requestId) ?: return
-        val model = catalog().resolve(body.stringPath("model")) ?: run {
-            JsonHelper.toErrorResponse(ctx, "Unknown proxy model: ${body.stringPath("model")}", 400, "invalid_request_error")
-            return
+        val catalog = catalog()
+        val requestedModel = body.stringPath("model").trim().takeIf { it.isNotBlank() }
+        val model = if (requestedModel == null) {
+            catalog.defaultModel(route) ?: run {
+                JsonHelper.toErrorResponse(ctx, "No proxy models are available for ${route.normalizedPath}.", 503, "configuration_error")
+                return
+            }
+        } else {
+            catalog.resolve(requestedModel) ?: run {
+                JsonHelper.toErrorResponse(ctx, "Unknown proxy model: $requestedModel", 400, "invalid_request_error")
+                return
+            }
         }
         if (route !in model.supportedRoutes) {
             JsonHelper.toErrorResponse(ctx, "Model ${model.localId} does not support ${route.normalizedPath}.", 400, "invalid_request_error")
@@ -232,6 +241,7 @@ class SubscriptionProxyServer(
             "supports_prompt_caching" to model.supportsPromptCaching,
             "input_cost_per_token" to 0.0,
             "output_cost_per_token" to 0.0,
+            "is_default" to model.isDefault,
         )
         model.maxInputTokens?.let { modelInfo["max_input_tokens"] = it }
         model.maxOutputTokens?.let {

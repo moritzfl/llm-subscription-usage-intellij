@@ -33,7 +33,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 assertEquals(200, response.statusCode())
                 val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
                     .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertEquals(listOf("gh-claude-sonnet-4.5", "gh-gpt-5.5"), ids)
+                assertEquals(listOf("gh-gpt-5.5", "gh-claude-sonnet-4.5"), ids)
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/models", request.path)
                 assertEquals("Bearer github-token", request.firstHeader("Authorization"))

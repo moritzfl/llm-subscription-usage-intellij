@@ -61,6 +61,7 @@ class PassThroughSubscriptionProxyProvider(
                 supportsPromptCaching = mapping.supportsPromptCaching,
                 maxInputTokens = mapping.maxInputTokens,
                 maxOutputTokens = mapping.maxOutputTokens,
+                isDefault = mapping.isDefault,
             )
         }
     }
@@ -177,6 +178,7 @@ class PassThroughSubscriptionProxyProvider(
         val supportsPromptCaching: Boolean = false,
         val maxInputTokens: Int? = null,
         val maxOutputTokens: Int? = null,
+        val isDefault: Boolean = false,
     )
 
     companion object {

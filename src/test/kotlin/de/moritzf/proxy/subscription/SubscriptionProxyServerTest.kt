@@ -151,6 +151,58 @@ class SubscriptionProxyServerTest {
         assertTrue(PassThroughSubscriptionProxyProvider.shouldForwardResponseHeader("x-request-id"))
     }
 
+    @Test
+    fun usesAdvertisedDefaultModelWhenRequestOmitsModel() {
+        TestUpstream(responseBody = "{\"id\":\"chatcmpl_1\",\"choices\":[]}").use { upstream ->
+            val server = newServer(
+                providers = listOf(
+                    fakeProvider("xai", "SuperGrok", upstream.baseUri, "grok-token", "grok-4.3", "grok-4.3"),
+                    fakeProvider(
+                        "github",
+                        "GitHub Copilot",
+                        upstream.baseUri,
+                        "gh-token",
+                        "gh-gpt-5.5",
+                        "gpt-5.5",
+                        isDefault = true,
+                    ),
+                ),
+            )
+            try {
+                server.start()
+                val response = post(server.port, "/v1/chat/completions", "{\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}")
+
+                assertEquals(200, response.statusCode())
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertTrue(request.body.contains("\"model\":\"gpt-5.5\""), request.body)
+            } finally {
+                server.stop()
+            }
+        }
+    }
+
+    @Test
+    fun fallsBackToAlphabeticallyLatestModelWhenNoDefaultIsDeclared() {
+        TestUpstream(responseBody = "{\"id\":\"chatcmpl_1\",\"choices\":[]}").use { upstream ->
+            val server = newServer(
+                providers = listOf(
+                    fakeProvider("openai", "OpenAI", upstream.baseUri, "openai-token", "gpt-5.4", "gpt-5.4"),
+                    fakeProvider("openai2", "OpenAI", upstream.baseUri, "openai-token", "gpt-5.5", "gpt-5.5"),
+                ),
+            )
+            try {
+                server.start()
+                val response = post(server.port, "/v1/chat/completions", "{\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}")
+
+                assertEquals(200, response.statusCode())
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertTrue(request.body.contains("\"model\":\"gpt-5.5\""), request.body)
+            } finally {
+                server.stop()
+            }
+        }
+    }
+
     private fun fakeProvider(
         id: String,
         name: String,
@@ -158,6 +210,7 @@ class SubscriptionProxyServerTest {
         token: String?,
         localModel: String,
         upstreamModel: String,
+        isDefault: Boolean = false,
     ): SubscriptionProxyProvider {
         return PassThroughSubscriptionProxyProvider(
             id = id,
@@ -170,6 +223,7 @@ class SubscriptionProxyServerTest {
                     localId = localModel,
                     upstreamId = upstreamModel,
                     supportedRoutes = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, SubscriptionProxyRoute.RESPONSES),
+                    isDefault = isDefault,
                 ),
             ) },
             requestLogger = RequestLogger(false, Files.createTempDirectory("subscription-proxy-test-logs")),

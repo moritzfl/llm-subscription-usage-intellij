@@ -201,8 +201,9 @@ class OpenAiProxyServer(
         // The curated set of Codex models exposed via /v1/models and /v1/model/info.
         // Per-account entitlement is enforced by the Codex backend, not here: selecting a
         // model the subscription lacks returns an upstream error that the proxy surfaces
-        // as `insufficient_quota`. We advertise a static list rather than live-discovering
-        // so Junie's model-discovery call stays instant and offline-tolerant.
+        // as `insufficient_quota`. The live Codex /models endpoint is not complete enough
+        // for this purpose: it has omitted GPT-5.5 while the Codex UI still exposes it.
+        // Keep this list aligned with the Codex UI model menu.
         // gpt-5.5-pro is intentionally absent: the Codex backend rejects it for ChatGPT
         // accounts ("not supported when using Codex with a ChatGPT account").
         private val ADVERTISED_BASE_MODELS = listOf(
@@ -227,5 +228,7 @@ class OpenAiProxyServer(
         }
 
         fun advertisedModels(): List<String> = ADVERTISED_MODELS
+
+        fun defaultAdvertisedModel(): String = ADVERTISED_BASE_MODELS.maxOrNull() ?: ServerConfig.DEFAULT_MODEL
     }
 }
