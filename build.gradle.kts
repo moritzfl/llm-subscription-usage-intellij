@@ -137,6 +137,13 @@ kover {
 }
 
 tasks {
+    val standaloneKotlinRuntime = configurations.detachedConfiguration(
+        project.dependencies.create("org.jetbrains.kotlin:kotlin-stdlib:${libs.versions.kotlin.get()}"),
+    )
+    val standaloneProxyClasspath = sourceSets.main.get().runtimeClasspath +
+        sourceSets.main.get().compileClasspath +
+        standaloneKotlinRuntime
+
     test {
         useJUnitPlatform()
     }
@@ -145,14 +152,14 @@ tasks {
         group = "application"
         description = "Runs the OpenAI-compatible proxy without launching an IntelliJ IDE."
         mainClass.set("de.moritzf.quota.openai.proxy.StandaloneOpenAiProxyKt")
-        classpath = sourceSets.main.get().runtimeClasspath
+        classpath = standaloneProxyClasspath
     }
 
     register<JavaExec>("runStandaloneSubscriptionProxy") {
         group = "application"
         description = "Runs the unified subscription proxy without launching an IntelliJ IDE."
         mainClass.set("de.moritzf.proxy.subscription.StandaloneSubscriptionProxyKt")
-        classpath = sourceSets.main.get().runtimeClasspath
+        classpath = standaloneProxyClasspath
     }
 
     named("buildSearchableOptions") {
