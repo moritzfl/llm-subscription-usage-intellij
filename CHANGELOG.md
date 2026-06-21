@@ -1,9 +1,13 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
-- Added SuperGrok/xAI web search as an MCP tool using the existing SuperGrok login.
-- Added unified proxy support for Kimi, MiniMax, Ollama, OpenCode Zen, and Z.ai alongside the existing OpenAI, SuperGrok, and GitHub Copilot providers.
-- Removed deprecated IntelliJ status bar API usage from the plugin verifier report.
+
+## [1.4.0] - 2026-06-21
+- The local OpenAI-compatible proxy can now use more of your subscriptions: Kimi, MiniMax, Ollama Cloud, OpenCode Zen, Z.ai, SuperGrok/xAI, and GitHub Copilot can be exposed alongside OpenAI/Codex.
+- Added SuperGrok/xAI web search for MCP clients using your existing SuperGrok login.
+- Improved local proxy compatibility for AI clients, including richer model discovery and better support for GitHub Copilot chat models.
+- MCP web search responses now preserve provider-specific result details instead of flattening them into a simplified format.
+- Settings pages now blend more consistently with the current IntelliJ theme.
 
 ## [1.3.0] - 2026-06-19
 - Dropped IntelliJ IDEA 2025.x support, raising the minimum supported version to 2026.1 so the plugin can use newer Kotlin and bundled Ktor APIs.
