@@ -12,7 +12,7 @@ class QuotaSettingsStateTest {
         val state = QuotaSettingsState()
 
         assertEquals(
-            setOf(QuotaProviderType.OPEN_AI, QuotaProviderType.SUPERGROK, QuotaProviderType.GITHUB),
+            QuotaSettingsState.SUBSCRIPTION_PROXY_SUPPORTED_PROVIDERS.toSet(),
             state.enabledSubscriptionProxyProviders(),
         )
     }
@@ -35,7 +35,7 @@ class QuotaSettingsStateTest {
         val state = QuotaSettingsState().apply {
             subscriptionProxyEnabledProviders = mutableListOf(
                 QuotaProviderType.GITHUB.id,
-                QuotaProviderType.KIMI.id,
+                QuotaProviderType.CURSOR.id,
                 QuotaProviderType.GITHUB.id,
                 QuotaProviderType.OPEN_AI.id,
             )
@@ -46,7 +46,7 @@ class QuotaSettingsStateTest {
 
         assertTrue(reloaded.isSubscriptionProxyProviderEnabled(QuotaProviderType.GITHUB))
         assertTrue(reloaded.isSubscriptionProxyProviderEnabled(QuotaProviderType.OPEN_AI))
-        assertFalse(reloaded.isSubscriptionProxyProviderEnabled(QuotaProviderType.KIMI))
+        assertFalse(reloaded.isSubscriptionProxyProviderEnabled(QuotaProviderType.CURSOR))
         assertEquals(listOf(QuotaProviderType.GITHUB.id, QuotaProviderType.OPEN_AI.id), reloaded.subscriptionProxyEnabledProviders)
     }
 }

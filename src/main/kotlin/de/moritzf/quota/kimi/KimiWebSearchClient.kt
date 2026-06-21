@@ -1,11 +1,10 @@
 package de.moritzf.quota.kimi
 
 import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.shared.McpJson
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
-import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.encodeToString
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
@@ -55,7 +54,7 @@ open class KimiWebSearchClient(
             throw KimiQuotaException("Kimi web search failed (HTTP $status). Try again later.", status, body)
         }
 
-        return KimiWebSearchFetchResult(parseSearchResponse(body, resultLimit, includeContent), usableCredentials)
+        return KimiWebSearchFetchResult(McpJson.providerJsonOrRaw(body), usableCredentials)
     }
 
     private fun searchRequest(
@@ -64,12 +63,14 @@ open class KimiWebSearchClient(
         limit: Int,
         includeContent: Boolean,
     ): HttpRequest {
-        val body = buildJsonObject {
-            put("text_query", query)
-            put("limit", limit)
-            put("enable_page_crawling", includeContent)
-            put("timeout_seconds", SEARCH_TIMEOUT_SECONDS)
-        }.toString()
+        val body = JsonSupport.json.encodeToString(
+            KimiSearchRequestDto(
+                textQuery = query,
+                limit = limit,
+                enablePageCrawling = includeContent,
+                timeoutSeconds = SEARCH_TIMEOUT_SECONDS,
+            ),
+        )
 
         val builder = HttpRequest.newBuilder()
             .uri(searchEndpoint)
@@ -94,29 +95,6 @@ open class KimiWebSearchClient(
     }
 
     private fun Int.isUnauthorized(): Boolean = this == 401 || this == 403
-
-    private fun parseSearchResponse(body: String, limit: Int, includeContent: Boolean): String {
-        val dto = try {
-            JsonSupport.json.decodeFromString<KimiSearchResponseDto>(body)
-        } catch (exception: Exception) {
-            throw KimiQuotaException("Could not parse Kimi web search response.", 200, body, exception)
-        }
-        return buildJsonObject {
-            putJsonArray("search_results") {
-                dto.searchResults.take(limit).forEach { result ->
-                    add(buildJsonObject {
-                        put("title", result.title.orEmpty())
-                        put("url", result.url.orEmpty())
-                        put("snippet", result.snippet.orEmpty())
-                        result.date?.takeIf { it.isNotBlank() }?.let { put("date", it) }
-                        if (includeContent) {
-                            result.content?.takeIf { it.isNotBlank() }?.let { put("content", it) }
-                        }
-                    })
-                }
-            }
-        }.toString()
-    }
 
     data class KimiWebSearchFetchResult(
         val body: String,
@@ -143,15 +121,9 @@ open class KimiWebSearchClient(
 }
 
 @Serializable
-private data class KimiSearchResponseDto(
-    @SerialName("search_results") val searchResults: List<KimiSearchResultDto> = emptyList(),
-)
-
-@Serializable
-private data class KimiSearchResultDto(
-    val title: String? = null,
-    val url: String? = null,
-    val snippet: String? = null,
-    val content: String? = null,
-    val date: String? = null,
+private data class KimiSearchRequestDto(
+    @SerialName("text_query") val textQuery: String,
+    val limit: Int,
+    @SerialName("enable_page_crawling") val enablePageCrawling: Boolean,
+    @SerialName("timeout_seconds") val timeoutSeconds: Int,
 )

@@ -20,7 +20,7 @@ import kotlinx.serialization.json.jsonPrimitive
 
 class SuperGrokWebSearchClientTest {
     @Test
-    fun postsResponsesRequestWithWebSearchToolAndParsesSources() {
+    fun postsResponsesRequestWithWebSearchToolAndReturnsProviderJson() {
         TestGrokServer(
             responseBody = """
                 {
@@ -67,13 +67,13 @@ class SuperGrokWebSearchClientTest {
             val response = parseObject(result)
             assertEquals("resp-1", response["id"]!!.jsonPrimitive.content)
             assertEquals("grok-test", response["model"]!!.jsonPrimitive.content)
-            assertEquals("xAI docs answer", response["answer"]!!.jsonPrimitive.content)
-            val results = response["search_results"]!!.jsonArray
-            assertEquals(2, results.size)
-            assertEquals("xAI", results[0].jsonObject["title"]!!.jsonPrimitive.content)
-            assertEquals("https://x.ai/", results[0].jsonObject["url"]!!.jsonPrimitive.content)
-            assertEquals("Docs", response["citations"]!!.jsonArray[0].jsonObject["title"]!!.jsonPrimitive.content)
-            assertEquals("xAI docs", response["web_search_calls"]!!.jsonArray[0].jsonObject["query"]!!.jsonPrimitive.content)
+            val output = response["output"]!!.jsonArray
+            val searchAction = output[0].jsonObject["action"]!!.jsonObject
+            assertEquals("xAI docs", searchAction["query"]!!.jsonPrimitive.content)
+            val sources = searchAction["sources"]!!.jsonArray
+            assertEquals("https://x.ai/", sources[0].jsonObject["url"]!!.jsonPrimitive.content)
+            val messageContent = output[1].jsonObject["content"]!!.jsonArray[0].jsonObject
+            assertEquals("xAI docs answer", messageContent["text"]!!.jsonPrimitive.content)
 
             val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
             assertEquals("POST", request.method)

@@ -45,13 +45,12 @@ class OllamaWebSearchClientTest {
             val result = client.webSearch("ollama-key", "  Ollama docs  ", limit = 50, includeContent = false)
 
             val response = parseObject(result)
-            val results = response["search_results"]!!.jsonArray
+            val results = response["results"]!!.jsonArray
             assertEquals(2, results.size)
             val item = results[0].jsonObject
             assertEquals("First", item["title"]!!.jsonPrimitive.content)
             assertEquals("https://example.test/first", item["url"]!!.jsonPrimitive.content)
-            assertEquals("First result content", item["snippet"]!!.jsonPrimitive.content)
-            assertTrue("content" !in item)
+            assertEquals("First result content", item["content"]!!.jsonPrimitive.content)
 
             val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
             assertEquals("POST", request.method)
@@ -76,7 +75,7 @@ class OllamaWebSearchClientTest {
 
             val result = client.webSearch("ollama-key", "Ollama docs", includeContent = true)
 
-            val item = parseObject(result)["search_results"]!!.jsonArray[0].jsonObject
+            val item = parseObject(result)["results"]!!.jsonArray[0].jsonObject
             assertEquals("Full content", item["content"]!!.jsonPrimitive.content)
         }
     }

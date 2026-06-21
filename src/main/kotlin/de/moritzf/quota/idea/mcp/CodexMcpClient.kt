@@ -10,6 +10,7 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.openai.proxy.OpenAiProxyServer
 import de.moritzf.quota.openai.proxy.QuotaCodexCredentialsProvider
 import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.shared.McpJson
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -545,7 +546,7 @@ class CodexMcpClient(
         }
 
         private fun errorJson(message: String): String {
-            return buildJsonObject { put("error", message) }.toString()
+            return McpJson.error(message)
         }
     }
 }

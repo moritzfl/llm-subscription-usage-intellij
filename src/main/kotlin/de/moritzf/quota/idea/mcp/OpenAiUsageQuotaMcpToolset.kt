@@ -20,14 +20,12 @@ import de.moritzf.quota.minimax.MiniMaxRegionPreference
 import de.moritzf.quota.minimax.MiniMaxWebSearchClient
 import de.moritzf.quota.ollama.OllamaQuotaException
 import de.moritzf.quota.ollama.OllamaWebSearchClient
+import de.moritzf.quota.shared.McpJson
+import de.moritzf.quota.shared.McpWebSearchToolStatus
 import de.moritzf.quota.supergrok.SuperGrokQuotaException
 import de.moritzf.quota.supergrok.SuperGrokWebSearchClient
 import de.moritzf.quota.zai.ZaiQuotaException
 import de.moritzf.quota.zai.ZaiWebSearchClient
-import kotlinx.serialization.json.add
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
-import kotlinx.serialization.json.putJsonArray
 import java.nio.file.Path
 
 /**
@@ -132,26 +130,7 @@ class OpenAiUsageQuotaMcpToolset(
             ) { !QuotaAuthService.getInstance().getAccessTokenBlocking(QuotaProviderType.SUPERGROK).isNullOrBlank() },
         )
 
-        return buildJsonObject {
-            put("check", "credentials")
-            put("note", "This status does not call provider search APIs.")
-            putJsonArray("available_tools") {
-                statuses.filter { it.available }.forEach { add(it.tool) }
-            }
-            putJsonArray("tools") {
-                statuses.forEach { status ->
-                    add(buildJsonObject {
-                        put("tool", status.tool)
-                        put("provider", status.provider)
-                        put("configured", status.configured)
-                        put("available", status.available)
-                        if (!status.available) {
-                            put("reason", status.reason)
-                        }
-                    })
-                }
-            }
-        }.toString()
+        return McpJson.webSearchStatus(statuses)
     }
 
     @McpTool(name = "codex_web_search")
@@ -352,9 +331,9 @@ class OpenAiUsageQuotaMcpToolset(
         provider: String,
         missingReason: String,
         isConfigured: () -> Boolean,
-    ): SearchToolStatus {
+    ): McpWebSearchToolStatus {
         val configured = runCatching { isConfigured() }.getOrDefault(false)
-        return SearchToolStatus(
+        return McpWebSearchToolStatus(
             tool = tool,
             provider = provider,
             configured = configured,
@@ -368,14 +347,6 @@ class OpenAiUsageQuotaMcpToolset(
     }
 
     private fun errorResult(errorMessage: String): String {
-        return buildJsonObject { put("error", errorMessage) }.toString()
+        return McpJson.error(errorMessage)
     }
-
-    private data class SearchToolStatus(
-        val tool: String,
-        val provider: String,
-        val configured: Boolean,
-        val available: Boolean,
-        val reason: String?,
-    )
 }

@@ -52,14 +52,13 @@ class ZaiWebSearchClientTest {
             val response = parseObject(result)
             assertEquals("search-1", response["id"]!!.jsonPrimitive.content)
             assertEquals("request-1", response["request_id"]!!.jsonPrimitive.content)
-            val results = response["search_results"]!!.jsonArray
-            assertEquals(1, results.size)
+            val results = response["search_result"]!!.jsonArray
+            assertEquals(2, results.size)
             val item = results[0].jsonObject
             assertEquals("First", item["title"]!!.jsonPrimitive.content)
-            assertEquals("https://example.test/first", item["url"]!!.jsonPrimitive.content)
-            assertEquals("First result content", item["snippet"]!!.jsonPrimitive.content)
-            assertEquals("2026-06-13", item["date"]!!.jsonPrimitive.content)
-            assertTrue("content" !in item)
+            assertEquals("https://example.test/first", item["link"]!!.jsonPrimitive.content)
+            assertEquals("First result content", item["content"]!!.jsonPrimitive.content)
+            assertEquals("2026-06-13", item["publish_date"]!!.jsonPrimitive.content)
 
             val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
             assertEquals("POST", request.method)
@@ -86,7 +85,7 @@ class ZaiWebSearchClientTest {
 
             val result = client.webSearch("zai-key", "Kimi Code docs", includeContent = true)
 
-            val item = parseObject(result)["search_results"]!!.jsonArray[0].jsonObject
+            val item = parseObject(result)["search_result"]!!.jsonObject
             assertEquals("Full content", item["content"]!!.jsonPrimitive.content)
             val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
             assertEquals("high", parseObject(request.body)["content_size"]!!.jsonPrimitive.content)

@@ -154,7 +154,7 @@ class KimiWebSearchClientTest {
     }
 
     @Test
-    fun enforcesLimitAndContentOptionOnReturnedResults() {
+    fun returnsProviderJsonWithoutFilteringResults() {
         TestKimiServer(
             searchBody = """
                 {
@@ -185,10 +185,9 @@ class KimiWebSearchClientTest {
             )
 
             val results = parseObject(result.body)["search_results"]!!.jsonArray
-            assertEquals(1, results.size)
-            val item = results[0].jsonObject
-            assertEquals("First", item["title"]!!.jsonPrimitive.content)
-            assertTrue("content" !in item)
+            assertEquals(2, results.size)
+            assertEquals("First page content", results[0].jsonObject["content"]!!.jsonPrimitive.content)
+            assertEquals("Second page content", results[1].jsonObject["content"]!!.jsonPrimitive.content)
         }
     }
 

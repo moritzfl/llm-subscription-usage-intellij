@@ -46,12 +46,11 @@ class MiniMaxWebSearchClientTest {
             val result = client.webSearch("minimax-key", MiniMaxRegion.GLOBAL, "  Kimi Code docs  ", limit = 1)
 
             val response = parseObject(result)
-            assertEquals("GLOBAL", response["region"]!!.jsonPrimitive.content)
-            val results = response["search_results"]!!.jsonArray
-            assertEquals(1, results.size)
+            val results = response["organic"]!!.jsonArray
+            assertEquals(2, results.size)
             val item = results[0].jsonObject
             assertEquals("First", item["title"]!!.jsonPrimitive.content)
-            assertEquals("https://example.test/first", item["url"]!!.jsonPrimitive.content)
+            assertEquals("https://example.test/first", item["link"]!!.jsonPrimitive.content)
             assertEquals("First result", item["snippet"]!!.jsonPrimitive.content)
             assertEquals("2026-06-13", item["date"]!!.jsonPrimitive.content)
             assertEquals("Kimi docs", response["related_searches"]!!.jsonArray[0].jsonObject["query"]!!.jsonPrimitive.content)
