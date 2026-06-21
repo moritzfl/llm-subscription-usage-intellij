@@ -3,6 +3,7 @@ package de.moritzf.quota.github.proxy
 import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.subscription.PassThroughSubscriptionProxyProvider
+import de.moritzf.proxy.subscription.SubscriptionProxyModel
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyRequest
 import de.moritzf.proxy.subscription.SubscriptionProxyRoute
@@ -19,6 +20,7 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -54,6 +56,8 @@ class GitHubCopilotSubscriptionProxyProvider(
         forwardedRequestHeadersTransformer = ::forwardedRequestHeaders,
         requestHeadersProvider = ::requestHeaders,
         requestBodyTransformer = ::requestBody,
+        jsonResponseTransformer = ::openAiChatJsonResponse,
+        sseDataTransformer = ::openAiChatSseData,
         httpClient = httpClient,
         requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir)),
     )
@@ -73,11 +77,11 @@ class GitHubCopilotSubscriptionProxyProvider(
         delegate.handle(ctx, request)
     }
 
-    private fun prefixedFallbackModel(localId: String, route: SubscriptionProxyRoute): de.moritzf.proxy.subscription.SubscriptionProxyModel? {
-        if (!localId.startsWith(PREFIX) || localId.length == PREFIX.length) return null
-        return de.moritzf.proxy.subscription.SubscriptionProxyModel(
+    private fun prefixedFallbackModel(localId: String, route: SubscriptionProxyRoute): SubscriptionProxyModel? {
+        val upstreamId = fallbackUpstreamId(localId) ?: return null
+        return SubscriptionProxyModel(
             localId = localId,
-            upstreamId = localId.removePrefix(PREFIX),
+            upstreamId = upstreamId,
             providerId = id,
             providerName = displayName,
             litellmProvider = LITELLM_PROVIDER,
@@ -94,9 +98,9 @@ class GitHubCopilotSubscriptionProxyProvider(
                 localId = PREFIX + model.id,
                 upstreamId = model.id,
                 supportedRoutes = model.supportedRoutes,
-                supportsFunctionCalling = true,
+                supportsFunctionCalling = model.supportsFunctionCalling,
                 supportsToolChoice = true,
-                supportsVision = true,
+                supportsVision = model.supportsVision,
                 maxInputTokens = model.maxInputTokens,
                 maxOutputTokens = model.maxOutputTokens,
                 isDefault = model.isDefault,
@@ -141,30 +145,54 @@ class GitHubCopilotSubscriptionProxyProvider(
 
     private fun parseRemoteModel(element: JsonElement): RemoteModel? {
         val item = element as? JsonObject ?: return null
-        val id = (item["id"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() } ?: return null
+        if (boolField(item, "model_picker_enabled") != true) return null
+        if (stringField(item.jsonObject("policy"), "state") == "disabled") return null
+        val capabilities = item.jsonObject("capabilities") ?: return null
+        val limits = capabilities.jsonObject("limits") ?: return null
+        val supports = capabilities.jsonObject("supports") ?: return null
+        val toolCalls = boolField(supports, "tool_calls") ?: return null
+        val maxPromptTokens = intField(limits, "max_prompt_tokens") ?: return null
+        val maxOutputTokens = intField(limits, "max_output_tokens") ?: return null
+        val id = remoteModelId(stringField(item, "id") ?: return null) ?: return null
         return RemoteModel(
             id = id,
-            supportedRoutes = supportedRoutes(modelType(item), item["supported_endpoints"] as? JsonArray),
-            maxInputTokens = intField(item, "max_input_tokens") ?: intField(item, "max_context_window_tokens"),
-            maxOutputTokens = intField(item, "max_output_tokens"),
+            supportedRoutes = supportedRoutes(id, modelType(item), item["supported_endpoints"] as? JsonArray),
+            supportsFunctionCalling = toolCalls,
+            supportsVision = supportsVision(capabilities, supports),
+            maxInputTokens = intField(limits, "max_context_window_tokens") ?: maxPromptTokens,
+            maxOutputTokens = maxOutputTokens,
             isDefault = boolField(item, "is_default") ?: boolField(item, "default") ?: false,
         )
     }
 
-    private fun supportedRoutes(modelType: String?, endpoints: JsonArray?): Set<SubscriptionProxyRoute> {
+    private fun supportedRoutes(modelId: String, modelType: String?, endpoints: JsonArray?): Set<SubscriptionProxyRoute> {
         val values = endpoints?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }?.toSet().orEmpty()
         if (values.isEmpty()) {
-            return if (modelType == "embeddings") emptySet() else setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS)
+            return if (modelType == "embeddings") {
+                emptySet()
+            } else {
+                buildSet {
+                    if (shouldUseResponsesApi(modelId)) add(SubscriptionProxyRoute.RESPONSES)
+                    add(SubscriptionProxyRoute.CHAT_COMPLETIONS)
+                }
+            }
         }
         return buildSet {
-            if (values.any { it.endsWith("/chat/completions") || it == "/chat/completions" }) {
+            val hasChat = values.any { it.endsWith("/chat/completions") || it == "/chat/completions" }
+            val hasResponses = values.any { it.endsWith("/responses") || it == "/responses" }
+            val hasMessages = values.any { it == "/v1/messages" || it == "/messages" }
+            if (hasMessages) {
+                add(SubscriptionProxyRoute.ANTHROPIC_MESSAGES)
+                return@buildSet
+            }
+            if (hasChat) {
                 add(SubscriptionProxyRoute.CHAT_COMPLETIONS)
             }
-            if (values.any { it.endsWith("/responses") || it == "/responses" }) {
+            if (hasResponses || (!hasMessages && shouldUseResponsesApi(modelId))) {
                 add(SubscriptionProxyRoute.RESPONSES)
             }
-            if (values.any { it == "/v1/messages" || it == "/messages" }) {
-                add(SubscriptionProxyRoute.ANTHROPIC_MESSAGES)
+            if (hasResponses || shouldUseResponsesApi(modelId)) {
+                add(SubscriptionProxyRoute.CHAT_COMPLETIONS)
             }
             if (isEmpty()) add(SubscriptionProxyRoute.CHAT_COMPLETIONS)
         }
@@ -191,9 +219,36 @@ class GitHubCopilotSubscriptionProxyProvider(
         }
     }
 
+    private fun openAiChatJsonResponse(request: SubscriptionProxyRequest, body: String): String {
+        return openAiChatEnvelope(request, body, "chat.completion")
+    }
+
+    private fun openAiChatSseData(request: SubscriptionProxyRequest, data: String): String {
+        return openAiChatEnvelope(request, data, "chat.completion.chunk")
+    }
+
+    private fun openAiChatEnvelope(request: SubscriptionProxyRequest, body: String, objectType: String): String {
+        if (request.route != SubscriptionProxyRoute.CHAT_COMPLETIONS || body.isBlank()) return body
+        val root = JsonHelper.parseToJsonElementOrNull(body) as? JsonObject ?: return body
+        if ("error" in root) return body
+        val normalized = buildJsonObject {
+            put("id", root["id"] ?: JsonPrimitive("chatcmpl-${request.requestId}"))
+            put("object", root["object"] ?: JsonPrimitive(objectType))
+            put("created", root["created"] ?: JsonPrimitive(System.currentTimeMillis() / 1000L))
+            put("model", root["model"] ?: JsonPrimitive(request.model.upstreamId))
+            put("choices", root["choices"] ?: JsonArray(emptyList()))
+            root.forEach { (key, value) ->
+                if (key !in OPENAI_CHAT_ENVELOPE_FIELDS && value != JsonNull) put(key, value)
+            }
+        }
+        return JsonHelper.encodeToString(normalized)
+    }
+
     private data class RemoteModel(
         val id: String,
         val supportedRoutes: Set<SubscriptionProxyRoute>,
+        val supportsFunctionCalling: Boolean,
+        val supportsVision: Boolean,
         val maxInputTokens: Int?,
         val maxOutputTokens: Int?,
         val isDefault: Boolean,
@@ -207,10 +262,12 @@ class GitHubCopilotSubscriptionProxyProvider(
     companion object {
         const val ID = "github"
         const val PREFIX = "gh-"
+        private const val OPENCODE_PROVIDER_PREFIX = "github-copilot/"
         private const val DISPLAY_NAME = "GitHub Copilot"
         private const val LITELLM_PROVIDER = "github_copilot"
         private const val USER_AGENT = "openai-usage-quota-intellij"
         private const val API_VERSION = "2026-06-01"
+        private val OPENAI_CHAT_ENVELOPE_FIELDS = setOf("id", "object", "created", "model", "choices")
         private val UNSUPPORTED_MESSAGES_BODY_FIELDS = setOf("context_management", "output_config", "thinking")
         val DEFAULT_UPSTREAM_BASE_URI: URI = URI.create("https://api.githubcopilot.com")
         private val CACHE_TTL = 5.minutes
@@ -227,10 +284,48 @@ class GitHubCopilotSubscriptionProxyProvider(
             return (item[name] as? JsonPrimitive)?.booleanOrNull
         }
 
+        private fun stringField(item: JsonObject?, name: String): String? {
+            return (item?.get(name) as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+        }
+
+        private fun JsonObject.jsonObject(name: String): JsonObject? {
+            return this[name] as? JsonObject
+        }
+
         private fun modelType(item: JsonObject): String? {
             val capabilities = item["capabilities"] as? JsonObject ?: return null
             return (capabilities["type"] as? JsonPrimitive)?.contentOrNull
         }
+
+        private fun remoteModelId(rawId: String): String? {
+            return rawId.trim()
+                .removePrefix(OPENCODE_PROVIDER_PREFIX)
+                .takeIf { it.isNotBlank() }
+        }
+
+        private fun fallbackUpstreamId(localId: String): String? {
+            val trimmed = localId.trim()
+            val upstreamId = when {
+                trimmed.startsWith(PREFIX) -> trimmed.removePrefix(PREFIX)
+                trimmed.startsWith(OPENCODE_PROVIDER_PREFIX) -> trimmed.removePrefix(OPENCODE_PROVIDER_PREFIX)
+                else -> return null
+            }
+            return upstreamId.takeIf { it.isNotBlank() }
+        }
+
+        private fun supportsVision(capabilities: JsonObject, supports: JsonObject): Boolean {
+            if (boolField(supports, "vision") == true) return true
+            val vision = capabilities.jsonObject("limits")?.jsonObject("vision") ?: return false
+            val mediaTypes = vision["supported_media_types"] as? JsonArray ?: return false
+            return mediaTypes.any { (it as? JsonPrimitive)?.contentOrNull?.startsWith("image/") == true }
+        }
+
+        private fun shouldUseResponsesApi(modelId: String): Boolean {
+            val major = GPT_MAJOR_REGEX.find(modelId)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: return false
+            return major >= 5 && !modelId.startsWith("gpt-5-mini")
+        }
+
+        private val GPT_MAJOR_REGEX = Regex("^gpt-(\\d+)")
 
         private fun containsImageInput(element: JsonElement?): Boolean {
             return when (element) {

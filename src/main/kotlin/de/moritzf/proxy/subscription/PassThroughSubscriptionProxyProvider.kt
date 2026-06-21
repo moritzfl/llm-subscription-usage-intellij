@@ -9,6 +9,7 @@ import de.moritzf.proxy.server.createObjectNode
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.response.respondText
 import io.ktor.server.response.respondOutputStream
 import java.io.InputStream
 import java.net.URI
@@ -37,6 +38,8 @@ class PassThroughSubscriptionProxyProvider(
     private val forwardedRequestHeadersTransformer: (SubscriptionProxyRequest, Map<String, String>) -> Map<String, String> = { _, headers -> headers },
     private val requestHeadersProvider: (SubscriptionProxyRequest) -> Map<String, String> = { emptyMap() },
     private val requestBodyTransformer: (SubscriptionProxyRequest, JsonObject) -> JsonObject = { _, body -> body },
+    private val jsonResponseTransformer: ((SubscriptionProxyRequest, String) -> String)? = null,
+    private val sseDataTransformer: ((SubscriptionProxyRequest, String) -> String)? = null,
     private val httpClient: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(30))
         .build(),
@@ -80,7 +83,7 @@ class PassThroughSubscriptionProxyProvider(
             upstreamErrorMapper.writeResponse(ctx, requestLogger, request.requestId, upstream)
             return
         }
-        copyResponse(ctx, upstream)
+        copyResponse(ctx, request, upstream)
     }
 
     private fun sendWithRefresh(
@@ -147,7 +150,15 @@ class PassThroughSubscriptionProxyProvider(
         }
     }
 
-    private suspend fun copyResponse(ctx: ProxyCall, upstream: HttpResponse<InputStream>) {
+    private suspend fun copyResponse(ctx: ProxyCall, request: SubscriptionProxyRequest, upstream: HttpResponse<InputStream>) {
+        if (sseDataTransformer != null && isEventStream(upstream)) {
+            copyTransformedSseResponse(ctx, request, upstream, sseDataTransformer)
+            return
+        }
+        if (jsonResponseTransformer != null && isJsonResponse(upstream)) {
+            copyTransformedJsonResponse(ctx, request, upstream, jsonResponseTransformer)
+            return
+        }
         copySelectedResponseHeaders(ctx, upstream)
         ctx.setStatus(upstream.statusCode())
         ctx.call.respondOutputStream(responseContentType(upstream), HttpStatusCode.fromValue(upstream.statusCode())) {
@@ -158,6 +169,49 @@ class PassThroughSubscriptionProxyProvider(
                     if (read == -1) break
                     write(buffer, 0, read)
                     AccessLogFields.addResponseBytes(ctx, read.toLong())
+                    flush()
+                }
+            }
+        }
+        ctx.handled = true
+    }
+
+    private suspend fun copyTransformedJsonResponse(
+        ctx: ProxyCall,
+        request: SubscriptionProxyRequest,
+        upstream: HttpResponse<InputStream>,
+        transformer: (SubscriptionProxyRequest, String) -> String,
+    ) {
+        copySelectedResponseHeaders(ctx, upstream)
+        ctx.setStatus(upstream.statusCode())
+        val raw = upstream.body().use(JsonHelper::readUtf8Body)
+        val transformed = transformer(request, raw)
+        AccessLogFields.responseBytes(ctx, transformed.toByteArray(StandardCharsets.UTF_8).size.toLong())
+        ctx.call.respondText(
+            transformed,
+            responseContentType(upstream),
+            HttpStatusCode.fromValue(upstream.statusCode()),
+        )
+        ctx.handled = true
+    }
+
+    private suspend fun copyTransformedSseResponse(
+        ctx: ProxyCall,
+        request: SubscriptionProxyRequest,
+        upstream: HttpResponse<InputStream>,
+        transformer: (SubscriptionProxyRequest, String) -> String,
+    ) {
+        copySelectedResponseHeaders(ctx, upstream)
+        JsonHelper.setSseHeaders(ctx)
+        ctx.setStatus(upstream.statusCode())
+        ctx.call.respondOutputStream(responseContentType(upstream), HttpStatusCode.fromValue(upstream.statusCode())) {
+            upstream.body().bufferedReader(StandardCharsets.UTF_8).use { reader ->
+                while (true) {
+                    val line = reader.readLine() ?: break
+                    val output = transformSseLine(request, line, transformer) + "\n"
+                    val bytes = output.toByteArray(StandardCharsets.UTF_8)
+                    write(bytes)
+                    AccessLogFields.addResponseBytes(ctx, bytes.size.toLong())
                     flush()
                 }
             }
@@ -226,6 +280,29 @@ class PassThroughSubscriptionProxyProvider(
         private fun <T> responseContentType(response: HttpResponse<T>): ContentType {
             val raw = response.headers().firstValue(HttpHeaders.ContentType).orElse(JsonHelper.JSON_CONTENT_TYPE)
             return runCatching { ContentType.parse(raw) }.getOrElse { ContentType.Application.Json }
+        }
+
+        private fun <T> isEventStream(response: HttpResponse<T>): Boolean {
+            return response.headers().firstValue(HttpHeaders.ContentType).orElse("")
+                .contains("text/event-stream", ignoreCase = true)
+        }
+
+        private fun <T> isJsonResponse(response: HttpResponse<T>): Boolean {
+            return response.headers().firstValue(HttpHeaders.ContentType).orElse("")
+                .contains("json", ignoreCase = true)
+        }
+
+        private fun transformSseLine(
+            request: SubscriptionProxyRequest,
+            line: String,
+            transformer: (SubscriptionProxyRequest, String) -> String,
+        ): String {
+            if (!line.startsWith("data:")) return line
+            val rawData = line.substringAfter("data:")
+            val leadingWhitespace = rawData.takeWhile { it == ' ' || it == '\t' }
+            val data = rawData.drop(leadingWhitespace.length)
+            if (data == "[DONE]") return line
+            return "data:$leadingWhitespace${transformer(request, data)}"
         }
 
         private fun <T> copySelectedResponseHeaders(ctx: ProxyCall, response: HttpResponse<T>) {

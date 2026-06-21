@@ -34,7 +34,24 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 assertEquals(200, response.statusCode())
                 val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
                     .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertEquals(listOf("gh-gpt-5.5", "gh-claude-sonnet-4.5"), ids)
+                assertEquals(
+                    listOf(
+                        "gh-claude-haiku-4.5",
+                        "gh-claude-sonnet-4.5",
+                        "gh-claude-sonnet-4.6",
+                        "gh-gemini-2.5-pro",
+                        "gh-gemini-3-flash-preview",
+                        "gh-gemini-3.1-pro-preview",
+                        "gh-gemini-3.5-flash",
+                        "gh-gpt-5-mini",
+                        "gh-gpt-5.3-codex",
+                        "gh-gpt-5.4",
+                        "gh-gpt-5.4-mini",
+                        "gh-mai-code-1-flash-picker",
+                    ),
+                    ids,
+                )
+                assertFalse("gh-gpt-5.5" in ids)
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/models", request.path)
                 assertEquals("Bearer github-token", request.firstHeader("Authorization"))
@@ -54,7 +71,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 val response = post(
                     proxy.port,
                     "/v1/chat/completions",
-                    "{\"model\":\"gh-gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"image_url\",\"image_url\":{\"url\":\"data:image/png;base64,abc\"}}]}]}",
+                    "{\"model\":\"gh-gpt-5-mini\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"image_url\",\"image_url\":{\"url\":\"data:image/png;base64,abc\"}}]}]}",
                     bearer = true,
                 )
 
@@ -65,7 +82,36 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 assertEquals("Bearer github-token", inference.firstHeader("Authorization"))
                 assertEquals("conversation-edits", inference.firstHeader("Openai-Intent"))
                 assertEquals("true", inference.firstHeader("Copilot-Vision-Request"))
-                assertTrue(inference.body.contains("\"model\":\"gpt-5.5\""), inference.body)
+                assertTrue(inference.body.contains("\"model\":\"gpt-5-mini\""), inference.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun normalizesCopilotChatCompletionStreamChunks() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"gh-gpt-5-mini\",\"stream\":true,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    bearer = true,
+                )
+
+                assertEquals(200, response.statusCode())
+                assertTrue(response.headers().firstValue("Content-Type").orElse("").contains("text/event-stream"))
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
+                val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/chat/completions", inference.path)
+                assertTrue(inference.body.contains("\"stream\":true"), inference.body)
+                assertTrue(response.body().contains("\"object\":\"chat.completion.chunk\""), response.body())
+                assertTrue(response.body().contains("\"model\":\"gpt-5-mini\""), response.body())
+                assertTrue(response.body().contains("\"choices\""), response.body())
+                assertTrue(response.body().contains("data: [DONE]"), response.body())
             } finally {
                 proxy.stop()
             }
@@ -81,7 +127,32 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 val response = post(
                     proxy.port,
                     "/v1/responses",
-                    "{\"model\":\"gh-gpt-5.4-mini\",\"input\":\"hi\"}",
+                    "{\"model\":\"gh-gpt-5.5\",\"input\":\"hi\"}",
+                    bearer = true,
+                )
+
+                assertEquals(200, response.statusCode())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
+                val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/responses", inference.path)
+                assertTrue(inference.body.contains("\"model\":\"gpt-5.5\""), inference.body)
+                assertFalse(inference.body.contains("gh-gpt-5.5"), inference.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun forwardsOpenCodeNamespacedModels() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/responses",
+                    "{\"model\":\"github-copilot/gpt-5.4-mini\",\"input\":\"hi\"}",
                     bearer = true,
                 )
 
@@ -90,7 +161,30 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/responses", inference.path)
                 assertTrue(inference.body.contains("\"model\":\"gpt-5.4-mini\""), inference.body)
-                assertFalse(inference.body.contains("gh-gpt-5.4-mini"), inference.body)
+                assertFalse(inference.body.contains("github-copilot/gpt-5.4-mini"), inference.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun rejectsAnthropicModelsOnOpenAiChatCompletionsRoute() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"gh-claude-sonnet-4.6\",\"stream\":true,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    bearer = true,
+                )
+
+                assertEquals(400, response.statusCode())
+                assertTrue(response.body().contains("does not support /chat/completions"), response.body())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery only
+                assertEquals(null, upstream.requests.poll(500, TimeUnit.MILLISECONDS))
             } finally {
                 proxy.stop()
             }
@@ -106,7 +200,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 val response = post(
                     proxy.port,
                     "/v1/messages",
-                    "{\"model\":\"gh-claude-sonnet-4.5\",\"output_config\":{\"effort\":\"high\"},\"thinking\":{\"type\":\"adaptive\"},\"context_management\":{\"edits\":[]},\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    "{\"model\":\"gh-claude-sonnet-4.6\",\"output_config\":{\"effort\":\"high\"},\"thinking\":{\"type\":\"adaptive\"},\"context_management\":{\"edits\":[]},\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
                     bearer = false,
                     extraHeaders = mapOf("anthropic-beta" to "effort-2025-11-24"),
                 )
@@ -117,7 +211,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 assertEquals("/v1/messages", inference.path)
                 assertEquals("Bearer github-token", inference.firstHeader("Authorization"))
                 assertEquals(null, inference.firstHeader("anthropic-beta"))
-                assertTrue(inference.body.contains("\"model\":\"claude-sonnet-4.5\""), inference.body)
+                assertTrue(inference.body.contains("\"model\":\"claude-sonnet-4.6\""), inference.body)
                 assertFalse(inference.body.contains("output_config"), inference.body)
                 assertFalse(inference.body.contains("thinking"), inference.body)
                 assertFalse(inference.body.contains("context_management"), inference.body)
@@ -137,15 +231,18 @@ class GitHubCopilotSubscriptionProxyProviderTest {
 
                 assertEquals(200, response.statusCode())
                 val data = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
-                val claudeInfo = data.first { it.jsonObject["id"]!!.jsonPrimitive.content == "gh-claude-sonnet-4.5" }
+                val claudeInfo = data.first { it.jsonObject["id"]!!.jsonPrimitive.content == "gh-claude-sonnet-4.6" }
                     .jsonObject["model_info"]!!.jsonObject
                 val endpoints = claudeInfo["supported_endpoints"]!!.jsonArray.map { it.jsonPrimitive.content }
                 assertTrue("/v1/messages" in endpoints)
-                assertTrue("/v1/chat/completions" in endpoints)
+                assertFalse("/v1/chat/completions" in endpoints)
                 assertTrue(claudeInfo["supports_anthropic_messages"]!!.jsonPrimitive.content.toBoolean())
 
-                val gptInfo = data.first { it.jsonObject["id"]!!.jsonPrimitive.content == "gh-gpt-5.5" }
+                val gptInfo = data.first { it.jsonObject["id"]!!.jsonPrimitive.content == "gh-gpt-5.4-mini" }
                     .jsonObject["model_info"]!!.jsonObject
+                val gptEndpoints = gptInfo["supported_endpoints"]!!.jsonArray.map { it.jsonPrimitive.content }
+                assertTrue("/v1/responses" in gptEndpoints)
+                assertTrue("/v1/chat/completions" in gptEndpoints)
                 assertFalse(gptInfo["supports_anthropic_messages"]!!.jsonPrimitive.content.toBoolean())
             } finally {
                 proxy.stop()
@@ -221,16 +318,19 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     body = body,
                 )
                 val responseBody = if (exchange.requestURI.rawPath == "/models") {
-                    "{\"data\":[" +
-                        "{\"id\":\"gpt-5.5\",\"supported_endpoints\":[\"/chat/completions\",\"/responses\"]}," +
-                        "{\"id\":\"claude-sonnet-4.5\",\"supported_endpoints\":[\"/chat/completions\",\"/v1/messages\"]}," +
-                        "{\"id\":\"text-embedding-3-small\",\"capabilities\":{\"type\":\"embeddings\"}}" +
-                        "]}"
+                    "{\"data\":[" + copilotModels.joinToString(",") + "]}"
+                } else if (body.contains("\"stream\":true")) {
+                    "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\",\"content\":\"hi\"},\"index\":0}]}\n\n" +
+                        "data: {\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"total_tokens\":2}}\n\n" +
+                        "data: [DONE]\n\n"
                 } else {
                     "{\"id\":\"ok\",\"choices\":[]}"
                 }
                 val response = responseBody.toByteArray(Charsets.UTF_8)
-                exchange.responseHeaders.set("Content-Type", "application/json")
+                exchange.responseHeaders.set(
+                    "Content-Type",
+                    if (body.contains("\"stream\":true")) "text/event-stream" else "application/json",
+                )
                 exchange.sendResponseHeaders(200, response.size.toLong())
                 exchange.responseBody.use { output -> output.write(response) }
             }
@@ -264,5 +364,60 @@ class GitHubCopilotSubscriptionProxyProviderTest {
 
     companion object {
         private val httpClient: HttpClient = HttpClient.newHttpClient()
+
+        // Local fixture only: production discovers models from GitHub Copilot's /models endpoint.
+        private val copilotModels = listOf(
+            copilotModel("claude-haiku-4.5", family = "claude-haiku", endpoints = listOf("/v1/messages")),
+            copilotModel("claude-sonnet-4.5", family = "claude-sonnet", endpoints = listOf("/v1/messages")),
+            copilotModel("claude-sonnet-4.6", family = "claude-sonnet", endpoints = listOf("/chat/completions", "/v1/messages")),
+            copilotModel("gemini-2.5-pro", family = "gemini-pro"),
+            copilotModel("gemini-3-flash-preview", family = "gemini-flash"),
+            copilotModel("gemini-3.1-pro-preview", family = "gemini-pro"),
+            copilotModel("gemini-3.5-flash", family = "gemini-flash"),
+            copilotModel("gpt-5-mini", family = "gpt-mini"),
+            copilotModel("gpt-5.3-codex", family = "gpt-codex", endpoints = listOf("/responses")),
+            copilotModel("gpt-5.4", family = "gpt", endpoints = listOf("/responses")),
+            copilotModel("gpt-5.4-mini", family = "gpt-mini", endpoints = listOf("/responses")),
+            copilotModel("mai-code-1-flash-picker", family = "mai"),
+            copilotModel("gpt-5.5", family = "gpt", pickerEnabled = false, endpoints = listOf("/responses")),
+            copilotModel("disabled-model", family = "test", disabled = true),
+            copilotModel("missing-output", family = "test", maxOutputTokens = null),
+            copilotModel("missing-tool-calls", family = "test", toolCalls = null),
+        )
+
+        private fun copilotModel(
+            id: String,
+            family: String,
+            endpoints: List<String> = listOf("/chat/completions"),
+            pickerEnabled: Boolean = true,
+            disabled: Boolean = false,
+            toolCalls: Boolean? = true,
+            maxOutputTokens: Int? = 64_000,
+        ): String {
+            val endpointsJson = endpoints.joinToString(prefix = "[", postfix = "]") { "\"$it\"" }
+            val policy = if (disabled) ",\"policy\":{\"state\":\"disabled\"}" else ""
+            val limits = listOfNotNull(
+                "\"max_context_window_tokens\":128000",
+                "\"max_prompt_tokens\":128000",
+                maxOutputTokens?.let { "\"max_output_tokens\":$it" },
+            ).joinToString(",")
+            val supports = listOfNotNull(
+                toolCalls?.let { "\"tool_calls\":$it" },
+                "\"vision\":true",
+                "\"reasoning_effort\":[\"medium\",\"high\"]",
+            ).joinToString(",")
+            return "{" +
+                "\"model_picker_enabled\":$pickerEnabled," +
+                "\"id\":\"$id\"," +
+                "\"name\":\"$id\"," +
+                "\"version\":\"$id-2026-01-01\"," +
+                "\"supported_endpoints\":$endpointsJson" +
+                policy + "," +
+                "\"capabilities\":{" +
+                "\"family\":\"$family\"," +
+                "\"limits\":{$limits}," +
+                "\"supports\":{$supports}" +
+                "}}"
+        }
     }
 }
