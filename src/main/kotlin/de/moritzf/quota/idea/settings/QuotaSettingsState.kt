@@ -40,6 +40,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var openAiProxyEnabled: Boolean = false
     var openAiProxyPort: Int = OpenAiProxyService.DEFAULT_PORT
     var openAiProxyLogRequests: Boolean = false
+    var subscriptionProxyEnabledProviders: MutableList<String> = DEFAULT_SUBSCRIPTION_PROXY_PROVIDERS.toMutableList()
     var githubEnterpriseHost: String = ""
 
     // Legacy per-provider fields kept only so settings written by older
@@ -116,6 +117,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         openAiProxyEnabled = state.openAiProxyEnabled
         openAiProxyPort = OpenAiProxyService.sanitizePort(state.openAiProxyPort.takeIf { it > 0 } ?: OpenAiProxyService.DEFAULT_PORT)
         openAiProxyLogRequests = state.openAiProxyLogRequests
+        subscriptionProxyEnabledProviders = sanitizeSubscriptionProxyProviders(state.subscriptionProxyEnabledProviders).toMutableList()
         githubEnterpriseHost = state.githubEnterpriseHost.trim()
     }
 
@@ -225,6 +227,26 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         lastProviderUpdates[provider.id] = System.currentTimeMillis()
     }
 
+    fun isSubscriptionProxyProviderEnabled(provider: QuotaProviderType): Boolean {
+        return provider.id in subscriptionProxyEnabledProviders
+    }
+
+    fun setSubscriptionProxyProviderEnabled(provider: QuotaProviderType, enabled: Boolean) {
+        if (provider !in SUBSCRIPTION_PROXY_SUPPORTED_PROVIDERS) return
+        if (enabled) {
+            if (provider.id !in subscriptionProxyEnabledProviders) subscriptionProxyEnabledProviders.add(provider.id)
+        } else {
+            subscriptionProxyEnabledProviders.remove(provider.id)
+        }
+        subscriptionProxyEnabledProviders = sanitizeSubscriptionProxyProviders(subscriptionProxyEnabledProviders).toMutableList()
+    }
+
+    fun enabledSubscriptionProxyProviders(): Set<QuotaProviderType> {
+        return sanitizeSubscriptionProxyProviders(subscriptionProxyEnabledProviders)
+            .mapNotNull(QuotaProviderType::fromId)
+            .toSet()
+    }
+
     fun lastUsedSource(): QuotaIndicatorSource {
         val updates = QuotaProviderRegistry.all.associate { registration ->
             val provider = registration.type
@@ -239,8 +261,25 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     }
 
     companion object {
+        val SUBSCRIPTION_PROXY_SUPPORTED_PROVIDERS: List<QuotaProviderType> = listOf(
+            QuotaProviderType.OPEN_AI,
+            QuotaProviderType.SUPERGROK,
+            QuotaProviderType.GITHUB,
+        )
+
+        val DEFAULT_SUBSCRIPTION_PROXY_PROVIDERS: List<String> =
+            SUBSCRIPTION_PROXY_SUPPORTED_PROVIDERS.map { it.id }
+
         val DEFAULT_PROVIDER_ORDER: String
             get() = QuotaProviderRegistry.defaultProviderOrderStorageValue()
+
+        fun sanitizeSubscriptionProxyProviders(ids: List<String>?): List<String> {
+            val supportedIds = SUBSCRIPTION_PROXY_SUPPORTED_PROVIDERS.map { it.id }
+            return ids.orEmpty()
+                .map { it.trim() }
+                .filter { it in supportedIds }
+                .distinct()
+        }
 
         @JvmStatic
         fun getInstance(): QuotaSettingsState {

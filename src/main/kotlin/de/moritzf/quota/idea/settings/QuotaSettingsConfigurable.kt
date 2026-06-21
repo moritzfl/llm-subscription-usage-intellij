@@ -8,6 +8,7 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBCheckBox
+import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.messages.MessageBusConnection
@@ -36,6 +37,7 @@ import javax.swing.JSeparator
 import javax.swing.SwingConstants
 import javax.swing.Timer
 import javax.swing.UIManager
+import javax.swing.JTabbedPane
 
 /**
  * Settings UI that manages authentication actions and shows latest quota payload data.
@@ -60,6 +62,7 @@ class QuotaSettingsConfigurable : Configurable {
     private var mcpServerStatusLabel: JBLabel? = null
     private var mcpServerStatusTimer: Timer? = null
     private var mcpSyncTargets: MutableList<McpServerSyncTarget> = mutableListOf()
+    private var proxySettingsPanel: SubscriptionProxySettingsPanel? = null
 
     override fun getDisplayName(): String = "LLM Subscription Usage"
 
@@ -88,6 +91,7 @@ class QuotaSettingsConfigurable : Configurable {
             }
         }
         mcpServerStatusLabel = JBLabel()
+        proxySettingsPanel = SubscriptionProxySettingsPanel { panel ?: rootComponent }
 
         locationComboBox!!.addActionListener {
             updateDisplayModeChoices()
@@ -101,12 +105,9 @@ class QuotaSettingsConfigurable : Configurable {
             updateDisplayModePreview()
         }
 
-        panel = buildIndicatorConfigPanel()
-
         serviceCardLayout = CardLayout()
         serviceCards = JPanel(serviceCardLayout).apply {
             isOpaque = false
-            border = JBUI.Borders.emptyTop(16)
         }
 
         providerReorderPanel = ProviderReorderPanel(
@@ -121,20 +122,8 @@ class QuotaSettingsConfigurable : Configurable {
 
         rebuildServiceCards()
 
-        rootComponent = BorderLayoutPanel().apply {
-            isOpaque = false
-            addToTop(panel!!)
-            addToCenter(BorderLayoutPanel().apply {
-                isOpaque = false
-                addToTop(JSeparator())
-                addToCenter(BorderLayoutPanel().apply {
-                    isOpaque = false
-                    addToTop(providerReorderPanel!!)
-                    addToCenter(serviceCards!!)
-                })
-                addToBottom(JSeparator())
-            })
-        }
+        panel = buildSettingsPanel()
+        rootComponent = panel
 
         connection = ApplicationManager.getApplication().messageBus.connect()
         connection!!.subscribe(QuotaUsageListener.TOPIC, object : QuotaUsageListener {
@@ -185,6 +174,7 @@ class QuotaSettingsConfigurable : Configurable {
         mcpServerStatusTimer = null
         mcpServerStatusLabel = null
         mcpSyncTargets = mutableListOf()
+        proxySettingsPanel = null
     }
 
     private fun startMcpServerStatusRefresh() {
@@ -255,28 +245,18 @@ class QuotaSettingsConfigurable : Configurable {
         serviceCardLayout?.show(cards, selectedProvider.id)
     }
 
-    private fun buildIndicatorConfigPanel(): DialogPanel {
+    private fun buildSettingsPanel(): DialogPanel {
+        val tabs = JTabbedPane().apply {
+            isOpaque = false
+            addTab("Subscription Usage", buildSubscriptionUsageTab())
+            addTab("MCP Synchronisation", buildMcpSyncTab())
+            addTab("Proxy", proxySettingsPanel!!)
+        }
         return panel {
-            row("Indicator location:") {
-                cell(locationComboBox!!)
-            }
-
-            row("Indicator display:") {
-                cell(displayModeComboBox!!)
-                cell(displayModePreview!!).gap(RightGap.SMALL)
-            }
-
-            row("Indicator quota source:") {
-                cell(indicatorSourceComboBox!!)
-            }
-
             row {
-                cell(mcpSyncCheckBox!!)
-                cell(configureMcpSyncTargetsButton!!)
-            }
-
-            row {
-                cell(mcpServerStatusLabel!!)
+                cell(tabs)
+                    .resizableColumn()
+                    .align(Align.FILL)
             }
 
             onApply {
@@ -296,11 +276,12 @@ class QuotaSettingsConfigurable : Configurable {
                 val normalizedMcpTargets = normalizeTargets(mcpSyncTargets)
                 val mcpSyncChanged = mcpSyncCheckBox?.isSelected != state.syncIntellijMcpServerUrl
                 val mcpTargetsChanged = normalizedMcpTargets != normalizeTargets(state.mcpServerSyncTargets)
-                val openAiPanel = openAiPanel()
-                val openAiProxyEnabledChanged = openAiPanel.openAiProxyEnabledCheckBox.isSelected != state.openAiProxyEnabled
-                val openAiProxyPortChanged = openAiPanel.isProxyPortModified()
-                val openAiProxyApiKeyChanged = openAiPanel.isProxyApiKeyModified()
-                val openAiProxyLogRequestsChanged = openAiPanel.openAiProxyLogRequestsCheckBox.isSelected != state.openAiProxyLogRequests
+                val proxyPanel = proxySettingsPanel ?: return@onApply
+                val proxyEnabledChanged = proxyPanel.proxyEnabledCheckBox.isSelected != state.openAiProxyEnabled
+                val proxyPortChanged = proxyPanel.isProxyPortModified()
+                val proxyApiKeyChanged = proxyPanel.isProxyApiKeyModified()
+                val proxyLogRequestsChanged = proxyPanel.isProxyLogRequestsModified()
+                val proxyProviderSelectionChanged = proxyPanel.isProviderSelectionModified()
                 val gitHubPanel = gitHubPanel()
                 val gitHubEnterpriseHostChanged = gitHubPanel.normalizedEnterpriseHostForStorage() != state.githubEnterpriseHost
                 if (locationChanged) {
@@ -321,20 +302,21 @@ class QuotaSettingsConfigurable : Configurable {
                 }
                 state.syncIntellijMcpServerUrl = mcpSyncCheckBox?.isSelected == true
                 state.mcpServerSyncTargets = normalizedMcpTargets.toMutableList()
-                state.openAiProxyEnabled = openAiPanel.openAiProxyEnabledCheckBox.isSelected
-                state.openAiProxyPort = OpenAiProxyService.sanitizePort(openAiPanel.proxyPort())
-                state.openAiProxyLogRequests = openAiPanel.openAiProxyLogRequestsCheckBox.isSelected
+                state.openAiProxyEnabled = proxyPanel.proxyEnabledCheckBox.isSelected
+                state.openAiProxyPort = OpenAiProxyService.sanitizePort(proxyPanel.proxyPort())
+                state.openAiProxyLogRequests = proxyPanel.proxyLogRequestsCheckBox.isSelected
+                proxyPanel.applyProviderSelections(state)
                 state.githubEnterpriseHost = gitHubPanel.normalizedEnterpriseHostForStorage()
-                if (openAiProxyApiKeyChanged) {
-                    openAiPanel.saveProxyApiKeyBlocking()
+                if (proxyApiKeyChanged) {
+                    proxyPanel.saveProxyApiKeyBlocking()
                 }
-                if (locationChanged || displayModeChanged || sourceChanged || popupVisibilityChanged || miniMaxRegionChanged || providerOrderChanged || mcpSyncChanged || mcpTargetsChanged || openAiProxyEnabledChanged || openAiProxyPortChanged || openAiProxyApiKeyChanged || openAiProxyLogRequestsChanged || gitHubEnterpriseHostChanged) {
+                if (locationChanged || displayModeChanged || sourceChanged || popupVisibilityChanged || miniMaxRegionChanged || providerOrderChanged || mcpSyncChanged || mcpTargetsChanged || proxyEnabledChanged || proxyPortChanged || proxyApiKeyChanged || proxyLogRequestsChanged || proxyProviderSelectionChanged || gitHubEnterpriseHostChanged) {
                     ApplicationManager.getApplication().messageBus
                         .syncPublisher(QuotaSettingsListener.TOPIC)
                         .onSettingsChanged()
                     McpServerUrlSyncService.getInstance().reloadFromSettings()
                     OpenAiProxyService.getInstance().reloadFromSettings()
-                    openAiPanel.refreshAfterApply()
+                    proxyPanel.refreshAfterApply()
                     gitHubPanel.updateFields()
                     if (state.syncIntellijMcpServerUrl) {
                         McpServerUrlSyncService.getInstance().syncNowAsync()
@@ -360,6 +342,7 @@ class QuotaSettingsConfigurable : Configurable {
                     providerPanel.updateFields()
                     providerPanel.updateResponseArea()
                 }
+                proxySettingsPanel?.updateFields()
             }
 
             onIsModified {
@@ -375,10 +358,11 @@ class QuotaSettingsConfigurable : Configurable {
                     providerReorderPanel?.getOrder()?.joinToString(",") { it.id } != state.providerOrder ||
                     mcpSyncCheckBox?.isSelected != state.syncIntellijMcpServerUrl ||
                     normalizeTargets(mcpSyncTargets) != normalizeTargets(state.mcpServerSyncTargets) ||
-                    openAiPanel().openAiProxyEnabledCheckBox.isSelected != state.openAiProxyEnabled ||
-                    openAiPanel().isProxyPortModified() ||
-                    openAiPanel().isProxyApiKeyModified() ||
-                    openAiPanel().openAiProxyLogRequestsCheckBox.isSelected != state.openAiProxyLogRequests ||
+                    proxySettingsPanel?.proxyEnabledCheckBox?.isSelected != state.openAiProxyEnabled ||
+                    proxySettingsPanel?.isProxyPortModified() == true ||
+                    proxySettingsPanel?.isProxyApiKeyModified() == true ||
+                    proxySettingsPanel?.isProxyLogRequestsModified() == true ||
+                    proxySettingsPanel?.isProviderSelectionModified() == true ||
                     gitHubPanel().normalizedEnterpriseHostForStorage() != state.githubEnterpriseHost
             }
         }.apply {
@@ -386,7 +370,49 @@ class QuotaSettingsConfigurable : Configurable {
         }
     }
 
-    private fun openAiPanel(): OpenAiSettingsPanel = providerPanelsByType.getValue(QuotaProviderType.OPEN_AI) as OpenAiSettingsPanel
+    private fun buildSubscriptionUsageTab(): JComponent {
+        return BorderLayoutPanel().apply {
+            isOpaque = false
+            addToTop(panel {
+                row("Indicator location:") {
+                    cell(locationComboBox!!)
+                }
+
+                row("Indicator display:") {
+                    cell(displayModeComboBox!!)
+                    cell(displayModePreview!!).gap(RightGap.SMALL)
+                }
+
+                row("Indicator quota source:") {
+                    cell(indicatorSourceComboBox!!)
+                }
+            })
+            addToCenter(BorderLayoutPanel().apply {
+                isOpaque = false
+                border = JBUI.Borders.emptyTop(16)
+                addToTop(JSeparator())
+                addToCenter(BorderLayoutPanel().apply {
+                    isOpaque = false
+                    addToTop(providerReorderPanel!!)
+                    addToCenter(serviceCards!!)
+                })
+                addToBottom(JSeparator())
+            })
+        }
+    }
+
+    private fun buildMcpSyncTab(): JComponent {
+        return panel {
+            row {
+                cell(mcpSyncCheckBox!!)
+                cell(configureMcpSyncTargetsButton!!)
+            }
+
+            row {
+                cell(mcpServerStatusLabel!!)
+            }
+        }
+    }
 
     private fun miniMaxPanel(): MiniMaxSettingsPanel = providerPanelsByType.getValue(QuotaProviderType.MINIMAX) as MiniMaxSettingsPanel
 

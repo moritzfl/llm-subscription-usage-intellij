@@ -1,16 +1,26 @@
 package de.moritzf.quota.idea.openai
 
-import de.moritzf.proxy.util.ApiKeyUtils
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.util.concurrency.AppExecutorUtil
+import de.moritzf.proxy.subscription.SubscriptionModelCatalog
+import de.moritzf.proxy.subscription.SubscriptionProxyModel
+import de.moritzf.proxy.subscription.SubscriptionProxyProvider
+import de.moritzf.proxy.subscription.SubscriptionProxyServer
+import de.moritzf.proxy.util.ApiKeyUtils
+import de.moritzf.quota.github.GitHubQuotaClient
+import de.moritzf.quota.github.proxy.GitHubCopilotSubscriptionProxyProvider
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.idea.github.GitHubCredentialsStore
 import de.moritzf.quota.idea.settings.QuotaSettingsListener
 import de.moritzf.quota.idea.settings.QuotaSettingsState
-import de.moritzf.quota.openai.proxy.OpenAiProxyServer
+import de.moritzf.quota.openai.proxy.OpenAiCodexSubscriptionProxyProvider
+import de.moritzf.quota.supergrok.proxy.SuperGrokSubscriptionProxyProvider
+import java.net.URI
+import java.nio.file.Path
 import java.util.concurrent.Executor
 
 @Service(Service.Level.APP)
@@ -20,14 +30,16 @@ class OpenAiProxyService(
     },
     private val apiKeyStore: OpenAiProxyApiKeyStore = OpenAiProxyApiKeyStore.getInstance(),
     private val authServiceProvider: () -> QuotaAuthService = { QuotaAuthService.getInstance() },
+    private val githubCredentialsStoreProvider: () -> GitHubCredentialsStore = { GitHubCredentialsStore.getInstance() },
     private val executor: Executor = AppExecutorUtil.getAppExecutorService(),
     subscribeToSettings: Boolean = true,
 ) : Disposable {
     private val lock = Any()
-    @Volatile private var server: OpenAiProxyServer? = null
+    @Volatile private var server: SubscriptionProxyServer? = null
     @Volatile private var runningPort: Int? = null
     @Volatile private var runningApiKeyFingerprint: String? = null
     @Volatile private var runningLogRequests: Boolean = false
+    @Volatile private var runningProviderIds: Set<String> = emptySet()
     @Volatile private var lastError: String? = null
 
     init {
@@ -47,19 +59,31 @@ class OpenAiProxyService(
         val enabled = settings?.openAiProxyEnabled == true
         val port = sanitizePort(settings?.openAiProxyPort ?: DEFAULT_PORT)
         val running = server?.isRunning == true
+        val enabledProviders = settings?.enabledSubscriptionProxyProviders().orEmpty()
         return OpenAiProxyStatus(
             enabled = enabled,
             running = running,
             baseUrl = localBaseUrl(runningPort ?: port),
             error = lastError,
+            enabledProviders = enabledProviders.map { it.id }.toSet(),
+            runningProviders = runningProviderIds,
+            requestLogDir = requestLogDir().toString(),
         )
     }
+
+    fun advertisedModelsSnapshot(): List<SubscriptionProxyModel> {
+        val settings = settingsProvider() ?: return emptyList()
+        return SubscriptionModelCatalog(createProviders(settings, false, requestLogDir().toString())).models
+    }
+
+    fun requestLogDir(): Path = DEFAULT_REQUEST_LOG_DIR
 
     private fun applySettings() {
         val settings = settingsProvider()
         val enabled = settings?.openAiProxyEnabled == true
         val port = sanitizePort(settings?.openAiProxyPort ?: DEFAULT_PORT)
         val logRequests = settings?.openAiProxyLogRequests == true
+        val providerIds = settings?.enabledSubscriptionProxyProviders().orEmpty().map { it.id }.toSet()
 
         synchronized(lock) {
             if (!enabled) {
@@ -72,38 +96,88 @@ class OpenAiProxyService(
                 val localApiKey = apiKeyStore.ensureApiKeyBlocking()
                 val localApiKeyFingerprint = ApiKeyUtils.fingerprint(localApiKey)
                 if (server?.isRunning == true && runningPort == port &&
-                    runningApiKeyFingerprint == localApiKeyFingerprint && runningLogRequests == logRequests
+                    runningApiKeyFingerprint == localApiKeyFingerprint && runningLogRequests == logRequests &&
+                    runningProviderIds == providerIds
                 ) {
                     lastError = null
                     return
                 }
 
                 stopLocked()
-                val proxyServer = OpenAiProxyServer(
+                val proxyServer = SubscriptionProxyServer(
                     port = port,
                     localApiKeyProvider = { localApiKey },
-                    accessTokenProvider = { authServiceProvider().getAccessTokenBlocking(QuotaProviderType.OPEN_AI) },
-                    accountIdProvider = { authServiceProvider().getAccountId(QuotaProviderType.OPEN_AI) },
-                    // Upstream 401s route back to the IDE auth service, which owns refresh
-                    // and persistence; the stale token lets it dedupe concurrent refreshes.
-                    tokenRefresher = { staleToken ->
-                        authServiceProvider().forceRefreshBlocking(QuotaProviderType.OPEN_AI, staleToken)
-                    },
+                    providers = { createProviders(settings, logRequests, requestLogDir().toString()) },
                     fullRequestLogging = logRequests,
+                    requestLogDir = requestLogDir().toString(),
                 )
                 proxyServer.start()
                 server = proxyServer
                 runningPort = port
                 runningApiKeyFingerprint = localApiKeyFingerprint
                 runningLogRequests = logRequests
+                runningProviderIds = providerIds
                 lastError = null
-                LOG.info("OpenAI proxy started at ${localBaseUrl(port)}")
+                LOG.info("Subscription proxy started at ${localBaseUrl(port)}")
             } catch (exception: Exception) {
                 lastError = exception.message ?: exception::class.java.simpleName
-                LOG.warn("Failed to start OpenAI proxy", exception)
+                LOG.warn("Failed to start subscription proxy", exception)
                 stopLocked()
             }
         }
+    }
+
+    private fun createProviders(
+        settings: QuotaSettingsState,
+        logRequests: Boolean,
+        requestLogDir: String,
+    ): List<SubscriptionProxyProvider> {
+        val enabledProviders = settings.enabledSubscriptionProxyProviders()
+        return buildList {
+            if (QuotaProviderType.OPEN_AI in enabledProviders) {
+                add(
+                    OpenAiCodexSubscriptionProxyProvider(
+                        accessTokenProvider = { authServiceProvider().getAccessTokenBlocking(QuotaProviderType.OPEN_AI) },
+                        accountIdProvider = { authServiceProvider().getAccountId(QuotaProviderType.OPEN_AI) },
+                        // Upstream 401s route back to the IDE auth service, which owns refresh
+                        // and persistence; the stale token lets it dedupe concurrent refreshes.
+                        tokenRefresher = { staleToken ->
+                            authServiceProvider().forceRefreshBlocking(QuotaProviderType.OPEN_AI, staleToken)
+                        },
+                        fullRequestLogging = logRequests,
+                        requestLogDir = requestLogDir,
+                    ),
+                )
+            }
+            if (QuotaProviderType.SUPERGROK in enabledProviders) {
+                add(
+                    SuperGrokSubscriptionProxyProvider(
+                        accessTokenProvider = { authServiceProvider().getAccessTokenBlocking(QuotaProviderType.SUPERGROK) },
+                        tokenRefresher = { staleToken ->
+                            authServiceProvider().forceRefreshBlocking(QuotaProviderType.SUPERGROK, staleToken)
+                        },
+                        fullRequestLogging = logRequests,
+                        requestLogDir = requestLogDir,
+                    ),
+                )
+            }
+            if (QuotaProviderType.GITHUB in enabledProviders) {
+                add(
+                    GitHubCopilotSubscriptionProxyProvider(
+                        accessTokenProvider = { githubCredentialsStoreProvider().loadBlocking()?.accessToken },
+                        upstreamBaseUri = githubCopilotBaseUri(settings.githubEnterpriseHost),
+                        fullRequestLogging = logRequests,
+                        requestLogDir = requestLogDir,
+                    ),
+                )
+            }
+        }
+    }
+
+    private fun githubCopilotBaseUri(enterpriseHost: String): URI {
+        val host = GitHubQuotaClient.normalizedEnterpriseHost(enterpriseHost)
+        if (host == "github.com") return GitHubCopilotSubscriptionProxyProvider.DEFAULT_UPSTREAM_BASE_URI
+        return URI.create("https://copilot-api.$host")
     }
 
     private fun stopLocked() {
@@ -112,6 +186,7 @@ class OpenAiProxyService(
         runningPort = null
         runningApiKeyFingerprint = null
         runningLogRequests = false
+        runningProviderIds = emptySet()
     }
 
     override fun dispose() {
@@ -122,6 +197,11 @@ class OpenAiProxyService(
 
     companion object {
         const val DEFAULT_PORT = 14621
+        private val DEFAULT_REQUEST_LOG_DIR: Path = Path.of(
+            System.getProperty("java.io.tmpdir"),
+            "openai-usage-quota-intellij",
+            "subscription-proxy-requests",
+        )
         private val LOG = Logger.getInstance(OpenAiProxyService::class.java)
 
         @JvmStatic
@@ -142,4 +222,7 @@ data class OpenAiProxyStatus(
     val running: Boolean,
     val baseUrl: String,
     val error: String?,
+    val enabledProviders: Set<String> = emptySet(),
+    val runningProviders: Set<String> = emptySet(),
+    val requestLogDir: String = "",
 )
