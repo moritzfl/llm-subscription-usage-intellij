@@ -144,6 +144,13 @@ class SubscriptionProxyServerTest {
         }
     }
 
+    @Test
+    fun passThroughProviderDropsHttp2PseudoHeaders() {
+        assertFalse(PassThroughSubscriptionProxyProvider.shouldForwardResponseHeader(":status"))
+        assertFalse(PassThroughSubscriptionProxyProvider.shouldForwardResponseHeader("content-length"))
+        assertTrue(PassThroughSubscriptionProxyProvider.shouldForwardResponseHeader("x-request-id"))
+    }
+
     private fun fakeProvider(
         id: String,
         name: String,

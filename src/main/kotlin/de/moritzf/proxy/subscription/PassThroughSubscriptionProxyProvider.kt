@@ -226,10 +226,15 @@ class PassThroughSubscriptionProxyProvider(
 
         private fun <T> copySelectedResponseHeaders(ctx: ProxyCall, response: HttpResponse<T>) {
             response.headers().map().forEach { (name, values) ->
-                if (name.lowercase(Locale.ROOT) !in HOP_BY_HOP_RESPONSE_HEADERS) {
+                if (shouldForwardResponseHeader(name)) {
                     values.forEach { value -> ctx.responseHeader(name, value) }
                 }
             }
+        }
+
+        internal fun shouldForwardResponseHeader(name: String): Boolean {
+            val normalized = name.lowercase(Locale.ROOT)
+            return !normalized.startsWith(':') && normalized !in HOP_BY_HOP_RESPONSE_HEADERS
         }
 
         private fun drainQuietly(response: HttpResponse<InputStream>) {
