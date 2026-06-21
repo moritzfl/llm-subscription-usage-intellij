@@ -1,6 +1,7 @@
 package de.moritzf.quota.opencode.proxy
 
 import de.moritzf.proxy.subscription.OpenAiCompatibleApiKeySubscriptionProxyProvider
+import de.moritzf.proxy.subscription.SubscriptionProxyRoute
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyRequest
 import java.net.URI
@@ -31,6 +32,8 @@ class OpenCodeZenSubscriptionProxyProvider(
     override fun isConfigured(): Boolean = delegate.isConfigured()
 
     override fun models() = delegate.models()
+
+    override fun fallbackModel(localId: String, route: SubscriptionProxyRoute) = delegate.fallbackModel(localId, route)
 
     override suspend fun handle(ctx: de.moritzf.proxy.server.ProxyCall, request: SubscriptionProxyRequest) {
         delegate.handle(ctx, request)

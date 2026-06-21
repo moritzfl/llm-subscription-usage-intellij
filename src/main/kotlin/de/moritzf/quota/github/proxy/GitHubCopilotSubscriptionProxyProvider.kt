@@ -67,8 +67,25 @@ class GitHubCopilotSubscriptionProxyProvider(
 
     override fun models() = delegate.models()
 
+    override fun fallbackModel(localId: String, route: SubscriptionProxyRoute) = prefixedFallbackModel(localId, route)
+
     override suspend fun handle(ctx: de.moritzf.proxy.server.ProxyCall, request: SubscriptionProxyRequest) {
         delegate.handle(ctx, request)
+    }
+
+    private fun prefixedFallbackModel(localId: String, route: SubscriptionProxyRoute): de.moritzf.proxy.subscription.SubscriptionProxyModel? {
+        if (!localId.startsWith(PREFIX) || localId.length == PREFIX.length) return null
+        return de.moritzf.proxy.subscription.SubscriptionProxyModel(
+            localId = localId,
+            upstreamId = localId.removePrefix(PREFIX),
+            providerId = id,
+            providerName = displayName,
+            litellmProvider = LITELLM_PROVIDER,
+            supportedRoutes = setOf(route),
+            supportsFunctionCalling = true,
+            supportsToolChoice = true,
+            supportsVision = true,
+        )
     }
 
     private fun modelMappings(): List<PassThroughSubscriptionProxyProvider.ModelMapping> {

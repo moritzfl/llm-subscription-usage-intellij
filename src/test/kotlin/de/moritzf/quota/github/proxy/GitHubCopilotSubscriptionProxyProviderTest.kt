@@ -73,6 +73,31 @@ class GitHubCopilotSubscriptionProxyProviderTest {
     }
 
     @Test
+    fun forwardsPrefixedModelsMissingFromDiscovery() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/responses",
+                    "{\"model\":\"gh-gpt-5.4-mini\",\"input\":\"hi\"}",
+                    bearer = true,
+                )
+
+                assertEquals(200, response.statusCode())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
+                val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/responses", inference.path)
+                assertTrue(inference.body.contains("\"model\":\"gpt-5.4-mini\""), inference.body)
+                assertFalse(inference.body.contains("gh-gpt-5.4-mini"), inference.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun acceptsAnthropicStyleLocalApiKeyForMessagesRoute() {
         TestUpstream().use { upstream ->
             val proxy = newProxy(upstream.baseUri)

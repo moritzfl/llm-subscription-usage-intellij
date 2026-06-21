@@ -23,7 +23,7 @@ import kotlinx.serialization.json.contentOrNull
 class OpenAiCompatibleApiKeySubscriptionProxyProvider(
     override val id: String,
     override val displayName: String,
-    litellmProvider: String,
+    private val litellmProvider: String,
     private val baseUri: URI,
     private val apiKeyProvider: () -> String?,
     private val localIdPrefix: String = "",
@@ -54,6 +54,27 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
     override fun isConfigured(): Boolean = delegate.isConfigured()
 
     override fun models(): List<SubscriptionProxyModel> = delegate.models()
+
+    override fun fallbackModel(localId: String, route: SubscriptionProxyRoute): SubscriptionProxyModel? {
+        if (route !in supportedRoutes ||
+            localIdPrefix.isBlank() ||
+            !localId.startsWith(localIdPrefix) ||
+            localId.length == localIdPrefix.length
+        ) {
+            return null
+        }
+        return SubscriptionProxyModel(
+            localId = localId,
+            upstreamId = localId.removePrefix(localIdPrefix),
+            providerId = id,
+            providerName = displayName,
+            litellmProvider = litellmProvider,
+            supportedRoutes = setOf(route),
+            supportsFunctionCalling = true,
+            supportsToolChoice = true,
+            supportsVision = true,
+        )
+    }
 
     override suspend fun handle(ctx: de.moritzf.proxy.server.ProxyCall, request: SubscriptionProxyRequest) {
         delegate.handle(ctx, request)

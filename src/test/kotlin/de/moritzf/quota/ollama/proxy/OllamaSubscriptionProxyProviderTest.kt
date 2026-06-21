@@ -15,6 +15,7 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlinx.serialization.json.jsonArray
@@ -47,6 +48,31 @@ class OllamaSubscriptionProxyProviderTest {
                 assertEquals("/v1/chat/completions", chatRequest.path)
                 assertEquals("Bearer ollama-key", chatRequest.firstHeader("Authorization"))
                 assertTrue(chatRequest.body.contains("\"model\":\"llama3.3\""), chatRequest.body)
+            } finally {
+                proxy.server.stop()
+            }
+        }
+    }
+
+    @Test
+    fun forwardsPrefixedModelsMissingFromDiscovery() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.server.start()
+
+                val chatResponse = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"ol-llama4\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                )
+
+                assertEquals(200, chatResponse.statusCode())
+                assertEquals("/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
+                val chatRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/chat/completions", chatRequest.path)
+                assertTrue(chatRequest.body.contains("\"model\":\"llama4\""), chatRequest.body)
+                assertFalse(chatRequest.body.contains("ol-llama4"), chatRequest.body)
             } finally {
                 proxy.server.stop()
             }

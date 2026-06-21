@@ -162,7 +162,7 @@ class SubscriptionProxyServer(
                 return
             }
         } else {
-            catalog.resolve(requestedModel) ?: run {
+            catalog.resolve(requestedModel, route) ?: run {
                 JsonHelper.toErrorResponse(ctx, "Unknown proxy model: $requestedModel", 400, "invalid_request_error")
                 return
             }

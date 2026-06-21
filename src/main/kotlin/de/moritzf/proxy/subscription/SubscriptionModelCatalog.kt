@@ -1,7 +1,7 @@
 package de.moritzf.proxy.subscription
 
 class SubscriptionModelCatalog(
-    providers: List<SubscriptionProxyProvider>,
+    private val providers: List<SubscriptionProxyProvider>,
 ) {
     private val providersById = providers.associateBy { it.id }
     private val modelsByLocalId: Map<String, SubscriptionProxyModel>
@@ -19,8 +19,13 @@ class SubscriptionModelCatalog(
         modelsByLocalId = models.associateBy { it.localId }
     }
 
-    fun resolve(localId: String?): SubscriptionProxyModel? {
-        return localId?.trim()?.takeIf { it.isNotBlank() }?.let(modelsByLocalId::get)
+    fun resolve(localId: String?, route: SubscriptionProxyRoute): SubscriptionProxyModel? {
+        val requested = localId?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        return modelsByLocalId[requested]
+            ?: providers.asSequence()
+                .filter { it.isConfigured() }
+                .mapNotNull { it.fallbackModel(requested, route) }
+                .firstOrNull()
     }
 
     fun providerFor(model: SubscriptionProxyModel): SubscriptionProxyProvider? {
