@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-06-21
+- Ollama and OpenCode Zen proxy models now use clear provider prefixes (`ol-` and `oc-`) to avoid name collisions with similarly named models from other providers.
+- Kimi proxy models are now labeled as Kimi Code, making it clearer which Kimi subscription endpoint they use.
+
 ## [1.4.0] - 2026-06-21
 - The local OpenAI-compatible proxy can now use more of your subscriptions: Kimi, MiniMax, Ollama Cloud, OpenCode Zen, Z.ai, SuperGrok/xAI, and GitHub Copilot can be exposed alongside OpenAI/Codex.
 - Added SuperGrok/xAI web search for MCP clients using your existing SuperGrok login.
