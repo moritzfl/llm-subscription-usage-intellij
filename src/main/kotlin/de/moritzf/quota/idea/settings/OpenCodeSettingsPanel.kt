@@ -13,6 +13,7 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
+import de.moritzf.quota.idea.opencode.OpenCodeApiKeyStore
 import de.moritzf.quota.idea.opencode.OpenCodeSessionCookieStore
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.opencode.OpenCodeQuota
@@ -36,6 +37,10 @@ internal class OpenCodeSettingsPanel(
     private val openCodeCookieField = JBPasswordField().apply {
         columns = 40
         toolTipText = "Session cookie from opencode.ai (extract from browser DevTools)"
+    }
+    private val apiKeyField = JBPasswordField().apply {
+        columns = 40
+        toolTipText = "OpenCode API key for the local proxy"
     }
     private val openCodeStatusLabel = JBLabel().apply { isVisible = false }
     private val workspaceComboBox = ComboBox<OpenCodeWorkspace>().apply {
@@ -98,6 +103,22 @@ internal class OpenCodeSettingsPanel(
                 }
             }
             row {
+                label("Optional: add an OpenCode API key to expose OpenCode Zen through the local proxy. Quota fetching still uses the session cookie above.")
+            }
+            row("API key:") {
+                cell(apiKeyField)
+                    .resizableColumn()
+                    .align(AlignX.FILL)
+            }
+            row {
+                button("Save API Key") {
+                    saveApiKeyNow()
+                }
+                button("Clear API Key") {
+                    clearApiKeyNow()
+                }
+            }
+            row {
                 cell(workspaceLoadingLabel)
             }
             row {
@@ -119,8 +140,10 @@ internal class OpenCodeSettingsPanel(
     }
 
     override fun updateFields() {
+        val apiKey = OpenCodeApiKeyStore.getInstance().load(onLoaded = ::refreshAfterApiKeyLoad)
         val cookieStore = OpenCodeSessionCookieStore.getInstance()
         val cookie = cookieStore.load(onLoaded = ::refreshAfterCookieLoad)
+        apiKeyField.text = if (apiKey.isNullOrBlank()) "" else API_KEY_PLACEHOLDER
         openCodeCookieField.text = if (cookie.isNullOrBlank()) "" else OPENCODE_COOKIE_PLACEHOLDER
         if (!cookie.isNullOrBlank()) {
             loadWorkspaces(cookie)
@@ -139,18 +162,24 @@ internal class OpenCodeSettingsPanel(
     }
 
     override fun updateStatus() {
+        val apiKeyStore = OpenCodeApiKeyStore.getInstance()
         val cookieStore = OpenCodeSessionCookieStore.getInstance()
+        val apiKey = apiKeyStore.load(onLoaded = ::refreshAfterApiKeyLoad)
         val cookie = cookieStore.load(onLoaded = ::refreshAfterCookieLoad)
         val openCodeQuota = QuotaUsageService.getInstance().getLastQuota(QuotaProviderType.OPEN_CODE) as? OpenCodeQuota
         val openCodeError = QuotaUsageService.getInstance().getLastError(QuotaProviderType.OPEN_CODE)
 
         when {
-            !cookieStore.isLoaded() -> {
-                openCodeStatusLabel.text = formatStatusText("Loading session cookie...", AuthStatusKind.PENDING)
+            !apiKeyStore.isLoaded() || !cookieStore.isLoaded() -> {
+                openCodeStatusLabel.text = formatStatusText("Loading OpenCode credentials...", AuthStatusKind.PENDING)
+                openCodeStatusLabel.foreground = statusLabelDefaultForeground ?: openCodeStatusLabel.foreground
+            }
+            cookie == null && apiKey.isNullOrBlank() -> {
+                openCodeStatusLabel.text = formatStatusText("No session cookie configured for quota; no API key configured for proxy", AuthStatusKind.DISCONNECTED)
                 openCodeStatusLabel.foreground = statusLabelDefaultForeground ?: openCodeStatusLabel.foreground
             }
             cookie == null -> {
-                openCodeStatusLabel.text = formatStatusText("No session cookie configured", AuthStatusKind.DISCONNECTED)
+                openCodeStatusLabel.text = formatStatusText("API key stored for proxy; no session cookie configured for quota", AuthStatusKind.CONNECTED)
                 openCodeStatusLabel.foreground = statusLabelDefaultForeground ?: openCodeStatusLabel.foreground
             }
             workspaceComboBox.isVisible && workspaceComboBox.itemCount > 0 -> {
@@ -177,6 +206,21 @@ internal class OpenCodeSettingsPanel(
         openCodeStatusLabel.text = formatStatusText(text, AuthStatusKind.PENDING)
         openCodeStatusLabel.foreground = statusLabelDefaultForeground ?: openCodeStatusLabel.foreground
         openCodeStatusLabel.isVisible = true
+    }
+
+    private fun saveApiKeyNow() {
+        val apiKey = String(apiKeyField.password).trim()
+        if (apiKey.isNotBlank() && apiKey != API_KEY_PLACEHOLDER) {
+            OpenCodeApiKeyStore.getInstance().save(apiKey)
+            apiKeyField.text = API_KEY_PLACEHOLDER
+            updateStatus()
+        }
+    }
+
+    private fun clearApiKeyNow() {
+        OpenCodeApiKeyStore.getInstance().clear()
+        apiKeyField.text = ""
+        updateStatus()
     }
 
     override fun updateResponseArea() {
@@ -263,6 +307,11 @@ internal class OpenCodeSettingsPanel(
         }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
     }
 
+    private fun refreshAfterApiKeyLoad() {
+        updateFields()
+        updateResponseArea()
+    }
+
     private fun createResponseViewer(): com.intellij.ui.components.JBTextArea {
         return com.intellij.ui.components.JBTextArea().apply {
             isEditable = false
@@ -294,5 +343,6 @@ internal class OpenCodeSettingsPanel(
 
     private companion object {
         private const val OPENCODE_COOKIE_PLACEHOLDER = "********"
+        private const val API_KEY_PLACEHOLDER = "********"
     }
 }

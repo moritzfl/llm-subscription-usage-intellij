@@ -265,6 +265,11 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
             QuotaProviderType.OPEN_AI,
             QuotaProviderType.SUPERGROK,
             QuotaProviderType.GITHUB,
+            QuotaProviderType.KIMI,
+            QuotaProviderType.MINIMAX,
+            QuotaProviderType.OLLAMA,
+            QuotaProviderType.OPEN_CODE,
+            QuotaProviderType.ZAI,
         )
 
         val DEFAULT_SUBSCRIPTION_PROXY_PROVIDERS: List<String> =

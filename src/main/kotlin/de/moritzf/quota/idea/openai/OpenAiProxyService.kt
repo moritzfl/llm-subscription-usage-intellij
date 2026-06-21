@@ -15,10 +15,22 @@ import de.moritzf.quota.github.proxy.GitHubCopilotSubscriptionProxyProvider
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.github.GitHubCredentialsStore
+import de.moritzf.quota.idea.kimi.KimiCredentialsStore
+import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
+import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
+import de.moritzf.quota.idea.opencode.OpenCodeApiKeyStore
 import de.moritzf.quota.idea.settings.QuotaSettingsListener
 import de.moritzf.quota.idea.settings.QuotaSettingsState
+import de.moritzf.quota.idea.zai.ZaiApiKeyStore
+import de.moritzf.quota.kimi.proxy.KimiSubscriptionProxyProvider
+import de.moritzf.quota.minimax.MiniMaxRegion
+import de.moritzf.quota.minimax.MiniMaxRegionPreference
+import de.moritzf.quota.minimax.proxy.MiniMaxSubscriptionProxyProvider
+import de.moritzf.quota.ollama.proxy.OllamaSubscriptionProxyProvider
 import de.moritzf.quota.openai.proxy.OpenAiCodexSubscriptionProxyProvider
+import de.moritzf.quota.opencode.proxy.OpenCodeZenSubscriptionProxyProvider
 import de.moritzf.quota.supergrok.proxy.SuperGrokSubscriptionProxyProvider
+import de.moritzf.quota.zai.proxy.ZaiSubscriptionProxyProvider
 import java.net.URI
 import java.nio.file.Path
 import java.util.concurrent.Executor
@@ -31,6 +43,11 @@ class OpenAiProxyService(
     private val apiKeyStore: OpenAiProxyApiKeyStore = OpenAiProxyApiKeyStore.getInstance(),
     private val authServiceProvider: () -> QuotaAuthService = { QuotaAuthService.getInstance() },
     private val githubCredentialsStoreProvider: () -> GitHubCredentialsStore = { GitHubCredentialsStore.getInstance() },
+    private val kimiCredentialsStoreProvider: () -> KimiCredentialsStore = { KimiCredentialsStore.getInstance() },
+    private val miniMaxApiKeyStoreProvider: () -> MiniMaxApiKeyStore = { MiniMaxApiKeyStore.getInstance() },
+    private val ollamaApiKeyStoreProvider: () -> OllamaApiKeyStore = { OllamaApiKeyStore.getInstance() },
+    private val openCodeApiKeyStoreProvider: () -> OpenCodeApiKeyStore = { OpenCodeApiKeyStore.getInstance() },
+    private val zaiApiKeyStoreProvider: () -> ZaiApiKeyStore = { ZaiApiKeyStore.getInstance() },
     private val executor: Executor = AppExecutorUtil.getAppExecutorService(),
     subscribeToSettings: Boolean = true,
 ) : Disposable {
@@ -171,6 +188,53 @@ class OpenAiProxyService(
                     ),
                 )
             }
+            if (QuotaProviderType.KIMI in enabledProviders) {
+                add(
+                    KimiSubscriptionProxyProvider(
+                        credentialsProvider = { kimiCredentialsStoreProvider().loadBlocking() },
+                        credentialsSaver = { credentials -> kimiCredentialsStoreProvider().save(credentials) },
+                        fullRequestLogging = logRequests,
+                        requestLogDir = requestLogDir,
+                    ),
+                )
+            }
+            if (QuotaProviderType.MINIMAX in enabledProviders) {
+                add(
+                    MiniMaxSubscriptionProxyProvider(
+                        apiKeyProvider = { miniMaxApiKeyStoreProvider().loadBlocking() },
+                        regionProvider = { miniMaxProxyRegion(settings.miniMaxRegionPreference()) },
+                        fullRequestLogging = logRequests,
+                        requestLogDir = requestLogDir,
+                    ),
+                )
+            }
+            if (QuotaProviderType.OLLAMA in enabledProviders) {
+                add(
+                    OllamaSubscriptionProxyProvider(
+                        apiKeyProvider = { ollamaApiKeyStoreProvider().loadBlocking() },
+                        fullRequestLogging = logRequests,
+                        requestLogDir = requestLogDir,
+                    ),
+                )
+            }
+            if (QuotaProviderType.OPEN_CODE in enabledProviders) {
+                add(
+                    OpenCodeZenSubscriptionProxyProvider(
+                        apiKeyProvider = { openCodeApiKeyStoreProvider().loadBlocking() },
+                        fullRequestLogging = logRequests,
+                        requestLogDir = requestLogDir,
+                    ),
+                )
+            }
+            if (QuotaProviderType.ZAI in enabledProviders) {
+                add(
+                    ZaiSubscriptionProxyProvider(
+                        apiKeyProvider = { zaiApiKeyStoreProvider().loadBlocking() },
+                        fullRequestLogging = logRequests,
+                        requestLogDir = requestLogDir,
+                    ),
+                )
+            }
         }
     }
 
@@ -178,6 +242,14 @@ class OpenAiProxyService(
         val host = GitHubQuotaClient.normalizedEnterpriseHost(enterpriseHost)
         if (host == "github.com") return GitHubCopilotSubscriptionProxyProvider.DEFAULT_UPSTREAM_BASE_URI
         return URI.create("https://copilot-api.$host")
+    }
+
+    private fun miniMaxProxyRegion(preference: MiniMaxRegionPreference): MiniMaxRegion {
+        return when (preference) {
+            MiniMaxRegionPreference.CN -> MiniMaxRegion.CN
+            MiniMaxRegionPreference.GLOBAL,
+            MiniMaxRegionPreference.AUTO -> MiniMaxRegion.GLOBAL
+        }
     }
 
     private fun stopLocked() {

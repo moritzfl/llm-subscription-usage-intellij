@@ -17,9 +17,14 @@ import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.github.GitHubCredentialsStore
+import de.moritzf.quota.idea.kimi.KimiCredentialsStore
+import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
+import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
+import de.moritzf.quota.idea.opencode.OpenCodeApiKeyStore
 import de.moritzf.quota.idea.openai.OpenAiProxyApiKeyStore
 import de.moritzf.quota.idea.openai.OpenAiProxyService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
+import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 import de.moritzf.proxy.subscription.SubscriptionProxyModel
 import java.awt.Desktop
 import java.awt.Dimension
@@ -285,7 +290,7 @@ internal class SubscriptionProxySettingsPanel(
             checkBox.toolTipText = if (configured) {
                 "Expose ${provider.displayName} models through the local proxy"
             } else {
-                "Log in to ${provider.displayName} before enabling this provider"
+                "Configure ${provider.displayName} credentials before enabling this provider"
             }
         }
         updateProviderStatus()
@@ -297,7 +302,7 @@ internal class SubscriptionProxySettingsPanel(
         val message = when {
             selected.isNotEmpty() && unconfigured.isEmpty() -> "Selected providers: ${selected.joinToString { it.displayName }}"
             selected.isNotEmpty() -> "Selected providers: ${selected.joinToString { it.displayName }}. Log in to enable: ${unconfigured.joinToString { it.displayName }}."
-            unconfigured.size == providerCheckBoxes.size -> "No providers are configured yet. Log in to OpenAI, SuperGrok, or GitHub Copilot first."
+            unconfigured.size == providerCheckBoxes.size -> "No providers are configured yet. Log in or add provider API keys first."
             else -> "Select at least one configured provider. Not configured: ${unconfigured.joinToString { it.displayName }}."
         }
         providerStatusLabel.text = message
@@ -312,6 +317,21 @@ internal class SubscriptionProxySettingsPanel(
             QuotaProviderType.GITHUB -> GitHubCredentialsStore.getInstance()
                 .load(onLoaded = ::refreshAfterCredentialsLoad)
                 ?.isUsable() == true
+            QuotaProviderType.KIMI -> KimiCredentialsStore.getInstance()
+                .load(onLoaded = ::refreshAfterCredentialsLoad)
+                ?.isUsable() == true
+            QuotaProviderType.MINIMAX -> !MiniMaxApiKeyStore.getInstance()
+                .load(onLoaded = ::refreshAfterCredentialsLoad)
+                .isNullOrBlank()
+            QuotaProviderType.OLLAMA -> !OllamaApiKeyStore.getInstance()
+                .load(onLoaded = ::refreshAfterCredentialsLoad)
+                .isNullOrBlank()
+            QuotaProviderType.OPEN_CODE -> !OpenCodeApiKeyStore.getInstance()
+                .load(onLoaded = ::refreshAfterCredentialsLoad)
+                .isNullOrBlank()
+            QuotaProviderType.ZAI -> !ZaiApiKeyStore.getInstance()
+                .load(onLoaded = ::refreshAfterCredentialsLoad)
+                .isNullOrBlank()
             else -> false
         }
     }

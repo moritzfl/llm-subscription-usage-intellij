@@ -1,6 +1,7 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+- Added unified proxy support for Kimi, MiniMax, Ollama, OpenCode Zen, and Z.ai alongside the existing OpenAI, SuperGrok, and GitHub Copilot providers.
 - Removed deprecated IntelliJ status bar API usage from the plugin verifier report.
 
 ## [1.3.0] - 2026-06-19

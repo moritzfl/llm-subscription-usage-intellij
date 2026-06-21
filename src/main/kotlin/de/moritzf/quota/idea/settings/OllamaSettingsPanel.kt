@@ -33,7 +33,7 @@ internal class OllamaSettingsPanel(
     override val hideFromPopupCheckBox = com.intellij.ui.components.JBCheckBox("Hide from quota popup")
     private val apiKeyField = JBPasswordField().apply {
         columns = 40
-        toolTipText = "Ollama API key from ollama.com/settings/keys (used for MCP web search only)"
+        toolTipText = "Ollama API key from ollama.com/settings/keys (used for MCP web search and proxy)"
     }
     private val sessionCookieField = JBPasswordField().apply {
         columns = 40
@@ -91,7 +91,7 @@ internal class OllamaSettingsPanel(
                 }
             }
             row {
-                label("Optional: add an Ollama API key to enable MCP web search. Quota fetching still uses the session cookie above.")
+                label("Optional: add an Ollama API key to enable MCP web search and local proxy support. Quota fetching still uses the session cookie above.")
             }
             row("API key:") {
                 cell(apiKeyField)
@@ -143,11 +143,11 @@ internal class OllamaSettingsPanel(
                 ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
             sessionCookie.isNullOrBlank() && apiKey.isNullOrBlank() -> {
-                ollamaStatusLabel.text = formatStatusText("No session cookie configured for quota; no API key configured for web search", AuthStatusKind.DISCONNECTED)
+                ollamaStatusLabel.text = formatStatusText("No session cookie configured for quota; no API key configured for web search/proxy", AuthStatusKind.DISCONNECTED)
                 ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
             sessionCookie.isNullOrBlank() -> {
-                ollamaStatusLabel.text = formatStatusText("API key stored for web search; no session cookie configured for quota", AuthStatusKind.CONNECTED)
+                ollamaStatusLabel.text = formatStatusText("API key stored for web search/proxy; no session cookie configured for quota", AuthStatusKind.CONNECTED)
                 ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
             ollamaError != null -> {

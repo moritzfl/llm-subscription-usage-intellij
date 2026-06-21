@@ -1,0 +1,46 @@
+package de.moritzf.quota.ollama.proxy
+
+import de.moritzf.proxy.subscription.OpenAiCompatibleApiKeySubscriptionProxyProvider
+import de.moritzf.proxy.subscription.SubscriptionProxyProvider
+import de.moritzf.proxy.subscription.SubscriptionProxyRequest
+import java.net.URI
+import java.net.http.HttpClient
+
+class OllamaSubscriptionProxyProvider(
+    apiKeyProvider: () -> String?,
+    httpClient: HttpClient = HttpClient.newHttpClient(),
+    upstreamBaseUri: URI = DEFAULT_UPSTREAM_BASE_URI,
+    fullRequestLogging: Boolean = false,
+    requestLogDir: String = DEFAULT_REQUEST_LOG_DIR,
+) : SubscriptionProxyProvider {
+    private val delegate = OpenAiCompatibleApiKeySubscriptionProxyProvider(
+        id = ID,
+        displayName = DISPLAY_NAME,
+        litellmProvider = LITELLM_PROVIDER,
+        baseUri = upstreamBaseUri,
+        apiKeyProvider = apiKeyProvider,
+        httpClient = httpClient,
+        fullRequestLogging = fullRequestLogging,
+        requestLogDir = requestLogDir,
+    )
+
+    override val id: String = ID
+    override val displayName: String = DISPLAY_NAME
+
+    override fun isConfigured(): Boolean = delegate.isConfigured()
+
+    override fun models() = delegate.models()
+
+    override suspend fun handle(ctx: de.moritzf.proxy.server.ProxyCall, request: SubscriptionProxyRequest) {
+        delegate.handle(ctx, request)
+    }
+
+    companion object {
+        const val ID = "ollama"
+        private const val DISPLAY_NAME = "Ollama"
+        private const val LITELLM_PROVIDER = "ollama"
+        val DEFAULT_UPSTREAM_BASE_URI: URI = URI.create("https://ollama.com/v1")
+        private val DEFAULT_REQUEST_LOG_DIR = System.getProperty("java.io.tmpdir") +
+            "/openai-usage-quota-intellij/subscription-proxy-ollama-requests"
+    }
+}

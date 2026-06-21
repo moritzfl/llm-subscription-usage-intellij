@@ -96,15 +96,15 @@ The settings page shows whether IntelliJ's MCP server is currently running, inst
 
 ## OpenAI-Compatible Proxy
 
-When you are logged in to OpenAI, the plugin can run a local proxy that exposes your Codex subscription through standard OpenAI-compatible endpoints (`/v1/chat/completions`, `/v1/responses`, `/v1/models`, plus LiteLLM-style `/v1/model/info`). Any tool that speaks the OpenAI API or expects a LiteLLM server can then use your subscription.
+When configured, the plugin can run a local proxy that exposes selected subscription-backed providers through standard OpenAI-compatible endpoints (`/v1/chat/completions`, `/v1/responses` where supported, `/v1/models`, plus LiteLLM-style `/v1/model/info`). Any tool that speaks the OpenAI API or expects a LiteLLM server can then use your subscriptions.
 
-To enable it, open the **OpenAI** tab in settings, tick `Enable local OpenAI-compatible proxy`, and apply. The status line shows whether the proxy is off, starting, running, or failed. Use `Copy Base URL` and `Copy API Key` to configure clients; requests authenticate against the locally generated API key, which is stored in the IDE Password Safe.
+To enable it, open the **Proxy** tab in settings, tick `Enable local subscription proxy`, choose the providers to expose, and apply. The status line shows whether the proxy is off, starting, running, or failed. Use `Copy Base URL` and `Copy API Key` to configure clients; requests authenticate against the locally generated API key, which is stored in the IDE Password Safe.
 
 Notes:
 
 - Configure clients with the base URL **without** a `/v1` suffix (e.g. `http://127.0.0.1:14621`); clients append `/v1/...` themselves, and all routes also answer unprefixed.
 - For JetBrains Junie, add the proxy as a LiteLLM provider with that base URL and the copied API key — the available models are then discovered automatically.
-- Token refresh is owned by the plugin's regular OpenAI login; the proxy never stores credentials itself. If the upstream rejects a token, the proxy triggers a refresh through the IDE login flow and retries once.
+- Provider credentials stay in the plugin's regular secure storage. OAuth-backed providers refresh through the existing login flow; API-key-backed providers use the API keys configured in their provider settings.
 - `Log requests and responses to disk` writes full request/response bodies to a temp folder for debugging. It is off by default, and logs are pruned automatically (7 days / 2000 files).
 
 ---

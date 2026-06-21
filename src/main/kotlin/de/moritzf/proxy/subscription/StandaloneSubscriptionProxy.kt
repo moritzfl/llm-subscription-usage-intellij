@@ -1,8 +1,15 @@
 package de.moritzf.proxy.subscription
 
 import de.moritzf.quota.github.proxy.GitHubCopilotSubscriptionProxyProvider
+import de.moritzf.quota.kimi.KimiCredentials
+import de.moritzf.quota.kimi.proxy.KimiSubscriptionProxyProvider
+import de.moritzf.quota.minimax.MiniMaxRegion
+import de.moritzf.quota.minimax.proxy.MiniMaxSubscriptionProxyProvider
+import de.moritzf.quota.ollama.proxy.OllamaSubscriptionProxyProvider
 import de.moritzf.quota.openai.proxy.OpenAiCodexSubscriptionProxyProvider
+import de.moritzf.quota.opencode.proxy.OpenCodeZenSubscriptionProxyProvider
 import de.moritzf.quota.supergrok.proxy.SuperGrokSubscriptionProxyProvider
+import de.moritzf.quota.zai.proxy.ZaiSubscriptionProxyProvider
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
@@ -42,7 +49,7 @@ internal data class StandaloneSubscriptionOptions(
     val host: String = "127.0.0.1",
     val port: Int = DEFAULT_PORT,
     val envFile: Path = DEFAULT_ENV_FILE,
-    val providers: Set<String> = setOf("openai", "supergrok", "github"),
+    val providers: Set<String> = setOf("openai", "supergrok", "github", "kimi", "minimax", "ollama", "opencode", "zai"),
     val allowAnyCors: Boolean = false,
     val corsOrigins: List<String> = emptyList(),
     val logRequests: Boolean = false,
@@ -121,7 +128,54 @@ private fun createProviders(
             requestLogDir = options.requestLogDir,
         )
     }
+    if ("kimi" in selected) {
+        providers += KimiSubscriptionProxyProvider(
+            credentialsProvider = {
+                val accessToken = env.value("KIMI_PROXY_ACCESS_TOKEN") ?: env.value("KIMI_ACCESS_TOKEN")
+                val refreshToken = env.value("KIMI_PROXY_REFRESH_TOKEN") ?: env.value("KIMI_REFRESH_TOKEN")
+                if (accessToken.isNullOrBlank() && refreshToken.isNullOrBlank()) null else KimiCredentials(
+                    accessToken = accessToken.orEmpty(),
+                    refreshToken = refreshToken.orEmpty(),
+                )
+            },
+            fullRequestLogging = options.logRequests,
+            requestLogDir = options.requestLogDir,
+        )
+    }
+    if ("minimax" in selected) {
+        providers += MiniMaxSubscriptionProxyProvider(
+            apiKeyProvider = { env.value("MINIMAX_PROXY_API_KEY") ?: env.value("MINIMAX_API_KEY") },
+            regionProvider = { miniMaxRegion(env.value("MINIMAX_PROXY_REGION") ?: env.value("MINIMAX_REGION")) },
+            fullRequestLogging = options.logRequests,
+            requestLogDir = options.requestLogDir,
+        )
+    }
+    if ("ollama" in selected) {
+        providers += OllamaSubscriptionProxyProvider(
+            apiKeyProvider = { env.value("OLLAMA_PROXY_API_KEY") ?: env.value("OLLAMA_API_KEY") },
+            fullRequestLogging = options.logRequests,
+            requestLogDir = options.requestLogDir,
+        )
+    }
+    if ("opencode" in selected || "opencode-zen" in selected || "zen" in selected) {
+        providers += OpenCodeZenSubscriptionProxyProvider(
+            apiKeyProvider = { env.value("OPENCODE_PROXY_API_KEY") ?: env.value("OPENCODE_API_KEY") },
+            fullRequestLogging = options.logRequests,
+            requestLogDir = options.requestLogDir,
+        )
+    }
+    if ("zai" in selected || "z.ai" in selected || "zhipu" in selected) {
+        providers += ZaiSubscriptionProxyProvider(
+            apiKeyProvider = { env.value("ZAI_PROXY_API_KEY") ?: env.value("ZAI_API_KEY") ?: env.value("ZHIPU_API_KEY") },
+            fullRequestLogging = options.logRequests,
+            requestLogDir = options.requestLogDir,
+        )
+    }
     return providers
+}
+
+private fun miniMaxRegion(value: String?): MiniMaxRegion {
+    return if (value.equals("cn", ignoreCase = true)) MiniMaxRegion.CN else MiniMaxRegion.GLOBAL
 }
 
 private fun printModels(providers: List<SubscriptionProxyProvider>) {
