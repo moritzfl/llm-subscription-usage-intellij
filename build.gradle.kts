@@ -148,6 +148,13 @@ tasks {
         classpath = sourceSets.main.get().runtimeClasspath
     }
 
+    register<JavaExec>("runStandaloneSubscriptionProxy") {
+        group = "application"
+        description = "Runs the unified subscription proxy without launching an IntelliJ IDE."
+        mainClass.set("de.moritzf.proxy.subscription.StandaloneSubscriptionProxyKt")
+        classpath = sourceSets.main.get().runtimeClasspath
+    }
+
     named("buildSearchableOptions") {
         enabled = providers.gradleProperty("skipSearchableOptions")
             .map { it.toBoolean().not() }
