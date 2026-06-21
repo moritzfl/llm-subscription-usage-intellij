@@ -15,6 +15,7 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlinx.serialization.json.jsonArray
@@ -80,8 +81,9 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 val response = post(
                     proxy.port,
                     "/v1/messages",
-                    "{\"model\":\"gh-claude-sonnet-4.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    "{\"model\":\"gh-claude-sonnet-4.5\",\"output_config\":{\"effort\":\"high\"},\"thinking\":{\"type\":\"adaptive\"},\"context_management\":{\"edits\":[]},\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
                     bearer = false,
+                    extraHeaders = mapOf("anthropic-beta" to "effort-2025-11-24"),
                 )
 
                 assertEquals(200, response.statusCode())
@@ -89,7 +91,37 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/v1/messages", inference.path)
                 assertEquals("Bearer github-token", inference.firstHeader("Authorization"))
+                assertEquals(null, inference.firstHeader("anthropic-beta"))
                 assertTrue(inference.body.contains("\"model\":\"claude-sonnet-4.5\""), inference.body)
+                assertFalse(inference.body.contains("output_config"), inference.body)
+                assertFalse(inference.body.contains("thinking"), inference.body)
+                assertFalse(inference.body.contains("context_management"), inference.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun modelInfoAdvertisesClaudeCompatibleMessagesEndpoint() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = get(proxy.port, "/v1/model/info")
+
+                assertEquals(200, response.statusCode())
+                val data = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
+                val claudeInfo = data.first { it.jsonObject["id"]!!.jsonPrimitive.content == "gh-claude-sonnet-4.5" }
+                    .jsonObject["model_info"]!!.jsonObject
+                val endpoints = claudeInfo["supported_endpoints"]!!.jsonArray.map { it.jsonPrimitive.content }
+                assertTrue("/v1/messages" in endpoints)
+                assertTrue("/v1/chat/completions" in endpoints)
+                assertTrue(claudeInfo["supports_anthropic_messages"]!!.jsonPrimitive.content.toBoolean())
+
+                val gptInfo = data.first { it.jsonObject["id"]!!.jsonPrimitive.content == "gh-gpt-5.5" }
+                    .jsonObject["model_info"]!!.jsonObject
+                assertFalse(gptInfo["supports_anthropic_messages"]!!.jsonPrimitive.content.toBoolean())
             } finally {
                 proxy.stop()
             }
@@ -124,9 +156,16 @@ class GitHubCopilotSubscriptionProxyProviderTest {
         )
     }
 
-    private fun post(port: Int, path: String, body: String, bearer: Boolean): HttpResponse<String> {
+    private fun post(
+        port: Int,
+        path: String,
+        body: String,
+        bearer: Boolean,
+        extraHeaders: Map<String, String> = emptyMap(),
+    ): HttpResponse<String> {
         val builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:$port$path"))
             .header("Content-Type", "application/json")
+        extraHeaders.forEach { (name, value) -> builder.header(name, value) }
         if (bearer) {
             builder.header("Authorization", "Bearer local-key")
         } else {
@@ -159,7 +198,8 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 val responseBody = if (exchange.requestURI.rawPath == "/models") {
                     "{\"data\":[" +
                         "{\"id\":\"gpt-5.5\",\"supported_endpoints\":[\"/chat/completions\",\"/responses\"]}," +
-                        "{\"id\":\"claude-sonnet-4.5\",\"supported_endpoints\":[\"/v1/messages\"]}" +
+                        "{\"id\":\"claude-sonnet-4.5\",\"supported_endpoints\":[\"/chat/completions\",\"/v1/messages\"]}," +
+                        "{\"id\":\"text-embedding-3-small\",\"capabilities\":{\"type\":\"embeddings\"}}" +
                         "]}"
                 } else {
                     "{\"id\":\"ok\",\"choices\":[]}"

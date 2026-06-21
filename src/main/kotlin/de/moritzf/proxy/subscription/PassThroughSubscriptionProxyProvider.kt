@@ -34,7 +34,9 @@ class PassThroughSubscriptionProxyProvider(
     private val tokenRefresher: (staleAccessToken: String?) -> String? = { null },
     private val modelMappingsProvider: () -> List<ModelMapping>,
     private val defaultHeaders: Map<String, String> = emptyMap(),
+    private val forwardedRequestHeadersTransformer: (SubscriptionProxyRequest, Map<String, String>) -> Map<String, String> = { _, headers -> headers },
     private val requestHeadersProvider: (SubscriptionProxyRequest) -> Map<String, String> = { emptyMap() },
+    private val requestBodyTransformer: (SubscriptionProxyRequest, JsonObject) -> JsonObject = { _, body -> body },
     private val httpClient: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(30))
         .build(),
@@ -108,7 +110,7 @@ class PassThroughSubscriptionProxyProvider(
         request: SubscriptionProxyRequest,
         accessToken: String,
     ): HttpRequest {
-        val upstreamBody = rewriteModel(request.body, request.model.upstreamId)
+        val upstreamBody = requestBodyTransformer(request, rewriteModel(request.body, request.model.upstreamId))
         val payload = JsonHelper.encodeToString(upstreamBody)
         val upstreamPath = request.route.upstreamPath
         val targetUrl = resolveUpstreamUrl(upstreamPath)
@@ -116,7 +118,7 @@ class PassThroughSubscriptionProxyProvider(
         val builder = HttpRequest.newBuilder(URI.create(targetUrl))
             .header(HttpHeaders.Authorization, "Bearer $accessToken")
         loggedHeaders[HttpHeaders.Authorization] = "Bearer $accessToken"
-        forwardedRequestHeaders(ctx).forEach { (name, value) ->
+        forwardedRequestHeadersTransformer(request, forwardedRequestHeaders(ctx)).forEach { (name, value) ->
             builder.header(name, value)
             loggedHeaders[name] = value
         }

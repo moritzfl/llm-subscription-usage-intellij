@@ -232,8 +232,11 @@ class SubscriptionProxyServer(
         )
         val modelInfo = linkedMapOf<String, Any>(
             "id" to model.localId,
-            "mode" to "chat",
+            "mode" to modelMode(model),
             "litellm_provider" to model.litellmProvider,
+            "supported_endpoints" to supportedEndpoints(model),
+            "supported_routes" to model.supportedRoutes.map { it.normalizedPath },
+            "supports_anthropic_messages" to (SubscriptionProxyRoute.ANTHROPIC_MESSAGES in model.supportedRoutes),
             "supports_function_calling" to model.supportsFunctionCalling,
             "supports_parallel_function_calling" to model.supportsParallelFunctionCalling,
             "supports_tool_choice" to model.supportsToolChoice,
@@ -254,6 +257,18 @@ class SubscriptionProxyServer(
             "litellm_params" to litellmParams,
             "model_info" to modelInfo,
         )
+    }
+
+    private fun modelMode(model: SubscriptionProxyModel): String {
+        return if (model.supportedRoutes.any { it != SubscriptionProxyRoute.ANTHROPIC_MESSAGES }) {
+            "chat"
+        } else {
+            "messages"
+        }
+    }
+
+    private fun supportedEndpoints(model: SubscriptionProxyModel): List<String> {
+        return model.supportedRoutes.map { route -> "/v1${route.normalizedPath}" }
     }
 
     companion object {

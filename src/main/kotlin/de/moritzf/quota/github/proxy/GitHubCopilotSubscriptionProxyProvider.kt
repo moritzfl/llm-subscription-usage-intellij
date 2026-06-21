@@ -22,7 +22,9 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.put
 
 class GitHubCopilotSubscriptionProxyProvider(
     private val accessTokenProvider: () -> String?,
@@ -49,7 +51,9 @@ class GitHubCopilotSubscriptionProxyProvider(
             "Openai-Intent" to "conversation-edits",
             "x-initiator" to "user",
         ),
+        forwardedRequestHeadersTransformer = ::forwardedRequestHeaders,
         requestHeadersProvider = ::requestHeaders,
+        requestBodyTransformer = ::requestBody,
         httpClient = httpClient,
         requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir)),
     )
@@ -115,7 +119,7 @@ class GitHubCopilotSubscriptionProxyProvider(
             is JsonArray -> root
             else -> null
         } ?: return emptyList()
-        return data.mapNotNull { parseRemoteModel(it) }.distinctBy { it.id }
+        return data.mapNotNull { parseRemoteModel(it) }.filter { it.supportedRoutes.isNotEmpty() }.distinctBy { it.id }
     }
 
     private fun parseRemoteModel(element: JsonElement): RemoteModel? {
@@ -123,16 +127,18 @@ class GitHubCopilotSubscriptionProxyProvider(
         val id = (item["id"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() } ?: return null
         return RemoteModel(
             id = id,
-            supportedRoutes = supportedRoutes(item["supported_endpoints"] as? JsonArray),
+            supportedRoutes = supportedRoutes(modelType(item), item["supported_endpoints"] as? JsonArray),
             maxInputTokens = intField(item, "max_input_tokens") ?: intField(item, "max_context_window_tokens"),
             maxOutputTokens = intField(item, "max_output_tokens"),
             isDefault = boolField(item, "is_default") ?: boolField(item, "default") ?: false,
         )
     }
 
-    private fun supportedRoutes(endpoints: JsonArray?): Set<SubscriptionProxyRoute> {
+    private fun supportedRoutes(modelType: String?, endpoints: JsonArray?): Set<SubscriptionProxyRoute> {
         val values = endpoints?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }?.toSet().orEmpty()
-        if (values.isEmpty()) return setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS)
+        if (values.isEmpty()) {
+            return if (modelType == "embeddings") emptySet() else setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS)
+        }
         return buildSet {
             if (values.any { it.endsWith("/chat/completions") || it == "/chat/completions" }) {
                 add(SubscriptionProxyRoute.CHAT_COMPLETIONS)
@@ -149,6 +155,23 @@ class GitHubCopilotSubscriptionProxyProvider(
 
     private fun requestHeaders(request: SubscriptionProxyRequest): Map<String, String> {
         return if (containsImageInput(request.body)) mapOf("Copilot-Vision-Request" to "true") else emptyMap()
+    }
+
+    private fun forwardedRequestHeaders(
+        request: SubscriptionProxyRequest,
+        headers: Map<String, String>,
+    ): Map<String, String> {
+        if (request.route != SubscriptionProxyRoute.ANTHROPIC_MESSAGES) return headers
+        return headers.filterKeys { !it.equals("anthropic-beta", ignoreCase = true) }
+    }
+
+    private fun requestBody(request: SubscriptionProxyRequest, body: JsonObject): JsonObject {
+        if (request.route != SubscriptionProxyRoute.ANTHROPIC_MESSAGES) return body
+        return buildJsonObject {
+            body.forEach { (key, value) ->
+                if (key !in UNSUPPORTED_MESSAGES_BODY_FIELDS) put(key, value)
+            }
+        }
     }
 
     private data class RemoteModel(
@@ -171,6 +194,7 @@ class GitHubCopilotSubscriptionProxyProvider(
         private const val LITELLM_PROVIDER = "github_copilot"
         private const val USER_AGENT = "openai-usage-quota-intellij"
         private const val API_VERSION = "2026-06-01"
+        private val UNSUPPORTED_MESSAGES_BODY_FIELDS = setOf("context_management", "output_config", "thinking")
         val DEFAULT_UPSTREAM_BASE_URI: URI = URI.create("https://api.githubcopilot.com")
         private val CACHE_TTL = 5.minutes
         private val DEFAULT_REQUEST_LOG_DIR = System.getProperty("java.io.tmpdir") +
@@ -184,6 +208,11 @@ class GitHubCopilotSubscriptionProxyProvider(
 
         private fun boolField(item: JsonObject, name: String): Boolean? {
             return (item[name] as? JsonPrimitive)?.booleanOrNull
+        }
+
+        private fun modelType(item: JsonObject): String? {
+            val capabilities = item["capabilities"] as? JsonObject ?: return null
+            return (capabilities["type"] as? JsonPrimitive)?.contentOrNull
         }
 
         private fun containsImageInput(element: JsonElement?): Boolean {
