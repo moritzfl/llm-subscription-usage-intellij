@@ -1,7 +1,10 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+
+## [1.4.3] - 2026-06-22
 - Kimi Code proxy models now use the managed `/models` endpoint plus the distinct `models.dev` Kimi For Coding catalog to expose current subscription model IDs, with `ki-kimi-for-coding` retained as a fallback.
+- Hardened Kimi Code model discovery by caching fallback metadata when upstream discovery fails, validating the Kimi `models.dev` catalog endpoint, and routing prefixed fallback chat models.
 - Added provider prefixes for all local proxy providers (`oa-`, `gh-`, `ki-`, `mm-`, `ol-`, `oc-`, `sg-`, `za-`) and route prefixed fallback models when discovery is stale or unavailable.
 
 ## [1.4.2] - 2026-06-21
