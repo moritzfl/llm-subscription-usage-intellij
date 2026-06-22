@@ -70,13 +70,14 @@ class KimiSubscriptionProxyProvider(
     override fun models() = chatDelegate.models()
 
     override fun fallbackModel(localId: String, route: SubscriptionProxyRoute): SubscriptionProxyModel? {
-        if (route != SubscriptionProxyRoute.ANTHROPIC_MESSAGES) return null
-        val upstreamId = localId.trim()
+        if (route !in SUPPORTED_ROUTES) return null
+        val requestedLocalId = localId.trim()
+        val upstreamId = requestedLocalId
             .takeIf { it.startsWith(PREFIX) && it.length > PREFIX.length }
             ?.removePrefix(PREFIX)
             ?: return null
         return SubscriptionProxyModel(
-            localId = localId,
+            localId = requestedLocalId,
             upstreamId = upstreamId,
             providerId = id,
             providerName = displayName,
@@ -139,7 +140,9 @@ class KimiSubscriptionProxyProvider(
             return cached.models
         }
         val token = accessToken() ?: return emptyList()
-        val firstPartyModels = runCatching { fetchModels(token) }.getOrDefault(emptyList())
+        val firstPartyModels = runCatching { fetchModels(token) }.getOrElse {
+            return cacheModels(cached?.models ?: DEFAULT_MODELS, now)
+        }
         val models = if (firstPartyModels.hasConcreteModelIds()) {
             firstPartyModels
         } else {
@@ -152,10 +155,7 @@ class KimiSubscriptionProxyProvider(
                 (catalogModels + firstPartyModels.ifEmpty { DEFAULT_MODELS }).distinctBy { it.id }
             }
         }
-        if (models.isNotEmpty()) {
-            modelCache = ModelCache(models, now)
-        }
-        return models
+        return cacheModels(models.ifEmpty { cached?.models ?: DEFAULT_MODELS }, now)
     }
 
     private fun fetchModels(token: String): List<RemoteModel> {
@@ -166,7 +166,7 @@ class KimiSubscriptionProxyProvider(
             .GET()
             .build()
         val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-        if (response.statusCode() !in 200..299) return emptyList()
+        if (response.statusCode() !in 200..299) error("Kimi model discovery failed with HTTP ${response.statusCode()}")
         val root = JsonHelper.parseToJsonElementOrNull(response.body()) as? JsonObject ?: return emptyList()
         val data = root["data"] as? JsonArray ?: return emptyList()
         return data.mapNotNull(::parseRemoteModel).distinctBy { it.id }
@@ -182,6 +182,7 @@ class KimiSubscriptionProxyProvider(
         if (response.statusCode() !in 200..299) return emptyList()
         val root = JsonHelper.parseToJsonElementOrNull(response.body()) as? JsonObject ?: return emptyList()
         val provider = root[MODELS_DEV_PROVIDER_ID] as? JsonObject ?: return emptyList()
+        if (stringField(provider, "api")?.trimEnd('/') != MODELS_DEV_PROVIDER_API) return emptyList()
         val models = provider["models"] as? JsonObject ?: return emptyList()
         return models.mapNotNull { (id, element) -> parseModelsDevModel(id, element) }
     }
@@ -215,8 +216,21 @@ class KimiSubscriptionProxyProvider(
             maxInputTokens = maxInputTokens,
             maxOutputTokens = limits?.let { intField(it, "output") } ?: intField(item, "max_output_tokens") ?: MAX_OUTPUT_TOKENS,
             supportsToolUse = boolField(item, "tool_call") ?: true,
-            supportsVision = boolField(item, "attachment") == true,
+            supportsVision = boolField(item, "attachment") == true ||
+                inputModality(item, "image") ||
+                inputModality(item, "video"),
         )
+    }
+
+    private fun cacheModels(models: List<RemoteModel>, fetchedAtMillis: Long): List<RemoteModel> {
+        if (models.isNotEmpty()) modelCache = ModelCache(models, fetchedAtMillis)
+        return models
+    }
+
+    private fun inputModality(item: JsonObject, modality: String): Boolean {
+        val modalities = item["modalities"] as? JsonObject ?: return false
+        val input = modalities["input"] as? JsonArray ?: return false
+        return input.any { element -> (element as? JsonPrimitive)?.contentOrNull == modality }
     }
 
     private fun List<RemoteModel>.hasConcreteModelIds(): Boolean {
@@ -248,6 +262,7 @@ class KimiSubscriptionProxyProvider(
         private const val DISPLAY_NAME = "Kimi Code"
         private const val LITELLM_PROVIDER = "kimi"
         private const val MODELS_DEV_PROVIDER_ID = "kimi-for-coding"
+        private const val MODELS_DEV_PROVIDER_API = "https://api.kimi.com/coding/v1"
         private const val MAX_INPUT_TOKENS = 262_144
         private const val MAX_OUTPUT_TOKENS = 65_536
         private const val CACHE_TTL_MILLIS = 5 * 60 * 1000L

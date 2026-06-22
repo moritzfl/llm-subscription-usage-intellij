@@ -35,7 +35,9 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                 val ids = JsonHelper.JSON.parseToJsonElement(modelsResponse.body()).jsonObject["data"]!!.jsonArray
                     .map { it.jsonObject["id"]!!.jsonPrimitive.content }
                 assertEquals(listOf("oc-qwen3-coder"), ids)
-                assertEquals("/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
+                val modelsRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/models", modelsRequest.path)
+                assertEquals("Bearer opencode-key", modelsRequest.firstHeader("Authorization"))
 
                 val chatResponse = post(
                     proxy.port,

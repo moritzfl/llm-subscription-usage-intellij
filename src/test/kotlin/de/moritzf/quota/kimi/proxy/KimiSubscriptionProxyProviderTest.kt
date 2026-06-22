@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -63,6 +64,7 @@ class KimiSubscriptionProxyProviderTest {
                     val models = proxy.provider.models()
                     assertTrue(models.single { it.localId == "ki-kimi-for-coding" }.isDefault)
                     assertTrue(!models.single { it.localId == "ki-k2p7" }.isDefault)
+                    assertTrue(models.single { it.localId == "ki-kimi-k2-thinking" }.supportsVision)
 
                     val chat = post(
                         proxy.port,
@@ -96,8 +98,34 @@ class KimiSubscriptionProxyProviderTest {
                     .map { it.jsonObject["id"]!!.jsonPrimitive.content }
                 assertEquals(listOf(KimiSubscriptionProxyProvider.PREFIX + KimiSubscriptionProxyProvider.MODEL_ID), ids)
                 assertEquals("/coding/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
+
+                val cachedResponse = get(proxy.port, "/v1/models")
+                assertEquals(200, cachedResponse.statusCode())
+                assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
             } finally {
                 proxy.server.stop()
+            }
+        }
+    }
+
+    @Test
+    fun ignoresModelsDevCatalogWhenKimiProviderApiDoesNotMatch() {
+        TestUpstream(modelsBody = managedModelsBody("kimi-for-coding")).use { upstream ->
+            TestModelsDevCatalog(providerApi = "https://api.moonshot.ai/v1").use { catalog ->
+                val proxy = newProxy(upstream, modelsDevCatalogUri = catalog.uri)
+                try {
+                    proxy.server.start()
+                    val response = get(proxy.port, "/v1/models")
+
+                    assertEquals(200, response.statusCode())
+                    val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
+                        .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                    assertEquals(listOf("ki-kimi-for-coding"), ids)
+                    assertEquals("/coding/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
+                    assertEquals("/api.json", assertNotNull(catalog.requests.poll(2, TimeUnit.SECONDS)).path)
+                } finally {
+                    proxy.server.stop()
+                }
             }
         }
     }
@@ -142,6 +170,30 @@ class KimiSubscriptionProxyProviderTest {
                 assertEquals("/coding/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/coding/v1/messages", request.path)
+                assertTrue(request.body.contains("\"model\":\"k2p6\""), request.body)
+                assertTrue(!request.body.contains("ki-k2p6"), request.body)
+            } finally {
+                proxy.server.stop()
+            }
+        }
+    }
+
+    @Test
+    fun forwardsPrefixedChatModelsMissingFromDiscovery() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream)
+            try {
+                proxy.server.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"ki-k2p6\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":16}",
+                )
+
+                assertEquals(200, response.statusCode())
+                assertEquals("/coding/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/coding/v1/chat/completions", request.path)
                 assertTrue(request.body.contains("\"model\":\"k2p6\""), request.body)
                 assertTrue(!request.body.contains("ki-k2p6"), request.body)
             } finally {
@@ -237,7 +289,9 @@ class KimiSubscriptionProxyProviderTest {
         }
     }
 
-    private class TestModelsDevCatalog : AutoCloseable {
+    private class TestModelsDevCatalog(
+        private val providerApi: String = "https://api.kimi.com/coding/v1",
+    ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
         private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val uri: URI
@@ -255,7 +309,7 @@ class KimiSubscriptionProxyProviderTest {
                   "kimi-for-coding": {
                     "id": "kimi-for-coding",
                     "name": "Kimi For Coding",
-                    "api": "https://api.kimi.com/coding/v1",
+                    "api": "$providerApi",
                     "models": {
                       "k2p7": {
                         "id": "k2p7",
@@ -268,6 +322,7 @@ class KimiSubscriptionProxyProviderTest {
                         "id": "kimi-k2-thinking",
                         "name": "Kimi K2 Thinking",
                         "attachment": false,
+                        "modalities": { "input": ["text", "image", "video"], "output": ["text"] },
                         "tool_call": true,
                         "limit": { "context": 262144, "output": 32768 }
                       },
