@@ -49,6 +49,9 @@ class GitHubCopilotSubscriptionProxyProvider(
         defaultHeaders = mapOf(
             "Accept" to "application/json",
             "User-Agent" to USER_AGENT,
+            "Copilot-Integration-Id" to COPILOT_INTEGRATION_ID,
+            "Editor-Version" to EDITOR_VERSION,
+            "Editor-Plugin-Version" to EDITOR_PLUGIN_VERSION,
             "X-GitHub-Api-Version" to API_VERSION,
             "Openai-Intent" to "conversation-edits",
             "x-initiator" to "user",
@@ -62,7 +65,8 @@ class GitHubCopilotSubscriptionProxyProvider(
         requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir)),
     )
 
-    @Volatile private var modelCache: ModelCache? = null
+    @Volatile
+    private var modelCache: ModelCache? = null
 
     override val id: String = ID
     override val displayName: String = DISPLAY_NAME
@@ -124,14 +128,18 @@ class GitHubCopilotSubscriptionProxyProvider(
     }
 
     private fun fetchModels(token: String): List<RemoteModel> {
-        val request = HttpRequest.newBuilder(URI.create(UrlResolver.resolveTargetUrl("/models", upstreamBaseUri.toString())))
-            .timeout(Duration.ofSeconds(30))
-            .header("Authorization", "Bearer $token")
-            .header("Accept", "application/json")
-            .header("User-Agent", USER_AGENT)
-            .header("X-GitHub-Api-Version", API_VERSION)
-            .GET()
-            .build()
+        val request =
+            HttpRequest.newBuilder(URI.create(UrlResolver.resolveTargetUrl("/models", upstreamBaseUri.toString())))
+                .timeout(Duration.ofSeconds(30))
+                .header("Authorization", "Bearer $token")
+                .header("Accept", "application/json")
+                .header("User-Agent", USER_AGENT)
+                .header("Copilot-Integration-Id", COPILOT_INTEGRATION_ID)
+                .header("Editor-Version", EDITOR_VERSION)
+                .header("Editor-Plugin-Version", EDITOR_PLUGIN_VERSION)
+                .header("X-GitHub-Api-Version", API_VERSION)
+                .GET()
+                .build()
         val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         if (response.statusCode() !in 200..299) return emptyList()
         val root = JsonHelper.parseToJsonElementOrNull(response.body()) ?: return emptyList()
@@ -145,27 +153,29 @@ class GitHubCopilotSubscriptionProxyProvider(
 
     private fun parseRemoteModel(element: JsonElement): RemoteModel? {
         val item = element as? JsonObject ?: return null
-        if (boolField(item, "model_picker_enabled") != true) return null
+        if (boolField(item, "model_picker_enabled") == false) return null
         if (stringField(item.jsonObject("policy"), "state") == "disabled") return null
-        val capabilities = item.jsonObject("capabilities") ?: return null
-        val limits = capabilities.jsonObject("limits") ?: return null
-        val supports = capabilities.jsonObject("supports") ?: return null
-        val toolCalls = boolField(supports, "tool_calls") ?: return null
-        val maxPromptTokens = intField(limits, "max_prompt_tokens") ?: return null
-        val maxOutputTokens = intField(limits, "max_output_tokens") ?: return null
+        val capabilities = item.jsonObject("capabilities")
+        val limits = capabilities?.jsonObject("limits")
+        val supports = capabilities?.jsonObject("supports")
+        val toolCalls = boolField(supports, "tool_calls") ?: true
         val id = remoteModelId(stringField(item, "id") ?: return null) ?: return null
         return RemoteModel(
             id = id,
             supportedRoutes = supportedRoutes(id, modelType(item), item["supported_endpoints"] as? JsonArray),
             supportsFunctionCalling = toolCalls,
             supportsVision = supportsVision(capabilities, supports),
-            maxInputTokens = intField(limits, "max_context_window_tokens") ?: maxPromptTokens,
-            maxOutputTokens = maxOutputTokens,
+            maxInputTokens = intField(limits, "max_context_window_tokens") ?: intField(limits, "max_prompt_tokens"),
+            maxOutputTokens = intField(limits, "max_output_tokens"),
             isDefault = boolField(item, "is_default") ?: boolField(item, "default") ?: false,
         )
     }
 
-    private fun supportedRoutes(modelId: String, modelType: String?, endpoints: JsonArray?): Set<SubscriptionProxyRoute> {
+    private fun supportedRoutes(
+        modelId: String,
+        modelType: String?,
+        endpoints: JsonArray?
+    ): Set<SubscriptionProxyRoute> {
         val values = endpoints?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }?.toSet().orEmpty()
         if (values.isEmpty()) {
             return if (modelType == "embeddings") {
@@ -188,11 +198,8 @@ class GitHubCopilotSubscriptionProxyProvider(
             if (hasChat) {
                 add(SubscriptionProxyRoute.CHAT_COMPLETIONS)
             }
-            if (hasResponses || (!hasMessages && shouldUseResponsesApi(modelId))) {
+            if (hasResponses) {
                 add(SubscriptionProxyRoute.RESPONSES)
-            }
-            if (hasResponses || shouldUseResponsesApi(modelId)) {
-                add(SubscriptionProxyRoute.CHAT_COMPLETIONS)
             }
             if (isEmpty()) add(SubscriptionProxyRoute.CHAT_COMPLETIONS)
         }
@@ -265,23 +272,26 @@ class GitHubCopilotSubscriptionProxyProvider(
         private const val OPENCODE_PROVIDER_PREFIX = "github-copilot/"
         private const val DISPLAY_NAME = "GitHub Copilot"
         private const val LITELLM_PROVIDER = "github_copilot"
-        private const val USER_AGENT = "openai-usage-quota-intellij"
+        private const val USER_AGENT = "GitHubCopilotChat/0.26.7"
+        private const val COPILOT_INTEGRATION_ID = "vscode-chat"
+        private const val EDITOR_VERSION = "vscode/1.104.1"
+        private const val EDITOR_PLUGIN_VERSION = "copilot-chat/0.26.7"
         private const val API_VERSION = "2026-06-01"
         private val OPENAI_CHAT_ENVELOPE_FIELDS = setOf("id", "object", "created", "model", "choices")
         private val UNSUPPORTED_MESSAGES_BODY_FIELDS = setOf("context_management", "output_config", "thinking")
         val DEFAULT_UPSTREAM_BASE_URI: URI = URI.create("https://api.githubcopilot.com")
         private val CACHE_TTL = 5.minutes
         private val DEFAULT_REQUEST_LOG_DIR = System.getProperty("java.io.tmpdir") +
-            "/openai-usage-quota-intellij/subscription-proxy-github-requests"
+                "/openai-usage-quota-intellij/subscription-proxy-github-requests"
 
         private fun String?.trimmedOrNull(): String? = this?.trim()?.takeIf { it.isNotBlank() }
 
-        private fun intField(item: JsonObject, name: String): Int? {
-            return (item[name] as? JsonPrimitive)?.contentOrNull?.toIntOrNull()
+        private fun intField(item: JsonObject?, name: String): Int? {
+            return (item?.get(name) as? JsonPrimitive)?.contentOrNull?.toIntOrNull()
         }
 
-        private fun boolField(item: JsonObject, name: String): Boolean? {
-            return (item[name] as? JsonPrimitive)?.booleanOrNull
+        private fun boolField(item: JsonObject?, name: String): Boolean? {
+            return (item?.get(name) as? JsonPrimitive)?.booleanOrNull
         }
 
         private fun stringField(item: JsonObject?, name: String): String? {
@@ -313,9 +323,9 @@ class GitHubCopilotSubscriptionProxyProvider(
             return upstreamId.takeIf { it.isNotBlank() }
         }
 
-        private fun supportsVision(capabilities: JsonObject, supports: JsonObject): Boolean {
+        private fun supportsVision(capabilities: JsonObject?, supports: JsonObject?): Boolean {
             if (boolField(supports, "vision") == true) return true
-            val vision = capabilities.jsonObject("limits")?.jsonObject("vision") ?: return false
+            val vision = capabilities?.jsonObject("limits")?.jsonObject("vision") ?: return false
             val mediaTypes = vision["supported_media_types"] as? JsonArray ?: return false
             return mediaTypes.any { (it as? JsonPrimitive)?.contentOrNull?.startsWith("image/") == true }
         }
@@ -333,6 +343,7 @@ class GitHubCopilotSubscriptionProxyProvider(
                     val type = (element["type"] as? JsonPrimitive)?.contentOrNull
                     type == "image_url" || type == "input_image" || element.values.any(::containsImageInput)
                 }
+
                 is JsonArray -> element.any(::containsImageInput)
                 else -> false
             }

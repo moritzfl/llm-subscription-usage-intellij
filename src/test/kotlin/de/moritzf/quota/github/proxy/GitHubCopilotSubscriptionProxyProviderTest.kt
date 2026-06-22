@@ -48,12 +48,16 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     ),
                     ids,
                 )
-                assertFalse("gh-gpt-5.5" in ids)
                 assertFalse("gh-claude-haiku-4.5" in ids)
+                assertFalse("gh-claude-sonnet-4.5" in ids)
                 assertFalse("gh-claude-sonnet-4.6" in ids)
+                assertFalse("gh-gpt-5.5" in ids)
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/models", request.path)
                 assertEquals("Bearer github-token", request.firstHeader("Authorization"))
+                assertEquals("vscode-chat", request.firstHeader("Copilot-Integration-Id"))
+                assertEquals("vscode/1.104.1", request.firstHeader("Editor-Version"))
+                assertEquals("copilot-chat/0.26.7", request.firstHeader("Editor-Plugin-Version"))
                 assertEquals("2026-06-01", request.firstHeader("X-GitHub-Api-Version"))
             } finally {
                 proxy.stop()
@@ -79,6 +83,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/chat/completions", inference.path)
                 assertEquals("Bearer github-token", inference.firstHeader("Authorization"))
+                assertEquals("vscode-chat", inference.firstHeader("Copilot-Integration-Id"))
                 assertEquals("conversation-edits", inference.firstHeader("Openai-Intent"))
                 assertEquals("true", inference.firstHeader("Copilot-Vision-Request"))
                 assertTrue(inference.body.contains("\"model\":\"gpt-5-mini\""), inference.body)
@@ -126,7 +131,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 val response = post(
                     proxy.port,
                     "/v1/responses",
-                    "{\"model\":\"gh-gpt-5.5\",\"input\":\"hi\"}",
+                    "{\"model\":\"gh-gpt-6.0\",\"input\":\"hi\"}",
                     bearer = true,
                 )
 
@@ -134,8 +139,8 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
                 val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/responses", inference.path)
-                assertTrue(inference.body.contains("\"model\":\"gpt-5.5\""), inference.body)
-                assertFalse(inference.body.contains("gh-gpt-5.5"), inference.body)
+                assertTrue(inference.body.contains("\"model\":\"gpt-6.0\""), inference.body)
+                assertFalse(inference.body.contains("gh-gpt-6.0"), inference.body)
             } finally {
                 proxy.stop()
             }
@@ -176,7 +181,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 val response = post(
                     proxy.port,
                     "/v1/chat/completions",
-                    "{\"model\":\"gh-claude-sonnet-4.6\",\"stream\":true,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    "{\"model\":\"gh-claude-haiku-4.5\",\"stream\":true,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
                     bearer = true,
                 )
 
@@ -230,7 +235,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
 
                 assertEquals(200, response.statusCode())
                 val data = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
-                val claudeInfo = data.first { it.jsonObject["id"]!!.jsonPrimitive.content == "gh-claude-sonnet-4.6" }
+                val claudeInfo = data.first { it.jsonObject["id"]!!.jsonPrimitive.content == "gh-claude-haiku-4.5" }
                     .jsonObject["model_info"]!!.jsonObject
                 val endpoints = claudeInfo["supported_endpoints"]!!.jsonArray.map { it.jsonPrimitive.content }
                 assertTrue("/v1/messages" in endpoints)
@@ -241,7 +246,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     .jsonObject["model_info"]!!.jsonObject
                 val gptEndpoints = gptInfo["supported_endpoints"]!!.jsonArray.map { it.jsonPrimitive.content }
                 assertTrue("/v1/responses" in gptEndpoints)
-                assertTrue("/v1/chat/completions" in gptEndpoints)
+                assertFalse("/v1/chat/completions" in gptEndpoints)
                 assertFalse(gptInfo["supports_anthropic_messages"]!!.jsonPrimitive.content.toBoolean())
             } finally {
                 proxy.stop()
@@ -320,8 +325,8 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     "{\"data\":[" + copilotModels.joinToString(",") + "]}"
                 } else if (body.contains("\"stream\":true")) {
                     "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\",\"content\":\"hi\"},\"index\":0}]}\n\n" +
-                        "data: {\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"total_tokens\":2}}\n\n" +
-                        "data: [DONE]\n\n"
+                            "data: {\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"total_tokens\":2}}\n\n" +
+                            "data: [DONE]\n\n"
                 } else {
                     "{\"id\":\"ok\",\"choices\":[]}"
                 }
@@ -368,7 +373,11 @@ class GitHubCopilotSubscriptionProxyProviderTest {
         private val copilotModels = listOf(
             copilotModel("claude-haiku-4.5", family = "claude-haiku", endpoints = listOf("/v1/messages")),
             copilotModel("claude-sonnet-4.5", family = "claude-sonnet", endpoints = listOf("/v1/messages")),
-            copilotModel("claude-sonnet-4.6", family = "claude-sonnet", endpoints = listOf("/chat/completions", "/v1/messages")),
+            copilotModel(
+                "claude-sonnet-4.6",
+                family = "claude-sonnet",
+                endpoints = listOf("/chat/completions", "/v1/messages")
+            ),
             copilotModel("gemini-2.5-pro", family = "gemini-pro"),
             copilotModel("gemini-3-flash-preview", family = "gemini-flash"),
             copilotModel("gemini-3.1-pro-preview", family = "gemini-pro"),
@@ -377,11 +386,9 @@ class GitHubCopilotSubscriptionProxyProviderTest {
             copilotModel("gpt-5.3-codex", family = "gpt-codex", endpoints = listOf("/responses")),
             copilotModel("gpt-5.4", family = "gpt", endpoints = listOf("/responses")),
             copilotModel("gpt-5.4-mini", family = "gpt-mini", endpoints = listOf("/responses")),
-            copilotModel("mai-code-1-flash-picker", family = "mai"),
-            copilotModel("gpt-5.5", family = "gpt", pickerEnabled = false, endpoints = listOf("/responses")),
+            copilotModel("mai-code-1-flash-picker", family = "mai", toolCalls = null, maxOutputTokens = null),
+            copilotModel("gpt-5.5", family = "gpt", pickerEnabled = false),
             copilotModel("disabled-model", family = "test", disabled = true),
-            copilotModel("missing-output", family = "test", maxOutputTokens = null),
-            copilotModel("missing-tool-calls", family = "test", toolCalls = null),
         )
 
         private fun copilotModel(
@@ -406,17 +413,17 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 "\"reasoning_effort\":[\"medium\",\"high\"]",
             ).joinToString(",")
             return "{" +
-                "\"model_picker_enabled\":$pickerEnabled," +
-                "\"id\":\"$id\"," +
-                "\"name\":\"$id\"," +
-                "\"version\":\"$id-2026-01-01\"," +
-                "\"supported_endpoints\":$endpointsJson" +
-                policy + "," +
-                "\"capabilities\":{" +
-                "\"family\":\"$family\"," +
-                "\"limits\":{$limits}," +
-                "\"supports\":{$supports}" +
-                "}}"
+                    "\"model_picker_enabled\":$pickerEnabled," +
+                    "\"id\":\"$id\"," +
+                    "\"name\":\"$id\"," +
+                    "\"version\":\"$id-2026-01-01\"," +
+                    "\"supported_endpoints\":$endpointsJson" +
+                    policy + "," +
+                    "\"capabilities\":{" +
+                    "\"family\":\"$family\"," +
+                    "\"limits\":{$limits}," +
+                    "\"supports\":{$supports}" +
+                    "}}"
         }
     }
 }
