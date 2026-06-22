@@ -23,7 +23,7 @@ import kotlinx.serialization.json.jsonPrimitive
 
 class SuperGrokSubscriptionProxyProviderTest {
     @Test
-    fun advertisesDiscoveredGrokModelsWithoutPrefix() {
+    fun advertisesDiscoveredGrokModelsWithSgPrefix() {
         TestUpstream().use { upstream ->
             val proxy = newProxy(upstream.baseUri)
             try {
@@ -33,7 +33,7 @@ class SuperGrokSubscriptionProxyProviderTest {
                 assertEquals(200, response.statusCode())
                 val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
                     .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertEquals(listOf("grok-4.3"), ids)
+                assertEquals(listOf("sg-grok-4.3"), ids)
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/v1/models", request.path)
                 assertEquals("Bearer grok-token", request.firstHeader("Authorization"))
@@ -77,7 +77,7 @@ class SuperGrokSubscriptionProxyProviderTest {
                 assertEquals(200, response.statusCode())
                 val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
                     .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertEquals(listOf("grok-4.3"), ids)
+                assertEquals(listOf("sg-grok-4.3"), ids)
             } finally {
                 proxy.stop()
             }
@@ -90,7 +90,7 @@ class SuperGrokSubscriptionProxyProviderTest {
             val proxy = newProxy(upstream.baseUri)
             try {
                 proxy.start()
-                val response = post(proxy.port, "/v1/responses", "{\"model\":\"grok-4.3\",\"input\":\"hi\"}")
+                val response = post(proxy.port, "/v1/responses", "{\"model\":\"sg-grok-4.3\",\"input\":\"hi\"}")
 
                 assertEquals(200, response.statusCode())
                 val modelsRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
@@ -99,6 +99,26 @@ class SuperGrokSubscriptionProxyProviderTest {
                 assertEquals("/v1/responses", inferenceRequest.path)
                 assertEquals("Bearer grok-token", inferenceRequest.firstHeader("Authorization"))
                 assertTrue(inferenceRequest.body.contains("\"model\":\"grok-4.3\""), inferenceRequest.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun forwardsPrefixedModelsMissingFromDiscovery() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(proxy.port, "/v1/responses", "{\"model\":\"sg-grok-4.4\",\"input\":\"hi\"}")
+
+                assertEquals(200, response.statusCode())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
+                val inferenceRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/responses", inferenceRequest.path)
+                assertTrue(inferenceRequest.body.contains("\"model\":\"grok-4.4\""), inferenceRequest.body)
+                assertTrue(!inferenceRequest.body.contains("sg-grok-4.4"), inferenceRequest.body)
             } finally {
                 proxy.stop()
             }

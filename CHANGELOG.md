@@ -1,6 +1,7 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+- Added provider prefixes for all local proxy providers (`oa-`, `gh-`, `ki-`, `mm-`, `ol-`, `oc-`, `sg-`, `za-`) and route prefixed fallback models when discovery is stale or unavailable.
 
 ## [1.4.2] - 2026-06-21
 - Fixed GitHub Copilot proxy model discovery so the proxy uses Copilot's live model metadata more accurately, including current GPT, Gemini, MAI, and Anthropic model routing.

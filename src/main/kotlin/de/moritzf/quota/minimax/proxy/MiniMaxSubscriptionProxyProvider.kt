@@ -3,6 +3,7 @@ package de.moritzf.quota.minimax.proxy
 import de.moritzf.proxy.subscription.OpenAiCompatibleApiKeySubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyRequest
+import de.moritzf.proxy.subscription.SubscriptionProxyRoute
 import de.moritzf.quota.minimax.MiniMaxRegion
 import java.net.URI
 import java.net.http.HttpClient
@@ -11,6 +12,7 @@ class MiniMaxSubscriptionProxyProvider(
     apiKeyProvider: () -> String?,
     regionProvider: () -> MiniMaxRegion,
     httpClient: HttpClient = HttpClient.newHttpClient(),
+    upstreamBaseUri: URI? = null,
     fullRequestLogging: Boolean = false,
     requestLogDir: String = DEFAULT_REQUEST_LOG_DIR,
 ) : SubscriptionProxyProvider {
@@ -18,8 +20,9 @@ class MiniMaxSubscriptionProxyProvider(
         id = ID,
         displayName = DISPLAY_NAME,
         litellmProvider = LITELLM_PROVIDER,
-        baseUri = baseUriFor(regionProvider()),
+        baseUri = upstreamBaseUri ?: baseUriFor(regionProvider()),
         apiKeyProvider = apiKeyProvider,
+        localIdPrefix = PREFIX,
         httpClient = httpClient,
         fullRequestLogging = fullRequestLogging,
         requestLogDir = requestLogDir,
@@ -32,12 +35,15 @@ class MiniMaxSubscriptionProxyProvider(
 
     override fun models() = delegate.models()
 
+    override fun fallbackModel(localId: String, route: SubscriptionProxyRoute) = delegate.fallbackModel(localId, route)
+
     override suspend fun handle(ctx: de.moritzf.proxy.server.ProxyCall, request: SubscriptionProxyRequest) {
         delegate.handle(ctx, request)
     }
 
     companion object {
         const val ID = "minimax"
+        const val PREFIX = "mm-"
         private const val DISPLAY_NAME = "MiniMax"
         private const val LITELLM_PROVIDER = "minimax"
         private val GLOBAL_BASE_URI = URI.create("https://api.minimax.io/v1")

@@ -23,7 +23,7 @@ import de.moritzf.proxy.server.JsonHelper
 
 class OpenAiCodexSubscriptionProxyProviderTest {
     @Test
-    fun advertisesCodexModelsWithoutPrefix() {
+    fun advertisesCodexModelsWithOaPrefix() {
         TestUpstream().use { upstream ->
             val proxy = newProxy(upstream.baseUri)
             try {
@@ -33,8 +33,8 @@ class OpenAiCodexSubscriptionProxyProviderTest {
                 assertEquals(200, response.statusCode())
                 val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
                     .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertTrue("gpt-5.5" in ids)
-                assertTrue(ids.none { it.startsWith("openai-") || it.startsWith("oa-") })
+                assertTrue("oa-gpt-5.5" in ids)
+                assertTrue(ids.all { it.startsWith(OpenAiCodexSubscriptionProxyProvider.PREFIX) })
             } finally {
                 proxy.stop()
             }
@@ -50,7 +50,7 @@ class OpenAiCodexSubscriptionProxyProviderTest {
                 val response = post(
                     proxy.port,
                     "/v1/chat/completions",
-                    "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"Say pong\"}]}",
+                    "{\"model\":\"oa-gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"Say pong\"}]}",
                 )
 
                 assertEquals(200, response.statusCode())
@@ -64,6 +64,29 @@ class OpenAiCodexSubscriptionProxyProviderTest {
                 val upstreamBody = JsonHelper.JSON.parseToJsonElement(request.body).jsonObject
                 assertEquals("gpt-5.5", upstreamBody["model"]!!.jsonPrimitive.content)
                 assertEquals("true", upstreamBody["stream"]!!.jsonPrimitive.content)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun forwardsPrefixedCodexModelsMissingFromDiscovery() {
+        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/responses",
+                    "{\"model\":\"oa-gpt-5.6\",\"input\":\"Say pong\"}",
+                )
+
+                assertEquals(200, response.statusCode())
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/backend-api/codex/responses", request.path)
+                val upstreamBody = JsonHelper.JSON.parseToJsonElement(request.body).jsonObject
+                assertEquals("gpt-5.6", upstreamBody["model"]!!.jsonPrimitive.content)
             } finally {
                 proxy.stop()
             }

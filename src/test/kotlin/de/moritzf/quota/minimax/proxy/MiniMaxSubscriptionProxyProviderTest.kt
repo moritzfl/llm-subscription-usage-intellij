@@ -1,9 +1,9 @@
-package de.moritzf.quota.kimi.proxy
+package de.moritzf.quota.minimax.proxy
 
 import com.sun.net.httpserver.HttpServer
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.subscription.SubscriptionProxyServer
-import de.moritzf.quota.kimi.KimiCredentials
+import de.moritzf.quota.minimax.MiniMaxRegion
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -22,20 +22,32 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-class KimiSubscriptionProxyProviderTest {
+class MiniMaxSubscriptionProxyProviderTest {
     @Test
-    fun advertisesKimiForCodingFromOAuthCredentials() {
+    fun advertisesMiniMaxModelsWithMmPrefixAndRewritesUpstreamModel() {
         TestUpstream().use { upstream ->
-            val proxy = newProxy(upstream)
+            val proxy = newProxy(upstream.baseUri)
             try {
                 proxy.server.start()
-                val response = get(proxy.port, "/v1/models")
 
-                assertEquals(200, response.statusCode())
-                val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
+                val modelsResponse = get(proxy.port, "/v1/models")
+                assertEquals(200, modelsResponse.statusCode())
+                val ids = JsonHelper.JSON.parseToJsonElement(modelsResponse.body()).jsonObject["data"]!!.jsonArray
                     .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertEquals(listOf(KimiSubscriptionProxyProvider.PREFIX + KimiSubscriptionProxyProvider.MODEL_ID), ids)
-                assertEquals("Kimi Code", proxy.provider.models().single().providerName)
+                assertEquals(listOf("mm-MiniMax-M2.1"), ids)
+                assertEquals("/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
+
+                val chatResponse = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"mm-MiniMax-M2.1\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                )
+
+                assertEquals(200, chatResponse.statusCode())
+                val chatRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/chat/completions", chatRequest.path)
+                assertEquals("Bearer minimax-key", chatRequest.firstHeader("Authorization"))
+                assertTrue(chatRequest.body.contains("\"model\":\"MiniMax-M2.1\""), chatRequest.body)
             } finally {
                 proxy.server.stop()
             }
@@ -43,62 +55,40 @@ class KimiSubscriptionProxyProviderTest {
     }
 
     @Test
-    fun forwardsAnthropicMessagesToKimiCodingBase() {
+    fun forwardsPrefixedModelsMissingFromDiscovery() {
         TestUpstream().use { upstream ->
-            val proxy = newProxy(upstream)
+            val proxy = newProxy(upstream.baseUri)
             try {
                 proxy.server.start()
-                val response = post(
+
+                val chatResponse = post(
                     proxy.port,
-                    "/v1/messages",
-                    "{\"model\":\"ki-kimi-for-coding\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":16}",
+                    "/v1/chat/completions",
+                    "{\"model\":\"mm-MiniMax-M2.7\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
                 )
 
-                assertEquals(200, response.statusCode())
-                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-                assertEquals("/coding/v1/messages", request.path)
-                assertEquals("Bearer kimi-token", request.firstHeader("Authorization"))
-                assertTrue(request.body.contains("\"model\":\"kimi-for-coding\""), request.body)
+                assertEquals(200, chatResponse.statusCode())
+                assertEquals("/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
+                val chatRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/chat/completions", chatRequest.path)
+                assertTrue(chatRequest.body.contains("\"model\":\"MiniMax-M2.7\""), chatRequest.body)
+                assertTrue(!chatRequest.body.contains("mm-MiniMax-M2.7"), chatRequest.body)
             } finally {
                 proxy.server.stop()
             }
         }
     }
 
-    @Test
-    fun forwardsPrefixedAnthropicModelsMissingFromDiscovery() {
-        TestUpstream().use { upstream ->
-            val proxy = newProxy(upstream)
-            try {
-                proxy.server.start()
-                val response = post(
-                    proxy.port,
-                    "/v1/messages",
-                    "{\"model\":\"ki-k2p6\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":16}",
-                )
-
-                assertEquals(200, response.statusCode())
-                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-                assertEquals("/coding/v1/messages", request.path)
-                assertTrue(request.body.contains("\"model\":\"k2p6\""), request.body)
-                assertTrue(!request.body.contains("ki-k2p6"), request.body)
-            } finally {
-                proxy.server.stop()
-            }
-        }
-    }
-
-    private fun newProxy(upstream: TestUpstream): TestProxy {
+    private fun newProxy(upstreamBaseUri: URI): TestProxy {
         val port = freePort()
-        val provider = KimiSubscriptionProxyProvider(
-            credentialsProvider = { KimiCredentials(accessToken = "kimi-token") },
-            openAiCompatibleBaseUri = upstream.openAiBaseUri,
-            anthropicCompatibleBaseUri = upstream.anthropicBaseUri,
-            requestLogDir = Files.createTempDirectory("kimi-subscription-proxy-test-logs").toString(),
+        val provider = MiniMaxSubscriptionProxyProvider(
+            apiKeyProvider = { "minimax-key" },
+            regionProvider = { MiniMaxRegion.GLOBAL },
+            upstreamBaseUri = upstreamBaseUri,
+            requestLogDir = Files.createTempDirectory("minimax-subscription-proxy-test-logs").toString(),
         )
         return TestProxy(
             port,
-            provider,
             SubscriptionProxyServer(
                 port = port,
                 localApiKeyProvider = { "local-key" },
@@ -129,17 +119,12 @@ class KimiSubscriptionProxyProviderTest {
         )
     }
 
-    private data class TestProxy(
-        val port: Int,
-        val provider: KimiSubscriptionProxyProvider,
-        val server: SubscriptionProxyServer,
-    )
+    private data class TestProxy(val port: Int, val server: SubscriptionProxyServer)
 
     private class TestUpstream : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
         private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
-        val openAiBaseUri: URI
-        val anthropicBaseUri: URI
+        val baseUri: URI
 
         init {
             server.createContext("/") { exchange ->
@@ -149,16 +134,21 @@ class KimiSubscriptionProxyProviderTest {
                     headers = exchange.requestHeaders.mapValues { it.value.toList() },
                     body = body,
                 )
-                val responseBody = "{\"id\":\"msg_1\",\"content\":[]}"
+                val responseBody = if (exchange.requestURI.rawPath.endsWith("/models")) {
+                    "{\"object\":\"list\",\"data\":[" +
+                        "{\"id\":\"MiniMax-M2.1\",\"object\":\"model\"}," +
+                        "{\"id\":\"embedding\",\"object\":\"embedding\"}" +
+                        "]}"
+                } else {
+                    "{\"id\":\"chatcmpl_1\",\"choices\":[]}"
+                }
                 val response = responseBody.toByteArray(Charsets.UTF_8)
                 exchange.responseHeaders.set("Content-Type", "application/json")
                 exchange.sendResponseHeaders(200, response.size.toLong())
                 exchange.responseBody.use { output -> output.write(response) }
             }
             server.start()
-            val base = "http://127.0.0.1:${server.address.port}"
-            openAiBaseUri = URI.create("$base/coding/v1")
-            anthropicBaseUri = URI.create("$base/coding")
+            baseUri = URI.create("http://127.0.0.1:${server.address.port}/v1")
         }
 
         override fun close() {

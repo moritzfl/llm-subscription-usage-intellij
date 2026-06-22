@@ -3,6 +3,7 @@ package de.moritzf.quota.zai.proxy
 import de.moritzf.proxy.subscription.OpenAiCompatibleApiKeySubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyRequest
+import de.moritzf.proxy.subscription.SubscriptionProxyRoute
 import java.net.URI
 import java.net.http.HttpClient
 
@@ -19,6 +20,7 @@ class ZaiSubscriptionProxyProvider(
         litellmProvider = LITELLM_PROVIDER,
         baseUri = upstreamBaseUri,
         apiKeyProvider = apiKeyProvider,
+        localIdPrefix = PREFIX,
         staticModels = STATIC_MODELS,
         discoverModels = false,
         httpClient = httpClient,
@@ -33,12 +35,15 @@ class ZaiSubscriptionProxyProvider(
 
     override fun models() = delegate.models()
 
+    override fun fallbackModel(localId: String, route: SubscriptionProxyRoute) = delegate.fallbackModel(localId, route)
+
     override suspend fun handle(ctx: de.moritzf.proxy.server.ProxyCall, request: SubscriptionProxyRequest) {
         delegate.handle(ctx, request)
     }
 
     companion object {
         const val ID = "zai"
+        const val PREFIX = "za-"
         private const val DISPLAY_NAME = "Z.ai"
         private const val LITELLM_PROVIDER = "zai"
         val DEFAULT_UPSTREAM_BASE_URI: URI = URI.create("https://api.z.ai/api/paas/v4")

@@ -3,6 +3,7 @@ package de.moritzf.quota.supergrok.proxy
 import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.subscription.PassThroughSubscriptionProxyProvider
+import de.moritzf.proxy.subscription.SubscriptionProxyModel
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyRequest
 import de.moritzf.proxy.subscription.SubscriptionProxyRoute
@@ -59,6 +60,25 @@ class SuperGrokSubscriptionProxyProvider(
 
     override fun models() = delegate.models()
 
+    override fun fallbackModel(localId: String, route: SubscriptionProxyRoute): SubscriptionProxyModel? {
+        if (route !in SUPPORTED_ROUTES) return null
+        val upstreamId = localId.trim()
+            .takeIf { it.startsWith(PREFIX) && it.length > PREFIX.length }
+            ?.removePrefix(PREFIX)
+            ?: return null
+        return SubscriptionProxyModel(
+            localId = localId,
+            upstreamId = upstreamId,
+            providerId = id,
+            providerName = displayName,
+            litellmProvider = LITELLM_PROVIDER,
+            supportedRoutes = setOf(route),
+            supportsFunctionCalling = true,
+            supportsToolChoice = true,
+            supportsVision = true,
+        )
+    }
+
     override suspend fun handle(ctx: de.moritzf.proxy.server.ProxyCall, request: SubscriptionProxyRequest) {
         delegate.handle(ctx, request)
     }
@@ -66,9 +86,9 @@ class SuperGrokSubscriptionProxyProvider(
     private fun modelMappings(): List<PassThroughSubscriptionProxyProvider.ModelMapping> {
         return remoteModels().map { model ->
             PassThroughSubscriptionProxyProvider.ModelMapping(
-                localId = model.id,
+                localId = PREFIX + model.id,
                 upstreamId = model.id,
-                supportedRoutes = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, SubscriptionProxyRoute.RESPONSES),
+                supportedRoutes = SUPPORTED_ROUTES,
                 supportsPromptCaching = false,
                 isDefault = model.isDefault,
             )
@@ -141,8 +161,10 @@ class SuperGrokSubscriptionProxyProvider(
 
     companion object {
         const val ID = "supergrok"
+        const val PREFIX = "sg-"
         private const val DISPLAY_NAME = "SuperGrok"
         private const val LITELLM_PROVIDER = "xai"
+        private val SUPPORTED_ROUTES = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, SubscriptionProxyRoute.RESPONSES)
         val DEFAULT_UPSTREAM_BASE_URI: URI = URI.create("https://api.x.ai/v1")
         private val CACHE_TTL = 5.minutes
         private val DEFAULT_REQUEST_LOG_DIR = System.getProperty("java.io.tmpdir") +

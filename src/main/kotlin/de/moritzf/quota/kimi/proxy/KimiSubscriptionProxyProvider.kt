@@ -2,6 +2,7 @@ package de.moritzf.quota.kimi.proxy
 
 import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.proxy.subscription.PassThroughSubscriptionProxyProvider
+import de.moritzf.proxy.subscription.SubscriptionProxyModel
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyRequest
 import de.moritzf.proxy.subscription.SubscriptionProxyRoute
@@ -55,6 +56,28 @@ class KimiSubscriptionProxyProvider(
 
     override fun models() = chatDelegate.models()
 
+    override fun fallbackModel(localId: String, route: SubscriptionProxyRoute): SubscriptionProxyModel? {
+        if (route != SubscriptionProxyRoute.ANTHROPIC_MESSAGES) return null
+        val upstreamId = localId.trim()
+            .takeIf { it.startsWith(PREFIX) && it.length > PREFIX.length }
+            ?.removePrefix(PREFIX)
+            ?: return null
+        return SubscriptionProxyModel(
+            localId = localId,
+            upstreamId = upstreamId,
+            providerId = id,
+            providerName = displayName,
+            litellmProvider = LITELLM_PROVIDER,
+            supportedRoutes = setOf(route),
+            supportsFunctionCalling = true,
+            supportsToolChoice = true,
+            supportsVision = true,
+            supportsPromptCaching = true,
+            maxInputTokens = MAX_INPUT_TOKENS,
+            maxOutputTokens = MAX_OUTPUT_TOKENS,
+        )
+    }
+
     override suspend fun handle(ctx: de.moritzf.proxy.server.ProxyCall, request: SubscriptionProxyRequest) {
         when (request.route) {
             SubscriptionProxyRoute.ANTHROPIC_MESSAGES -> messagesDelegate.handle(ctx, request)
@@ -80,12 +103,12 @@ class KimiSubscriptionProxyProvider(
     private fun modelMappings(): List<PassThroughSubscriptionProxyProvider.ModelMapping> {
         return listOf(
             PassThroughSubscriptionProxyProvider.ModelMapping(
-                localId = MODEL_ID,
+                localId = PREFIX + MODEL_ID,
                 upstreamId = MODEL_ID,
-                supportedRoutes = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, SubscriptionProxyRoute.ANTHROPIC_MESSAGES),
+                supportedRoutes = SUPPORTED_ROUTES,
                 supportsPromptCaching = true,
-                maxInputTokens = 262_144,
-                maxOutputTokens = 65_536,
+                maxInputTokens = MAX_INPUT_TOKENS,
+                maxOutputTokens = MAX_OUTPUT_TOKENS,
                 isDefault = true,
             ),
         )
@@ -93,9 +116,13 @@ class KimiSubscriptionProxyProvider(
 
     companion object {
         const val ID = "kimi"
+        const val PREFIX = "ki-"
         const val MODEL_ID = "kimi-for-coding"
         private const val DISPLAY_NAME = "Kimi Code"
         private const val LITELLM_PROVIDER = "kimi"
+        private const val MAX_INPUT_TOKENS = 262_144
+        private const val MAX_OUTPUT_TOKENS = 65_536
+        private val SUPPORTED_ROUTES = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, SubscriptionProxyRoute.ANTHROPIC_MESSAGES)
         private val OPENAI_COMPATIBLE_BASE_URI = URI.create("https://api.kimi.com/coding/v1")
         private val ANTHROPIC_COMPATIBLE_BASE_URI = URI.create("https://api.kimi.com/coding")
         private val DEFAULT_REQUEST_LOG_DIR = System.getProperty("java.io.tmpdir") +

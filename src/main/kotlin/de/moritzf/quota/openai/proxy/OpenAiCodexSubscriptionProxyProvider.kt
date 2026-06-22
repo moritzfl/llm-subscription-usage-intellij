@@ -23,6 +23,7 @@ import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.time.Duration
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
@@ -84,7 +85,7 @@ class OpenAiCodexSubscriptionProxyProvider(
         if (!isConfigured()) return emptyList()
         return OpenAiProxyServer.advertisedModels().map { id ->
             SubscriptionProxyModel(
-                localId = id,
+                localId = PREFIX + id,
                 upstreamId = id,
                 providerId = this.id,
                 providerName = displayName,
@@ -102,16 +103,48 @@ class OpenAiCodexSubscriptionProxyProvider(
         }
     }
 
+    override fun fallbackModel(localId: String, route: SubscriptionProxyRoute): SubscriptionProxyModel? {
+        if (route !in SUPPORTED_ROUTES) return null
+        val upstreamId = localId.trim()
+            .takeIf { it.startsWith(PREFIX) && it.length > PREFIX.length }
+            ?.removePrefix(PREFIX)
+            ?: return null
+        return SubscriptionProxyModel(
+            localId = localId,
+            upstreamId = upstreamId,
+            providerId = this.id,
+            providerName = displayName,
+            litellmProvider = LITELLM_PROVIDER,
+            supportedRoutes = setOf(route),
+            supportsFunctionCalling = true,
+            supportsToolChoice = true,
+            supportsVision = true,
+            supportsPromptCaching = true,
+            maxInputTokens = 272_000,
+            maxOutputTokens = 128_000,
+        )
+    }
+
     override suspend fun handle(ctx: ProxyCall, request: SubscriptionProxyRequest) {
+        val upstreamBody = request.bodyWithUpstreamModel()
         when (request.route) {
-            SubscriptionProxyRoute.CHAT_COMPLETIONS -> chatHandler.handleParsed(ctx, request.requestId, request.body)
-            SubscriptionProxyRoute.RESPONSES -> responsesHandler.handleParsed(ctx, request.requestId, request.body)
+            SubscriptionProxyRoute.CHAT_COMPLETIONS -> chatHandler.handleParsed(ctx, request.requestId, upstreamBody)
+            SubscriptionProxyRoute.RESPONSES -> responsesHandler.handleParsed(ctx, request.requestId, upstreamBody)
             SubscriptionProxyRoute.ANTHROPIC_MESSAGES -> JsonHelper.toErrorResponse(
                 ctx,
                 "OpenAI/Codex does not support /v1/messages.",
                 400,
                 "invalid_request_error",
             )
+        }
+    }
+
+    private fun SubscriptionProxyRequest.bodyWithUpstreamModel(): JsonObject {
+        return buildJsonObject {
+            body.forEach { (key, value) ->
+                put(key, if (key == "model") JsonPrimitive(model.upstreamId) else value)
+            }
+            if ("model" !in body) put("model", model.upstreamId)
         }
     }
 
@@ -174,7 +207,9 @@ class OpenAiCodexSubscriptionProxyProvider(
 
     companion object {
         private const val DEFAULT_CODEX_INSTRUCTIONS = "You are a coding assistant."
+        const val PREFIX = "oa-"
         private const val LITELLM_PROVIDER = "openai-codex"
+        private val SUPPORTED_ROUTES = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, SubscriptionProxyRoute.RESPONSES)
         private val DEFAULT_REQUEST_LOG_DIR = System.getProperty("java.io.tmpdir") +
             "/openai-usage-quota-intellij/subscription-proxy-openai-requests"
         private val CODEX_OVERRIDDEN_RESPONSE_FIELDS = setOf("store", "stream")
