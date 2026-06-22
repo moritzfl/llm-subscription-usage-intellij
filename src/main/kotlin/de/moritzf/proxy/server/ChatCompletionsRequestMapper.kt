@@ -113,7 +113,7 @@ internal class ChatCompletionsRequestMapper(
 
         // Tool choice.
         chatBody["tool_choice"]?.takeUnless { it is JsonNull }?.let {
-            upstream.set("tool_choice", it)
+            setToolChoice(upstream, it)
         } ?: chatBody["function_call"]?.takeUnless { it is JsonNull }?.let {
             setLegacyFunctionCallChoice(upstream, it)
         }
@@ -213,6 +213,29 @@ internal class ChatCompletionsRequestMapper(
             toolChoice.put("name", name)
             upstream.set("tool_choice", toolChoice)
         }
+    }
+
+    private fun setToolChoice(upstream: MutableJsonObject, toolChoice: JsonElement) {
+        if (toolChoice.isTextual()) {
+            val choice = toolChoice.text
+            if (choice.isNotBlank()) {
+                upstream.put("tool_choice", choice)
+            }
+            return
+        }
+        val toolChoiceObject = toolChoice as? JsonObject ?: return
+        if (toolChoiceObject.stringPath("type") == "function") {
+            val function = toolChoiceObject["function"] as? JsonObject
+            val name = function?.stringPath("name", "") ?: toolChoiceObject.stringPath("name", "")
+            if (name.isNotBlank()) {
+                val upstreamChoice = createObjectNode()
+                upstreamChoice.put("type", "function")
+                upstreamChoice.put("name", name)
+                upstream.set("tool_choice", upstreamChoice)
+                return
+            }
+        }
+        upstream.set("tool_choice", toolChoice)
     }
 
     private fun extractTextContent(content: JsonElement?): String {

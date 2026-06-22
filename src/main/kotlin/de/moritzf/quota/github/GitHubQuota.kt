@@ -50,6 +50,7 @@ data class GitHubUsageWindow(
 @Serializable
 data class GitHubCredentials(
     val accessToken: String = "",
+    val oauthClientId: String = "",
 ) {
     fun isUsable(): Boolean = accessToken.isNotBlank()
 }

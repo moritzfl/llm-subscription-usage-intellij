@@ -2,6 +2,7 @@ package de.moritzf.quota.kimi.proxy
 
 import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.proxy.server.JsonHelper
+import de.moritzf.proxy.server.put
 import de.moritzf.proxy.server.remove
 import de.moritzf.proxy.subscription.PassThroughSubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyModel
@@ -104,7 +105,18 @@ class KimiSubscriptionProxyProvider(
 
     private fun chatRequestBody(request: SubscriptionProxyRequest, body: JsonObject): JsonObject {
         if (request.route != SubscriptionProxyRoute.CHAT_COMPLETIONS) return body
-        return body.remove("temperature")
+        var transformed = body.remove("temperature")
+        if (requiresAutoToolChoice(transformed["tool_choice"])) {
+            transformed = transformed.put("tool_choice", JsonPrimitive("auto"))
+        }
+        return transformed
+    }
+
+    private fun requiresAutoToolChoice(toolChoice: JsonElement?): Boolean {
+        val textChoice = (toolChoice as? JsonPrimitive)?.contentOrNull
+        if (textChoice == "required") return true
+        val objectChoice = toolChoice as? JsonObject ?: return false
+        return (objectChoice["type"] as? JsonPrimitive)?.contentOrNull == "function"
     }
 
     private fun accessToken(): String? {

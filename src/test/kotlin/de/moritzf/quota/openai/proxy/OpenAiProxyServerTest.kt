@@ -759,6 +759,44 @@ class OpenAiProxyServerTest {
     }
 
     @Test
+    fun mapsChatToolChoiceObjectToResponsesToolChoice() {
+        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_FUNCTION_CALL).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = httpClient.send(
+                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"))
+                        .header("Authorization", "Bearer local-key")
+                        .header("Content-Type", "application/json")
+                        .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                "{\"model\":\"gpt-5.5\",\"messages\":[" +
+                                    "{\"role\":\"user\",\"content\":\"Use report_ok.\"}]," +
+                                    "\"tools\":[{\"type\":\"function\",\"function\":{" +
+                                    "\"name\":\"report_ok\",\"parameters\":{" +
+                                    "\"type\":\"object\",\"properties\":{}}}}]," +
+                                    "\"tool_choice\":{\"type\":\"function\",\"function\":{" +
+                                    "\"name\":\"report_ok\"}}}",
+                            ),
+                        )
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+
+                assertEquals(200, response.statusCode())
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                val upstreamBody = parseObject(request.body)
+                val toolChoice = upstreamBody["tool_choice"]!!.jsonObject
+                assertEquals("function", toolChoice["type"]!!.jsonPrimitive.content)
+                assertEquals("report_ok", toolChoice["name"]!!.jsonPrimitive.content)
+                assertFalse("function" in toolChoice)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun passesThroughNativeJunieToolCallsForChatRequestsWithTools() {
         TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_FUNCTION_CALL).use { upstream ->
             val proxy = newProxy(upstream.baseUri)

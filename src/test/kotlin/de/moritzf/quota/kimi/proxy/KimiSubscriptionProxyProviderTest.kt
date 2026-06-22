@@ -226,6 +226,56 @@ class KimiSubscriptionProxyProviderTest {
         }
     }
 
+    @Test
+    fun downgradesForcedChatToolChoiceObjectToAuto() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream)
+            try {
+                proxy.server.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"ki-kimi-for-coding\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]," +
+                        "\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"submit\",\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]," +
+                        "\"tool_choice\":{\"type\":\"function\",\"function\":{\"name\":\"submit\"}}}",
+                )
+
+                assertEquals(200, response.statusCode())
+                assertEquals("/coding/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                val upstreamBody = JsonHelper.JSON.parseToJsonElement(request.body).jsonObject
+                assertEquals("auto", upstreamBody["tool_choice"]!!.jsonPrimitive.content)
+            } finally {
+                proxy.server.stop()
+            }
+        }
+    }
+
+    @Test
+    fun downgradesRequiredChatToolChoiceToAuto() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream)
+            try {
+                proxy.server.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"ki-kimi-for-coding\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]," +
+                        "\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"submit\",\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]," +
+                        "\"tool_choice\":\"required\"}",
+                )
+
+                assertEquals(200, response.statusCode())
+                assertEquals("/coding/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                val upstreamBody = JsonHelper.JSON.parseToJsonElement(request.body).jsonObject
+                assertEquals("auto", upstreamBody["tool_choice"]!!.jsonPrimitive.content)
+            } finally {
+                proxy.server.stop()
+            }
+        }
+    }
+
     private fun newProxy(upstream: TestUpstream, modelsDevCatalogUri: URI? = null): TestProxy {
         val port = freePort()
         val provider = KimiSubscriptionProxyProvider(

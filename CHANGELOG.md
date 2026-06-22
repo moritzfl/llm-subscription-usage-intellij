@@ -5,6 +5,8 @@
 - Cached the GitHub Copilot proxy model catalog across proxy restarts while keeping missing-model retry state in-process, so transient discovery drops are retried in the background before models are evicted.
 - Added a shared Responses-backed chat-completions bridge and enabled it for GitHub Copilot GPT models that only expose `/responses` upstream.
 - Adjusted Ollama proxy model metadata so models observed without reliable tool-call support are not advertised as function-calling capable to Junie and other LiteLLM-style clients.
+- Fixed tool-choice compatibility for Responses-backed chat completions and downgraded unsupported forced Kimi tool choices to `auto` to avoid upstream 400s.
+- Switched new GitHub Copilot logins to the Copilot CLI OAuth; log out and log back in to replace existing GitHub tokens.
 
 ## [1.4.4] - 2026-06-22
 - GitHub Copilot proxy discovery now sends Copilot-compatible integration headers, advertises picker-visible non-Anthropic models on `/v1/models`, and keeps Claude models available through `/v1/model/info` and `/v1/messages`.

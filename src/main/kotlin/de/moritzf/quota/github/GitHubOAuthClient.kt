@@ -62,7 +62,9 @@ class GitHubOAuthClient(
             throw GitHubQuotaException("Could not parse token polling response.", status, body, exception)
         }
         if (status in 200..299 && !dto.accessToken.isNullOrBlank()) {
-            return GitHubDeviceTokenPollResult.Authorized(GitHubCredentials(accessToken = dto.accessToken))
+            return GitHubDeviceTokenPollResult.Authorized(
+                GitHubCredentials(accessToken = dto.accessToken, oauthClientId = CLIENT_ID),
+            )
         }
         return when (dto.error) {
             "authorization_pending" -> GitHubDeviceTokenPollResult.Pending(0)
@@ -103,8 +105,8 @@ class GitHubOAuthClient(
         private val ACCESS_TOKEN_ENDPOINT = accessTokenEndpoint(null)
         private const val DEFAULT_VERIFICATION_URI = "https://github.com/login/device"
 
-        /** Publicly documented client id for GitHub Copilot IDE integrations (device flow needs no secret). */
-        private const val CLIENT_ID = "Iv1.b507a08c87ecfe98"
+        /** Public GitHub Copilot CLI/opencode device-flow client id; device flow needs no secret. */
+        internal const val CLIENT_ID = "Ov23li8tweQw6odWQebz"
 
         /** `read:user` is sufficient for `copilot_internal/user`. */
         private const val SCOPE = "read:user"
