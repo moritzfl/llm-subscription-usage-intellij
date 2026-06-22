@@ -41,6 +41,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var openAiProxyPort: Int = OpenAiProxyService.DEFAULT_PORT
     var openAiProxyLogRequests: Boolean = false
     var subscriptionProxyEnabledProviders: MutableList<String> = DEFAULT_SUBSCRIPTION_PROXY_PROVIDERS.toMutableList()
+    var subscriptionProxyModelCatalogJsons: MutableMap<String, String> = mutableMapOf()
     var githubEnterpriseHost: String = ""
 
     // Legacy per-provider fields kept only so settings written by older
@@ -118,6 +119,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         openAiProxyPort = OpenAiProxyService.sanitizePort(state.openAiProxyPort.takeIf { it > 0 } ?: OpenAiProxyService.DEFAULT_PORT)
         openAiProxyLogRequests = state.openAiProxyLogRequests
         subscriptionProxyEnabledProviders = sanitizeSubscriptionProxyProviders(state.subscriptionProxyEnabledProviders).toMutableList()
+        subscriptionProxyModelCatalogJsons = state.subscriptionProxyModelCatalogJsons.toMutableMap()
         githubEnterpriseHost = state.githubEnterpriseHost.trim()
     }
 
@@ -245,6 +247,16 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         return sanitizeSubscriptionProxyProviders(subscriptionProxyEnabledProviders)
             .mapNotNull(QuotaProviderType::fromId)
             .toSet()
+    }
+
+    fun subscriptionProxyModelCatalogJson(providerId: String): String? = subscriptionProxyModelCatalogJsons[providerId]
+
+    fun setSubscriptionProxyModelCatalogJson(providerId: String, json: String?) {
+        if (json.isNullOrBlank()) {
+            subscriptionProxyModelCatalogJsons.remove(providerId)
+        } else {
+            subscriptionProxyModelCatalogJsons[providerId] = json
+        }
     }
 
     fun lastUsedSource(): QuotaIndicatorSource {

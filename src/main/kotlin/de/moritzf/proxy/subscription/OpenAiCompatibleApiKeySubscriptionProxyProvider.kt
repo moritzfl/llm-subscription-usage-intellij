@@ -30,6 +30,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
     private val staticModels: List<StaticModel> = emptyList(),
     private val discoverModels: Boolean = true,
     private val supportedRoutes: Set<SubscriptionProxyRoute> = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS),
+    private val modelTransformer: (StaticModel) -> StaticModel = { it },
     private val defaultHeaders: Map<String, String> = DEFAULT_HEADERS,
     private val httpClient: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(30))
@@ -81,7 +82,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
     }
 
     private fun modelMappings(): List<PassThroughSubscriptionProxyProvider.ModelMapping> {
-        val models = if (discoverModels) remoteModels() else staticModels
+        val models = if (discoverModels) remoteModels() else staticModels.map(modelTransformer)
         return models.map { model ->
             PassThroughSubscriptionProxyProvider.ModelMapping(
                 localId = localIdPrefix + model.id,
@@ -126,7 +127,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
             is JsonArray -> root
             else -> null
         } ?: return emptyList()
-        return data.mapNotNull(::parseRemoteModel).distinctBy { it.id }
+        return data.mapNotNull(::parseRemoteModel).map(modelTransformer).distinctBy { it.id }
     }
 
     private fun parseRemoteModel(element: JsonElement): StaticModel? {

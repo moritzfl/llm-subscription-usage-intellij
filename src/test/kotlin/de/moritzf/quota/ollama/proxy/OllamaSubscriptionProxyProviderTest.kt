@@ -34,7 +34,7 @@ class OllamaSubscriptionProxyProviderTest {
                 assertEquals(200, modelsResponse.statusCode())
                 val ids = JsonHelper.JSON.parseToJsonElement(modelsResponse.body()).jsonObject["data"]!!.jsonArray
                     .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertEquals(listOf("ol-llama3.3"), ids)
+                assertEquals(listOf("ol-llama3.3", "ol-gemma3:4b", "ol-qwen3-coder-next"), ids)
                 assertEquals("/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
 
                 val chatResponse = post(
@@ -48,6 +48,31 @@ class OllamaSubscriptionProxyProviderTest {
                 assertEquals("/v1/chat/completions", chatRequest.path)
                 assertEquals("Bearer ollama-key", chatRequest.firstHeader("Authorization"))
                 assertTrue(chatRequest.body.contains("\"model\":\"llama3.3\""), chatRequest.body)
+            } finally {
+                proxy.server.stop()
+            }
+        }
+    }
+
+    @Test
+    fun advertisesObservedOllamaToolSupportForJunieModelSelection() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.server.start()
+
+                val response = get(proxy.port, "/v1/model/info")
+
+                assertEquals(200, response.statusCode())
+                val data = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
+                val gemmaInfo = data.first { it.jsonObject["id"]!!.jsonPrimitive.content == "ol-gemma3:4b" }
+                    .jsonObject["model_info"]!!.jsonObject
+                val qwenInfo = data.first { it.jsonObject["id"]!!.jsonPrimitive.content == "ol-qwen3-coder-next" }
+                    .jsonObject["model_info"]!!.jsonObject
+                assertFalse(gemmaInfo["supports_function_calling"]!!.jsonPrimitive.content.toBoolean())
+                assertFalse(gemmaInfo["supports_tool_choice"]!!.jsonPrimitive.content.toBoolean())
+                assertTrue(qwenInfo["supports_function_calling"]!!.jsonPrimitive.content.toBoolean())
+                assertTrue(qwenInfo["supports_tool_choice"]!!.jsonPrimitive.content.toBoolean())
             } finally {
                 proxy.server.stop()
             }
@@ -136,6 +161,8 @@ class OllamaSubscriptionProxyProviderTest {
                 val responseBody = if (exchange.requestURI.rawPath.endsWith("/models")) {
                     "{\"object\":\"list\",\"data\":[" +
                         "{\"id\":\"llama3.3\",\"object\":\"model\"}," +
+                        "{\"id\":\"gemma3:4b\",\"object\":\"model\"}," +
+                        "{\"id\":\"qwen3-coder-next\",\"object\":\"model\"}," +
                         "{\"id\":\"nomic-embed-text\",\"object\":\"embedding\"}" +
                         "]}"
                 } else {

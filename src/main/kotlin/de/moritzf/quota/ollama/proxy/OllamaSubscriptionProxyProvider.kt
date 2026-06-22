@@ -21,6 +21,7 @@ class OllamaSubscriptionProxyProvider(
         baseUri = upstreamBaseUri,
         apiKeyProvider = apiKeyProvider,
         localIdPrefix = PREFIX,
+        modelTransformer = ::ollamaModelMetadata,
         httpClient = httpClient,
         fullRequestLogging = fullRequestLogging,
         requestLogDir = requestLogDir,
@@ -39,6 +40,16 @@ class OllamaSubscriptionProxyProvider(
         delegate.handle(ctx, request)
     }
 
+    private fun ollamaModelMetadata(
+        model: OpenAiCompatibleApiKeySubscriptionProxyProvider.StaticModel,
+    ): OpenAiCompatibleApiKeySubscriptionProxyProvider.StaticModel {
+        return if (model.id in MODELS_WITHOUT_TOOL_CALLS) {
+            model.copy(supportsFunctionCalling = false, supportsToolChoice = false)
+        } else {
+            model
+        }
+    }
+
     companion object {
         const val ID = "ollama"
         const val PREFIX = "ol-"
@@ -47,5 +58,12 @@ class OllamaSubscriptionProxyProvider(
         val DEFAULT_UPSTREAM_BASE_URI: URI = URI.create("https://ollama.com/v1")
         private val DEFAULT_REQUEST_LOG_DIR = System.getProperty("java.io.tmpdir") +
             "/openai-usage-quota-intellij/subscription-proxy-ollama-requests"
+        private val MODELS_WITHOUT_TOOL_CALLS = setOf(
+            "deepseek-v3.2",
+            "gemini-3-flash-preview",
+            "gemma3:4b",
+            "nemotron-3-nano:30b",
+            "rnj-1:8b",
+        )
     }
 }

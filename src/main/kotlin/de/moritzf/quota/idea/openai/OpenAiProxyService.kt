@@ -183,6 +183,12 @@ class OpenAiProxyService(
                     GitHubCopilotSubscriptionProxyProvider(
                         accessTokenProvider = { githubCredentialsStoreProvider().loadBlocking()?.accessToken },
                         upstreamBaseUri = githubCopilotBaseUri(settings.githubEnterpriseHost),
+                        persistentModelCacheProvider = {
+                            settings.subscriptionProxyModelCatalogJson(GitHubCopilotSubscriptionProxyProvider.ID)
+                        },
+                        persistentModelCacheSaver = { json ->
+                            settings.setSubscriptionProxyModelCatalogJson(GitHubCopilotSubscriptionProxyProvider.ID, json)
+                        },
                         fullRequestLogging = logRequests,
                         requestLogDir = requestLogDir,
                     ),

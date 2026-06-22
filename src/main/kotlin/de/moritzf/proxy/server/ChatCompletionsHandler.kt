@@ -44,16 +44,78 @@ import java.util.ArrayList
 import java.util.HashSet
 import java.util.LinkedHashMap
 import java.util.UUID
-class ChatCompletionsHandler(
-    private val client: CodexHttpClient,
-    private val config: ServerConfig,
-    private val usageTracker: UsageTracker,
-    private val requestLogger: RequestLogger,
-    instructionsProvider: CodexInstructionsProvider,
-) {
+class ChatCompletionsHandler {
+    fun interface ResponsesRequester {
+        fun request(payload: String, requestId: String, promptCacheKey: String?): HttpResponse<InputStream>
+    }
+
+    private val requestLogger: RequestLogger
+    private val usageTracker: UsageTracker
+    private val responsesRequester: ResponsesRequester
+    private val configuredModels: List<String>?
+    private val fullRequestLogging: Boolean
+    private val forwardPromptCacheHeaders: Boolean
+    private val responsesBodyTransformer: (MutableJsonObject) -> Unit
     private val modelAliasResolver = ModelAliasResolver()
     private val upstreamErrorMapper = UpstreamErrorMapper()
-    private val requestMapper = ChatCompletionsRequestMapper(config.store, instructionsProvider, modelAliasResolver)
+    private val requestMapper: ChatCompletionsRequestMapper
+
+    constructor(
+        client: CodexHttpClient,
+        config: ServerConfig,
+        usageTracker: UsageTracker,
+        requestLogger: RequestLogger,
+        instructionsProvider: CodexInstructionsProvider,
+    ) : this(
+        requestLogger = requestLogger,
+        usageTracker = usageTracker,
+        responsesRequester = ResponsesRequester { payload, requestId, promptCacheKey ->
+            if (config.fullRequestLogging || config.forwardPromptCacheHeaders) {
+                client.request(
+                    "/responses",
+                    "POST",
+                    payload,
+                    mapOf("Content-Type" to "application/json"),
+                    requestId,
+                    promptCacheKey,
+                )
+            } else {
+                client.request(
+                    "/responses",
+                    "POST",
+                    payload,
+                    mapOf("Content-Type" to "application/json"),
+                )
+            }
+        },
+        store = config.store,
+        configuredModels = config.models,
+        fullRequestLogging = config.fullRequestLogging,
+        forwardPromptCacheHeaders = config.forwardPromptCacheHeaders,
+        instructionsProvider = instructionsProvider,
+    )
+
+    constructor(
+        requestLogger: RequestLogger,
+        usageTracker: UsageTracker,
+        responsesRequester: ResponsesRequester,
+        store: Boolean,
+        configuredModels: List<String>?,
+        fullRequestLogging: Boolean,
+        forwardPromptCacheHeaders: Boolean,
+        instructionsProvider: CodexInstructionsProvider,
+        responsesBodyTransformer: (MutableJsonObject) -> Unit = {},
+    ) {
+        this.requestLogger = requestLogger
+        this.usageTracker = usageTracker
+        this.responsesRequester = responsesRequester
+        this.configuredModels = configuredModels
+        this.fullRequestLogging = fullRequestLogging
+        this.forwardPromptCacheHeaders = forwardPromptCacheHeaders
+        this.responsesBodyTransformer = responsesBodyTransformer
+        requestMapper = ChatCompletionsRequestMapper(store, instructionsProvider, modelAliasResolver)
+    }
+
     suspend fun handle(ctx: ProxyCall) {
         val requestId = if (shouldUseRequestContext()) requestId(ctx) else requestLogger.nextRequestId()
         val body = parseLoggedJsonObject(ctx, requestLogger, requestId) ?: return
@@ -84,7 +146,6 @@ class ChatCompletionsHandler(
         // ServerConfig.DEFAULT_MODEL is the last-resort fallback for when no models were
         // configured and auto-discovery failed — in that case no better default is available
         // without an extra ModelResolver call. Callers can always override via the "model" field.
-        val configuredModels = config.models
         val defaultModel = if (!configuredModels.isNullOrEmpty()) {
             configuredModels.first()
         } else {
@@ -95,7 +156,7 @@ class ChatCompletionsHandler(
         val upstreamModel = resolvedModel.model ?: model
         // Build upstream Responses API request
         val upstreamBody = requestMapper.build(body, upstreamModel, resolvedModel.reasoningEffort)
-        val promptCacheKey = if (config.forwardPromptCacheHeaders)
+        val promptCacheKey = if (forwardPromptCacheHeaders)
             upstreamBody.pathOrNull("prompt_cache_key").textOrNull
         else
             null
@@ -130,24 +191,12 @@ class ChatCompletionsHandler(
         requestId: String,
         promptCacheKey: String?
     ): HttpResponse<InputStream> {
-        val payload: String = JsonHelper.encodeToString(upstreamBody.build())
-        if (shouldUseRequestContext()) {
-            return client.request(
-                "/responses", "POST",
-                payload,
-                mapOf("Content-Type" to "application/json"),
-                requestId,
-                promptCacheKey
-            )
-        }
-        return client.request(
-            "/responses", "POST",
-            payload,
-            mapOf("Content-Type" to "application/json")
-        )
+        responsesBodyTransformer(upstreamBody)
+        val payload = JsonHelper.encodeToString(upstreamBody.build())
+        return responsesRequester.request(payload, requestId, promptCacheKey)
     }
     private fun shouldUseRequestContext(): Boolean {
-        return config.fullRequestLogging || config.forwardPromptCacheHeaders
+        return fullRequestLogging || forwardPromptCacheHeaders
     }
     private fun hasModernToolDefinitions(body: JsonObject): Boolean {
         val tools = body["tools"]

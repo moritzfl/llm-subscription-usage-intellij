@@ -1,7 +1,11 @@
 package de.moritzf.quota.github.proxy
 
 import de.moritzf.proxy.logging.RequestLogger
+import de.moritzf.proxy.model.CodexInstructionsProvider
+import de.moritzf.proxy.server.ChatCompletionsHandler
 import de.moritzf.proxy.server.JsonHelper
+import de.moritzf.proxy.server.MutableJsonObject
+import de.moritzf.proxy.server.ProxyCall
 import de.moritzf.proxy.server.remove
 import de.moritzf.proxy.subscription.PassThroughSubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyModel
@@ -9,12 +13,15 @@ import de.moritzf.proxy.subscription.SubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyRequest
 import de.moritzf.proxy.subscription.SubscriptionProxyRoute
 import de.moritzf.proxy.transport.UrlResolver
+import de.moritzf.proxy.usage.UsageTracker
+import java.io.InputStream
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.time.Duration
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.ExperimentalTime
@@ -36,9 +43,25 @@ class GitHubCopilotSubscriptionProxyProvider(
         .connectTimeout(Duration.ofSeconds(30))
         .build(),
     private val upstreamBaseUri: URI = DEFAULT_UPSTREAM_BASE_URI,
+    private val persistentModelCacheProvider: () -> String? = { null },
+    private val persistentModelCacheSaver: (String?) -> Unit = {},
+    private val missingModelRetryDelays: List<Duration> = DEFAULT_MISSING_MODEL_RETRY_DELAYS,
+    private val modelCacheTtl: kotlin.time.Duration = DEFAULT_CACHE_TTL,
     fullRequestLogging: Boolean = false,
     requestLogDir: String = DEFAULT_REQUEST_LOG_DIR,
 ) : SubscriptionProxyProvider {
+    private val requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir))
+    private val chatCompletionsHandler = ChatCompletionsHandler(
+        requestLogger = requestLogger,
+        usageTracker = UsageTracker(),
+        responsesRequester = ChatCompletionsHandler.ResponsesRequester(::sendResponsesForChatCompletion),
+        store = false,
+        configuredModels = null,
+        fullRequestLogging = fullRequestLogging,
+        forwardPromptCacheHeaders = false,
+        instructionsProvider = CodexInstructionsProvider(DEFAULT_RESPONSES_INSTRUCTIONS),
+        responsesBodyTransformer = ::responsesChatBody,
+    )
     private val delegate = PassThroughSubscriptionProxyProvider(
         id = ID,
         displayName = DISPLAY_NAME,
@@ -63,11 +86,14 @@ class GitHubCopilotSubscriptionProxyProvider(
         jsonResponseTransformer = ::openAiChatJsonResponse,
         sseDataTransformer = ::openAiChatSseData,
         httpClient = httpClient,
-        requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir)),
+        requestLogger = requestLogger,
     )
 
     @Volatile
     private var modelCache: ModelCache? = null
+    private val missingModelRetryLock = Any()
+    @Volatile
+    private var missingModelRetry: MissingModelRetry? = null
 
     override val id: String = ID
     override val displayName: String = DISPLAY_NAME
@@ -78,8 +104,22 @@ class GitHubCopilotSubscriptionProxyProvider(
 
     override fun fallbackModel(localId: String, route: SubscriptionProxyRoute) = prefixedFallbackModel(localId, route)
 
-    override suspend fun handle(ctx: de.moritzf.proxy.server.ProxyCall, request: SubscriptionProxyRequest) {
+    override suspend fun handle(ctx: ProxyCall, request: SubscriptionProxyRequest) {
+        if (shouldBridgeChatToResponses(request)) {
+            if (accessTokenProvider().trimmedOrNull() == null) {
+                JsonHelper.toErrorResponse(ctx, "$DISPLAY_NAME login required.", 401, "authentication_error")
+                return
+            }
+            chatCompletionsHandler.handleParsed(ctx, request.requestId, request.bodyWithUpstreamModel())
+            return
+        }
         delegate.handle(ctx, request)
+    }
+
+    private fun shouldBridgeChatToResponses(request: SubscriptionProxyRequest): Boolean {
+        return request.route == SubscriptionProxyRoute.CHAT_COMPLETIONS &&
+            SubscriptionProxyRoute.RESPONSES in request.model.supportedRoutes &&
+            shouldBridgeResponsesModel(request.model.upstreamId)
     }
 
     private fun prefixedFallbackModel(localId: String, route: SubscriptionProxyRoute): SubscriptionProxyModel? {
@@ -102,7 +142,7 @@ class GitHubCopilotSubscriptionProxyProvider(
             PassThroughSubscriptionProxyProvider.ModelMapping(
                 localId = PREFIX + model.id,
                 upstreamId = model.id,
-                supportedRoutes = model.supportedRoutes,
+                supportedRoutes = localSupportedRoutes(model),
                 supportsFunctionCalling = model.supportsFunctionCalling,
                 supportsToolChoice = true,
                 supportsVision = model.supportsVision,
@@ -113,19 +153,203 @@ class GitHubCopilotSubscriptionProxyProvider(
         }
     }
 
+    private fun localSupportedRoutes(model: RemoteModel): Set<SubscriptionProxyRoute> {
+        return if (SubscriptionProxyRoute.RESPONSES in model.supportedRoutes && shouldBridgeResponsesModel(model.id)) {
+            model.supportedRoutes + SubscriptionProxyRoute.CHAT_COMPLETIONS
+        } else {
+            model.supportedRoutes
+        }
+    }
+
+    private fun SubscriptionProxyRequest.bodyWithUpstreamModel(): JsonObject {
+        return buildJsonObject {
+            body.forEach { (key, value) ->
+                put(key, if (key == "model") JsonPrimitive(model.upstreamId) else value)
+            }
+            if ("model" !in body) put("model", model.upstreamId)
+        }
+    }
+
     @OptIn(ExperimentalTime::class)
     private fun remoteModels(): List<RemoteModel> {
         val now = Clock.System.now()
-        val cached = modelCache
-        if (cached != null && now - cached.fetchedAt < CACHE_TTL) {
+        val cached = modelCache ?: loadPersistedModelCache(now)
+        if (cached != null && now - cached.fetchedAt < modelCacheTtl) {
             return cached.models
         }
         val token = accessTokenProvider().trimmedOrNull() ?: return emptyList()
-        val models = runCatching { fetchModels(token) }.getOrDefault(emptyList())
-        if (models.isNotEmpty()) {
-            modelCache = ModelCache(models, now)
+        val fetched = runCatching { fetchModels(token) }.getOrDefault(emptyList())
+        if (fetched.isEmpty()) {
+            if (cached != null) modelCache = cached.copy(fetchedAt = now)
+            return cached?.models.orEmpty()
         }
-        return models
+
+        if (cached == null) {
+            cacheModels(fetched, now)
+            return fetched
+        }
+
+        val fetchedIds = fetched.mapTo(mutableSetOf()) { it.id }
+        val missingCachedModels = cached.models.filter { it.id !in fetchedIds }
+        if (missingCachedModels.isEmpty()) {
+            clearMissingModelRetry()
+            cacheModels(fetched, now)
+            return fetched
+        }
+
+        val protectedModels = mergeModels(fetched, missingCachedModels)
+        modelCache = ModelCache(protectedModels, now)
+        startMissingModelRetry(token, missingCachedModels, fetched)
+        return protectedModels
+    }
+
+    @OptIn(ExperimentalTime::class)
+    private fun loadPersistedModelCache(now: Instant): ModelCache? {
+        val models = loadPersistedModels()
+        if (models.isEmpty()) return null
+        return ModelCache(models, now - modelCacheTtl)
+    }
+
+    @OptIn(ExperimentalTime::class)
+    private fun cacheModels(models: List<RemoteModel>, fetchedAt: Instant = Clock.System.now()) {
+        modelCache = ModelCache(models, fetchedAt)
+        savePersistedModels(models)
+    }
+
+    private fun loadPersistedModels(): List<RemoteModel> {
+        val raw = runCatching { persistentModelCacheProvider() }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: return emptyList()
+        val root = JsonHelper.parseToJsonElementOrNull(raw) as? JsonObject ?: return emptyList()
+        val models = root["models"] as? JsonArray ?: return emptyList()
+        return models.mapNotNull { parseCachedRemoteModel(it) }
+            .filter { it.supportedRoutes.isNotEmpty() }
+            .distinctBy { it.id }
+    }
+
+    private fun savePersistedModels(models: List<RemoteModel>) {
+        val payload = buildJsonObject {
+            put("version", 1)
+            put(
+                "models",
+                JsonArray(models.map { model ->
+                    buildJsonObject {
+                        put("id", model.id)
+                        put("supportedRoutes", JsonArray(model.supportedRoutes.map { JsonPrimitive(it.normalizedPath) }))
+                        put("supportsFunctionCalling", model.supportsFunctionCalling)
+                        put("supportsVision", model.supportsVision)
+                        model.maxInputTokens?.let { put("maxInputTokens", it) }
+                        model.maxOutputTokens?.let { put("maxOutputTokens", it) }
+                        put("isDefault", model.isDefault)
+                    }
+                }),
+            )
+        }
+        runCatching { persistentModelCacheSaver(JsonHelper.encodeToString(payload)) }
+    }
+
+    private fun parseCachedRemoteModel(element: JsonElement): RemoteModel? {
+        val item = element as? JsonObject ?: return null
+        val id = stringField(item, "id") ?: return null
+        val routes = (item["supportedRoutes"] as? JsonArray)
+            ?.mapNotNull { route -> routeForStorageValue((route as? JsonPrimitive)?.contentOrNull) }
+            ?.toSet()
+            .orEmpty()
+        return RemoteModel(
+            id = id,
+            supportedRoutes = routes,
+            supportsFunctionCalling = boolField(item, "supportsFunctionCalling") ?: true,
+            supportsVision = boolField(item, "supportsVision") ?: false,
+            maxInputTokens = intField(item, "maxInputTokens"),
+            maxOutputTokens = intField(item, "maxOutputTokens"),
+            isDefault = boolField(item, "isDefault") ?: false,
+        )
+    }
+
+    private fun mergeModels(fetched: List<RemoteModel>, cachedModels: List<RemoteModel>): List<RemoteModel> {
+        val merged = LinkedHashMap<String, RemoteModel>()
+        fetched.forEach { model -> merged[model.id] = model }
+        cachedModels.forEach { model -> merged.putIfAbsent(model.id, model) }
+        return merged.values.toList()
+    }
+
+    @OptIn(ExperimentalTime::class)
+    private fun startMissingModelRetry(token: String, missingModels: List<RemoteModel>, firstFetched: List<RemoteModel>) {
+        val missingIds = missingModels.mapTo(mutableSetOf()) { it.id }
+        val retry = synchronized(missingModelRetryLock) {
+            val active = missingModelRetry
+            if (active != null && active.missingIds == missingIds) return
+            val next = MissingModelRetry(missingIds, MODEL_RETRY_SEQUENCE.incrementAndGet())
+            missingModelRetry = next
+            next
+        }
+        Thread {
+            retryMissingModels(token, retry, missingModels, firstFetched)
+        }.apply {
+            isDaemon = true
+            name = "github-copilot-model-retry-${retry.sequence}"
+            start()
+        }
+    }
+
+    @OptIn(ExperimentalTime::class)
+    private fun retryMissingModels(
+        token: String,
+        retry: MissingModelRetry,
+        missingModels: List<RemoteModel>,
+        firstFetched: List<RemoteModel>,
+    ) {
+        val stillMissingIds = retry.missingIds.toMutableSet()
+        val confirmedModels = LinkedHashMap<String, RemoteModel>()
+        var successfulRetries = 0
+        var latestFetched = firstFetched
+        for (delay in missingModelRetryDelays) {
+            if (!isActiveRetry(retry)) return
+            Thread.sleep(delay.toMillis())
+            if (!isActiveRetry(retry)) return
+            val fetched = runCatching { fetchModels(token) }.getOrDefault(emptyList())
+            if (fetched.isEmpty()) continue
+            successfulRetries++
+            latestFetched = fetched
+            fetched.forEach { model ->
+                if (model.id in stillMissingIds) {
+                    stillMissingIds.remove(model.id)
+                    confirmedModels[model.id] = model
+                }
+            }
+            if (stillMissingIds.isEmpty()) {
+                cacheModels(mergeModels(fetched, confirmedModels.values.toList()))
+                finishMissingModelRetry(retry)
+                return
+            }
+        }
+        if (isActiveRetry(retry)) {
+            val cachedConfirmedModels = missingModels.filter { it.id !in stillMissingIds && it.id !in confirmedModels }
+            val unconfirmedMissingModels = if (successfulRetries < missingModelRetryDelays.size) {
+                missingModels.filter { it.id in stillMissingIds }
+            } else {
+                emptyList()
+            }
+            cacheModels(
+                mergeModels(latestFetched, confirmedModels.values.toList() + cachedConfirmedModels + unconfirmedMissingModels),
+            )
+            finishMissingModelRetry(retry)
+        }
+    }
+
+    private fun isActiveRetry(retry: MissingModelRetry): Boolean = missingModelRetry === retry
+
+    private fun clearMissingModelRetry() {
+        synchronized(missingModelRetryLock) {
+            missingModelRetry = null
+        }
+    }
+
+    private fun finishMissingModelRetry(retry: MissingModelRetry) {
+        synchronized(missingModelRetryLock) {
+            if (missingModelRetry === retry) missingModelRetry = null
+        }
     }
 
     private fun fetchModels(token: String): List<RemoteModel> {
@@ -255,6 +479,63 @@ class GitHubCopilotSubscriptionProxyProvider(
         return JsonHelper.encodeToString(normalized)
     }
 
+    private fun responsesChatBody(body: MutableJsonObject) {
+        body.remove("store")
+        val model = (body.get("model") as? JsonPrimitive)?.contentOrNull.orEmpty()
+        if (model.startsWith("gpt-")) {
+            body.remove("max_output_tokens")
+        }
+    }
+
+    private fun sendResponsesForChatCompletion(
+        payload: String,
+        requestId: String,
+        @Suppress("UNUSED_PARAMETER") promptCacheKey: String?,
+    ): HttpResponse<InputStream> {
+        val token = accessTokenProvider().trimmedOrNull() ?: error("$DISPLAY_NAME login required.")
+        var response = sendResponsesRequest(payload, requestId, token)
+        if (response.statusCode() == 401) {
+            val refreshed = refreshAfterUnauthorized(token)
+            if (refreshed != null) {
+                runCatching { response.body().close() }
+                response = sendResponsesRequest(payload, requestId, refreshed)
+            }
+        }
+        return response
+    }
+
+    private fun sendResponsesRequest(payload: String, requestId: String, accessToken: String): HttpResponse<InputStream> {
+        val headers = linkedMapOf(
+            "Authorization" to "Bearer $accessToken",
+            "Accept" to "application/json",
+            "User-Agent" to USER_AGENT,
+            "Copilot-Integration-Id" to COPILOT_INTEGRATION_ID,
+            "Editor-Version" to EDITOR_VERSION,
+            "Editor-Plugin-Version" to EDITOR_PLUGIN_VERSION,
+            "X-GitHub-Api-Version" to API_VERSION,
+            "Openai-Intent" to "conversation-edits",
+            "x-initiator" to "user",
+            "Content-Type" to JsonHelper.JSON_CONTENT_TYPE,
+        )
+        if (containsImageInput(JsonHelper.parseToJsonElementOrNull(payload))) {
+            headers["Copilot-Vision-Request"] = "true"
+        }
+        val targetUrl = UrlResolver.resolveTargetUrl("/responses", upstreamBaseUri.toString())
+        val builder = HttpRequest.newBuilder(URI.create(targetUrl))
+            .timeout(Duration.ofSeconds(30))
+        headers.forEach { (name, value) -> builder.header(name, value) }
+        requestLogger.logUpstreamRequest(requestId, "POST", "/responses", headers, payload)
+        return httpClient.send(builder.POST(HttpRequest.BodyPublishers.ofString(payload)).build(), HttpResponse.BodyHandlers.ofInputStream())
+    }
+
+    private fun refreshAfterUnauthorized(staleToken: String): String? {
+        return try {
+            tokenRefresher(staleToken).trimmedOrNull()?.takeIf { it != staleToken }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private data class RemoteModel(
         val id: String,
         val supportedRoutes: Set<SubscriptionProxyRoute>,
@@ -270,11 +551,17 @@ class GitHubCopilotSubscriptionProxyProvider(
         val fetchedAt: Instant,
     )
 
+    private data class MissingModelRetry(
+        val missingIds: Set<String>,
+        val sequence: Long,
+    )
+
     companion object {
         const val ID = "github"
         const val PREFIX = "gh-"
         private const val OPENCODE_PROVIDER_PREFIX = "github-copilot/"
         private const val DISPLAY_NAME = "GitHub Copilot"
+        private const val DEFAULT_RESPONSES_INSTRUCTIONS = "You are a coding assistant."
         private const val LITELLM_PROVIDER = "github_copilot"
         private const val USER_AGENT = "GitHubCopilotChat/0.26.7"
         private const val COPILOT_INTEGRATION_ID = "vscode-chat"
@@ -284,9 +571,13 @@ class GitHubCopilotSubscriptionProxyProvider(
         private val OPENAI_CHAT_ENVELOPE_FIELDS = setOf("id", "object", "created", "model", "choices")
         private val UNSUPPORTED_MESSAGES_BODY_FIELDS = setOf("context_management", "output_config", "thinking")
         val DEFAULT_UPSTREAM_BASE_URI: URI = URI.create("https://api.githubcopilot.com")
-        private val CACHE_TTL = 5.minutes
+        private val DEFAULT_CACHE_TTL = 5.minutes
+        private val DEFAULT_MISSING_MODEL_RETRY_DELAYS: List<Duration> = List(10) { index ->
+            Duration.ofMillis(1_000L shl index)
+        }
         private val DEFAULT_REQUEST_LOG_DIR = System.getProperty("java.io.tmpdir") +
                 "/openai-usage-quota-intellij/subscription-proxy-github-requests"
+        private val MODEL_RETRY_SEQUENCE = AtomicLong()
 
         private fun String?.trimmedOrNull(): String? = this?.trim()?.takeIf { it.isNotBlank() }
 
@@ -334,10 +625,18 @@ class GitHubCopilotSubscriptionProxyProvider(
             return mediaTypes.any { (it as? JsonPrimitive)?.contentOrNull?.startsWith("image/") == true }
         }
 
+        private fun routeForStorageValue(value: String?): SubscriptionProxyRoute? {
+            return SubscriptionProxyRoute.entries.firstOrNull { route ->
+                value == route.normalizedPath || value == route.upstreamPath || value == "/v1${route.normalizedPath}"
+            }
+        }
+
         private fun shouldUseResponsesApi(modelId: String): Boolean {
             val major = GPT_MAJOR_REGEX.find(modelId)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: return false
             return major >= 5 && !modelId.startsWith("gpt-5-mini")
         }
+
+        private fun shouldBridgeResponsesModel(modelId: String): Boolean = shouldUseResponsesApi(modelId)
 
         private val GPT_MAJOR_REGEX = Regex("^gpt-(\\d+)")
 

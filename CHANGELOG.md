@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 - Improved subscription proxy client compatibility by stripping unsupported Kimi chat temperatures, accepting string input on OpenAI/Codex `/v1/responses`, preserving GitHub Copilot GPT response fallbacks without output caps, and emulating chat stop sequences for SuperGrok.
+- Cached the GitHub Copilot proxy model catalog across proxy restarts while keeping missing-model retry state in-process, so transient discovery drops are retried in the background before models are evicted.
+- Added a shared Responses-backed chat-completions bridge and enabled it for GitHub Copilot GPT models that only expose `/responses` upstream.
+- Adjusted Ollama proxy model metadata so models observed without reliable tool-call support are not advertised as function-calling capable to Junie and other LiteLLM-style clients.
 
 ## [1.4.4] - 2026-06-22
 - GitHub Copilot proxy discovery now sends Copilot-compatible integration headers, advertises picker-visible non-Anthropic models on `/v1/models`, and keeps Claude models available through `/v1/model/info` and `/v1/messages`.

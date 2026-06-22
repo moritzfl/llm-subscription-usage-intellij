@@ -11,8 +11,12 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Files
+import java.time.Duration
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration.Companion.minutes
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -198,6 +202,69 @@ class GitHubCopilotSubscriptionProxyProviderTest {
     }
 
     @Test
+    fun bridgesResponsesOnlyGptChatCompletionsToResponsesApi() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"gh-gpt-5.4-mini\",\"max_tokens\":16,\"messages\":[{\"role\":\"system\",\"content\":\"be brief\"},{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    bearer = true,
+                )
+
+                assertEquals(200, response.statusCode())
+                assertTrue(response.body().contains("\"object\":\"chat.completion\""), response.body())
+                assertTrue(response.body().contains("hi from responses"), response.body())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
+                val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/responses", inference.path)
+                assertEquals("Bearer github-token", inference.firstHeader("Authorization"))
+                assertEquals("vscode-chat", inference.firstHeader("Copilot-Integration-Id"))
+                assertEquals("conversation-edits", inference.firstHeader("Openai-Intent"))
+                assertTrue(inference.body.contains("\"model\":\"gpt-5.4-mini\""), inference.body)
+                assertTrue(inference.body.contains("\"input\""), inference.body)
+                assertTrue(inference.body.contains("\"instructions\":\"be brief\""), inference.body)
+                assertFalse(inference.body.contains("\"messages\""), inference.body)
+                assertFalse(inference.body.contains("max_output_tokens"), inference.body)
+                assertFalse(inference.body.contains("\"store\""), inference.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun bridgesResponsesOnlyGptStreamingChatCompletionsToResponsesApi() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"gh-gpt-5.4-mini\",\"stream\":true,\"stream_options\":{\"include_usage\":true},\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    bearer = true,
+                )
+
+                assertEquals(200, response.statusCode())
+                assertTrue(response.headers().firstValue("Content-Type").orElse("").contains("text/event-stream"))
+                assertTrue(response.body().contains("\"object\":\"chat.completion.chunk\""), response.body())
+                assertTrue(response.body().contains("hi from responses"), response.body())
+                assertTrue(response.body().contains("data: [DONE]"), response.body())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
+                val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/responses", inference.path)
+                assertTrue(inference.body.contains("\"stream\":true"), inference.body)
+                assertTrue(inference.body.contains("\"model\":\"gpt-5.4-mini\""), inference.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun rejectsAnthropicModelsOnOpenAiChatCompletionsRoute() {
         TestUpstream().use { upstream ->
             val proxy = newProxy(upstream.baseUri)
@@ -271,7 +338,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     .jsonObject["model_info"]!!.jsonObject
                 val gptEndpoints = gptInfo["supported_endpoints"]!!.jsonArray.map { it.jsonPrimitive.content }
                 assertTrue("/v1/responses" in gptEndpoints)
-                assertFalse("/v1/chat/completions" in gptEndpoints)
+                assertTrue("/v1/chat/completions" in gptEndpoints)
                 assertFalse(gptInfo["supports_anthropic_messages"]!!.jsonPrimitive.content.toBoolean())
             } finally {
                 proxy.stop()
@@ -279,11 +346,172 @@ class GitHubCopilotSubscriptionProxyProviderTest {
         }
     }
 
-    private fun newProxy(upstreamBaseUri: URI): TestProxy {
+    @Test
+    fun usesPersistedCatalogAcrossProxyRestartsBeforeEvictingMissingModels() {
+        val fullCatalog = modelsBody(
+            listOf(
+                copilotModel("gpt-5-mini", family = "gpt-mini"),
+                copilotModel("gpt-5.4-mini", family = "gpt-mini", endpoints = listOf("/responses")),
+            ),
+        )
+        val reducedCatalog = modelsBody(listOf(copilotModel("gpt-5-mini", family = "gpt-mini")))
+        val modelRequests = AtomicInteger()
+        val retryRequests = CountDownLatch(10)
+        var persistedCatalog: String? = null
+        TestUpstream(modelsBodyProvider = {
+            val requestNumber = modelRequests.incrementAndGet()
+            if (requestNumber >= 3) retryRequests.countDown()
+            if (requestNumber == 1) fullCatalog else reducedCatalog
+        }).use { upstream ->
+            val firstProxy = newProxy(
+                upstream.baseUri,
+                persistentModelCacheProvider = { persistedCatalog },
+                persistentModelCacheSaver = { persistedCatalog = it },
+            )
+            try {
+                firstProxy.start()
+                assertTrue("gh-gpt-5.4-mini" in modelInfoIds(get(firstProxy.port, "/v1/model/info")))
+            } finally {
+                firstProxy.stop()
+            }
+
+            val restartedProxy = newProxy(
+                upstream.baseUri,
+                persistentModelCacheProvider = { persistedCatalog },
+                persistentModelCacheSaver = { persistedCatalog = it },
+                missingModelRetryDelays = List(10) { Duration.ZERO },
+            )
+            try {
+                restartedProxy.start()
+
+                assertTrue("gh-gpt-5.4-mini" in modelInfoIds(get(restartedProxy.port, "/v1/model/info")))
+                assertTrue(retryRequests.await(2, TimeUnit.SECONDS), "background model retries did not complete")
+                assertTrue(waitUntil { "gh-gpt-5.4-mini" !in modelInfoIds(get(restartedProxy.port, "/v1/model/info")) })
+            } finally {
+                restartedProxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun stopsBackgroundRetriesWhenMissingModelReappears() {
+        val fullCatalog = modelsBody(
+            listOf(
+                copilotModel("gpt-5-mini", family = "gpt-mini"),
+                copilotModel("gpt-5.4-mini", family = "gpt-mini", endpoints = listOf("/responses")),
+            ),
+        )
+        val reducedCatalog = modelsBody(listOf(copilotModel("gpt-5-mini", family = "gpt-mini")))
+        val modelRequests = AtomicInteger()
+        val firstRetry = CountDownLatch(1)
+        var persistedCatalog: String? = null
+        TestUpstream(modelsBodyProvider = {
+            val requestNumber = modelRequests.incrementAndGet()
+            if (requestNumber >= 3) firstRetry.countDown()
+            when (requestNumber) {
+                1 -> fullCatalog
+                2 -> reducedCatalog
+                else -> fullCatalog
+            }
+        }).use { upstream ->
+            val firstProxy = newProxy(
+                upstream.baseUri,
+                persistentModelCacheProvider = { persistedCatalog },
+                persistentModelCacheSaver = { persistedCatalog = it },
+            )
+            try {
+                firstProxy.start()
+                assertTrue("gh-gpt-5.4-mini" in modelInfoIds(get(firstProxy.port, "/v1/model/info")))
+            } finally {
+                firstProxy.stop()
+            }
+
+            val restartedProxy = newProxy(
+                upstream.baseUri,
+                persistentModelCacheProvider = { persistedCatalog },
+                persistentModelCacheSaver = { persistedCatalog = it },
+                missingModelRetryDelays = List(10) { Duration.ZERO },
+            )
+            try {
+                restartedProxy.start()
+
+                assertTrue("gh-gpt-5.4-mini" in modelInfoIds(get(restartedProxy.port, "/v1/model/info")))
+                assertTrue(firstRetry.await(2, TimeUnit.SECONDS), "background model retry did not run")
+                Thread.sleep(100)
+                assertEquals(3, modelRequests.get())
+            } finally {
+                restartedProxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun keepsMissingModelsWhenBackgroundRetriesCannotConfirmCatalog() {
+        val fullCatalog = modelsBody(
+            listOf(
+                copilotModel("gpt-5-mini", family = "gpt-mini"),
+                copilotModel("gpt-5.4-mini", family = "gpt-mini", endpoints = listOf("/responses")),
+            ),
+        )
+        val reducedCatalog = modelsBody(listOf(copilotModel("gpt-5-mini", family = "gpt-mini")))
+        val emptyCatalog = modelsBody(emptyList())
+        val modelRequests = AtomicInteger()
+        val retryRequests = CountDownLatch(10)
+        var persistedCatalog: String? = null
+        TestUpstream(modelsBodyProvider = {
+            val requestNumber = modelRequests.incrementAndGet()
+            if (requestNumber >= 3) retryRequests.countDown()
+            when (requestNumber) {
+                1 -> fullCatalog
+                2 -> reducedCatalog
+                else -> emptyCatalog
+            }
+        }).use { upstream ->
+            val firstProxy = newProxy(
+                upstream.baseUri,
+                persistentModelCacheProvider = { persistedCatalog },
+                persistentModelCacheSaver = { persistedCatalog = it },
+            )
+            try {
+                firstProxy.start()
+                assertTrue("gh-gpt-5.4-mini" in modelInfoIds(get(firstProxy.port, "/v1/model/info")))
+            } finally {
+                firstProxy.stop()
+            }
+
+            val restartedProxy = newProxy(
+                upstream.baseUri,
+                persistentModelCacheProvider = { persistedCatalog },
+                persistentModelCacheSaver = { persistedCatalog = it },
+                missingModelRetryDelays = List(10) { Duration.ZERO },
+            )
+            try {
+                restartedProxy.start()
+
+                assertTrue("gh-gpt-5.4-mini" in modelInfoIds(get(restartedProxy.port, "/v1/model/info")))
+                assertTrue(retryRequests.await(2, TimeUnit.SECONDS), "background model retries did not complete")
+                assertTrue("gh-gpt-5.4-mini" in modelInfoIds(get(restartedProxy.port, "/v1/model/info")))
+            } finally {
+                restartedProxy.stop()
+            }
+        }
+    }
+
+    private fun newProxy(
+        upstreamBaseUri: URI,
+        persistentModelCacheProvider: () -> String? = { null },
+        persistentModelCacheSaver: (String?) -> Unit = {},
+        missingModelRetryDelays: List<Duration> = emptyList(),
+        modelCacheTtl: kotlin.time.Duration = 5.minutes,
+    ): TestProxy {
         val port = freePort()
         val provider = GitHubCopilotSubscriptionProxyProvider(
             accessTokenProvider = { "github-token" },
             upstreamBaseUri = upstreamBaseUri,
+            persistentModelCacheProvider = persistentModelCacheProvider,
+            persistentModelCacheSaver = persistentModelCacheSaver,
+            missingModelRetryDelays = missingModelRetryDelays,
+            modelCacheTtl = modelCacheTtl,
             requestLogDir = Files.createTempDirectory("github-subscription-proxy-test-logs").toString(),
         )
         return TestProxy(
@@ -295,6 +523,20 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 requestLogDir = Files.createTempDirectory("subscription-proxy-test-logs").toString(),
             ),
         )
+    }
+
+    private fun modelInfoIds(response: HttpResponse<String>): List<String> {
+        return JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
+            .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+    }
+
+    private fun waitUntil(timeoutMillis: Long = 2_000, predicate: () -> Boolean): Boolean {
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
+        while (System.nanoTime() < deadline) {
+            if (predicate()) return true
+            Thread.sleep(10)
+        }
+        return predicate()
     }
 
     private fun get(port: Int, path: String): HttpResponse<String> {
@@ -333,7 +575,9 @@ class GitHubCopilotSubscriptionProxyProviderTest {
         fun stop() = server.stop()
     }
 
-    private class TestUpstream : AutoCloseable {
+    private class TestUpstream(
+        private val modelsBodyProvider: () -> String = { modelsBody(copilotModels) },
+    ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
         private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
@@ -347,7 +591,9 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     body = body,
                 )
                 val responseBody = if (exchange.requestURI.rawPath == "/models") {
-                    "{\"data\":[" + copilotModels.joinToString(",") + "]}"
+                    modelsBodyProvider()
+                } else if (exchange.requestURI.rawPath == "/responses" && body.contains("\"stream\":true")) {
+                    responsesStreamBody()
                 } else if (body.contains("\"stream\":true")) {
                     "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\",\"content\":\"hi\"},\"index\":0}]}\n\n" +
                             "data: {\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"total_tokens\":2}}\n\n" +
@@ -415,6 +661,14 @@ class GitHubCopilotSubscriptionProxyProviderTest {
             copilotModel("gpt-5.5", family = "gpt", pickerEnabled = false),
             copilotModel("disabled-model", family = "test", disabled = true),
         )
+
+        private fun modelsBody(models: List<String>): String = "{\"data\":[" + models.joinToString(",") + "]}"
+
+        private fun responsesStreamBody(): String {
+            return "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hi from responses\"}\n\n" +
+                    "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"hi from responses\"}]}],\"usage\":{\"input_tokens\":1,\"output_tokens\":2,\"total_tokens\":3}}}\n\n" +
+                    "data: [DONE]\n\n"
+        }
 
         private fun copilotModel(
             id: String,
