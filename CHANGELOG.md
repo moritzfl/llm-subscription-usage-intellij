@@ -1,6 +1,8 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+
+## [1.4.5] - 2026-06-22
 - Improved subscription proxy client compatibility by stripping unsupported Kimi chat temperatures, accepting string input on OpenAI/Codex `/v1/responses`, preserving GitHub Copilot GPT response fallbacks without output caps, and emulating chat stop sequences for SuperGrok.
 - Cached the GitHub Copilot proxy model catalog across proxy restarts while keeping missing-model retry state in-process, so transient discovery drops are retried in the background before models are evicted.
 - Added a shared Responses-backed chat-completions bridge and enabled it for GitHub Copilot GPT models that only expose `/responses` upstream.
