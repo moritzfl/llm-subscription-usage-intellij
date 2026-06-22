@@ -39,6 +39,7 @@
 - The local proxy should preserve compatibility for `/v1/chat/completions`, `/v1/responses`, `/v1/models`, `/v1/model/info`, and their unprefixed route variants where supported.
 - OpenAI/Codex model discovery is not authoritative enough for the advertised proxy list. Keep the curated OpenAI/Codex list aligned with the Codex UI unless a better authoritative endpoint is found.
 - For providers with usable official model endpoints, such as SuperGrok/xAI and GitHub Copilot, prefer live discovery over hardcoded model fallbacks.
+- `models.dev` may be used as a model catalog only when it explicitly separates subscription providers from API-key providers and the subscription provider has no usable first-party endpoint for discovering current subscription model IDs.
 - When no provider-declared default exists, choose a default from advertised models by taking the alphabetically latest model id rather than hardcoding a recommendation.
 - New proxy providers usually need settings support, `OpenAiProxyService` wiring, provider enablement defaults, status reporting, and tests.
 
