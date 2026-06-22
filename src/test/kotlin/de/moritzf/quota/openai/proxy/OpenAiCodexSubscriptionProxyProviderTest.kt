@@ -87,6 +87,13 @@ class OpenAiCodexSubscriptionProxyProviderTest {
                 assertEquals("/backend-api/codex/responses", request.path)
                 val upstreamBody = JsonHelper.JSON.parseToJsonElement(request.body).jsonObject
                 assertEquals("gpt-5.6", upstreamBody["model"]!!.jsonPrimitive.content)
+                val input = upstreamBody["input"]!!.jsonArray
+                assertEquals("message", input[0].jsonObject["type"]!!.jsonPrimitive.content)
+                assertEquals("user", input[0].jsonObject["role"]!!.jsonPrimitive.content)
+                assertEquals(
+                    "Say pong",
+                    input[0].jsonObject["content"]!!.jsonArray[0].jsonObject["text"]!!.jsonPrimitive.content,
+                )
             } finally {
                 proxy.stop()
             }

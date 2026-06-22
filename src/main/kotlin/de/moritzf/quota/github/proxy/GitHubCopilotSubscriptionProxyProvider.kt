@@ -2,6 +2,7 @@ package de.moritzf.quota.github.proxy
 
 import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.proxy.server.JsonHelper
+import de.moritzf.proxy.server.remove
 import de.moritzf.proxy.subscription.PassThroughSubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyModel
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
@@ -218,6 +219,9 @@ class GitHubCopilotSubscriptionProxyProvider(
     }
 
     private fun requestBody(request: SubscriptionProxyRequest, body: JsonObject): JsonObject {
+        if (request.route == SubscriptionProxyRoute.RESPONSES && request.model.upstreamId.startsWith("gpt-")) {
+            return body.remove("max_output_tokens")
+        }
         if (request.route != SubscriptionProxyRoute.ANTHROPIC_MESSAGES) return body
         return buildJsonObject {
             body.forEach { (key, value) ->

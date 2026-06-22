@@ -2,6 +2,7 @@ package de.moritzf.quota.kimi.proxy
 
 import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.proxy.server.JsonHelper
+import de.moritzf.proxy.server.remove
 import de.moritzf.proxy.subscription.PassThroughSubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyModel
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
@@ -44,6 +45,7 @@ class KimiSubscriptionProxyProvider(
         tokenRefresher = ::refreshAfterUnauthorized,
         modelMappingsProvider = ::modelMappings,
         defaultHeaders = defaultHeaders(),
+        requestBodyTransformer = ::chatRequestBody,
         httpClient = httpClient,
         requestLogger = requestLogger,
     )
@@ -98,6 +100,11 @@ class KimiSubscriptionProxyProvider(
             SubscriptionProxyRoute.CHAT_COMPLETIONS,
             SubscriptionProxyRoute.RESPONSES -> chatDelegate.handle(ctx, request)
         }
+    }
+
+    private fun chatRequestBody(request: SubscriptionProxyRequest, body: JsonObject): JsonObject {
+        if (request.route != SubscriptionProxyRoute.CHAT_COMPLETIONS) return body
+        return body.remove("temperature")
     }
 
     private fun accessToken(): String? {

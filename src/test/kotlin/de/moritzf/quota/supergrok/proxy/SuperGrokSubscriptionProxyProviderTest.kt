@@ -125,6 +125,40 @@ class SuperGrokSubscriptionProxyProviderTest {
         }
     }
 
+    @Test
+    fun omitsUnsupportedChatStopAndTruncatesResponse() {
+        TestUpstream(
+            inferenceBody = "{\"id\":\"chatcmpl_1\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"before</COMMAND> after\"},\"finish_reason\":\"stop\"}]}",
+        ).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"sg-grok-4.3\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"stop\":[\"</COMMAND>\"]}",
+                )
+
+                assertEquals(200, response.statusCode())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
+                val inferenceRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/chat/completions", inferenceRequest.path)
+                assertTrue(!inferenceRequest.body.contains("\"stop\""), inferenceRequest.body)
+
+                val responseJson = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject
+                val choice = responseJson["choices"]!!.jsonArray[0].jsonObject
+                assertEquals(
+                    "before",
+                    choice["message"]!!.jsonObject["content"]!!.jsonPrimitive.content,
+                )
+                assertEquals("stop", choice["finish_reason"]!!.jsonPrimitive.content)
+                assertEquals("</COMMAND>", choice["finish_details"]!!.jsonObject["stop"]!!.jsonPrimitive.content)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
     private fun newProxy(upstreamBaseUri: URI): TestProxy {
         val port = freePort()
         val provider = SuperGrokSubscriptionProxyProvider(
@@ -171,6 +205,7 @@ class SuperGrokSubscriptionProxyProviderTest {
 
     private class TestUpstream(
         private val modelsBody: String = "{\"object\":\"list\",\"data\":[{\"id\":\"grok-4.3\"}]}",
+        private val inferenceBody: String = "{\"id\":\"resp_1\",\"output\":[]}",
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
         private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
@@ -187,7 +222,7 @@ class SuperGrokSubscriptionProxyProviderTest {
                 val responseBody = if (exchange.requestURI.rawPath.endsWith("/models")) {
                     modelsBody
                 } else {
-                    "{\"id\":\"resp_1\",\"output\":[]}"
+                    inferenceBody
                 }
                 val response = responseBody.toByteArray(Charsets.UTF_8)
                 exchange.responseHeaders.set("Content-Type", "application/json")

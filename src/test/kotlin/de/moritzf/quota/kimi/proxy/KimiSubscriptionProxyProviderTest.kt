@@ -202,6 +202,30 @@ class KimiSubscriptionProxyProviderTest {
         }
     }
 
+    @Test
+    fun omitsUnsupportedChatTemperature() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream)
+            try {
+                proxy.server.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"ki-kimi-for-coding\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"temperature\":0}",
+                )
+
+                assertEquals(200, response.statusCode())
+                assertEquals("/coding/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/coding/v1/chat/completions", request.path)
+                assertTrue(request.body.contains("\"model\":\"kimi-for-coding\""), request.body)
+                assertTrue(!request.body.contains("temperature"), request.body)
+            } finally {
+                proxy.server.stop()
+            }
+        }
+    }
+
     private fun newProxy(upstream: TestUpstream, modelsDevCatalogUri: URI? = null): TestProxy {
         val port = freePort()
         val provider = KimiSubscriptionProxyProvider(

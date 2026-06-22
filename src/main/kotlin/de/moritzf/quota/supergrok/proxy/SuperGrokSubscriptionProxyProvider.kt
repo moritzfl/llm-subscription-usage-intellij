@@ -2,6 +2,9 @@ package de.moritzf.quota.supergrok.proxy
 
 import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.proxy.server.JsonHelper
+import de.moritzf.proxy.server.isTextual
+import de.moritzf.proxy.server.remove
+import de.moritzf.proxy.server.text
 import de.moritzf.proxy.subscription.PassThroughSubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyModel
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
@@ -23,7 +26,9 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.put
 
 class SuperGrokSubscriptionProxyProvider(
     private val accessTokenProvider: () -> String?,
@@ -47,6 +52,8 @@ class SuperGrokSubscriptionProxyProvider(
             "Accept" to "application/json",
             "User-Agent" to "openai-usage-quota-intellij",
         ),
+        requestBodyTransformer = ::requestBody,
+        jsonResponseTransformer = ::jsonResponse,
         httpClient = httpClient,
         requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir)),
     )
@@ -93,6 +100,50 @@ class SuperGrokSubscriptionProxyProvider(
                 isDefault = model.isDefault,
             )
         }
+    }
+
+    private fun requestBody(request: SubscriptionProxyRequest, body: JsonObject): JsonObject {
+        if (request.route != SubscriptionProxyRoute.CHAT_COMPLETIONS || body["stop"] == null) return body
+        return body.remove("stop")
+    }
+
+    private fun jsonResponse(request: SubscriptionProxyRequest, body: String): String {
+        if (request.route != SubscriptionProxyRoute.CHAT_COMPLETIONS || body.isBlank()) return body
+        val stopSequences = stopSequences(request.body)
+        if (stopSequences.isEmpty()) return body
+        val root = JsonHelper.parseToJsonElementOrNull(body) as? JsonObject ?: return body
+        val choices = root["choices"] as? JsonArray ?: return body
+        var changed = false
+        val updatedChoices = choices.map { choiceElement ->
+            val choice = choiceElement as? JsonObject ?: return@map choiceElement
+            val message = choice["message"] as? JsonObject ?: return@map choiceElement
+            val content = message["content"]
+            if (!content.isTextual()) return@map choiceElement
+            val cut = cutAtStopSequence(content.text, stopSequences) ?: return@map choiceElement
+            changed = true
+            val updatedMessage = buildJsonObject {
+                message.forEach { (key, value) ->
+                    put(key, if (key == "content") JsonPrimitive(cut.content) else value)
+                }
+            }
+            buildJsonObject {
+                choice.forEach { (key, value) ->
+                    if (key != "message" && key != "finish_reason" && key != "finish_details") put(key, value)
+                }
+                put("message", updatedMessage)
+                put("finish_reason", "stop")
+                put("finish_details", buildJsonObject {
+                    put("type", "stop")
+                    put("stop", cut.sequence)
+                })
+            }
+        }
+        if (!changed) return body
+        return JsonHelper.encodeToString(buildJsonObject {
+            root.forEach { (key, value) ->
+                put(key, if (key == "choices") JsonArray(updatedChoices) else value)
+            }
+        })
     }
 
     @OptIn(ExperimentalTime::class)
@@ -159,6 +210,8 @@ class SuperGrokSubscriptionProxyProvider(
         val fetchedAt: Instant,
     )
 
+    private data class StopCut(val content: String, val sequence: String)
+
     companion object {
         const val ID = "supergrok"
         const val PREFIX = "sg-"
@@ -171,5 +224,28 @@ class SuperGrokSubscriptionProxyProvider(
             "/openai-usage-quota-intellij/subscription-proxy-supergrok-requests"
 
         private fun String?.trimmedOrNull(): String? = this?.trim()?.takeIf { it.isNotBlank() }
+
+        private fun stopSequences(body: JsonObject): List<String> {
+            val stop = body["stop"] ?: return emptyList()
+            if (stop.isTextual() && stop.text.isNotEmpty()) return listOf(stop.text)
+            if (stop !is JsonArray) return emptyList()
+            return stop.mapNotNull { sequence ->
+                sequence.takeIf { it.isTextual() }?.text?.takeIf { it.isNotEmpty() }
+            }
+        }
+
+        private fun cutAtStopSequence(text: String, stopSequences: List<String>): StopCut? {
+            var earliestStart = -1
+            var firedSequence: String? = null
+            for (sequence in stopSequences) {
+                val start = text.indexOf(sequence)
+                if (start == -1) continue
+                if (earliestStart == -1 || start < earliestStart) {
+                    earliestStart = start
+                    firedSequence = sequence
+                }
+            }
+            return if (firedSequence != null) StopCut(text.substring(0, earliestStart), firedSequence) else null
+        }
     }
 }

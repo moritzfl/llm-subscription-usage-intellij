@@ -167,6 +167,7 @@ class ResponsesHandler {
                 instructionsProvider.instructionsForModel((normalized.get("model") as? JsonPrimitive)?.content ?: ""),
             )
         }
+        normalizeTextInput(normalized)
         if (normalized.get("store") == null) {
             normalized.put("store", config.store)
         }
@@ -190,6 +191,19 @@ class ResponsesHandler {
         }
         return normalized
     }
+
+    private fun normalizeTextInput(normalized: MutableJsonObject) {
+        val input = normalized.get("input")
+        if (!input.isTextual()) return
+        val content = createArrayNode()
+        content.add(createObjectNode().put("type", "input_text").put("text", input.text))
+        val message = createObjectNode()
+            .put("type", "message")
+            .put("role", "user")
+            .set("content", content)
+        normalized.set("input", createArrayNode().add(message))
+    }
+
     /**
      * The Codex backend rejects requests containing system-role input items
      * ("System messages are not allowed"). Clients such as Junie's Responses client
