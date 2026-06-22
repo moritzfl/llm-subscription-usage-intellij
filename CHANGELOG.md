@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+## [1.4.4] - 2026-06-22
 - GitHub Copilot proxy discovery now sends Copilot-compatible integration headers, advertises picker-visible non-Anthropic models on `/v1/models`, and keeps Claude models available through `/v1/model/info` and `/v1/messages`.
 
 ## [1.4.3] - 2026-06-22
