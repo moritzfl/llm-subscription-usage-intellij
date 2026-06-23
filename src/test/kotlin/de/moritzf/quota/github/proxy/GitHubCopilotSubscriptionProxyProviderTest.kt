@@ -324,6 +324,69 @@ class GitHubCopilotSubscriptionProxyProviderTest {
     }
 
     @Test
+    fun bridgesAnthropicToolCallsOnOpenAiChatCompletionsRoute() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"gh-claude-sonnet-4.6\",\"max_tokens\":64,\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Get weather\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}}],\"tool_choice\":\"auto\",\"messages\":[{\"role\":\"user\",\"content\":\"Use the tool for Berlin weather.\"}]}",
+                    bearer = true,
+                )
+
+                assertEquals(200, response.statusCode())
+                assertTrue(response.body().contains("\"finish_reason\":\"tool_calls\""), response.body())
+                assertTrue(response.body().contains("\"tool_calls\""), response.body())
+                assertTrue(response.body().contains("\"name\":\"get_weather\""), response.body())
+                val arguments = response.body().replace(" ", "")
+                assertTrue(arguments.contains("\\\"city\\\":\\\"Berlin\\\""), response.body())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
+                val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/messages", inference.path)
+                assertTrue(inference.body.contains("\"tools\""), inference.body)
+                assertTrue(inference.body.contains("\"input_schema\""), inference.body)
+                assertTrue(inference.body.contains("\"tool_choice\":{\"type\":\"auto\"}"), inference.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun bridgesStreamingAnthropicToolCallsOnOpenAiChatCompletionsRoute() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"gh-claude-sonnet-4.6\",\"stream\":true,\"max_tokens\":64,\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}}}}}],\"messages\":[{\"role\":\"user\",\"content\":\"Use the tool for Berlin weather.\"}]}",
+                    bearer = true,
+                )
+
+                assertEquals(200, response.statusCode())
+                assertTrue(response.body().contains("\"tool_calls\""), response.body())
+                assertTrue(response.body().contains("\"index\":0,\"id\":\"toolu_1\""), response.body())
+                assertTrue(response.body().contains("\"id\":\"toolu_1\""), response.body())
+                assertTrue(response.body().contains("\"name\":\"get_weather\""), response.body())
+                assertTrue(response.body().contains("\"arguments\":\"{\\\"city\\\":"), response.body())
+                assertTrue(response.body().contains("\"finish_reason\":\"tool_calls\""), response.body())
+                assertTrue(response.body().contains("data: [DONE]"), response.body())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
+                val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/messages", inference.path)
+                assertTrue(inference.body.contains("\"stream\":true"), inference.body)
+                assertTrue(inference.body.contains("\"tools\""), inference.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun acceptsAnthropicStyleLocalApiKeyForMessagesRoute() {
         TestUpstream().use { upstream ->
             val proxy = newProxy(upstream.baseUri)
@@ -630,6 +693,10 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     modelsBodyProvider()
                 } else if (exchange.requestURI.rawPath == "/responses" && body.contains("\"stream\":true")) {
                     responsesStreamBody()
+                } else if (exchange.requestURI.rawPath == "/v1/messages" && body.contains("\"tools\"") && body.contains("\"stream\":true")) {
+                    anthropicToolUseStreamBody()
+                } else if (exchange.requestURI.rawPath == "/v1/messages" && body.contains("\"tools\"")) {
+                    anthropicToolUseBody()
                 } else if (exchange.requestURI.rawPath == "/v1/messages" && body.contains("\"stream\":true")) {
                     anthropicStreamBody()
                 } else if (exchange.requestURI.rawPath == "/v1/messages") {
@@ -712,6 +779,34 @@ class GitHubCopilotSubscriptionProxyProviderTest {
 
         private fun anthropicMessageBody(): String {
             return "{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"hi from claude\"}],\"stop_reason\":\"end_turn\",\"usage\":{\"input_tokens\":1,\"output_tokens\":2}}"
+        }
+
+        private fun anthropicToolUseBody(): String {
+            return "{\"id\":\"msg_2\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"get_weather\",\"input\":{\"city\":\"Berlin\"}}],\"stop_reason\":\"tool_use\",\"usage\":{\"input_tokens\":1,\"output_tokens\":2}}"
+        }
+
+        private fun anthropicToolUseStreamBody(): String {
+            return "event: message_start\n" +
+                    "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_2\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[]}}\n\n" +
+                    "event: content_block_start\n" +
+                    "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n" +
+                    "event: content_block_delta\n" +
+                    "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Sure.\"}}\n\n" +
+                    "event: content_block_stop\n" +
+                    "data: {\"type\":\"content_block_stop\",\"index\":0}\n\n" +
+                    "event: content_block_start\n" +
+                    "data: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"get_weather\",\"input\":{}}}\n\n" +
+                    "event: content_block_delta\n" +
+                    "data: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"city\\\":\"}}\n\n" +
+                    "event: content_block_delta\n" +
+                    "data: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"\\\"Berlin\\\"}\"}}\n\n" +
+                    "event: content_block_stop\n" +
+                    "data: {\"type\":\"content_block_stop\",\"index\":1}\n\n" +
+                    "event: message_delta\n" +
+                    "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"tool_use\"}}\n\n" +
+                    "event: message_stop\n" +
+                    "data: {\"type\":\"message_stop\"}\n\n" +
+                    "data: [DONE]\n\n"
         }
 
         private fun anthropicStreamBody(): String {

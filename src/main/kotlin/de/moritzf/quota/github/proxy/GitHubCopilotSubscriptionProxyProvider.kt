@@ -21,6 +21,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.time.Duration
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
@@ -94,6 +95,7 @@ class GitHubCopilotSubscriptionProxyProvider(
 
     @Volatile
     private var modelCache: ModelCache? = null
+    private val streamToolCallIndexes = ConcurrentHashMap<String, MutableMap<Int, Int>>()
     private val missingModelRetryLock = Any()
     @Volatile
     private var missingModelRetry: MissingModelRetry? = null
@@ -491,7 +493,7 @@ class GitHubCopilotSubscriptionProxyProvider(
                 val mappedRole = if (role == "assistant") "assistant" else "user"
                 add(buildJsonObject {
                     put("role", mappedRole)
-                    put("content", openAiContentToAnthropicContent(item["content"]))
+                    put("content", openAiMessageContentToAnthropicContent(item, role))
                 })
             }
         }
@@ -504,7 +506,87 @@ class GitHubCopilotSubscriptionProxyProvider(
             body["temperature"]?.let { put("temperature", it) }
             body["top_p"]?.let { put("top_p", it) }
             body["stop"]?.let { put("stop_sequences", it) }
+            openAiToolsToAnthropicTools(body["tools"] as? JsonArray)?.let { put("tools", it) }
+            openAiToolChoiceToAnthropicToolChoice(body["tool_choice"])?.let { put("tool_choice", it) }
         }
+    }
+
+    private fun openAiMessageContentToAnthropicContent(message: JsonObject, role: String): JsonElement {
+        if (role == "tool") {
+            return buildJsonArray {
+                add(buildJsonObject {
+                    put("type", "tool_result")
+                    put("tool_use_id", stringField(message, "tool_call_id").orEmpty())
+                    put("content", contentText(message["content"]))
+                })
+            }
+        }
+        val toolCalls = message["tool_calls"] as? JsonArray
+        if (role != "assistant" || toolCalls == null || toolCalls.isEmpty()) {
+            return openAiContentToAnthropicContent(message["content"])
+        }
+        return buildJsonArray {
+            val text = contentText(message["content"])
+            if (text.isNotBlank()) {
+                add(buildJsonObject {
+                    put("type", "text")
+                    put("text", text)
+                })
+            }
+            toolCalls.forEach { toolCall ->
+                val item = toolCall as? JsonObject ?: return@forEach
+                val function = item["function"] as? JsonObject ?: return@forEach
+                val name = stringField(function, "name") ?: return@forEach
+                add(buildJsonObject {
+                    put("type", "tool_use")
+                    put("id", stringField(item, "id").orEmpty())
+                    put("name", name)
+                    put("input", parseToolArguments(stringField(function, "arguments")))
+                })
+            }
+        }
+    }
+
+    private fun openAiToolsToAnthropicTools(tools: JsonArray?): JsonArray? {
+        tools ?: return null
+        return buildJsonArray {
+            tools.forEach { tool ->
+                val item = tool as? JsonObject ?: return@forEach
+                val function = item["function"] as? JsonObject ?: return@forEach
+                val name = stringField(function, "name") ?: return@forEach
+                add(buildJsonObject {
+                    put("name", name)
+                    stringField(function, "description")?.let { put("description", it) }
+                    put("input_schema", function["parameters"] ?: buildJsonObject { put("type", "object") })
+                })
+            }
+        }.takeIf { it.isNotEmpty() }
+    }
+
+    private fun openAiToolChoiceToAnthropicToolChoice(toolChoice: JsonElement?): JsonObject? {
+        return when (toolChoice) {
+            is JsonPrimitive -> when (toolChoice.contentOrNull) {
+                "auto" -> buildJsonObject { put("type", "auto") }
+                "required" -> buildJsonObject { put("type", "any") }
+                "none", null -> null
+                else -> null
+            }
+
+            is JsonObject -> {
+                val functionName = stringField(toolChoice["function"] as? JsonObject, "name") ?: return null
+                buildJsonObject {
+                    put("type", "tool")
+                    put("name", functionName)
+                }
+            }
+
+            else -> null
+        }
+    }
+
+    private fun parseToolArguments(arguments: String?): JsonElement {
+        if (arguments.isNullOrBlank()) return buildJsonObject { }
+        return JsonHelper.parseToJsonElementOrNull(arguments) ?: JsonPrimitive(arguments)
     }
 
     private fun openAiContentToAnthropicContent(content: JsonElement?): JsonElement {
@@ -584,7 +666,10 @@ class GitHubCopilotSubscriptionProxyProvider(
         val rawData = line.substringAfter("data:")
         val leadingWhitespace = rawData.takeWhile { it == ' ' || it == '\t' }
         val data = rawData.drop(leadingWhitespace.length)
-        if (data == "[DONE]") return line
+        if (data == "[DONE]") {
+            streamToolCallIndexes.remove(request.requestId)
+            return line
+        }
         val transformed = anthropicSseDataToOpenAiChat(request, data)
         if (transformed.isEmpty()) return ""
         return "data:$leadingWhitespace$transformed"
@@ -593,7 +678,9 @@ class GitHubCopilotSubscriptionProxyProvider(
     private fun anthropicMessageToOpenAiChat(request: SubscriptionProxyRequest, body: String): String {
         val root = JsonHelper.parseToJsonElementOrNull(body) as? JsonObject ?: return body
         if (root.containsKey("error")) return body
-        val text = anthropicText(root["content"] as? JsonArray)
+        val content = root["content"] as? JsonArray
+        val text = anthropicText(content)
+        val toolCalls = anthropicToolCalls(content)
         val finishReason = openAiFinishReason(stringField(root, "stop_reason"))
         return JsonHelper.encodeToString(buildJsonObject {
             put("id", root["id"] ?: JsonPrimitive("chatcmpl-${request.requestId}"))
@@ -606,6 +693,7 @@ class GitHubCopilotSubscriptionProxyProvider(
                     put("message", buildJsonObject {
                         put("role", "assistant")
                         put("content", text)
+                        if (toolCalls != null) put("tool_calls", toolCalls)
                     })
                     put("finish_reason", finishReason)
                 })
@@ -618,10 +706,24 @@ class GitHubCopilotSubscriptionProxyProvider(
         val root = JsonHelper.parseToJsonElementOrNull(data) as? JsonObject ?: return data
         return when (stringField(root, "type")) {
             "message_start" -> openAiChatChunk(request, role = "assistant")
+            "content_block_start" -> {
+                val block = root["content_block"] as? JsonObject
+                if (block != null && stringField(block, "type") == "tool_use") {
+                    openAiToolCallStartChunk(request, root, block)
+                } else {
+                    openAiChatChunk(request)
+                }
+            }
+
             "content_block_delta" -> {
                 val delta = root["delta"] as? JsonObject
                 val text = stringField(delta, "text").orEmpty()
-                if (text.isEmpty()) openAiChatChunk(request) else openAiChatChunk(request, content = text)
+                val partialJson = stringField(delta, "partial_json").orEmpty()
+                when {
+                    text.isNotEmpty() -> openAiChatChunk(request, content = text)
+                    partialJson.isNotEmpty() -> openAiToolCallArgumentsChunk(request, root, partialJson)
+                    else -> openAiChatChunk(request)
+                }
             }
 
             "message_delta" -> {
@@ -632,6 +734,68 @@ class GitHubCopilotSubscriptionProxyProvider(
             "message_stop" -> ""
             else -> openAiChatChunk(request)
         }
+    }
+
+    private fun streamToolCallIndex(request: SubscriptionProxyRequest, blockIndex: Int): Int {
+        synchronized(streamToolCallIndexes) {
+            val indexes = streamToolCallIndexes.getOrPut(request.requestId) { LinkedHashMap() }
+            return indexes.getOrPut(blockIndex) { indexes.size }
+        }
+    }
+
+    private fun openAiToolCallStartChunk(request: SubscriptionProxyRequest, root: JsonObject, block: JsonObject): String {
+        val toolCallIndex = streamToolCallIndex(request, intField(root, "index") ?: 0)
+        return JsonHelper.encodeToString(buildJsonObject {
+            put("id", "chatcmpl-${request.requestId}")
+            put("object", "chat.completion.chunk")
+            put("created", System.currentTimeMillis() / 1000L)
+            put("model", request.model.localId)
+            put("choices", buildJsonArray {
+                add(buildJsonObject {
+                    put("index", 0)
+                    put("delta", buildJsonObject {
+                        put("tool_calls", buildJsonArray {
+                            add(buildJsonObject {
+                                put("index", toolCallIndex)
+                                put("id", stringField(block, "id").orEmpty())
+                                put("type", "function")
+                                put("function", buildJsonObject {
+                                    put("name", stringField(block, "name").orEmpty())
+                                    put("arguments", "")
+                                })
+                            })
+                        })
+                    })
+                    put("finish_reason", JsonNull)
+                })
+            })
+        })
+    }
+
+    private fun openAiToolCallArgumentsChunk(request: SubscriptionProxyRequest, root: JsonObject, partialJson: String): String {
+        val toolCallIndex = streamToolCallIndex(request, intField(root, "index") ?: 0)
+        return JsonHelper.encodeToString(buildJsonObject {
+            put("id", "chatcmpl-${request.requestId}")
+            put("object", "chat.completion.chunk")
+            put("created", System.currentTimeMillis() / 1000L)
+            put("model", request.model.localId)
+            put("choices", buildJsonArray {
+                add(buildJsonObject {
+                    put("index", 0)
+                    put("delta", buildJsonObject {
+                        put("tool_calls", buildJsonArray {
+                            add(buildJsonObject {
+                                put("index", toolCallIndex)
+                                put("function", buildJsonObject {
+                                    put("arguments", partialJson)
+                                })
+                            })
+                        })
+                    })
+                    put("finish_reason", JsonNull)
+                })
+            })
+        })
     }
 
     private fun openAiChatChunk(
@@ -665,6 +829,26 @@ class GitHubCopilotSubscriptionProxyProvider(
         }
     }
 
+    private fun anthropicToolCalls(content: JsonArray?): JsonArray? {
+        content ?: return null
+        return buildJsonArray {
+            content.forEach { block ->
+                val item = block as? JsonObject ?: return@forEach
+                if (stringField(item, "type") != "tool_use") return@forEach
+                val id = stringField(item, "id") ?: return@forEach
+                val name = stringField(item, "name") ?: return@forEach
+                add(buildJsonObject {
+                    put("id", id)
+                    put("type", "function")
+                    put("function", buildJsonObject {
+                        put("name", name)
+                        put("arguments", JsonHelper.encodeToString(item["input"] ?: buildJsonObject { }))
+                    })
+                })
+            }
+        }.takeIf { it.isNotEmpty() }
+    }
+
     private fun anthropicUsageToOpenAi(usage: JsonObject?): JsonObject? {
         usage ?: return null
         val input = intField(usage, "input_tokens") ?: 0
@@ -678,7 +862,7 @@ class GitHubCopilotSubscriptionProxyProvider(
 
     private fun openAiFinishReason(reason: String?): String {
         return when (reason) {
-            "end_turn", null -> "stop"
+            "end_turn", "stop_sequence", null -> "stop"
             "max_tokens" -> "length"
             "tool_use" -> "tool_calls"
             else -> reason
