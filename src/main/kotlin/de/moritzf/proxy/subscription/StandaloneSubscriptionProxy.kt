@@ -1,5 +1,7 @@
 package de.moritzf.proxy.subscription
 
+import de.moritzf.quota.github.GitHubDeviceTokenPollResult
+import de.moritzf.quota.github.GitHubOAuthClient
 import de.moritzf.quota.github.proxy.GitHubCopilotSubscriptionProxyProvider
 import de.moritzf.quota.kimi.KimiCredentials
 import de.moritzf.quota.kimi.proxy.KimiSubscriptionProxyProvider
@@ -10,14 +12,21 @@ import de.moritzf.quota.openai.proxy.OpenAiCodexSubscriptionProxyProvider
 import de.moritzf.quota.opencode.proxy.OpenCodeZenSubscriptionProxyProvider
 import de.moritzf.quota.supergrok.proxy.SuperGrokSubscriptionProxyProvider
 import de.moritzf.quota.zai.proxy.ZaiSubscriptionProxyProvider
+import java.awt.Desktop
+import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 fun main(args: Array<String>) {
     val options = parseStandaloneSubscriptionOptions(args)
+    if (options.login) {
+        val token = loginGitHubCopilot()
+        saveGitHubCredentialsToDotEnv(options.envFile, token, envLocalApiKey = options.localApiKey)
+    }
     val env = StandaloneEnv.load(options.envFile)
-    val localApiKey = env.value("SUBSCRIPTION_PROXY_API_KEY") ?: DEFAULT_LOCAL_API_KEY
+    val localApiKey = options.localApiKey ?: env.value("SUBSCRIPTION_PROXY_API_KEY") ?: DEFAULT_LOCAL_API_KEY
     val providers = createProviders(options.providers, env, options)
     val enabledProviders = providers.filter { it.isConfigured() }
     if (options.listModels) {
@@ -55,6 +64,8 @@ internal data class StandaloneSubscriptionOptions(
     val logRequests: Boolean = false,
     val requestLogDir: String = DEFAULT_REQUEST_LOG_DIR,
     val listModels: Boolean = false,
+    val login: Boolean = false,
+    val localApiKey: String? = null,
 )
 
 internal fun parseStandaloneSubscriptionOptions(args: Array<String>): StandaloneSubscriptionOptions {
@@ -90,12 +101,56 @@ internal fun parseStandaloneSubscriptionOptions(args: Array<String>): Standalone
             arg == "--request-log-dir" -> options = options.copy(requestLogDir = requireValue())
             arg.startsWith("--request-log-dir=") -> options = options.copy(requestLogDir = arg.substringAfter('='))
             arg == "--list-models" -> options = options.copy(listModels = true)
+            arg == "--login" -> options = options.copy(login = true)
+            arg == "--local-api-key" -> options = options.copy(localApiKey = requireValue())
+            arg.startsWith("--local-api-key=") -> options = options.copy(localApiKey = arg.substringAfter('='))
             else -> error("Unknown argument: $arg")
         }
         index += 1
     }
     require(options.port in 1..65535) { "Port must be in range 1-65535, got: ${options.port}" }
     return options
+}
+
+private fun loginGitHubCopilot(): String {
+    val client = GitHubOAuthClient()
+    val authorization = client.requestDeviceAuthorization()
+    require(authorization.deviceCode.isNotBlank() && authorization.userCode.isNotBlank()) {
+        "GitHub device authorization response was incomplete."
+    }
+    println("Opening GitHub device login in your browser...")
+    openBrowser(authorization.verificationUri)
+    println("If the browser did not open, visit: ${authorization.verificationUri}")
+    println("Enter code: ${authorization.userCode}")
+
+    val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(authorization.expiresInSeconds.toLong())
+    var intervalSeconds = authorization.intervalSeconds.coerceAtLeast(1)
+    while (System.nanoTime() < deadline) {
+        Thread.sleep(TimeUnit.SECONDS.toMillis(intervalSeconds.toLong()))
+        when (val result = client.pollDeviceToken(authorization.deviceCode)) {
+            is GitHubDeviceTokenPollResult.Authorized -> {
+                println("GitHub login successful.")
+                return result.credentials.accessToken
+            }
+
+            is GitHubDeviceTokenPollResult.Pending -> {
+                intervalSeconds = when {
+                    result.nextIntervalSeconds > 0 -> result.nextIntervalSeconds
+                    result.slowDown -> intervalSeconds + 5
+                    else -> intervalSeconds
+                }
+            }
+        }
+    }
+    error("GitHub login timed out. Run --login again.")
+}
+
+private fun openBrowser(url: String) {
+    runCatching {
+        if (Desktop.isDesktopSupported()) {
+            Desktop.getDesktop().browse(URI.create(url))
+        }
+    }
 }
 
 private fun createProviders(
@@ -189,6 +244,20 @@ private fun printModels(providers: List<SubscriptionProxyProvider>) {
     }
 }
 
+private fun saveGitHubCredentialsToDotEnv(path: Path, accessToken: String, envLocalApiKey: String?) {
+    val existing = loadDotEnvValues(path).toMutableMap()
+    existing["GITHUB_COPILOT_PROXY_ACCESS_TOKEN"] = accessToken
+    existing["SUBSCRIPTION_PROXY_API_KEY"] = envLocalApiKey
+        ?: existing["SUBSCRIPTION_PROXY_API_KEY"]
+        ?: DEFAULT_LOCAL_API_KEY
+    existing.putIfAbsent("SUBSCRIPTION_PROXY_PORT", DEFAULT_PORT.toString())
+    restrictToOwner(path)
+    Files.writeString(path, existing.entries.joinToString("\n", postfix = "\n") { (key, value) ->
+        "$key=${value.toDotEnvValue()}"
+    })
+    println("Saved GitHub Copilot proxy credentials to ${path.toAbsolutePath().normalize()}")
+}
+
 private fun parseProviders(value: String): Set<String> {
     return parseCommaSeparatedList(value).map { it.lowercase() }.toSet()
 }
@@ -199,6 +268,51 @@ private fun parseCommaSeparatedList(value: String?): List<String> {
         ?.map { it.trim() }
         ?.filter { it.isNotEmpty() }
         .orEmpty()
+}
+
+private fun loadDotEnvValues(path: Path): Map<String, String> {
+    if (!Files.exists(path)) return emptyMap()
+    return Files.readAllLines(path).mapNotNull { line ->
+        val trimmed = line.trim()
+        if (trimmed.isEmpty() || trimmed.startsWith('#')) return@mapNotNull null
+        val index = trimmed.indexOf('=')
+        if (index <= 0) return@mapNotNull null
+        val key = trimmed.substring(0, index).trim()
+        val value = trimmed.substring(index + 1).trim().unquoteDotEnvValue()
+        key.takeIf { it.isNotBlank() }?.let { it to value }
+    }.toMap()
+}
+
+private fun restrictToOwner(path: Path) {
+    runCatching {
+        if (!Files.exists(path)) {
+            Files.createFile(path)
+        }
+        if (java.nio.file.FileSystems.getDefault().supportedFileAttributeViews().contains("posix")) {
+            Files.setPosixFilePermissions(
+                path,
+                setOf(
+                    java.nio.file.attribute.PosixFilePermission.OWNER_READ,
+                    java.nio.file.attribute.PosixFilePermission.OWNER_WRITE,
+                ),
+            )
+        }
+    }
+}
+
+private fun String.toDotEnvValue(): String {
+    return if (any { it.isWhitespace() || it == '#' || it == '"' || it == '\'' }) {
+        "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
+    } else {
+        this
+    }
+}
+
+private fun String.unquoteDotEnvValue(): String {
+    if (length >= 2 && ((first() == '"' && last() == '"') || (first() == '\'' && last() == '\''))) {
+        return substring(1, length - 1)
+    }
+    return this
 }
 
 internal class StandaloneEnv private constructor(

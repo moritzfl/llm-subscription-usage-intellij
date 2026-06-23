@@ -20,6 +20,8 @@ class StandaloneSubscriptionProxyTest {
                 "--log-requests",
                 "--request-log-dir", "logs/proxy",
                 "--list-models",
+                "--login",
+                "--local-api-key", "sk-local",
             ),
         )
 
@@ -32,6 +34,8 @@ class StandaloneSubscriptionProxyTest {
         assertEquals(true, options.logRequests)
         assertEquals("logs/proxy", options.requestLogDir)
         assertEquals(true, options.listModels)
+        assertEquals(true, options.login)
+        assertEquals("sk-local", options.localApiKey)
     }
 
     @Test
