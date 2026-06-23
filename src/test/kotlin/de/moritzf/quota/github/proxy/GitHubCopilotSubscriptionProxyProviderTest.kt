@@ -311,6 +311,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 assertTrue(response.body().contains("\"object\":\"chat.completion.chunk\""), response.body())
                 assertTrue(response.body().contains("hi from claude"), response.body())
                 assertTrue(response.body().contains("data: [DONE]"), response.body())
+                assertFalse(response.body().contains("event: message_start"), response.body())
                 assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery only
                 val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/v1/messages", inference.path)
@@ -721,7 +722,8 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     "event: message_delta\n" +
                     "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"}}\n\n" +
                     "event: message_stop\n" +
-                    "data: {\"type\":\"message_stop\"}\n\n"
+                    "data: {\"type\":\"message_stop\"}\n\n" +
+                    "data: [DONE]\n\n"
         }
 
         private fun copilotModel(

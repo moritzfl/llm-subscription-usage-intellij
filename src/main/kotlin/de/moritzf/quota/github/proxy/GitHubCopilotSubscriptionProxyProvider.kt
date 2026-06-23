@@ -87,6 +87,7 @@ class GitHubCopilotSubscriptionProxyProvider(
         upstreamRouteProvider = ::upstreamRoute,
         jsonResponseTransformer = ::openAiChatJsonResponse,
         sseDataTransformer = ::openAiChatSseData,
+        sseLineTransformer = ::openAiChatSseLine,
         httpClient = httpClient,
         requestLogger = requestLogger,
     )
@@ -576,6 +577,19 @@ class GitHubCopilotSubscriptionProxyProvider(
         return openAiChatEnvelope(request, data, "chat.completion.chunk")
     }
 
+    private fun openAiChatSseLine(request: SubscriptionProxyRequest, line: String): String? {
+        if (!shouldBridgeChatToMessages(request)) return null
+        if (line.startsWith("event:")) return ""
+        if (!line.startsWith("data:")) return line
+        val rawData = line.substringAfter("data:")
+        val leadingWhitespace = rawData.takeWhile { it == ' ' || it == '\t' }
+        val data = rawData.drop(leadingWhitespace.length)
+        if (data == "[DONE]") return line
+        val transformed = anthropicSseDataToOpenAiChat(request, data)
+        if (transformed.isEmpty()) return ""
+        return "data:$leadingWhitespace$transformed"
+    }
+
     private fun anthropicMessageToOpenAiChat(request: SubscriptionProxyRequest, body: String): String {
         val root = JsonHelper.parseToJsonElementOrNull(body) as? JsonObject ?: return body
         if (root.containsKey("error")) return body
@@ -615,7 +629,7 @@ class GitHubCopilotSubscriptionProxyProvider(
                 openAiChatChunk(request, finishReason = openAiFinishReason(stringField(delta, "stop_reason")))
             }
 
-            "message_stop" -> "[DONE]"
+            "message_stop" -> ""
             else -> openAiChatChunk(request)
         }
     }

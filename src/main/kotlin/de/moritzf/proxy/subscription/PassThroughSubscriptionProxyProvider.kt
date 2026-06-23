@@ -41,6 +41,7 @@ class PassThroughSubscriptionProxyProvider(
     private val upstreamRouteProvider: (SubscriptionProxyRequest) -> SubscriptionProxyRoute = { it.route },
     private val jsonResponseTransformer: ((SubscriptionProxyRequest, String) -> String)? = null,
     private val sseDataTransformer: ((SubscriptionProxyRequest, String) -> String)? = null,
+    private val sseLineTransformer: ((SubscriptionProxyRequest, String) -> String?)? = null,
     private val httpClient: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(30))
         .build(),
@@ -152,7 +153,7 @@ class PassThroughSubscriptionProxyProvider(
     }
 
     private suspend fun copyResponse(ctx: ProxyCall, request: SubscriptionProxyRequest, upstream: HttpResponse<InputStream>) {
-        if (sseDataTransformer != null && isEventStream(upstream)) {
+        if ((sseDataTransformer != null || sseLineTransformer != null) && isEventStream(upstream)) {
             copyTransformedSseResponse(ctx, request, upstream, sseDataTransformer)
             return
         }
@@ -200,7 +201,7 @@ class PassThroughSubscriptionProxyProvider(
         ctx: ProxyCall,
         request: SubscriptionProxyRequest,
         upstream: HttpResponse<InputStream>,
-        transformer: (SubscriptionProxyRequest, String) -> String,
+        transformer: ((SubscriptionProxyRequest, String) -> String)?,
     ) {
         copySelectedResponseHeaders(ctx, upstream)
         JsonHelper.setSseHeaders(ctx)
@@ -209,7 +210,11 @@ class PassThroughSubscriptionProxyProvider(
             upstream.body().bufferedReader(StandardCharsets.UTF_8).use { reader ->
                 while (true) {
                     val line = reader.readLine() ?: break
-                    val output = transformSseLine(request, line, transformer) + "\n"
+                    val transformedLine = sseLineTransformer?.invoke(request, line)
+                        ?: transformer?.let { transformSseLine(request, line, it) }
+                        ?: line
+                    if (transformedLine.isEmpty()) continue
+                    val output = transformedLine + "\n"
                     val bytes = output.toByteArray(StandardCharsets.UTF_8)
                     write(bytes)
                     AccessLogFields.addResponseBytes(ctx, bytes.size.toLong())
