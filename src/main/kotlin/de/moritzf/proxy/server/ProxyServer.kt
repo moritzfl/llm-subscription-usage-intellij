@@ -9,7 +9,6 @@ import de.moritzf.proxy.transport.CodexHttpClient
 import de.moritzf.proxy.usage.UsageTracker
 import de.moritzf.proxy.util.ApiKeyUtils
 import io.ktor.http.HttpHeaders
-import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.cio.CIO
 import io.ktor.server.cio.CIOApplicationEngine
@@ -213,7 +212,7 @@ class ProxyServer(
         }
 
         private fun isCorsPreflight(ctx: ProxyCall): Boolean {
-            return ctx.method().equals(HttpMethod.Options.value, ignoreCase = true) &&
+            return ctx.method().equals("OPTIONS", ignoreCase = true) &&
                 ctx.header(HttpHeaders.Origin) != null &&
                 ctx.header(HttpHeaders.AccessControlRequestMethod) != null
         }
