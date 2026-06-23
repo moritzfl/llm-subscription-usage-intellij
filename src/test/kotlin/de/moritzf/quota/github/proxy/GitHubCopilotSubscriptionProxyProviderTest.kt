@@ -380,6 +380,87 @@ class GitHubCopilotSubscriptionProxyProviderTest {
     }
 
     @Test
+    fun mapsLegacyOpenAiFunctionsToAnthropicTools() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"gh-claude-sonnet-4.6\",\"max_tokens\":64,\"functions\":[{\"name\":\"get_weather\",\"description\":\"Get weather\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}],\"function_call\":{\"name\":\"get_weather\"},\"messages\":[{\"role\":\"user\",\"content\":\"Use the tool for Berlin weather.\"}]}",
+                    bearer = true,
+                )
+
+                assertEquals(200, response.statusCode())
+                assertTrue(response.body().contains("\"function_call\""), response.body())
+                assertTrue(response.body().contains("\"finish_reason\":\"function_call\""), response.body())
+                assertFalse(response.body().contains("\"tool_calls\""), response.body())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
+                val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/messages", inference.path)
+                assertTrue(inference.body.contains("\"tools\""), inference.body)
+                assertTrue(inference.body.contains("\"input_schema\""), inference.body)
+                assertTrue(inference.body.contains("\"tool_choice\":{\"type\":\"tool\",\"name\":\"get_weather\"}"), inference.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun mapsRemoteOpenAiImageUrlToAnthropicImageUrlSource() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"gh-claude-sonnet-4.6\",\"max_tokens\":64,\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"describe\"},{\"type\":\"image_url\",\"image_url\":{\"url\":\"${upstream.baseUri}/image.png\"}}]}]}",
+                    bearer = true,
+                )
+
+                assertEquals(200, response.statusCode())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
+                val image = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/image.png", image.path)
+                val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/messages", inference.path)
+                assertTrue(inference.body.contains("\"type\":\"image\""), inference.body)
+                assertTrue(inference.body.contains("\"source\":{\"type\":\"base64\",\"media_type\":\"image/png\""), inference.body)
+                assertFalse(inference.body.contains("\"image_url\""), inference.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun mapsOpenAiJsonResponseFormatToSystemInstruction() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"gh-claude-sonnet-4.6\",\"max_tokens\":64,\"response_format\":{\"type\":\"json_object\"},\"messages\":[{\"role\":\"user\",\"content\":\"Return JSON.\"}]}",
+                    bearer = true,
+                )
+
+                assertEquals(200, response.statusCode())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
+                val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/messages", inference.path)
+                assertTrue(inference.body.contains("Respond with a valid JSON object only"), inference.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun bridgesStreamingAnthropicToolCallsOnOpenAiChatCompletionsRoute() {
         TestUpstream().use { upstream ->
             val proxy = newProxy(upstream.baseUri)
@@ -714,6 +795,13 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     headers = exchange.requestHeaders.mapValues { it.value.toList() },
                     body = body,
                 )
+                if (exchange.requestURI.rawPath == "/image.png") {
+                    val response = byteArrayOf(0x89.toByte(), 0x50, 0x4e, 0x47)
+                    exchange.responseHeaders.set("Content-Type", "image/png")
+                    exchange.sendResponseHeaders(200, response.size.toLong())
+                    exchange.responseBody.use { output -> output.write(response) }
+                    return@createContext
+                }
                 val responseBody = if (exchange.requestURI.rawPath == "/models") {
                     modelsBodyProvider()
                 } else if (exchange.requestURI.rawPath == "/responses" && body.contains("\"stream\":true")) {

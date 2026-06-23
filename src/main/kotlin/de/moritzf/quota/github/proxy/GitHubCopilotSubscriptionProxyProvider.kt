@@ -21,6 +21,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.time.Duration
+import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Clock
@@ -96,6 +97,10 @@ class GitHubCopilotSubscriptionProxyProvider(
     @Volatile
     private var modelCache: ModelCache? = null
     private val streamToolCallIndexes = ConcurrentHashMap<String, MutableMap<Int, Int>>()
+    private val remoteImageHttpClient = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(30))
+        .followRedirects(HttpClient.Redirect.NORMAL)
+        .build()
     private val missingModelRetryLock = Any()
     @Volatile
     private var missingModelRetry: MissingModelRetry? = null
@@ -480,11 +485,13 @@ class GitHubCopilotSubscriptionProxyProvider(
 
     private fun openAiChatToAnthropicMessagesBody(request: SubscriptionProxyRequest, body: JsonObject): JsonObject {
         val messages = body["messages"] as? JsonArray ?: JsonArray(emptyList())
-        val systemText = messages.mapNotNull { message ->
+        val systemParts = messages.mapNotNull { message ->
             val item = message as? JsonObject ?: return@mapNotNull null
             val role = stringField(item, "role") ?: return@mapNotNull null
             if (role == "system" || role == "developer") contentText(item["content"]) else null
-        }.filter { it.isNotBlank() }.joinToString("\n\n")
+        }.filter { it.isNotBlank() }.toMutableList()
+        openAiResponseFormatInstruction(body["response_format"] as? JsonObject)?.let { systemParts.add(it) }
+        val systemText = systemParts.joinToString("\n\n")
         val anthropicMessages = buildJsonArray {
             messages.forEach { message ->
                 val item = message as? JsonObject ?: return@forEach
@@ -508,9 +515,56 @@ class GitHubCopilotSubscriptionProxyProvider(
             body["stop"]?.let { put("stop_sequences", it) }
             val toolChoice = body["tool_choice"]
             if (!isOpenAiToolChoiceNone(toolChoice)) {
-                openAiToolsToAnthropicTools(body["tools"] as? JsonArray)?.let { put("tools", it) }
-                openAiToolChoiceToAnthropicToolChoice(toolChoice)?.let { put("tool_choice", it) }
+                val tools = body["tools"] as? JsonArray ?: openAiFunctionsToTools(body["functions"] as? JsonArray)
+                openAiToolsToAnthropicTools(tools)?.let { put("tools", it) }
+                openAiToolChoiceToAnthropicToolChoice(toolChoice ?: openAiFunctionCallToToolChoice(body["function_call"]))
+                    ?.let { put("tool_choice", it) }
             }
+        }
+    }
+
+    private fun openAiResponseFormatInstruction(responseFormat: JsonObject?): String? {
+        responseFormat ?: return null
+        return when (stringField(responseFormat, "type")) {
+            "json_object" -> "Respond with a valid JSON object only. Do not wrap it in Markdown fences."
+            "json_schema" -> {
+                val schema = responseFormat["json_schema"]?.let(JsonHelper::encodeToString).orEmpty()
+                "Respond with a valid JSON object only. Do not wrap it in Markdown fences. Follow this JSON schema when possible: $schema"
+            }
+
+            else -> null
+        }
+    }
+
+    private fun openAiFunctionsToTools(functions: JsonArray?): JsonArray? {
+        functions ?: return null
+        return buildJsonArray {
+            functions.forEach { function ->
+                val item = function as? JsonObject ?: return@forEach
+                add(buildJsonObject {
+                    put("type", "function")
+                    put("function", item)
+                })
+            }
+        }.takeIf { it.isNotEmpty() }
+    }
+
+    private fun openAiFunctionCallToToolChoice(functionCall: JsonElement?): JsonElement? {
+        return when (functionCall) {
+            is JsonPrimitive -> when (functionCall.contentOrNull) {
+                "auto" -> JsonPrimitive("auto")
+                "none" -> JsonPrimitive("none")
+                else -> null
+            }
+
+            is JsonObject -> buildJsonObject {
+                put("type", "function")
+                put("function", buildJsonObject {
+                    stringField(functionCall, "name")?.let { put("name", it) }
+                })
+            }
+
+            else -> null
         }
     }
 
@@ -624,6 +678,9 @@ class GitHubCopilotSubscriptionProxyProvider(
 
     private fun openAiImageUrlToAnthropicImage(item: JsonObject): JsonObject? {
         val url = stringField(item["image_url"] as? JsonObject, "url") ?: return null
+        if (url.startsWith("http://") || url.startsWith("https://")) {
+            return fetchRemoteImageUrlToAnthropicImage(url)
+        }
         val dataPrefix = "data:"
         if (!url.startsWith(dataPrefix)) return null
         val mediaType = url.substringAfter(dataPrefix).substringBefore(';').takeIf { it.isNotBlank() } ?: return null
@@ -635,6 +692,49 @@ class GitHubCopilotSubscriptionProxyProvider(
                 put("media_type", mediaType)
                 put("data", data)
             })
+        }
+    }
+
+    private fun fetchRemoteImageUrlToAnthropicImage(url: String): JsonObject? {
+        val response = try {
+            remoteImageHttpClient.send(
+                HttpRequest.newBuilder(URI.create(url))
+                    .timeout(REMOTE_IMAGE_TIMEOUT)
+                    .header("Accept", "image/*")
+                    .GET()
+                    .build(),
+                HttpResponse.BodyHandlers.ofByteArray(),
+            )
+        } catch (_: Exception) {
+            return null
+        }
+        if (response.statusCode() !in 200..<300) return null
+        val bytes = response.body()
+        if (bytes.isEmpty() || bytes.size > MAX_REMOTE_IMAGE_BYTES) return null
+        val mediaType = response.headers().firstValue("Content-Type").orElse("")
+            .substringBefore(';')
+            .trim()
+            .takeIf { it.startsWith("image/") }
+            ?: mediaTypeFromImageUrl(url)
+            ?: return null
+        return buildJsonObject {
+            put("type", "image")
+            put("source", buildJsonObject {
+                put("type", "base64")
+                put("media_type", mediaType)
+                put("data", Base64.getEncoder().encodeToString(bytes))
+            })
+        }
+    }
+
+    private fun mediaTypeFromImageUrl(url: String): String? {
+        val path = URI.create(url).path.lowercase()
+        return when {
+            path.endsWith(".png") -> "image/png"
+            path.endsWith(".jpg") || path.endsWith(".jpeg") -> "image/jpeg"
+            path.endsWith(".gif") -> "image/gif"
+            path.endsWith(".webp") -> "image/webp"
+            else -> null
         }
     }
 
@@ -688,7 +788,12 @@ class GitHubCopilotSubscriptionProxyProvider(
         val content = root["content"] as? JsonArray
         val text = anthropicText(content)
         val toolCalls = anthropicToolCalls(content)
-        val finishReason = openAiFinishReason(stringField(root, "stop_reason"))
+        val legacyFunctionCall = legacyOpenAiFunctionCall(request, toolCalls)
+        val finishReason = if (legacyFunctionCall != null) {
+            "function_call"
+        } else {
+            openAiFinishReason(stringField(root, "stop_reason"))
+        }
         return JsonHelper.encodeToString(buildJsonObject {
             put("id", root["id"] ?: JsonPrimitive("chatcmpl-${request.requestId}"))
             put("object", "chat.completion")
@@ -699,14 +804,25 @@ class GitHubCopilotSubscriptionProxyProvider(
                     put("index", 0)
                     put("message", buildJsonObject {
                         put("role", "assistant")
-                        put("content", text)
-                        if (toolCalls != null) put("tool_calls", toolCalls)
+                        if (legacyFunctionCall != null) {
+                            put("content", JsonNull)
+                            put("function_call", legacyFunctionCall)
+                        } else {
+                            put("content", text)
+                            if (toolCalls != null) put("tool_calls", toolCalls)
+                        }
                     })
                     put("finish_reason", finishReason)
                 })
             })
             anthropicUsageToOpenAi(root["usage"] as? JsonObject)?.let { put("usage", it) }
         })
+    }
+
+    private fun legacyOpenAiFunctionCall(request: SubscriptionProxyRequest, toolCalls: JsonArray?): JsonObject? {
+        if (request.body["functions"] !is JsonArray || request.body["tools"] is JsonArray) return null
+        val toolCall = toolCalls?.firstOrNull() as? JsonObject ?: return null
+        return toolCall["function"] as? JsonObject
     }
 
     private fun anthropicSseDataToOpenAiChat(request: SubscriptionProxyRequest, data: String): String {
@@ -983,6 +1099,8 @@ class GitHubCopilotSubscriptionProxyProvider(
         private const val EDITOR_PLUGIN_VERSION = "copilot-chat/0.26.7"
         private const val API_VERSION = "2026-06-01"
         private const val DEFAULT_ANTHROPIC_MAX_TOKENS = 4096
+        private const val MAX_REMOTE_IMAGE_BYTES = 5 * 1024 * 1024
+        private val REMOTE_IMAGE_TIMEOUT = Duration.ofSeconds(15)
         private val OPENAI_CHAT_ENVELOPE_FIELDS = setOf("id", "object", "created", "model", "choices")
         private val UNSUPPORTED_MESSAGES_BODY_FIELDS = setOf("context_management", "output_config", "thinking")
         val DEFAULT_UPSTREAM_BASE_URI: URI = URI.create("https://api.githubcopilot.com")
