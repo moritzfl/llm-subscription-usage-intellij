@@ -13,6 +13,8 @@ import de.moritzf.quota.opencode.proxy.OpenCodeZenSubscriptionProxyProvider
 import de.moritzf.quota.supergrok.proxy.SuperGrokSubscriptionProxyProvider
 import de.moritzf.quota.zai.proxy.ZaiSubscriptionProxyProvider
 import java.awt.Desktop
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
@@ -120,8 +122,9 @@ private fun loginGitHubCopilot(): String {
     }
     println("Opening GitHub device login in your browser...")
     openBrowser(authorization.verificationUri)
+    copyToClipboard(authorization.userCode)
     println("If the browser did not open, visit: ${authorization.verificationUri}")
-    println("Enter code: ${authorization.userCode}")
+    println("Enter code: ${authorization.userCode} (copied to clipboard)")
 
     val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(authorization.expiresInSeconds.toLong())
     var intervalSeconds = authorization.intervalSeconds.coerceAtLeast(1)
@@ -143,6 +146,12 @@ private fun loginGitHubCopilot(): String {
         }
     }
     error("GitHub login timed out. Run --login again.")
+}
+
+private fun copyToClipboard(value: String) {
+    runCatching {
+        Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(value), null)
+    }
 }
 
 private fun openBrowser(url: String) {
