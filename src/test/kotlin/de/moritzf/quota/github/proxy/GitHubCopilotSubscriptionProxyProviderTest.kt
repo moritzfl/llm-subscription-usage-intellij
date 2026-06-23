@@ -355,6 +355,31 @@ class GitHubCopilotSubscriptionProxyProviderTest {
     }
 
     @Test
+    fun omitsAnthropicToolsWhenOpenAiToolChoiceIsNone() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"gh-claude-sonnet-4.6\",\"max_tokens\":64,\"tool_choice\":\"none\",\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"parameters\":{\"type\":\"object\"}}}],\"messages\":[{\"role\":\"user\",\"content\":\"Say hello without tools.\"}]}",
+                    bearer = true,
+                )
+
+                assertEquals(200, response.statusCode())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
+                val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/messages", inference.path)
+                assertFalse(inference.body.contains("\"tools\""), inference.body)
+                assertFalse(inference.body.contains("\"tool_choice\""), inference.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun bridgesStreamingAnthropicToolCallsOnOpenAiChatCompletionsRoute() {
         TestUpstream().use { upstream ->
             val proxy = newProxy(upstream.baseUri)

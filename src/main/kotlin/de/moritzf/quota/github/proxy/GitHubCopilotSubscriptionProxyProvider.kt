@@ -506,8 +506,11 @@ class GitHubCopilotSubscriptionProxyProvider(
             body["temperature"]?.let { put("temperature", it) }
             body["top_p"]?.let { put("top_p", it) }
             body["stop"]?.let { put("stop_sequences", it) }
-            openAiToolsToAnthropicTools(body["tools"] as? JsonArray)?.let { put("tools", it) }
-            openAiToolChoiceToAnthropicToolChoice(body["tool_choice"])?.let { put("tool_choice", it) }
+            val toolChoice = body["tool_choice"]
+            if (!isOpenAiToolChoiceNone(toolChoice)) {
+                openAiToolsToAnthropicTools(body["tools"] as? JsonArray)?.let { put("tools", it) }
+                openAiToolChoiceToAnthropicToolChoice(toolChoice)?.let { put("tool_choice", it) }
+            }
         }
     }
 
@@ -582,6 +585,10 @@ class GitHubCopilotSubscriptionProxyProvider(
 
             else -> null
         }
+    }
+
+    private fun isOpenAiToolChoiceNone(toolChoice: JsonElement?): Boolean {
+        return toolChoice is JsonPrimitive && toolChoice.contentOrNull == "none"
     }
 
     private fun parseToolArguments(arguments: String?): JsonElement {
