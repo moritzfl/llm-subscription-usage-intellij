@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+## [1.4.6] - 2026-06-23
+- Fixed proxy CORS preflight handling by avoiding Ktor `HttpMethod.Options` access, which could trigger illegal access exceptions at runtime.
+
 ## [1.4.5] - 2026-06-22
 - Improved subscription proxy client compatibility by stripping unsupported Kimi chat temperatures, accepting string input on OpenAI/Codex `/v1/responses`, preserving GitHub Copilot GPT response fallbacks without output caps, and emulating chat stop sequences for SuperGrok.
 - Cached the GitHub Copilot proxy model catalog across proxy restarts while keeping missing-model retry state in-process, so transient discovery drops are retried in the background before models are evicted.
