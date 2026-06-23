@@ -38,6 +38,7 @@ class PassThroughSubscriptionProxyProvider(
     private val forwardedRequestHeadersTransformer: (SubscriptionProxyRequest, Map<String, String>) -> Map<String, String> = { _, headers -> headers },
     private val requestHeadersProvider: (SubscriptionProxyRequest) -> Map<String, String> = { emptyMap() },
     private val requestBodyTransformer: (SubscriptionProxyRequest, JsonObject) -> JsonObject = { _, body -> body },
+    private val upstreamRouteProvider: (SubscriptionProxyRequest) -> SubscriptionProxyRoute = { it.route },
     private val jsonResponseTransformer: ((SubscriptionProxyRequest, String) -> String)? = null,
     private val sseDataTransformer: ((SubscriptionProxyRequest, String) -> String)? = null,
     private val httpClient: HttpClient = HttpClient.newBuilder()
@@ -115,7 +116,7 @@ class PassThroughSubscriptionProxyProvider(
     ): HttpRequest {
         val upstreamBody = requestBodyTransformer(request, rewriteModel(request.body, request.model.upstreamId))
         val payload = JsonHelper.encodeToString(upstreamBody)
-        val upstreamPath = request.route.upstreamPath
+        val upstreamPath = upstreamRouteProvider(request).upstreamPath
         val targetUrl = resolveUpstreamUrl(upstreamPath)
         val loggedHeaders = LinkedHashMap<String, String>()
         val builder = HttpRequest.newBuilder(URI.create(targetUrl))

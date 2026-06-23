@@ -40,6 +40,9 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     .map { it.jsonObject["id"]!!.jsonPrimitive.content }
                 assertEquals(
                     listOf(
+                        "gh-claude-haiku-4.5",
+                        "gh-claude-sonnet-4.5",
+                        "gh-claude-sonnet-4.6",
                         "gh-gemini-2.5-pro",
                         "gh-gemini-3-flash-preview",
                         "gh-gemini-3.1-pro-preview",
@@ -52,9 +55,6 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     ),
                     ids,
                 )
-                assertFalse("gh-claude-haiku-4.5" in ids)
-                assertFalse("gh-claude-sonnet-4.5" in ids)
-                assertFalse("gh-claude-sonnet-4.6" in ids)
                 assertFalse("gh-gpt-5.5" in ids)
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/models", request.path)
@@ -265,7 +265,36 @@ class GitHubCopilotSubscriptionProxyProviderTest {
     }
 
     @Test
-    fun rejectsAnthropicModelsOnOpenAiChatCompletionsRoute() {
+    fun bridgesAnthropicModelsOnOpenAiChatCompletionsRoute() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"gh-claude-haiku-4.5\",\"max_tokens\":16,\"messages\":[{\"role\":\"system\",\"content\":\"be brief\"},{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    bearer = true,
+                )
+
+                assertEquals(200, response.statusCode())
+                assertTrue(response.body().contains("\"object\":\"chat.completion\""), response.body())
+                assertTrue(response.body().contains("hi from claude"), response.body())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery only
+                val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/messages", inference.path)
+                assertTrue(inference.body.contains("\"model\":\"claude-haiku-4.5\""), inference.body)
+                assertTrue(inference.body.contains("\"system\":\"be brief\""), inference.body)
+                assertTrue(inference.body.contains("\"max_tokens\":16"), inference.body)
+                assertTrue(inference.body.contains("\"content\":\"hi\""), inference.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun bridgesStreamingAnthropicModelsOnOpenAiChatCompletionsRoute() {
         TestUpstream().use { upstream ->
             val proxy = newProxy(upstream.baseUri)
             try {
@@ -277,10 +306,16 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     bearer = true,
                 )
 
-                assertEquals(400, response.statusCode())
-                assertTrue(response.body().contains("does not support /chat/completions"), response.body())
+                assertEquals(200, response.statusCode())
+                assertTrue(response.headers().firstValue("Content-Type").orElse("").contains("text/event-stream"))
+                assertTrue(response.body().contains("\"object\":\"chat.completion.chunk\""), response.body())
+                assertTrue(response.body().contains("hi from claude"), response.body())
+                assertTrue(response.body().contains("data: [DONE]"), response.body())
                 assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery only
-                assertEquals(null, upstream.requests.poll(500, TimeUnit.MILLISECONDS))
+                val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/messages", inference.path)
+                assertTrue(inference.body.contains("\"stream\":true"), inference.body)
+                assertTrue(inference.body.contains("\"model\":\"claude-haiku-4.5\""), inference.body)
             } finally {
                 proxy.stop()
             }
@@ -331,7 +366,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     .jsonObject["model_info"]!!.jsonObject
                 val endpoints = claudeInfo["supported_endpoints"]!!.jsonArray.map { it.jsonPrimitive.content }
                 assertTrue("/v1/messages" in endpoints)
-                assertFalse("/v1/chat/completions" in endpoints)
+                assertTrue("/v1/chat/completions" in endpoints)
                 assertTrue(claudeInfo["supports_anthropic_messages"]!!.jsonPrimitive.content.toBoolean())
 
                 val gptInfo = data.first { it.jsonObject["id"]!!.jsonPrimitive.content == "gh-gpt-5.4-mini" }
@@ -594,6 +629,10 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     modelsBodyProvider()
                 } else if (exchange.requestURI.rawPath == "/responses" && body.contains("\"stream\":true")) {
                     responsesStreamBody()
+                } else if (exchange.requestURI.rawPath == "/v1/messages" && body.contains("\"stream\":true")) {
+                    anthropicStreamBody()
+                } else if (exchange.requestURI.rawPath == "/v1/messages") {
+                    anthropicMessageBody()
                 } else if (body.contains("\"stream\":true")) {
                     "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\",\"content\":\"hi\"},\"index\":0}]}\n\n" +
                             "data: {\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1,\"total_tokens\":2}}\n\n" +
@@ -668,6 +707,21 @@ class GitHubCopilotSubscriptionProxyProviderTest {
             return "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hi from responses\"}\n\n" +
                     "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"hi from responses\"}]}],\"usage\":{\"input_tokens\":1,\"output_tokens\":2,\"total_tokens\":3}}}\n\n" +
                     "data: [DONE]\n\n"
+        }
+
+        private fun anthropicMessageBody(): String {
+            return "{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"hi from claude\"}],\"stop_reason\":\"end_turn\",\"usage\":{\"input_tokens\":1,\"output_tokens\":2}}"
+        }
+
+        private fun anthropicStreamBody(): String {
+            return "event: message_start\n" +
+                    "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[]}}\n\n" +
+                    "event: content_block_delta\n" +
+                    "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hi from claude\"}}\n\n" +
+                    "event: message_delta\n" +
+                    "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"}}\n\n" +
+                    "event: message_stop\n" +
+                    "data: {\"type\":\"message_stop\"}\n\n"
         }
 
         private fun copilotModel(

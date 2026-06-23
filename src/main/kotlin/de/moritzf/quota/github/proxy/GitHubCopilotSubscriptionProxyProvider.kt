@@ -31,6 +31,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -83,6 +84,7 @@ class GitHubCopilotSubscriptionProxyProvider(
         forwardedRequestHeadersTransformer = ::forwardedRequestHeaders,
         requestHeadersProvider = ::requestHeaders,
         requestBodyTransformer = ::requestBody,
+        upstreamRouteProvider = ::upstreamRoute,
         jsonResponseTransformer = ::openAiChatJsonResponse,
         sseDataTransformer = ::openAiChatSseData,
         httpClient = httpClient,
@@ -155,6 +157,8 @@ class GitHubCopilotSubscriptionProxyProvider(
 
     private fun localSupportedRoutes(model: RemoteModel): Set<SubscriptionProxyRoute> {
         return if (SubscriptionProxyRoute.RESPONSES in model.supportedRoutes && shouldBridgeResponsesModel(model.id)) {
+            model.supportedRoutes + SubscriptionProxyRoute.CHAT_COMPLETIONS
+        } else if (SubscriptionProxyRoute.ANTHROPIC_MESSAGES in model.supportedRoutes && isClaudeModel(model.id)) {
             model.supportedRoutes + SubscriptionProxyRoute.CHAT_COMPLETIONS
         } else {
             model.supportedRoutes
@@ -438,11 +442,22 @@ class GitHubCopilotSubscriptionProxyProvider(
         request: SubscriptionProxyRequest,
         headers: Map<String, String>,
     ): Map<String, String> {
-        if (request.route != SubscriptionProxyRoute.ANTHROPIC_MESSAGES) return headers
+        if (upstreamRoute(request) != SubscriptionProxyRoute.ANTHROPIC_MESSAGES) return headers
         return headers.filterKeys { !it.equals("anthropic-beta", ignoreCase = true) }
     }
 
+    private fun upstreamRoute(request: SubscriptionProxyRequest): SubscriptionProxyRoute {
+        return if (shouldBridgeChatToMessages(request)) {
+            SubscriptionProxyRoute.ANTHROPIC_MESSAGES
+        } else {
+            request.route
+        }
+    }
+
     private fun requestBody(request: SubscriptionProxyRequest, body: JsonObject): JsonObject {
+        if (shouldBridgeChatToMessages(request)) {
+            return openAiChatToAnthropicMessagesBody(request, body)
+        }
         if (request.route == SubscriptionProxyRoute.RESPONSES && request.model.upstreamId.startsWith("gpt-")) {
             return body.remove("max_output_tokens")
         }
@@ -454,12 +469,206 @@ class GitHubCopilotSubscriptionProxyProvider(
         }
     }
 
+    private fun shouldBridgeChatToMessages(request: SubscriptionProxyRequest): Boolean {
+        return request.route == SubscriptionProxyRoute.CHAT_COMPLETIONS &&
+            SubscriptionProxyRoute.ANTHROPIC_MESSAGES in request.model.supportedRoutes &&
+            isClaudeModel(request.model.upstreamId)
+    }
+
+    private fun openAiChatToAnthropicMessagesBody(request: SubscriptionProxyRequest, body: JsonObject): JsonObject {
+        val messages = body["messages"] as? JsonArray ?: JsonArray(emptyList())
+        val systemText = messages.mapNotNull { message ->
+            val item = message as? JsonObject ?: return@mapNotNull null
+            val role = stringField(item, "role") ?: return@mapNotNull null
+            if (role == "system" || role == "developer") contentText(item["content"]) else null
+        }.filter { it.isNotBlank() }.joinToString("\n\n")
+        val anthropicMessages = buildJsonArray {
+            messages.forEach { message ->
+                val item = message as? JsonObject ?: return@forEach
+                val role = stringField(item, "role") ?: return@forEach
+                if (role == "system" || role == "developer") return@forEach
+                val mappedRole = if (role == "assistant") "assistant" else "user"
+                add(buildJsonObject {
+                    put("role", mappedRole)
+                    put("content", openAiContentToAnthropicContent(item["content"]))
+                })
+            }
+        }
+        return buildJsonObject {
+            put("model", request.model.upstreamId)
+            put("max_tokens", anthropicMaxTokens(request, body))
+            if (systemText.isNotBlank()) put("system", systemText)
+            put("messages", anthropicMessages)
+            body["stream"]?.let { put("stream", it) }
+            body["temperature"]?.let { put("temperature", it) }
+            body["top_p"]?.let { put("top_p", it) }
+            body["stop"]?.let { put("stop_sequences", it) }
+        }
+    }
+
+    private fun openAiContentToAnthropicContent(content: JsonElement?): JsonElement {
+        return when (content) {
+            is JsonArray -> buildJsonArray {
+                content.forEach { block ->
+                    add(openAiContentBlockToAnthropic(block))
+                }
+            }
+
+            JsonNull, null -> JsonPrimitive("")
+            else -> JsonPrimitive(contentText(content))
+        }
+    }
+
+    private fun openAiContentBlockToAnthropic(block: JsonElement): JsonElement {
+        val item = block as? JsonObject ?: return block
+        return when (stringField(item, "type")) {
+            "text" -> buildJsonObject {
+                put("type", "text")
+                put("text", stringField(item, "text").orEmpty())
+            }
+
+            "image_url" -> openAiImageUrlToAnthropicImage(item) ?: item
+            else -> item
+        }
+    }
+
+    private fun openAiImageUrlToAnthropicImage(item: JsonObject): JsonObject? {
+        val url = stringField(item["image_url"] as? JsonObject, "url") ?: return null
+        val dataPrefix = "data:"
+        if (!url.startsWith(dataPrefix)) return null
+        val mediaType = url.substringAfter(dataPrefix).substringBefore(';').takeIf { it.isNotBlank() } ?: return null
+        val data = url.substringAfter("base64,", missingDelimiterValue = "").takeIf { it.isNotBlank() } ?: return null
+        return buildJsonObject {
+            put("type", "image")
+            put("source", buildJsonObject {
+                put("type", "base64")
+                put("media_type", mediaType)
+                put("data", data)
+            })
+        }
+    }
+
+    private fun contentText(content: JsonElement?): String {
+        return when (content) {
+            is JsonPrimitive -> content.contentOrNull.orEmpty()
+            is JsonArray -> content.joinToString("") { block ->
+                ((block as? JsonObject)?.get("text") as? JsonPrimitive)?.contentOrNull.orEmpty()
+            }
+
+            else -> ""
+        }
+    }
+
+    private fun anthropicMaxTokens(request: SubscriptionProxyRequest, body: JsonObject): Int {
+        return intField(body, "max_tokens")
+            ?: intField(body, "max_completion_tokens")
+            ?: request.model.maxOutputTokens?.coerceAtMost(DEFAULT_ANTHROPIC_MAX_TOKENS)
+            ?: DEFAULT_ANTHROPIC_MAX_TOKENS
+    }
+
     private fun openAiChatJsonResponse(request: SubscriptionProxyRequest, body: String): String {
+        if (shouldBridgeChatToMessages(request)) return anthropicMessageToOpenAiChat(request, body)
         return openAiChatEnvelope(request, body, "chat.completion")
     }
 
     private fun openAiChatSseData(request: SubscriptionProxyRequest, data: String): String {
+        if (shouldBridgeChatToMessages(request)) return anthropicSseDataToOpenAiChat(request, data)
         return openAiChatEnvelope(request, data, "chat.completion.chunk")
+    }
+
+    private fun anthropicMessageToOpenAiChat(request: SubscriptionProxyRequest, body: String): String {
+        val root = JsonHelper.parseToJsonElementOrNull(body) as? JsonObject ?: return body
+        if (root.containsKey("error")) return body
+        val text = anthropicText(root["content"] as? JsonArray)
+        val finishReason = openAiFinishReason(stringField(root, "stop_reason"))
+        return JsonHelper.encodeToString(buildJsonObject {
+            put("id", root["id"] ?: JsonPrimitive("chatcmpl-${request.requestId}"))
+            put("object", "chat.completion")
+            put("created", System.currentTimeMillis() / 1000L)
+            put("model", request.model.localId)
+            put("choices", buildJsonArray {
+                add(buildJsonObject {
+                    put("index", 0)
+                    put("message", buildJsonObject {
+                        put("role", "assistant")
+                        put("content", text)
+                    })
+                    put("finish_reason", finishReason)
+                })
+            })
+            anthropicUsageToOpenAi(root["usage"] as? JsonObject)?.let { put("usage", it) }
+        })
+    }
+
+    private fun anthropicSseDataToOpenAiChat(request: SubscriptionProxyRequest, data: String): String {
+        val root = JsonHelper.parseToJsonElementOrNull(data) as? JsonObject ?: return data
+        return when (stringField(root, "type")) {
+            "message_start" -> openAiChatChunk(request, role = "assistant")
+            "content_block_delta" -> {
+                val delta = root["delta"] as? JsonObject
+                val text = stringField(delta, "text").orEmpty()
+                if (text.isEmpty()) openAiChatChunk(request) else openAiChatChunk(request, content = text)
+            }
+
+            "message_delta" -> {
+                val delta = root["delta"] as? JsonObject
+                openAiChatChunk(request, finishReason = openAiFinishReason(stringField(delta, "stop_reason")))
+            }
+
+            "message_stop" -> "[DONE]"
+            else -> openAiChatChunk(request)
+        }
+    }
+
+    private fun openAiChatChunk(
+        request: SubscriptionProxyRequest,
+        role: String? = null,
+        content: String? = null,
+        finishReason: String? = null,
+    ): String {
+        return JsonHelper.encodeToString(buildJsonObject {
+            put("id", "chatcmpl-${request.requestId}")
+            put("object", "chat.completion.chunk")
+            put("created", System.currentTimeMillis() / 1000L)
+            put("model", request.model.localId)
+            put("choices", buildJsonArray {
+                add(buildJsonObject {
+                    put("index", 0)
+                    put("delta", buildJsonObject {
+                        role?.let { put("role", it) }
+                        content?.let { put("content", it) }
+                    })
+                    if (finishReason == null) put("finish_reason", JsonNull) else put("finish_reason", finishReason)
+                })
+            })
+        })
+    }
+
+    private fun anthropicText(content: JsonArray?): String {
+        return content.orEmpty().joinToString("") { block ->
+            val item = block as? JsonObject ?: return@joinToString ""
+            if (stringField(item, "type") == "text") stringField(item, "text").orEmpty() else ""
+        }
+    }
+
+    private fun anthropicUsageToOpenAi(usage: JsonObject?): JsonObject? {
+        usage ?: return null
+        val input = intField(usage, "input_tokens") ?: 0
+        val output = intField(usage, "output_tokens") ?: 0
+        return buildJsonObject {
+            put("prompt_tokens", input)
+            put("completion_tokens", output)
+            put("total_tokens", input + output)
+        }
+    }
+
+    private fun openAiFinishReason(reason: String?): String {
+        return when (reason) {
+            "end_turn", null -> "stop"
+            "max_tokens" -> "length"
+            "tool_use" -> "tool_calls"
+            else -> reason
+        }
     }
 
     private fun openAiChatEnvelope(request: SubscriptionProxyRequest, body: String, objectType: String): String {
@@ -568,6 +777,7 @@ class GitHubCopilotSubscriptionProxyProvider(
         private const val EDITOR_VERSION = "vscode/1.104.1"
         private const val EDITOR_PLUGIN_VERSION = "copilot-chat/0.26.7"
         private const val API_VERSION = "2026-06-01"
+        private const val DEFAULT_ANTHROPIC_MAX_TOKENS = 4096
         private val OPENAI_CHAT_ENVELOPE_FIELDS = setOf("id", "object", "created", "model", "choices")
         private val UNSUPPORTED_MESSAGES_BODY_FIELDS = setOf("context_management", "output_config", "thinking")
         val DEFAULT_UPSTREAM_BASE_URI: URI = URI.create("https://api.githubcopilot.com")
@@ -637,6 +847,8 @@ class GitHubCopilotSubscriptionProxyProvider(
         }
 
         private fun shouldBridgeResponsesModel(modelId: String): Boolean = shouldUseResponsesApi(modelId)
+
+        private fun isClaudeModel(modelId: String): Boolean = modelId.startsWith("claude-")
 
         private val GPT_MAJOR_REGEX = Regex("^gpt-(\\d+)")
 
