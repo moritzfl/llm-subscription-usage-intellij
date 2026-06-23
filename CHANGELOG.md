@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [1.4.7] - 2026-06-23
+- Added a new Anthropic-to-OpenAI translation bridge for GitHub Copilot Claude models, exposing Claude Sonnet and Haiku through `/v1/chat/completions` and `/v1/models` for OpenAI-compatible clients such as Junie.
+- Added standalone GitHub Copilot proxy login support with device-code login, clipboard copying, and local `.env` setup for API key and port configuration.
+- Included Claude bridge support for streaming chunks, tool calls, legacy `functions/function_call`, JSON response mode hints, and OpenAI image URL content blocks.
+
 ## [1.4.6] - 2026-06-23
 - Fixed proxy CORS preflight handling by avoiding Ktor `HttpMethod.Options` access, which could trigger illegal access exceptions at runtime.
 
