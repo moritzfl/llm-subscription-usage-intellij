@@ -1184,6 +1184,9 @@ class GitHubCopilotSubscriptionProxyProvider(
         }
 
         private fun shouldUseResponsesApi(modelId: String): Boolean {
+            if (modelId.startsWith("mai-code-")) {
+                return true
+            }
             val major = GPT_MAJOR_REGEX.find(modelId)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: return false
             return major >= 5 && !modelId.startsWith("gpt-5-mini")
         }

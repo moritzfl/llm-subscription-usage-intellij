@@ -265,6 +265,72 @@ class GitHubCopilotSubscriptionProxyProviderTest {
     }
 
     @Test
+    fun bridgesMaiResponsesOnlyChatCompletionsToResponsesApi() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"gh-mai-code-1-flash-picker\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    bearer = true,
+                )
+
+                assertEquals(200, response.statusCode())
+                assertTrue(response.body().contains("\"object\":\"chat.completion\""), response.body())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
+                val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/responses", inference.path)
+                assertTrue(inference.body.contains("\"model\":\"mai-code-1-flash-picker\""), inference.body)
+                assertFalse(inference.body.contains("\"messages\""), inference.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun routesAllAdvertisedGhModelsOnChatCompletions() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val modelInfoResponse = get(proxy.port, "/v1/model/info")
+                assertEquals(200, modelInfoResponse.statusCode())
+                val modelInfos = JsonHelper.JSON.parseToJsonElement(modelInfoResponse.body())
+                    .jsonObject["data"]!!.jsonArray
+                    .map { it.jsonObject }
+                    .filter { it["id"]!!.jsonPrimitive.content.startsWith("gh-") }
+                assertTrue(modelInfos.isNotEmpty())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
+
+                for (modelInfo in modelInfos) {
+                    val modelId = modelInfo["id"]!!.jsonPrimitive.content
+                    val endpoints = modelInfo["model_info"]!!
+                        .jsonObject["supported_endpoints"]!!
+                        .jsonArray
+                        .map { it.jsonPrimitive.content }
+                    val expectedUpstreamPath = expectedChatUpstreamPath(modelId, endpoints)
+
+                    val response = post(
+                        proxy.port,
+                        "/v1/chat/completions",
+                        "{\"model\":\"$modelId\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                        bearer = true,
+                    )
+                    assertEquals(200, response.statusCode(), "model=$modelId body=${response.body()}")
+
+                    val inference = nextInferenceRequest(upstream, modelId)
+                    assertEquals(expectedUpstreamPath, inference.path, "model=$modelId endpoints=$endpoints")
+                }
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun bridgesAnthropicModelsOnOpenAiChatCompletionsRoute() {
         TestUpstream().use { upstream ->
             val proxy = newProxy(upstream.baseUri)
@@ -772,6 +838,33 @@ class GitHubCopilotSubscriptionProxyProviderTest {
         return predicate()
     }
 
+    private fun expectedChatUpstreamPath(modelId: String, endpoints: List<String>): String {
+        val upstreamModelId = modelId.removePrefix("gh-")
+        return when {
+            "/v1/messages" in endpoints -> "/v1/messages"
+            "/v1/responses" in endpoints && shouldBridgeChatToResponses(upstreamModelId) -> "/responses"
+            else -> "/chat/completions"
+        }
+    }
+
+    private fun shouldBridgeChatToResponses(upstreamModelId: String): Boolean {
+        if (upstreamModelId.startsWith("mai-code-")) {
+            return true
+        }
+        val gptMajor = GPT_MAJOR_REGEX.find(upstreamModelId)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: return false
+        return gptMajor >= 5 && !upstreamModelId.startsWith("gpt-5-mini")
+    }
+
+    private fun nextInferenceRequest(upstream: TestUpstream, modelId: String): CapturedRequest {
+        repeat(5) {
+            val next = upstream.requests.poll(2, TimeUnit.SECONDS)
+            if (next != null && next.path != "/models") {
+                return next
+            }
+        }
+        error("Timed out waiting for inference request for $modelId")
+    }
+
     private fun get(port: Int, path: String): HttpResponse<String> {
         return httpClient.send(
             HttpRequest.newBuilder(URI.create("http://127.0.0.1:$port$path"))
@@ -887,6 +980,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
 
     companion object {
         private val httpClient: HttpClient = HttpClient.newHttpClient()
+        private val GPT_MAJOR_REGEX = Regex("^gpt-(\\d+)")
 
         // Local fixture only: production discovers models from GitHub Copilot's /models endpoint.
         private val copilotModels = listOf(
@@ -905,7 +999,13 @@ class GitHubCopilotSubscriptionProxyProviderTest {
             copilotModel("gpt-5.3-codex", family = "gpt-codex", endpoints = listOf("/responses")),
             copilotModel("gpt-5.4", family = "gpt", endpoints = listOf("/responses")),
             copilotModel("gpt-5.4-mini", family = "gpt-mini", endpoints = listOf("/responses")),
-            copilotModel("mai-code-1-flash-picker", family = "mai", toolCalls = null, maxOutputTokens = null),
+            copilotModel(
+                "mai-code-1-flash-picker",
+                family = "mai",
+                endpoints = listOf("/responses"),
+                toolCalls = null,
+                maxOutputTokens = null,
+            ),
             copilotModel("gpt-5.5", family = "gpt", pickerEnabled = false),
             copilotModel("disabled-model", family = "test", disabled = true),
         )
