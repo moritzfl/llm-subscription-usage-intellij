@@ -108,6 +108,8 @@ Notes:
 - Provider credentials stay in the plugin's regular secure storage. OAuth-backed providers refresh through the existing login flow; API-key-backed providers use the API keys configured in their provider settings.
 - `Log requests and responses to disk` writes full request/response bodies to a temp folder for debugging. It is off by default, and logs are pruned automatically (7 days / 2000 files).
 
+The proxy implementation was derived from the initial proxy design of [AIProxyOauth](https://github.com/skanga/AIProxyOauth), adapted to Kotlin and extended for this plugin's multi-provider subscription proxy, broader client compatibility, model discovery, request/response translation, and additional OpenAI-compatible routes.
+
 ---
 
 ## Screenshots

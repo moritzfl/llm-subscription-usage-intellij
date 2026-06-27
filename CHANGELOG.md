@@ -1,6 +1,8 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+
+## [1.4.8] - 2026-06-27
 - Show ended or inactive GitHub Copilot subscriptions explicitly instead of displaying them as missing usage data.
 - Added OpenAI-style streaming usage chunks for GitHub Copilot Claude chat-completions translation when clients request `stream_options.include_usage`.
 
