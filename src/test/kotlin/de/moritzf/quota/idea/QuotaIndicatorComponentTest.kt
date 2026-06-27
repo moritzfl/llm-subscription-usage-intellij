@@ -5,9 +5,11 @@ import de.moritzf.quota.cursor.CursorQuota
 import de.moritzf.quota.cursor.CursorRequestUsage
 import de.moritzf.quota.cursor.CursorSpendLimit
 import de.moritzf.quota.github.GitHubQuota
+import de.moritzf.quota.github.GitHubSubscriptionState
 import de.moritzf.quota.github.GitHubUsageWindow
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorComponent
 import de.moritzf.quota.idea.ui.indicator.buildGitHubTooltipText
+import de.moritzf.quota.idea.ui.indicator.gitHubBarDisplayText
 import de.moritzf.quota.idea.ui.indicator.openCodeBarDisplayText
 import de.moritzf.quota.idea.ui.indicator.ollamaBarDisplayText
 import de.moritzf.quota.idea.ui.indicator.buildOpenCodeTooltipText
@@ -179,6 +181,28 @@ class QuotaIndicatorComponentTest {
         assertTrue(tooltip.contains("Premium requests: 27%"))
         assertFalse(tooltip.contains("Chat"))
         assertFalse(tooltip.contains("Completions"))
+    }
+
+    @Test
+    fun githubIndicatorShowsEndedSubscriptionState() {
+        val quota = GitHubQuota(
+            plan = "Copilot Individual",
+            subscriptionState = GitHubSubscriptionState.SUBSCRIPTION_ENDED,
+        )
+
+        assertEquals("ended", gitHubBarDisplayText(quota, error = null))
+        assertEquals("Copilot Individual: subscription ended", buildGitHubTooltipText(quota, error = null))
+    }
+
+    @Test
+    fun githubIndicatorShowsInactiveSubscriptionState() {
+        val quota = GitHubQuota(
+            plan = "Copilot Individual",
+            subscriptionState = GitHubSubscriptionState.NO_ACTIVE_SUBSCRIPTION,
+        )
+
+        assertEquals("inactive", gitHubBarDisplayText(quota, error = null))
+        assertEquals("Copilot Individual: no active subscription", buildGitHubTooltipText(quota, error = null))
     }
 
     @Test

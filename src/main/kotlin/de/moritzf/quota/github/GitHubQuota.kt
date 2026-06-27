@@ -16,13 +16,15 @@ import java.time.Duration
 @Serializable
 data class GitHubQuota(
     val plan: String = "",
+    val subscriptionState: GitHubSubscriptionState = GitHubSubscriptionState.ACTIVE,
     val premiumInteractions: GitHubUsageWindow? = null,
     val chat: GitHubUsageWindow? = null,
     val completions: GitHubUsageWindow? = null,
     override var fetchedAt: Instant? = null,
     @Transient override var rawJson: String? = null,
 ) : ProviderQuota {
-    override fun hasUsageState(): Boolean = premiumInteractions != null || chat != null || completions != null
+    override fun hasUsageState(): Boolean =
+        subscriptionState != GitHubSubscriptionState.ACTIVE || premiumInteractions != null || chat != null || completions != null
 
     override fun usageFraction(): Double? {
         return limitedWindows().maxOfOrNull { it.usagePercent }?.let { it / 100.0 }
@@ -31,6 +33,13 @@ data class GitHubQuota(
     /** Windows in display priority order, limited ones first. */
     fun limitedWindows(): List<GitHubUsageWindow> =
         listOfNotNull(premiumInteractions, chat, completions).filterNot { it.unlimited }
+}
+
+@Serializable
+enum class GitHubSubscriptionState {
+    ACTIVE,
+    SUBSCRIPTION_ENDED,
+    NO_ACTIVE_SUBSCRIPTION,
 }
 
 @Serializable

@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.ui.popup
 
 import de.moritzf.quota.github.GitHubQuota
+import de.moritzf.quota.github.GitHubSubscriptionState
 import de.moritzf.quota.github.GitHubUsageWindow
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
@@ -56,6 +57,16 @@ internal class GitHubPopupSection : ProviderPopupSection() {
             }
 
             else -> {
+                val inactiveMessage = inactiveMessage(quota.subscriptionState)
+                if (inactiveMessage != null) {
+                    hideAll()
+                    errorLabel.isVisible = true
+                    errorLabel.text = inactiveMessage
+                    titleLabel.isVisible = true
+                    titleLabel.text = quota.plan.ifBlank { "GitHub Copilot" }
+                    return
+                }
+
                 val limitReached = quota.limitedWindows().any { it.usagePercent >= 100.0 }
                 errorLabel.isVisible = limitReached
                 if (limitReached) {
@@ -68,6 +79,14 @@ internal class GitHubPopupSection : ProviderPopupSection() {
                 bindWindow(chatBlock, quota.chat)
                 bindWindow(completionsBlock, quota.completions)
             }
+        }
+    }
+
+    private fun inactiveMessage(state: GitHubSubscriptionState): String? {
+        return when (state) {
+            GitHubSubscriptionState.ACTIVE -> null
+            GitHubSubscriptionState.SUBSCRIPTION_ENDED -> "GitHub Copilot subscription ended"
+            GitHubSubscriptionState.NO_ACTIVE_SUBSCRIPTION -> "No active GitHub Copilot subscription"
         }
     }
 

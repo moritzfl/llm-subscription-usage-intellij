@@ -118,6 +118,7 @@ open class GitHubQuotaClient(
 
             return GitHubQuota(
                 plan = normalizePlan(dto.copilotPlan),
+                subscriptionState = subscriptionState(dto),
                 premiumInteractions = premium,
                 chat = chat,
                 completions = completions,
@@ -164,6 +165,19 @@ open class GitHubQuotaClient(
                 ?: runCatching { Instant.parse("${value}T00:00:00Z") }.getOrNull()
         }
 
+        private fun subscriptionState(dto: GitHubUserResponseDto): GitHubSubscriptionState {
+            if (dto.accessTypeSku.equals("subscription_ended", ignoreCase = true)) {
+                return GitHubSubscriptionState.SUBSCRIPTION_ENDED
+            }
+
+            val hasQuotaPayload = dto.quotaSnapshots != null || dto.limitedUserQuotas != null || dto.monthlyQuotas != null
+            if (dto.chatEnabled == false && dto.cliEnabled == false && !hasQuotaPayload) {
+                return GitHubSubscriptionState.NO_ACTIVE_SUBSCRIPTION
+            }
+
+            return GitHubSubscriptionState.ACTIVE
+        }
+
         private fun normalizePlan(plan: String?): String {
             return when (plan?.lowercase()) {
                 "free" -> "Copilot Free"
@@ -182,6 +196,9 @@ open class GitHubQuotaClient(
 @Serializable
 private data class GitHubUserResponseDto(
     @SerialName("copilot_plan") val copilotPlan: String? = null,
+    @SerialName("access_type_sku") val accessTypeSku: String? = null,
+    @SerialName("chat_enabled") val chatEnabled: Boolean? = null,
+    @SerialName("cli_enabled") val cliEnabled: Boolean? = null,
     @SerialName("quota_reset_date") val quotaResetDate: String? = null,
     @SerialName("quota_snapshots") val quotaSnapshots: GitHubQuotaSnapshotsDto? = null,
     @SerialName("limited_user_reset_date") val limitedUserResetDate: String? = null,

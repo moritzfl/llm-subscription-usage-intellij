@@ -21,6 +21,7 @@ import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.cursor.CursorQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.github.GitHubQuota
+import de.moritzf.quota.github.GitHubSubscriptionState
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.supergrok.SuperGrokQuota
@@ -385,6 +386,7 @@ internal fun buildGitHubTooltipText(quota: GitHubQuota?, error: String?): String
     if (error != null) return "GitHub Copilot quota: $error"
     if (quota == null) return "GitHub Copilot quota: loading"
     val plan = quota.plan.ifBlank { "GitHub Copilot" }
+    githubInactiveTooltip(quota.subscriptionState)?.let { return "$plan: $it" }
     val parts = mutableListOf<String>()
     quota.limitedWindows().forEach { window ->
         parts.add("${window.label}: ${clampPercent(window.usagePercent.roundToInt())}% • ${QuotaUiUtil.formatResetCompact(window.resetsAt) ?: "unknown"}")
@@ -396,6 +398,7 @@ internal fun buildGitHubTooltipText(quota: GitHubQuota?, error: String?): String
 internal fun gitHubBarDisplayText(quota: GitHubQuota?, error: String?): String {
     if (error != null) return "error"
     if (quota == null) return "loading..."
+    githubInactiveBarText(quota.subscriptionState)?.let { return it }
     val usage = gitHubDisplayWindow(quota) ?: return "no data"
 
     val percent = clampPercent(usage.usagePercent.roundToInt())
@@ -406,6 +409,22 @@ internal fun gitHubBarDisplayText(quota: GitHubQuota?, error: String?): String {
 
 internal fun gitHubDisplayWindow(quota: GitHubQuota): de.moritzf.quota.github.GitHubUsageWindow? {
     return quota.limitedWindows().firstOrNull()
+}
+
+private fun githubInactiveTooltip(state: GitHubSubscriptionState): String? {
+    return when (state) {
+        GitHubSubscriptionState.ACTIVE -> null
+        GitHubSubscriptionState.SUBSCRIPTION_ENDED -> "subscription ended"
+        GitHubSubscriptionState.NO_ACTIVE_SUBSCRIPTION -> "no active subscription"
+    }
+}
+
+private fun githubInactiveBarText(state: GitHubSubscriptionState): String? {
+    return when (state) {
+        GitHubSubscriptionState.ACTIVE -> null
+        GitHubSubscriptionState.SUBSCRIPTION_ENDED -> "ended"
+        GitHubSubscriptionState.NO_ACTIVE_SUBSCRIPTION -> "inactive"
+    }
 }
 
 internal fun zaiBarDisplayText(quota: ZaiQuota?, error: String?): String {

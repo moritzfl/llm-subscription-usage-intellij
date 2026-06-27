@@ -87,6 +87,40 @@ class GitHubQuotaClientTest {
     }
 
     @Test
+    fun parseQuotaMarksSubscriptionEndedAccount() {
+        val body = """
+            {
+              "access_type_sku": "subscription_ended",
+              "chat_enabled": false,
+              "cli_enabled": false,
+              "copilot_plan": "individual"
+            }
+        """.trimIndent()
+
+        val quota = GitHubQuotaClient.parseQuota(body)
+
+        assertEquals("Copilot Individual", quota.plan)
+        assertEquals(GitHubSubscriptionState.SUBSCRIPTION_ENDED, quota.subscriptionState)
+        assertTrue(quota.hasUsageState())
+        assertTrue(quota.limitedWindows().isEmpty())
+    }
+
+    @Test
+    fun parseQuotaMarksDisabledAccountWithoutUsageAsInactive() {
+        val body = """
+            {
+              "chat_enabled": false,
+              "cli_enabled": false,
+              "copilot_plan": "individual"
+            }
+        """.trimIndent()
+
+        val quota = GitHubQuotaClient.parseQuota(body)
+
+        assertEquals(GitHubSubscriptionState.NO_ACTIVE_SUBSCRIPTION, quota.subscriptionState)
+    }
+
+    @Test
     fun usageEndpointUsesEnterpriseApiHost() {
         assertEquals(
             "https://api.github.com/copilot_internal/user",
