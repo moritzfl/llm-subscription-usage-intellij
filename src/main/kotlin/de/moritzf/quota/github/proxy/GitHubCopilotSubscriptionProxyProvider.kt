@@ -851,7 +851,9 @@ class GitHubCopilotSubscriptionProxyProvider(
 
             "message_delta" -> {
                 val delta = root["delta"] as? JsonObject
-                openAiChatChunk(request, finishReason = openAiFinishReason(stringField(delta, "stop_reason")))
+                val finishChunk = openAiChatChunk(request, finishReason = openAiFinishReason(stringField(delta, "stop_reason")))
+                val usageChunk = if (openAiIncludeUsage(request)) openAiUsageChunk(request, root["usage"] as? JsonObject) else null
+                if (usageChunk == null) finishChunk else "$finishChunk\n\ndata: $usageChunk"
             }
 
             "message_stop" -> ""
@@ -943,6 +945,23 @@ class GitHubCopilotSubscriptionProxyProvider(
                 })
             })
         })
+    }
+
+    private fun openAiUsageChunk(request: SubscriptionProxyRequest, usage: JsonObject?): String? {
+        val normalizedUsage = anthropicUsageToOpenAi(usage) ?: return null
+        return JsonHelper.encodeToString(buildJsonObject {
+            put("id", "chatcmpl-${request.requestId}")
+            put("object", "chat.completion.chunk")
+            put("created", System.currentTimeMillis() / 1000L)
+            put("model", request.model.localId)
+            put("choices", JsonArray(emptyList()))
+            put("usage", normalizedUsage)
+        })
+    }
+
+    private fun openAiIncludeUsage(request: SubscriptionProxyRequest): Boolean {
+        val streamOptions = request.body["stream_options"] as? JsonObject ?: return false
+        return (streamOptions["include_usage"] as? JsonPrimitive)?.booleanOrNull == true
     }
 
     private fun anthropicText(content: JsonArray?): String {

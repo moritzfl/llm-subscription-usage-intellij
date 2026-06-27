@@ -324,6 +324,34 @@ class GitHubCopilotSubscriptionProxyProviderTest {
     }
 
     @Test
+    fun bridgesStreamingAnthropicUsageWhenOpenAiClientRequestsIt() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"gh-claude-haiku-4.5\",\"stream\":true,\"stream_options\":{\"include_usage\":true},\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    bearer = true,
+                )
+
+                assertEquals(200, response.statusCode())
+                assertTrue(response.body().contains("\"choices\":[],\"usage\":{"), response.body())
+                assertTrue(response.body().contains("\"prompt_tokens\":3"), response.body())
+                assertTrue(response.body().contains("\"completion_tokens\":5"), response.body())
+                assertTrue(response.body().contains("data: [DONE]"), response.body())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery only
+                val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/messages", inference.path)
+                assertTrue(inference.body.contains("\"stream\":true"), inference.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun bridgesAnthropicToolCallsOnOpenAiChatCompletionsRoute() {
         TestUpstream().use { upstream ->
             val proxy = newProxy(upstream.baseUri)
@@ -928,7 +956,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     "event: content_block_delta\n" +
                     "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hi from claude\"}}\n\n" +
                     "event: message_delta\n" +
-                    "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"}}\n\n" +
+                    "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"input_tokens\":3,\"output_tokens\":5}}\n\n" +
                     "event: message_stop\n" +
                     "data: {\"type\":\"message_stop\"}\n\n" +
                     "data: [DONE]\n\n"

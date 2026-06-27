@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 - Show ended or inactive GitHub Copilot subscriptions explicitly instead of displaying them as missing usage data.
+- Added OpenAI-style streaming usage chunks for GitHub Copilot Claude chat-completions translation when clients request `stream_options.include_usage`.
 
 ## [1.4.7] - 2026-06-23
 - Added a new Anthropic-to-OpenAI translation bridge for GitHub Copilot Claude models, exposing Claude Sonnet and Haiku through `/v1/chat/completions` and `/v1/models` for OpenAI-compatible clients such as Junie.
