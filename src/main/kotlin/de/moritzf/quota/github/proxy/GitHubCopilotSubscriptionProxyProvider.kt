@@ -1031,6 +1031,9 @@ class GitHubCopilotSubscriptionProxyProvider(
     private fun responsesChatBody(body: MutableJsonObject) {
         body.remove("store")
         val model = (body.get("model") as? JsonPrimitive)?.contentOrNull.orEmpty()
+        if (model.startsWith("mai-code-")) {
+            body.remove("temperature")
+        }
         if (model.startsWith("gpt-")) {
             body.remove("max_output_tokens")
         }

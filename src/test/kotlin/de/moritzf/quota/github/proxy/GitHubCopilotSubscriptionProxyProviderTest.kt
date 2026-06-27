@@ -273,7 +273,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 val response = post(
                     proxy.port,
                     "/v1/chat/completions",
-                    "{\"model\":\"gh-mai-code-1-flash-picker\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    "{\"model\":\"gh-mai-code-1-flash-picker\",\"temperature\":0.2,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
                     bearer = true,
                 )
 
@@ -284,6 +284,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 assertEquals("/responses", inference.path)
                 assertTrue(inference.body.contains("\"model\":\"mai-code-1-flash-picker\""), inference.body)
                 assertFalse(inference.body.contains("\"messages\""), inference.body)
+                assertFalse(inference.body.contains("\"temperature\""), inference.body)
             } finally {
                 proxy.stop()
             }
