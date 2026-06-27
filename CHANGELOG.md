@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [1.4.9] - 2026-06-27
+- Fixed GitHub Copilot MAI chat-completions routing by bridging `gh-mai-code-1-flash-picker` requests to the upstream `/responses` endpoint.
+- Stripped unsupported `temperature` parameters from GitHub Copilot MAI bridged requests so JetBrains Junie helper calls no longer trigger upstream 400 errors.
+
 ## [1.4.8] - 2026-06-27
 - Show ended or inactive GitHub Copilot subscriptions explicitly instead of displaying them as missing usage data.
 - Added OpenAI-style streaming usage chunks for GitHub Copilot Claude chat-completions translation when clients request `stream_options.include_usage`.
