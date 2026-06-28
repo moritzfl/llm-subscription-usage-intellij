@@ -3,6 +3,7 @@ package de.moritzf.quota.idea.settings
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
+import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
@@ -84,6 +85,12 @@ internal class SubscriptionProxySettingsPanel(
     private val proxyApiKeyHintLabel = JBLabel().apply { isVisible = false }
     private val providerStatusLabel = JBLabel().apply { isVisible = false }
     private val logsStatusLabel = JBLabel().apply { isVisible = false }
+    private val proxyDescriptionLabel = JBLabel(
+        "<html><body width='720'>Use the copied base URL and API key to configure this proxy in JetBrains AI Assistant " +
+            "under Providers and API keys, or in Junie CLI as a LiteLLM proxy.</body></html>",
+    ).apply {
+        foreground = JBColor.GRAY
+    }
     private val modelPreview = JBTextArea().apply {
         isEditable = false
         lineWrap = false
@@ -151,6 +158,11 @@ internal class SubscriptionProxySettingsPanel(
             row {
                 cell(proxyEnabledCheckBox)
                     .comment("Serves one OpenAI-compatible localhost API for selected subscription-backed providers.")
+            }
+            row {
+                cell(proxyDescriptionLabel)
+                    .resizableColumn()
+                    .align(AlignX.FILL)
             }
             indent {
                 row("Port:") {

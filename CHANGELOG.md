@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [1.4.10] - 2026-06-27
+- Moved IntelliJ MCP server URL sync target configuration into the MCP settings tab and added explanatory text about keeping agent configuration files aligned when the IDE MCP server port changes.
+- Added proxy setup guidance for configuring the local LLM proxy in JetBrains AI Assistant or Junie CLI as a LiteLLM proxy.
+
 ## [1.4.9] - 2026-06-27
 - Fixed GitHub Copilot MAI chat-completions routing by bridging `gh-mai-code-1-flash-picker` requests to the upstream `/responses` endpoint.
 - Stripped unsupported `temperature` parameters from GitHub Copilot MAI bridged requests so JetBrains Junie helper calls no longer trigger upstream 400 errors.
