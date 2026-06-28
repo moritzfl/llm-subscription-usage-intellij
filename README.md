@@ -77,7 +77,7 @@ Or download a release ZIP from the [GitHub releases page](https://github.com/mor
 
 ## Getting Started
 
-1. Open `Settings` > `LLM Subscription Usage`
+1. Open `Settings` > `Tools` > `LLM Subscription Usage`
 2. Login or add your credentials for your LLM Providers
 3. Return to IDE — the status bar widget shows your quota
 4. Click the widget for a detailed popup
@@ -99,7 +99,7 @@ The settings page shows whether IntelliJ's MCP server is currently running, inst
 
 When configured, the plugin can run a local proxy that exposes selected subscription-backed providers through standard OpenAI-compatible endpoints (`/v1/chat/completions`, `/v1/responses` where supported, `/v1/models`, plus LiteLLM-style `/v1/model/info`). Any tool that speaks the OpenAI API or expects a LiteLLM server can then use your subscriptions.
 
-To enable it, open the **Proxy** tab in settings, tick `Enable local subscription proxy`, choose the providers to expose, and apply. The status line shows whether the proxy is off, starting, running, or failed. Use `Copy Base URL` and `Copy API Key` to configure clients; requests authenticate against the locally generated API key, which is stored in the IDE Password Safe.
+To enable it, open the **Proxy** tab in `Settings` > `Tools` > `LLM Subscription Usage`, tick `Enable local subscription proxy`, choose the providers to expose, and apply. The status line shows whether the proxy is off, starting, running, or failed. Use `Copy Base URL` and `Copy API Key` to configure clients; requests authenticate against the locally generated API key, which is stored in the IDE Password Safe.
 
 Notes:
 
@@ -132,7 +132,11 @@ The proxy implementation was derived from the initial proxy design of [AIProxyOa
 
 ### MCP Server URL Sync
 
-![MCP server sync settings](docs/mcp-server-sync.png)
+![MCP server sync settings](docs/mcp-sync-settings.png)
+
+### OpenAI-Compatible Proxy
+
+![Proxy settings](docs/proxy-settings.png)
 
 ### Settings
 
