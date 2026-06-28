@@ -44,10 +44,9 @@ import javax.swing.tree.TreePath
 import javax.swing.tree.TreeSelectionModel
 
 @OptIn(ExperimentalSerializationApi::class)
-internal class McpServerSyncTargetsDialog(
-    parent: Component,
+internal class McpServerSyncTargetsPanel(
     initialTargets: List<McpServerSyncTarget>,
-) : DialogWrapper(parent, true) {
+) : BorderLayoutPanel() {
     private val model = object : DefaultTableModel(COLUMNS, 0) {
         override fun isCellEditable(row: Int, column: Int): Boolean = true
 
@@ -74,45 +73,53 @@ internal class McpServerSyncTargetsDialog(
     private var rowValidations: Map<Int, RowValidation> = emptyMap()
 
     init {
-        title = "IntelliJ MCP Server URL Sync Targets"
+        isOpaque = false
         model.addTableModelListener { refreshValidationState() }
-        initialTargets.forEach { addTarget(it) }
-        refreshValidationState()
-        init()
+        setTargets(initialTargets)
+        addToTop(helpLabel())
+        addToCenter(targetsTablePanel())
     }
 
-    fun targets(): List<McpServerSyncTarget> = readTargets()
+    fun targets(): List<McpServerSyncTarget> {
+        table.cellEditor?.stopCellEditing()
+        return readTargets()
+    }
 
-    override fun createCenterPanel(): JComponent {
-        val help = JBLabel(
+    fun currentTargets(): List<McpServerSyncTarget> = readTargets()
+
+    fun setTargets(targets: List<McpServerSyncTarget>) {
+        table.cellEditor?.cancelCellEditing()
+        model.rowCount = 0
+        targets.forEach { addTarget(it) }
+        refreshValidationState()
+    }
+
+    fun validationError(): String? {
+        table.cellEditor?.stopCellEditing()
+        refreshValidationState()
+        (0 until model.rowCount).forEach { row ->
+            val error = rowValidations[row]?.firstError ?: return@forEach
+            return "MCP sync target row ${row + 1}: $error"
+        }
+        return null
+    }
+
+    private fun helpLabel(): JBLabel {
+        return JBLabel(
             "Use dot paths like mcpServers.jetbrains.url for JSON/TOML/YAML, or JSON Pointer paths like /mcpServers/jetbrains/url.",
         ).apply {
             foreground = JBColor.GRAY
             border = JBUI.Borders.emptyBottom(8)
         }
+    }
 
-        val tablePanel = ToolbarDecorator.createDecorator(table)
+    private fun targetsTablePanel(): JComponent {
+        return ToolbarDecorator.createDecorator(table)
             .setAddAction { addTarget() }
             .setRemoveAction { removeSelectedTargets() }
             .disableUpDownActions()
             .setToolbarPosition(ActionToolbarPosition.BOTTOM)
             .createPanel()
-
-        return BorderLayoutPanel().apply {
-            border = JBUI.Borders.empty(8)
-            addToTop(help)
-            addToCenter(tablePanel)
-        }
-    }
-
-    override fun doValidate(): ValidationInfo? {
-        table.cellEditor?.stopCellEditing()
-        refreshValidationState()
-        (0 until model.rowCount).forEach { row ->
-            val error = rowValidations[row]?.firstError ?: return@forEach
-            return ValidationInfo("Row ${row + 1}: $error", table)
-        }
-        return null
     }
 
     private fun addTarget(target: McpServerSyncTarget = McpServerSyncTarget()) {
@@ -141,7 +148,6 @@ internal class McpServerSyncTargetsDialog(
     }
 
     private fun readTargets(): List<McpServerSyncTarget> {
-        table.cellEditor?.stopCellEditing()
         return (0 until model.rowCount).mapNotNull { row ->
             val target = readTargetAt(row)
             if (target.jsonPropertyPath.isBlank()) {
@@ -152,9 +158,9 @@ internal class McpServerSyncTargetsDialog(
     }
 
     private fun readTargetAt(row: Int): McpServerSyncTarget {
-        val jsonFilePath = (model.getValueAt(row, FILE_COLUMN) as? String).orEmpty().trim()
-        val jsonPropertyPath = (model.getValueAt(row, PROPERTY_COLUMN) as? String).orEmpty().trim()
-        val transport = when (val value = model.getValueAt(row, TRANSPORT_COLUMN)) {
+        val jsonFilePath = (valueAt(row, FILE_COLUMN) as? String).orEmpty().trim()
+        val jsonPropertyPath = (valueAt(row, PROPERTY_COLUMN) as? String).orEmpty().trim()
+        val transport = when (val value = valueAt(row, TRANSPORT_COLUMN)) {
             is McpServerTransport -> value
             is String -> McpServerTransport.fromStorageValue(value)
             else -> McpServerTransport.SSE
@@ -164,6 +170,18 @@ internal class McpServerSyncTargetsDialog(
             jsonPropertyPath = jsonPropertyPath,
             transportType = transport.name,
         )
+    }
+
+    private fun valueAt(modelRow: Int, modelColumn: Int): Any? {
+        val editingRow = table.editingRow
+        val editingColumn = table.editingColumn
+        if (editingRow >= 0 && editingColumn >= 0 &&
+            table.convertRowIndexToModel(editingRow) == modelRow &&
+            table.convertColumnIndexToModel(editingColumn) == modelColumn
+        ) {
+            return table.cellEditor?.cellEditorValue
+        }
+        return model.getValueAt(modelRow, modelColumn)
     }
 
     private fun refreshValidationState() {

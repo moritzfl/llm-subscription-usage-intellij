@@ -4,8 +4,10 @@ import com.intellij.ide.ActivityTracker
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.options.Configurable
+import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogPanel
+import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.dsl.builder.Align
@@ -30,7 +32,6 @@ import de.moritzf.quota.minimax.MiniMaxRegionPreference
 import de.moritzf.quota.shared.ProviderQuota
 import java.awt.CardLayout
 import java.awt.Dimension
-import javax.swing.JButton
 import javax.swing.Icon
 import javax.swing.JComponent
 import javax.swing.JPanel
@@ -59,10 +60,9 @@ class QuotaSettingsConfigurable : Configurable {
     private var serviceCards: JPanel? = null
     private var serviceCardLayout: CardLayout? = null
     private var mcpSyncCheckBox: JBCheckBox? = null
-    private var configureMcpSyncTargetsButton: JButton? = null
     private var mcpServerStatusLabel: JBLabel? = null
     private var mcpServerStatusTimer: Timer? = null
-    private var mcpSyncTargets: MutableList<McpServerSyncTarget> = mutableListOf()
+    private var mcpSyncTargetsPanel: McpServerSyncTargetsPanel? = null
     private var proxySettingsPanel: SubscriptionProxySettingsPanel? = null
 
     override fun getDisplayName(): String = "LLM Subscription Usage"
@@ -82,15 +82,7 @@ class QuotaSettingsConfigurable : Configurable {
         indicatorSourceComboBox = createIndicatorComboBox(QuotaIndicatorSource.entries.toTypedArray())
         displayModePreview = DisplayModePreviewComponent()
         mcpSyncCheckBox = JBCheckBox("Sync IntelliJ MCP server URL to JSON/TOML/YAML files")
-        configureMcpSyncTargetsButton = JButton("Configure Targets...").apply {
-            addActionListener {
-                val parent = rootComponent ?: panel ?: return@addActionListener
-                val dialog = McpServerSyncTargetsDialog(parent, mcpSyncTargets)
-                if (dialog.showAndGet()) {
-                    mcpSyncTargets = normalizeTargets(dialog.targets()).toMutableList()
-                }
-            }
-        }
+        mcpSyncTargetsPanel = McpServerSyncTargetsPanel(emptyList())
         mcpServerStatusLabel = JBLabel()
         proxySettingsPanel = SubscriptionProxySettingsPanel { panel ?: rootComponent }
 
@@ -148,6 +140,9 @@ class QuotaSettingsConfigurable : Configurable {
     }
 
     override fun apply() {
+        mcpSyncTargetsPanel?.validationError()?.let { error ->
+            throw ConfigurationException(error)
+        }
         panel?.apply()
     }
 
@@ -170,11 +165,10 @@ class QuotaSettingsConfigurable : Configurable {
         updatingDisplayModeChoices = false
         providerPanelsByType.clear()
         mcpSyncCheckBox = null
-        configureMcpSyncTargetsButton = null
         mcpServerStatusTimer?.stop()
         mcpServerStatusTimer = null
         mcpServerStatusLabel = null
-        mcpSyncTargets = mutableListOf()
+        mcpSyncTargetsPanel = null
         proxySettingsPanel = null
     }
 
@@ -274,7 +268,7 @@ class QuotaSettingsConfigurable : Configurable {
                 }
                 val miniMaxRegionChanged = miniMaxPanel().regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference()
                 val providerOrderChanged = providerReorderPanel?.getOrder()?.joinToString(",") { it.id } != state.providerOrder
-                val normalizedMcpTargets = normalizeTargets(mcpSyncTargets)
+                val normalizedMcpTargets = normalizeTargets(mcpSyncTargetsPanel?.targets().orEmpty())
                 val mcpSyncChanged = mcpSyncCheckBox?.isSelected != state.syncIntellijMcpServerUrl
                 val mcpTargetsChanged = normalizedMcpTargets != normalizeTargets(state.mcpServerSyncTargets)
                 val proxyPanel = proxySettingsPanel ?: return@onApply
@@ -338,7 +332,7 @@ class QuotaSettingsConfigurable : Configurable {
                 miniMaxPanel().regionComboBox.selectedItem = QuotaSettingsState.getInstance().miniMaxRegionPreference()
                 providerReorderPanel?.setOrder(QuotaSettingsState.getInstance().providerOrderList())
                 mcpSyncCheckBox?.isSelected = QuotaSettingsState.getInstance().syncIntellijMcpServerUrl
-                mcpSyncTargets = normalizeTargets(QuotaSettingsState.getInstance().mcpServerSyncTargets).toMutableList()
+                mcpSyncTargetsPanel?.setTargets(normalizeTargets(QuotaSettingsState.getInstance().mcpServerSyncTargets))
                 providerPanelsByType.values.forEach { providerPanel ->
                     providerPanel.updateFields()
                     providerPanel.updateResponseArea()
@@ -358,7 +352,7 @@ class QuotaSettingsConfigurable : Configurable {
                     miniMaxPanel().regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionPreference() ||
                     providerReorderPanel?.getOrder()?.joinToString(",") { it.id } != state.providerOrder ||
                     mcpSyncCheckBox?.isSelected != state.syncIntellijMcpServerUrl ||
-                    normalizeTargets(mcpSyncTargets) != normalizeTargets(state.mcpServerSyncTargets) ||
+                    normalizeTargets(mcpSyncTargetsPanel?.currentTargets().orEmpty()) != normalizeTargets(state.mcpServerSyncTargets) ||
                     proxySettingsPanel?.proxyEnabledCheckBox?.isSelected != state.openAiProxyEnabled ||
                     proxySettingsPanel?.isProxyPortModified() == true ||
                     proxySettingsPanel?.isProxyApiKeyModified() == true ||
@@ -409,12 +403,34 @@ class QuotaSettingsConfigurable : Configurable {
         return panel {
             row {
                 cell(mcpSyncCheckBox!!)
-                cell(configureMcpSyncTargetsButton!!)
+            }
+
+            row {
+                cell(mcpSyncDescriptionLabel())
+                    .resizableColumn()
+                    .align(Align.FILL)
             }
 
             row {
                 cell(mcpServerStatusLabel!!)
             }
+
+            row {
+                cell(mcpSyncTargetsPanel!!)
+                    .resizableColumn()
+                    .align(Align.FILL)
+            }
+        }
+    }
+
+    private fun mcpSyncDescriptionLabel(): JBLabel {
+        return JBLabel(
+            "<html><body width='720'>IntelliJ's integrated MCP server can change its port from time to time. " +
+                "When sync is enabled, this plugin writes the current server URL to the selected agent " +
+                "configuration files on startup and after settings changes, so those agents keep pointing " +
+                "at the correct IntelliJ MCP server.</body></html>",
+        ).apply {
+            foreground = JBColor.GRAY
         }
     }
 
