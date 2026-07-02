@@ -22,6 +22,10 @@ internal object McpJson {
         )
     }
 
+    fun toolsStatus(providers: List<McpProviderToolStatus>): String {
+        return JsonSupport.json.encodeToString(McpToolsStatusResponse(providers = providers))
+    }
+
 }
 
 @Serializable
@@ -30,6 +34,15 @@ internal data class McpWebSearchToolStatus(
     val provider: String,
     val configured: Boolean,
     val available: Boolean,
+    val reason: String? = null,
+)
+
+@Serializable
+internal data class McpProviderToolStatus(
+    val provider: String,
+    @SerialName("quota_configured") val quotaConfigured: Boolean,
+    @SerialName("web_search_available") val webSearchAvailable: Boolean,
+    @SerialName("web_search_type") val webSearchType: String? = null,
     val reason: String? = null,
 )
 
@@ -49,4 +62,11 @@ private data class McpWebSearchStatusResponse(
     val note: String = "This status does not call provider search APIs.",
     @SerialName("available_tools") val availableTools: List<String>,
     val tools: List<McpWebSearchToolStatus>,
+)
+
+@Serializable
+private data class McpToolsStatusResponse(
+    val check: String = "credentials",
+    val note: String = "This status does not call provider APIs.",
+    val providers: List<McpProviderToolStatus>,
 )
