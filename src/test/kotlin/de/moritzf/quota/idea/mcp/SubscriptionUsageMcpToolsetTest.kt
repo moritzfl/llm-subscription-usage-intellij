@@ -48,12 +48,12 @@ class SubscriptionUsageMcpToolsetTest {
     fun subscriptionQuotaUsesSingleToolWithProviderEnumParameter() {
         val toolNames = SubscriptionUsageMcpToolset::class.java.declaredMethods
             .mapNotNull { it.getAnnotation(McpTool::class.java)?.name }
-        val quotaToolNames = toolNames.filter { it == "get_subscription_quota" || it.endsWith("_usage_quota") }
+        val quotaToolNames = toolNames.filter { it == "subscription_quota" || it.endsWith("_usage_quota") }
         val quotaTool = SubscriptionUsageMcpToolset::class.java.declaredMethods.single {
-            it.getAnnotation(McpTool::class.java)?.name == "get_subscription_quota"
+            it.getAnnotation(McpTool::class.java)?.name == "subscription_quota"
         }
 
-        assertEquals(listOf("get_subscription_quota"), quotaToolNames)
+        assertEquals(listOf("subscription_quota"), quotaToolNames)
         assertEquals(listOf(QuotaProviderType::class.java), quotaTool.parameterTypes.toList())
     }
 

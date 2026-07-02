@@ -1,7 +1,7 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
-- Consolidated provider-specific MCP quota tools into one `get_subscription_quota` tool with a provider parameter to reduce MCP tool context size.
+- Consolidated provider-specific MCP quota tools into one `subscription_quota` tool with a provider parameter to reduce MCP tool context size.
 - Consolidated per-provider list-search MCP tools (Kimi, Z.ai, MiniMax, Ollama) into one `subscription_web_search` tool with a `ListSearchProvider` enum parameter.
 - Renamed the MCP toolset from `OpenAiUsageQuotaMcpToolset` to `SubscriptionUsageMcpToolset` to reflect its multi-provider scope.
 - Replaced `web_search_tools_status` with `subscription_tools_status`, which reports per-provider quota configuration and web search availability.

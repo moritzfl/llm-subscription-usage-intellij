@@ -40,9 +40,9 @@ class SubscriptionUsageMcpToolset(
     private val ollamaSearchClient: OllamaWebSearchClient = OllamaWebSearchClient.createDefault(),
     private val superGrokSearchClient: SuperGrokWebSearchClient = SuperGrokWebSearchClient.createDefault(),
 ) : McpToolset {
-    @McpTool(name = "get_subscription_quota")
+    @McpTool(name = "subscription_quota")
     @McpDescription(description = "Returns the latest subscription quota response JSON for the selected provider.")
-    fun get_subscription_quota(
+    fun subscription_quota(
         @McpDescription(description = "Provider to query. Supported providers are derived from the shared provider enum.") provider: QuotaProviderType,
     ): String {
         return quotaResult(provider)
