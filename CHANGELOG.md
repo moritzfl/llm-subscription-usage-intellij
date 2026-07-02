@@ -1,10 +1,13 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+
+## [1.5.0] - 2026-07-02
 - Consolidated provider-specific MCP quota tools into one `subscription_quota` tool with a provider parameter to reduce MCP tool context size.
 - Consolidated per-provider list-search MCP tools (Kimi, Z.ai, MiniMax, Ollama) into one `subscription_web_search` tool with a `ListSearchProvider` enum parameter.
 - Renamed the MCP toolset from `OpenAiUsageQuotaMcpToolset` to `SubscriptionUsageMcpToolset` to reflect its multi-provider scope.
 - Replaced `web_search_tools_status` with `subscription_tools_status`, which reports per-provider quota configuration and web search availability.
+- Web search error responses now list which search providers are currently configured so callers can retry with an available provider without an extra status call.
 
 ## [1.4.10] - 2026-06-27
 - Moved IntelliJ MCP server URL sync target configuration into the MCP settings tab and added explanatory text about keeping agent configuration files aligned when the IDE MCP server port changes.

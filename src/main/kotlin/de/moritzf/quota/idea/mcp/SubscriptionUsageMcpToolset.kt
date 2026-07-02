@@ -89,16 +89,15 @@ class SubscriptionUsageMcpToolset(
         @McpDescription(description = "Optional comma-separated domains to allow, for example openai.com,example.org. Leave blank for no allow filter.") allowedDomains: String? = null,
         @McpDescription(description = "Optional comma-separated domains to block, for example reddit.com,quora.com. Leave blank for no block filter.") blockedDomains: String? = null,
     ): String {
-        return codexResult(
-            codexClient.webSearch(
-                query,
-                searchContextSize,
-                includeSources,
-                externalWebAccess,
-                allowedDomains,
-                blockedDomains,
-            ),
+        val response = codexClient.webSearch(
+            query,
+            searchContextSize,
+            includeSources,
+            externalWebAccess,
+            allowedDomains,
+            blockedDomains,
         )
+        return if (response.isError) searchError(response.body) else response.body
     }
 
     @McpTool(name = "supergrok_web_search")
@@ -169,7 +168,7 @@ class SubscriptionUsageMcpToolset(
         val authService = QuotaAuthService.getInstance()
         val token = authService.getAccessTokenBlocking(QuotaProviderType.SUPERGROK)
         if (token.isNullOrBlank()) {
-            return errorResult("Grok login required. Log in from SuperGrok settings.")
+            return searchError("Grok login required. Log in from SuperGrok settings.")
         }
         fun runSearch(accessToken: String): String {
             return superGrokSearchClient.webSearch(accessToken, query, model, allowedDomains, blockedDomains, maxOutputTokens)
@@ -183,15 +182,15 @@ class SubscriptionUsageMcpToolset(
                     return try {
                         runSearch(refreshed)
                     } catch (retryException: SuperGrokQuotaException) {
-                        errorResult(retryException.message ?: "Grok web search failed.")
+                        searchError(retryException.message ?: "Grok web search failed.")
                     } catch (retryException: Exception) {
-                        errorResult(retryException.message ?: "Grok web search failed.")
+                        searchError(retryException.message ?: "Grok web search failed.")
                     }
                 }
             }
-            errorResult(exception.message ?: "Grok web search failed.")
+            searchError(exception.message ?: "Grok web search failed.")
         } catch (exception: Exception) {
-            errorResult(exception.message ?: "Grok web search failed.")
+            searchError(exception.message ?: "Grok web search failed.")
         }
     }
 
@@ -199,7 +198,7 @@ class SubscriptionUsageMcpToolset(
         val store = KimiCredentialsStore.getInstance()
         val credentials = store.loadBlocking()
         if (credentials?.isUsable() != true) {
-            return errorResult("Kimi login required. Log in from settings.")
+            return searchError("Kimi login required. Log in from settings.")
         }
         return try {
             val result = kimiSearchClient.webSearch(credentials, query, limit, includeContent)
@@ -208,30 +207,30 @@ class SubscriptionUsageMcpToolset(
             }
             result.body
         } catch (exception: KimiQuotaException) {
-            errorResult(exception.message ?: "Kimi web search failed.")
+            searchError(exception.message ?: "Kimi web search failed.")
         } catch (exception: Exception) {
-            errorResult(exception.message ?: "Kimi web search failed.")
+            searchError(exception.message ?: "Kimi web search failed.")
         }
     }
 
     private fun zaiWebSearch(query: String, limit: Int, includeContent: Boolean): String {
         val apiKey = ZaiApiKeyStore.getInstance().loadBlocking()
         if (apiKey.isNullOrBlank()) {
-            return errorResult("Z.ai API key missing. Add a Z.ai API key in settings.")
+            return searchError("Z.ai API key missing. Add a Z.ai API key in settings.")
         }
         return try {
             zaiSearchClient.webSearch(apiKey, query, limit, includeContent)
         } catch (exception: ZaiQuotaException) {
-            errorResult(exception.message ?: "Z.ai web search failed.")
+            searchError(exception.message ?: "Z.ai web search failed.")
         } catch (exception: Exception) {
-            errorResult(exception.message ?: "Z.ai web search failed.")
+            searchError(exception.message ?: "Z.ai web search failed.")
         }
     }
 
     private fun miniMaxWebSearch(query: String, limit: Int, includeContent: Boolean): String {
         val apiKey = MiniMaxApiKeyStore.getInstance().loadBlocking()
         if (apiKey.isNullOrBlank()) {
-            return errorResult("MiniMax API key missing. Add a MiniMax API key in settings.")
+            return searchError("MiniMax API key missing. Add a MiniMax API key in settings.")
         }
         var lastException: Exception? = null
         for (region in miniMaxSearchRegions()) {
@@ -243,20 +242,20 @@ class SubscriptionUsageMcpToolset(
                 lastException = exception
             }
         }
-        return errorResult(lastException?.message ?: "MiniMax web search failed.")
+        return searchError(lastException?.message ?: "MiniMax web search failed.")
     }
 
     private fun ollamaWebSearch(query: String, limit: Int, includeContent: Boolean): String {
         val apiKey = OllamaApiKeyStore.getInstance().loadBlocking()
         if (apiKey.isNullOrBlank()) {
-            return errorResult("Ollama API key missing. Add an Ollama API key in settings.")
+            return searchError("Ollama API key missing. Add an Ollama API key in settings.")
         }
         return try {
             ollamaSearchClient.webSearch(apiKey, query, limit, includeContent)
         } catch (exception: OllamaQuotaException) {
-            errorResult(exception.message ?: "Ollama web search failed.")
+            searchError(exception.message ?: "Ollama web search failed.")
         } catch (exception: Exception) {
-            errorResult(exception.message ?: "Ollama web search failed.")
+            searchError(exception.message ?: "Ollama web search failed.")
         }
     }
 
@@ -321,6 +320,21 @@ class SubscriptionUsageMcpToolset(
             QuotaProviderType.OLLAMA -> "Ollama API key missing. Add an Ollama API key in settings."
             else -> "Web search is not offered for this provider."
         }
+    }
+
+    private fun searchError(message: String): String {
+        val available = mutableListOf<String>()
+        for (provider in QuotaProviderType.entries) {
+            if (isWebSearchConfigured(provider)) {
+                available.add(provider.displayName)
+            }
+        }
+        val hint = if (available.isEmpty()) {
+            " No search providers are currently configured."
+        } else {
+            " Currently configured search providers: ${available.joinToString(", ")}."
+        }
+        return errorResult(message + hint)
     }
 
     private fun errorResult(errorMessage: String): String {
