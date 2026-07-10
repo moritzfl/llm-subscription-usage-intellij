@@ -1,6 +1,15 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+- Quota status now keeps the last good reading during short network hiccups instead of going blank.
+- OpenAI and SuperGrok usage tracking recover more reliably after an expired login session.
+- Quota refresh is more consistent when the status bar and chat tools refresh at the same time.
+- Quota numbers stay up to date after restarting the IDE, even when usage grows slowly.
+- OpenCode workspace selection is remembered automatically after the first successful lookup.
+- Codex web search error messages from chat tools are easier for agents to parse.
+- Local subscription proxy model lists and GitHub Copilot models stay more stable between requests and restarts.
+- Local proxy requests time out more safely if an upstream provider hangs.
+- Safer handling of remote images in GitHub Copilot Claude chat requests.
 
 ## [1.5.0] - 2026-07-02
 - Consolidated provider-specific MCP quota tools into one `subscription_quota` tool with a provider parameter to reduce MCP tool context size.
