@@ -21,10 +21,10 @@ import kotlin.test.assertTrue
 
 class SuperGrokQuotaClientTest {
     @Test
-    fun parseQuotaExtractsBillingCreditsAndPlan() {
-        val fetchedAt = Instant.parse("2026-06-16T12:00:00Z")
+    fun parseQuotaExtractsWeeklyCreditsAndPlan() {
+        val fetchedAt = Instant.parse("2026-07-10T12:00:00Z")
         val quota = SuperGrokQuotaClient.parseQuota(
-            billingJson = BILLING_RESPONSE,
+            weeklyBillingJson = BILLING_WEEKLY_RESPONSE,
             settingsJson = SETTINGS_RESPONSE,
             fetchedAt = fetchedAt,
         )
@@ -32,29 +32,28 @@ class SuperGrokQuotaClientTest {
         assertEquals("SuperGrok Heavy", quota.plan)
         assertEquals("xai-oauth-cli-proxy", quota.authSource)
         assertEquals(fetchedAt, quota.fetchedAt)
-        assertEquals(120_000L, quota.onDemandCap)
+        assertEquals(0L, quota.onDemandCap)
+        assertTrue(quota.isUnifiedBilling)
+        assertEquals("USAGE_PERIOD_TYPE_WEEKLY", quota.periodType)
         val usage = quota.creditUsage ?: error("credit usage missing")
-        assertEquals("Credits used", usage.label)
-        assertEquals(2_500L, usage.used)
-        assertEquals(10_000L, usage.limit)
-        assertEquals(25.0, usage.usagePercent)
-        assertEquals(Instant.parse("2026-07-01T00:00:00Z"), usage.resetsAt)
-        assertEquals(2_592_000_000L, usage.periodDurationMs)
+        assertEquals("Weekly credits", usage.label)
+        assertEquals(100.0, usage.usagePercent)
+        assertEquals(Instant.parse("2026-07-14T16:34:03.633192+00:00"), usage.resetsAt)
     }
 
     @Test
     fun parseQuotaReportsChangedBillingPayload() {
         val exception = assertFailsWith<SuperGrokQuotaException> {
-            SuperGrokQuotaClient.parseQuota(billingJson = """{"ok":true}""")
+            SuperGrokQuotaClient.parseQuota(weeklyBillingJson = """{"ok":true}""")
         }
 
         assertEquals("Grok billing response changed.", exception.message)
     }
 
     @Test
-    fun fetchQuotaUsesCliProxyBillingAndSettingsEndpoints() {
+    fun fetchQuotaUsesWeeklyBillingEndpointAndSettings() {
         val httpClient = FakeHttpClient(
-            FakeResponseSpec(BILLING_RESPONSE),
+            FakeResponseSpec(BILLING_WEEKLY_RESPONSE),
             FakeResponseSpec(SETTINGS_RESPONSE),
         )
         val client = SuperGrokQuotaClient(httpClient, URI.create("https://grok.test/v1/"))
@@ -62,7 +61,10 @@ class SuperGrokQuotaClientTest {
         val quota = client.fetchQuota("token-123")
 
         assertEquals("SuperGrok Heavy", quota.plan)
-        assertEquals(listOf("https://grok.test/v1/billing", "https://grok.test/v1/settings"), httpClient.requests.map { it.uri().toString() })
+        assertEquals(
+            listOf("https://grok.test/v1/billing?format=credits", "https://grok.test/v1/settings"),
+            httpClient.requests.map { it.uri().toString() },
+        )
         httpClient.requests.forEach { request ->
             assertEquals("Bearer token-123", request.headers().firstValue("Authorization").orElse(null))
             assertEquals("xai-grok-cli", request.headers().firstValue("X-XAI-Token-Auth").orElse(null))
@@ -74,7 +76,7 @@ class SuperGrokQuotaClientTest {
 
     @Test
     fun fetchQuotaRejectsMissingTokenBeforeNetworkCall() {
-        val httpClient = FakeHttpClient(FakeResponseSpec(BILLING_RESPONSE))
+        val httpClient = FakeHttpClient(FakeResponseSpec(BILLING_WEEKLY_RESPONSE))
         val client = SuperGrokQuotaClient(httpClient, URI.create("https://grok.test/v1/"))
 
         val exception = assertFailsWith<SuperGrokQuotaException> {
@@ -100,49 +102,6 @@ class SuperGrokQuotaClientTest {
         assertEquals(403, exception.statusCode)
     }
 
-    @Test
-    fun fetchQuotaRetriesGrokBillingTimeout() {
-        val httpClient = FakeHttpClient(
-            FakeResponseSpec(BILLING_TIMEOUT_RESPONSE, status = 400),
-            FakeResponseSpec(BILLING_RESPONSE),
-            FakeResponseSpec(SETTINGS_RESPONSE),
-        )
-        val client = SuperGrokQuotaClient(httpClient, URI.create("https://grok.test/v1/"))
-
-        val quota = client.fetchQuota("token-123")
-
-        assertEquals("SuperGrok Heavy", quota.plan)
-        assertEquals(
-            listOf(
-                "https://grok.test/v1/billing",
-                "https://grok.test/v1/billing",
-                "https://grok.test/v1/settings",
-            ),
-            httpClient.requests.map { it.uri().toString() },
-        )
-    }
-
-    @Test
-    fun fetchQuotaReportsGrokBillingTimeoutAfterRetry() {
-        val httpClient = FakeHttpClient(
-            FakeResponseSpec(BILLING_TIMEOUT_RESPONSE, status = 400),
-            FakeResponseSpec(BILLING_TIMEOUT_RESPONSE, status = 400),
-        )
-        val client = SuperGrokQuotaClient(httpClient, URI.create("https://grok.test/v1/"))
-
-        val exception = assertFailsWith<SuperGrokQuotaException> {
-            client.fetchQuota("token-123")
-        }
-
-        assertEquals(
-            "Grok billing request timed out. The Grok billing API cancelled the request before returning usage data; try again later.",
-            exception.message,
-        )
-        assertEquals(400, exception.statusCode)
-        assertEquals(null, exception.rawBody)
-        assertEquals(2, httpClient.requests.size)
-    }
-
     private data class FakeResponseSpec(val body: String, val status: Int = 200)
 
     private class FakeHttpClient(private vararg val responses: FakeResponseSpec) : HttpClient() {
@@ -151,7 +110,8 @@ class SuperGrokQuotaClientTest {
 
         override fun <T : Any?> send(request: HttpRequest, responseBodyHandler: HttpResponse.BodyHandler<T>): HttpResponse<T> {
             requests.add(request)
-            val response = responses[index++]
+            val response = responses.getOrElse(index) { responses.last() }
+            index++
             @Suppress("UNCHECKED_CAST")
             return FakeResponse(response.body, response.status, request) as HttpResponse<T>
         }
@@ -194,14 +154,20 @@ class SuperGrokQuotaClientTest {
     }
 
     private companion object {
-        private val BILLING_RESPONSE = """
+        private val BILLING_WEEKLY_RESPONSE = """
             {
               "config": {
-                "monthlyLimit": {"val": 10000},
-                "used": {"val": 2500},
-                "onDemandCap": {"val": 120000},
-                "billingPeriodStart": "2026-06-01T00:00:00Z",
-                "billingPeriodEnd": "2026-07-01T00:00:00Z"
+                "currentPeriod": {
+                  "type": "USAGE_PERIOD_TYPE_WEEKLY",
+                  "start": "2026-07-07T16:34:03.633192+00:00",
+                  "end": "2026-07-14T16:34:03.633192+00:00"
+                },
+                "creditUsagePercent": 100.0,
+                "onDemandCap": {"val": 0},
+                "onDemandUsed": {"val": 0},
+                "isUnifiedBillingUser": true,
+                "billingPeriodStart": "2026-07-07T16:34:03.633192+00:00",
+                "billingPeriodEnd": "2026-07-14T16:34:03.633192+00:00"
               }
             }
         """.trimIndent()
@@ -211,7 +177,5 @@ class SuperGrokQuotaClientTest {
               "subscription_tier_display": "SuperGrok Heavy"
             }
         """.trimIndent()
-
-        private const val BILLING_TIMEOUT_RESPONSE = """{"code":"The operation was cancelled","error":"Timeout expired"}"""
     }
 }

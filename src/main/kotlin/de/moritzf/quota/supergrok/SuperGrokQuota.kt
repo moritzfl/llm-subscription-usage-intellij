@@ -12,6 +12,8 @@ data class SuperGrokQuota(
     val authSource: String = "",
     val creditUsage: SuperGrokUsageWindow? = null,
     val onDemandCap: Long? = null,
+    val isUnifiedBilling: Boolean = false,
+    val periodType: String = "",
     override var fetchedAt: Instant? = null,
     @Transient override var rawJson: String? = null,
 ) : ProviderQuota {

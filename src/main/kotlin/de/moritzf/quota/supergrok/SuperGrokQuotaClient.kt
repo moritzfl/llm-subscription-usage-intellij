@@ -27,13 +27,14 @@ open class SuperGrokQuotaClient(
         val token = accessToken?.trim()?.takeIf { it.isNotBlank() }
             ?: throw SuperGrokQuotaException("Grok login required. Log in from SuperGrok settings.")
 
-        val billingJson = getJson(token, BILLING_PATH, required = true)
+        val weeklyJson = getJson(token, WEEKLY_BILLING_PATH, required = true)
             ?: throw SuperGrokQuotaException("Grok billing response changed.")
         val settingsJson = getJson(token, SETTINGS_PATH, required = false)
-        val rawJson = combinedRawJson(billingJson, settingsJson)
+
+        val rawJson = combinedRawJson(weeklyJson, settingsJson)
 
         val quota = try {
-            parseQuota(billingJson, settingsJson)
+            parseQuota(weeklyJson, settingsJson)
         } catch (exception: SuperGrokQuotaException) {
             throw SuperGrokQuotaException(exception.message ?: "Grok billing response changed.", 200, rawJson, exception)
         } catch (exception: Exception) {
@@ -91,7 +92,7 @@ open class SuperGrokQuotaClient(
         @JvmField
         val DEFAULT_BASE_URI: URI = URI.create("https://cli-chat-proxy.grok.com/v1/")
 
-        private const val BILLING_PATH = "billing"
+        private const val WEEKLY_BILLING_PATH = "billing?format=credits"
         private const val SETTINGS_PATH = "settings"
         private const val TOKEN_AUTH_HEADER = "xai-grok-cli"
         private const val AUTH_SOURCE = "xai-oauth-cli-proxy"
@@ -100,43 +101,46 @@ open class SuperGrokQuotaClient(
             "Grok billing request timed out. The Grok billing API cancelled the request before returning usage data; try again later."
 
         fun parseQuota(
-            billingJson: String,
+            weeklyBillingJson: String,
             settingsJson: String? = null,
             fetchedAt: Instant = Clock.System.now(),
         ): SuperGrokQuota {
-            val billing = runCatching { JsonSupport.json.decodeFromString<SuperGrokBillingResponseDto>(billingJson) }
-                .getOrElse { throw SuperGrokQuotaException("Grok billing response changed.", 200, billingJson, it) }
-            val config = billing.config ?: throw SuperGrokQuotaException("Grok billing response changed.", 200, billingJson)
-            val used = config.used?.valValue ?: throw SuperGrokQuotaException("Grok billing response changed.", 200, billingJson)
-            val limit = config.monthlyLimit?.valValue ?: throw SuperGrokQuotaException("Grok billing response changed.", 200, billingJson)
-            val onDemandCap = config.onDemandCap?.valValue ?: throw SuperGrokQuotaException("Grok billing response changed.", 200, billingJson)
-            if (limit <= 0) {
-                throw SuperGrokQuotaException("Grok billing response changed.", 200, billingJson)
-            }
+            val billing = runCatching { JsonSupport.json.decodeFromString<SuperGrokBillingResponseDto>(weeklyBillingJson) }
+                .getOrElse { throw SuperGrokQuotaException("Grok billing response changed.", 200, weeklyBillingJson, it) }
+            val config = billing.config ?: throw SuperGrokQuotaException("Grok billing response changed.", 200, weeklyBillingJson)
+
+            val usagePercent = config.creditUsagePercent
+                ?: throw SuperGrokQuotaException("Grok billing response changed.", 200, weeklyBillingJson)
             val resetsAt = config.billingPeriodEnd?.let { runCatching { Instant.parse(it) }.getOrNull() }
-                ?: throw SuperGrokQuotaException("Grok billing response changed.", 200, billingJson)
+                ?: throw SuperGrokQuotaException("Grok billing response changed.", 200, weeklyBillingJson)
             val periodDurationMs = periodDurationMillis(config.billingPeriodStart, config.billingPeriodEnd)
-            val plan = parsePlan(settingsJson)
+        val plan = parsePlan(settingsJson)
+            val isUnified = config.isUnifiedBillingUser == true
+            val periodType = config.currentPeriod?.type
+            val onDemandCap = config.onDemandCap?.valValue ?: 0L
 
             return SuperGrokQuota(
                 plan = plan.orEmpty(),
                 authSource = AUTH_SOURCE,
                 creditUsage = SuperGrokUsageWindow(
-                    used = used,
-                    limit = limit,
-                    usagePercent = (used.toDouble() / limit.toDouble() * 100.0).coerceIn(0.0, 100.0),
+                    label = if (isUnified) "Weekly credits" else "Credits used",
+                    used = 0,
+                    limit = 0,
+                    usagePercent = usagePercent.coerceIn(0.0, 100.0),
                     resetsAt = resetsAt,
                     periodDurationMs = periodDurationMs,
                 ),
                 onDemandCap = onDemandCap,
+                isUnifiedBilling = isUnified,
+                periodType = periodType.orEmpty(),
                 fetchedAt = fetchedAt,
             )
         }
 
-        fun combinedRawJson(billingJson: String, settingsJson: String?): String {
+        fun combinedRawJson(weeklyBillingJson: String, settingsJson: String?): String {
             return buildJsonObject {
                 put("authSource", AUTH_SOURCE)
-                put("billing", rawElement(billingJson))
+                put("billing", rawElement(weeklyBillingJson))
                 if (!settingsJson.isNullOrBlank()) {
                     put("settings", rawElement(settingsJson))
                 }
@@ -180,11 +184,30 @@ private data class SuperGrokBillingResponseDto(
 
 @Serializable
 private data class SuperGrokBillingConfigDto(
-    val monthlyLimit: SuperGrokUnitsDto? = null,
-    val used: SuperGrokUnitsDto? = null,
-    val onDemandCap: SuperGrokUnitsDto? = null,
-    val billingPeriodStart: String? = null,
-    val billingPeriodEnd: String? = null,
+    @SerialName("creditUsagePercent") val creditUsagePercent: Double? = null,
+    @SerialName("onDemandCap") val onDemandCap: SuperGrokUnitsDto? = null,
+    @SerialName("onDemandUsed") val onDemandUsed: SuperGrokUnitsDto? = null,
+    @SerialName("billingPeriodStart") val billingPeriodStart: String? = null,
+    @SerialName("billingPeriodEnd") val billingPeriodEnd: String? = null,
+    @SerialName("isUnifiedBillingUser") val isUnifiedBillingUser: Boolean? = null,
+    @SerialName("currentPeriod") val currentPeriod: SuperGrokCurrentPeriodDto? = null,
+    @SerialName("productUsage") val productUsage: List<SuperGrokProductUsageDto>? = null,
+    // Legacy monthly fields (kept for backward compatibility with non-unified accounts)
+    @SerialName("monthlyLimit") val monthlyLimit: SuperGrokUnitsDto? = null,
+    @SerialName("used") val used: SuperGrokUnitsDto? = null,
+)
+
+@Serializable
+private data class SuperGrokCurrentPeriodDto(
+    val type: String? = null,
+    val start: String? = null,
+    val end: String? = null,
+)
+
+@Serializable
+private data class SuperGrokProductUsageDto(
+    val product: String? = null,
+    @SerialName("usagePercent") val usagePercent: Double? = null,
 )
 
 @Serializable

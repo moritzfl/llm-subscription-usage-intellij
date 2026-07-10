@@ -452,7 +452,8 @@ internal fun buildSuperGrokTooltipText(quota: SuperGrokQuota?, error: String?): 
     val reset = QuotaUiUtil.formatResetCompact(window.resetsAt) ?: "unknown"
     val plan = quota.plan.takeIf { it.isNotBlank() } ?: "unknown plan"
     val cap = quota.onDemandCap?.takeIf { it > 0 }?.let { " • PAYG cap $it" }.orEmpty()
-    return "SuperGrok quota:\n$plan credits: $percent% used • $reset$cap"
+    val label = window.label.ifBlank { "credits" }
+    return "SuperGrok quota:\n$plan $label: $percent% used • $reset$cap"
 }
 
 internal fun superGrokBarDisplayText(quota: SuperGrokQuota?, error: String?): String {

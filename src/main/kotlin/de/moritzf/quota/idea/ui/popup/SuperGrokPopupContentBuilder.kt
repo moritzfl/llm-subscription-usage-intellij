@@ -79,6 +79,6 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
         val resetText = QuotaUiUtil.formatReset(window.resetsAt)
         var info = "$percent% used"
         if (resetText != null) info += " - $resetText"
-        update("Credits", info, percent)
+        update(window.label.ifBlank { "Credits" }, info, percent)
     }
 }

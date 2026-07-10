@@ -1,6 +1,7 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+- SuperGrok quota now uses the unified weekly billing endpoint (`billing?format=credits`) for weekly usage percent and reset, replacing the legacy monthly credits meter for unified-billing accounts.
 
 ## [1.6.0] - 2026-07-10
 - Added Claude (Anthropic) subscription usage tracking with self-contained OAuth login (browser + paste callback) and the Claude OAuth usage API.
