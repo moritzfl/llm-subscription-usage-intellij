@@ -1,11 +1,13 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+
+## [1.6.0] - 2026-07-10
+- Added Claude (Anthropic) subscription usage tracking with self-contained OAuth login (browser + paste callback) and the Claude OAuth usage API.
 - Consolidated subscription image generation into one MCP tool (`subscription_image_generation`) for OpenAI/Codex and SuperGrok, with optional `targetFile` so agents can avoid large base64 payloads.
 - SuperGrok image generation returns a single image URL by default, and uses b64 only when writing `targetFile`.
 - Added SuperGrok/xAI Imagine video generation (`supergrok_video_generation`) using the existing SuperGrok login.
 - `subscription_tools_status` now reports `image_generation_available` and `video_generation_available` per provider.
-- Added Claude (Anthropic) subscription usage tracking with self-contained OAuth login (browser + paste callback) and the Claude OAuth usage API.
 - Quota status now keeps the last good reading during short network hiccups instead of going blank.
 - OpenAI and SuperGrok usage tracking recover more reliably after an expired login session.
 - Quota refresh is more consistent when the status bar and chat tools refresh at the same time.
