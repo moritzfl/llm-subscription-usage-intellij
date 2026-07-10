@@ -1,6 +1,8 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+
+## [1.6.2] - 2026-07-11
 - Claude quota refresh now silently keeps the last good reading when the Anthropic usage API returns HTTP 429 instead of showing a rate-limit error.
 
 ## [1.6.1] - 2026-07-10
