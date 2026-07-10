@@ -1,6 +1,8 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+
+## [1.6.1] - 2026-07-10
 - SuperGrok quota now uses the unified weekly billing endpoint (`billing?format=credits`) for weekly usage percent and reset, replacing the legacy monthly credits meter for unified-billing accounts.
 
 ## [1.6.0] - 2026-07-10
