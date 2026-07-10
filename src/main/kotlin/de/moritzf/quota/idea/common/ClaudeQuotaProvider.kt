@@ -28,6 +28,7 @@ class ClaudeQuotaProvider(
             val quota = fetchQuotaWithAuthRetry(accessToken)
             storeQuota(quota, quota.rawJson)
         } catch (exception: ClaudeQuotaException) {
+            if (exception.statusCode == 429 && lastQuotaRef.get() != null) return
             storeError(exception.message ?: "Request failed", exception.rawBody)
         } catch (exception: Exception) {
             storeError(exception.message ?: "Request failed")
