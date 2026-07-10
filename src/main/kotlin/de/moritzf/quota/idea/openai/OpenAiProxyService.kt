@@ -121,10 +121,12 @@ class OpenAiProxyService(
                 }
 
                 stopLocked()
+                // Build providers once per proxy lifetime so in-memory model caches stay warm.
+                val providers = createProviders(settings, logRequests, requestLogDir().toString())
                 val proxyServer = SubscriptionProxyServer(
                     port = port,
                     localApiKeyProvider = { localApiKey },
-                    providers = { createProviders(settings, logRequests, requestLogDir().toString()) },
+                    providers = { providers },
                     fullRequestLogging = logRequests,
                     requestLogDir = requestLogDir().toString(),
                 )

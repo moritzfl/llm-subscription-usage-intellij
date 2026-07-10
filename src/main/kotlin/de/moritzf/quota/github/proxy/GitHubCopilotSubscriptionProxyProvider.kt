@@ -90,6 +90,7 @@ class GitHubCopilotSubscriptionProxyProvider(
         jsonResponseTransformer = ::openAiChatJsonResponse,
         sseDataTransformer = ::openAiChatSseData,
         sseLineTransformer = ::openAiChatSseLine,
+        sseStreamComplete = { streamToolCallIndexes.remove(it.requestId) },
         httpClient = httpClient,
         requestLogger = requestLogger,
     )
@@ -185,11 +186,19 @@ class GitHubCopilotSubscriptionProxyProvider(
     @OptIn(ExperimentalTime::class)
     private fun remoteModels(): List<RemoteModel> {
         val now = Clock.System.now()
-        val cached = modelCache ?: loadPersistedModelCache(now)
-        if (cached != null && now - cached.fetchedAt < modelCacheTtl) {
-            return cached.models
+        val memory = modelCache
+        // Warm in-memory cache: avoid remote /models on every request.
+        if (memory != null && now - memory.fetchedAt < modelCacheTtl) {
+            return memory.models
         }
-        val token = accessTokenProvider().trimmedOrNull() ?: return emptyList()
+        // Memory miss or TTL expired: load disk as merge baseline, then revalidate.
+        val disk = if (memory == null) loadPersistedModelCache(now) else null
+        return refreshRemoteModels(now, memory ?: disk)
+    }
+
+    @OptIn(ExperimentalTime::class)
+    private fun refreshRemoteModels(now: Instant, cached: ModelCache?): List<RemoteModel> {
+        val token = accessTokenProvider().trimmedOrNull() ?: return cached?.models.orEmpty()
         val fetched = runCatching { fetchModels(token) }.getOrDefault(emptyList())
         if (fetched.isEmpty()) {
             if (cached != null) modelCache = cached.copy(fetchedAt = now)
@@ -211,38 +220,40 @@ class GitHubCopilotSubscriptionProxyProvider(
 
         val protectedModels = mergeModels(fetched, missingCachedModels)
         modelCache = ModelCache(protectedModels, now)
+        // Keep disk aligned with the protected set until retries finish.
+        savePersistedModels(protectedModels, now)
         startMissingModelRetry(token, missingCachedModels, fetched)
         return protectedModels
     }
 
     @OptIn(ExperimentalTime::class)
     private fun loadPersistedModelCache(now: Instant): ModelCache? {
-        val models = loadPersistedModels()
+        val raw = runCatching { persistentModelCacheProvider() }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: return null
+        val root = JsonHelper.parseToJsonElementOrNull(raw) as? JsonObject ?: return null
+        val models = (root["models"] as? JsonArray)
+            ?.mapNotNull { parseCachedRemoteModel(it) }
+            ?.filter { it.supportedRoutes.isNotEmpty() }
+            ?.distinctBy { it.id }
+            .orEmpty()
         if (models.isEmpty()) return null
-        return ModelCache(models, now - modelCacheTtl)
+        val fetchedAt = parseFetchedAt(root) ?: (now - modelCacheTtl)
+        return ModelCache(models, fetchedAt)
     }
 
     @OptIn(ExperimentalTime::class)
     private fun cacheModels(models: List<RemoteModel>, fetchedAt: Instant = Clock.System.now()) {
         modelCache = ModelCache(models, fetchedAt)
-        savePersistedModels(models)
+        savePersistedModels(models, fetchedAt)
     }
 
-    private fun loadPersistedModels(): List<RemoteModel> {
-        val raw = runCatching { persistentModelCacheProvider() }
-            .getOrNull()
-            ?.takeIf { it.isNotBlank() }
-            ?: return emptyList()
-        val root = JsonHelper.parseToJsonElementOrNull(raw) as? JsonObject ?: return emptyList()
-        val models = root["models"] as? JsonArray ?: return emptyList()
-        return models.mapNotNull { parseCachedRemoteModel(it) }
-            .filter { it.supportedRoutes.isNotEmpty() }
-            .distinctBy { it.id }
-    }
-
-    private fun savePersistedModels(models: List<RemoteModel>) {
+    @OptIn(ExperimentalTime::class)
+    private fun savePersistedModels(models: List<RemoteModel>, fetchedAt: Instant = Clock.System.now()) {
         val payload = buildJsonObject {
             put("version", 1)
+            put("fetchedAtEpochMs", fetchedAt.toEpochMilliseconds())
             put(
                 "models",
                 JsonArray(models.map { model ->
@@ -259,6 +270,12 @@ class GitHubCopilotSubscriptionProxyProvider(
             )
         }
         runCatching { persistentModelCacheSaver(JsonHelper.encodeToString(payload)) }
+    }
+
+    @OptIn(ExperimentalTime::class)
+    private fun parseFetchedAt(root: JsonObject): Instant? {
+        val epochMs = (root["fetchedAtEpochMs"] as? JsonPrimitive)?.contentOrNull?.toLongOrNull()
+        return epochMs?.let(Instant::fromEpochMilliseconds)
     }
 
     private fun parseCachedRemoteModel(element: JsonElement): RemoteModel? {
@@ -654,7 +671,7 @@ class GitHubCopilotSubscriptionProxyProvider(
         return when (content) {
             is JsonArray -> buildJsonArray {
                 content.forEach { block ->
-                    add(openAiContentBlockToAnthropic(block))
+                    openAiContentBlockToAnthropic(block)?.let { add(it) }
                 }
             }
 
@@ -663,7 +680,7 @@ class GitHubCopilotSubscriptionProxyProvider(
         }
     }
 
-    private fun openAiContentBlockToAnthropic(block: JsonElement): JsonElement {
+    private fun openAiContentBlockToAnthropic(block: JsonElement): JsonElement? {
         val item = block as? JsonObject ?: return block
         return when (stringField(item, "type")) {
             "text" -> buildJsonObject {
@@ -671,7 +688,8 @@ class GitHubCopilotSubscriptionProxyProvider(
                 put("text", stringField(item, "text").orEmpty())
             }
 
-            "image_url" -> openAiImageUrlToAnthropicImage(item) ?: item
+            // Drop unsafe/unusable image blocks rather than forwarding raw OpenAI image_url.
+            "image_url" -> openAiImageUrlToAnthropicImage(item)
             else -> item
         }
     }
@@ -696,9 +714,11 @@ class GitHubCopilotSubscriptionProxyProvider(
     }
 
     private fun fetchRemoteImageUrlToAnthropicImage(url: String): JsonObject? {
+        val requestUri = runCatching { URI.create(url) }.getOrNull() ?: return null
+        if (!isSafeRemoteImageUri(requestUri)) return null
         val response = try {
             remoteImageHttpClient.send(
-                HttpRequest.newBuilder(URI.create(url))
+                HttpRequest.newBuilder(requestUri)
                     .timeout(REMOTE_IMAGE_TIMEOUT)
                     .header("Accept", "image/*")
                     .GET()
@@ -709,6 +729,8 @@ class GitHubCopilotSubscriptionProxyProvider(
             return null
         }
         if (response.statusCode() !in 200..<300) return null
+        // Re-validate the final URI after redirects (HttpClient follows NORMAL redirects).
+        if (!isSafeRemoteImageUri(response.uri())) return null
         val bytes = response.body()
         if (bytes.isEmpty() || bytes.size > MAX_REMOTE_IMAGE_BYTES) return null
         val mediaType = response.headers().firstValue("Content-Type").orElse("")
@@ -728,7 +750,7 @@ class GitHubCopilotSubscriptionProxyProvider(
     }
 
     private fun mediaTypeFromImageUrl(url: String): String? {
-        val path = URI.create(url).path.lowercase()
+        val path = runCatching { URI.create(url).path }.getOrNull()?.lowercase() ?: return null
         return when {
             path.endsWith(".png") -> "image/png"
             path.endsWith(".jpg") || path.endsWith(".jpeg") -> "image/jpeg"
@@ -736,6 +758,49 @@ class GitHubCopilotSubscriptionProxyProvider(
             path.endsWith(".webp") -> "image/webp"
             else -> null
         }
+    }
+
+    private fun isSafeRemoteImageUri(uri: URI): Boolean {
+        val scheme = uri.scheme?.lowercase() ?: return false
+        if (scheme != "http" && scheme != "https") return false
+        val host = uri.host?.trim()?.takeIf { it.isNotEmpty() } ?: return false
+        val normalized = host.lowercase()
+        if (normalized == "localhost" || normalized.endsWith(".localhost") || normalized == "metadata.google.internal") {
+            return false
+        }
+        val addresses = runCatching { java.net.InetAddress.getAllByName(host) }.getOrNull() ?: return false
+        if (addresses.isEmpty()) return false
+        return addresses.none { address ->
+            address.isAnyLocalAddress ||
+                address.isLoopbackAddress ||
+                address.isLinkLocalAddress ||
+                address.isSiteLocalAddress ||
+                address.isMulticastAddress ||
+                isCarrierGradeNat(address) ||
+                isUniqueLocalAddress(address) ||
+                isMetadataAddress(address)
+        }
+    }
+
+    private fun isCarrierGradeNat(address: java.net.InetAddress): Boolean {
+        val bytes = address.address
+        return bytes.size == 4 && bytes[0] == 100.toByte() && (bytes[1].toInt() and 0xff) in 64..127
+    }
+
+    private fun isUniqueLocalAddress(address: java.net.InetAddress): Boolean {
+        val bytes = address.address
+        // fc00::/7
+        return bytes.size == 16 && (bytes[0].toInt() and 0xfe) == 0xfc
+    }
+
+    private fun isMetadataAddress(address: java.net.InetAddress): Boolean {
+        val bytes = address.address
+        // 169.254.169.254 and broader link-local already covered; also block 169.254.0.0/16 explicitly above.
+        return bytes.size == 4 &&
+            bytes[0] == 169.toByte() &&
+            bytes[1] == 254.toByte() &&
+            bytes[2] == 169.toByte() &&
+            bytes[3] == 254.toByte()
     }
 
     private fun contentText(content: JsonElement?): String {

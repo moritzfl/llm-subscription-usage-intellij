@@ -42,6 +42,7 @@ class PassThroughSubscriptionProxyProvider(
     private val jsonResponseTransformer: ((SubscriptionProxyRequest, String) -> String)? = null,
     private val sseDataTransformer: ((SubscriptionProxyRequest, String) -> String)? = null,
     private val sseLineTransformer: ((SubscriptionProxyRequest, String) -> String?)? = null,
+    private val sseStreamComplete: ((SubscriptionProxyRequest) -> Unit)? = null,
     private val httpClient: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(30))
         .build(),
@@ -139,7 +140,8 @@ class PassThroughSubscriptionProxyProvider(
             builder.header(HttpHeaders.ContentType, JsonHelper.JSON_CONTENT_TYPE)
             loggedHeaders[HttpHeaders.ContentType] = JsonHelper.JSON_CONTENT_TYPE
         }
-        builder.POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
+        builder.timeout(REQUEST_TIMEOUT)
+            .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
         requestLogger.logUpstreamRequest(request.requestId, "POST", upstreamPath, loggedHeaders, payload)
         return builder.build()
     }
@@ -206,21 +208,25 @@ class PassThroughSubscriptionProxyProvider(
         copySelectedResponseHeaders(ctx, upstream)
         JsonHelper.setSseHeaders(ctx)
         ctx.setStatus(upstream.statusCode())
-        ctx.call.respondOutputStream(responseContentType(upstream), HttpStatusCode.fromValue(upstream.statusCode())) {
-            upstream.body().bufferedReader(StandardCharsets.UTF_8).use { reader ->
-                while (true) {
-                    val line = reader.readLine() ?: break
-                    val transformedLine = sseLineTransformer?.invoke(request, line)
-                        ?: transformer?.let { transformSseLine(request, line, it) }
-                        ?: line
-                    if (transformedLine.isEmpty()) continue
-                    val output = transformedLine + "\n"
-                    val bytes = output.toByteArray(StandardCharsets.UTF_8)
-                    write(bytes)
-                    AccessLogFields.addResponseBytes(ctx, bytes.size.toLong())
-                    flush()
+        try {
+            ctx.call.respondOutputStream(responseContentType(upstream), HttpStatusCode.fromValue(upstream.statusCode())) {
+                upstream.body().bufferedReader(StandardCharsets.UTF_8).use { reader ->
+                    while (true) {
+                        val line = reader.readLine() ?: break
+                        val transformedLine = sseLineTransformer?.invoke(request, line)
+                            ?: transformer?.let { transformSseLine(request, line, it) }
+                            ?: line
+                        if (transformedLine.isEmpty()) continue
+                        val output = transformedLine + "\n"
+                        val bytes = output.toByteArray(StandardCharsets.UTF_8)
+                        write(bytes)
+                        AccessLogFields.addResponseBytes(ctx, bytes.size.toLong())
+                        flush()
+                    }
                 }
             }
+        } finally {
+            sseStreamComplete?.invoke(request)
         }
         ctx.handled = true
     }
@@ -244,6 +250,8 @@ class PassThroughSubscriptionProxyProvider(
     )
 
     companion object {
+        // Bound stalled upstream inference after connect; long enough for slow model streams.
+        private val REQUEST_TIMEOUT: Duration = Duration.ofMinutes(15)
         private val FORWARDED_REQUEST_HEADERS = listOf(
             HttpHeaders.Accept,
             HttpHeaders.ContentType,

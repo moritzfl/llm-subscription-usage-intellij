@@ -504,7 +504,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
     }
 
     @Test
-    fun mapsRemoteOpenAiImageUrlToAnthropicImageUrlSource() {
+    fun mapsDataOpenAiImageUrlToAnthropicImageSource() {
         TestUpstream().use { upstream ->
             val proxy = newProxy(upstream.baseUri)
             try {
@@ -512,19 +512,43 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 val response = post(
                     proxy.port,
                     "/v1/chat/completions",
-                    "{\"model\":\"gh-claude-sonnet-4.6\",\"max_tokens\":64,\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"describe\"},{\"type\":\"image_url\",\"image_url\":{\"url\":\"${upstream.baseUri}/image.png\"}}]}]}",
+                    "{\"model\":\"gh-claude-sonnet-4.6\",\"max_tokens\":64,\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"describe\"},{\"type\":\"image_url\",\"image_url\":{\"url\":\"data:image/png;base64,iVBORw0KGgo=\"}}]}]}",
                     bearer = true,
                 )
 
                 assertEquals(200, response.statusCode())
                 assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
-                val image = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-                assertEquals("/image.png", image.path)
                 val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/v1/messages", inference.path)
                 assertTrue(inference.body.contains("\"type\":\"image\""), inference.body)
                 assertTrue(inference.body.contains("\"source\":{\"type\":\"base64\",\"media_type\":\"image/png\""), inference.body)
                 assertFalse(inference.body.contains("\"image_url\""), inference.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun blocksLoopbackRemoteImageUrlsForClaudeBridge() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"gh-claude-sonnet-4.6\",\"max_tokens\":64,\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"describe\"},{\"type\":\"image_url\",\"image_url\":{\"url\":\"http://127.0.0.1:9/secret.png\"}}]}]}",
+                    bearer = true,
+                )
+
+                assertEquals(200, response.statusCode())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
+                val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/messages", inference.path)
+                // SSRF guard drops unsafe remote images instead of server-side fetching them.
+                assertFalse(inference.body.contains("\"type\":\"image\""), inference.body)
+                assertFalse(inference.body.contains("secret.png"), inference.body)
             } finally {
                 proxy.stop()
             }

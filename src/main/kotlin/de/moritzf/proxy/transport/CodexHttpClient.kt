@@ -13,6 +13,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
 import java.nio.file.Path
+import java.time.Duration
 import java.util.Optional
 import java.util.concurrent.Executors
 import javax.net.ssl.SSLSession
@@ -148,6 +149,7 @@ open class CodexHttpClient {
         val loggedHeaders = LinkedHashMap<String, String>()
         val builder = HttpRequest.newBuilder()
             .uri(URI.create(targetUrl))
+            .timeout(REQUEST_TIMEOUT)
         authHeaders.forEach { (name, value) ->
             builder.header(name, value)
             loggedHeaders[name] = value
@@ -246,6 +248,7 @@ open class CodexHttpClient {
         override fun version(): HttpClient.Version = delegate.version()
     }
     companion object {
+        private val REQUEST_TIMEOUT: Duration = Duration.ofMinutes(15)
         private val CONVERSATION_ID_HEADER = codexIdHeader("conversation")
         private val SESSION_ID_HEADER = codexIdHeader("session")
         private fun codexIdHeader(prefix: String): String = prefix + "_id"
