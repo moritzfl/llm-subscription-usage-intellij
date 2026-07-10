@@ -12,3 +12,12 @@ enum class ListSearchProvider(val providerType: QuotaProviderType) {
     MINIMAX(QuotaProviderType.MINIMAX),
     OLLAMA(QuotaProviderType.OLLAMA),
 }
+
+/**
+ * Providers that support subscription-backed image generation.
+ * Schema generation for the MCP tool parameter derives valid values from this enum.
+ */
+enum class ImageGenerationProvider(val providerType: QuotaProviderType) {
+    OPEN_AI(QuotaProviderType.OPEN_AI),
+    SUPERGROK(QuotaProviderType.SUPERGROK),
+}

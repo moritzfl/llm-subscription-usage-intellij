@@ -26,6 +26,7 @@ import de.moritzf.quota.ollama.OllamaWebSearchClient
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
 import de.moritzf.quota.shared.McpProviderToolStatus
+import de.moritzf.quota.supergrok.SuperGrokImagineClient
 import de.moritzf.quota.supergrok.SuperGrokQuotaException
 import de.moritzf.quota.supergrok.SuperGrokWebSearchClient
 import de.moritzf.quota.zai.ZaiQuotaException
@@ -43,6 +44,7 @@ class SubscriptionUsageMcpToolset(
     private val miniMaxSearchClient: MiniMaxWebSearchClient = MiniMaxWebSearchClient.createDefault(),
     private val ollamaSearchClient: OllamaWebSearchClient = OllamaWebSearchClient.createDefault(),
     private val superGrokSearchClient: SuperGrokWebSearchClient = SuperGrokWebSearchClient.createDefault(),
+    private val superGrokImagineClient: SuperGrokImagineClient = SuperGrokImagineClient.createDefault(),
 ) : McpToolset {
     @McpTool(name = "subscription_quota")
     @McpDescription(description = "Returns the latest subscription quota response JSON for the selected provider.")
@@ -132,13 +134,31 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    @McpTool(name = "codex_image_generation")
-    @McpDescription(description = "Generates an image through Codex. If targetFile is provided, writes the image there and returns JSON metadata; otherwise returns the Codex JSON response including b64_json data.")
-    fun codex_image_generation(
-        @McpDescription(description = "Image prompt to send to Codex image generation.") prompt: String,
-        @McpDescription(description = "Optional target image file path. Relative paths resolve against the open project root when available. Leave blank to return b64_json in the response. The extension selects any image format supported by the standard JDK ImageIO writers, such as png.") targetFile: String? = null,
+    @McpTool(name = "subscription_image_generation")
+    @McpDescription(description = "Generates one image through a subscription-backed provider and returns the provider JSON response. SuperGrok returns a single image URL.")
+    fun subscription_image_generation(
+        @McpDescription(description = "Image prompt.") prompt: String,
+        @McpDescription(description = "Provider to use: OPEN_AI (Codex) or SUPERGROK (xAI Imagine).") provider: ImageGenerationProvider = ImageGenerationProvider.OPEN_AI,
     ): String {
-        return codexResult(codexClient.imageGeneration(prompt, targetFile, projectBaseDirectory()))
+        return when (provider) {
+            ImageGenerationProvider.OPEN_AI ->
+                codexResult(codexClient.imageGeneration(prompt, targetFile = null, baseDirectory = projectBaseDirectory()))
+            ImageGenerationProvider.SUPERGROK ->
+                superGrokImageGeneration(prompt)
+        }
+    }
+
+    @McpTool(name = "supergrok_video_generation")
+    @McpDescription(description = "Generates a video through SuperGrok/xAI Imagine using the existing SuperGrok login. By default waits/polls until completion and returns the final provider JSON.")
+    fun supergrok_video_generation(
+        @McpDescription(description = "Video prompt to send to Grok Imagine.") prompt: String,
+        @McpDescription(description = "Imagine video model id, for example grok-imagine-video.") model: String = SuperGrokImagineClient.DEFAULT_VIDEO_MODEL,
+        @McpDescription(description = "Requested video duration in seconds, clamped to the local safe range.") duration: Int = SuperGrokImagineClient.DEFAULT_VIDEO_DURATION_SECONDS,
+        @McpDescription(description = "Optional public image URL or data URI used as the starting frame for image-to-video.") imageUrl: String? = null,
+        @McpDescription(description = "When true, poll until the video finishes or times out. When false, return the initial request_id response immediately.") waitForCompletion: Boolean = true,
+        @McpDescription(description = "Maximum seconds to wait when waitForCompletion is true.") pollTimeoutSeconds: Int = SuperGrokImagineClient.DEFAULT_VIDEO_POLL_TIMEOUT_SECONDS,
+    ): String {
+        return superGrokVideoGeneration(prompt, model, duration, imageUrl, waitForCompletion, pollTimeoutSeconds)
     }
 
     private fun quotaResult(type: QuotaProviderType): String {
@@ -169,32 +189,62 @@ class SubscriptionUsageMcpToolset(
         blockedDomains: String?,
         maxOutputTokens: Int,
     ): String {
+        return withSuperGrokAuth("Grok web search failed.") { accessToken ->
+            superGrokSearchClient.webSearch(accessToken, query, model, allowedDomains, blockedDomains, maxOutputTokens)
+        }
+    }
+
+    private fun superGrokImageGeneration(prompt: String): String {
+        return withSuperGrokAuth("Grok image generation failed.") { accessToken ->
+            superGrokImagineClient.generateImage(accessToken = accessToken, prompt = prompt)
+        }
+    }
+
+    private fun superGrokVideoGeneration(
+        prompt: String,
+        model: String,
+        duration: Int,
+        imageUrl: String?,
+        waitForCompletion: Boolean,
+        pollTimeoutSeconds: Int,
+    ): String {
+        return withSuperGrokAuth("Grok video generation failed.") { accessToken ->
+            superGrokImagineClient.generateVideo(
+                accessToken = accessToken,
+                prompt = prompt,
+                model = model,
+                duration = duration,
+                imageUrl = imageUrl,
+                waitForCompletion = waitForCompletion,
+                pollTimeoutSeconds = pollTimeoutSeconds,
+            )
+        }
+    }
+
+    private fun withSuperGrokAuth(failureLabel: String, block: (String) -> String): String {
         val authService = QuotaAuthService.getInstance()
         val token = authService.getAccessTokenBlocking(QuotaProviderType.SUPERGROK)
         if (token.isNullOrBlank()) {
             return searchError("Grok login required. Log in from SuperGrok settings.")
         }
-        fun runSearch(accessToken: String): String {
-            return superGrokSearchClient.webSearch(accessToken, query, model, allowedDomains, blockedDomains, maxOutputTokens)
-        }
         return try {
-            runSearch(token)
+            block(token)
         } catch (exception: SuperGrokQuotaException) {
             if (exception.statusCode == 401 || exception.statusCode == 403) {
                 val refreshed = authService.forceRefreshBlocking(QuotaProviderType.SUPERGROK, token)
                 if (!refreshed.isNullOrBlank()) {
                     return try {
-                        runSearch(refreshed)
+                        block(refreshed)
                     } catch (retryException: SuperGrokQuotaException) {
-                        searchError(retryException.message ?: "Grok web search failed.")
+                        searchError(retryException.message ?: failureLabel)
                     } catch (retryException: Exception) {
-                        searchError(retryException.message ?: "Grok web search failed.")
+                        searchError(retryException.message ?: failureLabel)
                     }
                 }
             }
-            searchError(exception.message ?: "Grok web search failed.")
+            searchError(exception.message ?: failureLabel)
         } catch (exception: Exception) {
-            searchError(exception.message ?: "Grok web search failed.")
+            searchError(exception.message ?: failureLabel)
         }
     }
 

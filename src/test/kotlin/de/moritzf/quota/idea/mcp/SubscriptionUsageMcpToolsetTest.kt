@@ -27,12 +27,38 @@ class SubscriptionUsageMcpToolsetTest {
     }
 
     @Test
-    fun imageGenerationUsesSingleToolWithOptionalTargetFile() {
+    fun subscriptionImageGenerationUsesSingleToolWithProviderEnum() {
         val imageTools = SubscriptionUsageMcpToolset::class.java.declaredMethods
-            .filter { it.getAnnotation(McpTool::class.java)?.name?.startsWith("codex_image_generation") == true }
+            .filter { it.getAnnotation(McpTool::class.java)?.name == "subscription_image_generation" }
+        val legacyImageTools = SubscriptionUsageMcpToolset::class.java.declaredMethods
+            .mapNotNull { it.getAnnotation(McpTool::class.java)?.name }
+            .filter { it == "codex_image_generation" || it == "supergrok_image_generation" }
 
-        assertEquals(listOf("codex_image_generation"), imageTools.map { it.getAnnotation(McpTool::class.java).name })
-        assertEquals(listOf(String::class.java, String::class.java), imageTools.single().parameterTypes.toList())
+        assertEquals(emptyList(), legacyImageTools)
+        assertEquals(listOf("subscription_image_generation"), imageTools.map { it.getAnnotation(McpTool::class.java).name })
+        assertEquals(
+            listOf(String::class.java, ImageGenerationProvider::class.java),
+            imageTools.single().parameterTypes.toList(),
+        )
+    }
+
+    @Test
+    fun superGrokVideoGenerationUsesSingleToolWithOptionalImageAndPolling() {
+        val videoTools = SubscriptionUsageMcpToolset::class.java.declaredMethods
+            .filter { it.getAnnotation(McpTool::class.java)?.name == "supergrok_video_generation" }
+
+        assertEquals(listOf("supergrok_video_generation"), videoTools.map { it.getAnnotation(McpTool::class.java).name })
+        assertEquals(
+            listOf(
+                String::class.java,
+                String::class.java,
+                Int::class.java,
+                String::class.java,
+                Boolean::class.java,
+                Int::class.java,
+            ),
+            videoTools.single().parameterTypes.toList(),
+        )
     }
 
     @Test
