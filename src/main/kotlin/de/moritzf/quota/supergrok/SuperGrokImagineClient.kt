@@ -2,19 +2,28 @@ package de.moritzf.quota.supergrok
 
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
+import java.io.ByteArrayInputStream
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.nio.file.Files
+import java.nio.file.InvalidPathException
+import java.nio.file.Path
 import java.time.Duration
+import java.util.Base64
 import java.util.Locale
+import javax.imageio.ImageIO
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.put
 
 /**
  * SuperGrok/xAI Imagine API client for image and video generation over subscription OAuth.
@@ -28,6 +37,8 @@ open class SuperGrokImagineClient(
         accessToken: String,
         prompt: String,
         model: String = DEFAULT_IMAGE_MODEL,
+        targetFile: String? = null,
+        baseDirectory: Path? = null,
     ): String {
         val trimmedPrompt = prompt.trim()
         if (trimmedPrompt.isBlank()) {
@@ -35,17 +46,26 @@ open class SuperGrokImagineClient(
         }
         val token = requireToken(accessToken)
         val trimmedModel = model.trim().ifBlank { DEFAULT_IMAGE_MODEL }
+        val outputTarget = resolveOptionalImageTarget(targetFile, baseDirectory)
+        if (outputTarget?.error != null) {
+            throw SuperGrokQuotaException(outputTarget.error)
+        }
+        // Prefer URL when returning to the agent. Use b64 only when writing a local file
+        // so agents do not have to ingest large base64 payloads.
+        val responseFormat = if (outputTarget?.path != null) "b64_json" else "url"
         val body = JsonSupport.json.encodeToString(
             GrokImageGenerationRequestDto(
                 model = trimmedModel,
                 prompt = trimmedPrompt,
                 n = 1,
-                responseFormat = "url",
+                responseFormat = responseFormat,
             ),
         )
-        return McpJson.providerJsonOrRaw(
-            postJson(token, IMAGES_GENERATIONS_PATH, body, requestTimeoutSeconds = 120),
-        )
+        val responseBody = postJson(token, IMAGES_GENERATIONS_PATH, body, requestTimeoutSeconds = 120)
+        if (outputTarget?.path == null) {
+            return McpJson.providerJsonOrRaw(responseBody)
+        }
+        return writeFirstImageToFile(responseBody, outputTarget.path, outputTarget.format!!)
     }
 
     open fun generateVideo(
@@ -105,6 +125,22 @@ open class SuperGrokImagineClient(
         )
     }
 
+    private fun writeFirstImageToFile(responseBody: String, targetFile: Path, format: String): String {
+        val b64 = extractFirstB64Image(responseBody)
+            ?: throw SuperGrokQuotaException(
+                "Grok image generation returned no b64_json image data.",
+                200,
+                responseBody,
+            )
+        val bytes = writeImageFile(b64, targetFile, format)
+            ?: throw SuperGrokQuotaException("Could not write generated image as $format.")
+        return buildJsonObject {
+            put("output_file", targetFile.toString())
+            put("format", format)
+            put("bytes", bytes)
+        }.toString()
+    }
+
     private fun postJson(
         accessToken: String,
         path: String,
@@ -161,6 +197,11 @@ open class SuperGrokImagineClient(
         }
     }
 
+    private fun resolveOptionalImageTarget(targetFile: String?, baseDirectory: Path?): ImageOutputTarget? {
+        val trimmed = targetFile?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        return resolveImageOutputTarget(trimmed, baseDirectory)
+    }
+
     companion object {
         const val DEFAULT_IMAGE_MODEL = "grok-imagine-image"
         const val DEFAULT_VIDEO_MODEL = "grok-imagine-video"
@@ -174,8 +215,50 @@ open class SuperGrokImagineClient(
         private const val VIDEOS_GENERATIONS_PATH = "videos/generations"
         private const val USER_AGENT = "openai-usage-quota-intellij"
         private val DEFAULT_BASE_URI = URI.create("https://api.x.ai/v1/")
+        private val SUPPORTED_IMAGE_FORMATS: Set<String> = ImageIO.getWriterFormatNames()
+            .map { it.lowercase(Locale.ROOT) }
+            .toSet()
 
         fun createDefault(): SuperGrokImagineClient = SuperGrokImagineClient()
+
+        fun resolveImageOutputTarget(targetFile: String, baseDirectory: Path?): ImageOutputTarget {
+            val path = try {
+                Path.of(targetFile.trim())
+            } catch (exception: InvalidPathException) {
+                return ImageOutputTarget(error = exception.message ?: "Invalid image target file path.")
+            }
+            if (path.isAbsolute) {
+                return ImageOutputTarget(error = "Image target file must be relative to the project directory.")
+            }
+            val base = (baseDirectory ?: Path.of(System.getProperty("user.dir"))).toAbsolutePath().normalize()
+            val resolved = base.resolve(path).normalize()
+            if (!resolved.startsWith(base)) {
+                return ImageOutputTarget(error = "Image target file must stay inside the project directory.")
+            }
+            val format = resolved.fileName?.toString()
+                ?.substringAfterLast('.', missingDelimiterValue = "")
+                ?.lowercase(Locale.ROOT)
+                ?.takeIf { it.isNotBlank() }
+                ?: return ImageOutputTarget(error = "Image target file must include an extension.")
+            if (format !in SUPPORTED_IMAGE_FORMATS) {
+                return ImageOutputTarget(
+                    error = "Unsupported image format '$format'. Supported formats: ${SUPPORTED_IMAGE_FORMATS.sorted().joinToString(", ")}.",
+                )
+            }
+            return ImageOutputTarget(path = resolved, format = format)
+        }
+
+        fun extractFirstB64Image(responseBody: String): String? {
+            val root = runCatching { JsonSupport.json.parseToJsonElement(responseBody) as? JsonObject }.getOrNull()
+                ?: return null
+            val data = root["data"] as? JsonArray ?: return null
+            for (item in data) {
+                val obj = item as? JsonObject ?: continue
+                val b64 = (obj["b64_json"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+                if (b64 != null) return b64
+            }
+            return null
+        }
 
         fun extractRequestId(responseBody: String): String? {
             val root = runCatching { JsonSupport.json.parseToJsonElement(responseBody) as? JsonObject }.getOrNull()
@@ -190,12 +273,31 @@ open class SuperGrokImagineClient(
             return (root["status"] as? JsonPrimitive)?.contentOrNull
         }
 
+        fun writeImageFile(b64Json: String, targetFile: Path, format: String): Long? {
+            val imageBytes = runCatching { Base64.getDecoder().decode(b64Json) }.getOrNull() ?: return null
+            val image = ImageIO.read(ByteArrayInputStream(imageBytes)) ?: return null
+            val parent = targetFile.parent
+            if (parent != null) {
+                Files.createDirectories(parent)
+            }
+            if (!ImageIO.write(image, format, targetFile.toFile())) {
+                return null
+            }
+            return Files.size(targetFile)
+        }
+
         private fun defaultHttpClient(): HttpClient {
             return HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(30))
                 .build()
         }
     }
+
+    data class ImageOutputTarget(
+        val path: Path? = null,
+        val format: String? = null,
+        val error: String? = null,
+    )
 }
 
 @Serializable

@@ -43,6 +43,8 @@ internal data class McpProviderToolStatus(
     @SerialName("quota_configured") val quotaConfigured: Boolean,
     @SerialName("web_search_available") val webSearchAvailable: Boolean,
     @SerialName("web_search_type") val webSearchType: String? = null,
+    @SerialName("image_generation_available") val imageGenerationAvailable: Boolean,
+    @SerialName("video_generation_available") val videoGenerationAvailable: Boolean,
     val reason: String? = null,
 )
 

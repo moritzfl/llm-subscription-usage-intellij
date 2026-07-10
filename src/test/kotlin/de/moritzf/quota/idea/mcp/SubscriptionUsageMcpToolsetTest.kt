@@ -37,7 +37,7 @@ class SubscriptionUsageMcpToolsetTest {
         assertEquals(emptyList(), legacyImageTools)
         assertEquals(listOf("subscription_image_generation"), imageTools.map { it.getAnnotation(McpTool::class.java).name })
         assertEquals(
-            listOf(String::class.java, ImageGenerationProvider::class.java),
+            listOf(String::class.java, ImageGenerationProvider::class.java, String::class.java),
             imageTools.single().parameterTypes.toList(),
         )
     }

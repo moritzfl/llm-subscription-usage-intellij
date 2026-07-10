@@ -2,13 +2,18 @@ package de.moritzf.quota.supergrok
 
 import com.sun.net.httpserver.HttpServer
 import de.moritzf.quota.shared.JsonSupport
+import java.awt.image.BufferedImage
+import java.io.ByteArrayOutputStream
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.URI
 import java.net.http.HttpClient
+import java.nio.file.Files
+import java.util.Base64
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import javax.imageio.ImageIO
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -21,7 +26,7 @@ import kotlinx.serialization.json.jsonPrimitive
 
 class SuperGrokImagineClientTest {
     @Test
-    fun postsImageGenerationsWithSingleUrlImage() {
+    fun postsImageGenerationsWithSingleUrlImageByDefault() {
         TestGrokServer(
             responseBody = """{"created":1,"data":[{"url":"https://cdn.example/cat.png"}]}""",
         ).use { server ->
@@ -43,6 +48,37 @@ class SuperGrokImagineClientTest {
             assertEquals("a cat in space", body["prompt"]!!.jsonPrimitive.content)
             assertEquals(1, body["n"]!!.jsonPrimitive.int)
             assertEquals("url", body["response_format"]!!.jsonPrimitive.content)
+        }
+    }
+
+    @Test
+    fun writesImageToRelativeProjectPathUsingB64() {
+        val pngB64 = tinyPngBase64()
+        TestGrokServer(
+            responseBody = """{"created":1,"data":[{"b64_json":"$pngB64"}]}""",
+        ).use { server ->
+            val client = SuperGrokImagineClient(httpClient = httpClient, baseUri = server.baseUri)
+            val projectDir = Files.createTempDirectory("supergrok-imagine-test")
+            try {
+                val result = client.generateImage(
+                    accessToken = "grok-token",
+                    prompt = "logo",
+                    targetFile = "out/logo.png",
+                    baseDirectory = projectDir,
+                )
+                val response = parseObject(result)
+                val output = response["output_file"]!!.jsonPrimitive.content
+                assertTrue(output.endsWith("out/logo.png") || output.endsWith("out\\logo.png"))
+                assertTrue(Files.exists(projectDir.resolve("out/logo.png")))
+                assertTrue(response["bytes"]!!.jsonPrimitive.int > 0)
+
+                val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
+                val body = parseObject(request.body)
+                assertEquals("b64_json", body["response_format"]!!.jsonPrimitive.content)
+                assertEquals(1, body["n"]!!.jsonPrimitive.int)
+            } finally {
+                projectDir.toFile().deleteRecursively()
+            }
         }
     }
 
@@ -109,6 +145,17 @@ class SuperGrokImagineClientTest {
             assertEquals(1, server.requests.size)
             assertEquals("POST", server.requests.single().method)
         }
+    }
+
+    private fun tinyPngBase64(): String {
+        val image = BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB)
+        image.setRGB(0, 0, 0xFF0000)
+        image.setRGB(1, 1, 0x00FF00)
+        val bytes = ByteArrayOutputStream().use { output ->
+            ImageIO.write(image, "png", output)
+            output.toByteArray()
+        }
+        return Base64.getEncoder().encodeToString(bytes)
     }
 
     private fun parseObject(value: String) = JsonSupport.json.parseToJsonElement(value).jsonObject

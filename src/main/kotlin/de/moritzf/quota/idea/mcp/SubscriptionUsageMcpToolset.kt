@@ -55,9 +55,10 @@ class SubscriptionUsageMcpToolset(
     }
 
     @McpTool(name = "subscription_tools_status")
-    @McpDescription(description = "Returns per-provider status showing whether subscription quota access is configured and whether web search is available. Does not call provider APIs.")
+    @McpDescription(description = "Returns per-provider status showing whether subscription quota access is configured and whether web search, image generation, and video generation are available. Does not call provider APIs.")
     fun subscription_tools_status(): String {
         val listProviders = ListSearchProvider.entries.associateBy { it.providerType }
+        val imageProviders = ImageGenerationProvider.entries.associateBy { it.providerType }
 
         val statuses = QuotaProviderType.entries.map { provider ->
             val quotaConfigured = isQuotaConfigured(provider)
@@ -67,6 +68,8 @@ class SubscriptionUsageMcpToolset(
                 else -> null
             }
             val webSearchAvailable = searchType != null && isWebSearchConfigured(provider)
+            val imageGenerationAvailable = provider in imageProviders && isImageGenerationConfigured(provider)
+            val videoGenerationAvailable = provider == QuotaProviderType.SUPERGROK && isImageGenerationConfigured(provider)
             val reason = if (searchType == null) {
                 "Web search is not offered for this provider."
             } else if (!webSearchAvailable) {
@@ -79,6 +82,8 @@ class SubscriptionUsageMcpToolset(
                 quotaConfigured = quotaConfigured,
                 webSearchAvailable = webSearchAvailable,
                 webSearchType = searchType,
+                imageGenerationAvailable = imageGenerationAvailable,
+                videoGenerationAvailable = videoGenerationAvailable,
                 reason = reason,
             )
         }
@@ -135,16 +140,17 @@ class SubscriptionUsageMcpToolset(
     }
 
     @McpTool(name = "subscription_image_generation")
-    @McpDescription(description = "Generates one image through a subscription-backed provider and returns the provider JSON response. SuperGrok returns a single image URL.")
+    @McpDescription(description = "Generates one image through a subscription-backed provider. Without targetFile, SuperGrok returns an image URL and OpenAI/Codex returns provider JSON (including b64). With targetFile, the image is written to disk so agents avoid large base64 payloads.")
     fun subscription_image_generation(
         @McpDescription(description = "Image prompt.") prompt: String,
         @McpDescription(description = "Provider to use: OPEN_AI (Codex) or SUPERGROK (xAI Imagine).") provider: ImageGenerationProvider = ImageGenerationProvider.OPEN_AI,
+        @McpDescription(description = "Optional relative project path for the generated image (for example out/image.png). Leave blank to return provider JSON/URL instead of writing a file.") targetFile: String? = null,
     ): String {
         return when (provider) {
             ImageGenerationProvider.OPEN_AI ->
-                codexResult(codexClient.imageGeneration(prompt, targetFile = null, baseDirectory = projectBaseDirectory()))
+                codexResult(codexClient.imageGeneration(prompt, targetFile, projectBaseDirectory()))
             ImageGenerationProvider.SUPERGROK ->
-                superGrokImageGeneration(prompt)
+                superGrokImageGeneration(prompt, targetFile)
         }
     }
 
@@ -194,9 +200,14 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun superGrokImageGeneration(prompt: String): String {
+    private fun superGrokImageGeneration(prompt: String, targetFile: String?): String {
         return withSuperGrokAuth("Grok image generation failed.") { accessToken ->
-            superGrokImagineClient.generateImage(accessToken = accessToken, prompt = prompt)
+            superGrokImagineClient.generateImage(
+                accessToken = accessToken,
+                prompt = prompt,
+                targetFile = targetFile,
+                baseDirectory = projectBaseDirectory(),
+            )
         }
     }
 
@@ -360,6 +371,14 @@ class SubscriptionUsageMcpToolset(
                 !MiniMaxApiKeyStore.getInstance().loadBlocking().isNullOrBlank()
             QuotaProviderType.OLLAMA ->
                 !OllamaApiKeyStore.getInstance().loadBlocking().isNullOrBlank()
+            else -> false
+        }
+    }
+
+    private fun isImageGenerationConfigured(provider: QuotaProviderType): Boolean {
+        return when (provider) {
+            QuotaProviderType.OPEN_AI, QuotaProviderType.SUPERGROK ->
+                !QuotaAuthService.getInstance().getAccessTokenBlocking(provider).isNullOrBlank()
             else -> false
         }
     }
