@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea.common
 
+import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.cursor.CursorQuota
 import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.kimi.KimiQuota
@@ -18,6 +19,11 @@ internal data class QuotaProviderRegistration(
 
 internal object QuotaProviderRegistry {
     val all: List<QuotaProviderRegistration> = listOf(
+        QuotaProviderRegistration(
+            type = QuotaProviderType.CLAUDE,
+            providerFactory = ::ClaudeQuotaProvider,
+            snapshotCodec = EnvelopeQuotaCodec(ClaudeQuota.serializer()),
+        ),
         QuotaProviderRegistration(
             type = QuotaProviderType.CURSOR,
             providerFactory = ::CursorQuotaProvider,

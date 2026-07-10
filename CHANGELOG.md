@@ -1,6 +1,7 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+- Added Claude (Anthropic) subscription usage tracking with self-contained OAuth login (browser + paste callback) and the Claude OAuth usage API.
 - Quota status now keeps the last good reading during short network hiccups instead of going blank.
 - OpenAI and SuperGrok usage tracking recover more reliably after an expired login session.
 - Quota refresh is more consistent when the status bar and chat tools refresh at the same time.

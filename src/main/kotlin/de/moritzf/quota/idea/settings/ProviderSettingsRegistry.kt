@@ -12,6 +12,9 @@ internal data class ProviderSettingsPanelContext(
 
 internal object ProviderSettingsRegistry {
     val all: Map<QuotaProviderType, (ProviderSettingsPanelContext) -> ProviderSettingsPanel> = mapOf(
+        QuotaProviderType.CLAUDE to { context ->
+            ClaudeSettingsPanel(context.modalityComponentProvider, context.statusLabelDefaultForeground)
+        },
         QuotaProviderType.CURSOR to { context ->
             CursorSettingsPanel(context.modalityComponentProvider, context.statusLabelDefaultForeground)
         },

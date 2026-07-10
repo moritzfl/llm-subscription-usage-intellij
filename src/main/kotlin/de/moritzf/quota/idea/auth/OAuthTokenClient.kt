@@ -10,6 +10,8 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
  * Performs OAuth token exchange and refresh requests against the configured token endpoint.
@@ -18,7 +20,11 @@ class OAuthTokenClient(
     private val httpClient: HttpClient,
     private val config: OAuthClientConfig,
 ) : OAuthTokenOperations {
-    override suspend fun exchangeAuthorizationCode(code: String, codeVerifier: String): OAuthCredentials {
+    override suspend fun exchangeAuthorizationCode(
+        code: String,
+        codeVerifier: String,
+        state: String?,
+    ): OAuthCredentials {
         LOG.info("Exchanging authorization code for tokens")
         val params = linkedMapOf(
             "grant_type" to "authorization_code",
@@ -27,9 +33,12 @@ class OAuthTokenClient(
             "redirect_uri" to config.redirectUri,
             "code_verifier" to codeVerifier,
         )
+        if (config.includeStateInCodeExchange && !state.isNullOrBlank()) {
+            params["state"] = state
+        }
         config.clientSecret?.let { params["client_secret"] = it }
 
-        val response = postForm(params)
+        val response = postToken(params)
         if (response.statusCode() !in 200..299) {
             LOG.warn("Token exchange failed: ${response.statusCode()}")
             throw createRequestException("Token exchange failed", response)
@@ -53,7 +62,7 @@ class OAuthTokenClient(
             "refresh_token" to existing.refreshToken.orEmpty(),
         )
         config.clientSecret?.let { params["client_secret"] = it }
-        val response = postForm(params)
+        val response = postToken(params)
         if (response.statusCode() !in 200..299) {
             LOG.warn("Token refresh failed: ${response.statusCode()}")
             throw createRequestException("Token refresh failed", response)
@@ -71,13 +80,20 @@ class OAuthTokenClient(
         }
     }
 
-    private fun postForm(parameters: Map<String, String>): HttpResponse<String> {
-        val body = OAuthUrlCodec.formEncode(parameters)
+    private fun postToken(parameters: Map<String, String>): HttpResponse<String> {
+        val (contentType, body) = when (config.tokenBodyFormat) {
+            OAuthTokenBodyFormat.FORM ->
+                "application/x-www-form-urlencoded" to OAuthUrlCodec.formEncode(parameters)
+            OAuthTokenBodyFormat.JSON ->
+                "application/json" to buildJsonObject {
+                    parameters.forEach { (key, value) -> put(key, value) }
+                }.toString()
+        }
         val request = HttpRequest.newBuilder()
             .uri(URI.create(config.tokenEndpoint))
             .timeout(Duration.ofSeconds(30))
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Accept", "application/json")
+            .header("Content-Type", contentType)
+            .header("Accept", "application/json, text/plain, */*")
             .POST(HttpRequest.BodyPublishers.ofString(body))
             .build()
         return httpClient.send(request, HttpResponse.BodyHandlers.ofString())

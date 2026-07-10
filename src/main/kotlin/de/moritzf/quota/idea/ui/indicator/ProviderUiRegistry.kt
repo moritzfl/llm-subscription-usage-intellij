@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea.ui.indicator
 
+import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.cursor.CursorQuota
 import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.idea.auth.QuotaAuthService
@@ -11,6 +12,7 @@ import de.moritzf.quota.idea.kimi.KimiCredentialsStore
 import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
 import de.moritzf.quota.idea.ollama.OllamaSessionCookieStore
 import de.moritzf.quota.idea.opencode.OpenCodeSessionCookieStore
+import de.moritzf.quota.idea.ui.popup.ClaudePopupSection
 import de.moritzf.quota.idea.ui.popup.CursorPopupSection
 import de.moritzf.quota.idea.ui.popup.GitHubPopupSection
 import de.moritzf.quota.idea.ui.popup.KimiPopupSection
@@ -66,6 +68,7 @@ internal interface ProviderUi {
 
 internal object ProviderUiRegistry {
     private val byType: Map<QuotaProviderType, ProviderUi> = listOf(
+        ClaudeUi,
         CursorUi,
         GitHubUi,
         KimiUi,
@@ -336,4 +339,31 @@ internal object SuperGrokUi : ProviderUi {
     }
 
     override fun createPopupSection() = SuperGrokPopupSection()
+}
+
+internal object ClaudeUi : ProviderUi {
+    override val type = QuotaProviderType.CLAUDE
+    override val icon: Icon get() = QuotaIcons.CLAUDE
+
+    override fun tooltip(quota: ProviderQuota?, error: String?) =
+        buildClaudeTooltipText(quota as? ClaudeQuota, error)
+
+    override fun barText(quota: ProviderQuota?, error: String?) =
+        claudeBarDisplayText(quota as? ClaudeQuota, error)
+
+    override fun displayPercent(quota: ProviderQuota?, error: String?) =
+        (quota as? ClaudeQuota)?.let(::claudeIndicatorState)?.percent ?: -1
+
+    override fun periodElapsedFraction(quota: ProviderQuota?, error: String?) =
+        claudePeriodElapsedFraction(quota as? ClaudeQuota, error)
+
+    override fun authState(): ProviderAuthState {
+        return if (QuotaAuthService.getInstance().isLoggedIn(QuotaProviderType.CLAUDE)) {
+            ProviderAuthState.AUTHENTICATED
+        } else {
+            ProviderAuthState.UNAUTHENTICATED
+        }
+    }
+
+    override fun createPopupSection() = ClaudePopupSection()
 }

@@ -15,8 +15,23 @@ object OAuthUrlCodec {
         }
     }
 
+    /**
+     * Query-string encoding for authorize URLs.
+     * Uses %20 for spaces (not +). Some OAuth providers (e.g. Claude) reject + as invalid request format.
+     */
+    @JvmStatic
+    fun queryEncode(params: Map<String, String>): String {
+        return params.entries.joinToString("&") { (key, value) ->
+            "${percentEncode(key)}=${percentEncode(value)}"
+        }
+    }
+
     @JvmStatic
     fun formEncode(vararg params: Pair<String, String>): String = formEncode(linkedMapOf(*params))
+
+    private fun percentEncode(value: String): String {
+        return URLEncoder.encode(value, Charsets.UTF_8).replace("+", "%20")
+    }
 
     @JvmStatic
     fun parseQuery(query: String?): Map<String, String> {

@@ -44,6 +44,8 @@ class OAuthLoginFlow private constructor(
     private var server: HttpServer? = null
     private var serverExecutor: ExecutorService? = null
     private val callbackPath: String = URI.create(config.redirectUri).path.takeIf { it.isNotBlank() } ?: "/auth/callback"
+    val expectedState: String get() = state
+    val usesLocalCallbackServer: Boolean get() = config.callbackMode == OAuthCallbackMode.LOOPBACK
 
     suspend fun waitForCallback(): OAuthCallbackResult {
         return try {
@@ -53,6 +55,28 @@ class OAuthLoginFlow private constructor(
         } finally {
             scheduleStopServer()
         }
+    }
+
+    /**
+     * Accepts a pasted Claude/Anthropic callback value.
+     * Returns null on success (flow continues to token exchange).
+     * Returns an error string if the paste is invalid; the login stays open for retry.
+     * Returns a terminal error only if the flow is no longer waiting.
+     */
+    fun completeWithPastedCallback(input: String): String? {
+        if (callbackDeferred.isCompleted) {
+            return "No login in progress"
+        }
+        val parsed = parseCallbackInput(input)
+            ?: return "Could not parse authorization code. Paste the full callback URL or code#state."
+        if (parsed.state != state) {
+            return "State mismatch. Start login again and paste the code from that browser session."
+        }
+        if (parsed.code.isBlank()) {
+            return "Missing authorization code"
+        }
+        callbackDeferred.complete(OAuthCallbackResult(code = parsed.code, state = parsed.state))
+        return null
     }
 
     fun stopServerNow() {
@@ -67,6 +91,9 @@ class OAuthLoginFlow private constructor(
     }
 
     private fun startServer() {
+        if (!usesLocalCallbackServer) {
+            return
+        }
         try {
             val engine = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), config.callbackPort), 0)
             val executor = Executors.newSingleThreadExecutor { runnable ->
@@ -133,7 +160,7 @@ class OAuthLoginFlow private constructor(
                 else -> {
                     val code = params["code"]!!
                     LOG.info("Callback completed with authorization code")
-                    callbackDeferred.complete(OAuthCallbackResult(code = code))
+                    callbackDeferred.complete(OAuthCallbackResult(code = code, state = params["state"]))
                     buildHtmlResponse(
                         "Authentication Successful",
                         "You can close this window and return to the IDE.",
@@ -208,25 +235,95 @@ class OAuthLoginFlow private constructor(
         @JvmStatic
         fun parseUri(value: String, redirectUri: String): URI = OAuthUrlCodec.parseCallbackUri(value, redirectUri)
 
-        private fun buildAuthorizationUrl(config: OAuthClientConfig, challenge: String, state: String): String {
-            val params = linkedMapOf(
-                "client_id" to config.clientId,
-                "redirect_uri" to config.redirectUri,
-                "scope" to config.scopes,
-                "code_challenge" to challenge,
-                "code_challenge_method" to "S256",
-                "response_type" to "code",
-                "state" to state,
-            )
-            if (config.includeNonce) {
-                params["nonce"] = generateState()
+        @JvmStatic
+        fun parseCallbackInput(input: String?): ParsedOAuthCallback? {
+            val trimmed = input?.trim()?.trim('"', '\'')?.orEmpty().orEmpty()
+            if (trimmed.isEmpty()) {
+                return null
             }
-            params.putAll(config.extraParameters)
-            return "${config.authorizationEndpoint}?${OAuthUrlCodec.formEncode(params)}"
+
+            // Full URL with query or fragment: ?code=&state= or #code=&state=
+            runCatching {
+                val uri = URI.create(trimmed.replace(' ', '+'))
+                val candidates = listOfNotNull(uri.rawQuery, uri.rawFragment, uri.fragment)
+                for (candidate in candidates) {
+                    parseCodeStatePair(candidate)?.let { return it }
+                    // Fragment may itself be URL-encoded: code%3D...%26state%3D...
+                    val decoded = runCatching {
+                        java.net.URLDecoder.decode(candidate, Charsets.UTF_8)
+                    }.getOrNull()
+                    if (!decoded.isNullOrBlank() && decoded != candidate) {
+                        parseCodeStatePair(decoded)?.let { return it }
+                    }
+                }
+            }
+
+            // Legacy Claude form: code#state (no equals signs)
+            val hashSplits = trimmed.split('#', limit = 2)
+            if (hashSplits.size == 2 &&
+                hashSplits[0].isNotBlank() &&
+                hashSplits[1].isNotBlank() &&
+                !hashSplits[0].contains('=') &&
+                !hashSplits[1].contains('=') &&
+                !hashSplits[0].contains("://")
+            ) {
+                return ParsedOAuthCallback(code = hashSplits[0], state = hashSplits[1])
+            }
+
+            // Bare query string or code=...&state=...
+            parseCodeStatePair(trimmed)?.let { return it }
+            val decoded = runCatching {
+                java.net.URLDecoder.decode(trimmed, Charsets.UTF_8)
+            }.getOrNull()
+            if (!decoded.isNullOrBlank() && decoded != trimmed) {
+                parseCodeStatePair(decoded)?.let { return it }
+            }
+            return null
+        }
+
+        private fun parseCodeStatePair(value: String?): ParsedOAuthCallback? {
+            if (value.isNullOrBlank()) return null
+            val params = parseQuery(value)
+            val code = params["code"]?.takeIf { it.isNotBlank() } ?: return null
+            val state = params["state"]?.takeIf { it.isNotBlank() } ?: return null
+            return ParsedOAuthCallback(code = code, state = state)
+        }
+
+        private fun buildAuthorizationUrl(config: OAuthClientConfig, challenge: String, state: String): String {
+            // Claude/Anthropic is picky about authorize URL shape (param order + %20 spaces).
+            // Match the known-working Claude Code / opencode-anthropic-auth order exactly.
+            val params = if (config.callbackMode == OAuthCallbackMode.PASTE) {
+                linkedMapOf(
+                    "code" to "true",
+                    "client_id" to config.clientId,
+                    "response_type" to "code",
+                    "redirect_uri" to config.redirectUri,
+                    "scope" to config.scopes,
+                    "code_challenge" to challenge,
+                    "code_challenge_method" to "S256",
+                    "state" to state,
+                )
+            } else {
+                linkedMapOf(
+                    "client_id" to config.clientId,
+                    "redirect_uri" to config.redirectUri,
+                    "scope" to config.scopes,
+                    "code_challenge" to challenge,
+                    "code_challenge_method" to "S256",
+                    "response_type" to "code",
+                    "state" to state,
+                ).also { map ->
+                    if (config.includeNonce) {
+                        map["nonce"] = generateState()
+                    }
+                    map.putAll(config.extraParameters)
+                }
+            }
+            return "${config.authorizationEndpoint}?${OAuthUrlCodec.queryEncode(params)}"
         }
 
         private fun generateCodeVerifier(): String {
-            val random = ByteArray(32)
+            val random = ByteArray(64)
             SecureRandom().nextBytes(random)
             return base64Url(random)
         }
@@ -241,9 +338,10 @@ class OAuthLoginFlow private constructor(
         }
 
         private fun generateState(): String {
+            // Claude/Anthropic auth uses UUID hex without dashes (32 chars).
             val random = ByteArray(16)
             SecureRandom().nextBytes(random)
-            return base64Url(random)
+            return random.joinToString("") { "%02x".format(it) }
         }
 
         @OptIn(ExperimentalEncodingApi::class)

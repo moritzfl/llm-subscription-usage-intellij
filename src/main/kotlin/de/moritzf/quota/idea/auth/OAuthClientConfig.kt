@@ -2,6 +2,16 @@ package de.moritzf.quota.idea.auth
 
 import de.moritzf.quota.idea.common.QuotaProviderType
 
+enum class OAuthCallbackMode {
+    LOOPBACK,
+    PASTE,
+}
+
+enum class OAuthTokenBodyFormat {
+    FORM,
+    JSON,
+}
+
 /**
  * Immutable OAuth client configuration values for the login flow.
  */
@@ -16,6 +26,9 @@ data class OAuthClientConfig(
     val clientSecret: String? = null,
     val extraParameters: Map<String, String> = emptyMap(),
     val includeNonce: Boolean = false,
+    val callbackMode: OAuthCallbackMode = OAuthCallbackMode.LOOPBACK,
+    val tokenBodyFormat: OAuthTokenBodyFormat = OAuthTokenBodyFormat.FORM,
+    val includeStateInCodeExchange: Boolean = false,
 ) {
     companion object {
         @JvmStatic
@@ -23,6 +36,7 @@ data class OAuthClientConfig(
             return when (type) {
                 QuotaProviderType.OPEN_AI -> openAiUsageQuotaDefaults()
                 QuotaProviderType.SUPERGROK -> xAiGrokDefaults()
+                QuotaProviderType.CLAUDE -> anthropicClaudeDefaults()
                 else -> openAiUsageQuotaDefaults()
             }
         }
@@ -59,6 +73,23 @@ data class OAuthClientConfig(
                     "referrer" to "openai-usage-quota-plugin",
                 ),
                 includeNonce = true,
+            )
+        }
+
+        @JvmStatic
+        fun anthropicClaudeDefaults(): OAuthClientConfig {
+            return OAuthClientConfig(
+                clientId = "9d1c250a-e61b-44d9-88ed-5944d1962f5e",
+                authorizationEndpoint = "https://claude.ai/oauth/authorize",
+                tokenEndpoint = "https://platform.claude.com/v1/oauth/token",
+                redirectUri = "https://platform.claude.com/oauth/code/callback",
+                originator = "openai-usage-quota-plugin",
+                // Exact scope list/order used by Claude Code / opencode-anthropic-auth.
+                scopes = "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload",
+                callbackPort = 0,
+                callbackMode = OAuthCallbackMode.PASTE,
+                tokenBodyFormat = OAuthTokenBodyFormat.JSON,
+                includeStateInCodeExchange = true,
             )
         }
     }

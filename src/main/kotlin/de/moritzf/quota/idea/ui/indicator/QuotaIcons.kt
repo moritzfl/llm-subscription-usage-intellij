@@ -30,6 +30,7 @@ object QuotaIcons {
     @JvmField val CAKE_95: Icon = IconLoader.getIcon("/icons/clock_loader_95.svg", QuotaIcons::class.java)
     @JvmField val CAKE_100: Icon = IconLoader.getIcon("/icons/clock_loader_100.svg", QuotaIcons::class.java)
     @JvmField val CAKE_UNKNOWN: Icon = IconLoader.getIcon("/icons/clock_loader_unknown.svg", QuotaIcons::class.java)
+    @JvmField val CLAUDE: Icon = IconLoader.getIcon("/icons/claude.svg", QuotaIcons::class.java)
     @JvmField val CURSOR: Icon = IconLoader.getIcon("/icons/cursor.svg", QuotaIcons::class.java)
     @JvmField val OPENAI: Icon = IconLoader.getIcon("/icons/openai.svg", QuotaIcons::class.java)
     @JvmField val OPENCODE: Icon = IconLoader.getIcon("/icons/opencode.svg", QuotaIcons::class.java)

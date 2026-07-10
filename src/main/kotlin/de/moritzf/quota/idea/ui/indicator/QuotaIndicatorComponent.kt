@@ -22,6 +22,7 @@ import de.moritzf.quota.cursor.CursorQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.github.GitHubSubscriptionState
+import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.supergrok.SuperGrokQuota
@@ -69,6 +70,11 @@ internal data class ZaiIndicatorState(
 )
 
 internal data class SuperGrokIndicatorState(
+    val percent: Int,
+    val resetsAt: Instant?,
+)
+
+internal data class ClaudeIndicatorState(
     val percent: Int,
     val resetsAt: Instant?,
 )
@@ -458,6 +464,57 @@ internal fun superGrokBarDisplayText(quota: SuperGrokQuota?, error: String?): St
     return if (reset != null) "$text • $reset" else text
 }
 
+internal fun buildClaudeTooltipText(quota: ClaudeQuota?, error: String?): String {
+    if (error != null) return "Claude quota: $error"
+    if (quota == null) return "Claude quota: loading"
+    val parts = mutableListOf<String>()
+    quota.fiveHourUsage?.let {
+        parts.add("5h: ${clampPercent(it.usagePercent.roundToInt())}% used • ${QuotaUiUtil.formatResetCompact(it.resetsAt) ?: "unknown"}")
+    }
+    quota.sevenDayUsage?.let {
+        parts.add("Weekly: ${clampPercent(it.usagePercent.roundToInt())}% used • ${QuotaUiUtil.formatResetCompact(it.resetsAt) ?: "unknown"}")
+    }
+    val model = quota.sevenDaySonnetUsage ?: quota.sevenDayOpusUsage
+    model?.let {
+        parts.add("${it.label.ifBlank { "Model" }}: ${clampPercent(it.usagePercent.roundToInt())}% used • ${QuotaUiUtil.formatResetCompact(it.resetsAt) ?: "unknown"}")
+    }
+    quota.routinesUsage?.let {
+        parts.add("Routines: ${clampPercent(it.usagePercent.roundToInt())}% used • ${QuotaUiUtil.formatResetCompact(it.resetsAt) ?: "unknown"}")
+    }
+    quota.extraUsage?.takeIf { it.isEnabled }?.let { extra ->
+        val percent = extra.usagePercent?.roundToInt()?.let(::clampPercent)
+        val money = if (extra.usedMajor != null && extra.monthlyLimitMajor != null) {
+            String.format("%.2f / %.2f %s", extra.usedMajor, extra.monthlyLimitMajor, extra.currency ?: "USD")
+        } else {
+            null
+        }
+        parts.add(
+            buildString {
+                append("Extra usage")
+                if (percent != null) append(": $percent% used")
+                if (money != null) {
+                    if (percent != null) append(" • ") else append(": ")
+                    append(money)
+                }
+            },
+        )
+    }
+    return if (parts.isEmpty()) {
+        "Claude quota: no usage data"
+    } else {
+        "Claude quota:\n${parts.joinToString("\n")}"
+    }
+}
+
+internal fun claudeBarDisplayText(quota: ClaudeQuota?, error: String?): String {
+    if (error != null) return "error"
+    if (quota == null) return "loading..."
+    val state = claudeIndicatorState(quota) ?: return "no data"
+    val reset = QuotaUiUtil.formatResetCompact(state.resetsAt)
+    val text = "${state.percent}%"
+    return if (reset != null) "$text • $reset" else text
+}
+
 internal fun buildQuotaTooltipText(quota: OpenAiCodexQuota?, error: String?): String {
     val authService = QuotaAuthService.getInstance()
     return buildQuotaTooltipText(quota, error, authService.isLoggedIn(QuotaProviderType.OPEN_AI))
@@ -752,6 +809,23 @@ internal fun superGrokIndicatorState(quota: SuperGrokQuota): SuperGrokIndicatorS
         clampPercent(window.usagePercent.roundToInt())
     }
     return SuperGrokIndicatorState(percent, window.resetsAt)
+}
+
+internal fun claudeIndicatorState(quota: ClaudeQuota): ClaudeIndicatorState? {
+    val window = quota.primaryWindow()
+    if (window != null) {
+        val percent = if (window.usagePercent >= 100.0) {
+            100
+        } else {
+            clampPercent(window.usagePercent.roundToInt())
+        }
+        return ClaudeIndicatorState(percent, window.resetsAt)
+    }
+    val extra = quota.extraUsage?.takeIf { it.isEnabled } ?: return null
+    val percent = extra.usagePercent?.let {
+        if (it >= 100.0) 100 else clampPercent(it.roundToInt())
+    } ?: return null
+    return ClaudeIndicatorState(percent, null)
 }
 
 internal fun indicatorQuotaState(quota: OpenAiCodexQuota?): IndicatorQuotaState? {

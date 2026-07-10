@@ -9,7 +9,11 @@ interface OAuthCredentialStore {
 }
 
 interface OAuthTokenOperations {
-    suspend fun exchangeAuthorizationCode(code: String, codeVerifier: String): OAuthCredentials
+    suspend fun exchangeAuthorizationCode(
+        code: String,
+        codeVerifier: String,
+        state: String? = null,
+    ): OAuthCredentials
 
     suspend fun refreshCredentials(existing: OAuthCredentials): OAuthCredentials
 }

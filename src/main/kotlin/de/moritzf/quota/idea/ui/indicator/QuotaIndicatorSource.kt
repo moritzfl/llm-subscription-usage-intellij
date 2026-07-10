@@ -6,6 +6,7 @@ enum class QuotaIndicatorSource(
     private val displayName: String,
     val providerType: QuotaProviderType? = null,
 ) {
+    CLAUDE("Claude", QuotaProviderType.CLAUDE),
     CURSOR("Cursor", QuotaProviderType.CURSOR),
     GITHUB("GitHub Copilot", QuotaProviderType.GITHUB),
     KIMI("Kimi", QuotaProviderType.KIMI),

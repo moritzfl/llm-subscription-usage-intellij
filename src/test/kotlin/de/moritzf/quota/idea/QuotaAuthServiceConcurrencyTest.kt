@@ -415,7 +415,11 @@ class QuotaAuthServiceConcurrencyTest {
     private class TestTokenOperations(
         private val onRefresh: (OAuthCredentials) -> OAuthCredentials,
     ) : OAuthTokenOperations {
-        override suspend fun exchangeAuthorizationCode(code: String, codeVerifier: String): OAuthCredentials {
+        override suspend fun exchangeAuthorizationCode(
+            code: String,
+            codeVerifier: String,
+            state: String?,
+        ): OAuthCredentials {
             error("Authorization-code exchange should not be used in this test")
         }
 

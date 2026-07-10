@@ -70,6 +70,7 @@ class QuotaAuthService(
     init {
         refreshCacheAsync(QuotaProviderType.OPEN_AI)
         refreshCacheAsync(QuotaProviderType.SUPERGROK)
+        refreshCacheAsync(QuotaProviderType.CLAUDE)
     }
 
     fun startLoginFlow(type: QuotaProviderType, callback: (LoginResult) -> Unit, onAuthUrl: ((String) -> Unit)? = null) {
@@ -98,6 +99,17 @@ class QuotaAuthService(
     }
 
     fun isLoginInProgress(type: QuotaProviderType): Boolean = stateFor(type).authInProgress.get()
+
+    /**
+     * Completes a paste-based OAuth callback (Claude/Anthropic).
+     * Returns null when the paste was accepted and token exchange is starting.
+     * Returns an error message when the paste is invalid or no login is waiting.
+     */
+    fun completePastedCallback(type: QuotaProviderType, input: String): String? {
+        val flow = stateFor(type).pendingFlow.get()
+            ?: return "No login in progress. Click Log In first."
+        return flow.completeWithPastedCallback(input)
+    }
 
     fun abortLogin(type: QuotaProviderType, reason: String?): Boolean {
         val state = stateFor(type)
@@ -199,9 +211,11 @@ class QuotaAuthService(
         val flow = OAuthLoginFlow.start(state.config)
         state.pendingFlow.set(flow)
         return try {
-            val callbackError = pingCallbackEndpoint(state.config)
-            if (callbackError != null) {
-                return LoginResult.error(callbackError)
+            if (flow.usesLocalCallbackServer) {
+                val callbackError = pingCallbackEndpoint(state.config)
+                if (callbackError != null) {
+                    return LoginResult.error(callbackError)
+                }
             }
 
             try {
@@ -222,7 +236,11 @@ class QuotaAuthService(
             }
 
             val clearMarker = currentCredentialClearMarker(state)
-            val credentials = state.tokenOperations.exchangeAuthorizationCode(callback.code, flow.codeVerifier)
+            val credentials = state.tokenOperations.exchangeAuthorizationCode(
+                callback.code,
+                flow.codeVerifier,
+                callback.state ?: flow.expectedState,
+            )
             if (persistCredentialsIfCurrent(state, clearMarker, credentials, "login") == null) {
                 return LoginResult.error("Login canceled")
             }

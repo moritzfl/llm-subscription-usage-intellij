@@ -279,7 +279,7 @@ class SubscriptionUsageMcpToolset(
 
     private fun isQuotaConfigured(provider: QuotaProviderType): Boolean {
         return when (provider) {
-            QuotaProviderType.OPEN_AI, QuotaProviderType.SUPERGROK ->
+            QuotaProviderType.OPEN_AI, QuotaProviderType.SUPERGROK, QuotaProviderType.CLAUDE ->
                 !QuotaAuthService.getInstance().getAccessTokenBlocking(provider).isNullOrBlank()
             QuotaProviderType.GITHUB ->
                 !GitHubCredentialsStore.getInstance().loadBlocking()?.accessToken.isNullOrBlank()

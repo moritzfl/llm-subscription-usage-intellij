@@ -16,6 +16,7 @@ internal data class UsageQuotaMcpRegistration(
 
 internal object UsageQuotaMcpRegistry {
     val all: Map<QuotaProviderType, UsageQuotaMcpRegistration> = mapOf(
+        QuotaProviderType.CLAUDE to UsageQuotaMcpRegistration("No Claude usage response available"),
         QuotaProviderType.CURSOR to UsageQuotaMcpRegistration(
             emptyMessage = "No Cursor usage response available",
             json = { service, type -> service.getLastResponseJson(type)?.let(CursorQuotaClient::normalizeRawJson) },

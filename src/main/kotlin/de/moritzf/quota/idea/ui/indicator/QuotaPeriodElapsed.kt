@@ -1,5 +1,7 @@
 package de.moritzf.quota.idea.ui.indicator
 
+import de.moritzf.quota.claude.ClaudeQuota
+import de.moritzf.quota.claude.ClaudeUsageWindow
 import de.moritzf.quota.cursor.CursorPlanUsage
 import de.moritzf.quota.cursor.CursorQuota
 import de.moritzf.quota.idea.auth.QuotaAuthService
@@ -113,6 +115,12 @@ internal fun GitHubUsageWindow.periodElapsedFraction(now: Instant = Clock.System
 }
 
 internal fun SuperGrokUsageWindow.periodElapsedFraction(now: Instant = Clock.System.now()): Double? {
+    val durationMs = periodDurationMs ?: return null
+    val resetAt = resetsAt ?: return null
+    return computePeriodElapsedFraction(durationMs, resetAt, now)
+}
+
+internal fun ClaudeUsageWindow.periodElapsedFraction(now: Instant = Clock.System.now()): Double? {
     val durationMs = periodDurationMs ?: return null
     val resetAt = resetsAt ?: return null
     return computePeriodElapsedFraction(durationMs, resetAt, now)
@@ -245,4 +253,11 @@ internal fun superGrokPeriodElapsedFraction(quota: SuperGrokQuota?, error: Strin
         return null
     }
     return quota.creditUsage?.periodElapsedFraction()
+}
+
+internal fun claudePeriodElapsedFraction(quota: ClaudeQuota?, error: String?): Double? {
+    if (error != null || quota == null) {
+        return null
+    }
+    return quota.primaryWindow()?.periodElapsedFraction()
 }
