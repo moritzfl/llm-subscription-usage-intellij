@@ -23,6 +23,7 @@ import de.moritzf.quota.minimax.MiniMaxRegionPreference
 import de.moritzf.quota.minimax.MiniMaxWebSearchClient
 import de.moritzf.quota.ollama.OllamaQuotaException
 import de.moritzf.quota.ollama.OllamaWebSearchClient
+import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
 import de.moritzf.quota.shared.McpProviderToolStatus
 import de.moritzf.quota.supergrok.SuperGrokQuotaException
@@ -30,6 +31,9 @@ import de.moritzf.quota.supergrok.SuperGrokWebSearchClient
 import de.moritzf.quota.zai.ZaiQuotaException
 import de.moritzf.quota.zai.ZaiWebSearchClient
 import java.nio.file.Path
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 /** Exposes subscription usage JSON and hosted subscription tools through IntelliJ's MCP server. */
 class SubscriptionUsageMcpToolset(
@@ -97,7 +101,7 @@ class SubscriptionUsageMcpToolset(
             allowedDomains,
             blockedDomains,
         )
-        return if (response.isError) searchError(response.body) else response.body
+        return if (response.isError) searchError(extractErrorMessage(response.body)) else response.body
     }
 
     @McpTool(name = "supergrok_web_search")
@@ -335,6 +339,12 @@ class SubscriptionUsageMcpToolset(
             " Currently configured search providers: ${available.joinToString(", ")}."
         }
         return errorResult(message + hint)
+    }
+
+    private fun extractErrorMessage(body: String): String {
+        val root = runCatching { JsonSupport.json.parseToJsonElement(body) as? JsonObject }.getOrNull()
+        val message = (root?.get("error") as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+        return message ?: body
     }
 
     private fun errorResult(errorMessage: String): String {
