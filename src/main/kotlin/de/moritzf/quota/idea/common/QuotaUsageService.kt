@@ -10,10 +10,10 @@ import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorData
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorSource
 import de.moritzf.quota.shared.ProviderQuota
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Periodically fetches quota data from all registered providers and publishes updates to the IDE message bus.
@@ -38,7 +38,8 @@ class QuotaUsageService(
     scheduleOnInit: Boolean = true,
 ) : Disposable {
     private class ProviderState(val provider: QuotaProvider) {
-        val refreshing = AtomicBoolean(false)
+        @Volatile var inFlight: CompletableFuture<Unit>? = null
+        val lock = Any()
     }
 
     private val states: Map<QuotaProviderType, ProviderState> =
@@ -138,9 +139,25 @@ class QuotaUsageService(
 
     private fun refreshProvider(type: QuotaProviderType) {
         val state = states[type] ?: return
-        if (!state.refreshing.compareAndSet(false, true)) {
+        val ownedFuture: CompletableFuture<Unit>?
+        val waitFuture: CompletableFuture<Unit>?
+        synchronized(state.lock) {
+            val existing = state.inFlight
+            if (existing != null) {
+                ownedFuture = null
+                waitFuture = existing
+            } else {
+                val created = CompletableFuture<Unit>()
+                state.inFlight = created
+                ownedFuture = created
+                waitFuture = null
+            }
+        }
+        if (waitFuture != null) {
+            runCatching { waitFuture.get() }
             return
         }
+        val future = ownedFuture ?: return
 
         try {
             val provider = state.provider
@@ -152,16 +169,25 @@ class QuotaUsageService(
             val significantChange = oldFraction != null && newFraction != null &&
                 kotlin.math.abs(newFraction - oldFraction) >= MIN_USAGE_INCREASE
 
-            if (significantChange && newFraction > oldFraction) {
+            if (settings != null && significantChange && newFraction > oldFraction) {
                 settings.lastActiveSource = provider.type.id
             }
 
-            if (oldFraction == null || significantChange) {
+            // Always persist successful snapshots so restarts do not lag behind slow usage growth.
+            if (provider.getLastQuota() != null) {
                 settings?.let(provider::persistToCache)
             }
             publishUpdate()
+            future.complete(Unit)
+        } catch (exception: Exception) {
+            future.completeExceptionally(exception)
+            throw exception
         } finally {
-            state.refreshing.set(false)
+            synchronized(state.lock) {
+                if (state.inFlight === future) {
+                    state.inFlight = null
+                }
+            }
         }
     }
 

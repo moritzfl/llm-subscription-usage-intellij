@@ -103,6 +103,9 @@ class OpenCodeQuotaProvider(
         val workspaceId = openCodeClient.discoverWorkspaceId(sessionCookie)
         cachedWorkspaceId.set(workspaceId)
         cachedWorkspaceIdTimestamp.set(System.currentTimeMillis())
+        if (settings != null && settings.openCodeWorkspaceId != workspaceId) {
+            settings.openCodeWorkspaceId = workspaceId
+        }
         return workspaceId
     }
 

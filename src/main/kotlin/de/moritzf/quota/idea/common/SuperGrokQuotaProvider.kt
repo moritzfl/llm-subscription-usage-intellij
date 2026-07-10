@@ -10,6 +10,9 @@ class SuperGrokQuotaProvider(
     private val tokenProvider: () -> String? = {
         QuotaAuthService.getInstance().getAccessTokenBlocking(QuotaProviderType.SUPERGROK)
     },
+    private val tokenRefresher: (staleAccessToken: String?) -> String? = { staleToken ->
+        QuotaAuthService.getInstance().forceRefreshBlocking(QuotaProviderType.SUPERGROK, staleToken)
+    },
 ) : CachedQuotaProvider<SuperGrokQuota>() {
     override val type = QuotaProviderType.SUPERGROK
     override val notConfiguredMessage = "Grok login required. Log in from SuperGrok settings."
@@ -22,12 +25,23 @@ class SuperGrokQuotaProvider(
         }
 
         try {
-            val quota = client.fetchQuota(accessToken)
+            val quota = fetchQuotaWithAuthRetry(accessToken)
             storeQuota(quota, quota.rawJson)
         } catch (exception: SuperGrokQuotaException) {
             storeError(exception.message ?: "Request failed", exception.rawBody)
         } catch (exception: Exception) {
             storeError(exception.message ?: "Request failed")
+        }
+    }
+
+    private fun fetchQuotaWithAuthRetry(accessToken: String): SuperGrokQuota {
+        return try {
+            client.fetchQuota(accessToken)
+        } catch (exception: SuperGrokQuotaException) {
+            if (exception.statusCode != 401 && exception.statusCode != 403) throw exception
+            val refreshed = tokenRefresher(accessToken)?.takeIf { it.isNotBlank() && it != accessToken }
+                ?: throw exception
+            client.fetchQuota(refreshed)
         }
     }
 }

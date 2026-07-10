@@ -51,9 +51,12 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
     }
 
     protected fun storeError(error: String?, rawJson: String? = null) {
-        lastQuotaRef.set(null)
+        // Keep the last good quota so transient network blips do not blank the UI/MCP.
+        // clearData() is the only path that drops success state (logout / not configured).
         lastErrorRef.set(error)
-        lastRawJsonRef.set(rawJson)
+        if (rawJson != null) {
+            lastRawJsonRef.set(rawJson)
+        }
     }
 
     @Suppress("UNCHECKED_CAST")

@@ -19,6 +19,9 @@ class OpenAiQuotaProvider(
     },
     private val accessTokenProvider: () -> String? = { QuotaAuthService.getInstance().getAccessTokenBlocking() },
     private val accountIdProvider: () -> String? = { QuotaAuthService.getInstance().getAccountId() },
+    private val tokenRefresher: (staleAccessToken: String?) -> String? = { staleToken ->
+        QuotaAuthService.getInstance().forceRefreshBlocking(QuotaProviderType.OPEN_AI, staleToken)
+    },
 ) : CachedQuotaProvider<OpenAiCodexQuota>() {
     override val type = QuotaProviderType.OPEN_AI
 
@@ -30,13 +33,24 @@ class OpenAiQuotaProvider(
         }
 
         try {
-            val quota = quotaFetcher(accessToken, accountIdProvider())
+            val quota = fetchQuotaWithAuthRetry(accessToken)
             applyHysteresis(lastQuotaRef.get(), quota)
             storeQuota(quota, quota.rawJson)
         } catch (exception: OpenAiCodexQuotaException) {
             storeError("Request failed (${exception.statusCode})", exception.rawBody)
         } catch (exception: Exception) {
             storeError(exception.message ?: "Request failed")
+        }
+    }
+
+    private fun fetchQuotaWithAuthRetry(accessToken: String): OpenAiCodexQuota {
+        return try {
+            quotaFetcher(accessToken, accountIdProvider())
+        } catch (exception: OpenAiCodexQuotaException) {
+            if (exception.statusCode != 401 && exception.statusCode != 403) throw exception
+            val refreshed = tokenRefresher(accessToken)?.takeIf { it.isNotBlank() && it != accessToken }
+                ?: throw exception
+            quotaFetcher(refreshed, accountIdProvider())
         }
     }
 

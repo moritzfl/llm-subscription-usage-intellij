@@ -30,9 +30,75 @@ class QuotaUsageServiceTest {
         try {
             service.refreshNowBlocking()
 
+            // No prior success: still no quota, but error + raw body are retained.
             assertNull(service.getLastQuota(QuotaProviderType.OPEN_AI))
             assertEquals("Request failed (200)", service.getLastError(QuotaProviderType.OPEN_AI))
             assertEquals(rawJson, service.getLastResponseJson(QuotaProviderType.OPEN_AI))
+        } finally {
+            service.dispose()
+        }
+    }
+
+    @Test
+    fun transientRefreshErrorKeepsLastGoodQuota() {
+        var fail = false
+        val openAiProvider = OpenAiQuotaProvider(
+            quotaFetcher = { _, _ ->
+                if (fail) throw OpenAiCodexQuotaException("blip", 500, """{"err":1}""")
+                OpenAiCodexQuota(allowed = true).apply {
+                    primary = UsageWindow(usedPercent = 42.0)
+                    rawJson = """{"ok":true}"""
+                }
+            },
+            accessTokenProvider = { "token" },
+            accountIdProvider = { "account-1" },
+        )
+        val service = createService(openAiProvider = openAiProvider)
+
+        try {
+            service.refreshNowBlocking()
+            assertNotNull(service.getLastQuota(QuotaProviderType.OPEN_AI))
+            assertNull(service.getLastError(QuotaProviderType.OPEN_AI))
+
+            fail = true
+            service.refreshNowBlocking()
+
+            assertNotNull(service.getLastQuota(QuotaProviderType.OPEN_AI))
+            assertEquals(0.42, service.getLastQuota(QuotaProviderType.OPEN_AI)!!.usageFraction()!!, 0.0001)
+            assertEquals("Request failed (500)", service.getLastError(QuotaProviderType.OPEN_AI))
+            assertEquals("""{"err":1}""", service.getLastResponseJson(QuotaProviderType.OPEN_AI))
+        } finally {
+            service.dispose()
+        }
+    }
+
+    @Test
+    fun openAiQuotaRefreshesTokenOnUnauthorized() {
+        var token = "stale"
+        var calls = 0
+        val openAiProvider = OpenAiQuotaProvider(
+            quotaFetcher = { accessToken, _ ->
+                calls++
+                if (accessToken == "stale") {
+                    throw OpenAiCodexQuotaException("unauthorized", 401, "nope")
+                }
+                OpenAiCodexQuota(allowed = true)
+            },
+            accessTokenProvider = { token },
+            accountIdProvider = { "account-1" },
+            tokenRefresher = { stale ->
+                assertEquals("stale", stale)
+                token = "fresh"
+                token
+            },
+        )
+        val service = createService(openAiProvider = openAiProvider)
+
+        try {
+            service.refreshNowBlocking()
+            assertEquals(2, calls)
+            assertNotNull(service.getLastQuota(QuotaProviderType.OPEN_AI))
+            assertNull(service.getLastError(QuotaProviderType.OPEN_AI))
         } finally {
             service.dispose()
         }
@@ -176,6 +242,30 @@ class QuotaUsageServiceTest {
 
             assertEquals(0, openCodeClient.discoverCount)
             assertEquals(listOf("cookie-a:wrk-stored"), openCodeClient.fetchCalls)
+        } finally {
+            service.dispose()
+        }
+    }
+
+    @Test
+    fun discoveredWorkspaceIdIsPersisted() {
+        val settings = QuotaSettingsState()
+        val openCodeClient = RecordingOpenCodeQuotaClient()
+        val openCodeProvider = OpenCodeQuotaProvider(
+            openCodeClient = openCodeClient,
+            openCodeCookieProvider = { "cookie-a" },
+            settingsProvider = { settings },
+        )
+        val service = createService(
+            openCodeProvider = openCodeProvider,
+            settingsProvider = { settings },
+        )
+
+        try {
+            service.refreshNowBlocking()
+
+            assertEquals(1, openCodeClient.discoverCount)
+            assertEquals("wrk-cookie-a", settings.openCodeWorkspaceId)
         } finally {
             service.dispose()
         }
@@ -451,7 +541,7 @@ class QuotaUsageServiceTest {
     }
 
     @Test
-    fun providerStateConcurrencyPreventsConcurrentRefresh() {
+    fun providerStateConcurrencyCoalescesConcurrentRefresh() {
         val started = CountDownLatch(1)
         val concurrentCount = AtomicInteger(0)
         val openAiProvider = OpenAiQuotaProvider(
@@ -470,12 +560,14 @@ class QuotaUsageServiceTest {
             val t1 = Thread { service.refreshBlocking(QuotaProviderType.OPEN_AI) }
             val t2 = Thread { service.refreshBlocking(QuotaProviderType.OPEN_AI) }
             t1.start()
-            started.await(2, TimeUnit.SECONDS)
+            assertTrue(started.await(2, TimeUnit.SECONDS))
             t2.start()
-            t1.join(500)
-            t2.join(500)
+            t1.join(2000)
+            t2.join(2000)
 
+            // Second caller waited on the in-flight refresh instead of no-opping.
             assertEquals(1, concurrentCount.get())
+            assertNotNull(service.getLastQuota(QuotaProviderType.OPEN_AI))
         } finally {
             service.dispose()
         }
