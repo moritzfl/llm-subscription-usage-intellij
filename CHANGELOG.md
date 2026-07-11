@@ -1,6 +1,7 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+- Updated plugin description and README to cover Claude quota tracking, SuperGrok/xAI image and video generation, and the multi-provider subscription proxy.
 
 ## [1.6.2] - 2026-07-11
 - Claude quota refresh now silently keeps the last good reading when the Anthropic usage API returns HTTP 429 instead of showing a rate-limit error.

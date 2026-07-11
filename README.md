@@ -2,9 +2,9 @@
 
 Track and use your LLM subscriptions directly in IntelliJ IDEA — in the status bar, a detailed popup, through IDE chat tools, local AI client MCP configs, and a local OpenAI-compatible proxy.
 
-This plugin started as a simple OpenAI quota checker. It has grown into a multi-provider subscription companion and now includes capabilities beyond quota display, such as hosted web search/image-generation MCP tools and a Codex-backed local proxy. The goal is to help you get the most value from the subscriptions you already pay for.
+This plugin started as a simple OpenAI quota checker. It has grown into a multi-provider subscription companion and now includes capabilities beyond quota display, such as hosted web search, image and video generation MCP tools, and a local OpenAI-compatible proxy backed by your subscriptions. The goal is to help you get the most value from the subscriptions you already pay for.
 
-**Supports:** OpenAI (ChatGPT), Cursor, GitHub Copilot, OpenCode Go, Ollama Cloud, Z.ai, MiniMax, and Kimi.
+**Supports:** OpenAI (ChatGPT), Claude (Anthropic), SuperGrok/xAI, Cursor, GitHub Copilot, OpenCode Go, Ollama Cloud, Z.ai, MiniMax, and Kimi.
 
 <table align="center">
   <tr>
@@ -57,9 +57,11 @@ Individual MCP tools can be enabled or disabled in the IDE settings under `Tools
 
 OpenAI/Codex search supports context-size, live-access, domain-filter, and optional source metadata controls. SuperGrok/xAI search supports model selection and domain filters.
 
-**MCP Image Generation** — Generate images through hosted Codex tooling and optionally save the result directly to a file.
+**MCP Image Generation** — Generate images through hosted Codex tooling or SuperGrok/xAI Imagine and optionally save the result directly to a file.
 
-**OpenAI-Compatible Proxy** — Serves a local OpenAI-compatible API backed by your Codex subscription, so tools like JetBrains Junie can use it as a custom LLM provider.
+**MCP Video Generation** — Generate videos through SuperGrok/xAI Imagine using the existing SuperGrok login; waits for the finished video by default.
+
+**OpenAI-Compatible Proxy** — Serves a local OpenAI-compatible API backed by your subscriptions (OpenAI/Codex, SuperGrok, GitHub Copilot, Kimi, MiniMax, Ollama, OpenCode Zen, Z.ai), so tools like JetBrains Junie can use it as a custom LLM provider.
 
 **Customizable Display** — Drag-and-drop to reorder providers in the popup. Choose whether the indicator lives in the status bar or main toolbar.
 
