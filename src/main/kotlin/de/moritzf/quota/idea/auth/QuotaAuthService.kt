@@ -33,7 +33,6 @@ import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Coordinates OAuth login, credential storage, and token refresh for quota requests.
- * Coordinates OpenAI OAuth login, credential storage, and token refresh for quota requests.
  */
 @Service(Service.Level.APP)
 class QuotaAuthService(
