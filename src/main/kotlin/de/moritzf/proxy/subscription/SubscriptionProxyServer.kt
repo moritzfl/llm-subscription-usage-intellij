@@ -170,7 +170,7 @@ class SubscriptionProxyServer(
             JsonHelper.toErrorResponse(ctx, "Model ${model.localId} does not support ${route.normalizedPath}.", 400, "invalid_request_error")
             return
         }
-        val provider = catalog().providerFor(model) ?: run {
+        val provider = catalog.providerFor(model) ?: run {
             JsonHelper.toErrorResponse(ctx, "Provider for ${model.localId} is not configured.", 503, "configuration_error")
             return
         }
