@@ -4,6 +4,12 @@ import de.moritzf.proxy.server.ProxyCall
 import de.moritzf.proxy.server.createObjectNode
 import de.moritzf.proxy.util.Json
 import com.intellij.concurrency.virtualThreads.IntelliJVirtualThreads
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -176,9 +182,78 @@ class RequestLogger(
                 normalized.contains("key")
         }
         private fun putBody(entry: MutableJsonObject, body: String?) {
-            val capture = captureBody(body)
+            val capture = captureBody(redactBodyForLog(body))
             entry.put("body", capture.body)
             entry.put("truncated", capture.truncated)
+        }
+
+        /**
+         * Redacts well-known secret fields in JSON bodies before they are written to disk.
+         * Non-JSON bodies (for example SSE streams) pass through unchanged; their secrets
+         * live in headers, which are redacted separately.
+         */
+        internal fun redactBodyForLog(body: String?): String? {
+            if (body.isNullOrBlank()) {
+                return body
+            }
+            val element = runCatching { Json.INSTANCE.parseToJsonElement(body) }.getOrNull() ?: return body
+            return runCatching { redactElement(element).toString() }.getOrDefault(body)
+        }
+
+        private fun redactElement(element: JsonElement): JsonElement {
+            return when (element) {
+                is JsonObject -> buildJsonObject {
+                    element.forEach { (key, value) ->
+                        put(key, if (isSensitiveField(key)) JsonPrimitive(REDACTED) else redactElement(value))
+                    }
+                }
+                is JsonArray -> buildJsonArray {
+                    element.forEach { add(redactElement(it)) }
+                }
+                else -> element
+            }
+        }
+
+        private val exactSensitiveFields = setOf(
+            "authorization",
+            "proxy_authorization",
+            "cookie",
+            "set_cookie",
+            "access_token",
+            "refresh_token",
+            "id_token",
+            "session_token",
+            "api_key",
+            "apikey",
+            "password",
+            "secret",
+        )
+
+        private val tokenCountFields = setOf(
+            "max_token",
+            "total_tokens",
+            "input_tokens",
+            "output_tokens",
+            "prompt_tokens",
+            "completion_tokens",
+            "cached_tokens",
+            "reasoning_tokens",
+        )
+
+        private fun isSensitiveField(name: String): Boolean {
+            val normalized = name
+                .replace(Regex("([a-z])([A-Z])"), "$1_$2")
+                .lowercase(Locale.ROOT)
+                .replace('-', '_')
+            if (normalized in tokenCountFields) {
+                return false
+            }
+            return normalized in exactSensitiveFields ||
+                normalized.endsWith("_key") ||
+                normalized.endsWith("_token") ||
+                normalized.contains("secret") ||
+                normalized.contains("password") ||
+                normalized.contains("cookie")
         }
         private fun captureBody(body: String?): BodyCapture {
             if (body == null) {
