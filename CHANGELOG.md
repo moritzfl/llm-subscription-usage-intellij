@@ -1,6 +1,8 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+
+## [1.6.3] - 2026-07-14
 - Updated plugin description and README to cover Claude quota tracking, SuperGrok/xAI image and video generation, and the multi-provider subscription proxy.
 - Local proxy request logging now redacts well-known secret fields (API keys, tokens, cookies, passwords) inside logged JSON bodies, matching the existing header redaction.
 
