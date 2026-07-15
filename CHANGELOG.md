@@ -1,6 +1,8 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+
+## [1.6.4] - 2026-07-15
 - OpenAI/Codex proxy model list aligned with Codex UI GPT-5.6 family (`gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`) including `max`/`ultra` reasoning tiers where supported; default model is Sol.
 - SuperGrok status bar no longer shows 100% / “limit reached” when weekly usage is only reported as a percent (used/limit both 0). Incomplete Grok billing payloads keep the last good reading instead of flashing an error.
 
