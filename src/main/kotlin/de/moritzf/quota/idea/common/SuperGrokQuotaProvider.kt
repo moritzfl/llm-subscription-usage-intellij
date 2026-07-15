@@ -28,8 +28,14 @@ class SuperGrokQuotaProvider(
             val quota = fetchQuotaWithAuthRetry(accessToken)
             storeQuota(quota, quota.rawJson)
         } catch (exception: SuperGrokQuotaException) {
+            // Incomplete/flaky billing payloads (missing creditUsagePercent) and timeouts:
+            // keep last good reading when we have one. Auth failures still clear the UI.
+            if (exception.statusCode != 401 && exception.statusCode != 403 && lastQuotaRef.get() != null) {
+                return
+            }
             storeError(exception.message ?: "Request failed", exception.rawBody)
         } catch (exception: Exception) {
+            if (lastQuotaRef.get() != null) return
             storeError(exception.message ?: "Request failed")
         }
     }

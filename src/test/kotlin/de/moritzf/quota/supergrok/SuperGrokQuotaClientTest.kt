@@ -51,6 +51,34 @@ class SuperGrokQuotaClientTest {
     }
 
     @Test
+    fun parseQuotaRejectsConfigWithoutUsagePercent() {
+        val exception = assertFailsWith<SuperGrokQuotaException> {
+            SuperGrokQuotaClient.parseQuota(weeklyBillingJson = BILLING_CONFIG_ONLY_RESPONSE)
+        }
+        assertEquals("Grok billing response changed.", exception.message)
+    }
+
+    @Test
+    fun parseQuotaFallsBackToProductUsagePercent() {
+        val quota = SuperGrokQuotaClient.parseQuota(weeklyBillingJson = BILLING_PRODUCT_USAGE_ONLY_RESPONSE)
+        assertEquals(16.0, quota.creditUsage?.usagePercent)
+        assertEquals("Weekly credits", quota.creditUsage?.label)
+    }
+
+    @Test
+    fun unifiedPercentOnlyWindowIsNotExhaustedAtLowUsage() {
+        val window = SuperGrokUsageWindow(
+            label = "Weekly credits",
+            used = 0,
+            limit = 0,
+            usagePercent = 7.0,
+        )
+        assertEquals(false, window.isExhausted())
+        assertEquals(true, window.copy(usagePercent = 100.0).isExhausted())
+        assertEquals(true, SuperGrokUsageWindow(used = 10, limit = 10, usagePercent = 50.0).isExhausted())
+    }
+
+    @Test
     fun fetchQuotaUsesWeeklyBillingEndpointAndSettings() {
         val httpClient = FakeHttpClient(
             FakeResponseSpec(BILLING_WEEKLY_RESPONSE),
@@ -168,6 +196,39 @@ class SuperGrokQuotaClientTest {
                 "isUnifiedBillingUser": true,
                 "billingPeriodStart": "2026-07-07T16:34:03.633192+00:00",
                 "billingPeriodEnd": "2026-07-14T16:34:03.633192+00:00"
+              }
+            }
+        """.trimIndent()
+
+        private val BILLING_CONFIG_ONLY_RESPONSE = """
+            {
+              "config": {
+                "currentPeriod": {
+                  "type": "USAGE_PERIOD_TYPE_WEEKLY",
+                  "start": "2026-07-14T16:34:03.633192+00:00",
+                  "end": "2026-07-21T16:34:03.633192+00:00"
+                },
+                "onDemandCap": {"val": 0},
+                "onDemandUsed": {"val": 0},
+                "isUnifiedBillingUser": true,
+                "billingPeriodStart": "2026-07-14T16:34:03.633192+00:00",
+                "billingPeriodEnd": "2026-07-21T16:34:03.633192+00:00"
+              }
+            }
+        """.trimIndent()
+
+        private val BILLING_PRODUCT_USAGE_ONLY_RESPONSE = """
+            {
+              "config": {
+                "currentPeriod": {
+                  "type": "USAGE_PERIOD_TYPE_WEEKLY",
+                  "start": "2026-07-14T16:34:03.633192+00:00",
+                  "end": "2026-07-21T16:34:03.633192+00:00"
+                },
+                "productUsage": [{"product": "Api", "usagePercent": 16.0}],
+                "isUnifiedBillingUser": true,
+                "billingPeriodStart": "2026-07-14T16:34:03.633192+00:00",
+                "billingPeriodEnd": "2026-07-21T16:34:03.633192+00:00"
               }
             }
         """.trimIndent()

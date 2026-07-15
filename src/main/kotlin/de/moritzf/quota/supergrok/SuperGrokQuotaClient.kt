@@ -109,12 +109,16 @@ open class SuperGrokQuotaClient(
                 .getOrElse { throw SuperGrokQuotaException("Grok billing response changed.", 200, weeklyBillingJson, it) }
             val config = billing.config ?: throw SuperGrokQuotaException("Grok billing response changed.", 200, weeklyBillingJson)
 
-            val usagePercent = config.creditUsagePercent
+            val used = config.used?.valValue ?: 0L
+            val limit = config.monthlyLimit?.valValue ?: 0L
+            val usagePercent = resolveUsagePercent(config, used, limit)
                 ?: throw SuperGrokQuotaException("Grok billing response changed.", 200, weeklyBillingJson)
-            val resetsAt = config.billingPeriodEnd?.let { runCatching { Instant.parse(it) }.getOrNull() }
+            val periodStart = config.billingPeriodStart ?: config.currentPeriod?.start
+            val periodEnd = config.billingPeriodEnd ?: config.currentPeriod?.end
+            val resetsAt = periodEnd?.let { runCatching { Instant.parse(it) }.getOrNull() }
                 ?: throw SuperGrokQuotaException("Grok billing response changed.", 200, weeklyBillingJson)
-            val periodDurationMs = periodDurationMillis(config.billingPeriodStart, config.billingPeriodEnd)
-        val plan = parsePlan(settingsJson)
+            val periodDurationMs = periodDurationMillis(periodStart, periodEnd)
+            val plan = parsePlan(settingsJson)
             val isUnified = config.isUnifiedBillingUser == true
             val periodType = config.currentPeriod?.type
             val onDemandCap = config.onDemandCap?.valValue ?: 0L
@@ -124,8 +128,8 @@ open class SuperGrokQuotaClient(
                 authSource = AUTH_SOURCE,
                 creditUsage = SuperGrokUsageWindow(
                     label = if (isUnified) "Weekly credits" else "Credits used",
-                    used = 0,
-                    limit = 0,
+                    used = used,
+                    limit = limit,
                     usagePercent = usagePercent.coerceIn(0.0, 100.0),
                     resetsAt = resetsAt,
                     periodDurationMs = periodDurationMs,
@@ -151,6 +155,15 @@ open class SuperGrokQuotaClient(
             if (settingsJson.isNullOrBlank()) return null
             val settings = runCatching { JsonSupport.json.decodeFromString<SuperGrokSettingsResponseDto>(settingsJson) }.getOrNull()
             return settings?.subscriptionTierDisplay?.trim()?.takeIf { it.isNotBlank() }
+        }
+
+        private fun resolveUsagePercent(config: SuperGrokBillingConfigDto, used: Long, limit: Long): Double? {
+            config.creditUsagePercent?.let { return it }
+            config.productUsage?.mapNotNull { it.usagePercent }?.maxOrNull()?.let { return it }
+            if (limit > 0) {
+                return used.toDouble() / limit.toDouble() * 100.0
+            }
+            return null
         }
 
         private fun periodDurationMillis(start: String?, end: String?): Long? {
