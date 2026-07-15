@@ -24,7 +24,7 @@ data class SuperGrokQuota(
 
 @Serializable
 data class SuperGrokUsageWindow(
-    val label: String = "Credits used",
+    val label: String = "",
     val used: Long = 0,
     val limit: Long = 0,
     val usagePercent: Double = 0.0,
@@ -33,4 +33,10 @@ data class SuperGrokUsageWindow(
 ) {
     @Transient
     val periodDuration: Duration? = periodDurationMs?.let(Duration::ofMillis)
+
+    /** Unified weekly billing only sets percent (used/limit stay 0); do not treat 0/0 as exhausted. */
+    fun isExhausted(): Boolean {
+        if (usagePercent >= 100.0) return true
+        return limit > 0 && used >= limit
+    }
 }

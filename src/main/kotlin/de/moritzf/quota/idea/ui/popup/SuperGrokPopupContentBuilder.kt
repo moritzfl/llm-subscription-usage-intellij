@@ -46,7 +46,7 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
             }
             else -> {
                 val usage = quota.creditUsage
-                val limitReached = usage != null && (usage.usagePercent >= 100.0 || usage.used >= usage.limit)
+                val limitReached = usage?.isExhausted() == true
                 errorLabel.isVisible = limitReached
                 if (limitReached) {
                     errorLabel.text = "SuperGrok limit reached"

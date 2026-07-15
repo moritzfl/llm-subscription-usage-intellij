@@ -804,7 +804,7 @@ internal fun zaiIndicatorState(quota: ZaiQuota): ZaiIndicatorState? {
 
 internal fun superGrokIndicatorState(quota: SuperGrokQuota): SuperGrokIndicatorState? {
     val window = quota.creditUsage ?: return null
-    val percent = if (window.usagePercent >= 100.0 || window.used >= window.limit) {
+    val percent = if (window.isExhausted()) {
         100
     } else {
         clampPercent(window.usagePercent.roundToInt())
