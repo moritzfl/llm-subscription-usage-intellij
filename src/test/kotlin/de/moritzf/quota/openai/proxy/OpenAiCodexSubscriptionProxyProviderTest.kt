@@ -33,6 +33,9 @@ class OpenAiCodexSubscriptionProxyProviderTest {
                 assertEquals(200, response.statusCode())
                 val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
                     .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                assertTrue("oa-gpt-5.6-sol" in ids)
+                assertTrue("oa-gpt-5.6-terra" in ids)
+                assertTrue("oa-gpt-5.6-luna" in ids)
                 assertTrue("oa-gpt-5.5" in ids)
                 assertTrue(ids.all { it.startsWith(OpenAiCodexSubscriptionProxyProvider.PREFIX) })
             } finally {
@@ -79,14 +82,14 @@ class OpenAiCodexSubscriptionProxyProviderTest {
                 val response = post(
                     proxy.port,
                     "/v1/responses",
-                    "{\"model\":\"oa-gpt-5.6\",\"input\":\"Say pong\"}",
+                    "{\"model\":\"oa-gpt-5.4\",\"input\":\"Say pong\"}",
                 )
 
                 assertEquals(200, response.statusCode())
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/backend-api/codex/responses", request.path)
                 val upstreamBody = JsonHelper.JSON.parseToJsonElement(request.body).jsonObject
-                assertEquals("gpt-5.6", upstreamBody["model"]!!.jsonPrimitive.content)
+                assertEquals("gpt-5.4", upstreamBody["model"]!!.jsonPrimitive.content)
                 val input = upstreamBody["input"]!!.jsonArray
                 assertEquals("message", input[0].jsonObject["type"]!!.jsonPrimitive.content)
                 assertEquals("user", input[0].jsonObject["role"]!!.jsonPrimitive.content)

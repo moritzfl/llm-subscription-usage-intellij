@@ -40,6 +40,13 @@ class ModelAliasResolver {
         if (effort == "none" && isCodexModel(modelName)) {
             return "low"
         }
+        if ((effort == "max" || effort == "ultra") && !supportsMaxUltra(modelName)) {
+            return if (supportsXHigh(modelName)) "xhigh" else "high"
+        }
+        if (effort == "ultra" && isLunaModel(modelName)) {
+            // Luna accepts max but not ultra (codex models.json).
+            return "max"
+        }
         if (effort == "xhigh" && !supportsXHigh(modelName)) {
             return "high"
         }
@@ -51,20 +58,26 @@ class ModelAliasResolver {
     private fun isCodexModel(modelName: String): Boolean {
         return modelName.contains("codex")
     }
+    private fun isLunaModel(modelName: String): Boolean {
+        return modelName.startsWith("gpt-5.6-luna")
+    }
     private fun supportsXHigh(modelName: String): Boolean {
-        // Verified against the live Codex backend: the currently supported gpt-5.3/5.4/5.5
-        // families all accept 'xhigh'. Older families are no longer reachable on a ChatGPT
-        // account, so they are not listed.
-        return modelName.startsWith("gpt-5.3") ||
+        // Codex models.json: gpt-5.2+ and the 5.6 family accept xhigh.
+        return modelName.startsWith("gpt-5.2") ||
+            modelName.startsWith("gpt-5.3") ||
             modelName.startsWith("gpt-5.4") ||
-            modelName.startsWith("gpt-5.5")
+            modelName.startsWith("gpt-5.5") ||
+            modelName.startsWith("gpt-5.6")
+    }
+    private fun supportsMaxUltra(modelName: String): Boolean {
+        return modelName.startsWith("gpt-5.6")
     }
     companion object {
         // Junie selects a reasoning tier by sending the model name with a "<base> (<level>)"
         // suffix. Strip the suffix back into base model + effort; the suffix is the user's
         // explicit tier choice, so it takes precedence over separate reasoning_effort.
         private val REASONING_SUFFIX = Pattern.compile(
-            "^(.*?)\\s*\\((low|medium|high|xhigh|minimal|none)\\)$",
+            "^(.*?)\\s*\\((low|medium|high|xhigh|max|ultra|minimal|none)\\)$",
             Pattern.CASE_INSENSITIVE,
         )
     }

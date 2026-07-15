@@ -1373,11 +1373,13 @@ class OpenAiProxyServerTest {
                 // so Junie can build its tier selector from the model names.
                 assertEquals(
                     listOf(
+                        "gpt-5.6-sol", "gpt-5.6-sol (low)", "gpt-5.6-sol (medium)", "gpt-5.6-sol (high)",
+                        "gpt-5.6-sol (xhigh)", "gpt-5.6-sol (max)", "gpt-5.6-sol (ultra)",
+                        "gpt-5.6-terra", "gpt-5.6-terra (low)", "gpt-5.6-terra (medium)", "gpt-5.6-terra (high)",
+                        "gpt-5.6-terra (xhigh)", "gpt-5.6-terra (max)", "gpt-5.6-terra (ultra)",
+                        "gpt-5.6-luna", "gpt-5.6-luna (low)", "gpt-5.6-luna (medium)", "gpt-5.6-luna (high)",
+                        "gpt-5.6-luna (xhigh)", "gpt-5.6-luna (max)",
                         "gpt-5.5", "gpt-5.5 (low)", "gpt-5.5 (medium)", "gpt-5.5 (high)", "gpt-5.5 (xhigh)",
-                        "gpt-5.4", "gpt-5.4 (low)", "gpt-5.4 (medium)", "gpt-5.4 (high)", "gpt-5.4 (xhigh)",
-                        "gpt-5.4-mini", "gpt-5.4-mini (medium)", "gpt-5.4-mini (high)",
-                        "gpt-5.3-codex-spark", "gpt-5.3-codex-spark (low)", "gpt-5.3-codex-spark (medium)",
-                        "gpt-5.3-codex-spark (high)", "gpt-5.3-codex-spark (xhigh)",
                     ),
                     models,
                 )
@@ -1407,9 +1409,9 @@ class OpenAiProxyServerTest {
                 assertEquals(200, response.statusCode())
                 val root = parseObject(response.body())
                 val firstModel = root["data"]!!.jsonArray[0].jsonObject
-                assertEquals("gpt-5.5", firstModel["id"]!!.jsonPrimitive.content)
-                assertEquals("gpt-5.5", firstModel["model_name"]!!.jsonPrimitive.content)
-                assertEquals("gpt-5.5", firstModel["litellm_params"]!!.jsonObject["model"]!!.jsonPrimitive.content)
+                assertEquals("gpt-5.6-sol", firstModel["id"]!!.jsonPrimitive.content)
+                assertEquals("gpt-5.6-sol", firstModel["model_name"]!!.jsonPrimitive.content)
+                assertEquals("gpt-5.6-sol", firstModel["litellm_params"]!!.jsonObject["model"]!!.jsonPrimitive.content)
                 assertEquals("chat", firstModel["model_info"]!!.jsonObject["mode"]!!.jsonPrimitive.content)
                 assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
             } finally {

@@ -168,7 +168,7 @@ class ServerConfig(
         const val DEFAULT_CLIENT_ID: String = "app_EMoamEEZ73f0CkXaXp7hrann"
         const val DEFAULT_ISSUER: String = "https://auth.openai.com"
         const val DEFAULT_INSTRUCTIONS: String = ""
-        const val DEFAULT_MODEL: String = "gpt-5.5"
+        const val DEFAULT_MODEL: String = "gpt-5.6-sol"
         val DEFAULT_REQUEST_LOG_DIR: String = Path.of("logs", "requests")
             .toAbsolutePath()
             .normalize()

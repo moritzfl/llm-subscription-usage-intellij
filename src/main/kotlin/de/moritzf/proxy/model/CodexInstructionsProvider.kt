@@ -190,7 +190,9 @@ class CodexInstructionsProvider(
     companion object {
         private val DEFAULT_TTL: Duration = Duration.ofMinutes(15)
         private const val DEFAULT_SOURCE_BASE = "https://chatgpt.com/backend-api/codex/instructions/"
-        private val REASONING_SUFFIXES = arrayOf("-minimal", "-medium", "-xhigh", "-none", "-high", "-low")
+        private val REASONING_SUFFIXES = arrayOf(
+            "-minimal", "-medium", "-xhigh", "-max", "-ultra", "-none", "-high", "-low",
+        )
         fun modelFamily(model: String?): String {
             if (model.isNullOrBlank()) {
                 return "default"

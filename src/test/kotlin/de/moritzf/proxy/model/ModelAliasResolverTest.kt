@@ -30,9 +30,28 @@ class ModelAliasResolverTest {
 
     @Test
     fun keepsXHighForCurrentModelFamilies() {
+        assertEquals("xhigh", resolver.clampReasoningEffort("gpt-5.6-sol", "xhigh"))
         assertEquals("xhigh", resolver.clampReasoningEffort("gpt-5.5", "xhigh"))
         assertEquals("xhigh", resolver.clampReasoningEffort("gpt-5.4", "xhigh"))
-        assertEquals("xhigh", resolver.clampReasoningEffort("gpt-5.3-codex-spark", "xhigh"))
+        assertEquals("xhigh", resolver.clampReasoningEffort("gpt-5.2", "xhigh"))
+    }
+
+    @Test
+    fun keepsMaxAndUltraForGpt56Family() {
+        assertEquals("max", resolver.clampReasoningEffort("gpt-5.6-sol", "max"))
+        assertEquals("ultra", resolver.clampReasoningEffort("gpt-5.6-terra", "ultra"))
+        assertEquals("max", resolver.clampReasoningEffort("gpt-5.6-luna", "ultra"))
+        assertEquals("xhigh", resolver.clampReasoningEffort("gpt-5.5", "max"))
+    }
+
+    @Test
+    fun parsesMaxAndUltraSuffixes() {
+        val max = resolver.resolve("gpt-5.6-sol (max)")
+        assertEquals("gpt-5.6-sol", max.model)
+        assertEquals("max", max.reasoningEffort)
+        val ultra = resolver.resolve("gpt-5.6-terra (ultra)")
+        assertEquals("gpt-5.6-terra", ultra.model)
+        assertEquals("ultra", ultra.reasoningEffort)
     }
 
     @Test

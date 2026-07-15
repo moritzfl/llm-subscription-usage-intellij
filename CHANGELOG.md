@@ -1,6 +1,7 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+- OpenAI/Codex proxy model list aligned with Codex UI GPT-5.6 family (`gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`) including `max`/`ultra` reasoning tiers where supported; default model is Sol.
 
 ## [1.6.3] - 2026-07-14
 - Updated plugin description and README to cover Claude quota tracking, SuperGrok/xAI image and video generation, and the multi-provider subscription proxy.

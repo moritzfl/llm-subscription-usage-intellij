@@ -198,37 +198,46 @@ class OpenAiProxyServer(
             "max_output_tokens",
             "temperature",
         )
-        // The curated set of Codex models exposed via /v1/models and /v1/model/info.
-        // Per-account entitlement is enforced by the Codex backend, not here: selecting a
-        // model the subscription lacks returns an upstream error that the proxy surfaces
-        // as `insufficient_quota`. The live Codex /models endpoint is not complete enough
-        // for this purpose: it has omitted GPT-5.5 while the Codex UI still exposes it.
-        // Keep this list aligned with the Codex UI model menu.
-        // gpt-5.5-pro is intentionally absent: the Codex backend rejects it for ChatGPT
-        // accounts ("not supported when using Codex with a ChatGPT account").
+        // Curated Codex models for /v1/models and /v1/model/info.
+        // Align with the Codex UI menu for ChatGPT subscriptions, using models.json
+        // visibility/priority as a guide (not the incomplete ChatGPT /models endpoint).
+        // gpt-5.2 is still marked list upstream but is no longer a useful ChatGPT-subscription
+        // choice; omit it. gpt-5.5-pro stays absent (backend rejects ChatGPT accounts).
+        // Hidden/legacy slugs still work via fallbackModel if a client requests them.
         private val ADVERTISED_BASE_MODELS = listOf(
+            "gpt-5.6-sol",
+            "gpt-5.6-terra",
+            "gpt-5.6-luna",
             "gpt-5.5",
-            "gpt-5.4",
-            "gpt-5.4-mini",
-            "gpt-5.3-codex-spark",
         )
 
-        // Reasoning tiers the Codex backend accepts for the advertised non-mini models
-        // (verified against the live backend). `minimal` is excluded — upstream rejects
-        // it — and `none` is omitted because it is not one of the levels clients surface.
-        // Junie derives its reasoning-tier selector from model NAMES of the form
-        // "<base> (<level>)"; opencode and other clients ignore the suffixed entries and
-        // send the bare base model plus a separate reasoning-effort option instead.
-        private val REASONING_TIERS = listOf("low", "medium", "high", "xhigh")
+        // Reasoning tiers from models.json. Junie picks tier via "<base> (<level>)" model
+        // names; other clients send bare base + reasoning_effort.
+        private val GPT56_REASONING_TIERS = listOf("low", "medium", "high", "xhigh", "max", "ultra")
+        private val GPT56_LUNA_REASONING_TIERS = listOf("low", "medium", "high", "xhigh", "max")
+        private val LEGACY_REASONING_TIERS = listOf("low", "medium", "high", "xhigh")
         private val MINI_REASONING_TIERS = listOf("medium", "high")
 
         private val ADVERTISED_MODELS: List<String> = ADVERTISED_BASE_MODELS.flatMap { base ->
-            val tiers = if (base.endsWith("-mini")) MINI_REASONING_TIERS else REASONING_TIERS
+            val tiers = reasoningTiersFor(base)
             listOf(base) + tiers.map { tier -> "$base ($tier)" }
+        }
+
+        private fun reasoningTiersFor(base: String): List<String> {
+            return when {
+                base.endsWith("-mini") -> MINI_REASONING_TIERS
+                base == "gpt-5.6-luna" -> GPT56_LUNA_REASONING_TIERS
+                base.startsWith("gpt-5.6") -> GPT56_REASONING_TIERS
+                else -> LEGACY_REASONING_TIERS
+            }
         }
 
         fun advertisedModels(): List<String> = ADVERTISED_MODELS
 
-        fun defaultAdvertisedModel(): String = ADVERTISED_BASE_MODELS.maxOrNull() ?: ServerConfig.DEFAULT_MODEL
+        /** Flagship GPT-5.6 Sol when present; otherwise alphabetically latest base id. */
+        fun defaultAdvertisedModel(): String =
+            ADVERTISED_BASE_MODELS.firstOrNull { it == "gpt-5.6-sol" }
+                ?: ADVERTISED_BASE_MODELS.maxOrNull()
+                ?: ServerConfig.DEFAULT_MODEL
     }
 }
