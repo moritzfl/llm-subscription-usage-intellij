@@ -12,7 +12,8 @@ import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 object CodexClientVersionResolver {
-    const val FALLBACK_CODEX_CLIENT_VERSION: String = "0.121.0"
+    // Must support every Codex model the proxy advertises when local/npm lookup is unavailable.
+    const val FALLBACK_CODEX_CLIENT_VERSION: String = "0.139.0"
     private val VERSION_PATTERN = Regex("\\b\\d+\\.\\d+\\.\\d+\\b")
     private const val REGISTRY_URL = "https://registry.npmjs.org/@openai/codex/latest"
     private val cache = ConcurrentHashMap<String, String>()
