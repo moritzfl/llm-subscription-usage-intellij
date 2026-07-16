@@ -17,6 +17,7 @@ import javax.net.ssl.SSLSession
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class SuperGrokQuotaClientTest {
@@ -51,11 +52,21 @@ class SuperGrokQuotaClientTest {
     }
 
     @Test
-    fun parseQuotaRejectsConfigWithoutUsagePercent() {
-        val exception = assertFailsWith<SuperGrokQuotaException> {
-            SuperGrokQuotaClient.parseQuota(weeklyBillingJson = BILLING_CONFIG_ONLY_RESPONSE)
-        }
-        assertEquals("Grok billing response changed.", exception.message)
+    fun parseQuotaKeepsBillingDetailsWhenUsageIsUnavailable() {
+        val quota = SuperGrokQuotaClient.parseQuota(weeklyBillingJson = BILLING_CONFIG_ONLY_RESPONSE)
+
+        assertNull(quota.creditUsage)
+        assertTrue(quota.isUnifiedBilling)
+        assertEquals("USAGE_PERIOD_TYPE_WEEKLY", quota.periodType)
+    }
+
+    @Test
+    fun parseQuotaIgnoresMalformedOptionalFieldsInWrappedBillingPayload() {
+        val quota = SuperGrokQuotaClient.parseQuota(weeklyBillingJson = WRAPPED_BILLING_RESPONSE)
+
+        assertNull(quota.creditUsage)
+        assertTrue(quota.isUnifiedBilling)
+        assertEquals("USAGE_PERIOD_TYPE_WEEKLY", quota.periodType)
     }
 
     @Test
@@ -136,7 +147,10 @@ class SuperGrokQuotaClientTest {
         val requests = mutableListOf<HttpRequest>()
         private var index = 0
 
-        override fun <T : Any?> send(request: HttpRequest, responseBodyHandler: HttpResponse.BodyHandler<T>): HttpResponse<T> {
+        override fun <T : Any?> send(
+            request: HttpRequest,
+            responseBodyHandler: HttpResponse.BodyHandler<T>
+        ): HttpResponse<T> {
             requests.add(request)
             val response = responses.getOrElse(index) { responses.last() }
             index++
@@ -230,6 +244,26 @@ class SuperGrokQuotaClientTest {
                 "billingPeriodStart": "2026-07-14T16:34:03.633192+00:00",
                 "billingPeriodEnd": "2026-07-21T16:34:03.633192+00:00"
               }
+            }
+        """.trimIndent()
+
+        private val WRAPPED_BILLING_RESPONSE = """
+            {
+              "authSource": "xai-oauth-cli-proxy",
+              "billing": {
+                "config": {
+                  "currentPeriod": {
+                    "type": "USAGE_PERIOD_TYPE_WEEKLY",
+                    "start": "2026-07-14T16:34:03.633192+00:00",
+                    "end": "2026-07-21T16:34:03.633192+00:00"
+                  },
+                  "onDemandCap": {"val": "not-a-number"},
+                  "isUnifiedBillingUser": true,
+                  "billingPeriodStart": "2026-07-14T16:34:03.633192+00:00",
+                  "billingPeriodEnd": "2026-07-21T16:34:03.633192+00:00"
+                }
+              },
+              "settings": {"future_field": ["ignored"]}
             }
         """.trimIndent()
 
