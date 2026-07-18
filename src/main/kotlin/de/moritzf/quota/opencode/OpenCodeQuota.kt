@@ -34,6 +34,15 @@ data class OpenCodeQuota(
         return windows.maxOrNull()?.let { it / 100.0 }
     }
 
+    override fun activityFraction(): Double? {
+        val windows = listOfNotNull(
+            rollingUsage?.usagePercent?.toDouble(),
+            weeklyUsage?.usagePercent?.toDouble(),
+            monthlyUsage?.usagePercent?.toDouble(),
+        )
+        return windows.takeIf { it.isNotEmpty() }?.sum()?.let { it / 100.0 }
+    }
+
     fun hasAvailableBalance(): Boolean {
         return availableBalance != null
     }

@@ -41,6 +41,14 @@ class OpenAiCodexQuota(
         return windows.maxOrNull()?.let { it / 100.0 }
     }
 
+    override fun activityFraction(): Double? {
+        val windows = listOfNotNull(
+            primary?.usedPercent, secondary?.usedPercent,
+            reviewPrimary?.usedPercent, reviewSecondary?.usedPercent,
+        ) + extraRateLimits.map { it.window.usedPercent }
+        return windows.takeIf { it.isNotEmpty() }?.sum()?.let { it / 100.0 }
+    }
+
     override fun hasUsageState(): Boolean {
         return hasUsableWindows() ||
             allowed != null ||

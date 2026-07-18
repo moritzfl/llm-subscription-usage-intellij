@@ -30,6 +30,15 @@ data class ZaiQuota(
         )
         return windows.maxOrNull()?.let { it / 100.0 }
     }
+
+    override fun activityFraction(): Double? {
+        val windows = listOfNotNull(
+            sessionUsage?.usagePercent,
+            weeklyUsage?.usagePercent,
+            webSearchUsage?.usagePercent,
+        )
+        return windows.takeIf { it.isNotEmpty() }?.sum()?.let { it / 100.0 }
+    }
 }
 
 @Serializable

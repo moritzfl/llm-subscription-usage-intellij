@@ -162,9 +162,11 @@ class QuotaUsageService(
         try {
             val provider = state.provider
             val settings = settingsProvider()
-            val oldFraction = settings?.let(provider::cachedUsageFraction)
+            // Activity fractions sum all usage windows so growth in a small window
+            // (for example Claude's 5-hour limit) is not masked by a larger window's max.
+            val oldFraction = settings?.let(provider::cachedActivityFraction)
             provider.refresh()
-            val newFraction = provider.currentUsageFraction()
+            val newFraction = provider.currentActivityFraction()
 
             val significantChange = oldFraction != null && newFraction != null &&
                 kotlin.math.abs(newFraction - oldFraction) >= MIN_USAGE_INCREASE

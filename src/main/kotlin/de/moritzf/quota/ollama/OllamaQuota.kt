@@ -24,6 +24,11 @@ data class OllamaQuota(
         val windows = listOfNotNull(sessionUsage?.usagePercent, weeklyUsage?.usagePercent)
         return windows.maxOrNull()?.let { it / 100.0 }
     }
+
+    override fun activityFraction(): Double? {
+        val windows = listOfNotNull(sessionUsage?.usagePercent, weeklyUsage?.usagePercent)
+        return windows.takeIf { it.isNotEmpty() }?.sum()?.let { it / 100.0 }
+    }
 }
 
 /**

@@ -1,6 +1,7 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+- The “Last used” status bar source no longer gets stuck on an idle provider: activity is now detected when any usage window grows, so work on a provider whose smaller limit (for example Claude’s 5-hour window) moves while a larger window stays put correctly switches the indicator.
 
 ## [1.6.5] - 2026-07-16
 - OpenAI/Codex proxy now reports a current Codex CLI version to the upstream when the local Codex binary or npm lookup is unavailable, so GPT-5.6 models no longer fail with “requires a newer version of Codex”.

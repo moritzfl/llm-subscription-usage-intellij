@@ -30,6 +30,11 @@ data class GitHubQuota(
         return limitedWindows().maxOfOrNull { it.usagePercent }?.let { it / 100.0 }
     }
 
+    override fun activityFraction(): Double? {
+        val windows = limitedWindows()
+        return windows.takeIf { it.isNotEmpty() }?.sumOf { it.usagePercent }?.let { it / 100.0 }
+    }
+
     /** Windows in display priority order, limited ones first. */
     fun limitedWindows(): List<GitHubUsageWindow> =
         listOfNotNull(premiumInteractions, chat, completions).filterNot { it.unlimited }

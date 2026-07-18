@@ -42,6 +42,19 @@ data class ClaudeQuota(
         return windows.maxOrNull()?.let { it / 100.0 }
     }
 
+    override fun activityFraction(): Double? {
+        val windows = listOfNotNull(
+            fiveHourUsage?.usagePercent,
+            sevenDayUsage?.usagePercent,
+            sevenDaySonnetUsage?.usagePercent,
+            sevenDayOpusUsage?.usagePercent,
+            sevenDayOauthAppsUsage?.usagePercent,
+            routinesUsage?.usagePercent,
+            extraUsage?.usagePercent?.takeIf { extraUsage.isEnabled },
+        )
+        return windows.takeIf { it.isNotEmpty() }?.sum()?.let { it / 100.0 }
+    }
+
     fun primaryWindow(): ClaudeUsageWindow? {
         return fiveHourUsage
             ?: sevenDayUsage

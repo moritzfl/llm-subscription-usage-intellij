@@ -20,6 +20,11 @@ data class KimiQuota(
         val windows = listOfNotNull(sessionUsage?.usagePercent, totalUsage?.usagePercent)
         return windows.maxOrNull()?.let { it / 100.0 }
     }
+
+    override fun activityFraction(): Double? {
+        val windows = listOfNotNull(sessionUsage?.usagePercent, totalUsage?.usagePercent)
+        return windows.takeIf { it.isNotEmpty() }?.sum()?.let { it / 100.0 }
+    }
 }
 
 @Serializable

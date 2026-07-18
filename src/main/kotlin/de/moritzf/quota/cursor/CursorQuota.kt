@@ -36,6 +36,17 @@ data class CursorQuota(
         planUsage != null || spendLimit != null || onDemandUsage != null || teamOnDemandUsage != null || requestUsage != null
 
     override fun usageFraction(): Double? = primaryUsagePercent()?.let { it / 100.0 }
+
+    override fun activityFraction(): Double? {
+        val windows = listOfNotNull(
+            requestUsage?.usagePercent(),
+            planUsage?.totalPercentUsed,
+            spendLimit?.usagePercent(),
+            onDemandUsage?.usagePercent(),
+            teamOnDemandUsage?.usagePercent(),
+        )
+        return windows.takeIf { it.isNotEmpty() }?.sum()?.let { it / 100.0 }
+    }
 }
 
 @Serializable

@@ -26,6 +26,10 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
 
     override fun cachedUsageFraction(settings: QuotaSettingsState): Double? = decodeCached(settings)?.usageFraction()
 
+    override fun currentActivityFraction(): Double? = lastQuotaRef.get()?.activityFraction()
+
+    override fun cachedActivityFraction(settings: QuotaSettingsState): Double? = decodeCached(settings)?.activityFraction()
+
     override fun hydrateFromCache(settings: QuotaSettingsState) {
         val cached = decodeCached(settings)
         lastQuotaRef.set(cached)

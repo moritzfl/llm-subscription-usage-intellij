@@ -493,6 +493,39 @@ class QuotaUsageServiceTest {
     }
 
     @Test
+    fun smallWindowGrowthMaskedByLargerWindowStillUpdatesLastActiveSource() {
+        // Regression: "Last used" detection compared the max window fraction, so
+        // activity in a small window (e.g. Claude 5-hour) was masked by a larger,
+        // slow-moving window (e.g. weekly) and the indicator stayed stuck on the
+        // previously active provider.
+        val settings = QuotaSettingsState().apply { lastActiveSource = "supergrok" }
+        var primaryPercent = 8.0
+        val provider = OpenAiQuotaProvider(
+            quotaFetcher = { _, _ ->
+                OpenAiCodexQuota(allowed = true).apply {
+                    primary = UsageWindow(usedPercent = primaryPercent)
+                    secondary = UsageWindow(usedPercent = 22.0) // larger window, unchanged
+                }
+            },
+            accessTokenProvider = { "t" },
+            accountIdProvider = { "a" },
+        )
+        val service = createService(openAiProvider = provider, settingsProvider = { settings })
+
+        try {
+            service.refreshNowBlocking()
+            assertEquals("supergrok", settings.lastActiveSource)
+
+            primaryPercent = 10.0 // small window grows; max across windows stays 22%
+            service.refreshNowBlocking()
+
+            assertEquals("openai", settings.lastActiveSource)
+        } finally {
+            service.dispose()
+        }
+    }
+
+    @Test
     fun scheduleRefreshTiming() {
         val settings = QuotaSettingsState().apply { refreshMinutes = 15 }
         val service = createService(settingsProvider = { settings }, scheduleOnInit = true)
