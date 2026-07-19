@@ -479,6 +479,9 @@ internal fun buildClaudeTooltipText(quota: ClaudeQuota?, error: String?): String
     model?.let {
         parts.add("${it.label.ifBlank { "Model" }}: ${clampPercent(it.usagePercent.roundToInt())}% used • ${QuotaUiUtil.formatResetCompact(it.resetsAt) ?: "unknown"}")
     }
+    quota.scopedLimits.forEach {
+        parts.add("${it.label.ifBlank { "Scoped" }}: ${clampPercent(it.usagePercent.roundToInt())}% used • ${QuotaUiUtil.formatResetCompact(it.resetsAt) ?: "unknown"}")
+    }
     quota.routinesUsage?.let {
         parts.add("Routines: ${clampPercent(it.usagePercent.roundToInt())}% used • ${QuotaUiUtil.formatResetCompact(it.resetsAt) ?: "unknown"}")
     }

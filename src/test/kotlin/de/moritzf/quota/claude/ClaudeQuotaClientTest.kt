@@ -41,6 +41,47 @@ class ClaudeQuotaClientTest {
     }
 
     @Test
+    fun parseQuotaExtractsModelScopedLimits() {
+        val quota = ClaudeQuotaClient.parseQuota(SCOPED_LIMITS_RESPONSE)
+
+        assertEquals(0.0, quota.fiveHourUsage?.usagePercent)
+        assertEquals(17.0, quota.sevenDayUsage?.usagePercent)
+
+        // Unscoped session/weekly_all entries duplicate top-level windows and are skipped.
+        assertEquals(1, quota.scopedLimits.size)
+        val fable = quota.scopedLimits.single()
+        assertEquals("Weekly (Fable)", fable.label)
+        assertEquals(34.0, fable.usagePercent)
+        assertEquals(Instant.parse("2026-07-26T05:00:00.030850Z"), fable.resetsAt)
+
+        // Scoped limits participate in usage/activity fractions.
+        assertEquals(0.34, quota.usageFraction())
+        assertEquals(0.51, quota.activityFraction()!!, 0.0001)
+    }
+
+    @Test
+    fun parseQuotaIgnoresMalformedLimitEntries() {
+        val json = """
+            {
+              "five_hour": {"utilization": 5.0, "resets_at": null},
+              "limits": [
+                {"kind": "weekly_scoped", "group": "weekly", "percent": 12, "scope": {"model": {"id": null, "display_name": ""}, "surface": null}},
+                {"kind": "weekly_scoped", "group": "weekly", "scope": {"model": {"display_name": "Fable"}}},
+                {"kind": "unknown_kind", "percent": 7, "scope": {"model": {"id": "model-x"}}},
+                "not-an-object-is-tolerated-by-kind-nulls"
+              ]
+            }
+        """.trimIndent().replace("\"not-an-object-is-tolerated-by-kind-nulls\"", "{}")
+
+        val quota = ClaudeQuotaClient.parseQuota(json)
+
+        // Blank display name, missing percent, and empty entries are dropped; id fallback is kept.
+        assertEquals(1, quota.scopedLimits.size)
+        assertEquals("Unknown_kind (model-x)", quota.scopedLimits.single().label)
+        assertEquals(7.0, quota.scopedLimits.single().usagePercent)
+    }
+
+    @Test
     fun parseQuotaReportsChangedPayload() {
         val exception = assertFailsWith<ClaudeQuotaException> {
             ClaudeQuotaClient.parseQuota("""{"ok":true}""")
@@ -158,6 +199,24 @@ class ClaudeQuotaClientTest {
                 "utilization": 15.85,
                 "currency": "USD"
               }
+            }
+        """.trimIndent()
+
+        /** Real-world payload shape with a model-scoped weekly limit in the `limits` array. */
+        private val SCOPED_LIMITS_RESPONSE = """
+            {
+              "five_hour": {"utilization": 0.0, "resets_at": null, "limit_dollars": null, "used_dollars": null, "remaining_dollars": null},
+              "seven_day": {"utilization": 17.0, "resets_at": "2026-07-26T05:00:00.030579+00:00", "limit_dollars": null, "used_dollars": null, "remaining_dollars": null},
+              "seven_day_oauth_apps": null,
+              "seven_day_opus": null,
+              "seven_day_sonnet": null,
+              "extra_usage": {"is_enabled": false, "monthly_limit": null, "used_credits": null, "utilization": null, "currency": null},
+              "limits": [
+                {"kind": "session", "group": "session", "percent": 0, "severity": "normal", "resets_at": null, "scope": null, "is_active": false},
+                {"kind": "weekly_all", "group": "weekly", "percent": 17, "severity": "normal", "resets_at": "2026-07-26T05:00:00.030579+00:00", "scope": null, "is_active": false},
+                {"kind": "weekly_scoped", "group": "weekly", "percent": 34, "severity": "normal", "resets_at": "2026-07-26T05:00:00.030850+00:00", "scope": {"model": {"id": null, "display_name": "Fable"}, "surface": null}, "is_active": true}
+              ],
+              "member_dashboard_available": false
             }
         """.trimIndent()
     }

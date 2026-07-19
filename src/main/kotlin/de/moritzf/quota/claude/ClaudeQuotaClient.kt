@@ -105,6 +105,7 @@ open class ClaudeQuotaClient(
             val sevenDayOpus = payload.sevenDayOpus.toWindow("7-day Opus", SEVEN_DAY_MS)
             val sevenDayOauthApps = payload.sevenDayOauthApps.toWindow("7-day OAuth apps", SEVEN_DAY_MS)
             val routines = firstRoutinesWindow(payload)
+            val scopedLimits = scopedLimitWindows(payload)
             val extraUsage = payload.extraUsage?.toExtraUsage()
 
             val hasWindows = listOfNotNull(
@@ -114,7 +115,7 @@ open class ClaudeQuotaClient(
                 sevenDayOpus,
                 sevenDayOauthApps,
                 routines,
-            ).isNotEmpty()
+            ).isNotEmpty() || scopedLimits.isNotEmpty()
             if (!hasWindows && extraUsage?.isEnabled != true) {
                 throw ClaudeQuotaException("Claude usage response changed.", 200, usageJson)
             }
@@ -127,9 +128,43 @@ open class ClaudeQuotaClient(
                 sevenDayOpusUsage = sevenDayOpus,
                 sevenDayOauthAppsUsage = sevenDayOauthApps,
                 routinesUsage = routines,
+                scopedLimits = scopedLimits,
                 extraUsage = extraUsage,
                 fetchedAt = fetchedAt,
             )
+        }
+
+        /**
+         * Model/surface-scoped entries from the `limits` array (for example a weekly cap for one
+         * model). Unscoped entries duplicate the top-level windows and are skipped. Parsing is
+         * lenient: entries without a usable percent or scope label are ignored.
+         */
+        private fun scopedLimitWindows(payload: ClaudeUsageResponseDto): List<ClaudeUsageWindow> {
+            return payload.limits.orEmpty().mapNotNull { limit ->
+                val percent = limit.percent ?: return@mapNotNull null
+                val scopeLabel = limit.scope?.let { scope ->
+                    scope.model?.displayName?.takeIf { it.isNotBlank() }
+                        ?: scope.model?.id?.takeIf { it.isNotBlank() }
+                        ?: scope.surface?.takeIf { it.isNotBlank() }
+                } ?: return@mapNotNull null
+                val group = limit.group?.takeIf { it.isNotBlank() } ?: limit.kind
+                val groupLabel = when (group?.lowercase()) {
+                    "session" -> "Session"
+                    "weekly" -> "Weekly"
+                    else -> group?.replaceFirstChar { it.uppercase() } ?: "Limit"
+                }
+                val periodDurationMs = when (group?.lowercase()) {
+                    "session" -> FIVE_HOUR_MS
+                    "weekly" -> SEVEN_DAY_MS
+                    else -> null
+                }
+                ClaudeUsageWindow(
+                    label = "$groupLabel ($scopeLabel)",
+                    usagePercent = percent.coerceIn(0.0, 100.0),
+                    resetsAt = limit.resetsAt?.let { runCatching { Instant.parse(it) }.getOrNull() },
+                    periodDurationMs = periodDurationMs,
+                )
+            }
         }
 
         private fun firstRoutinesWindow(payload: ClaudeUsageResponseDto): ClaudeUsageWindow? {
@@ -194,12 +229,34 @@ private data class ClaudeUsageResponseDto(
     @SerialName("seven_day_cowork") val sevenDayCowork: ClaudeUsageWindowDto? = null,
     @SerialName("cowork") val cowork: ClaudeUsageWindowDto? = null,
     @SerialName("extra_usage") val extraUsage: ClaudeExtraUsageDto? = null,
+    val limits: List<ClaudeLimitDto>? = null,
 )
 
 @Serializable
 private data class ClaudeUsageWindowDto(
     val utilization: Double? = null,
     @SerialName("resets_at") val resetsAt: String? = null,
+)
+
+@Serializable
+private data class ClaudeLimitDto(
+    val kind: String? = null,
+    val group: String? = null,
+    val percent: Double? = null,
+    @SerialName("resets_at") val resetsAt: String? = null,
+    val scope: ClaudeLimitScopeDto? = null,
+)
+
+@Serializable
+private data class ClaudeLimitScopeDto(
+    val model: ClaudeLimitModelDto? = null,
+    val surface: String? = null,
+)
+
+@Serializable
+private data class ClaudeLimitModelDto(
+    val id: String? = null,
+    @SerialName("display_name") val displayName: String? = null,
 )
 
 @Serializable

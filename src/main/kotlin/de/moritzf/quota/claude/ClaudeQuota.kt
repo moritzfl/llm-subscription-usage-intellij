@@ -15,6 +15,8 @@ data class ClaudeQuota(
     val sevenDayOpusUsage: ClaudeUsageWindow? = null,
     val sevenDayOauthAppsUsage: ClaudeUsageWindow? = null,
     val routinesUsage: ClaudeUsageWindow? = null,
+    /** Model/surface-scoped limits from the `limits` array (for example a weekly cap for one model). */
+    val scopedLimits: List<ClaudeUsageWindow> = emptyList(),
     val extraUsage: ClaudeExtraUsage? = null,
     override var fetchedAt: Instant? = null,
     @Transient override var rawJson: String? = null,
@@ -26,6 +28,7 @@ data class ClaudeQuota(
             sevenDayOpusUsage != null ||
             sevenDayOauthAppsUsage != null ||
             routinesUsage != null ||
+            scopedLimits.isNotEmpty() ||
             extraUsage?.isEnabled == true
     }
 
@@ -38,7 +41,7 @@ data class ClaudeQuota(
             sevenDayOauthAppsUsage?.usagePercent,
             routinesUsage?.usagePercent,
             extraUsage?.usagePercent?.takeIf { extraUsage.isEnabled },
-        )
+        ) + scopedLimits.map { it.usagePercent }
         return windows.maxOrNull()?.let { it / 100.0 }
     }
 
@@ -51,7 +54,7 @@ data class ClaudeQuota(
             sevenDayOauthAppsUsage?.usagePercent,
             routinesUsage?.usagePercent,
             extraUsage?.usagePercent?.takeIf { extraUsage.isEnabled },
-        )
+        ) + scopedLimits.map { it.usagePercent }
         return windows.takeIf { it.isNotEmpty() }?.sum()?.let { it / 100.0 }
     }
 

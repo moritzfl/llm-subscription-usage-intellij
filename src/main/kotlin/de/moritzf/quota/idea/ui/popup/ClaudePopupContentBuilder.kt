@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea.ui.popup
 
+import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.util.ui.JBUI
 import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.claude.ClaudeUsageWindow
@@ -7,6 +8,7 @@ import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.ui.indicator.clampPercent
 import de.moritzf.quota.shared.ProviderQuota
+import javax.swing.JPanel
 import kotlin.math.roundToInt
 
 internal class ClaudePopupSection : ProviderPopupSection() {
@@ -16,6 +18,9 @@ internal class ClaudePopupSection : ProviderPopupSection() {
     private val fiveHourBlock = WindowBlockPanel(3)
     private val weeklyBlock = WindowBlockPanel(5)
     private val modelBlock = WindowBlockPanel(5)
+    private val scopedLimitsPanel = JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)).apply {
+        isOpaque = false
+    }
     private val routinesBlock = WindowBlockPanel(5)
     private val extraBlock = WindowBlockPanel(5)
 
@@ -27,6 +32,7 @@ internal class ClaudePopupSection : ProviderPopupSection() {
         add(fiveHourBlock)
         add(weeklyBlock)
         add(modelBlock)
+        add(scopedLimitsPanel)
         add(routinesBlock)
         add(extraBlock)
         hideAll()
@@ -55,13 +61,15 @@ internal class ClaudePopupSection : ProviderPopupSection() {
             }
             else -> {
                 val primary = quota.primaryWindow()
-                val limitReached = listOfNotNull(
-                    quota.fiveHourUsage,
-                    quota.sevenDayUsage,
-                    quota.sevenDaySonnetUsage,
-                    quota.sevenDayOpusUsage,
-                    quota.routinesUsage,
-                ).any { it.usagePercent >= 100.0 }
+                val limitReached = (
+                    listOfNotNull(
+                        quota.fiveHourUsage,
+                        quota.sevenDayUsage,
+                        quota.sevenDaySonnetUsage,
+                        quota.sevenDayOpusUsage,
+                        quota.routinesUsage,
+                    ) + quota.scopedLimits
+                    ).any { it.usagePercent >= 100.0 }
                 errorLabel.isVisible = limitReached
                 if (limitReached) {
                     errorLabel.text = "Claude limit reached"
@@ -74,6 +82,7 @@ internal class ClaudePopupSection : ProviderPopupSection() {
                 val modelWindow = quota.sevenDaySonnetUsage ?: quota.sevenDayOpusUsage
                 modelWindow?.let { modelBlock.updateClaude(it, it.label.ifBlank { "Model weekly" }) }
                     ?: modelBlock.clear()
+                updateScopedLimits(quota.scopedLimits)
                 quota.routinesUsage?.let { routinesBlock.updateClaude(it, "Daily Routines") } ?: routinesBlock.clear()
                 val extra = quota.extraUsage
                 if (extra?.isEnabled == true) {
@@ -109,8 +118,25 @@ internal class ClaudePopupSection : ProviderPopupSection() {
         fiveHourBlock.isVisible = false
         weeklyBlock.isVisible = false
         modelBlock.isVisible = false
+        scopedLimitsPanel.isVisible = false
         routinesBlock.isVisible = false
         extraBlock.isVisible = false
+    }
+
+    private fun updateScopedLimits(limits: List<ClaudeUsageWindow>) {
+        scopedLimitsPanel.removeAll()
+        if (limits.isEmpty()) {
+            scopedLimitsPanel.isVisible = false
+            return
+        }
+        limits.forEach { window ->
+            val block = WindowBlockPanel(5)
+            block.updateClaude(window, window.label.ifBlank { "Scoped limit" })
+            scopedLimitsPanel.add(block)
+        }
+        scopedLimitsPanel.isVisible = true
+        scopedLimitsPanel.revalidate()
+        scopedLimitsPanel.repaint()
     }
 
     private fun WindowBlockPanel.updateClaude(window: ClaudeUsageWindow, label: String) {
