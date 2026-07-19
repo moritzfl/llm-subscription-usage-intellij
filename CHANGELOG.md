@@ -1,6 +1,8 @@
 # LLM Subscription Usage Changelog
 
 ## [Unreleased]
+
+## [1.6.6] - 2026-07-19
 - Claude popup and tooltip now show model-specific limits (for example a separate weekly cap for one model) as their own percentage bars when Claude reports them.
 - The “Last used” status bar source no longer gets stuck on an idle provider: activity is now detected when any usage window grows, so work on a provider whose smaller limit (for example Claude’s 5-hour window) moves while a larger window stays put correctly switches the indicator.
 
