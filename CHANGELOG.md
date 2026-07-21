@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+## [1.6.7] - 2026-07-21
 - SuperGrok keeps the last real usage reading when Grok’s billing API returns period/plan config without usage numbers (instead of blanking the quota bar).
 
 ## [1.6.6] - 2026-07-19
