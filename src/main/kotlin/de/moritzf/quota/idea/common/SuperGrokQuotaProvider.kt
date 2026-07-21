@@ -26,6 +26,12 @@ class SuperGrokQuotaProvider(
 
         try {
             val quota = fetchQuotaWithAuthRetry(accessToken)
+            // Grok often returns config-only billing (period/plan, no creditUsagePercent).
+            // That parses cleanly with creditUsage=null — do not overwrite a prior good reading.
+            if (!quota.hasUsageState() && lastQuotaRef.get() != null) {
+                lastRawJsonRef.set(quota.rawJson)
+                return
+            }
             storeQuota(quota, quota.rawJson)
         } catch (exception: SuperGrokQuotaException) {
             // Incomplete/flaky billing payloads (missing creditUsagePercent) and timeouts:

@@ -38,6 +38,38 @@ class SuperGrokQuotaProviderTest {
     }
 
     @Test
+    fun refreshKeepsLastQuotaWhenUsageFieldsMissingButParseSucceeds() {
+        val firstQuota = SuperGrokQuota(
+            plan = "SuperGrok",
+            creditUsage = SuperGrokUsageWindow(label = "Weekly credits", usagePercent = 7.0),
+            rawJson = "{\"first\":true}",
+        )
+        val incompleteQuota = SuperGrokQuota(
+            plan = "SuperGrok",
+            creditUsage = null,
+            isUnifiedBilling = true,
+            periodType = "USAGE_PERIOD_TYPE_WEEKLY",
+            rawJson = "{\"incomplete\":true}",
+        )
+        var fetchCount = 0
+        val provider = SuperGrokQuotaProvider(
+            client = FakeSuperGrokClient {
+                fetchCount++
+                if (fetchCount == 1) firstQuota else incompleteQuota
+            },
+            tokenProvider = { "token" },
+            tokenRefresher = { null },
+        )
+
+        provider.refresh()
+        provider.refresh()
+
+        assertSame(firstQuota, provider.getLastQuota())
+        assertEquals("{\"incomplete\":true}", provider.getLastRawJson())
+        assertNull(provider.getLastError())
+    }
+
+    @Test
     fun refreshSurfacesAuthErrorsEvenWithPreviousData() {
         val firstQuota = SuperGrokQuota(rawJson = "{\"first\":true}")
         var fetchCount = 0
