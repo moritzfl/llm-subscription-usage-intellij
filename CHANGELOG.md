@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+## [1.6.8] - 2026-07-23
+- Codex/team accounts no longer fail with “Request failed (200)” when OpenAI returns the newer spend-limit object shape; weekly usage and individual spend caps are shown again.
+
 ## [1.6.7] - 2026-07-21
 - SuperGrok keeps the last real usage reading when Grok’s billing API returns period/plan config without usage numbers (instead of blanking the quota bar).
 

@@ -571,8 +571,65 @@ object OpenAiUsageResponseFixtures {
     fun businessMemberWithUnlimitedCredits(): OpenAiCodexQuota =
         deserialize(BUSINESS_MEMBER_WITH_UNLIMITED_CREDITS)
 
+    /**
+     * Live team shape (2026-07): rate windows present and spend_control.individual_limit is an
+     * object with string money fields + used_percent (not a bare number).
+     */
+    @Language("JSON")
+    val TEAM_WITH_OBJECT_INDIVIDUAL_SPEND_LIMIT: String = """
+        {
+          "user_id": "user-anon-team-1",
+          "account_id": "account-anon-team-1",
+          "email": "member.team@example.com",
+          "plan_type": "team",
+          "rate_limit": {
+            "allowed": true,
+            "limit_reached": false,
+            "primary_window": {
+              "used_percent": 18,
+              "limit_window_seconds": 604800,
+              "reset_after_seconds": 515525,
+              "reset_at": 1785299212
+            },
+            "secondary_window": null
+          },
+          "code_review_rate_limit": null,
+          "additional_rate_limits": null,
+          "credits": {
+            "has_credits": false,
+            "unlimited": false,
+            "overage_limit_reached": false,
+            "balance": null,
+            "approx_local_messages": null,
+            "approx_cloud_messages": null
+          },
+          "spend_control": {
+            "reached": true,
+            "individual_limit": {
+              "source": "account_user_spend_controls",
+              "limit": "10",
+              "used": "10.721666693687439",
+              "remaining": "0",
+              "used_percent": 107,
+              "remaining_percent": 0,
+              "reset_after_seconds": 758713,
+              "reset_at": 1785542400
+            }
+          },
+          "rate_limit_reached_type": null,
+          "promo": null,
+          "rate_limit_reset_credits": {
+            "available_count": 0,
+            "applicable_available_count": 0
+          }
+        }
+    """.trimIndent()
+
     fun businessMemberIndividualSpendLimitReached(): OpenAiCodexQuota =
         deserialize(BUSINESS_MEMBER_INDIVIDUAL_SPEND_LIMIT_REACHED)
+
+    fun teamWithObjectIndividualSpendLimit(): OpenAiCodexQuota =
+        deserialize(TEAM_WITH_OBJECT_INDIVIDUAL_SPEND_LIMIT)
 
     fun businessOwnerOverageLimitReached(): OpenAiCodexQuota =
         deserialize(BUSINESS_OWNER_OVERAGE_LIMIT_REACHED)

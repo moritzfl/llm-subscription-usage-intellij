@@ -11,6 +11,7 @@ import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.OpenAiCredits
 import de.moritzf.quota.openai.OpenAiSpendControl
+import de.moritzf.quota.openai.hasSpendControlDetail
 import de.moritzf.quota.openai.isAssignedCreditsQuota
 import de.moritzf.quota.openai.isCreditsDepleted
 import de.moritzf.quota.opencode.OpenCodeQuota
@@ -598,8 +599,10 @@ internal fun buildQuotaTooltipText(quota: OpenAiCodexQuota?, error: String?, log
         addWindow(quota.reviewSecondary, "Secondary")
     }
 
-    if (quota.isAssignedCreditsQuota() && quota.credits != null) {
+    if (quota.credits != null && (quota.isAssignedCreditsQuota() || quota.hasSpendControlDetail())) {
         parts.add(describeAssignedCreditsForTooltip(quota.credits!!, quota.spendControl, quota.rateLimitReachedType))
+    } else if (quota.hasSpendControlDetail() && quota.spendControl != null) {
+        parts.add(describeSpendControlForTooltip(quota.spendControl!!))
     }
 
     val state = indicatorQuotaState(quota)
@@ -620,6 +623,29 @@ internal fun buildQuotaTooltipText(quota: OpenAiCodexQuota?, error: String?, log
     return "$plan quota:\n${parts.joinToString("\n")}"
 }
 
+private fun describeSpendControlForTooltip(spendControl: OpenAiSpendControl): String {
+    // Team/business spend_control uses Codex credit units, not USD.
+    val cap = spendControl.individualLimit?.takeIf { it > 0.0 }
+    val used = spendControl.used
+    return when {
+        spendControl.reached == true && cap != null ->
+            "Credit limit: cap reached (${formatOpenAiCreditAmount(cap)} credits)"
+        spendControl.reached == true -> "Credit limit: cap reached"
+        cap != null && used != null ->
+            "Credit limit: ${formatOpenAiCreditAmount(used)} / ${formatOpenAiCreditAmount(cap)} credits"
+        cap != null -> "Credit limit: ${formatOpenAiCreditAmount(cap)} credits"
+        else -> "Credit limit"
+    }
+}
+
+private fun formatOpenAiCreditAmount(value: Double): String {
+    return if (value >= 100.0 || value == value.toLong().toDouble()) {
+        value.toInt().toString()
+    } else {
+        String.format(java.util.Locale.US, "%.2f", value)
+    }
+}
+
 private fun describeAssignedCreditsForTooltip(
     credits: OpenAiCredits,
     spendControl: OpenAiSpendControl?,
@@ -629,7 +655,11 @@ private fun describeAssignedCreditsForTooltip(
         credits.unlimited == true -> "Unlimited"
         rateLimitReachedType == "workspace_member_credits_depleted" -> "Assigned credits depleted"
         credits.overageLimitReached == true -> "Overage limit reached"
-        spendControl?.reached == true && (spendControl.individualLimit ?: 0.0) > 0.0 -> "Individual spend limit reached"
+        spendControl?.reached == true && (
+            (spendControl.individualLimit ?: 0.0) > 0.0 ||
+                spendControl.usedPercent != null ||
+                spendControl.used != null
+            ) -> "Individual spend limit reached"
         credits.hasCredits == false -> "Depleted"
         !credits.balance.isNullOrBlank() -> "$${credits.balance} remaining"
         credits.hasCredits == true -> "Available"

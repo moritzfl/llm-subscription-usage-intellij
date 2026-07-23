@@ -14,15 +14,16 @@ import de.moritzf.quota.openai.RateLimitResetCredit
 import de.moritzf.quota.openai.OpenAiSpendControl
 import de.moritzf.quota.openai.UsageWindow
 import de.moritzf.quota.openai.formatApproxMessages
+import de.moritzf.quota.openai.hasSpendControlDetail
 import de.moritzf.quota.openai.isAssignedCreditsQuota
 import com.intellij.util.ui.JBUI
 import de.moritzf.quota.shared.ProviderQuota
+import java.awt.Cursor
+import java.awt.FlowLayout
+import java.util.Locale
 import javax.swing.JLabel
 import javax.swing.JPanel
 import kotlin.math.roundToInt
-import java.util.Locale
-import java.awt.Cursor
-import java.awt.FlowLayout
 
 internal class OpenAiPopupSection : ProviderPopupSection() {
     private val separator = createSeparatedBlock()
@@ -89,7 +90,10 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
                 warningLabel.isVisible = limitWarning != null
                 if (limitWarning != null) warningLabel.text = limitWarning
 
-                val hasMainData = quota.primary != null || quota.secondary != null || quota.isAssignedCreditsQuota()
+                val hasMainData = quota.primary != null ||
+                    quota.secondary != null ||
+                    quota.isAssignedCreditsQuota() ||
+                    quota.hasSpendControlDetail()
                 titleLabel.isVisible = hasMainData
                 if (hasMainData) {
                     val planLabel = quota.planType?.toDisplayLabel()
@@ -98,8 +102,10 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
 
                 quota.primary?.let { primaryBlock.updateWindow(it, "Primary") } ?: primaryBlock.clear()
                 quota.secondary?.let { secondaryBlock.updateWindow(it, "Secondary") } ?: secondaryBlock.clear()
-                if (quota.isAssignedCreditsQuota() && quota.credits != null) {
+                if (quota.credits != null && (quota.isAssignedCreditsQuota() || quota.hasSpendControlDetail())) {
                     creditsBlock.updateAssignedCredits(quota.credits!!, quota.spendControl, quota.rateLimitReachedType)
+                } else if (quota.hasSpendControlDetail()) {
+                    creditsBlock.updateSpendControlOnly(quota.spendControl!!)
                 } else {
                     creditsBlock.clear()
                 }
@@ -175,6 +181,11 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
         update("Assigned credits", info, percent)
     }
 
+    private fun WindowBlockPanel.updateSpendControlOnly(spendControl: OpenAiSpendControl) {
+        val (info, percent) = describeSpendControl(spendControl)
+        update("Credit limit", info, percent)
+    }
+
     private fun updateResetCredits(availableCount: Int, resetCredits: List<RateLimitResetCredit>) {
         resetCreditsPanel.removeAll()
         if (availableCount <= 0) {
@@ -227,8 +238,8 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
             credits.unlimited == true -> return "Unlimited" to 0
             rateLimitReachedType == "workspace_member_credits_depleted" -> return "Assigned credits depleted" to 100
             credits.overageLimitReached == true -> return "Overage limit reached" to 100
-            spendControl?.reached == true && (spendControl.individualLimit ?: 0.0) > 0.0 -> {
-                return "Individual spend limit reached ($${formatCreditsLimit(spendControl.individualLimit!!)} cap)" to 100
+            spendControl?.reached == true -> {
+                return describeSpendControl(spendControl)
             }
             credits.hasCredits == false -> return "Depleted" to 100
             !credits.balance.isNullOrBlank() -> {
@@ -257,19 +268,45 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
             }
         }
 
-        spendControl?.individualLimit?.takeIf { it > 0.0 }?.let { limit ->
-            return "Individual limit: $${formatCreditsLimit(limit)}" to if (spendControl.reached == true) 100 else 0
-        }
+        spendControl?.let { return describeSpendControl(it) }
 
         return "Unknown" to 0
+    }
+
+    private fun describeSpendControl(spendControl: OpenAiSpendControl): Pair<String, Int> {
+        val percent = when {
+            spendControl.reached == true -> 100
+            spendControl.usedPercent != null -> clampPercent(spendControl.usedPercent.roundToInt())
+            else -> 0
+        }
+        // Team/business spend_control uses Codex credit units, not USD.
+        val cap = spendControl.individualLimit?.takeIf { it > 0.0 }
+        val used = spendControl.used
+        val info = buildString {
+            when {
+                spendControl.reached == true && cap != null ->
+                    append("Cap reached (${formatCreditAmount(cap)} credits)")
+                spendControl.reached == true ->
+                    append("Credit cap reached")
+                cap != null && used != null ->
+                    append("${formatCreditAmount(used)} / ${formatCreditAmount(cap)} credits")
+                cap != null ->
+                    append("Cap ${formatCreditAmount(cap)} credits")
+                else ->
+                    append("Credit limit")
+            }
+        }
+        return info to percent
     }
 
     private fun formatCreditsBalance(balance: String): String {
         return balance.toDoubleOrNull()?.let(::formatCreditsLimit) ?: balance
     }
 
-    private fun formatCreditsLimit(value: Double): String {
-        return if (value >= 100.0) {
+    private fun formatCreditsLimit(value: Double): String = formatCreditAmount(value)
+
+    private fun formatCreditAmount(value: Double): String {
+        return if (value >= 100.0 || value == value.toLong().toDouble()) {
             value.roundToInt().toString()
         } else {
             String.format(Locale.US, "%.2f", value)

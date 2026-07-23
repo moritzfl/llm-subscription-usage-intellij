@@ -14,6 +14,7 @@ import java.net.http.HttpResponse
 import java.time.Duration
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.idea.ui.popup.getLimitWarning
+import de.moritzf.quota.openai.creditsLimitWarning
 import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
@@ -297,6 +298,26 @@ class OpenAiCodexQuotaClientTest {
         assertEquals("codex-spark-weekly", quota.extraRateLimits[1].id)
         assertEquals("Codex Spark Weekly", quota.extraRateLimits[1].title)
         assertEquals(Duration.ofMinutes(10080), quota.extraRateLimits[1].window.windowDuration)
+    }
+
+    @Test
+    fun fetchQuotaParsesTeamObjectIndividualSpendLimit() {
+        val client = newClientReturning(200, OpenAiUsageResponseFixtures.TEAM_WITH_OBJECT_INDIVIDUAL_SPEND_LIMIT)
+        val quota = client.fetchQuota("token", "account-anon-team-1")
+
+        assertEquals("team", quota.planType)
+        assertEquals(18.0, quota.primary!!.usedPercent, 0.0001)
+        assertNull(quota.secondary)
+        assertEquals(true, quota.allowed)
+        assertEquals(false, quota.limitReached)
+        assertEquals(false, quota.credits?.hasCredits)
+        assertEquals(true, quota.spendControl?.reached)
+        assertEquals(10.0, quota.spendControl?.individualLimit!!, 0.0001)
+        assertEquals(10.721666693687439, quota.spendControl?.used!!, 0.0001)
+        assertEquals(0.0, quota.spendControl?.remaining!!, 0.0001)
+        assertEquals(100.0, quota.spendControl?.usedPercent!!, 0.0001)
+        assertEquals(1785542400L, quota.spendControl?.resetAtEpochSeconds)
+        assertEquals("Individual spend limit reached", quota.creditsLimitWarning())
     }
 
     @Test

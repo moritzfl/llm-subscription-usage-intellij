@@ -29,12 +29,20 @@ data class CreditsDto(
 @Serializable
 data class SpendControlDto(
     val reached: Boolean? = null,
-    @SerialName("individual_limit") val individualLimit: Double? = null,
+    @SerialName("individual_limit")
+    @Serializable(with = FlexibleIndividualLimitSerializer::class)
+    val individualLimit: FlexibleIndividualLimit? = null,
 ) {
     fun toSpendControl(): OpenAiSpendControl {
+        val limit = individualLimit
         return OpenAiSpendControl(
             reached = reached,
-            individualLimit = individualLimit,
+            individualLimit = limit?.amount,
+            used = limit?.used,
+            remaining = limit?.remaining,
+            usedPercent = limit?.usedPercent?.coerceIn(0.0, 100.0)
+                ?: limit?.remainingPercent?.let { (100.0 - it).coerceIn(0.0, 100.0) },
+            resetAtEpochSeconds = limit?.resetAtEpochSeconds,
         )
     }
 }

@@ -37,7 +37,8 @@ class OpenAiQuotaProvider(
             applyHysteresis(lastQuotaRef.get(), quota)
             storeQuota(quota, quota.rawJson)
         } catch (exception: OpenAiCodexQuotaException) {
-            storeError("Request failed (${exception.statusCode})", exception.rawBody)
+            val detail = exception.message?.takeIf { it.isNotBlank() && !it.startsWith("Request failed") }
+            storeError(detail ?: "Request failed (${exception.statusCode})", exception.rawBody)
         } catch (exception: Exception) {
             storeError(exception.message ?: "Request failed")
         }
