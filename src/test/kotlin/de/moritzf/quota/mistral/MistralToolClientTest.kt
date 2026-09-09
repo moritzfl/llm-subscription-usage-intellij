@@ -134,10 +134,41 @@ class MistralToolClientTest {
     }
 
     @Test
-    fun defaultMarkdownOutputSitsBesideLocalFileWhenImagesStay() {
+    fun defaultMarkdownOutputSitsBesideLocalFile() {
         val pdf = Path.of("/tmp/ticket.pdf")
-        assertEquals(Path.of("/tmp/ticket.md"), MistralOcrClient.defaultMarkdownOutput(pdf, includeImages = true))
-        assertEquals(null, MistralOcrClient.defaultMarkdownOutput(pdf, includeImages = false))
-        assertEquals(null, MistralOcrClient.defaultMarkdownOutput(null, includeImages = true))
+        assertEquals(Path.of("/tmp/ticket.md"), MistralOcrClient.defaultMarkdownOutput(pdf))
+        assertEquals(null, MistralOcrClient.defaultMarkdownOutput(null))
+    }
+
+    @Test
+    fun ocrRequestDisablesBlockPayload() {
+        val json = MistralOcrClient.ocrRequestJson(
+            "mistral-ocr-latest",
+            MistralOcrDocumentDto(type = "file", fileId = "file-1"),
+            includeImageBase64 = true,
+        )
+        assertTrue("\"include_blocks\": false" in json)
+        assertTrue("\"include_image_base64\": true" in json)
+        assertTrue("\"file_id\": \"file-1\"" in json)
+        assertTrue("document_url" !in json)
+    }
+
+    @Test
+    fun writeMarkdownAcceptsNullImages() {
+        val dir = Files.createTempDirectory("mistral-ocr-null-images")
+        val markdownFile = dir.resolve("doc.md")
+        val body = """{"pages":[{"markdown":"Hi","images":null}]}"""
+        val result = MistralOcrClient.writeMarkdown(body, markdownFile, includeImages = true)
+        assertEquals(1, result.pages)
+        assertEquals(emptyList(), result.imageFiles)
+        assertEquals("Hi", Files.readString(markdownFile))
+    }
+
+    @Test
+    fun mistralErrorDetailReadsMessageAndNestedError() {
+        assertEquals("bad file", MistralOcrClient.mistralErrorDetail("""{"message":"bad file"}"""))
+        assertEquals("nope", MistralOcrClient.mistralErrorDetail("""{"error":{"message":"nope"}}"""))
+        assertEquals("invalid", MistralOcrClient.mistralErrorDetail("""{"detail":[{"msg":"invalid"}]}"""))
+        assertEquals(null, MistralOcrClient.mistralErrorDetail("not-json"))
     }
 }

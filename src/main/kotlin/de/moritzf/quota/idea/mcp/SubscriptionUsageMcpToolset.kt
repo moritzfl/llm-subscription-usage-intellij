@@ -3,7 +3,10 @@ package de.moritzf.quota.idea.mcp
 import com.intellij.mcpserver.McpToolset
 import com.intellij.mcpserver.annotations.McpDescription
 import com.intellij.mcpserver.annotations.McpTool
-import com.intellij.openapi.project.ProjectManager
+import com.intellij.mcpserver.projectOrNull
+import com.intellij.mcpserver.util.projectDirectory
+import com.intellij.mcpserver.util.resolveInProject
+import kotlinx.coroutines.currentCoroutineContext
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.ProviderCatalog
 import de.moritzf.quota.idea.common.QuotaProviderType
@@ -73,7 +76,7 @@ class SubscriptionUsageMcpToolset(
 ) : McpToolset {
     @McpTool(name = "subscription_quota")
     @McpDescription(description = "Returns the latest subscription quota response JSON for the selected provider.")
-    fun subscription_quota(
+    suspend fun subscription_quota(
         @McpDescription(description = "Provider to query. Supported providers are derived from the shared provider enum.") provider: QuotaProviderType,
         @McpDescription(description = "Optional account name or id when more than one login of this type exists.") account: String? = null,
     ): String {
@@ -82,7 +85,7 @@ class SubscriptionUsageMcpToolset(
 
     @McpTool(name = "subscription_tools_status")
     @McpDescription(description = "Returns per-provider status showing whether subscription quota access is configured and whether web search, image generation, video generation, speech-to-text, and text-to-speech are available. Does not call provider APIs.")
-    fun subscription_tools_status(): String {
+    suspend fun subscription_tools_status(): String {
         val settings = runCatching { QuotaSettingsState.getInstance() }.getOrNull()
         val accounts = settings?.accounts.orEmpty()
         val statuses = if (accounts.isEmpty() || settings == null) {
@@ -117,7 +120,7 @@ class SubscriptionUsageMcpToolset(
 
     @McpTool(name = "codex_web_search")
     @McpDescription(description = "Runs a Codex subscription-backed web search using the existing OpenAI login and returns the Codex JSON response.")
-    fun codex_web_search(
+    suspend fun codex_web_search(
         @McpDescription(description = "Search query to send to Codex web search.") query: String,
         @McpDescription(description = "Search context size: low, medium, or high. Higher values can improve detailed answers but may cost more and take longer.") searchContextSize: String = "medium",
         @McpDescription(description = "Whether to request the complete sources list from the web search call when available.") includeSources: Boolean = false,
@@ -138,7 +141,7 @@ class SubscriptionUsageMcpToolset(
 
     @McpTool(name = "supergrok_web_search")
     @McpDescription(description = "Runs a SuperGrok/xAI web search using the existing SuperGrok login and returns normalized JSON results.")
-    fun supergrok_web_search(
+    suspend fun supergrok_web_search(
         @McpDescription(description = "Search query to send to Grok web search.") query: String,
         @McpDescription(description = "xAI model to use for the Responses API web search request.") model: String = SuperGrokWebSearchClient.DEFAULT_MODEL,
         @McpDescription(description = "Optional comma-separated domains to allow, up to 5. Leave blank for no allow filter.") allowedDomains: String? = null,
@@ -150,7 +153,7 @@ class SubscriptionUsageMcpToolset(
 
     @McpTool(name = "subscription_web_search")
     @McpDescription(description = "Runs a result-list subscription-backed web search (Kimi, Z.ai, MiniMax, or Ollama) and returns the provider JSON response.")
-    fun subscription_web_search(
+    suspend fun subscription_web_search(
         @McpDescription(description = "Provider to use. Supported providers are derived from the ListSearchProvider enum.") provider: ListSearchProvider = ListSearchProvider.KIMI,
         @McpDescription(description = "Search query.") query: String,
         @McpDescription(description = "Number of search results to request. Values are clamped to the provider's supported range.") limit: Int = 5,
@@ -166,7 +169,7 @@ class SubscriptionUsageMcpToolset(
 
     @McpTool(name = "subscription_image_generation")
     @McpDescription(description = "Generates one image through a subscription-backed provider. Without targetFile, SuperGrok, Z.ai, and MiniMax return an image URL; OpenAI/Codex and Mistral write a unique image-<uuid>.png in the project. With targetFile, the image is written to that path. Never returns base64.")
-    fun subscription_image_generation(
+    suspend fun subscription_image_generation(
         @McpDescription(description = "Image prompt.") prompt: String,
         @McpDescription(description = "Provider to use. Supported providers are derived from the ImageGenerationProvider enum.") provider: ImageGenerationProvider = ImageGenerationProvider.OPEN_AI,
         @McpDescription(description = "Optional relative project path for the generated image (for example out/image.png). Leave blank for a download URL, or a unique image-<uuid>.png for OpenAI/Codex and Mistral.") targetFile: String? = null,
@@ -174,12 +177,16 @@ class SubscriptionUsageMcpToolset(
         return when (provider) {
             ImageGenerationProvider.OPEN_AI ->
                 codexResult(codexClient.imageGeneration(prompt, targetFile, projectBaseDirectory()))
+
             ImageGenerationProvider.SUPERGROK ->
                 superGrokImageGeneration(prompt, targetFile)
+
             ImageGenerationProvider.MISTRAL ->
                 mistralImageGeneration(prompt, targetFile)
+
             ImageGenerationProvider.ZAI ->
                 zaiImageGeneration(prompt, targetFile)
+
             ImageGenerationProvider.MINIMAX ->
                 miniMaxImageGeneration(prompt, targetFile)
         }
@@ -187,7 +194,7 @@ class SubscriptionUsageMcpToolset(
 
     @McpTool(name = "mistral_web_search")
     @McpDescription(description = "Runs a Mistral Conversations web search using the stored Mistral API key and returns the provider JSON response.")
-    fun mistral_web_search(
+    suspend fun mistral_web_search(
         @McpDescription(description = "Search query to send to Mistral web search.") query: String,
         @McpDescription(description = "Mistral model id for the Conversations request.") model: String = MistralWebSearchClient.DEFAULT_MODEL,
         @McpDescription(description = "When true, use web_search_premium instead of web_search.") premium: Boolean = false,
@@ -197,7 +204,7 @@ class SubscriptionUsageMcpToolset(
 
     @McpTool(name = "subscription_document_to_markdown")
     @McpDescription(description = "Converts a PDF or image to markdown. Mistral and Z.ai use dedicated OCR and extract embedded images to disk. OpenAI/Codex and SuperGrok send the original document to their vision models and, for a local PDF with includeImages=true, render cropped image regions to disk as image-p<page>-<index>.png. For large PDFs on Codex/SuperGrok, pass 1-based pageFrom/pageTo to convert a slice (the whole file is one model request; overflow fails). The result includes page_count so you can walk remaining pages. If outputFile is omitted and localFile is set, markdown is written beside the source as <name>.md. Images are never returned as base64.")
-    fun subscription_document_to_markdown(
+    suspend fun subscription_document_to_markdown(
         @McpDescription(description = "Provider to use. Supported providers are derived from the DocumentToMarkdownProvider enum.") provider: DocumentToMarkdownProvider = DocumentToMarkdownProvider.MISTRAL,
         @McpDescription(description = "Public document URL. Leave blank when localFile is set.") documentUrl: String? = null,
         @McpDescription(description = "Optional project-relative or absolute local file path.") localFile: String? = null,
@@ -216,6 +223,7 @@ class SubscriptionUsageMcpToolset(
                     includeImages,
                     model.ifBlank { MistralOcrClient.DEFAULT_MODEL },
                 )
+
             DocumentToMarkdownProvider.ZAI ->
                 zaiDocumentToMarkdown(
                     documentUrl,
@@ -224,6 +232,7 @@ class SubscriptionUsageMcpToolset(
                     includeImages,
                     model.ifBlank { ZaiOcrClient.DEFAULT_MODEL },
                 )
+
             DocumentToMarkdownProvider.OPEN_AI ->
                 codexResult(
                     codexClient.documentToMarkdown(
@@ -236,6 +245,7 @@ class SubscriptionUsageMcpToolset(
                         pageTo.takeIf { it > 0 },
                     ),
                 )
+
             DocumentToMarkdownProvider.SUPERGROK ->
                 superGrokDocumentToMarkdown(
                     documentUrl,
@@ -251,7 +261,7 @@ class SubscriptionUsageMcpToolset(
 
     @McpTool(name = "subscription_speech_to_text")
     @McpDescription(description = "Transcribes audio with a subscription-backed provider. Pass a public audioUrl or a localFile path. Returns the provider transcription JSON.")
-    fun subscription_speech_to_text(
+    suspend fun subscription_speech_to_text(
         @McpDescription(description = "Provider to use. Supported providers are derived from the SpeechToTextProvider enum.") provider: SpeechToTextProvider = SpeechToTextProvider.OPEN_AI,
         @McpDescription(description = "Public audio URL. Leave blank when localFile is set.") audioUrl: String? = null,
         @McpDescription(description = "Optional project-relative or absolute local audio path.") localFile: String? = null,
@@ -262,10 +272,18 @@ class SubscriptionUsageMcpToolset(
         return when (provider) {
             SpeechToTextProvider.OPEN_AI ->
                 codexResult(codexClient.transcribe(audioUrl, resolveOptionalPath(localFile), language, diarize, model))
+
             SpeechToTextProvider.SUPERGROK ->
                 superGrokSpeechToText(audioUrl, localFile, language, diarize)
+
             SpeechToTextProvider.MISTRAL ->
-                mistralSpeechToText(audioUrl, localFile, language, diarize, model.ifBlank { MistralAudioClient.DEFAULT_TRANSCRIBE_MODEL })
+                mistralSpeechToText(
+                    audioUrl,
+                    localFile,
+                    language,
+                    diarize,
+                    model.ifBlank { MistralAudioClient.DEFAULT_TRANSCRIBE_MODEL })
+
             SpeechToTextProvider.ZAI ->
                 zaiSpeechToText(localFile, model.ifBlank { ZaiAudioClient.DEFAULT_MODEL })
         }
@@ -273,7 +291,7 @@ class SubscriptionUsageMcpToolset(
 
     @McpTool(name = "subscription_text_to_speech")
     @McpDescription(description = "Generates speech audio with a subscription-backed provider and writes it to disk. Pass targetFile or a unique speech-<uuid>.mp3 is written in the project. Optional voiceId or refAudioFile selects the voice.")
-    fun subscription_text_to_speech(
+    suspend fun subscription_text_to_speech(
         @McpDescription(description = "Text to speak.") text: String,
         @McpDescription(description = "Provider to use. Supported providers are derived from the TextToSpeechProvider enum.") provider: TextToSpeechProvider = TextToSpeechProvider.OPEN_AI,
         @McpDescription(description = "Optional relative project path for the audio file (for example out/speech.mp3). Defaults to a unique speech-<uuid> file in the project.") targetFile: String? = null,
@@ -294,8 +312,10 @@ class SubscriptionUsageMcpToolset(
                         responseFormat,
                     ),
                 )
+
             TextToSpeechProvider.SUPERGROK ->
                 superGrokTextToSpeech(text, targetFile, voiceId, language = null, responseFormat)
+
             TextToSpeechProvider.MISTRAL ->
                 mistralTextToSpeech(
                     text,
@@ -305,6 +325,7 @@ class SubscriptionUsageMcpToolset(
                     model.ifBlank { MistralAudioClient.DEFAULT_SPEECH_MODEL },
                     responseFormat,
                 )
+
             TextToSpeechProvider.MINIMAX ->
                 miniMaxTextToSpeech(
                     text,
@@ -318,7 +339,7 @@ class SubscriptionUsageMcpToolset(
 
     @McpTool(name = "subscription_list_voices")
     @McpDescription(description = "Lists preset and saved voices for a subscription-backed text-to-speech provider.")
-    fun subscription_list_voices(
+    suspend fun subscription_list_voices(
         @McpDescription(description = "Provider to use. Supported providers are derived from the TextToSpeechProvider enum.") provider: TextToSpeechProvider = TextToSpeechProvider.OPEN_AI,
     ): String {
         return when (provider) {
@@ -331,7 +352,7 @@ class SubscriptionUsageMcpToolset(
 
     @McpTool(name = "subscription_video_generation")
     @McpDescription(description = "Generates a video through a subscription-backed provider. SuperGrok uses Imagine; Z.ai uses CogVideoX. By default waits/polls until completion and returns the provider JSON with a download URL. Pass targetFile to download the video to disk.")
-    fun subscription_video_generation(
+    suspend fun subscription_video_generation(
         @McpDescription(description = "Video prompt.") prompt: String,
         @McpDescription(description = "Provider to use. Supported providers are derived from the VideoGenerationProvider enum.") provider: VideoGenerationProvider = VideoGenerationProvider.SUPERGROK,
         @McpDescription(description = "Video model id. Leave blank for the provider default.") model: String = "",
@@ -352,6 +373,7 @@ class SubscriptionUsageMcpToolset(
                     pollTimeoutSeconds,
                     targetFile,
                 )
+
             VideoGenerationProvider.ZAI ->
                 zaiVideoGeneration(
                     prompt,
@@ -366,7 +388,7 @@ class SubscriptionUsageMcpToolset(
 
     @McpTool(name = "supergrok_video_generation")
     @McpDescription(description = "Generates a video through SuperGrok/xAI Imagine using the existing SuperGrok login. By default waits/polls until completion and returns the final provider JSON.")
-    fun supergrok_video_generation(
+    suspend fun supergrok_video_generation(
         @McpDescription(description = "Video prompt to send to Grok Imagine.") prompt: String,
         @McpDescription(description = "Imagine video model id, for example grok-imagine-video.") model: String = SuperGrokImagineClient.DEFAULT_VIDEO_MODEL,
         @McpDescription(description = "Requested video duration in seconds, clamped to the local safe range.") duration: Int = SuperGrokImagineClient.DEFAULT_VIDEO_DURATION_SECONDS,
@@ -375,10 +397,18 @@ class SubscriptionUsageMcpToolset(
         @McpDescription(description = "Maximum seconds to wait when waitForCompletion is true.") pollTimeoutSeconds: Int = SuperGrokImagineClient.DEFAULT_VIDEO_POLL_TIMEOUT_SECONDS,
         @McpDescription(description = "Optional relative project path for the video (for example out/clip.mp4). Leave blank to return a download URL.") targetFile: String? = null,
     ): String {
-        return superGrokVideoGeneration(prompt, model, duration, imageUrl, waitForCompletion, pollTimeoutSeconds, targetFile)
+        return superGrokVideoGeneration(
+            prompt,
+            model,
+            duration,
+            imageUrl,
+            waitForCompletion,
+            pollTimeoutSeconds,
+            targetFile
+        )
     }
 
-    private fun quotaResult(type: QuotaProviderType, accountParam: String? = null): String {
+    private suspend fun quotaResult(type: QuotaProviderType, accountParam: String? = null): String {
         val account = try {
             de.moritzf.quota.idea.settings.AccountResolver.resolve(
                 type,
@@ -447,7 +477,7 @@ class SubscriptionUsageMcpToolset(
         return response.body
     }
 
-    private fun supergrokWebSearch(
+    private suspend fun supergrokWebSearch(
         query: String,
         model: String,
         allowedDomains: String?,
@@ -459,7 +489,7 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun superGrokSpeechToText(
+    private suspend fun superGrokSpeechToText(
         audioUrl: String?,
         localFile: String?,
         language: String?,
@@ -470,7 +500,7 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun superGrokTextToSpeech(
+    private suspend fun superGrokTextToSpeech(
         text: String,
         targetFile: String?,
         voiceId: String?,
@@ -490,13 +520,13 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun superGrokListVoices(): String {
+    private suspend fun superGrokListVoices(): String {
         return withSuperGrokAuth("Grok voice list failed.") { accessToken ->
             superGrokAudioClient.listVoices(accessToken)
         }
     }
 
-    private fun superGrokDocumentToMarkdown(
+    private suspend fun superGrokDocumentToMarkdown(
         documentUrl: String?,
         localFile: String?,
         outputFile: String?,
@@ -519,7 +549,7 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun superGrokImageGeneration(prompt: String, targetFile: String?): String {
+    private suspend fun superGrokImageGeneration(prompt: String, targetFile: String?): String {
         return withSuperGrokAuth("Grok image generation failed.") { accessToken ->
             superGrokImagineClient.generateImage(
                 accessToken = accessToken,
@@ -530,7 +560,7 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun superGrokVideoGeneration(
+    private suspend fun superGrokVideoGeneration(
         prompt: String,
         model: String,
         duration: Int,
@@ -554,7 +584,7 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun withSuperGrokAuth(failureLabel: String, block: (String) -> String): String {
+    private suspend fun withSuperGrokAuth(failureLabel: String, block: suspend (String) -> String): String {
         val authService = QuotaAuthService.getInstance()
         val account = try {
             de.moritzf.quota.idea.settings.AccountResolver.resolve(
@@ -591,7 +621,7 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun kimiWebSearch(query: String, limit: Int, includeContent: Boolean): String {
+    private suspend fun kimiWebSearch(query: String, limit: Int, includeContent: Boolean): String {
         val account = try {
             de.moritzf.quota.idea.settings.AccountResolver.resolve(
                 QuotaProviderType.KIMI,
@@ -619,7 +649,7 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun zaiWebSearch(query: String, limit: Int, includeContent: Boolean): String {
+    private suspend fun zaiWebSearch(query: String, limit: Int, includeContent: Boolean): String {
         val apiKey = resolvedApiKey(QuotaProviderType.ZAI) { ZaiApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return searchError("Z.ai API key missing. Add a Z.ai API key in settings.")
@@ -633,7 +663,7 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun miniMaxWebSearch(query: String, limit: Int, includeContent: Boolean): String {
+    private suspend fun miniMaxWebSearch(query: String, limit: Int, includeContent: Boolean): String {
         val apiKey = resolvedApiKey(QuotaProviderType.MINIMAX) { MiniMaxApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return searchError("MiniMax API key missing. Add a MiniMax API key in settings.")
@@ -651,7 +681,7 @@ class SubscriptionUsageMcpToolset(
         return searchError(lastException?.message ?: "MiniMax web search failed.")
     }
 
-    private fun mistralWebSearch(query: String, model: String, premium: Boolean): String {
+    private suspend fun mistralWebSearch(query: String, model: String, premium: Boolean): String {
         val apiKey = resolvedApiKey(QuotaProviderType.MISTRAL) { MistralApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return searchError("Mistral API key missing. Add a Mistral API key in settings.")
@@ -665,13 +695,13 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun miniMaxImageGeneration(prompt: String, targetFile: String?): String {
+    private suspend fun miniMaxImageGeneration(prompt: String, targetFile: String?): String {
         return withMiniMaxKey("MiniMax image generation failed.") { apiKey, region ->
             miniMaxImageClient.generateImage(apiKey, region, prompt, targetFile, projectBaseDirectory())
         }
     }
 
-    private fun miniMaxTextToSpeech(
+    private suspend fun miniMaxTextToSpeech(
         text: String,
         targetFile: String?,
         voiceId: String?,
@@ -692,13 +722,13 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun miniMaxListVoices(): String {
+    private suspend fun miniMaxListVoices(): String {
         return withMiniMaxKey("MiniMax voice list failed.") { apiKey, region ->
             miniMaxAudioClient.listVoices(apiKey, region)
         }
     }
 
-    private fun zaiSpeechToText(localFile: String?, model: String): String {
+    private suspend fun zaiSpeechToText(localFile: String?, model: String): String {
         val apiKey = resolvedApiKey(QuotaProviderType.ZAI) { ZaiApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return errorResult("Z.ai API key missing. Add a Z.ai API key in settings.")
@@ -712,7 +742,7 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun zaiVideoGeneration(
+    private suspend fun zaiVideoGeneration(
         prompt: String,
         model: String,
         imageUrl: String?,
@@ -742,7 +772,7 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun withMiniMaxKey(failureLabel: String, block: (String, MiniMaxRegion) -> String): String {
+    private suspend fun withMiniMaxKey(failureLabel: String, block: suspend (String, MiniMaxRegion) -> String): String {
         val apiKey = resolvedApiKey(QuotaProviderType.MINIMAX) { MiniMaxApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return errorResult("MiniMax API key missing. Add a MiniMax API key in settings.")
@@ -760,7 +790,7 @@ class SubscriptionUsageMcpToolset(
         return errorResult(lastException?.message ?: failureLabel)
     }
 
-    private fun zaiImageGeneration(prompt: String, targetFile: String?): String {
+    private suspend fun zaiImageGeneration(prompt: String, targetFile: String?): String {
         val apiKey = resolvedApiKey(QuotaProviderType.ZAI) { ZaiApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return errorResult("Z.ai API key missing. Add a Z.ai API key in settings.")
@@ -774,7 +804,7 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun mistralImageGeneration(prompt: String, targetFile: String?): String {
+    private suspend fun mistralImageGeneration(prompt: String, targetFile: String?): String {
         val apiKey = resolvedApiKey(QuotaProviderType.MISTRAL) { MistralApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return errorResult("Mistral API key missing. Add a Mistral API key in settings.")
@@ -788,14 +818,17 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun mistralDocumentToMarkdown(
+    private suspend fun mistralDocumentToMarkdown(
         documentUrl: String?,
         localFile: String?,
         outputFile: String?,
         includeImages: Boolean,
         model: String,
     ): String {
-        val apiKey = resolvedApiKey(QuotaProviderType.MISTRAL) { MistralApiKeyStore.forAccount(it).loadBlocking() }
+        val apiKey = resolvedApiKey(
+            QuotaProviderType.MISTRAL,
+            de.moritzf.quota.idea.settings.AccountCapability.DOCUMENT_TO_MARKDOWN,
+        ) { MistralApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return errorResult("Mistral API key missing. Add a Mistral API key in settings.")
         }
@@ -815,7 +848,7 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun zaiDocumentToMarkdown(
+    private suspend fun zaiDocumentToMarkdown(
         documentUrl: String?,
         localFile: String?,
         outputFile: String?,
@@ -842,7 +875,7 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun mistralSpeechToText(
+    private suspend fun mistralSpeechToText(
         audioUrl: String?,
         localFile: String?,
         language: String?,
@@ -869,7 +902,7 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun mistralTextToSpeech(
+    private suspend fun mistralTextToSpeech(
         text: String,
         targetFile: String?,
         voiceId: String?,
@@ -899,7 +932,7 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun mistralListVoices(): String {
+    private suspend fun mistralListVoices(): String {
         val apiKey = resolvedApiKey(QuotaProviderType.MISTRAL) { MistralApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return errorResult("Mistral API key missing. Add a Mistral API key in settings.")
@@ -913,15 +946,15 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun resolveOptionalPath(value: String?): Path? {
+    private suspend fun resolveOptionalPath(value: String?): Path? {
         val trimmed = value?.trim()?.takeIf { it.isNotBlank() } ?: return null
         val path = Path.of(trimmed)
         if (path.isAbsolute) return path.normalize()
-        val base = projectBaseDirectory()
-        return if (base == null) path.normalize() else base.resolve(path).normalize()
+        val project = currentCoroutineContext().projectOrNull ?: return path.normalize()
+        return project.resolveInProject(trimmed, throwWhenOutside = false)
     }
 
-    private fun ollamaWebSearch(query: String, limit: Int, includeContent: Boolean): String {
+    private suspend fun ollamaWebSearch(query: String, limit: Int, includeContent: Boolean): String {
         val apiKey = resolvedApiKey(QuotaProviderType.OLLAMA) { OllamaApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return searchError("Ollama API key missing. Add an Ollama API key in settings.")
@@ -941,11 +974,16 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun resolvedApiKey(type: QuotaProviderType, load: (String) -> String?): String? {
+    private fun resolvedApiKey(
+        type: QuotaProviderType,
+        capability: de.moritzf.quota.idea.settings.AccountCapability =
+            de.moritzf.quota.idea.settings.AccountCapability.WEB_SEARCH,
+        load: (String) -> String?,
+    ): String? {
         val account = try {
             de.moritzf.quota.idea.settings.AccountResolver.resolve(
                 type,
-                capability = de.moritzf.quota.idea.settings.AccountCapability.WEB_SEARCH,
+                capability = capability,
             )
         } catch (_: de.moritzf.quota.idea.settings.AccountResolveException) {
             return null
@@ -953,10 +991,8 @@ class SubscriptionUsageMcpToolset(
         return load(account.id)
     }
 
-    private fun projectBaseDirectory(): Path? {
-        return ProjectManager.getInstance().openProjects.firstOrNull()
-            ?.basePath
-            ?.let(Path::of)
+    private suspend fun projectBaseDirectory(): Path? {
+        return currentCoroutineContext().projectOrNull?.projectDirectory
     }
 
     private fun miniMaxSearchRegions(): List<MiniMaxRegion> {
@@ -979,7 +1015,7 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private fun searchError(message: String): String {
+    private suspend fun searchError(message: String): String {
         val settings = runCatching { QuotaSettingsState.getInstance() }.getOrNull()
         val available = mutableListOf<String>()
         for (descriptor in ProviderCatalog.all) {

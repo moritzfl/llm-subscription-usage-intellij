@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- MCP tools that take a project-relative `localFile` or `targetFile` (document-to-markdown, image, audio, video) now resolve that path in the project of the MCP call, like IntelliJ’s built-in file tools. They no longer pick the first open project in the IDE.
+- Mistral document-to-markdown always writes `<name>.md` beside a local source when `outputFile` is omitted. `includeImages` only controls whether extracted pictures are saved, not whether markdown is written.
+- Mistral OCR no longer requests unused paragraph bounding boxes, so the conversion response stays smaller.
+
 ## [1.11.6] - 2026-09-07
 
 - Codex popup no longer shows “Assigned credits: Depleted” when `credits.has_credits` is false but `spend_control` still has remaining assigned credits (for example Business Prolite 3.14 / 10).

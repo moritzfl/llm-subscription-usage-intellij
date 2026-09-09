@@ -6,6 +6,7 @@ import de.moritzf.quota.shared.MultipartFilePublisher
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -37,14 +38,12 @@ open class MistralOcrClient(
             throw MistralQuotaException("Mistral API key missing. Add a Mistral API key in settings.")
         }
         val document = resolveDocument(token, documentUrl, localFile)
-        val markdownOutput = outputFile ?: defaultMarkdownOutput(localFile, includeImages)
+        val markdownOutput = outputFile ?: defaultMarkdownOutput(localFile)
         val writeImages = includeImages && markdownOutput != null
-        val body = JsonSupport.json.encodeToString(
-            MistralOcrRequestDto(
-                model = model.trim().ifBlank { DEFAULT_MODEL },
-                document = document,
-                includeImageBase64 = writeImages,
-            ),
+        val body = ocrRequestJson(
+            model = model.trim().ifBlank { DEFAULT_MODEL },
+            document = document,
+            includeImageBase64 = writeImages,
         )
         val response = sendString(postJson(token, ocrUri, body))
         val status = response.statusCode()
@@ -53,7 +52,7 @@ open class MistralOcrClient(
             throw MistralQuotaException("Session expired. Check your Mistral API key.", status, responseBody)
         }
         if (status !in 200..299) {
-            throw MistralQuotaException("Mistral OCR failed (HTTP $status). Try again later.", status, responseBody)
+            throw httpError("Mistral OCR failed", status, responseBody)
         }
         if (markdownOutput == null) {
             return McpJson.providerJsonOrRaw(responseBody)
@@ -86,7 +85,7 @@ open class MistralOcrClient(
             .build()
         val response = sendString(request)
         if (response.statusCode() !in 200..299) {
-            throw MistralQuotaException("Mistral file upload failed (HTTP ${response.statusCode()}).", response.statusCode(), response.body())
+            throw httpError("Mistral file upload failed", response.statusCode(), response.body())
         }
         val root = runCatching { JsonSupport.json.parseToJsonElement(response.body()) as? JsonObject }.getOrNull()
         val id = (root?.get("id") as? JsonPrimitive)?.contentOrNull
@@ -119,14 +118,66 @@ open class MistralOcrClient(
             return name.takeIf { it.isNotBlank() && it != "." && it != ".." }
         }
 
-        internal fun defaultMarkdownOutput(localFile: Path?, includeImages: Boolean): Path? {
-            if (!includeImages || localFile == null) return null
+        internal fun ocrRequestJson(
+            model: String,
+            document: MistralOcrDocumentDto,
+            includeImageBase64: Boolean,
+        ): String {
+            return JsonSupport.json.encodeToString(
+                MistralOcrRequestDto(
+                    model = model,
+                    document = document,
+                    includeImageBase64 = includeImageBase64,
+                    includeBlocks = false,
+                ),
+            )
+        }
+
+        internal fun defaultMarkdownOutput(localFile: Path?): Path? {
+            if (localFile == null) return null
             val name = localFile.fileName.toString()
             val stem = name.substringBeforeLast('.', name).ifBlank { name }
             return localFile.resolveSibling("$stem.md")
         }
 
-        internal fun writeMarkdown(responseBody: String, outputFile: Path, includeImages: Boolean): MistralOcrWriteResult {
+        internal fun mistralErrorDetail(body: String): String? {
+            val root = runCatching { JsonSupport.json.parseToJsonElement(body) as? JsonObject }.getOrNull()
+                ?: return null
+            (root["message"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }?.let { return it }
+            when (val error = root["error"]) {
+                is JsonPrimitive -> error.contentOrNull?.takeIf { it.isNotBlank() }?.let { return it }
+                is JsonObject ->
+                    (error["message"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }?.let { return it }
+
+                else -> Unit
+            }
+            when (val detail = root["detail"]) {
+                is JsonPrimitive -> detail.contentOrNull?.takeIf { it.isNotBlank() }?.let { return it }
+                is JsonArray -> {
+                    val first = detail.firstOrNull() as? JsonObject
+                    (first?.get("msg") as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }?.let { return it }
+                }
+
+                else -> Unit
+            }
+            return null
+        }
+
+        private fun httpError(prefix: String, status: Int, body: String): MistralQuotaException {
+            val detail = mistralErrorDetail(body)
+            val message = if (detail.isNullOrBlank()) {
+                "$prefix (HTTP $status). Try again later."
+            } else {
+                "$prefix (HTTP $status): $detail"
+            }
+            return MistralQuotaException(message, status, body)
+        }
+
+        internal fun writeMarkdown(
+            responseBody: String,
+            outputFile: Path,
+            includeImages: Boolean
+        ): MistralOcrWriteResult {
             val parsed = try {
                 JsonSupport.json.decodeFromString<MistralOcrResponseDto>(responseBody)
             } catch (exception: Exception) {
@@ -142,7 +193,7 @@ open class MistralOcrClient(
             if (includeImages) {
                 val imageDir = outputFile.parent ?: Path.of(".")
                 parsed.pages.forEach { page ->
-                    page.images.forEach { image ->
+                    page.images.orEmpty().forEach { image ->
                         val name = imageFileName(image.id) ?: return@forEach
                         val encoded = image.imageBase64?.substringAfter("base64,", image.imageBase64)?.trim().orEmpty()
                         if (encoded.isEmpty()) return@forEach
@@ -181,6 +232,7 @@ internal data class MistralOcrRequestDto(
     val model: String,
     val document: MistralOcrDocumentDto,
     @SerialName("include_image_base64") val includeImageBase64: Boolean = false,
+    @SerialName("include_blocks") val includeBlocks: Boolean? = null,
 )
 
 @Serializable
@@ -198,7 +250,7 @@ internal data class MistralOcrResponseDto(
 @Serializable
 internal data class MistralOcrPageDto(
     val markdown: String = "",
-    val images: List<MistralOcrImageDto> = emptyList(),
+    val images: List<MistralOcrImageDto>? = emptyList(),
 )
 
 @Serializable
