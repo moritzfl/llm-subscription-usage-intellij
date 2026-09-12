@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.12.1] - 2026-09-12
+
 - Proxy tab wording talks about Junie, AI Assistant, and editor completions. The FIM toggle names both fill-in-middle and the editor use case. The chat-FIM adapter explains that most models do not support FIM.
 - FIM `/v1/completions` is on when the proxy is on. Ghost text still needs AI Completion pointed at this proxy.
 
