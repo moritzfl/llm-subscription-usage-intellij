@@ -3,11 +3,15 @@ package de.moritzf.quota.idea.settings
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.ui.Messages
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
+import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
@@ -20,6 +24,7 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.proxy.fim.FimModels
 import de.moritzf.quota.idea.openai.AiCompletionSetupInspector
+import de.moritzf.quota.idea.openai.CompletionsFimTestResult
 import de.moritzf.quota.idea.openai.CompletionsFimTester
 import de.moritzf.quota.idea.openai.OpenAiProxyApiKeyStore
 import de.moritzf.quota.idea.openai.OpenAiProxyService
@@ -34,6 +39,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicLong
 import javax.swing.DefaultListCellRenderer
+import javax.swing.Action
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JList
@@ -134,24 +140,13 @@ internal class SubscriptionProxySettingsPanel(
             "Base URL: Copy Base URL (no /v1)<br>" +
             "API key: Copy API Key<br>" +
             "Model: ${CompletionsConfig.FIM_ALIAS_ID}<br>" +
-            "Prompt schema: Auto (this id is recognized as (fim) Qwen). Not Zeta/Sweep.<br>" +
-            "Switch the backend model here; leave the IDE model id unchanged.<br>" +
-            "Test FIM asks the model to finish <code>fun add(a, b)</code> at the cursor. A result like <code>a + b</code> is a good fill-in.</body></html>",
+            "Prompt schema: Auto (our model id ${CompletionsConfig.FIM_ALIAS_ID} is recognized as (fim) Qwen). Not Zeta/Sweep.<br>" +
+            "Switch the backend model here; leave the IDE model id unchanged.</body></html>",
     ).apply {
         foreground = JBColor.GRAY
     }
     private val completionsStatusLabel = JBLabel().apply { isVisible = false }
     private val fimSetupStatusLabel = JBLabel().apply { isVisible = false }
-    private val fimTestResultArea = JBTextArea().apply {
-        isEditable = false
-        lineWrap = false
-        wrapStyleWord = false
-        rows = 12
-        font = Font(Font.MONOSPACED, Font.PLAIN, font.size)
-        margin = JBUI.insets(6)
-        text = ""
-        isVisible = false
-    }
     private val proxyDescriptionLabel = JBLabel(
         "<html><body width='520'>Use the copied base URL and API key to configure this proxy in JetBrains AI Assistant " +
             "under Providers and API keys, or in Junie CLI as a LiteLLM proxy.</body></html>",
@@ -306,7 +301,7 @@ internal class SubscriptionProxySettingsPanel(
                         cell(completionsModelCombo)
                             .resizableColumn()
                             .align(AlignX.FILL)
-                            .comment("Subscription model LSU calls. Switch it here; keep the IDE model id as ${CompletionsConfig.FIM_ALIAS_ID}.")
+                            .comment("Subscription model this plugin calls. Switch it here; keep the IDE model id as ${CompletionsConfig.FIM_ALIAS_ID}.")
                     }
                     row {
                         cell(completionsUseChatAdapterCheckBox)
@@ -323,15 +318,6 @@ internal class SubscriptionProxySettingsPanel(
                     }
                     row {
                         cell(fimSetupStatusLabel)
-                    }
-                    row {
-                        cell(JScrollPane(fimTestResultArea).apply {
-                            preferredSize = Dimension(1, JBUI.scale(180))
-                            minimumSize = Dimension(1, JBUI.scale(120))
-                            border = JBUI.Borders.emptyTop(4)
-                            horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED
-                            verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
-                        }).resizableColumn().align(AlignX.FILL)
                     }
                 }
             }
@@ -690,42 +676,36 @@ internal class SubscriptionProxySettingsPanel(
             isProxyLogRequestsModified() || isProviderSelectionModified() ||
             proxyEnabledCheckBox.isSelected != QuotaSettingsState.getInstance().openAiProxyEnabled
         ) {
-            showFimTestResult("Apply settings first", "Apply settings before testing FIM.", error = true)
+            Messages.showErrorDialog(this, "Apply settings before testing FIM.", "Test FIM")
             return
         }
         val settings = QuotaSettingsState.getInstance()
         if (!settings.proxyCompletionsEnabled || settings.proxyCompletionsModelId.isBlank()) {
-            showFimTestResult("Not ready", "Enable FIM and select a completion model, then apply.", error = true)
+            Messages.showErrorDialog(this, "Enable FIM and select a completion model, then apply.", "Test FIM")
             return
         }
         val status = OpenAiProxyService.getInstance().status()
         if (!status.running) {
-            showFimTestResult("Proxy off", "Proxy is not running.", error = true)
+            Messages.showErrorDialog(this, "Proxy is not running.", "Test FIM")
             return
         }
         val apiKey = proxyApiKey()
         if (apiKey == null) {
-            showFimTestResult("No API key", "Local API key is missing.", error = true)
+            Messages.showErrorDialog(this, "Local API key is missing.", "Test FIM")
             return
         }
         testFimButton.isEnabled = false
-        showFimTestResult("Testing…", "Sending sample fill-in for fun add(a, b) at the cursor…", error = false)
+        completionsStatusLabel.text = "Testing…"
+        completionsStatusLabel.foreground = UIUtil.getContextHelpForeground()
+        completionsStatusLabel.isVisible = true
         ApplicationManager.getApplication().executeOnPooledThread {
             val result = CompletionsFimTester.test(status.baseUrl, apiKey)
             ApplicationManager.getApplication().invokeLater({
-                showFimTestResult(result.status, result.report, error = !result.ok)
+                completionsStatusLabel.isVisible = false
                 updateProxyControlsEnabled()
+                FimTestResultDialog(this, result).show()
             }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
         }
-    }
-
-    private fun showFimTestResult(status: String, report: String, error: Boolean) {
-        fimTestResultArea.text = report
-        fimTestResultArea.isVisible = true
-        fimTestResultArea.caretPosition = 0
-        completionsStatusLabel.text = status
-        completionsStatusLabel.foreground = if (error) UIUtil.getErrorForeground() else UIUtil.getContextHelpForeground()
-        completionsStatusLabel.isVisible = true
     }
 
     private fun updateFimSetupStatus() {
@@ -818,5 +798,89 @@ internal class SubscriptionProxySettingsPanel(
         private const val PROXY_STATUS_REFRESH_MILLIS = 2_000
         private const val COPY_FEEDBACK_MILLIS = 1_500
         private const val COPY_FEEDBACK_ORIGINAL_TEXT = "SubscriptionProxySettingsPanel.copyFeedbackOriginalText"
+    }
+}
+
+private class FimTestResultDialog(
+    parent: JComponent,
+    private val result: CompletionsFimTestResult,
+) : DialogWrapper(parent, true) {
+    init {
+        title = "Test FIM"
+        init()
+    }
+
+    override fun createCenterPanel(): JComponent {
+        val ok = result.ok
+        val status = result.status
+        val latency = result.elapsedMs?.let { "$it ms" }
+        val sample = result.sample
+        val insert = result.insert
+        val assembled = result.assembled
+        val detail = result.detail
+        val icon = if (ok) AllIcons.General.InspectionsOK else AllIcons.General.Error
+        return panel {
+            row {
+                icon(icon)
+                label(status).bold()
+                if (latency != null) {
+                    comment(latency)
+                }
+            }
+            if (sample != null) {
+                group("Sample") {
+                    row {
+                        cell(codeBlock(sample))
+                            .resizableColumn()
+                            .align(AlignX.FILL)
+                    }
+                }
+            }
+            if (insert != null) {
+                group("Inserted") {
+                    row {
+                        cell(codeBlock(insert))
+                            .resizableColumn()
+                            .align(AlignX.FILL)
+                    }
+                }
+            }
+            if (assembled != null) {
+                group("Result") {
+                    row {
+                        cell(codeBlock(assembled))
+                            .resizableColumn()
+                            .align(AlignX.FILL)
+                    }
+                }
+            }
+            if (detail != null) {
+                row {
+                    text(QuotaUiUtil.escapeHtml(detail).replace("\n", "<br>"))
+                        .resizableColumn()
+                        .align(AlignX.FILL)
+                }
+            }
+        }.apply {
+            preferredSize = Dimension(JBUI.scale(520), JBUI.scale(420))
+        }
+    }
+
+    override fun createActions(): Array<Action> = arrayOf(okAction)
+
+    private fun codeBlock(text: String): JComponent {
+        val scheme = EditorColorsManager.getInstance().globalScheme
+        val area = JBTextArea(text).apply {
+            isEditable = false
+            lineWrap = true
+            wrapStyleWord = false
+            font = Font(scheme.editorFontName, Font.PLAIN, scheme.editorFontSize)
+            background = UIUtil.getTextFieldBackground()
+            border = JBUI.Borders.empty(8)
+        }
+        return JBScrollPane(area).apply {
+            border = JBUI.Borders.customLine(JBColor.border(), 1)
+            horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
+        }
     }
 }
