@@ -100,6 +100,12 @@ class KimiSubscriptionProxyProvider(
             SubscriptionProxyRoute.ANTHROPIC_MESSAGES -> messagesDelegate.handle(ctx, request)
             SubscriptionProxyRoute.CHAT_COMPLETIONS,
             SubscriptionProxyRoute.RESPONSES -> chatDelegate.handle(ctx, request)
+            SubscriptionProxyRoute.COMPLETIONS -> JsonHelper.toErrorResponse(
+                ctx,
+                "Kimi does not support native /v1/completions. Enable the chat-FIM adapter.",
+                400,
+                "invalid_request_error",
+            )
         }
     }
 

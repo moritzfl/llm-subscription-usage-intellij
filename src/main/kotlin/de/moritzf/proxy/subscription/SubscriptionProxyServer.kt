@@ -1,8 +1,11 @@
 package de.moritzf.proxy.subscription
 
+import de.moritzf.proxy.fim.CompletionsConfig
+import de.moritzf.proxy.fim.FimModels
 import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.proxy.server.AccessLogFields
 import de.moritzf.proxy.server.ApiKeyStore
+import de.moritzf.proxy.server.CompletionsHandler
 import de.moritzf.proxy.server.HealthHandler
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.server.ProxyCall
@@ -40,10 +43,19 @@ class SubscriptionProxyServer(
     private val allowedCorsOrigins: List<String> = emptyList(),
     fullRequestLogging: Boolean = false,
     requestLogDir: String = REQUEST_LOG_DIR,
+    private val completionsConfig: () -> CompletionsConfig = { CompletionsConfig.DISABLED },
 ) {
     private val running = AtomicBoolean(false)
     private val requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir))
     private val usageTracker = UsageTracker()
+    private val completionsHandler = CompletionsHandler(
+        catalog = { catalog() },
+        config = completionsConfig,
+        requestLogger = requestLogger,
+        host = host,
+        port = port,
+        localApiKey = localApiKeyProvider,
+    )
     private var app: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
     private var apiKeyStore: ApiKeyStore? = null
 
@@ -76,6 +88,8 @@ class SubscriptionProxyServer(
                     postProxy("/responses", ::inference)
                     postProxy("/v1/messages", ::inference)
                     postProxy("/messages", ::inference)
+                    postProxy("/v1/completions", completionsHandler::handle)
+                    postProxy("/completions", completionsHandler::handle)
                     optionsProxy("{...}", ::notFound)
                     getProxy("{...}", ::notFound)
                     postProxy("{...}", ::notFound)
@@ -159,6 +173,17 @@ class SubscriptionProxyServer(
                 "created" to 0,
                 "owned_by" to model.providerId,
             )
+        }.toMutableList()
+        fimAliasModel()?.let { alias ->
+            data.add(
+                0,
+                linkedMapOf(
+                    "id" to alias,
+                    "object" to "model",
+                    "created" to 0,
+                    "owned_by" to "fim-adapter",
+                ),
+            )
         }
         JsonHelper.toJsonResponse(ctx, mapOf("object" to "list", "data" to data))
     }
@@ -200,6 +225,15 @@ class SubscriptionProxyServer(
     }
 
     private fun catalog(): SubscriptionModelCatalog = SubscriptionModelCatalog(providers())
+
+    private fun fimAliasModel(): String? {
+        val cfg = completionsConfig()
+        if (!cfg.enabled) return null
+        val selected = cfg.modelLocalId.trim().ifBlank { return null }
+        val model = CompletionsHandler.resolveSelectedModel(catalog(), selected) ?: return null
+        if (!FimModels.isEligible(model)) return null
+        return cfg.aliasId
+    }
 
     private fun applyCorsHeaders(ctx: ProxyCall) {
         val origin = ctx.header(HttpHeaders.Origin)

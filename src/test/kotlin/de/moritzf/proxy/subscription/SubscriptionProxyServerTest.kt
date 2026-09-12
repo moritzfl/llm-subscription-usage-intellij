@@ -1,6 +1,7 @@
 package de.moritzf.proxy.subscription
 
 import com.sun.net.httpserver.HttpServer
+import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.proxy.server.JsonHelper
 import java.net.InetAddress
@@ -179,6 +180,137 @@ class SubscriptionProxyServerTest {
     }
 
     @Test
+    fun completionsDisabledReturns404() {
+        TestUpstream().use { upstream ->
+            val server = newServer(
+                providers = listOf(fakeProvider("xai", "SuperGrok", upstream.baseUri, "grok-token", "grok-4.3", "grok-4.3")),
+            )
+            try {
+                server.start()
+                val response = post(server.port, "/v1/completions", "{\"model\":\"grok-4.3\",\"prompt\":\"fun \"}")
+                assertEquals(404, response.statusCode())
+                assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
+            } finally {
+                server.stop()
+            }
+        }
+    }
+
+    @Test
+    fun completionsAdvertisesAliasAndMapsChatToTextCompletion() {
+        val chatBody =
+            """{"id":"chatcmpl_1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"a + b"},"finish_reason":"stop"}]}"""
+        TestUpstream(responseBody = chatBody).use { upstream ->
+            val server = newServer(
+                providers = listOf(fakeProvider("xai", "SuperGrok", upstream.baseUri, "grok-token", "grok-4.3", "grok-4.3")),
+                completionsConfig = CompletionsConfig(
+                    enabled = true,
+                    modelLocalId = "grok-4.3",
+                    useChatAdapter = true,
+                ),
+            )
+            try {
+                server.start()
+                val models = get(server.port, "/v1/models")
+                val ids = parseObject(models.body())["data"]!!.jsonArray.map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                assertEquals(CompletionsConfig.FIM_ALIAS_ID, ids.first())
+                assertTrue("grok-4.3" in ids)
+
+                val response = post(
+                    server.port,
+                    "/v1/completions",
+                    """{"model":"${CompletionsConfig.FIM_ALIAS_ID}","prompt":"fun add(a: Int, b: Int): Int {\n    return ","suffix":"\n}","stream":false}""",
+                )
+                assertEquals(200, response.statusCode(), response.body())
+                val body = parseObject(response.body())
+                assertEquals("text_completion", body["object"]!!.jsonPrimitive.content)
+                val text = body["choices"]!!.jsonArray[0].jsonObject["text"]!!.jsonPrimitive.content
+                assertEquals("a + b", text)
+                val upstreamRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/chat/completions", upstreamRequest.path)
+                assertTrue(upstreamRequest.body.contains("code_before_cursor"), upstreamRequest.body)
+                assertFalse(upstreamRequest.body.contains("<|fim_prefix|>"), upstreamRequest.body)
+            } finally {
+                server.stop()
+            }
+        }
+    }
+
+    @Test
+    fun completionsRejectsModelNotAllowlisted() {
+        TestUpstream().use { upstream ->
+            val server = newServer(
+                providers = listOf(fakeProvider("xai", "SuperGrok", upstream.baseUri, "grok-token", "grok-4.3", "grok-4.3")),
+                completionsConfig = CompletionsConfig(enabled = true, modelLocalId = "grok-4.3"),
+            )
+            try {
+                server.start()
+                val response = post(server.port, "/completions", "{\"model\":\"other-model\",\"prompt\":\"fun \"}")
+                assertEquals(400, response.statusCode())
+                assertTrue(response.body().contains("Unknown proxy model"))
+                assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
+            } finally {
+                server.stop()
+            }
+        }
+    }
+
+    @Test
+    fun nativeCompletionsPassThroughWithoutChatAdapter() {
+        val completionBody =
+            """{"id":"cmpl_1","object":"text_completion","choices":[{"index":0,"text":"a + b","finish_reason":"stop"}]}"""
+        TestUpstream(responseBody = completionBody).use { upstream ->
+            val server = newServer(
+                providers = listOf(fakeProvider("ollama", "Ollama", upstream.baseUri, "ol-token", "ol-qwen", "qwen")),
+                completionsConfig = CompletionsConfig(
+                    enabled = true,
+                    modelLocalId = "ol-qwen",
+                    useChatAdapter = false,
+                ),
+            )
+            try {
+                server.start()
+                val response = post(
+                    server.port,
+                    "/completions",
+                    """{"model":"ol-qwen","prompt":"fun add() { return ","suffix":"}","stream":false}""",
+                )
+                assertEquals(200, response.statusCode(), response.body())
+                val upstreamRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/completions", upstreamRequest.path)
+                assertTrue(upstreamRequest.body.contains("\"model\":\"qwen\""), upstreamRequest.body)
+            } finally {
+                server.stop()
+            }
+        }
+    }
+
+    @Test
+    fun completionsStreamMapsChatChunks() {
+        val sse = "data: {\"id\":\"chatcmpl_1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"xyz\"},\"finish_reason\":null}]}\n\ndata: [DONE]\n\n"
+        TestUpstream(responseBody = sse, responseContentType = "text/event-stream").use { upstream ->
+            val server = newServer(
+                providers = listOf(fakeProvider("xai", "SuperGrok", upstream.baseUri, "grok-token", "grok-4.3", "grok-4.3")),
+                completionsConfig = CompletionsConfig(enabled = true, modelLocalId = "grok-4.3"),
+            )
+            try {
+                server.start()
+                val response = post(
+                    server.port,
+                    "/v1/completions",
+                    """{"model":"grok-4.3","prompt":"abc","stream":true}""",
+                )
+                assertEquals(200, response.statusCode(), response.body())
+                assertTrue(response.body().contains("\"object\":\"text_completion\""), response.body())
+                assertTrue(response.body().contains("\"text\":\"xyz\""), response.body())
+                assertTrue(response.body().contains("data: [DONE]"), response.body())
+            } finally {
+                server.stop()
+            }
+        }
+    }
+
+    @Test
     fun passThroughProviderDropsHttp2PseudoHeaders() {
         assertFalse(PassThroughSubscriptionProxyProvider.shouldForwardResponseHeader(":status"))
         assertFalse(PassThroughSubscriptionProxyProvider.shouldForwardResponseHeader("content-length"))
@@ -265,7 +397,10 @@ class SubscriptionProxyServerTest {
         )
     }
 
-    private fun newServer(providers: List<SubscriptionProxyProvider>): TestServer {
+    private fun newServer(
+        providers: List<SubscriptionProxyProvider>,
+        completionsConfig: CompletionsConfig = CompletionsConfig.DISABLED,
+    ): TestServer {
         val port = freePort()
         return TestServer(
             port = port,
@@ -273,6 +408,7 @@ class SubscriptionProxyServerTest {
                 port = port,
                 localApiKeyProvider = { "local-key" },
                 providers = { providers },
+                completionsConfig = { completionsConfig },
             ),
         )
     }

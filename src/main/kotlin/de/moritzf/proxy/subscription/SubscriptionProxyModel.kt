@@ -6,6 +6,7 @@ enum class SubscriptionProxyRoute(
 ) {
     CHAT_COMPLETIONS("/chat/completions", "/chat/completions"),
     RESPONSES("/responses", "/responses"),
+    COMPLETIONS("/completions", "/completions"),
     ANTHROPIC_MESSAGES("/messages", "/v1/messages"),
 }
 
