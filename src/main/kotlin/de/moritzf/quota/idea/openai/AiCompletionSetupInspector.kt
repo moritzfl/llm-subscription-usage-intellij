@@ -70,7 +70,7 @@ object AiCompletionSetupInspector {
             issues += "Prompt schema is $schemaId (next-edit). FIM needs (fim) Qwen / Auto, not Zeta/Sweep."
         }
         if (nextEdits?.boolean("enabled") == false) {
-            issues += "Next Edit suggestions are off. Turn them on, or wait after typing — Call Inline Completion may no-op when the model is overridden."
+            issues += "Next Edit suggestions are off. Turn them on under Editor → General → Code Completion → Inline."
         }
         if (powerSaveEnabled) {
             issues += "Power Save mode is on; inline completion is often paused."
@@ -90,7 +90,7 @@ object AiCompletionSetupInspector {
             !baseUrlFound && !modelFound ->
                 "AI Completion is not pointed at this proxy yet. Follow the setup steps above."
             baseUrlFound && modelFound && issues.isEmpty() ->
-                "AI Completion looks configured (proxy URL and $modelId). Our model id $modelId is recognized as (fim) Qwen. Call Inline Completion can no-op when the model is overridden — type and wait, or use Trigger Next Edit."
+                "AI Completion looks configured (proxy URL and $modelId). Our model id $modelId is recognized as (fim) Qwen. Type and wait for gray ghost text. Call Inline Completion often does nothing with a custom OpenAI-compatible model — use Trigger Next Edit."
             baseUrlFound && modelFound ->
                 "AI Completion URL and model match, but: ${issues.joinToString(" ")}"
             baseUrlFound ->
