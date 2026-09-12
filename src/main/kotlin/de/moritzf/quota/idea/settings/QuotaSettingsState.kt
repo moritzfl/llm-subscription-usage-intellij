@@ -47,6 +47,8 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var proxyCompletionsUseChatAdapter: Boolean = true
     var proxyCompletionsMaxOutputTokens: Int = CompletionsConfig.DEFAULT_MAX_OUTPUT_TOKENS
     var proxyCompletionsMaxRequestsPerMinute: Int = CompletionsConfig.DEFAULT_MAX_REQUESTS_PER_MINUTE
+    var proxyCompletionsTimeoutSeconds: Int = CompletionsConfig.DEFAULT_TIMEOUT_SECONDS
+    var proxyCompletionsPriorityTier: Boolean = false
     var subscriptionProxyEnabledProviders: MutableList<String> = DEFAULT_SUBSCRIPTION_PROXY_PROVIDERS.toMutableList()
     var subscriptionProxyModelCatalogJsons: MutableMap<String, String> = mutableMapOf()
     var githubEnterpriseHost: String = ""
@@ -85,6 +87,8 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         proxyCompletionsMaxOutputTokens = CompletionsConfig.clampMaxOutputTokens(state.proxyCompletionsMaxOutputTokens)
         proxyCompletionsMaxRequestsPerMinute =
             CompletionsConfig.clampMaxRequestsPerMinute(state.proxyCompletionsMaxRequestsPerMinute)
+        proxyCompletionsTimeoutSeconds = CompletionsConfig.clampTimeoutSeconds(state.proxyCompletionsTimeoutSeconds)
+        proxyCompletionsPriorityTier = state.proxyCompletionsPriorityTier
         subscriptionProxyEnabledProviders = sanitizeSubscriptionProxyProviders(state.subscriptionProxyEnabledProviders).toMutableList()
         subscriptionProxyModelCatalogJsons = state.subscriptionProxyModelCatalogJsons.toMutableMap()
         githubEnterpriseHost = state.githubEnterpriseHost.trim()
@@ -260,6 +264,8 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
             useChatAdapter = proxyCompletionsUseChatAdapter,
             maxOutputTokens = CompletionsConfig.clampMaxOutputTokens(proxyCompletionsMaxOutputTokens),
             maxRequestsPerMinute = CompletionsConfig.clampMaxRequestsPerMinute(proxyCompletionsMaxRequestsPerMinute),
+            timeoutMillis = CompletionsConfig.timeoutMillis(proxyCompletionsTimeoutSeconds),
+            priorityTier = proxyCompletionsPriorityTier,
         )
     }
 

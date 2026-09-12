@@ -58,6 +58,8 @@ class QuotaSettingsStateTest {
             proxyCompletionsModelId = " oa-gpt-5.5 "
             proxyCompletionsMaxOutputTokens = 9_999
             proxyCompletionsMaxRequestsPerMinute = 0
+            proxyCompletionsTimeoutSeconds = 1
+            proxyCompletionsPriorityTier = true
         }
         val reloaded = QuotaSettingsState()
         reloaded.loadState(state)
@@ -66,6 +68,10 @@ class QuotaSettingsStateTest {
         assertEquals("oa-gpt-5.5", reloaded.proxyCompletionsModelId)
         assertEquals(CompletionsConfig.MAX_OUTPUT_TOKENS, reloaded.proxyCompletionsMaxOutputTokens)
         assertEquals(CompletionsConfig.MIN_REQUESTS_PER_MINUTE, reloaded.proxyCompletionsMaxRequestsPerMinute)
+        assertEquals(CompletionsConfig.MIN_TIMEOUT_SECONDS, reloaded.proxyCompletionsTimeoutSeconds)
+        assertEquals(CompletionsConfig.timeoutMillis(CompletionsConfig.MIN_TIMEOUT_SECONDS), reloaded.completionsConfig().timeoutMillis)
+        assertTrue(reloaded.proxyCompletionsPriorityTier)
+        assertTrue(reloaded.completionsConfig().priorityTier)
 
         reloaded.openAiProxyEnabled = true
         assertTrue(reloaded.completionsConfig().enabled)

@@ -58,6 +58,7 @@ internal class SubscriptionProxySettingsPanel(
     val proxyLogRequestsCheckBox = JBCheckBox("Log requests and responses to disk")
     val completionsEnabledCheckBox = JBCheckBox("Enable FIM completions endpoint (/v1/completions)")
     val completionsUseChatAdapterCheckBox = JBCheckBox("Adapt chat models via FIM adapter")
+    val completionsPriorityCheckBox = JBCheckBox("Use fast/priority processing")
 
     private val providerCheckBoxes = QuotaSettingsState.SUBSCRIPTION_PROXY_SUPPORTED_PROVIDERS
         .associateWithTo(linkedMapOf()) { provider -> JBCheckBox(provider.displayName) }
@@ -120,6 +121,10 @@ internal class SubscriptionProxySettingsPanel(
     private val completionsRpmField = JBTextField().apply {
         columns = 6
         toolTipText = "Maximum FIM upstream requests per minute"
+    }
+    private val completionsTimeoutField = JBTextField().apply {
+        columns = 6
+        toolTipText = "Seconds before this plugin aborts a FIM request. JetBrains AI Completion waits 30s (5s to connect)."
     }
     private val fimIdeModelIdField = JBTextField(CompletionsConfig.FIM_ALIAS_ID).apply {
         isEditable = false
@@ -205,9 +210,11 @@ internal class SubscriptionProxySettingsPanel(
             updateProxyStatus()
         }
         completionsUseChatAdapterCheckBox.addItemListener { updateProxyStatus() }
+        completionsPriorityCheckBox.addItemListener { updateProxyStatus() }
         completionsModelCombo.addActionListener { updateProxyStatus() }
         onDocumentChange(completionsMaxTokensField) { updateProxyStatus() }
         onDocumentChange(completionsRpmField) { updateProxyStatus() }
+        onDocumentChange(completionsTimeoutField) { updateProxyStatus() }
 
         proxyEnabledCheckBox.addItemListener {
             updateProxyControlsEnabled()
@@ -313,6 +320,14 @@ internal class SubscriptionProxySettingsPanel(
                         cell(JBLabel("Max requests/min:")).gap(RightGap.SMALL)
                         cell(completionsRpmField)
                     }
+                    row("Timeout (seconds):") {
+                        cell(completionsTimeoutField)
+                            .comment("This plugin aborts after this many seconds (default ${CompletionsConfig.DEFAULT_TIMEOUT_SECONDS}, max ${CompletionsConfig.MAX_TIMEOUT_SECONDS}). JetBrains AI Completion's HTTP client waits 30s for the request (5s to connect). A new keystroke cancels the in-flight call.")
+                    }
+                    row {
+                        cell(completionsPriorityCheckBox)
+                            .comment("Sends service_tier=priority to Grok and Codex. About 2× usage. No effect on other backend models.")
+                    }
                     row {
                         cell(testFimButton).gap(RightGap.SMALL)
                         cell(completionsStatusLabel)
@@ -354,8 +369,10 @@ internal class SubscriptionProxySettingsPanel(
         proxyLogRequestsCheckBox.isSelected = settings.openAiProxyLogRequests
         completionsEnabledCheckBox.isSelected = settings.proxyCompletionsEnabled
         completionsUseChatAdapterCheckBox.isSelected = settings.proxyCompletionsUseChatAdapter
+        completionsPriorityCheckBox.isSelected = settings.proxyCompletionsPriorityTier
         completionsMaxTokensField.text = CompletionsConfig.clampMaxOutputTokens(settings.proxyCompletionsMaxOutputTokens).toString()
         completionsRpmField.text = CompletionsConfig.clampMaxRequestsPerMinute(settings.proxyCompletionsMaxRequestsPerMinute).toString()
+        completionsTimeoutField.text = CompletionsConfig.clampTimeoutSeconds(settings.proxyCompletionsTimeoutSeconds).toString()
         pendingCompletionsModelId = settings.proxyCompletionsModelId.trim()
         proxyPortField.text = OpenAiProxyService.sanitizePort(settings.openAiProxyPort).toString()
         loadProxyApiKeyField()
@@ -407,7 +424,9 @@ internal class SubscriptionProxySettingsPanel(
             completionsUseChatAdapterCheckBox.isSelected != state.proxyCompletionsUseChatAdapter ||
             selectedCompletionsModelId() != state.proxyCompletionsModelId.trim() ||
             completionsMaxOutputTokens() != CompletionsConfig.clampMaxOutputTokens(state.proxyCompletionsMaxOutputTokens) ||
-            completionsMaxRequestsPerMinute() != CompletionsConfig.clampMaxRequestsPerMinute(state.proxyCompletionsMaxRequestsPerMinute)
+            completionsMaxRequestsPerMinute() != CompletionsConfig.clampMaxRequestsPerMinute(state.proxyCompletionsMaxRequestsPerMinute) ||
+            completionsTimeoutSeconds() != CompletionsConfig.clampTimeoutSeconds(state.proxyCompletionsTimeoutSeconds) ||
+            completionsPriorityCheckBox.isSelected != state.proxyCompletionsPriorityTier
     }
 
     fun applyCompletionsSettings(state: QuotaSettingsState) {
@@ -416,6 +435,8 @@ internal class SubscriptionProxySettingsPanel(
         state.proxyCompletionsModelId = selectedCompletionsModelId()
         state.proxyCompletionsMaxOutputTokens = completionsMaxOutputTokens()
         state.proxyCompletionsMaxRequestsPerMinute = completionsMaxRequestsPerMinute()
+        state.proxyCompletionsTimeoutSeconds = completionsTimeoutSeconds()
+        state.proxyCompletionsPriorityTier = completionsPriorityCheckBox.isSelected
         pendingCompletionsModelId = state.proxyCompletionsModelId
     }
 
@@ -490,6 +511,9 @@ internal class SubscriptionProxySettingsPanel(
         completionsUseChatAdapterCheckBox.isEnabled = completionsEnabled
         completionsMaxTokensField.isEnabled = completionsEnabled
         completionsRpmField.isEnabled = completionsEnabled
+        completionsTimeoutField.isEnabled = completionsEnabled
+        completionsPriorityCheckBox.isEnabled =
+            completionsEnabled && FimModels.supportsPriorityTier(selectedCompletionsModelId())
         copyCompletionsModelButton.isEnabled = completionsEnabled
         testFimButton.isEnabled = completionsEnabled
         updateFimSetupStatus()
@@ -654,6 +678,12 @@ internal class SubscriptionProxySettingsPanel(
         val parsed = completionsRpmField.text.trim().toIntOrNull()
             ?: CompletionsConfig.DEFAULT_MAX_REQUESTS_PER_MINUTE
         return CompletionsConfig.clampMaxRequestsPerMinute(parsed)
+    }
+
+    private fun completionsTimeoutSeconds(): Int {
+        val parsed = completionsTimeoutField.text.trim().toIntOrNull()
+            ?: CompletionsConfig.DEFAULT_TIMEOUT_SECONDS
+        return CompletionsConfig.clampTimeoutSeconds(parsed)
     }
 
     private fun refreshCompletionsModelCombo(models: List<SubscriptionProxyModel>) {
