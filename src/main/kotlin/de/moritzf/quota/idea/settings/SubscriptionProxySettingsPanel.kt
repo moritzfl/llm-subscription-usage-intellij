@@ -141,7 +141,8 @@ internal class SubscriptionProxySettingsPanel(
             "API key: Copy API Key<br>" +
             "Model: ${CompletionsConfig.FIM_ALIAS_ID}<br>" +
             "Prompt schema: Auto (our model id ${CompletionsConfig.FIM_ALIAS_ID} is recognized as (fim) Qwen). Not Zeta/Sweep.<br>" +
-            "Switch the backend model here; leave the IDE model id unchanged.</body></html>",
+            "Switch the backend model here; leave the IDE model id unchanged.<br>" +
+            "Call Inline Completion can no-op when the model is overridden. Type, wait, or Find Action → Trigger Next Edit. Not Ctrl+Space.</body></html>",
     ).apply {
         foreground = JBColor.GRAY
     }
