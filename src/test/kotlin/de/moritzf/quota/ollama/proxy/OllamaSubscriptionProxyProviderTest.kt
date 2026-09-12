@@ -1,8 +1,11 @@
 package de.moritzf.quota.ollama.proxy
 
 import com.sun.net.httpserver.HttpServer
+import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.subscription.SubscriptionProxyServer
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -104,7 +107,75 @@ class OllamaSubscriptionProxyProviderTest {
         }
     }
 
-    private fun newProxy(upstreamBaseUri: URI): TestProxy {
+    @Test
+    fun mapsOpenAiV1BaseToGenerateUrl() {
+        assertEquals(
+            "https://ollama.com/api/generate",
+            OllamaSubscriptionProxyProvider.generateUrl(URI.create("https://ollama.com/v1")),
+        )
+        assertEquals(
+            "http://127.0.0.1:11434/api/generate",
+            OllamaSubscriptionProxyProvider.generateUrl(URI.create("http://127.0.0.1:11434/v1")),
+        )
+    }
+
+    @Test
+    fun convertsCompletionsBodyToGenerateRequest() {
+        val body = OllamaSubscriptionProxyProvider.toGenerateRequest(
+            buildJsonObject {
+                put("model", "qwen3-coder-next")
+                put("prompt", "fun add() {\n    return ")
+                put("suffix", "\n}")
+                put("max_tokens", 48)
+                put("stream", true)
+            },
+        )
+        assertEquals("qwen3-coder-next", body.jsonObject["model"]!!.jsonPrimitive.content)
+        assertEquals("fun add() {\n    return ", body.jsonObject["prompt"]!!.jsonPrimitive.content)
+        assertEquals("\n}", body.jsonObject["suffix"]!!.jsonPrimitive.content)
+        assertFalse(body.jsonObject["stream"]!!.jsonPrimitive.content.toBoolean())
+        assertEquals(48, body.jsonObject["options"]!!.jsonObject["num_predict"]!!.jsonPrimitive.content.toInt())
+    }
+
+    @Test
+    fun routesNativeCompletionsToGenerate() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(
+                upstream.baseUri,
+                completionsConfig = CompletionsConfig(
+                    enabled = true,
+                    modelLocalId = "ol-qwen3-coder-next",
+                    useChatAdapter = false,
+                ),
+            )
+            try {
+                proxy.server.start()
+                get(proxy.port, "/v1/models")
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+
+                val response = post(
+                    proxy.port,
+                    "/v1/completions",
+                    "{\"model\":\"qwen2.5-coder\",\"prompt\":\"fun add(a: Int, b: Int): Int {\\n    return \",\"suffix\":\"\\n}\\n\",\"stream\":false,\"max_tokens\":48}",
+                )
+
+                assertEquals(200, response.statusCode(), response.body())
+                val generate = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/api/generate", generate.path)
+                assertTrue(generate.body.contains("\"prompt\""), generate.body)
+                assertTrue(generate.body.contains("\"suffix\""), generate.body)
+                assertTrue(response.body().contains("\"text\""), response.body())
+                assertTrue(response.body().contains("a + b"), response.body())
+            } finally {
+                proxy.server.stop()
+            }
+        }
+    }
+
+    private fun newProxy(
+        upstreamBaseUri: URI,
+        completionsConfig: CompletionsConfig = CompletionsConfig.DISABLED,
+    ): TestProxy {
         val port = freePort()
         val provider = OllamaSubscriptionProxyProvider(
             apiKeyProvider = { "ollama-key" },
@@ -118,6 +189,7 @@ class OllamaSubscriptionProxyProviderTest {
                 localApiKeyProvider = { "local-key" },
                 providers = { listOf(provider) },
                 requestLogDir = Files.createTempDirectory("subscription-proxy-test-logs").toString(),
+                completionsConfig = { completionsConfig },
             ),
         )
     }
@@ -158,13 +230,16 @@ class OllamaSubscriptionProxyProviderTest {
                     headers = exchange.requestHeaders.mapValues { it.value.toList() },
                     body = body,
                 )
-                val responseBody = if (exchange.requestURI.rawPath.endsWith("/models")) {
+                val path = exchange.requestURI.rawPath
+                val responseBody = if (path.endsWith("/models")) {
                     "{\"object\":\"list\",\"data\":[" +
                         "{\"id\":\"llama3.3\",\"object\":\"model\"}," +
                         "{\"id\":\"gemma3:4b\",\"object\":\"model\"}," +
                         "{\"id\":\"qwen3-coder-next\",\"object\":\"model\"}," +
                         "{\"id\":\"nomic-embed-text\",\"object\":\"embedding\"}" +
                         "]}"
+                } else if (path.endsWith("/api/generate")) {
+                    "{\"model\":\"qwen3-coder-next\",\"response\":\"a + b\",\"done\":true}"
                 } else {
                     "{\"id\":\"chatcmpl_1\",\"choices\":[]}"
                 }
