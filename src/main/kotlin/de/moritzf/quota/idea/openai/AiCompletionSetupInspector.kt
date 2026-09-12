@@ -67,7 +67,7 @@ object AiCompletionSetupInspector {
             issues += "AI Completion provider is $selectedKind, not OpenAI Compatible."
         }
         if (schemaId.startsWith("zeta", ignoreCase = true) || schemaId.startsWith("sweep", ignoreCase = true)) {
-            issues += "Prompt schema is $schemaId (next-edit). FIM needs (fim) Qwen / Auto, not Zeta/Sweep."
+            issues += "Prompt schema is $schemaId. Set it to Auto."
         }
         if (nextEdits?.boolean("enabled") == false) {
             issues += "Next Edit suggestions are off. Turn them on under Editor → General → Code Completion → Inline."
@@ -86,11 +86,11 @@ object AiCompletionSetupInspector {
 
         val summary = when {
             !pluginFound ->
-                "JetBrains AI Assistant was not found. Install it to use official inline completion."
+                "JetBrains AI Assistant was not found. Install it to use AI Completion in the editor."
             !baseUrlFound && !modelFound ->
                 "AI Completion is not pointed at this proxy yet. Follow the setup steps above."
             baseUrlFound && modelFound && issues.isEmpty() ->
-                "AI Completion looks configured (proxy URL and $modelId). Our model id $modelId is recognized as (fim) Qwen. Type and wait for gray ghost text."
+                "AI Completion looks configured (proxy URL and $modelId). Type in the editor and wait for gray suggestions."
             baseUrlFound && modelFound ->
                 "AI Completion URL and model match, but: ${issues.joinToString(" ")}"
             baseUrlFound ->

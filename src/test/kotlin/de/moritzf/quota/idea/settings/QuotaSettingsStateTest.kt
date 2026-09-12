@@ -52,6 +52,15 @@ class QuotaSettingsStateTest {
     }
 
     @Test
+    fun completionsDefaultOnWhenProxyIsOn() {
+        val state = QuotaSettingsState()
+        assertTrue(state.proxyCompletionsEnabled)
+        assertFalse(state.completionsConfig().enabled)
+        state.openAiProxyEnabled = true
+        assertTrue(state.completionsConfig().enabled)
+    }
+
+    @Test
     fun completionsStayDisabledUntilProxyAndFimAreEnabled() {
         val state = QuotaSettingsState().apply {
             proxyCompletionsEnabled = true

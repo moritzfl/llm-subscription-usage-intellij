@@ -56,8 +56,10 @@ internal class SubscriptionProxySettingsPanel(
 ) : BorderLayoutPanel() {
     val proxyEnabledCheckBox = JBCheckBox("Enable local subscription proxy")
     val proxyLogRequestsCheckBox = JBCheckBox("Log requests and responses to disk")
-    val completionsEnabledCheckBox = JBCheckBox("Enable FIM completions endpoint (/v1/completions)")
-    val completionsUseChatAdapterCheckBox = JBCheckBox("Adapt chat models via FIM adapter")
+    val completionsEnabledCheckBox = JBCheckBox("Enable FIM (fill in middle) for code completions in the editor")
+    val completionsUseChatAdapterCheckBox = JBCheckBox("Use chat models for FIM").apply {
+        isSelected = true
+    }
     val completionsPriorityCheckBox = JBCheckBox("Use fast/priority processing")
 
     private val providerCheckBoxes = QuotaSettingsState.SUBSCRIPTION_PROXY_SUPPORTED_PROVIDERS
@@ -116,30 +118,30 @@ internal class SubscriptionProxySettingsPanel(
     }
     private val completionsMaxTokensField = JBTextField().apply {
         columns = 6
-        toolTipText = "Hard cap for FIM output tokens"
+        toolTipText = "Maximum length of an editor suggestion"
     }
     private val completionsRpmField = JBTextField().apply {
         columns = 6
-        toolTipText = "Maximum FIM upstream requests per minute"
+        toolTipText = "Maximum editor-suggestion requests per minute"
     }
     private val completionsTimeoutField = JBTextField().apply {
         columns = 6
-        toolTipText = "Seconds before this plugin aborts a FIM request. JetBrains AI Completion waits ${CompletionsConfig.JETBRAINS_AI_COMPLETION_REQUEST_TIMEOUT_SECONDS}s (${CompletionsConfig.JETBRAINS_AI_COMPLETION_CONNECT_TIMEOUT_SECONDS}s to connect)."
+        toolTipText = "Seconds before this plugin stops waiting for a suggestion. AI Completion also times out on its side."
     }
     private val fimIdeModelIdField = JBTextField(CompletionsConfig.FIM_ALIAS_ID).apply {
         isEditable = false
         columns = 24
-        toolTipText = "Paste this into JetBrains AI Completion → Model. It always maps to the backend model below."
+        toolTipText = "Model name on incoming AI Completion calls. The proxy forwards them to the subscription model below."
     }
     private val copyCompletionsModelButton = JButton("Copy", AllIcons.Actions.Copy).apply {
-        toolTipText = "Copy ${CompletionsConfig.FIM_ALIAS_ID} for JetBrains AI Completion → Model"
+        toolTipText = "Copy ${CompletionsConfig.FIM_ALIAS_ID} for AI Completion → Model"
         accessibleContext.accessibleName = "Copy IDE model id"
     }
-    private val testFimButton = JButton("Test FIM").apply {
-        toolTipText = "Send a sample completion request through the proxy"
+    private val testFimButton = JButton("Test AI Completion").apply {
+        toolTipText = "Send a sample editor suggestion through the proxy"
     }
     private val completionsHelpLabel = JBLabel(
-        "<html><body width='520'>Point JetBrains AI Completion at this proxy." +
+        "<html><body width='520'>Point AI Completion at this proxy." +
             "<ul>" +
             "<li>Provider: OpenAI Compatible</li>" +
             "<li>Base URL: Copy Base URL</li>" +
@@ -147,15 +149,14 @@ internal class SubscriptionProxySettingsPanel(
             "<li>Model: ${CompletionsConfig.FIM_ALIAS_ID}</li>" +
             "<li>Prompt schema: Auto</li>" +
             "</ul>" +
-            "Type and wait for gray ghost text.</body></html>",
+            "Then type in the editor and wait for gray suggestions.</body></html>",
     ).apply {
         foreground = JBColor.GRAY
     }
     private val completionsStatusLabel = JBLabel().apply { isVisible = false }
     private val fimSetupStatusLabel = JBLabel().apply { isVisible = false }
     private val proxyDescriptionLabel = JBLabel(
-        "<html><body width='520'>Use the copied base URL and API key in JetBrains AI Assistant, " +
-            "or in Junie CLI as a LiteLLM proxy.</body></html>",
+        "<html><body width='520'>Copy the URL and API key below into AI Assistant or Junie.</body></html>",
     ).apply {
         foreground = JBColor.GRAY
     }
@@ -241,7 +242,7 @@ internal class SubscriptionProxySettingsPanel(
         addToTop(panel {
             row {
                 cell(proxyEnabledCheckBox)
-                    .comment("Serves one OpenAI-compatible localhost API for selected subscription-backed providers.")
+                    .comment("Lets Junie, AI Assistant, and other JetBrains AI features use your ChatGPT, Grok, and similar subscriptions.")
             }
             row {
                 link("Open Providers & API keys") {
@@ -296,7 +297,7 @@ internal class SubscriptionProxySettingsPanel(
                 separator()
                 row {
                     cell(completionsEnabledCheckBox)
-                        .comment("Off by default. Official inline completion fires often and will use subscription quota.")
+                        .comment("Gray suggestions while you type, billed to your subscription. Nothing happens until AI Completion is pointed at this proxy.")
                 }
                 indent {
                     row {
@@ -309,21 +310,21 @@ internal class SubscriptionProxySettingsPanel(
                             .resizableColumn()
                             .align(AlignX.FILL)
                     }
-                    row("IDE model id:") {
+                    row("AI Completion model:") {
                         cell(fimIdeModelIdField)
                             .gap(RightGap.SMALL)
-                            .comment("Paste this into AI Completion → Model. Named like Qwen Coder so Auto picks (fim) Qwen.")
+                            .comment("Name AI Completion sends to this proxy. The proxy forwards those calls to the subscription model below.")
                         cell(copyCompletionsModelButton)
                     }
-                    row("Backend model:") {
+                    row("Subscription model:") {
                         cell(completionsModelCombo)
                             .resizableColumn()
                             .align(AlignX.FILL)
-                            .comment("Subscription model this plugin calls. Switch it here; keep the IDE model id as ${CompletionsConfig.FIM_ALIAS_ID}.")
+                            .comment("Where the proxy sends those incoming FIM calls. Change it here; keep the AI Completion model as ${CompletionsConfig.FIM_ALIAS_ID}.")
                     }
                     row {
                         cell(completionsUseChatAdapterCheckBox)
-                            .comment("On: translate FIM prompts to chat. Off: pass /v1/completions through for native infill models.")
+                            .comment("Most models do not support FIM. Leave this on so ChatGPT, Grok, and similar chat models can fill in code. Off: only native FIM models (some Ollama/Mistral coder models).")
                     }
                     row("Max output tokens:") {
                         cell(completionsMaxTokensField).gap(RightGap.SMALL)
@@ -332,11 +333,11 @@ internal class SubscriptionProxySettingsPanel(
                     }
                     row("Timeout (seconds):") {
                         cell(completionsTimeoutField)
-                            .comment("This plugin aborts after this many seconds (default ${CompletionsConfig.DEFAULT_TIMEOUT_SECONDS}, max ${CompletionsConfig.MAX_TIMEOUT_SECONDS}). JetBrains AI Completion waits ${CompletionsConfig.JETBRAINS_AI_COMPLETION_REQUEST_TIMEOUT_SECONDS}s for the HTTP request (${CompletionsConfig.JETBRAINS_AI_COMPLETION_CONNECT_TIMEOUT_SECONDS}s to connect). A new keystroke cancels the in-flight call.")
+                            .comment("This plugin stops waiting after this many seconds (default ${CompletionsConfig.DEFAULT_TIMEOUT_SECONDS}, max ${CompletionsConfig.MAX_TIMEOUT_SECONDS}). AI Completion also times out on its side. A new keystroke cancels the current suggestion.")
                     }
                     row {
                         cell(completionsPriorityCheckBox)
-                            .comment("Sends service_tier=priority to Grok and Codex. About 2× usage. No effect on other backend models.")
+                            .comment("Uses priority on Grok and Codex. About 2× quota. No effect on other models.")
                     }
                     row {
                         cell(testFimButton).gap(RightGap.SMALL)
@@ -351,7 +352,7 @@ internal class SubscriptionProxySettingsPanel(
         addToCenter(BorderLayoutPanel().apply {
             isOpaque = false
             border = JBUI.Borders.emptyTop(8)
-            addToTop(JBLabel("Advertised models:"))
+            addToTop(JBLabel("Models this proxy offers:"))
             addToCenter(JScrollPane(modelPreview).apply {
                 preferredSize = Dimension(1, JBUI.scale(180))
                 minimumSize = Dimension(1, JBUI.scale(120))
@@ -717,22 +718,22 @@ internal class SubscriptionProxySettingsPanel(
             isProxyLogRequestsModified() || isProviderSelectionModified() ||
             proxyEnabledCheckBox.isSelected != QuotaSettingsState.getInstance().openAiProxyEnabled
         ) {
-            Messages.showErrorDialog(this, "Apply settings before testing FIM.", "Test FIM")
+            Messages.showErrorDialog(this, "Apply settings before testing AI Completion.", "Test AI Completion")
             return
         }
         val settings = QuotaSettingsState.getInstance()
         if (!settings.proxyCompletionsEnabled || settings.proxyCompletionsModelId.isBlank()) {
-            Messages.showErrorDialog(this, "Enable FIM and select a completion model, then apply.", "Test FIM")
+            Messages.showErrorDialog(this, "Enable AI Completion and select a model, then apply.", "Test AI Completion")
             return
         }
         val status = OpenAiProxyService.getInstance().status()
         if (!status.running) {
-            Messages.showErrorDialog(this, "Proxy is not running.", "Test FIM")
+            Messages.showErrorDialog(this, "Proxy is not running.", "Test AI Completion")
             return
         }
         val apiKey = proxyApiKey()
         if (apiKey == null) {
-            Messages.showErrorDialog(this, "Local API key is missing.", "Test FIM")
+            Messages.showErrorDialog(this, "Local API key is missing.", "Test AI Completion")
             return
         }
         testFimButton.isEnabled = false
@@ -847,7 +848,7 @@ private class FimTestResultDialog(
     private val result: CompletionsFimTestResult,
 ) : DialogWrapper(parent, true) {
     init {
-        title = "Test FIM"
+        title = "Test AI Completion"
         init()
     }
 

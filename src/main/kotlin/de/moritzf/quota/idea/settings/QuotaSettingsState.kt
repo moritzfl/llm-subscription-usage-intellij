@@ -42,7 +42,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var openAiProxyEnabled: Boolean = false
     var openAiProxyPort: Int = OpenAiProxyService.DEFAULT_PORT
     var openAiProxyLogRequests: Boolean = false
-    var proxyCompletionsEnabled: Boolean = false
+    var proxyCompletionsEnabled: Boolean = true
     var proxyCompletionsModelId: String = ""
     var proxyCompletionsUseChatAdapter: Boolean = true
     var proxyCompletionsMaxOutputTokens: Int = CompletionsConfig.DEFAULT_MAX_OUTPUT_TOKENS

@@ -45,7 +45,7 @@
 ## Proxy Providers
 
 - Keep proxy behavior separate from MCP behavior. The proxy may normalize, transform, or adapt payloads for OpenAI, Anthropic, or LiteLLM compatibility.
-- The local proxy should preserve compatibility for `/v1/chat/completions`, `/v1/responses`, `/v1/completions` (FIM adapter, off by default), `/v1/models`, `/v1/model/info`, and their unprefixed route variants where supported.
+- The local proxy should preserve compatibility for `/v1/chat/completions`, `/v1/responses`, `/v1/completions` (FIM adapter, on when the proxy is on), `/v1/models`, `/v1/model/info`, and their unprefixed route variants where supported.
 - OpenAI/Codex model discovery is not authoritative enough for the advertised proxy list. Keep the curated OpenAI/Codex list aligned with the Codex UI unless a better authoritative endpoint is found.
 - For providers with usable official model endpoints, such as SuperGrok/xAI and GitHub Copilot, prefer live discovery over hardcoded model fallbacks.
 - `models.dev` may be used as a model catalog only when it explicitly separates subscription providers from API-key providers and the subscription provider has no usable first-party endpoint for discovering current subscription model IDs.

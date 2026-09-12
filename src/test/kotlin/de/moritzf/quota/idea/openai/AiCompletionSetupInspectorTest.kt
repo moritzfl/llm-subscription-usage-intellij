@@ -26,7 +26,7 @@ class AiCompletionSetupInspectorTest {
         assertTrue(report.baseUrlFound)
         assertTrue(report.modelFound)
         assertTrue(report.summary.contains("looks configured"))
-        assertTrue(report.summary.contains("(fim) Qwen"))
+        assertTrue(report.summary.contains("gray suggestions"))
     }
 
     @Test
