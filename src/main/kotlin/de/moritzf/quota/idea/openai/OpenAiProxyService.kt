@@ -5,6 +5,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.util.concurrency.AppExecutorUtil
+import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.proxy.subscription.SubscriptionModelCatalog
 import de.moritzf.proxy.subscription.SubscriptionProxyModel
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
@@ -118,6 +119,7 @@ class OpenAiProxyService(
                     providers = { providers },
                     fullRequestLogging = logRequests,
                     requestLogDir = requestLogDir().toString(),
+                    completionsConfig = { settingsProvider()?.completionsConfig() ?: CompletionsConfig.DISABLED },
                 )
                 proxyServer.start()
                 server = proxyServer

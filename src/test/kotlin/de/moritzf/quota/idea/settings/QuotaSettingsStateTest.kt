@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea.settings
 
+import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.quota.idea.common.QuotaProviderType
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -48,5 +49,27 @@ class QuotaSettingsStateTest {
         assertTrue(reloaded.isSubscriptionProxyProviderEnabled(QuotaProviderType.OPEN_AI))
         assertFalse(reloaded.isSubscriptionProxyProviderEnabled(QuotaProviderType.CURSOR))
         assertEquals(listOf(QuotaProviderType.GITHUB.id, QuotaProviderType.OPEN_AI.id), reloaded.subscriptionProxyEnabledProviders)
+    }
+
+    @Test
+    fun completionsStayDisabledUntilProxyAndFimAreEnabled() {
+        val state = QuotaSettingsState().apply {
+            proxyCompletionsEnabled = true
+            proxyCompletionsModelId = " oa-gpt-5.5 "
+            proxyCompletionsMaxOutputTokens = 9_999
+            proxyCompletionsMaxRequestsPerMinute = 0
+        }
+        val reloaded = QuotaSettingsState()
+        reloaded.loadState(state)
+
+        assertFalse(reloaded.completionsConfig().enabled)
+        assertEquals("oa-gpt-5.5", reloaded.proxyCompletionsModelId)
+        assertEquals(CompletionsConfig.MAX_OUTPUT_TOKENS, reloaded.proxyCompletionsMaxOutputTokens)
+        assertEquals(CompletionsConfig.MIN_REQUESTS_PER_MINUTE, reloaded.proxyCompletionsMaxRequestsPerMinute)
+
+        reloaded.openAiProxyEnabled = true
+        assertTrue(reloaded.completionsConfig().enabled)
+        assertEquals("oa-gpt-5.5", reloaded.completionsConfig().modelLocalId)
+        assertTrue(reloaded.completionsConfig().acceptsModel(CompletionsConfig.FIM_ALIAS_ID))
     }
 }

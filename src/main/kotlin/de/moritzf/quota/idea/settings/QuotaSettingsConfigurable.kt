@@ -505,6 +505,7 @@ class QuotaSettingsConfigurable : Configurable {
                 val proxyApiKeyChanged = proxyPanel.isProxyApiKeyModified()
                 val proxyLogRequestsChanged = proxyPanel.isProxyLogRequestsModified()
                 val proxyProviderSelectionChanged = proxyPanel.isProviderSelectionModified()
+                val proxyCompletionsChanged = proxyPanel.isCompletionsModified()
                 val gitHubPanel = gitHubPanel()
                 val gitHubEnterpriseHostChanged = selectedAccount?.providerType() == QuotaProviderType.GITHUB &&
                     gitHubPanel.normalizedEnterpriseHostForStorage() != state.githubHostFor(selectedAccount.id)
@@ -525,10 +526,11 @@ class QuotaSettingsConfigurable : Configurable {
                 state.openAiProxyPort = OpenAiProxyService.sanitizePort(proxyPanel.proxyPort())
                 state.openAiProxyLogRequests = proxyPanel.proxyLogRequestsCheckBox.isSelected
                 proxyPanel.applyProviderSelections(state)
+                proxyPanel.applyCompletionsSettings(state)
                 if (proxyApiKeyChanged) {
                     proxyPanel.saveProxyApiKeyBlocking()
                 }
-                if (locationChanged || displayModeChanged || sourceChanged || popupVisibilityChanged || miniMaxRegionChanged || accountsChanged || mcpSyncChanged || mcpTargetsChanged || proxyEnabledChanged || proxyPortChanged || proxyApiKeyChanged || proxyLogRequestsChanged || proxyProviderSelectionChanged || gitHubEnterpriseHostChanged) {
+                if (locationChanged || displayModeChanged || sourceChanged || popupVisibilityChanged || miniMaxRegionChanged || accountsChanged || mcpSyncChanged || mcpTargetsChanged || proxyEnabledChanged || proxyPortChanged || proxyApiKeyChanged || proxyLogRequestsChanged || proxyProviderSelectionChanged || proxyCompletionsChanged || gitHubEnterpriseHostChanged) {
                     ApplicationManager.getApplication().messageBus
                         .syncPublisher(QuotaSettingsListener.TOPIC)
                         .onSettingsChanged()
@@ -579,7 +581,8 @@ class QuotaSettingsConfigurable : Configurable {
                     proxySettingsPanel?.isProxyPortModified() == true ||
                     proxySettingsPanel?.isProxyApiKeyModified() == true ||
                     proxySettingsPanel?.isProxyLogRequestsModified() == true ||
-                    proxySettingsPanel?.isProviderSelectionModified() == true
+                    proxySettingsPanel?.isProviderSelectionModified() == true ||
+                    proxySettingsPanel?.isCompletionsModified() == true
             }
         }.apply {
             preferredFocusedComponent = locationComboBox

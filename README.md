@@ -115,14 +115,27 @@ The plugin can keep those configs pointed at the active endpoint: enable `Sync I
 
 ## OpenAI-compatible proxy
 
-The plugin can run a local proxy that exposes your subscriptions through standard OpenAI-compatible endpoints (`/v1/chat/completions`, `/v1/responses` where supported, `/v1/models`, plus LiteLLM-style `/v1/model/info`). Any tool that speaks the OpenAI API or expects a LiteLLM server can then use your subscriptions. Compatibility is tested with the Junie CLI and with JetBrains' own API Connections for AI features (such as the integrated AI chat).
+The plugin can run a local proxy that exposes your subscriptions through standard OpenAI-compatible endpoints (`/v1/chat/completions`, `/v1/responses` where supported, `/v1/completions` for FIM, `/v1/models`, plus LiteLLM-style `/v1/model/info`). Any tool that speaks the OpenAI API or expects a LiteLLM server can then use your subscriptions. Compatibility is tested with the Junie CLI and with JetBrains' own API Connections for AI features (such as the integrated AI chat).
 
 **Setup:** open the **Proxy** tab in `Settings` > `Tools` > `LLM Subscription Usage`, tick `Enable local subscription proxy`, choose the providers to expose, and apply. Then use `Copy Base URL` and `Copy API Key` to configure your client.
+
+**FIM / AI Completion:** the completions endpoint is off by default. Enable it on the Proxy tab, pick one completion model, and point JetBrains AI Completion at this proxy using the stable model id `FIM-Code-Completion`. Changing the underlying model in this plugin does not require changing the IDE completion model. Chat subscriptions are not native FIM models — leave **Adapt chat models via FIM adapter** on unless the selected model already infills via `/v1/completions` (some Ollama/Mistral coder models). Expect seconds of latency and quota use on chat models. Claude stays quota-only.
+
+Point JetBrains AI Completion at:
+
+- Settings → Tools → AI Assistant → Providers & API keys → AI Completion
+- Provider: OpenAI Compatible
+- Base URL: the copied proxy URL (no `/v1`)
+- API key: the copied local key
+- Model: `FIM-Code-Completion`
+- Prompt schema: Auto, or `(fim) DeepSeek` / Qwen if unrecognized
+
+Use **Test FIM** on the Proxy tab to send a sample completion and inspect the insert text. The same page tries to detect whether AI Completion already points at this proxy.
 
 **Good to know:**
 
 - Configure clients with the base URL **without** a `/v1` suffix (for example `http://127.0.0.1:14621`) — clients append `/v1/...` themselves, and all routes also answer unprefixed.
-- For JetBrains Junie, add the proxy as a LiteLLM provider with that base URL and the copied API key; available models are discovered automatically.
+- For JetBrains Junie, add the proxy as a LiteLLM provider with that base URL and the copied API key; available models are discovered automatically. Do not pick `FIM-Code-Completion` for Junie chat.
 - The API key is generated locally and stored in IntelliJ Password Safe. Provider credentials never leave the plugin's regular secure storage.
 - `Log requests and responses to disk` writes full request/response bodies to a temp folder for debugging. Off by default; logs are pruned automatically (7 days / 2000 files).
 

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Local proxy can expose `POST /v1/completions` as a FIM adapter for JetBrains AI Completion. Off by default. Pick one completion model on the Proxy tab and use the stable id `FIM-Code-Completion` in the IDE so switching models does not require reconfiguring AI Assistant. Chat models go through an optional FIM-to-chat adapter; native `/v1/completions` pass-through is available when the adapter is off. Includes Test FIM and a best-effort AI Completion setup check.
+
 ## [1.11.7] - 2026-09-09
 
 - MCP tools that take a project-relative `localFile` or `targetFile` (document-to-markdown, image, audio, video) now resolve that path in the project of the MCP call, like IntelliJ’s built-in file tools. They no longer pick the first open project in the IDE.

@@ -3,6 +3,7 @@ package de.moritzf.quota.idea.settings
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
@@ -16,6 +17,10 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.proxy.fim.CompletionsConfig
+import de.moritzf.proxy.fim.FimModels
+import de.moritzf.quota.idea.openai.AiCompletionSetupInspector
+import de.moritzf.quota.idea.openai.CompletionsFimTester
 import de.moritzf.quota.idea.openai.OpenAiProxyApiKeyStore
 import de.moritzf.quota.idea.openai.OpenAiProxyService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
@@ -28,8 +33,10 @@ import java.awt.datatransfer.StringSelection
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicLong
+import javax.swing.DefaultListCellRenderer
 import javax.swing.JButton
 import javax.swing.JComponent
+import javax.swing.JList
 import javax.swing.JScrollPane
 import javax.swing.ScrollPaneConstants
 import javax.swing.Timer
@@ -43,6 +50,8 @@ internal class SubscriptionProxySettingsPanel(
 ) : BorderLayoutPanel() {
     val proxyEnabledCheckBox = JBCheckBox("Enable local subscription proxy")
     val proxyLogRequestsCheckBox = JBCheckBox("Log requests and responses to disk")
+    val completionsEnabledCheckBox = JBCheckBox("Enable FIM completions endpoint (/v1/completions)")
+    val completionsUseChatAdapterCheckBox = JBCheckBox("Adapt chat models via FIM adapter")
 
     private val providerCheckBoxes = QuotaSettingsState.SUBSCRIPTION_PROXY_SUPPORTED_PROVIDERS
         .associateWithTo(linkedMapOf()) { provider -> JBCheckBox(provider.displayName) }
@@ -78,6 +87,64 @@ internal class SubscriptionProxySettingsPanel(
     private val proxyApiKeyHintLabel = JBLabel().apply { isVisible = false }
     private val providerStatusLabel = JBLabel().apply { isVisible = false }
     private val logsStatusLabel = JBLabel().apply { isVisible = false }
+    private val completionsModelCombo = ComboBox<String>().apply {
+        renderer = object : DefaultListCellRenderer() {
+            override fun getListCellRendererComponent(
+                list: JList<*>?,
+                value: Any?,
+                index: Int,
+                isSelected: Boolean,
+                cellHasFocus: Boolean,
+            ): java.awt.Component {
+                val label = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+                text = when {
+                    value == CompletionsConfig.FIM_ALIAS_ID -> CompletionsConfig.FIM_ALIAS_ID
+                    value is String && value.isNotBlank() -> value
+                    else -> "Select a model"
+                }
+                return label
+            }
+        }
+        prototypeDisplayValue = "sg-grok-4.6"
+    }
+    private val completionsMaxTokensField = JBTextField().apply {
+        columns = 6
+        toolTipText = "Hard cap for FIM output tokens"
+    }
+    private val completionsRpmField = JBTextField().apply {
+        columns = 6
+        toolTipText = "Maximum FIM upstream requests per minute"
+    }
+    private val copyCompletionsModelButton = JButton("Copy model id", AllIcons.Actions.Copy).apply {
+        toolTipText = "Copy ${CompletionsConfig.FIM_ALIAS_ID} for JetBrains AI Completion"
+    }
+    private val testFimButton = JButton("Test FIM").apply {
+        toolTipText = "Send a sample completion request through the proxy"
+    }
+    private val completionsHelpLabel = JBLabel(
+        "<html><body width='520'>Point JetBrains AI Completion at this proxy:<br>" +
+            "Settings → Tools → AI Assistant → Providers &amp; API keys → AI Completion<br>" +
+            "Provider: OpenAI Compatible<br>" +
+            "Base URL: Copy Base URL (no /v1)<br>" +
+            "API key: Copy API Key<br>" +
+            "Model: ${CompletionsConfig.FIM_ALIAS_ID}<br>" +
+            "Prompt schema: Auto, or (fim) DeepSeek / Qwen if unrecognized.<br>" +
+            "Switch the completion model here; leave the IDE model id unchanged.</body></html>",
+    ).apply {
+        foreground = JBColor.GRAY
+    }
+    private val completionsStatusLabel = JBLabel().apply { isVisible = false }
+    private val fimSetupStatusLabel = JBLabel().apply { isVisible = false }
+    private val fimTestResultArea = JBTextArea().apply {
+        isEditable = false
+        lineWrap = true
+        wrapStyleWord = true
+        rows = 4
+        font = Font(Font.MONOSPACED, Font.PLAIN, font.size)
+        margin = JBUI.insets(6)
+        text = ""
+        isVisible = false
+    }
     private val proxyDescriptionLabel = JBLabel(
         "<html><body width='520'>Use the copied base URL and API key to configure this proxy in JetBrains AI Assistant " +
             "under Providers and API keys, or in Junie CLI as a LiteLLM proxy.</body></html>",
@@ -99,6 +166,7 @@ internal class SubscriptionProxySettingsPanel(
         isRepeats = true
     }
     private val copiedFeedbackTimers = HashMap<JButton, Timer>()
+    private var pendingCompletionsModelId: String = ""
     private var savedProxyApiKey: String? = null
     private var proxyApiKeyLoading = false
     private var proxyApiKeyLoadError: String? = null
@@ -124,6 +192,19 @@ internal class SubscriptionProxySettingsPanel(
         showLogsButton.addActionListener {
             openRequestLogs()
         }
+        copyCompletionsModelButton.addActionListener {
+            copyToClipboard(CompletionsConfig.FIM_ALIAS_ID)
+            showCopiedFeedback(copyCompletionsModelButton)
+        }
+        testFimButton.addActionListener { testFim() }
+        completionsEnabledCheckBox.addItemListener {
+            updateProxyControlsEnabled()
+            updateProxyStatus()
+        }
+        completionsUseChatAdapterCheckBox.addItemListener { updateProxyStatus() }
+        completionsModelCombo.addActionListener { updateProxyStatus() }
+        onDocumentChange(completionsMaxTokensField) { updateProxyStatus() }
+        onDocumentChange(completionsRpmField) { updateProxyStatus() }
 
         proxyEnabledCheckBox.addItemListener {
             updateProxyControlsEnabled()
@@ -197,6 +278,47 @@ internal class SubscriptionProxySettingsPanel(
                 row {
                     cell(proxyStatusLabel)
                 }
+                separator()
+                row {
+                    cell(completionsEnabledCheckBox)
+                        .comment("Off by default. Official inline completion fires often and will use subscription quota.")
+                }
+                indent {
+                    row {
+                        cell(completionsHelpLabel)
+                            .resizableColumn()
+                            .align(AlignX.FILL)
+                    }
+                    row("Completion model:") {
+                        cell(completionsModelCombo)
+                            .resizableColumn()
+                            .align(AlignX.FILL)
+                            .gap(RightGap.SMALL)
+                        cell(copyCompletionsModelButton)
+                    }
+                    row {
+                        cell(completionsUseChatAdapterCheckBox)
+                            .comment("On: translate FIM prompts to chat. Off: pass /v1/completions through for native infill models.")
+                    }
+                    row("Max output tokens:") {
+                        cell(completionsMaxTokensField).gap(RightGap.SMALL)
+                        cell(JBLabel("Max requests/min:")).gap(RightGap.SMALL)
+                        cell(completionsRpmField)
+                    }
+                    row {
+                        cell(testFimButton).gap(RightGap.SMALL)
+                        cell(completionsStatusLabel)
+                    }
+                    row {
+                        cell(fimSetupStatusLabel)
+                    }
+                    row {
+                        cell(JScrollPane(fimTestResultArea).apply {
+                            preferredSize = Dimension(1, JBUI.scale(80))
+                            border = JBUI.Borders.emptyTop(4)
+                        }).resizableColumn().align(AlignX.FILL)
+                    }
+                }
             }
         })
         addToCenter(BorderLayoutPanel().apply {
@@ -228,6 +350,11 @@ internal class SubscriptionProxySettingsPanel(
         val settings = QuotaSettingsState.getInstance()
         proxyEnabledCheckBox.isSelected = settings.openAiProxyEnabled
         proxyLogRequestsCheckBox.isSelected = settings.openAiProxyLogRequests
+        completionsEnabledCheckBox.isSelected = settings.proxyCompletionsEnabled
+        completionsUseChatAdapterCheckBox.isSelected = settings.proxyCompletionsUseChatAdapter
+        completionsMaxTokensField.text = CompletionsConfig.clampMaxOutputTokens(settings.proxyCompletionsMaxOutputTokens).toString()
+        completionsRpmField.text = CompletionsConfig.clampMaxRequestsPerMinute(settings.proxyCompletionsMaxRequestsPerMinute).toString()
+        pendingCompletionsModelId = settings.proxyCompletionsModelId.trim()
         proxyPortField.text = OpenAiProxyService.sanitizePort(settings.openAiProxyPort).toString()
         loadProxyApiKeyField()
         updateProviderControls()
@@ -270,6 +397,24 @@ internal class SubscriptionProxySettingsPanel(
         savedProxyApiKey = apiKey
         proxyApiKeyLoadError = null
         updateProxyApiKeyHint()
+    }
+
+    fun isCompletionsModified(): Boolean {
+        val state = QuotaSettingsState.getInstance()
+        return completionsEnabledCheckBox.isSelected != state.proxyCompletionsEnabled ||
+            completionsUseChatAdapterCheckBox.isSelected != state.proxyCompletionsUseChatAdapter ||
+            selectedCompletionsModelId() != state.proxyCompletionsModelId.trim() ||
+            completionsMaxOutputTokens() != CompletionsConfig.clampMaxOutputTokens(state.proxyCompletionsMaxOutputTokens) ||
+            completionsMaxRequestsPerMinute() != CompletionsConfig.clampMaxRequestsPerMinute(state.proxyCompletionsMaxRequestsPerMinute)
+    }
+
+    fun applyCompletionsSettings(state: QuotaSettingsState) {
+        state.proxyCompletionsEnabled = completionsEnabledCheckBox.isSelected
+        state.proxyCompletionsUseChatAdapter = completionsUseChatAdapterCheckBox.isSelected
+        state.proxyCompletionsModelId = selectedCompletionsModelId()
+        state.proxyCompletionsMaxOutputTokens = completionsMaxOutputTokens()
+        state.proxyCompletionsMaxRequestsPerMinute = completionsMaxRequestsPerMinute()
+        pendingCompletionsModelId = state.proxyCompletionsModelId
     }
 
     fun applyProviderSelections(state: QuotaSettingsState) {
@@ -336,6 +481,15 @@ internal class SubscriptionProxySettingsPanel(
         copyProxyApiKeyButton.isEnabled = enabled && proxyApiKey() != null
         proxyLogRequestsCheckBox.isEnabled = enabled
         showLogsButton.isEnabled = enabled || Files.isDirectory(OpenAiProxyService.getInstance().requestLogDir())
+        val completionsEnabled = enabled && completionsEnabledCheckBox.isSelected
+        completionsEnabledCheckBox.isEnabled = enabled
+        completionsModelCombo.isEnabled = completionsEnabled
+        completionsUseChatAdapterCheckBox.isEnabled = completionsEnabled
+        completionsMaxTokensField.isEnabled = completionsEnabled
+        completionsRpmField.isEnabled = completionsEnabled
+        copyCompletionsModelButton.isEnabled = completionsEnabled
+        testFimButton.isEnabled = completionsEnabled
+        updateFimSetupStatus()
     }
 
     fun updateProxyStatus() {
@@ -362,8 +516,8 @@ internal class SubscriptionProxySettingsPanel(
             setProxyStatus("Apply settings to start the proxy at ${OpenAiProxyService.localBaseUrl(requestedPort)}", ProxyRunState.PENDING)
             return
         }
-        if (configuredPort != requestedPort || isProxyApiKeyModified() || isProxyLogRequestsModified() || isProviderSelectionModified()) {
-            setProxyStatus("Apply settings to restart the proxy with the updated configuration", ProxyRunState.PENDING)
+        if (configuredPort != requestedPort || isProxyApiKeyModified() || isProxyLogRequestsModified() || isProviderSelectionModified() || isCompletionsModified()) {
+            setProxyStatus("Apply settings to update the proxy configuration", ProxyRunState.PENDING)
             return
         }
 
@@ -383,7 +537,10 @@ internal class SubscriptionProxySettingsPanel(
             ApplicationManager.getApplication().invokeLater({
                 if (generation != modelPreviewGeneration.get()) return@invokeLater
                 modelPreview.text = result.fold(
-                    onSuccess = ::formatModelPreview,
+                    onSuccess = { models ->
+                        refreshCompletionsModelCombo(models)
+                        formatModelPreview(models)
+                    },
                     onFailure = { error -> "Could not load models: ${error.message ?: error::class.java.simpleName}" },
                 )
                 modelPreview.setCaretPosition(0)
@@ -478,6 +635,98 @@ internal class SubscriptionProxySettingsPanel(
         proxyApiKeyHintLabel.foreground = if (isError) UIUtil.getErrorForeground() else UIUtil.getContextHelpForeground()
         proxyApiKeyHintLabel.text = hint.orEmpty()
         proxyApiKeyHintLabel.isVisible = hint != null
+    }
+
+    private fun selectedCompletionsModelId(): String {
+        return (completionsModelCombo.selectedItem as? String)?.trim().orEmpty()
+    }
+
+    private fun completionsMaxOutputTokens(): Int {
+        val parsed = completionsMaxTokensField.text.trim().toIntOrNull()
+            ?: CompletionsConfig.DEFAULT_MAX_OUTPUT_TOKENS
+        return CompletionsConfig.clampMaxOutputTokens(parsed)
+    }
+
+    private fun completionsMaxRequestsPerMinute(): Int {
+        val parsed = completionsRpmField.text.trim().toIntOrNull()
+            ?: CompletionsConfig.DEFAULT_MAX_REQUESTS_PER_MINUTE
+        return CompletionsConfig.clampMaxRequestsPerMinute(parsed)
+    }
+
+    private fun refreshCompletionsModelCombo(models: List<SubscriptionProxyModel>) {
+        val eligible = models.filter(FimModels::isEligible).map { it.localId }.distinct()
+        val selected = selectedCompletionsModelId().ifBlank { pendingCompletionsModelId }
+        completionsModelCombo.removeAllItems()
+        eligible.forEach { completionsModelCombo.addItem(it) }
+        when {
+            selected.isNotBlank() && eligible.contains(selected) -> completionsModelCombo.selectedItem = selected
+            selected.isNotBlank() -> {
+                completionsModelCombo.addItem(selected)
+                completionsModelCombo.selectedItem = selected
+            }
+            else -> completionsModelCombo.selectedItem = null
+        }
+        pendingCompletionsModelId = selectedCompletionsModelId()
+    }
+
+    private fun testFim() {
+        if (isCompletionsModified() || isProxyPortModified() || isProxyApiKeyModified() ||
+            isProxyLogRequestsModified() || isProviderSelectionModified() ||
+            proxyEnabledCheckBox.isSelected != QuotaSettingsState.getInstance().openAiProxyEnabled
+        ) {
+            showFimTestResult("Apply settings before testing FIM.")
+            return
+        }
+        val settings = QuotaSettingsState.getInstance()
+        if (!settings.proxyCompletionsEnabled || settings.proxyCompletionsModelId.isBlank()) {
+            showFimTestResult("Enable FIM and select a completion model, then apply.")
+            return
+        }
+        val status = OpenAiProxyService.getInstance().status()
+        if (!status.running) {
+            showFimTestResult("Proxy is not running.")
+            return
+        }
+        val apiKey = proxyApiKey()
+        if (apiKey == null) {
+            showFimTestResult("Local API key is missing.")
+            return
+        }
+        testFimButton.isEnabled = false
+        showFimTestResult("Testing FIM against ${CompletionsConfig.FIM_ALIAS_ID}...")
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val result = CompletionsFimTester.test(status.baseUrl, apiKey)
+            ApplicationManager.getApplication().invokeLater({
+                showFimTestResult(result)
+                updateProxyControlsEnabled()
+            }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
+        }
+    }
+
+    private fun showFimTestResult(text: String) {
+        fimTestResultArea.text = text
+        fimTestResultArea.isVisible = true
+        fimTestResultArea.caretPosition = 0
+        completionsStatusLabel.text = "Sample completion finished"
+        completionsStatusLabel.foreground = UIUtil.getContextHelpForeground()
+        completionsStatusLabel.isVisible = true
+    }
+
+    private fun updateFimSetupStatus() {
+        if (!proxyEnabledCheckBox.isSelected || !completionsEnabledCheckBox.isSelected) {
+            fimSetupStatusLabel.isVisible = false
+            return
+        }
+        val status = OpenAiProxyService.getInstance().status()
+        val report = AiCompletionSetupInspector.inspect(status.baseUrl, CompletionsConfig.FIM_ALIAS_ID)
+        val state = when {
+            report.baseUrlFound && report.modelFound -> ProxyRunState.RUNNING
+            report.pluginFound -> ProxyRunState.PENDING
+            else -> ProxyRunState.OFF
+        }
+        fimSetupStatusLabel.text =
+            "<html><span style=\"color: ${state.colorHex}\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(report.summary)}</html>"
+        fimSetupStatusLabel.isVisible = true
     }
 
     private fun openRequestLogs() {

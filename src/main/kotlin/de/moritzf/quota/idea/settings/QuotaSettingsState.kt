@@ -7,6 +7,7 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaSnapshotCache
 import de.moritzf.quota.idea.mcp.McpServerSyncTarget
 import de.moritzf.quota.idea.mcp.McpServerTransport
+import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.quota.idea.openai.OpenAiProxyService
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorLocation
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorSource
@@ -41,6 +42,11 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var openAiProxyEnabled: Boolean = false
     var openAiProxyPort: Int = OpenAiProxyService.DEFAULT_PORT
     var openAiProxyLogRequests: Boolean = false
+    var proxyCompletionsEnabled: Boolean = false
+    var proxyCompletionsModelId: String = ""
+    var proxyCompletionsUseChatAdapter: Boolean = true
+    var proxyCompletionsMaxOutputTokens: Int = CompletionsConfig.DEFAULT_MAX_OUTPUT_TOKENS
+    var proxyCompletionsMaxRequestsPerMinute: Int = CompletionsConfig.DEFAULT_MAX_REQUESTS_PER_MINUTE
     var subscriptionProxyEnabledProviders: MutableList<String> = DEFAULT_SUBSCRIPTION_PROXY_PROVIDERS.toMutableList()
     var subscriptionProxyModelCatalogJsons: MutableMap<String, String> = mutableMapOf()
     var githubEnterpriseHost: String = ""
@@ -73,6 +79,12 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         openAiProxyEnabled = state.openAiProxyEnabled
         openAiProxyPort = OpenAiProxyService.sanitizePort(state.openAiProxyPort.takeIf { it > 0 } ?: OpenAiProxyService.DEFAULT_PORT)
         openAiProxyLogRequests = state.openAiProxyLogRequests
+        proxyCompletionsEnabled = state.proxyCompletionsEnabled
+        proxyCompletionsModelId = state.proxyCompletionsModelId.trim()
+        proxyCompletionsUseChatAdapter = state.proxyCompletionsUseChatAdapter
+        proxyCompletionsMaxOutputTokens = CompletionsConfig.clampMaxOutputTokens(state.proxyCompletionsMaxOutputTokens)
+        proxyCompletionsMaxRequestsPerMinute =
+            CompletionsConfig.clampMaxRequestsPerMinute(state.proxyCompletionsMaxRequestsPerMinute)
         subscriptionProxyEnabledProviders = sanitizeSubscriptionProxyProviders(state.subscriptionProxyEnabledProviders).toMutableList()
         subscriptionProxyModelCatalogJsons = state.subscriptionProxyModelCatalogJsons.toMutableMap()
         githubEnterpriseHost = state.githubEnterpriseHost.trim()
@@ -239,6 +251,16 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
             subscriptionProxyEnabledProviders.remove(provider.id)
         }
         subscriptionProxyEnabledProviders = sanitizeSubscriptionProxyProviders(subscriptionProxyEnabledProviders).toMutableList()
+    }
+
+    fun completionsConfig(): CompletionsConfig {
+        return CompletionsConfig(
+            enabled = openAiProxyEnabled && proxyCompletionsEnabled,
+            modelLocalId = proxyCompletionsModelId.trim(),
+            useChatAdapter = proxyCompletionsUseChatAdapter,
+            maxOutputTokens = CompletionsConfig.clampMaxOutputTokens(proxyCompletionsMaxOutputTokens),
+            maxRequestsPerMinute = CompletionsConfig.clampMaxRequestsPerMinute(proxyCompletionsMaxRequestsPerMinute),
+        )
     }
 
     fun enabledSubscriptionProxyProviders(): Set<QuotaProviderType> {
