@@ -23,6 +23,43 @@ class ChatFimPromptBuilderTest {
         assertTrue(prompt.contains("<CURSOR>"))
         assertTrue(prompt.contains("<code_after_cursor>\n\n}\n</code_after_cursor>"))
         assertFalse(prompt.contains("<|fim_prefix|>"))
+        assertFalse(prompt.contains("inside a comment"))
+    }
+
+    @Test
+    fun allowsClosingWhenCommentEndsAfterCursor() {
+        val prompt = ChatFimPromptBuilder.userPrompt(
+            FimContext(
+                schema = FimSchema.QWEN,
+                prefix = "/**\n * Returns ",
+                suffix = "\n */\nfun add() {}",
+                filePath = "src/Main.kt",
+                languageHint = "kt",
+            ),
+        )
+
+        assertTrue(prompt.contains("The comment ends after the cursor"))
+        assertTrue(prompt.contains("closing it is fine"))
+        assertFalse(prompt.contains("do not close it"))
+        assertTrue(ChatFimPromptBuilder.SYSTEM_PROMPT.contains("KDoc"))
+        assertTrue(ChatFimPromptBuilder.SYSTEM_PROMPT.contains("no more comment follows"))
+    }
+
+    @Test
+    fun forbidsClosingWhenCommentContinuesAfterCursor() {
+        val prompt = ChatFimPromptBuilder.userPrompt(
+            FimContext(
+                schema = FimSchema.QWEN,
+                prefix = "/**\n * Returns ",
+                suffix = "\n * the sum of a and b.\n */\nfun add() {}",
+                filePath = "src/Main.kt",
+                languageHint = "kt",
+            ),
+        )
+
+        assertTrue(prompt.contains("More comment follows after the cursor"))
+        assertTrue(prompt.contains("do not close it"))
+        assertFalse(prompt.contains("closing it is fine"))
     }
 
     @Test

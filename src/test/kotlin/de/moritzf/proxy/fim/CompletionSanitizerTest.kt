@@ -49,6 +49,52 @@ class CompletionSanitizerTest {
     }
 
     @Test
+    fun stripsTrailingCommentCloserEcho() {
+        val prefix = "/**\n * Returns "
+        val suffix = "\n */\nfun add(int: Int, other: Int): Int {\n    return int + other\n}\n"
+        val raw = "the sum of two integers.\n */"
+
+        assertEquals(
+            "the sum of two integers.",
+            CompletionSanitizer.sanitize(raw, prefix = prefix, suffix = suffix),
+        )
+    }
+
+    @Test
+    fun keepsKdocProseWhenCursorIsInComment() {
+        val prefix = "/**\n * Returns "
+        val raw = "the sum of the two integer addends together.\n *\n * @param int first addend.\n * @param other second addend.\n * @return combined value."
+
+        assertEquals(raw, CompletionSanitizer.sanitize(raw, prefix = prefix))
+        assertEquals("", CompletionSanitizer.sanitize(raw))
+    }
+
+    @Test
+    fun stillRejectsApologyInsideComment() {
+        val prefix = "/**\n * Returns "
+        val raw = "Sure, here is a docstring:\nthe sum"
+
+        assertEquals("", CompletionSanitizer.sanitize(raw, prefix = prefix))
+    }
+
+    @Test
+    fun detectsWhetherCommentContinuesAfterCursor() {
+        assertEquals(false, CompletionSanitizer.commentContinuesAfterCursor("\n */\nfun add() {}"))
+        assertEquals(false, CompletionSanitizer.commentContinuesAfterCursor("\nfun add() {}"))
+        assertEquals(true, CompletionSanitizer.commentContinuesAfterCursor("\n * the sum of a and b.\n */"))
+        assertEquals(true, CompletionSanitizer.commentContinuesAfterCursor("\n// more\nfun add() {}"))
+    }
+
+    @Test
+    fun dropsBlankLineStopOutsideCommentsOnly() {
+        val stops = CompletionSanitizer.effectiveStops("fun add() {\n    return ", listOf("\n\n", "<|fim_middle|>"))
+        val commentStops = CompletionSanitizer.effectiveStops("/**\n * Returns ", listOf("\n\n", "<|fim_middle|>"))
+
+        assertEquals(true, "\n\n" in stops)
+        assertEquals(false, "\n\n" in commentStops)
+    }
+
+    @Test
     fun streamingHoldsThenEmitsSanitizedText() {
         val sanitizer = StreamingCompletionSanitizer(
             prefix = "",

@@ -1,6 +1,7 @@
 package de.moritzf.proxy.server
 
 import de.moritzf.proxy.fim.ChatFimPromptBuilder
+import de.moritzf.proxy.fim.CompletionSanitizer
 import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.proxy.fim.CompletionsGuard
 import de.moritzf.proxy.fim.CompletionsRequest
@@ -212,7 +213,11 @@ class CompletionsHandler(
             return
         }
         guard.noteSuccess(key)
-        val sanitizer = StreamingCompletionSanitizer(fim.prefix, fim.suffix, parsed.stop)
+        val sanitizer = StreamingCompletionSanitizer(
+            fim.prefix,
+            fim.suffix,
+            CompletionSanitizer.effectiveStops(fim.prefix, parsed.stop),
+        )
         if (parsed.stream || isEventStream(upstream)) {
             val text = writeChatStream(ctx, upstream, sanitizer, completionId, created, advertised)
             guard.publish(key, producerJob, text)
@@ -411,12 +416,13 @@ class CompletionsHandler(
             maxTokens: Int,
             temperature: Double,
         ): JsonObject {
-            val stops = (request.stop + de.moritzf.proxy.fim.CompletionSanitizer.INTERNAL_STOPS).distinct()
+            val stops = CompletionSanitizer.effectiveStops(fim.prefix, request.stop)
             return buildJsonObject {
                 put("model", modelId)
                 put("stream", request.stream)
                 put("temperature", temperature)
                 put("max_tokens", maxTokens)
+                put("reasoning_effort", "low")
                 put("messages", buildJsonArray {
                     add(buildJsonObject {
                         put("role", "system")

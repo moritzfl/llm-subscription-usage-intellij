@@ -26,14 +26,15 @@ object CompletionSanitizer {
         }
         text = dropPrefixOverlap(text, prefix)
         text = dropSuffixOverlap(text, suffix)
-        if (looksLikeExplanation(text)) return ""
+        if (looksLikeExplanation(text, prefix)) return ""
         return text
     }
 
-    fun looksLikeExplanation(text: String): Boolean {
+    fun looksLikeExplanation(text: String, prefix: String = ""): Boolean {
         val trimmed = text.trimStart()
         if (trimmed.isEmpty()) return false
         if (APOLOGY_START.containsMatchIn(trimmed)) return true
+        if (isCommentHole(prefix)) return false
         val lines = text.lines()
         if (lines.size > 4) {
             val prose = lines.any { line ->
@@ -46,6 +47,32 @@ object CompletionSanitizer {
             if (prose) return true
         }
         return false
+    }
+
+    fun isCommentHole(prefix: String): Boolean {
+        val line = prefix.lineSequence().lastOrNull { it.isNotBlank() } ?: return false
+        val trimmed = line.trimStart()
+        return trimmed.startsWith("//") ||
+            trimmed.startsWith("/*") ||
+            trimmed.startsWith("*") ||
+            trimmed.startsWith("#") ||
+            trimmed.startsWith("--")
+    }
+
+    fun commentContinuesAfterCursor(suffix: String): Boolean {
+        val line = suffix.lineSequence().firstOrNull { it.isNotBlank() } ?: return false
+        val trimmed = line.trimStart()
+        if (trimmed.startsWith("*/") || trimmed.startsWith("-->")) return false
+        return trimmed.startsWith("*") ||
+            trimmed.startsWith("//") ||
+            trimmed.startsWith("/*") ||
+            trimmed.startsWith("#") ||
+            trimmed.startsWith("--")
+    }
+
+    fun effectiveStops(prefix: String, clientStops: List<String>): List<String> {
+        val stops = (clientStops + INTERNAL_STOPS).distinct()
+        return if (isCommentHole(prefix)) stops.filter { it != "\n\n" } else stops
     }
 
     fun cutAtStopSequence(text: String, stopSequences: List<String>): StopCut? {
@@ -98,8 +125,11 @@ object CompletionSanitizer {
     internal fun dropSuffixOverlap(output: String, suffix: String): String {
         if (output.isEmpty() || suffix.isEmpty()) return output
         val max = minOf(64, output.length, suffix.length)
-        for (n in max downTo 8) {
+        for (n in max downTo 2) {
             if (output.startsWith(suffix.take(n))) return output.drop(n)
+        }
+        for (n in max downTo 2) {
+            if (output.endsWith(suffix.take(n))) return output.dropLast(n)
         }
         return output
     }
