@@ -139,23 +139,23 @@ internal class SubscriptionProxySettingsPanel(
         toolTipText = "Send a sample completion request through the proxy"
     }
     private val completionsHelpLabel = JBLabel(
-        "<html><body width='520'>Point JetBrains AI Completion at this proxy:<br>" +
-            "Settings → Tools → AI Assistant → Providers &amp; API keys → AI Completion<br>" +
-            "Provider: OpenAI Compatible<br>" +
-            "Base URL: Copy Base URL (no /v1)<br>" +
-            "API key: Copy API Key<br>" +
-            "Model: ${CompletionsConfig.FIM_ALIAS_ID}<br>" +
-            "Prompt schema: Auto (our model id ${CompletionsConfig.FIM_ALIAS_ID} is recognized as (fim) Qwen). Not Zeta/Sweep.<br>" +
-            "Switch the backend model here; leave the IDE model id unchanged.<br>" +
-            "Type and wait for gray ghost text. Call Inline Completion often does nothing with this custom model — Find Action → Trigger Next Edit. Not Ctrl+Space.</body></html>",
+        "<html><body width='520'>Point JetBrains AI Completion at this proxy." +
+            "<ul>" +
+            "<li>Provider: OpenAI Compatible</li>" +
+            "<li>Base URL: Copy Base URL</li>" +
+            "<li>API key: Copy API Key</li>" +
+            "<li>Model: ${CompletionsConfig.FIM_ALIAS_ID}</li>" +
+            "<li>Prompt schema: Auto</li>" +
+            "</ul>" +
+            "Type and wait for gray ghost text.</body></html>",
     ).apply {
         foreground = JBColor.GRAY
     }
     private val completionsStatusLabel = JBLabel().apply { isVisible = false }
     private val fimSetupStatusLabel = JBLabel().apply { isVisible = false }
     private val proxyDescriptionLabel = JBLabel(
-        "<html><body width='520'>Use the copied base URL and API key to configure this proxy in JetBrains AI Assistant " +
-            "under Providers and API keys, or in Junie CLI as a LiteLLM proxy.</body></html>",
+        "<html><body width='520'>Use the copied base URL and API key in JetBrains AI Assistant, " +
+            "or in Junie CLI as a LiteLLM proxy.</body></html>",
     ).apply {
         foreground = JBColor.GRAY
     }
@@ -244,6 +244,11 @@ internal class SubscriptionProxySettingsPanel(
                     .comment("Serves one OpenAI-compatible localhost API for selected subscription-backed providers.")
             }
             row {
+                link("Open Providers & API keys") {
+                    AiAssistantSettingsNavigator.openProvidersAndApiKeys(this@SubscriptionProxySettingsPanel)
+                }
+            }
+            row {
                 cell(proxyDescriptionLabel)
                     .resizableColumn()
                     .align(AlignX.FILL)
@@ -294,6 +299,11 @@ internal class SubscriptionProxySettingsPanel(
                         .comment("Off by default. Official inline completion fires often and will use subscription quota.")
                 }
                 indent {
+                    row {
+                        link("Open AI Completion settings") {
+                            AiAssistantSettingsNavigator.openAiCompletion(this@SubscriptionProxySettingsPanel)
+                        }
+                    }
                     row {
                         cell(completionsHelpLabel)
                             .resizableColumn()

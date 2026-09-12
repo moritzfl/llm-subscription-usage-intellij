@@ -90,7 +90,7 @@ object AiCompletionSetupInspector {
             !baseUrlFound && !modelFound ->
                 "AI Completion is not pointed at this proxy yet. Follow the setup steps above."
             baseUrlFound && modelFound && issues.isEmpty() ->
-                "AI Completion looks configured (proxy URL and $modelId). Our model id $modelId is recognized as (fim) Qwen. Type and wait for gray ghost text. Call Inline Completion often does nothing with a custom OpenAI-compatible model — use Trigger Next Edit."
+                "AI Completion looks configured (proxy URL and $modelId). Our model id $modelId is recognized as (fim) Qwen. Type and wait for gray ghost text."
             baseUrlFound && modelFound ->
                 "AI Completion URL and model match, but: ${issues.joinToString(" ")}"
             baseUrlFound ->

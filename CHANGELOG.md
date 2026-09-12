@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 - Local proxy can expose `POST /v1/completions` as a FIM adapter for JetBrains AI Completion. Off by default. Pick one completion model on the Proxy tab and use the stable id `qwen2.5-coder` in the IDE (JetBrains Auto maps that name to `(fim) Qwen`) so switching models does not require reconfiguring AI Assistant. Chat models go through an optional FIM-to-chat adapter; native `/v1/completions` pass-through is available when the adapter is off. Test FIM shows the sample hole, the insert, and the assembled snippet. Best-effort AI Completion setup check.
+- FIM setup help is a field list (provider, base URL, API key, model, prompt schema Auto). No “not Zeta/Sweep”, “no /v1”, or Call Inline Completion warnings.
+- Proxy tab links into JetBrains AI Assistant: Providers & API keys, and AI Completion.
 
 ## [1.11.7] - 2026-09-09
 
