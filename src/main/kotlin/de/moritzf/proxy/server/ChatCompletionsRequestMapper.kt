@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 
 internal class ChatCompletionsRequestMapper(
@@ -149,6 +150,10 @@ internal class ChatCompletionsRequestMapper(
             val reasoning = createObjectNode()
             reasoning.put("effort", modelAliasResolver.clampReasoningEffort(model, requestedEffort))
             upstream.set("reasoning", reasoning)
+        }
+        val serviceTier = (chatBody["service_tier"] as? JsonPrimitive)?.contentOrNull?.trim()
+        if (!serviceTier.isNullOrEmpty()) {
+            upstream.put("service_tier", serviceTier)
         }
 
         return upstream

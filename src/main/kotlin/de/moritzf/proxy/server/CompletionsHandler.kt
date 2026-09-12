@@ -176,7 +176,14 @@ class CompletionsHandler(
         key: String,
         producerJob: Job?,
     ) {
-        val chatBody = chatBody(model.localId, parsed, fim, maxTokens, temperature)
+        val chatBody = chatBody(
+            model.localId,
+            parsed,
+            fim,
+            maxTokens,
+            temperature,
+            priorityTier = cfg.priorityTier && FimModels.supportsPriorityTier(model),
+        )
         val payload = JsonHelper.encodeToString(chatBody)
         val apiKey = localApiKey()?.takeIf { it.isNotBlank() }
         if (apiKey == null) {
@@ -415,6 +422,7 @@ class CompletionsHandler(
             fim: FimContext,
             maxTokens: Int,
             temperature: Double,
+            priorityTier: Boolean = false,
         ): JsonObject {
             val stops = CompletionSanitizer.effectiveStops(fim.prefix, request.stop)
             return buildJsonObject {
@@ -423,6 +431,7 @@ class CompletionsHandler(
                 put("temperature", temperature)
                 put("max_tokens", maxTokens)
                 put("reasoning_effort", "low")
+                if (priorityTier) put("service_tier", CompletionsConfig.SERVICE_TIER_PRIORITY)
                 put("messages", buildJsonArray {
                     add(buildJsonObject {
                         put("role", "system")

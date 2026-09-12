@@ -15,4 +15,15 @@ object FimModels {
                 route == SubscriptionProxyRoute.COMPLETIONS
         }
     }
+
+    fun supportsPriorityTier(model: SubscriptionProxyModel): Boolean {
+        return supportsPriorityTier(model.localId, model.providerId)
+    }
+
+    fun supportsPriorityTier(localId: String, providerId: String = ""): Boolean {
+        val provider = providerId.trim().lowercase()
+        if (provider == "supergrok" || provider == "openai") return true
+        val id = localId.trim().lowercase()
+        return id.startsWith("sg-") || id.startsWith("oa-")
+    }
 }
