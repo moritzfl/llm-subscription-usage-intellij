@@ -722,7 +722,7 @@ internal class SubscriptionProxySettingsPanel(
             else -> ProxyRunState.OFF
         }
         fimSetupStatusLabel.text =
-            "<html><span style=\"color: ${state.colorHex}\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(report.summary)}</html>"
+            "<html><body width='520'><span style=\"color: ${state.colorHex}\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(report.summary)}</body></html>"
         fimSetupStatusLabel.isVisible = true
     }
 

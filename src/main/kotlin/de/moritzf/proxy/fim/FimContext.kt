@@ -13,4 +13,15 @@ data class FimContext(
     val repoName: String? = null,
     val languageHint: String? = null,
     val extraFiles: List<FimFileSlice> = emptyList(),
-)
+) {
+    fun fingerprint(): String {
+        var hash = schema.hashCode()
+        hash = 31 * hash + prefix.hashCode()
+        hash = 31 * hash + suffix.hashCode()
+        extraFiles.forEach { slice ->
+            hash = 31 * hash + slice.path.hashCode()
+            hash = 31 * hash + slice.content.hashCode()
+        }
+        return "$hash:${prefix.length}:${suffix.length}"
+    }
+}

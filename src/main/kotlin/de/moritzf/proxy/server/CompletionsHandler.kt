@@ -87,20 +87,37 @@ class CompletionsHandler(
         }
         val job = coroutineContext[Job]
         val key = ctx.getAttribute(ProxyCallAttributes.KEY_FINGERPRINT) ?: "local"
-        when (val decision = guard.tryStart(key, cfg, job)) {
-            is GuardDecision.Skip -> {
-                LOG.debug("Skipping FIM completion: {}", decision.reason)
-                writeEmptyCompletion(ctx, parsed.stream, advertisedModel(cfg, parsed), requestId)
-                return
-            }
-            GuardDecision.Allow -> Unit
-        }
         val fim = CompletionsGuard.budget(FimPromptParser.parse(parsed.prompt, parsed.suffix), cfg.maxPromptChars)
         val maxTokens = CompletionsGuard.clampMaxTokens(parsed.maxTokens, cfg)
         val temperature = (parsed.temperature ?: DEFAULT_TEMPERATURE).coerceIn(0.0, MAX_TEMPERATURE)
         val completionId = completionId(requestId)
         val created = System.currentTimeMillis() / 1000L
         val advertised = advertisedModel(cfg, parsed)
+        when (
+            val decision = guard.tryStart(
+                key = key,
+                config = cfg,
+                job = job,
+                fingerprint = fim.fingerprint(),
+                coalesce = cfg.strategy == CompletionsStrategy.CHAT_FIM,
+            )
+        ) {
+            is GuardDecision.Skip -> {
+                LOG.debug("Skipping FIM completion: {}", decision.reason)
+                writeEmptyCompletion(ctx, parsed.stream, advertised, requestId)
+                return
+            }
+            is GuardDecision.Join -> {
+                val text = try {
+                    withTimeout(cfg.timeoutMillis) { decision.result.await() }
+                } catch (_: TimeoutCancellationException) {
+                    ""
+                }
+                writeCompletion(ctx, parsed.stream, advertised, requestId, text)
+                return
+            }
+            GuardDecision.Allow -> Unit
+        }
         try {
             withTimeout(cfg.timeoutMillis) {
                 if (cfg.strategy == CompletionsStrategy.CHAT_FIM) {
@@ -117,6 +134,7 @@ class CompletionsHandler(
                         advertised = advertised,
                         requestId = requestId,
                         key = key,
+                        producerJob = job,
                     )
                 } else {
                     handleNative(ctx, models, model, body, maxTokens, requestId)
@@ -155,6 +173,7 @@ class CompletionsHandler(
         advertised: String,
         requestId: String,
         key: String,
+        producerJob: Job?,
     ) {
         val chatBody = chatBody(model.localId, parsed, fim, maxTokens, temperature)
         val payload = JsonHelper.encodeToString(chatBody)
@@ -195,10 +214,12 @@ class CompletionsHandler(
         guard.noteSuccess(key)
         val sanitizer = StreamingCompletionSanitizer(fim.prefix, fim.suffix, parsed.stop)
         if (parsed.stream || isEventStream(upstream)) {
-            writeChatStream(ctx, upstream, sanitizer, completionId, created, advertised)
+            val text = writeChatStream(ctx, upstream, sanitizer, completionId, created, advertised)
+            guard.publish(key, producerJob, text)
         } else {
             val raw = upstream.body().use { JsonHelper.readUtf8Body(it) }
             val text = sanitizer.push(chatMessageContent(raw)) + sanitizer.finish()
+            guard.publish(key, producerJob, text)
             JsonHelper.toJsonResponse(ctx, textCompletionJson(completionId, created, advertised, text))
         }
     }
@@ -244,7 +265,8 @@ class CompletionsHandler(
         id: String,
         created: Long,
         model: String,
-    ) {
+    ): String {
+        val assembled = StringBuilder()
         JsonHelper.setSseHeaders(ctx)
         ctx.setStatus(200)
         ctx.call.respondOutputStream(ContentType.parse(JsonHelper.SSE_CONTENT_TYPE), HttpStatusCode.OK) {
@@ -255,22 +277,24 @@ class CompletionsHandler(
                     if (line.startsWith("data:")) {
                         val data = line.substringAfter("data:").trim()
                         if (data == "[DONE]") {
-                            writeFinish(ctx, this, sanitizer, id, created, model)
+                            assembled.append(writeFinish(ctx, this, sanitizer, id, created, model))
                             return@use
                         }
                         val delta = chatDeltaContent(data)
                         if (delta != null) {
                             val extra = sanitizer.push(delta)
                             if (extra.isNotEmpty()) {
+                                assembled.append(extra)
                                 writeSseData(ctx, this, textCompletionChunk(id, created, model, extra, null))
                             }
                         }
                     }
                 }
-                writeFinish(ctx, this, sanitizer, id, created, model)
+                assembled.append(writeFinish(ctx, this, sanitizer, id, created, model))
             }
         }
         ctx.handled = true
+        return assembled.toString()
     }
 
     private fun writeFinish(
@@ -280,7 +304,7 @@ class CompletionsHandler(
         id: String,
         created: Long,
         model: String,
-    ) {
+    ): String {
         val extra = sanitizer.finish()
         if (extra.isNotEmpty()) {
             writeSseData(ctx, output, textCompletionChunk(id, created, model, extra, null))
@@ -290,6 +314,37 @@ class CompletionsHandler(
         output.write(done)
         AccessLogFields.addResponseBytes(ctx, done.size.toLong())
         output.flush()
+        return extra
+    }
+
+    private suspend fun writeCompletion(
+        ctx: ProxyCall,
+        stream: Boolean,
+        model: String,
+        requestId: String,
+        text: String,
+    ) {
+        if (text.isEmpty()) {
+            writeEmptyCompletion(ctx, stream, model, requestId)
+            return
+        }
+        val id = completionId(requestId)
+        val created = System.currentTimeMillis() / 1000L
+        if (stream) {
+            JsonHelper.setSseHeaders(ctx)
+            ctx.setStatus(200)
+            ctx.call.respondOutputStream(ContentType.parse(JsonHelper.SSE_CONTENT_TYPE), HttpStatusCode.OK) {
+                writeSseData(ctx, this, textCompletionChunk(id, created, model, text, null))
+                writeSseData(ctx, this, textCompletionChunk(id, created, model, "", "stop"))
+                val done = "data: [DONE]\n\n".toByteArray(StandardCharsets.UTF_8)
+                write(done)
+                AccessLogFields.addResponseBytes(ctx, done.size.toLong())
+                flush()
+            }
+            ctx.handled = true
+        } else {
+            JsonHelper.toJsonResponse(ctx, textCompletionJson(id, created, model, text))
+        }
     }
 
     private suspend fun writeEmptyCompletion(ctx: ProxyCall, stream: Boolean, model: String, requestId: String) {

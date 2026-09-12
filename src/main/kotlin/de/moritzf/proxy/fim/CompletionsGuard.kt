@@ -2,24 +2,38 @@ package de.moritzf.proxy.fim
 
 import java.util.ArrayDeque
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 
 class CompletionsGuard(
     private val clock: () -> Long = { System.currentTimeMillis() },
 ) {
-    private val inFlight = ConcurrentHashMap<String, Job>()
+    private val inFlight = ConcurrentHashMap<String, InFlight>()
     private val lastStartMillis = ConcurrentHashMap<String, Long>()
     private val requestTimes = ConcurrentHashMap<String, ArrayDeque<Long>>()
     private val circuitOpenUntil = ConcurrentHashMap<String, Long>()
     private val quotaErrors = ConcurrentHashMap<String, Int>()
 
-    fun tryStart(key: String, config: CompletionsConfig, job: Job?): GuardDecision {
+    fun tryStart(
+        key: String,
+        config: CompletionsConfig,
+        job: Job?,
+        fingerprint: String = "",
+        coalesce: Boolean = true,
+    ): GuardDecision {
         if (!config.enabled) return GuardDecision.Skip("disabled")
         if (config.modelLocalId.isBlank()) return GuardDecision.Skip("no-model")
         val now = clock()
         val openUntil = circuitOpenUntil[key]
         if (openUntil != null && now < openUntil) {
             return GuardDecision.Skip("circuit-open")
+        }
+        if (coalesce) {
+            val existing = inFlight[key]
+            if (existing != null && existing.job.isActive && existing.fingerprint == fingerprint) {
+                return GuardDecision.Join(existing.result)
+            }
         }
         val last = lastStartMillis[key]
         if (last != null && now - last < config.minIntervalMillis) {
@@ -36,18 +50,31 @@ class CompletionsGuard(
             window.addLast(now)
         }
         if (job != null) {
-            val previous = inFlight.put(key, job)
-            if (previous != null && previous.isActive) {
-                previous.cancel()
+            val next = InFlight(fingerprint = fingerprint, job = job, result = CompletableDeferred())
+            val previous = inFlight.put(key, next)
+            if (previous != null && previous.job.isActive && previous.job !== job) {
+                previous.job.cancel()
             }
+            previous?.result?.complete("")
         }
         lastStartMillis[key] = now
         return GuardDecision.Allow
     }
 
+    fun publish(key: String, job: Job?, text: String) {
+        val current = inFlight[key] ?: return
+        if (job != null && current.job !== job) return
+        current.result.complete(text)
+    }
+
     fun finish(key: String, job: Job?) {
         inFlight.computeIfPresent(key) { _, current ->
-            if (job == null || current === job) null else current
+            if (job == null || current.job === job) {
+                current.result.complete("")
+                null
+            } else {
+                current
+            }
         }
     }
 
@@ -62,6 +89,12 @@ class CompletionsGuard(
     fun noteSuccess(key: String) {
         quotaErrors.remove(key)
     }
+
+    private data class InFlight(
+        val fingerprint: String,
+        val job: Job,
+        val result: CompletableDeferred<String>,
+    )
 
     companion object {
         const val CIRCUIT_ERROR_THRESHOLD = 3
@@ -99,4 +132,5 @@ class CompletionsGuard(
 sealed class GuardDecision {
     data object Allow : GuardDecision()
     data class Skip(val reason: String) : GuardDecision()
+    data class Join(val result: Deferred<String>) : GuardDecision()
 }
