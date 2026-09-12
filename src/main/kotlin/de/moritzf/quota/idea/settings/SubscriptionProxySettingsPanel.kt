@@ -115,8 +115,14 @@ internal class SubscriptionProxySettingsPanel(
         columns = 6
         toolTipText = "Maximum FIM upstream requests per minute"
     }
-    private val copyCompletionsModelButton = JButton("Copy model id", AllIcons.Actions.Copy).apply {
-        toolTipText = "Copy ${CompletionsConfig.FIM_ALIAS_ID} for JetBrains AI Completion"
+    private val fimIdeModelIdField = JBTextField(CompletionsConfig.FIM_ALIAS_ID).apply {
+        isEditable = false
+        columns = 24
+        toolTipText = "Paste this into JetBrains AI Completion → Model. It always maps to the backend model below."
+    }
+    private val copyCompletionsModelButton = JButton("Copy", AllIcons.Actions.Copy).apply {
+        toolTipText = "Copy ${CompletionsConfig.FIM_ALIAS_ID} for JetBrains AI Completion → Model"
+        accessibleContext.accessibleName = "Copy IDE model id"
     }
     private val testFimButton = JButton("Test FIM").apply {
         toolTipText = "Send a sample completion request through the proxy"
@@ -128,8 +134,9 @@ internal class SubscriptionProxySettingsPanel(
             "Base URL: Copy Base URL (no /v1)<br>" +
             "API key: Copy API Key<br>" +
             "Model: ${CompletionsConfig.FIM_ALIAS_ID}<br>" +
-            "Prompt schema: Auto, or (fim) DeepSeek / Qwen if unrecognized.<br>" +
-            "Switch the completion model here; leave the IDE model id unchanged.</body></html>",
+            "Prompt schema: Auto (this id is recognized as (fim) Qwen). Not Zeta/Sweep.<br>" +
+            "Switch the backend model here; leave the IDE model id unchanged.<br>" +
+            "Test FIM asks the model to finish <code>fun add(a, b)</code> at the cursor. A result like <code>a + b</code> is a good fill-in.</body></html>",
     ).apply {
         foreground = JBColor.GRAY
     }
@@ -137,9 +144,9 @@ internal class SubscriptionProxySettingsPanel(
     private val fimSetupStatusLabel = JBLabel().apply { isVisible = false }
     private val fimTestResultArea = JBTextArea().apply {
         isEditable = false
-        lineWrap = true
-        wrapStyleWord = true
-        rows = 4
+        lineWrap = false
+        wrapStyleWord = false
+        rows = 12
         font = Font(Font.MONOSPACED, Font.PLAIN, font.size)
         margin = JBUI.insets(6)
         text = ""
@@ -289,12 +296,17 @@ internal class SubscriptionProxySettingsPanel(
                             .resizableColumn()
                             .align(AlignX.FILL)
                     }
-                    row("Completion model:") {
+                    row("IDE model id:") {
+                        cell(fimIdeModelIdField)
+                            .gap(RightGap.SMALL)
+                            .comment("Paste this into AI Completion → Model. Named like Qwen Coder so Auto picks (fim) Qwen.")
+                        cell(copyCompletionsModelButton)
+                    }
+                    row("Backend model:") {
                         cell(completionsModelCombo)
                             .resizableColumn()
                             .align(AlignX.FILL)
-                            .gap(RightGap.SMALL)
-                        cell(copyCompletionsModelButton)
+                            .comment("Subscription model LSU calls. Switch it here; keep the IDE model id as ${CompletionsConfig.FIM_ALIAS_ID}.")
                     }
                     row {
                         cell(completionsUseChatAdapterCheckBox)
@@ -314,8 +326,11 @@ internal class SubscriptionProxySettingsPanel(
                     }
                     row {
                         cell(JScrollPane(fimTestResultArea).apply {
-                            preferredSize = Dimension(1, JBUI.scale(80))
+                            preferredSize = Dimension(1, JBUI.scale(180))
+                            minimumSize = Dimension(1, JBUI.scale(120))
                             border = JBUI.Borders.emptyTop(4)
+                            horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED
+                            verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
                         }).resizableColumn().align(AlignX.FILL)
                     }
                 }
@@ -484,6 +499,7 @@ internal class SubscriptionProxySettingsPanel(
         val completionsEnabled = enabled && completionsEnabledCheckBox.isSelected
         completionsEnabledCheckBox.isEnabled = enabled
         completionsModelCombo.isEnabled = completionsEnabled
+        fimIdeModelIdField.isEnabled = completionsEnabled
         completionsUseChatAdapterCheckBox.isEnabled = completionsEnabled
         completionsMaxTokensField.isEnabled = completionsEnabled
         completionsRpmField.isEnabled = completionsEnabled
@@ -674,41 +690,41 @@ internal class SubscriptionProxySettingsPanel(
             isProxyLogRequestsModified() || isProviderSelectionModified() ||
             proxyEnabledCheckBox.isSelected != QuotaSettingsState.getInstance().openAiProxyEnabled
         ) {
-            showFimTestResult("Apply settings before testing FIM.")
+            showFimTestResult("Apply settings first", "Apply settings before testing FIM.", error = true)
             return
         }
         val settings = QuotaSettingsState.getInstance()
         if (!settings.proxyCompletionsEnabled || settings.proxyCompletionsModelId.isBlank()) {
-            showFimTestResult("Enable FIM and select a completion model, then apply.")
+            showFimTestResult("Not ready", "Enable FIM and select a completion model, then apply.", error = true)
             return
         }
         val status = OpenAiProxyService.getInstance().status()
         if (!status.running) {
-            showFimTestResult("Proxy is not running.")
+            showFimTestResult("Proxy off", "Proxy is not running.", error = true)
             return
         }
         val apiKey = proxyApiKey()
         if (apiKey == null) {
-            showFimTestResult("Local API key is missing.")
+            showFimTestResult("No API key", "Local API key is missing.", error = true)
             return
         }
         testFimButton.isEnabled = false
-        showFimTestResult("Testing FIM against ${CompletionsConfig.FIM_ALIAS_ID}...")
+        showFimTestResult("Testing…", "Sending sample fill-in for fun add(a, b) at the cursor…", error = false)
         ApplicationManager.getApplication().executeOnPooledThread {
             val result = CompletionsFimTester.test(status.baseUrl, apiKey)
             ApplicationManager.getApplication().invokeLater({
-                showFimTestResult(result)
+                showFimTestResult(result.status, result.report, error = !result.ok)
                 updateProxyControlsEnabled()
             }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
         }
     }
 
-    private fun showFimTestResult(text: String) {
-        fimTestResultArea.text = text
+    private fun showFimTestResult(status: String, report: String, error: Boolean) {
+        fimTestResultArea.text = report
         fimTestResultArea.isVisible = true
         fimTestResultArea.caretPosition = 0
-        completionsStatusLabel.text = "Sample completion finished"
-        completionsStatusLabel.foreground = UIUtil.getContextHelpForeground()
+        completionsStatusLabel.text = status
+        completionsStatusLabel.foreground = if (error) UIUtil.getErrorForeground() else UIUtil.getContextHelpForeground()
         completionsStatusLabel.isVisible = true
     }
 

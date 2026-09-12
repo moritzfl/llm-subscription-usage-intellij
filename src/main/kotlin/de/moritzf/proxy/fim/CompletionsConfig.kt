@@ -21,7 +21,7 @@ data class CompletionsConfig(
     }
 
     companion object {
-        const val FIM_ALIAS_ID = "FIM-Code-Completion"
+        const val FIM_ALIAS_ID = "qwen2.5-coder"
         const val DEFAULT_MAX_OUTPUT_TOKENS = 128
         const val MIN_OUTPUT_TOKENS = 16
         const val MAX_OUTPUT_TOKENS = 512

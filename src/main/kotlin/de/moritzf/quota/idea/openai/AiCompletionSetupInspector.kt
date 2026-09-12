@@ -40,7 +40,7 @@ object AiCompletionSetupInspector {
             !baseUrlFound && !modelFound ->
                 "AI Completion is not pointed at this proxy yet. Follow the setup steps above."
             baseUrlFound && modelFound ->
-                "AI Completion looks configured (proxy URL and $modelId found in IDE settings)."
+                "AI Completion looks configured (proxy URL and $modelId). Auto should pick (fim) Qwen."
             baseUrlFound ->
                 "Proxy URL found in IDE settings, but the model is not $modelId."
             else ->
