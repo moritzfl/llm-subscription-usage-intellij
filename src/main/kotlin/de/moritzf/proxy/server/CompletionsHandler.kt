@@ -138,7 +138,7 @@ class CompletionsHandler(
                         producerJob = job,
                     )
                 } else {
-                    handleNative(ctx, models, model, body, maxTokens, requestId)
+                    handleNative(ctx, models, model, parsed, fim, maxTokens, requestId)
                 }
             }
         } catch (timeout: TimeoutCancellationException) {
@@ -240,7 +240,8 @@ class CompletionsHandler(
         ctx: ProxyCall,
         catalog: SubscriptionModelCatalog,
         model: SubscriptionProxyModel,
-        body: JsonObject,
+        parsed: CompletionsRequest,
+        fim: FimContext,
         maxTokens: Int,
         requestId: String,
     ) {
@@ -248,24 +249,13 @@ class CompletionsHandler(
             JsonHelper.toErrorResponse(ctx, "Provider for ${model.localId} is not configured.", 503, "configuration_error")
             return
         }
-        val nativeBody = buildJsonObject {
-            body.forEach { (key, value) ->
-                when (key) {
-                    "model" -> put("model", model.localId)
-                    "max_tokens", "max_completion_tokens" -> put(key, maxTokens)
-                    else -> put(key, value)
-                }
-            }
-            if ("model" !in body) put("model", model.localId)
-            if ("max_tokens" !in body) put("max_tokens", maxTokens)
-        }
         provider.handle(
             ctx,
             SubscriptionProxyRequest(
                 route = SubscriptionProxyRoute.COMPLETIONS,
                 requestId = requestId,
                 model = model,
-                body = nativeBody,
+                body = nativeBody(model.localId, parsed, fim, maxTokens),
             ),
         )
     }
@@ -414,6 +404,28 @@ class CompletionsHandler(
                 ?: catalog.resolve(selectedId, SubscriptionProxyRoute.RESPONSES)
                 ?: catalog.resolve(selectedId, SubscriptionProxyRoute.COMPLETIONS)
                 ?: catalog.models.firstOrNull { it.localId == selectedId }
+        }
+
+        internal fun nativeBody(
+            modelId: String,
+            request: CompletionsRequest,
+            fim: FimContext,
+            maxTokens: Int,
+        ): JsonObject {
+            val stops = CompletionSanitizer.effectiveStops(fim.prefix, request.stop)
+            return buildJsonObject {
+                put("model", modelId)
+                put("prompt", fim.prefix)
+                put("stream", request.stream)
+                put("max_tokens", maxTokens)
+                if (fim.suffix.isNotEmpty()) put("suffix", fim.suffix)
+                request.temperature?.let { put("temperature", it.coerceIn(0.0, MAX_TEMPERATURE)) }
+                if (stops.isNotEmpty()) {
+                    put("stop", buildJsonArray {
+                        stops.forEach { add(JsonPrimitive(it)) }
+                    })
+                }
+            }
         }
 
         internal fun chatBody(
