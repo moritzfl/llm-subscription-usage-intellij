@@ -133,7 +133,8 @@ class OpenAiCodexSubscriptionProxyProvider(
                 400,
                 "invalid_request_error",
             )
-            SubscriptionProxyRoute.COMPLETIONS -> JsonHelper.toErrorResponse(
+            SubscriptionProxyRoute.COMPLETIONS,
+            SubscriptionProxyRoute.FIM_COMPLETIONS -> JsonHelper.toErrorResponse(
                 ctx,
                 "OpenAI/Codex does not support native /v1/completions. Enable the chat-FIM adapter.",
                 400,

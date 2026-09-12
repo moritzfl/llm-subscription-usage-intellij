@@ -30,6 +30,11 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
     private val staticModels: List<StaticModel> = emptyList(),
     private val discoverModels: Boolean = true,
     private val supportedRoutes: Set<SubscriptionProxyRoute> = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS),
+    private val nativeCompletionsRoute: SubscriptionProxyRoute = SubscriptionProxyRoute.COMPLETIONS,
+    private val upstreamRouteProvider: (SubscriptionProxyRequest) -> SubscriptionProxyRoute = { it.route },
+    private val upstreamUrlProvider: (SubscriptionProxyRequest) -> String? = { null },
+    private val requestBodyTransformer: (SubscriptionProxyRequest, JsonObject) -> JsonObject = { _, body -> body },
+    private val jsonResponseTransformer: ((SubscriptionProxyRequest, String) -> String)? = null,
     private val modelTransformer: (StaticModel) -> StaticModel = { it },
     private val defaultHeaders: Map<String, String> = DEFAULT_HEADERS,
     private val httpClient: HttpClient = HttpClient.newBuilder()
@@ -46,6 +51,18 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
         accessTokenProvider = apiKeyProvider,
         modelMappingsProvider = ::modelMappings,
         defaultHeaders = defaultHeaders,
+        upstreamRouteProvider = { request ->
+            val routed =
+                if (request.route == SubscriptionProxyRoute.COMPLETIONS) {
+                    request.copy(route = nativeCompletionsRoute)
+                } else {
+                    request
+                }
+            upstreamRouteProvider(routed)
+        },
+        upstreamUrlProvider = upstreamUrlProvider,
+        requestBodyTransformer = requestBodyTransformer,
+        jsonResponseTransformer = jsonResponseTransformer,
         httpClient = httpClient,
         requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir)),
     )

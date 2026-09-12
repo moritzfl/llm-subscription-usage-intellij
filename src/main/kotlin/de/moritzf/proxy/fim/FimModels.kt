@@ -12,7 +12,8 @@ object FimModels {
         return model.supportedRoutes.any { route ->
             route == SubscriptionProxyRoute.CHAT_COMPLETIONS ||
                 route == SubscriptionProxyRoute.RESPONSES ||
-                route == SubscriptionProxyRoute.COMPLETIONS
+                route == SubscriptionProxyRoute.COMPLETIONS ||
+                route == SubscriptionProxyRoute.FIM_COMPLETIONS
         }
     }
 

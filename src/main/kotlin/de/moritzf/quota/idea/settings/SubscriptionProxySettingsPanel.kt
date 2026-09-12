@@ -124,7 +124,7 @@ internal class SubscriptionProxySettingsPanel(
     }
     private val completionsTimeoutField = JBTextField().apply {
         columns = 6
-        toolTipText = "Seconds before this plugin aborts a FIM request. JetBrains AI Completion waits 30s (5s to connect)."
+        toolTipText = "Seconds before this plugin aborts a FIM request. JetBrains AI Completion waits ${CompletionsConfig.JETBRAINS_AI_COMPLETION_REQUEST_TIMEOUT_SECONDS}s (${CompletionsConfig.JETBRAINS_AI_COMPLETION_CONNECT_TIMEOUT_SECONDS}s to connect)."
     }
     private val fimIdeModelIdField = JBTextField(CompletionsConfig.FIM_ALIAS_ID).apply {
         isEditable = false
@@ -322,7 +322,7 @@ internal class SubscriptionProxySettingsPanel(
                     }
                     row("Timeout (seconds):") {
                         cell(completionsTimeoutField)
-                            .comment("This plugin aborts after this many seconds (default ${CompletionsConfig.DEFAULT_TIMEOUT_SECONDS}, max ${CompletionsConfig.MAX_TIMEOUT_SECONDS}). JetBrains AI Completion's HTTP client waits 30s for the request (5s to connect). A new keystroke cancels the in-flight call.")
+                            .comment("This plugin aborts after this many seconds (default ${CompletionsConfig.DEFAULT_TIMEOUT_SECONDS}, max ${CompletionsConfig.MAX_TIMEOUT_SECONDS}). JetBrains AI Completion waits ${CompletionsConfig.JETBRAINS_AI_COMPLETION_REQUEST_TIMEOUT_SECONDS}s for the HTTP request (${CompletionsConfig.JETBRAINS_AI_COMPLETION_CONNECT_TIMEOUT_SECONDS}s to connect). A new keystroke cancels the in-flight call.")
                     }
                     row {
                         cell(completionsPriorityCheckBox)

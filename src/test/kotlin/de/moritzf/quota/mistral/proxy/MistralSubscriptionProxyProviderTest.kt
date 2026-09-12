@@ -1,6 +1,7 @@
 package de.moritzf.quota.mistral.proxy
 
 import com.sun.net.httpserver.HttpServer
+import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.subscription.SubscriptionProxyServer
 import java.net.InetAddress
@@ -33,7 +34,7 @@ class MistralSubscriptionProxyProviderTest {
                 assertEquals(200, modelsResponse.statusCode())
                 val ids = JsonHelper.JSON.parseToJsonElement(modelsResponse.body()).jsonObject["data"]!!.jsonArray
                     .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertEquals(listOf("mi-mistral-small-latest"), ids)
+                assertEquals(listOf("mi-mistral-small-latest", "mi-codestral-latest"), ids)
                 assertEquals("/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
 
                 val chatResponse = post(
@@ -78,7 +79,57 @@ class MistralSubscriptionProxyProviderTest {
         }
     }
 
-    private fun newProxy(upstreamBaseUri: URI): TestProxy {
+    @Test
+    fun convertsChatShapedFimReplyToTextCompletion() {
+        val raw = "{\"id\":\"fim_1\",\"object\":\"chat.completion\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"a + b\"},\"finish_reason\":\"stop\"}]}"
+        val converted = MistralSubscriptionProxyProvider.toTextCompletion(raw)
+        assertTrue(converted.contains("\"text\":\"a + b\""), converted)
+        assertTrue(converted.contains("\"object\":\"text_completion\""), converted)
+        assertTrue(!converted.contains("\"message\""), converted)
+    }
+
+    @Test
+    fun routesNativeCompletionsToMistralFimEndpoint() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(
+                upstream.baseUri,
+                completionsConfig = CompletionsConfig(
+                    enabled = true,
+                    modelLocalId = "mi-codestral-latest",
+                    useChatAdapter = false,
+                ),
+            )
+            try {
+                proxy.server.start()
+                get(proxy.port, "/v1/models")
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+
+                val response = post(
+                    proxy.port,
+                    "/v1/completions",
+                    "{\"model\":\"qwen2.5-coder\",\"prompt\":\"fun add(a: Int, b: Int): Int {\\n    return \",\"suffix\":\"\\n}\\n\",\"stream\":false,\"max_tokens\":48}",
+                )
+
+                assertEquals(200, response.statusCode(), response.body())
+                val fimRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/fim/completions", fimRequest.path)
+                assertTrue(fimRequest.body.contains("\"model\":\"codestral-latest\""), fimRequest.body)
+                assertTrue(fimRequest.body.contains("\"prompt\""), fimRequest.body)
+                assertTrue(!fimRequest.body.contains("\"messages\""), fimRequest.body)
+                val prompt = JsonHelper.JSON.parseToJsonElement(fimRequest.body).jsonObject["prompt"]!!.jsonPrimitive.content
+                assertTrue(!prompt.contains("<|fim_"), prompt)
+                assertTrue(response.body().contains("\"text\""), response.body())
+                assertTrue(response.body().contains("a + b"), response.body())
+            } finally {
+                proxy.server.stop()
+            }
+        }
+    }
+
+    private fun newProxy(
+        upstreamBaseUri: URI,
+        completionsConfig: CompletionsConfig = CompletionsConfig.DISABLED,
+    ): TestProxy {
         val port = freePort()
         val provider = MistralSubscriptionProxyProvider(
             apiKeyProvider = { "mistral-key" },
@@ -92,6 +143,7 @@ class MistralSubscriptionProxyProviderTest {
                 localApiKeyProvider = { "local-key" },
                 providers = { listOf(provider) },
                 requestLogDir = Files.createTempDirectory("subscription-proxy-test-logs").toString(),
+                completionsConfig = { completionsConfig },
             ),
         )
     }
@@ -132,11 +184,15 @@ class MistralSubscriptionProxyProviderTest {
                     headers = exchange.requestHeaders.mapValues { it.value.toList() },
                     body = body,
                 )
-                val responseBody = if (exchange.requestURI.rawPath.endsWith("/models")) {
+                val path = exchange.requestURI.rawPath
+                val responseBody = if (path.endsWith("/models")) {
                     "{\"object\":\"list\",\"data\":[" +
                         "{\"id\":\"mistral-small-latest\",\"object\":\"model\"}," +
+                        "{\"id\":\"codestral-latest\",\"object\":\"model\"}," +
                         "{\"id\":\"mistral-embed\",\"object\":\"embedding\"}" +
                         "]}"
+                } else if (path.endsWith("/fim/completions")) {
+                    "{\"id\":\"fim_1\",\"object\":\"chat.completion\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"a + b\"},\"finish_reason\":\"stop\"}]}"
                 } else {
                     "{\"id\":\"chatcmpl_1\",\"choices\":[]}"
                 }

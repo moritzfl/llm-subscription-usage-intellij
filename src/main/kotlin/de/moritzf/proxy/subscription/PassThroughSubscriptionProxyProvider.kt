@@ -39,6 +39,7 @@ class PassThroughSubscriptionProxyProvider(
     private val requestHeadersProvider: (SubscriptionProxyRequest) -> Map<String, String> = { emptyMap() },
     private val requestBodyTransformer: (SubscriptionProxyRequest, JsonObject) -> JsonObject = { _, body -> body },
     private val upstreamRouteProvider: (SubscriptionProxyRequest) -> SubscriptionProxyRoute = { it.route },
+    private val upstreamUrlProvider: (SubscriptionProxyRequest) -> String? = { null },
     private val jsonResponseTransformer: ((SubscriptionProxyRequest, String) -> String)? = null,
     private val sseDataTransformer: ((SubscriptionProxyRequest, String) -> String)? = null,
     private val sseLineTransformer: ((SubscriptionProxyRequest, String) -> String?)? = null,
@@ -119,7 +120,7 @@ class PassThroughSubscriptionProxyProvider(
         val upstreamBody = requestBodyTransformer(request, rewriteModel(request.body, request.model.upstreamId))
         val payload = JsonHelper.encodeToString(upstreamBody)
         val upstreamPath = upstreamRouteProvider(request).upstreamPath
-        val targetUrl = resolveUpstreamUrl(upstreamPath)
+        val targetUrl = resolveUpstreamUrl(request, upstreamPath)
         val loggedHeaders = LinkedHashMap<String, String>()
         val builder = HttpRequest.newBuilder(URI.create(targetUrl))
             .header(HttpHeaders.Authorization, "Bearer $accessToken")
@@ -231,8 +232,9 @@ class PassThroughSubscriptionProxyProvider(
         ctx.handled = true
     }
 
-    private fun resolveUpstreamUrl(path: String): String {
-        return baseUri.toString().trimEnd('/') + "/" + path.trimStart('/')
+    private fun resolveUpstreamUrl(request: SubscriptionProxyRequest, path: String): String {
+        return upstreamUrlProvider(request)?.takeIf { it.isNotBlank() }
+            ?: (baseUri.toString().trimEnd('/') + "/" + path.trimStart('/'))
     }
 
     data class ModelMapping(
