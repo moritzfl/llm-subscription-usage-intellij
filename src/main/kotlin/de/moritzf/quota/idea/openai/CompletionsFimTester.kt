@@ -16,7 +16,11 @@ import kotlinx.serialization.json.contentOrNull
 data class CompletionsFimTestResult(
     val ok: Boolean,
     val status: String,
-    val report: String,
+    val elapsedMs: Long? = null,
+    val sample: String? = null,
+    val insert: String? = null,
+    val assembled: String? = null,
+    val detail: String? = null,
 )
 
 object CompletionsFimTester {
@@ -47,7 +51,7 @@ object CompletionsFimTester {
             return CompletionsFimTestResult(
                 ok = false,
                 status = "Test failed",
-                report = "Request failed: ${exception.message ?: exception::class.java.simpleName}",
+                detail = "Request failed: ${exception.message ?: exception::class.java.simpleName}",
             )
         }
         val elapsedMs = (System.nanoTime() - started) / 1_000_000L
@@ -56,11 +60,11 @@ object CompletionsFimTester {
             return CompletionsFimTestResult(
                 ok = false,
                 status = "HTTP ${response.statusCode()}",
-                report = "HTTP ${response.statusCode()}\n${raw.take(2000)}",
+                elapsedMs = elapsedMs,
+                detail = raw.take(2000).ifBlank { "Empty error body" },
             )
         }
-        val text = completionText(raw)
-        return formatSuccess(text, elapsedMs, raw)
+        return formatSuccess(completionText(raw), elapsedMs, raw)
     }
 
     internal fun formatSuccess(insert: String?, elapsedMs: Long, raw: String = ""): CompletionsFimTestResult {
@@ -68,38 +72,24 @@ object CompletionsFimTester {
             return CompletionsFimTestResult(
                 ok = false,
                 status = "Empty insert",
-                report = buildString {
-                    appendLine("Asked the model to fill the hole at | :")
-                    appendLine()
-                    append(SAMPLE_WITH_CURSOR)
-                    appendLine()
-                    append("Inserted nothing (${elapsedMs} ms). Adapter ran, but the model returned no insert text.")
+                elapsedMs = elapsedMs,
+                sample = SAMPLE_WITH_CURSOR.trimEnd(),
+                detail = buildString {
+                    append("The adapter ran, but the model returned no insert text.")
                     if (raw.isNotBlank()) {
-                        appendLine()
-                        appendLine()
-                        append("Raw:\n")
+                        append("\n\n")
                         append(raw.take(2000))
                     }
-                }.trimEnd(),
+                },
             )
         }
-        val assembled = SAMPLE_PROMPT + insert + SAMPLE_SUFFIX
         return CompletionsFimTestResult(
             ok = true,
-            status = "Fill-in looks usable · ${elapsedMs} ms",
-            report = buildString {
-                appendLine("Asked the model to fill the hole at | :")
-                appendLine()
-                append(SAMPLE_WITH_CURSOR)
-                appendLine()
-                appendLine("Inserted (${insert.length} chars, ${elapsedMs} ms):")
-                appendLine(insert)
-                appendLine()
-                appendLine("That yields:")
-                append(assembled)
-                appendLine()
-                append("If this is the missing code, Test FIM worked. Inline completion should show gray ghost text in the editor.")
-            }.trimEnd(),
+            status = "Fill-in looks usable",
+            elapsedMs = elapsedMs,
+            sample = SAMPLE_WITH_CURSOR.trimEnd(),
+            insert = insert,
+            assembled = (SAMPLE_PROMPT + insert + SAMPLE_SUFFIX).trimEnd(),
         )
     }
 
