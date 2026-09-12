@@ -31,6 +31,28 @@ class FimPromptParserTest {
     }
 
     @Test
+    fun parsesJetbrainsQwenSuffixBeforePrefix() {
+        val prompt = "<|fim_suffix|><|fim_prefix|>def add(a,b):\n    <|fim_middle|>"
+
+        val parsed = FimPromptParser.parse(prompt)
+
+        assertEquals(FimSchema.QWEN, parsed.schema)
+        assertEquals("def add(a,b):\n    ", parsed.prefix)
+        assertEquals("", parsed.suffix)
+    }
+
+    @Test
+    fun parsesJetbrainsQwenSuffixBeforePrefixWithSuffixBody() {
+        val prompt = "<|fim_suffix|>\n}\n<|fim_prefix|>fun add(a: Int, b: Int): Int {\n    return <|fim_middle|>"
+
+        val parsed = FimPromptParser.parse(prompt)
+
+        assertEquals(FimSchema.QWEN, parsed.schema)
+        assertEquals("fun add(a: Int, b: Int): Int {\n    return ", parsed.prefix)
+        assertEquals("\n}\n", parsed.suffix)
+    }
+
+    @Test
     fun parsesDeepSeekAngleTokens() {
         val prompt = "<fim_prefix>fun hello() {\n    <fim_suffix>\n}\n<fim_middle>"
 

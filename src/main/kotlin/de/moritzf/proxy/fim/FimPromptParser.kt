@@ -66,10 +66,17 @@ object FimPromptParser {
         val suffixAt = prompt.indexOf(suffixTok)
         val middleAt = prompt.indexOf(middleTok)
         if (prefixAt < 0 || suffixAt < 0 || middleAt < 0) return null
-        if (prefixAt > suffixAt || suffixAt > middleAt) return null
-        val prefix = prompt.substring(prefixAt + prefixTok.length, suffixAt)
-        val suffix = prompt.substring(suffixAt + suffixTok.length, middleAt)
-        return prefix to suffix
+        if (prefixAt < suffixAt && suffixAt < middleAt) {
+            val prefix = prompt.substring(prefixAt + prefixTok.length, suffixAt)
+            val suffix = prompt.substring(suffixAt + suffixTok.length, middleAt)
+            return prefix to suffix
+        }
+        if (suffixAt < prefixAt && prefixAt < middleAt) {
+            val suffix = prompt.substring(suffixAt + suffixTok.length, prefixAt)
+            val prefix = prompt.substring(prefixAt + prefixTok.length, middleAt)
+            return prefix to suffix
+        }
+        return null
     }
 
     private fun codestral(prompt: String, fieldSuffix: String?): FimContext? {
