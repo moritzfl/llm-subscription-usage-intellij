@@ -61,6 +61,11 @@ internal data class OllamaIndicatorState(
     val period: java.time.Duration,
 )
 
+internal data class MiniMaxIndicatorState(
+    val percent: Int,
+    val resetsAt: Instant?,
+)
+
 internal data class ZaiIndicatorState(
     val percent: Int,
     val resetsAt: Instant?,
@@ -273,12 +278,27 @@ internal fun ollamaBarDisplayText(quota: de.moritzf.quota.ollama.OllamaQuota?, e
 internal fun miniMaxBarDisplayText(quota: MiniMaxQuota?, error: String?): String {
     if (error != null) return "error"
     if (quota == null) return "loading..."
-    val usage = quota.sessionUsage ?: return "no data"
-
-    val percent = clampPercent(usage.usagePercent.roundToInt())
-    val reset = QuotaUiUtil.formatResetCompact(usage.resetsAt)
-    val text = "$percent%"
+    val state = miniMaxIndicatorState(quota) ?: return "no data"
+    val reset = QuotaUiUtil.formatResetCompact(state.resetsAt)
+    val text = "${state.percent}%"
     return if (reset != null) "$text • $reset" else text
+}
+
+internal fun miniMaxIndicatorState(quota: MiniMaxQuota): MiniMaxIndicatorState? {
+    val windows = listOfNotNull(quota.sessionUsage, quota.weeklyUsage)
+    if (windows.isEmpty()) return null
+    val exhausted = windows.filter { it.usagePercent >= 100.0 }
+    if (exhausted.isNotEmpty()) {
+        return MiniMaxIndicatorState(
+            percent = 100,
+            resetsAt = exhausted.maxByOrNull { it.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE }?.resetsAt,
+        )
+    }
+    val window = windows.first()
+    return MiniMaxIndicatorState(
+        percent = clampPercent(window.usagePercent.roundToInt()),
+        resetsAt = window.resetsAt,
+    )
 }
 
 internal fun mistralBarDisplayText(quota: MistralQuota?, error: String?): String {

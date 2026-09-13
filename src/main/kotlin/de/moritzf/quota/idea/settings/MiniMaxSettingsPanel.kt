@@ -29,7 +29,7 @@ internal class MiniMaxSettingsPanel(
         install(panel {
             row { cell(statusLabel) }
             row("Region:") { cell(regionComboBox) }
-            row("API key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
+            row("Subscription key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
             row {
                 button("Save") { saveKeysNow() }
                 button("Clear") { clearKeysNow() }
@@ -53,7 +53,7 @@ internal class MiniMaxSettingsPanel(
         val error = QuotaUsageService.getInstance().getLastError(accountKey(QuotaProviderType.MINIMAX))
         statusLabel.text = when {
             !store.isLoaded() -> formatStatusText("Loading API keys...", AuthStatusKind.PENDING)
-            apiKey.isNullOrBlank() -> formatStatusText("MiniMax API key missing", AuthStatusKind.DISCONNECTED)
+            apiKey.isNullOrBlank() -> formatStatusText("MiniMax subscription key missing", AuthStatusKind.DISCONNECTED)
             error != null -> formatStatusText("Error: $error", AuthStatusKind.DISCONNECTED)
             quota != null -> formatStatusText("Connected", AuthStatusKind.CONNECTED)
             else -> formatStatusText("API key stored securely", AuthStatusKind.CONNECTED)

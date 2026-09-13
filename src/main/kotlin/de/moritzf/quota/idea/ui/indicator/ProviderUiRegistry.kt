@@ -214,7 +214,7 @@ internal object MiniMaxUi : ProviderUi {
         miniMaxBarDisplayText(quota as? MiniMaxQuota, error)
 
     override fun displayPercent(quota: ProviderQuota?, error: String?) =
-        (quota as? MiniMaxQuota)?.sessionUsage?.usagePercent?.roundToInt()?.let(::clampPercent) ?: -1
+        (quota as? MiniMaxQuota)?.let(::miniMaxIndicatorState)?.percent ?: -1
 
     override fun periodElapsedFraction(quota: ProviderQuota?, error: String?) =
         miniMaxPeriodElapsedFraction(quota as? MiniMaxQuota, error)

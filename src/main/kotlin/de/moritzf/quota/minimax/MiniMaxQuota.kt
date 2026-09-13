@@ -10,13 +10,22 @@ import java.time.Duration
 data class MiniMaxQuota(
     val plan: String = "",
     val sessionUsage: MiniMaxUsageWindow? = null,
+    val weeklyUsage: MiniMaxUsageWindow? = null,
     val region: MiniMaxRegion = MiniMaxRegion.GLOBAL,
     override var fetchedAt: Instant? = null,
     @Transient override var rawJson: String? = null,
 ) : ProviderQuota {
-    override fun hasUsageState(): Boolean = sessionUsage != null
+    override fun hasUsageState(): Boolean = sessionUsage != null || weeklyUsage != null
 
-    override fun usageFraction(): Double? = sessionUsage?.usagePercent?.let { it / 100.0 }
+    override fun usageFraction(): Double? {
+        val windows = listOfNotNull(sessionUsage?.usagePercent, weeklyUsage?.usagePercent)
+        return windows.maxOrNull()?.let { it / 100.0 }
+    }
+
+    override fun activityWindows(): Map<String, Double> = buildMap {
+        sessionUsage?.usagePercent?.let { put("session", it / 100.0) }
+        weeklyUsage?.usagePercent?.let { put("weekly", it / 100.0) }
+    }
 }
 
 @Serializable

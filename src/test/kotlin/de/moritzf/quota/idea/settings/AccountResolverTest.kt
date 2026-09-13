@@ -3,6 +3,8 @@ package de.moritzf.quota.idea.settings
 import de.moritzf.quota.idea.common.ProviderSnapshot
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageSnapshot
+import de.moritzf.quota.minimax.MiniMaxQuota
+import de.moritzf.quota.minimax.MiniMaxUsageWindow
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.OpenAiCredits
 import de.moritzf.quota.openai.OpenAiExtraRateLimit
@@ -162,6 +164,25 @@ class AccountResolverTest {
             ),
         )
         assertTrue(AccountResolver.isHardStop(OpenAiCodexQuota(limitReached = true)))
+    }
+
+    @Test
+    fun miniMaxWeeklyLimitIsHardStop() {
+        assertFalse(
+            AccountResolver.isHardStop(
+                MiniMaxQuota(sessionUsage = MiniMaxUsageWindow(usagePercent = 40.0)),
+            ),
+        )
+        assertTrue(
+            AccountResolver.isHardStop(
+                MiniMaxQuota(weeklyUsage = MiniMaxUsageWindow(usagePercent = 100.0)),
+            ),
+        )
+        assertTrue(
+            AccountResolver.isHardStop(
+                MiniMaxQuota(sessionUsage = MiniMaxUsageWindow(usagePercent = 100.0)),
+            ),
+        )
     }
 
     private fun twoOpenAi(): QuotaSettingsState {

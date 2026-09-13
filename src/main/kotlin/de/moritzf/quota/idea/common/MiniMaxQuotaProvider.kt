@@ -14,7 +14,7 @@ class MiniMaxQuotaProvider(
     private val settingsProvider: () -> QuotaSettingsState? = { runCatching { QuotaSettingsState.getInstance() }.getOrNull() },
 ) : CachedQuotaProvider<MiniMaxQuota>() {
     override val type = QuotaProviderType.MINIMAX
-    override val notConfiguredMessage = "MiniMax API key missing. Add a MiniMax API key in settings."
+    override val notConfiguredMessage = "MiniMax subscription key missing. Add a MiniMax Token Plan subscription key in settings."
 
     override fun refresh() {
         val apiKey = MiniMaxApiKeyStore.forAccount(accountId).loadBlocking()

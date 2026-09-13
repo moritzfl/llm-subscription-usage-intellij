@@ -100,8 +100,11 @@ internal fun ZaiCountUsageWindow.periodElapsedFraction(periodDuration: Duration,
     return computePeriodElapsedFraction(periodDuration.toMillis(), resetAt, now)
 }
 
-internal fun MiniMaxUsageWindow.periodElapsedFraction(now: Instant = Clock.System.now()): Double? {
-    val durationMs = periodDurationMs ?: return null
+internal fun MiniMaxUsageWindow.periodElapsedFraction(
+    periodDuration: Duration = QuotaPeriodDurations.ROLLING_5H,
+    now: Instant = Clock.System.now(),
+): Double? {
+    val durationMs = periodDurationMs ?: periodDuration.toMillis()
     val resetAt = resetsAt ?: return null
     return computePeriodElapsedFraction(durationMs, resetAt, now)
 }
@@ -234,7 +237,22 @@ internal fun miniMaxPeriodElapsedFraction(quota: MiniMaxQuota?, error: String?):
     if (error != null || quota == null) {
         return null
     }
-    return quota.sessionUsage?.periodElapsedFraction()
+    val windows = listOfNotNull(
+        quota.sessionUsage?.let { it to QuotaPeriodDurations.ROLLING_5H },
+        quota.weeklyUsage?.let { it to QuotaPeriodDurations.WEEKLY },
+    )
+    if (windows.isEmpty()) {
+        return null
+    }
+
+    val exhausted = windows.filter { (window, _) -> window.usagePercent >= 100.0 }
+    if (exhausted.isNotEmpty()) {
+        val (window, duration) = exhausted.maxBy { (window, _) -> window.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE }
+        return window.periodElapsedFraction(duration)
+    }
+
+    val (window, duration) = windows.first()
+    return window.periodElapsedFraction(duration)
 }
 
 internal fun mistralPeriodElapsedFraction(quota: MistralQuota?, error: String?): Double? {

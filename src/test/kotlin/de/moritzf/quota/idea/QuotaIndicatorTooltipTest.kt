@@ -130,6 +130,19 @@ class QuotaIndicatorTooltipTest {
             ),
         )
         assertEquals(
+            "MiniMax • MiniMax Token Plan • 100% Weekly",
+            buildIndicatorTooltip(
+                QuotaProviderType.MINIMAX,
+                MiniMaxQuota(
+                    plan = "MiniMax Token Plan",
+                    sessionUsage = MiniMaxUsageWindow(usagePercent = 40.0),
+                    weeklyUsage = MiniMaxUsageWindow(usagePercent = 100.0),
+                ),
+                error = null,
+                ProviderAuthState.AUTHENTICATED,
+            ),
+        )
+        assertEquals(
             "SuperGrok • SuperGrok Heavy",
             buildIndicatorTooltip(
                 QuotaProviderType.SUPERGROK,

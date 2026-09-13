@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- MiniMax quota now reads Token Plan `/v1/token_plan/remains` (5-hour and weekly windows). When the API leaves counts at 0, remaining percent is used. Legacy `coding_plan/remains` still works. Settings ask for a Subscription key, not a pay-as-you-go API key.
+
 ## [1.12.2] - 2026-09-13
 
 - Proxy tab FIM adapter checkbox is now **Adapt model for FIM**. It explains that the option converts FIM calls into chat requests a chat model can understand.

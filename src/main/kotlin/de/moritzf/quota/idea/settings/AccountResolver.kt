@@ -142,7 +142,9 @@ internal object AccountResolver {
             is KimiQuota ->
                 (quota.sessionUsage?.usagePercent ?: 0.0) >= 100.0 ||
                     (quota.totalUsage?.usagePercent ?: 0.0) >= 100.0
-            is MiniMaxQuota -> (quota.sessionUsage?.usagePercent ?: 0.0) >= 100.0
+            is MiniMaxQuota ->
+                (quota.sessionUsage?.usagePercent ?: 0.0) >= 100.0 ||
+                    (quota.weeklyUsage?.usagePercent ?: 0.0) >= 100.0
             is MistralQuota ->
                 (quota.monthlyUsage?.usagePercent ?: 0.0) >= 100.0 ||
                     (quota.tokenUsage?.usagePercent ?: 0.0) >= 100.0

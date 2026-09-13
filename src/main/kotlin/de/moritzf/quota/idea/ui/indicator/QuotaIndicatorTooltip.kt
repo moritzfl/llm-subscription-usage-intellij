@@ -128,12 +128,8 @@ private fun indicatorTooltipUsage(quota: ProviderQuota?): IndicatorTooltipUsage 
             IndicatorTooltipUsage(state.percent, compactReset(state.resetsAt), zaiWindowKind(quota))
         }
         is MiniMaxQuota -> {
-            val window = quota.sessionUsage ?: return IndicatorTooltipUsage(null, null)
-            IndicatorTooltipUsage(
-                clampPercent(window.usagePercent.roundToInt()),
-                compactReset(window.resetsAt),
-                "Session",
-            )
+            val state = miniMaxIndicatorState(quota) ?: return IndicatorTooltipUsage(null, null)
+            IndicatorTooltipUsage(state.percent, compactReset(state.resetsAt), miniMaxWindowKind(quota))
         }
         is MistralQuota -> {
             val window = mistralDisplayWindow(quota) ?: return IndicatorTooltipUsage(null, null)
@@ -227,6 +223,19 @@ private fun ollamaWindowKind(period: Duration): String? {
         QuotaPeriodDurations.MONTHLY -> "Monthly"
         else -> windowKindFromDuration(period)
     }
+}
+
+private fun miniMaxWindowKind(quota: MiniMaxQuota): String? {
+    val windows = listOfNotNull(
+        quota.sessionUsage?.let { it to "Session" },
+        quota.weeklyUsage?.let { it to "Weekly" },
+    )
+    if (windows.isEmpty()) return null
+    val exhausted = windows.filter { (window, _) -> window.usagePercent >= 100.0 }
+    if (exhausted.isNotEmpty()) {
+        return exhausted.maxBy { (window, _) -> window.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE }.second
+    }
+    return windows.first().second
 }
 
 private fun zaiWindowKind(quota: ZaiQuota): String? {
