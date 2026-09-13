@@ -3,6 +3,7 @@ package de.moritzf.proxy.subscription
 import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.proxy.server.AccessLogFields
 import de.moritzf.proxy.server.JsonHelper
+import de.moritzf.proxy.usage.UsageJson
 import de.moritzf.proxy.server.ProxyCall
 import de.moritzf.proxy.server.UpstreamErrorMapper
 import de.moritzf.proxy.server.createObjectNode
@@ -164,6 +165,10 @@ class PassThroughSubscriptionProxyProvider(
             copyTransformedJsonResponse(ctx, request, upstream, jsonResponseTransformer)
             return
         }
+        if (!isEventStream(upstream) && isJsonResponse(upstream)) {
+            copyTransformedJsonResponse(ctx, request, upstream) { _, raw -> raw }
+            return
+        }
         copySelectedResponseHeaders(ctx, upstream)
         ctx.setStatus(upstream.statusCode())
         ctx.call.respondOutputStream(responseContentType(upstream), HttpStatusCode.fromValue(upstream.statusCode())) {
@@ -191,6 +196,7 @@ class PassThroughSubscriptionProxyProvider(
         ctx.setStatus(upstream.statusCode())
         val raw = upstream.body().use(JsonHelper::readUtf8Body)
         val transformed = transformer(request, raw)
+        UsageJson.record(ctx, transformed)
         AccessLogFields.responseBytes(ctx, transformed.toByteArray(StandardCharsets.UTF_8).size.toLong())
         ctx.call.respondText(
             transformed,

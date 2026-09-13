@@ -125,6 +125,35 @@ class SubscriptionProxyServerTest {
     }
 
     @Test
+    fun usageEndpointCountsChatCompletionTokens() {
+        TestUpstream(
+            responseBody = "{\"id\":\"chatcmpl_1\",\"choices\":[],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":5}}",
+        ).use { upstream ->
+            val server = newServer(
+                providers = listOf(fakeProvider("github", "GitHub Copilot", upstream.baseUri, "gh-token", "gh-gpt-5.5", "gpt-5.5")),
+            )
+            try {
+                server.start()
+                val chat = post(
+                    server.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"gh-gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                )
+                assertEquals(200, chat.statusCode(), chat.body())
+
+                val usage = get(server.port, "/v1/usage")
+                assertEquals(200, usage.statusCode())
+                val total = parseObject(usage.body())["total"]!!.jsonObject
+                assertEquals(3, total["prompt_tokens"]!!.jsonPrimitive.content.toLong())
+                assertEquals(5, total["completion_tokens"]!!.jsonPrimitive.content.toLong())
+                assertEquals(8, total["total_tokens"]!!.jsonPrimitive.content.toLong())
+            } finally {
+                server.stop()
+            }
+        }
+    }
+
+    @Test
     fun modelInfoIncludesFimAliasAndReportsAdapterOnlyForSelectedModel() {
         TestUpstream().use { upstream ->
             val server = newServer(

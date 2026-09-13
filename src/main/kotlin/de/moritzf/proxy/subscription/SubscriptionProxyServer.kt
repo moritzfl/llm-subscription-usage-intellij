@@ -135,6 +135,7 @@ class SubscriptionProxyServer(
         val ctx = ProxyCall(call)
         ctx.setAttribute(AccessLogFields.REQUEST_ID, requestLogger.nextRequestId())
         ctx.setAttribute(AccessLogFields.START_NANOS, System.nanoTime())
+        ctx.setAttribute(de.moritzf.proxy.server.ProxyCallAttributes.USAGE_TRACKER, usageTracker)
         applyCorsHeaders(ctx)
         try {
             if (isCorsPreflight(ctx)) {

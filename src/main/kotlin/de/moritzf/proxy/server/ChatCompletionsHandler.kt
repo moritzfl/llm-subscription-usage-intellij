@@ -22,6 +22,7 @@ import de.moritzf.proxy.server.UpstreamRetry.withRetries
 import de.moritzf.proxy.sse.SseCollector.collectCompletedResponse
 import de.moritzf.proxy.sse.SseParser.iterateEvents
 import de.moritzf.proxy.transport.CodexHttpClient
+import de.moritzf.proxy.usage.UsageJson
 import de.moritzf.proxy.usage.UsageTracker
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
@@ -332,6 +333,7 @@ class ChatCompletionsHandler {
             usageNode.longPath("input_tokens", 0),
             usageNode.longPath("output_tokens", 0)
         )
+        UsageJson.record(ctx, usageNode)
         result.set("usage", toUsage(usageNode))
         val responseBody: String = JsonHelper.encodeToString(result.build())
         requestLogger.logClientResponse(requestId(ctx), 200, responseBody)
@@ -576,6 +578,7 @@ class ChatCompletionsHandler {
                                 usageNode.longPath("input_tokens", 0),
                                 usageNode.longPath("output_tokens", 0)
                             )
+                            UsageJson.record(ctx, usageNode)
                             val includeUsage = requestBody.pathOrNull("stream_options")
                                 .booleanPath("include_usage", false)
                             if (includeUsage) {

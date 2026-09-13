@@ -9,6 +9,7 @@
 - MiniMax speech-to-text uses `POST /v1/speech_to_text` (`asr-1.0`) with a local file. Diarization requests `verbose_json`.
 - SuperGrok image edits use xAI JSON `POST /v1/images/edits` (not OpenAI multipart). Masks are rejected. MiniMax image-to-image is not treated as screenshot editing.
 - `/v1/model/info` reports `fim_mode` (`native` / `adapter` / `none`) for the selected FIM model and the `qwen2.5-coder` alias. Mistral Codestral/`*fim*` models advertise native `/v1/fim/completions`.
+- Local proxy `/v1/usage` counts prompt/completion tokens from chat, responses, and completions JSON.
 
 ## [1.12.2] - 2026-09-13
 

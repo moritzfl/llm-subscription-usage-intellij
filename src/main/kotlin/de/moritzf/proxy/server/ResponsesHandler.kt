@@ -6,6 +6,7 @@ import de.moritzf.proxy.model.ModelAliasResolver
 import de.moritzf.proxy.sse.SseCollector
 import de.moritzf.proxy.state.ResponsesState
 import de.moritzf.proxy.transport.CodexHttpClient
+import de.moritzf.proxy.usage.UsageJson
 import de.moritzf.proxy.usage.UsageTracker
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
@@ -317,6 +318,7 @@ class ResponsesHandler {
             usageNode.longPath("input_tokens", 0L),
             usageNode.longPath("output_tokens", 0L),
         )
+        UsageJson.record(ctx, usageNode)
     }
     private fun replayStateFor(ctx: ProxyCall): ResponsesState {
         val isAdmin = ctx.getAttribute(ProxyCallAttributes.IS_ADMIN) == true
