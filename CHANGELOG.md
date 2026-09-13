@@ -8,6 +8,7 @@
 - Local proxy exposes OpenAI media routes `/v1/images/generations`, `/v1/audio/speech`, and `/v1/audio/transcriptions`. Images return a URL (no `b64_json`). Speech is binary audio. SuperGrok, MiniMax, and Z.ai cover images; SuperGrok covers speech and transcription.
 - MiniMax speech-to-text uses `POST /v1/speech_to_text` (`asr-1.0`) with a local file. Diarization requests `verbose_json`.
 - SuperGrok image edits use xAI JSON `POST /v1/images/edits` (not OpenAI multipart). Masks are rejected. MiniMax image-to-image is not treated as screenshot editing.
+- `/v1/model/info` reports `fim_mode` (`native` / `adapter` / `none`) for the selected FIM model and the `qwen2.5-coder` alias. Mistral Codestral/`*fim*` models advertise native `/v1/fim/completions`.
 
 ## [1.12.2] - 2026-09-13
 

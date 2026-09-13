@@ -80,6 +80,34 @@ class MistralSubscriptionProxyProviderTest {
     }
 
     @Test
+    fun advertisesNativeFimOnCodestralAndKeepsChatModelsNone() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.server.start()
+                get(proxy.port, "/v1/models")
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+
+                val response = get(proxy.port, "/v1/model/info")
+                assertEquals(200, response.statusCode())
+                val byName = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
+                    .associate { row ->
+                        val obj = row.jsonObject
+                        obj["model_name"]!!.jsonPrimitive.content to obj["model_info"]!!.jsonObject
+                    }
+                val codestral = assertNotNull(byName["mi-codestral-latest"])
+                assertEquals("native", codestral["fim_mode"]!!.jsonPrimitive.content)
+                assertTrue(codestral["supports_native_fim"]!!.jsonPrimitive.content.toBoolean())
+                val small = assertNotNull(byName["mi-mistral-small-latest"])
+                assertEquals("none", small["fim_mode"]!!.jsonPrimitive.content)
+                assertTrue(!small["supports_native_fim"]!!.jsonPrimitive.content.toBoolean())
+            } finally {
+                proxy.server.stop()
+            }
+        }
+    }
+
+    @Test
     fun convertsChatShapedFimReplyToTextCompletion() {
         val raw = "{\"id\":\"fim_1\",\"object\":\"chat.completion\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"a + b\"},\"finish_reason\":\"stop\"}]}"
         val converted = MistralSubscriptionProxyProvider.toTextCompletion(raw)

@@ -20,6 +20,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -114,6 +115,78 @@ class SubscriptionProxyServerTest {
                 assertEquals(
                     "github",
                     modelInfo["model_info"]!!.jsonObject["litellm_provider"]!!.jsonPrimitive.content,
+                )
+                assertEquals("none", modelInfo["model_info"]!!.jsonObject["fim_mode"]!!.jsonPrimitive.content)
+                assertEquals(false, modelInfo["model_info"]!!.jsonObject["supports_native_fim"]!!.jsonPrimitive.boolean)
+            } finally {
+                server.stop()
+            }
+        }
+    }
+
+    @Test
+    fun modelInfoIncludesFimAliasAndReportsAdapterOnlyForSelectedModel() {
+        TestUpstream().use { upstream ->
+            val server = newServer(
+                providers = listOf(
+                    fakeProvider("github", "GitHub Copilot", upstream.baseUri, "gh-token", "gh-gpt-5.5", "gpt-5.5"),
+                    fakeProvider("xai", "SuperGrok", upstream.baseUri, "grok-token", "sg-grok-4.3", "grok-4.3"),
+                ),
+                completionsConfig = CompletionsConfig(
+                    enabled = true,
+                    modelLocalId = "gh-gpt-5.5",
+                    useChatAdapter = true,
+                ),
+            )
+            try {
+                server.start()
+                val response = get(server.port, "/v1/model/info")
+
+                assertEquals(200, response.statusCode())
+                val data = parseObject(response.body())["data"]!!.jsonArray
+                assertEquals("qwen2.5-coder", data[0].jsonObject["model_name"]!!.jsonPrimitive.content)
+                assertEquals(
+                    "adapter",
+                    data[0].jsonObject["model_info"]!!.jsonObject["fim_mode"]!!.jsonPrimitive.content,
+                )
+                val byName = data.associate { row ->
+                    row.jsonObject["model_name"]!!.jsonPrimitive.content to
+                        row.jsonObject["model_info"]!!.jsonObject["fim_mode"]!!.jsonPrimitive.content
+                }
+                assertEquals("adapter", byName["gh-gpt-5.5"])
+                assertEquals("none", byName["sg-grok-4.3"])
+            } finally {
+                server.stop()
+            }
+        }
+    }
+
+    @Test
+    fun modelInfoReportsNativeFimWhenAdapterIsOff() {
+        TestUpstream().use { upstream ->
+            val server = newServer(
+                providers = listOf(fakeProvider("github", "GitHub Copilot", upstream.baseUri, "gh-token", "gh-gpt-5.5", "gpt-5.5")),
+                completionsConfig = CompletionsConfig(
+                    enabled = true,
+                    modelLocalId = "gh-gpt-5.5",
+                    useChatAdapter = false,
+                ),
+            )
+            try {
+                server.start()
+                val response = get(server.port, "/v1/model/info")
+
+                assertEquals(200, response.statusCode())
+                val data = parseObject(response.body())["data"]!!.jsonArray
+                assertEquals("qwen2.5-coder", data[0].jsonObject["model_name"]!!.jsonPrimitive.content)
+                assertEquals(
+                    "native",
+                    data[0].jsonObject["model_info"]!!.jsonObject["fim_mode"]!!.jsonPrimitive.content,
+                )
+                assertEquals(
+                    "native",
+                    data.first { it.jsonObject["model_name"]!!.jsonPrimitive.content == "gh-gpt-5.5" }
+                        .jsonObject["model_info"]!!.jsonObject["fim_mode"]!!.jsonPrimitive.content,
                 )
             } finally {
                 server.stop()

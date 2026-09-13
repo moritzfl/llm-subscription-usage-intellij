@@ -197,7 +197,9 @@ class SubscriptionProxyServer(
     }
 
     private suspend fun modelInfo(ctx: ProxyCall) {
-        JsonHelper.toJsonResponse(ctx, mapOf("data" to catalog().models.map(::liteLlmInfo)))
+        val data = catalog().models.map(::liteLlmInfo).toMutableList()
+        fimAliasLiteLlmInfo()?.let { data.add(0, it) }
+        JsonHelper.toJsonResponse(ctx, mapOf("data" to data))
     }
 
     private suspend fun inference(ctx: ProxyCall) {
@@ -234,13 +236,42 @@ class SubscriptionProxyServer(
 
     private fun catalog(): SubscriptionModelCatalog = SubscriptionModelCatalog(providers())
 
-    private fun fimAliasModel(): String? {
+    private fun selectedFimModel(): SubscriptionProxyModel? {
         val cfg = completionsConfig()
         if (!cfg.enabled) return null
         val selected = cfg.modelLocalId.trim().ifBlank { return null }
         val model = CompletionsHandler.resolveSelectedModel(catalog(), selected) ?: return null
         if (!FimModels.isEligible(model)) return null
-        return cfg.aliasId
+        return model
+    }
+
+    private fun fimAliasModel(): String? {
+        val selected = selectedFimModel() ?: return null
+        val alias = completionsConfig().aliasId.trim()
+        if (alias.isEmpty() || alias == selected.localId) return null
+        if (catalog().models.any { it.localId == alias }) return null
+        return alias
+    }
+
+    private fun fimAliasLiteLlmInfo(): Map<String, Any>? {
+        val alias = fimAliasModel() ?: return null
+        val selected = selectedFimModel() ?: return null
+        return liteLlmInfo(
+            selected.copy(
+                localId = alias,
+                providerId = "fim-adapter",
+                providerName = "FIM",
+                litellmProvider = "fim-adapter",
+                supportedRoutes = selected.supportedRoutes + SubscriptionProxyRoute.COMPLETIONS,
+                isDefault = false,
+            ),
+        )
+    }
+
+    private fun isSelectedFimModel(model: SubscriptionProxyModel): Boolean {
+        if (selectedFimModel() == null) return false
+        if (model.localId == completionsConfig().aliasId) return true
+        return selectedFimModel()?.localId == model.localId
     }
 
     private fun applyCorsHeaders(ctx: ProxyCall) {
@@ -305,6 +336,9 @@ class SubscriptionProxyServer(
             "supports_tool_choice" to model.supportsToolChoice,
             "supports_vision" to model.supportsVision,
             "supports_prompt_caching" to model.supportsPromptCaching,
+            "supports_native_fim" to (SubscriptionProxyRoute.FIM_COMPLETIONS in model.supportedRoutes),
+            "supports_fim_adapter" to fimAdapterEnabled(model),
+            "fim_mode" to fimMode(model),
             "input_cost_per_token" to 0.0,
             "output_cost_per_token" to 0.0,
             "is_default" to model.isDefault,
@@ -332,6 +366,24 @@ class SubscriptionProxyServer(
 
     private fun supportedEndpoints(model: SubscriptionProxyModel): List<String> {
         return model.supportedRoutes.map { route -> "/v1${route.normalizedPath}" }
+    }
+
+    private fun fimAdapterEnabled(model: SubscriptionProxyModel): Boolean {
+        val config = completionsConfig()
+        return config.enabled &&
+            config.useChatAdapter &&
+            isSelectedFimModel(model) &&
+            FimModels.isEligible(model)
+    }
+
+    private fun fimMode(model: SubscriptionProxyModel): String {
+        if (isSelectedFimModel(model) && completionsConfig().enabled) {
+            return if (completionsConfig().useChatAdapter) "adapter" else "native"
+        }
+        if (SubscriptionProxyRoute.FIM_COMPLETIONS in model.supportedRoutes || FimModels.isNativeFimId(model)) {
+            return "native"
+        }
+        return "none"
     }
 
     private fun isOpenAiCompatibleModel(model: SubscriptionProxyModel): Boolean {

@@ -8,6 +8,19 @@ import kotlin.test.assertTrue
 
 class FimModelsTest {
     @Test
+    fun nativeFimIdsAreCodestralAndFimNotChatOrAudio() {
+        assertTrue(FimModels.isNativeFimId("mi-codestral-latest"))
+        assertTrue(FimModels.isNativeFimId("mistral-code-fim-latest"))
+        assertTrue(FimModels.isNativeFimId("codestral-latest"))
+        assertFalse(FimModels.isNativeFimId("qwen2.5-coder"))
+        assertFalse(FimModels.isNativeFimId("mistral-small-latest"))
+        assertFalse(FimModels.isNativeFimId("voxtral-mini-tts-2603"))
+        assertFalse(FimModels.isNativeFimId("codestral-embed"))
+        assertFalse(FimModels.isNativeFimId(model("sg-grok-4.6", "supergrok")))
+        assertTrue(FimModels.isNativeFimId(model("mi-codestral-latest", "mistral")))
+    }
+
+    @Test
     fun priorityTierOnlyForGrokAndCodex() {
         assertTrue(FimModels.supportsPriorityTier("sg-grok-4.6", "supergrok"))
         assertTrue(FimModels.supportsPriorityTier("oa-gpt-5.6-luna", "openai"))

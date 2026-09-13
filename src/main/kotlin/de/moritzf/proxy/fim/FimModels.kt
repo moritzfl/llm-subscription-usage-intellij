@@ -17,6 +17,17 @@ object FimModels {
         }
     }
 
+    fun isNativeFimId(model: SubscriptionProxyModel): Boolean {
+        return isNativeFimId(model.localId) || isNativeFimId(model.upstreamId)
+    }
+
+    fun isNativeFimId(id: String): Boolean {
+        val n = id.trim().lowercase()
+        if (n.isEmpty()) return false
+        if (NON_FIM_MARKERS.any { it in n }) return false
+        return "fim" in n || "codestral" in n
+    }
+
     fun supportsPriorityTier(model: SubscriptionProxyModel): Boolean {
         return supportsPriorityTier(model.localId, model.providerId)
     }
@@ -27,4 +38,14 @@ object FimModels {
         val id = localId.trim().lowercase()
         return id.startsWith("sg-") || id.startsWith("oa-")
     }
+
+    private val NON_FIM_MARKERS = listOf(
+        "embed",
+        "ocr",
+        "moderation",
+        "tts",
+        "transcribe",
+        "voxtral",
+        "imagine",
+    )
 }

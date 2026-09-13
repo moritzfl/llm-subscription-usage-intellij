@@ -36,6 +36,8 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
     private val requestBodyTransformer: (SubscriptionProxyRequest, JsonObject) -> JsonObject = { _, body -> body },
     private val jsonResponseTransformer: ((SubscriptionProxyRequest, String) -> String)? = null,
     private val modelTransformer: (StaticModel) -> StaticModel = { it },
+    private val includeModel: (String) -> Boolean = { true },
+    private val extraRoutesForModel: (String) -> Set<SubscriptionProxyRoute> = { emptySet() },
     private val defaultHeaders: Map<String, String> = DEFAULT_HEADERS,
     private val httpClient: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(30))
@@ -74,16 +76,19 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
     override fun models(): List<SubscriptionProxyModel> = delegate.models()
 
     override fun fallbackModel(localId: String, route: SubscriptionProxyRoute): SubscriptionProxyModel? {
-        if (route !in supportedRoutes ||
-            localIdPrefix.isBlank() ||
+        if (localIdPrefix.isBlank() ||
             !localId.startsWith(localIdPrefix) ||
             localId.length == localIdPrefix.length
         ) {
             return null
         }
+        val upstreamId = localId.removePrefix(localIdPrefix)
+        if (!includeModel(upstreamId)) return null
+        val routes = routesFor(upstreamId)
+        if (route !in routes) return null
         return SubscriptionProxyModel(
             localId = localId,
-            upstreamId = localId.removePrefix(localIdPrefix),
+            upstreamId = upstreamId,
             providerId = id,
             providerName = displayName,
             litellmProvider = litellmProvider,
@@ -104,7 +109,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
             PassThroughSubscriptionProxyProvider.ModelMapping(
                 localId = localIdPrefix + model.id,
                 upstreamId = model.id,
-                supportedRoutes = supportedRoutes,
+                supportedRoutes = routesFor(model.id),
                 supportsFunctionCalling = model.supportsFunctionCalling,
                 supportsToolChoice = model.supportsToolChoice,
                 supportsVision = model.supportsVision,
@@ -144,7 +149,14 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
             is JsonArray -> root
             else -> null
         } ?: return emptyList()
-        return data.mapNotNull(::parseRemoteModel).map(modelTransformer).distinctBy { it.id }
+        return data.mapNotNull(::parseRemoteModel)
+            .filter { includeModel(it.id) }
+            .map(modelTransformer)
+            .distinctBy { it.id }
+    }
+
+    private fun routesFor(upstreamId: String): Set<SubscriptionProxyRoute> {
+        return supportedRoutes + extraRoutesForModel(upstreamId)
     }
 
     private fun parseRemoteModel(element: JsonElement): StaticModel? {
