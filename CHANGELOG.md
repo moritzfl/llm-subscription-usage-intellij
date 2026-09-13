@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - Proxy tab FIM adapter checkbox is now **Adapt model for FIM**. It explains that the option converts FIM calls into chat requests a chat model can understand.
+- AI Completion model comment explains why the id is fixed as `qwen2.5-coder`: IntelliJ autodetects how to talk to the model from that name, which keeps FIM on and avoids a wrong prompt schema.
 
 ## [1.12.1] - 2026-09-12
 

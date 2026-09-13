@@ -131,7 +131,7 @@ internal class SubscriptionProxySettingsPanel(
     private val fimIdeModelIdField = JBTextField(CompletionsConfig.FIM_ALIAS_ID).apply {
         isEditable = false
         columns = 24
-        toolTipText = "Model name on incoming AI Completion calls. The proxy forwards them to the subscription model below."
+        toolTipText = "IntelliJ autodetects how to talk to the model from this name. ${CompletionsConfig.FIM_ALIAS_ID} keeps AI Completion on FIM."
     }
     private val copyCompletionsModelButton = JButton("Copy", AllIcons.Actions.Copy).apply {
         toolTipText = "Copy ${CompletionsConfig.FIM_ALIAS_ID} for AI Completion → Model"
@@ -313,7 +313,7 @@ internal class SubscriptionProxySettingsPanel(
                     row("AI Completion model:") {
                         cell(fimIdeModelIdField)
                             .gap(RightGap.SMALL)
-                            .comment("Name AI Completion sends to this proxy. The proxy forwards those calls to the subscription model below.")
+                            .comment("IntelliJ autodetects how to talk to the model from this name. Using ${CompletionsConfig.FIM_ALIAS_ID} keeps AI Completion on FIM and prevents a misconfigured prompt schema.")
                         cell(copyCompletionsModelButton)
                     }
                     row("Subscription model:") {
