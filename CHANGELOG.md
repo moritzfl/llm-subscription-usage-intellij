@@ -7,6 +7,7 @@
 - MCP `subscription_web_fetch` reads a page through Ollama `/api/web_fetch` or Z.ai `/paas/v4/reader` and returns provider JSON. Images are not requested.
 - Local proxy exposes OpenAI media routes `/v1/images/generations`, `/v1/audio/speech`, and `/v1/audio/transcriptions`. Images return a URL (no `b64_json`). Speech is binary audio. SuperGrok, MiniMax, and Z.ai cover images; SuperGrok covers speech and transcription.
 - MiniMax speech-to-text uses `POST /v1/speech_to_text` (`asr-1.0`) with a local file. Diarization requests `verbose_json`.
+- SuperGrok image edits use xAI JSON `POST /v1/images/edits` (not OpenAI multipart). Masks are rejected. MiniMax image-to-image is not treated as screenshot editing.
 
 ## [1.12.2] - 2026-09-13
 

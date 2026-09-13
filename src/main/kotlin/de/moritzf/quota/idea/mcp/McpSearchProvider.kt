@@ -17,6 +17,10 @@ enum class ListSearchProvider(val providerType: QuotaProviderType) {
  * Providers that support subscription-backed image generation.
  * Schema generation for the MCP tool parameter derives valid values from this enum.
  */
+enum class ImageEditProvider(val providerType: QuotaProviderType) {
+    SUPERGROK(QuotaProviderType.SUPERGROK),
+}
+
 enum class ImageGenerationProvider(val providerType: QuotaProviderType) {
     OPEN_AI(QuotaProviderType.OPEN_AI),
     SUPERGROK(QuotaProviderType.SUPERGROK),

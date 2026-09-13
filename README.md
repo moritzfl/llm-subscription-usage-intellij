@@ -94,6 +94,7 @@ The plugin registers subscription-backed tools with IntelliJ's built-in MCP serv
 | `subscription_web_fetch` | Fetch a page as JSON (title/content/links) via Ollama or Z.ai |
 | `subscription_document_to_markdown` | Convert a PDF/image to markdown via Mistral OCR, Z.ai GLM-OCR, OpenAI/Codex, or SuperGrok. Native OCR providers extract figures; Codex/SuperGrok crop figure regions locally from vision-estimated boxes |
 | `subscription_image_generation` | Image generation via OpenAI/Codex, SuperGrok/xAI Imagine, Mistral, Z.ai GLM-Image, or MiniMax. Returns a download URL or writes a file; never base64 |
+| `subscription_image_edit` | SuperGrok/xAI JSON image edits from a source URL or local file. Masks are not supported |
 | `subscription_speech_to_text` | Transcribe audio via OpenAI/Codex, SuperGrok/xAI, Mistral, or Z.ai |
 | `subscription_text_to_speech` | Generate speech audio via OpenAI/Codex, SuperGrok/xAI, Mistral, or MiniMax and write it to a file |
 | `subscription_list_voices` | List OpenAI/Codex, SuperGrok/xAI, Mistral, or MiniMax voices |

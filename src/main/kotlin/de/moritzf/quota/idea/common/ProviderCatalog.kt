@@ -61,6 +61,7 @@ internal enum class WebSearchCapability {
 internal data class ProviderCapabilities(
     val webSearch: WebSearchCapability = WebSearchCapability.NONE,
     val imageGeneration: Boolean = false,
+    val imageEdit: Boolean = false,
     val videoGeneration: Boolean = false,
     val speechToText: Boolean = false,
     val textToSpeech: Boolean = false,
@@ -357,6 +358,7 @@ internal object ProviderCatalog {
             capabilities = ProviderCapabilities(
                 webSearch = WebSearchCapability.ANSWER,
                 imageGeneration = true,
+                imageEdit = true,
                 videoGeneration = true,
                 speechToText = true,
                 textToSpeech = true,

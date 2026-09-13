@@ -98,6 +98,30 @@ class SuperGrokImagineClientTest {
     }
 
     @Test
+    fun editImagePostsJsonNotMultipart() {
+        TestGrokServer(
+            responseBody = """{"data":[{"url":"https://imgen.x.ai/edit.png"}]}""",
+        ).use { server ->
+            val client = SuperGrokImagineClient(httpClient = httpClient, baseUri = server.baseUri)
+            val result = client.editImage("token", "make it a sketch", imageUrl = "https://example.test/in.png")
+            assertTrue(result.contains("imgen.x.ai"))
+            val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
+            assertEquals("/images/edits", request.path)
+            val payload = JsonSupport.json.parseToJsonElement(request.body).jsonObject
+            assertEquals("https://example.test/in.png", payload["image"]!!.jsonObject["url"]!!.jsonPrimitive.content)
+            assertEquals("image_url", payload["image"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+        }
+    }
+
+    @Test
+    fun editImageRejectsMissingSource() {
+        val exception = assertFailsWith<SuperGrokQuotaException> {
+            SuperGrokImagineClient.sourceImageUrl(null, null)
+        }
+        assertEquals("Provide imageUrl or a local image path.", exception.message)
+    }
+
+    @Test
     fun videoGenerationPollsUntilDone() {
         MultiResponseGrokServer(
             postBody = """{"request_id":"vid-1","status":"pending"}""",

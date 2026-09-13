@@ -174,6 +174,16 @@ class SubscriptionUsageMcpToolsetTest {
     }
 
     @Test
+    fun subscriptionImageEditUsesSuperGrokOnly() {
+        val tools = mcpTools("subscription_image_edit")
+        assertEquals(listOf("subscription_image_edit"), tools.map { it.mcpName() })
+        assertEquals(
+            listOf(String::class, ImageEditProvider::class, String::class, String::class, String::class, String::class, String::class),
+            tools.single().mcpParamClassifiers(),
+        )
+    }
+
+    @Test
     fun subscriptionWebFetchUsesSingleToolWithProviderEnumParameter() {
         val fetchTools = mcpTools("subscription_web_fetch")
 

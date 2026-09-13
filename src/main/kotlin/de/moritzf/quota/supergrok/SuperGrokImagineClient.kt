@@ -12,6 +12,7 @@ import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
 import java.time.Duration
+import java.util.Base64
 import java.util.Locale
 import javax.imageio.ImageIO
 import kotlinx.serialization.SerialName
@@ -58,6 +59,40 @@ open class SuperGrokImagineClient(
             ),
         )
         val responseBody = postJson(token, IMAGES_GENERATIONS_PATH, body, requestTimeoutSeconds = 120)
+        if (outputTarget?.path == null) {
+            return McpJson.providerJsonOrRaw(responseBody)
+        }
+        return writeFirstImageToFile(responseBody, outputTarget.path, outputTarget.format!!)
+    }
+
+    open fun editImage(
+        accessToken: String,
+        prompt: String,
+        imageUrl: String? = null,
+        localFile: Path? = null,
+        model: String = DEFAULT_IMAGE_MODEL,
+        targetFile: String? = null,
+        baseDirectory: Path? = null,
+    ): String {
+        val trimmedPrompt = prompt.trim()
+        if (trimmedPrompt.isBlank()) {
+            throw SuperGrokQuotaException("Image prompt is required.")
+        }
+        val source = sourceImageUrl(imageUrl, localFile)
+        val token = requireToken(accessToken)
+        val trimmedModel = model.trim().ifBlank { DEFAULT_IMAGE_MODEL }
+        val outputTarget = resolveOptionalImageTarget(targetFile, baseDirectory)
+        if (outputTarget?.error != null) {
+            throw SuperGrokQuotaException(outputTarget.error)
+        }
+        val body = JsonSupport.json.encodeToString(
+            GrokImageEditRequestDto(
+                model = trimmedModel,
+                prompt = trimmedPrompt,
+                image = GrokEditImageDto(url = source, type = "image_url"),
+            ),
+        )
+        val responseBody = postJson(token, IMAGES_EDITS_PATH, body, requestTimeoutSeconds = 120)
         if (outputTarget?.path == null) {
             return McpJson.providerJsonOrRaw(responseBody)
         }
@@ -262,6 +297,35 @@ open class SuperGrokImagineClient(
         private const val MAX_VIDEO_POLL_TIMEOUT_SECONDS = 600
         private const val VIDEO_POLL_INTERVAL_MS = 5_000L
         private const val IMAGES_GENERATIONS_PATH = "images/generations"
+        private const val IMAGES_EDITS_PATH = "images/edits"
+        private const val MAX_EDIT_IMAGE_BYTES = 20L * 1024L * 1024L
+
+        internal fun sourceImageUrl(imageUrl: String?, localFile: Path?): String {
+            val url = imageUrl?.trim().orEmpty()
+            if (localFile != null) {
+                if (!Files.isRegularFile(localFile)) {
+                    throw SuperGrokQuotaException("Local image was not found.")
+                }
+                if (Files.size(localFile) > MAX_EDIT_IMAGE_BYTES) {
+                    throw SuperGrokQuotaException("Source image exceeds 20 MB.")
+                }
+                val bytes = Files.readAllBytes(localFile)
+                val mime = when (localFile.fileName.toString().substringAfterLast('.', "").lowercase(Locale.ROOT)) {
+                    "jpg", "jpeg" -> "image/jpeg"
+                    "webp" -> "image/webp"
+                    "gif" -> "image/gif"
+                    else -> "image/png"
+                }
+                return "data:$mime;base64,${Base64.getEncoder().encodeToString(bytes)}"
+            }
+            if (url.isEmpty()) {
+                throw SuperGrokQuotaException("Provide imageUrl or a local image path.")
+            }
+            if (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("data:")) {
+                throw SuperGrokQuotaException("Source image must be an http(s) URL or a local file.")
+            }
+            return url
+        }
         private const val VIDEOS_GENERATIONS_PATH = "videos/generations"
         private const val USER_AGENT = "openai-usage-quota-intellij"
         private val DEFAULT_BASE_URI = URI.create("https://api.x.ai/v1/")
@@ -343,6 +407,19 @@ private data class GrokImageGenerationRequestDto(
     val prompt: String,
     val n: Int,
     @SerialName("response_format") val responseFormat: String,
+)
+
+@Serializable
+private data class GrokImageEditRequestDto(
+    val model: String,
+    val prompt: String,
+    val image: GrokEditImageDto,
+)
+
+@Serializable
+private data class GrokEditImageDto(
+    val url: String,
+    val type: String,
 )
 
 @Serializable

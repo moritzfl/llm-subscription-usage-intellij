@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea.common
 
+import de.moritzf.quota.idea.mcp.ImageEditProvider
 import de.moritzf.quota.idea.mcp.ImageGenerationProvider
 import de.moritzf.quota.idea.mcp.ListSearchProvider
 import de.moritzf.quota.idea.mcp.SpeechToTextProvider
@@ -54,6 +55,10 @@ class ProviderCatalogTest {
         assertEquals(
             ProviderCatalog.all.filter { it.capabilities.imageGeneration }.map { it.type }.toSet(),
             ImageGenerationProvider.entries.map { it.providerType }.toSet(),
+        )
+        assertEquals(
+            ProviderCatalog.all.filter { it.capabilities.imageEdit }.map { it.type }.toSet(),
+            ImageEditProvider.entries.map { it.providerType }.toSet(),
         )
         assertEquals(
             ProviderCatalog.all.filter { it.capabilities.videoGeneration }.map { it.type }.toSet(),

@@ -191,6 +191,25 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
+    @McpTool(name = "subscription_image_edit")
+    @McpDescription(description = "Edits an existing image with SuperGrok/xAI JSON image edits. Provide imageUrl or localFile. Masks are not supported. Returns a URL or writes targetFile. Never returns base64.")
+    suspend fun subscription_image_edit(
+        @McpDescription(description = "Edit prompt.") prompt: String,
+        @McpDescription(description = "Provider. Only SuperGrok is supported.") provider: ImageEditProvider = ImageEditProvider.SUPERGROK,
+        @McpDescription(description = "Public source image URL. Leave blank when localFile is set.") imageUrl: String? = null,
+        @McpDescription(description = "Optional project-relative or absolute local source image.") localFile: String? = null,
+        @McpDescription(description = "Optional mask image URL. Unsupported; the call fails if set.") maskUrl: String? = null,
+        @McpDescription(description = "Optional relative project path for the edited image.") targetFile: String? = null,
+        @McpDescription(description = "Image model id. Leave blank for the provider default.") model: String = "",
+    ): String {
+        if (!maskUrl.isNullOrBlank()) {
+            return errorResult("xAI image edits do not support masks. Send the source image only.")
+        }
+        return when (provider) {
+            ImageEditProvider.SUPERGROK -> superGrokImageEdit(prompt, imageUrl, localFile, targetFile, model)
+        }
+    }
+
     @McpTool(name = "subscription_image_generation")
     @McpDescription(description = "Generates one image through a subscription-backed provider. Without targetFile, SuperGrok, Z.ai, and MiniMax return an image URL; OpenAI/Codex and Mistral write a unique image-<uuid>.png in the project. With targetFile, the image is written to that path. Never returns base64.")
     suspend fun subscription_image_generation(
@@ -597,6 +616,26 @@ class SubscriptionUsageMcpToolset(
             superGrokImagineClient.generateImage(
                 accessToken = accessToken,
                 prompt = prompt,
+                targetFile = targetFile,
+                baseDirectory = projectBaseDirectory(),
+            )
+        }
+    }
+
+    private suspend fun superGrokImageEdit(
+        prompt: String,
+        imageUrl: String?,
+        localFile: String?,
+        targetFile: String?,
+        model: String,
+    ): String {
+        return withSuperGrokAuth("Grok image edit failed.") { accessToken ->
+            superGrokImagineClient.editImage(
+                accessToken = accessToken,
+                prompt = prompt,
+                imageUrl = imageUrl,
+                localFile = resolveOptionalPath(localFile),
+                model = model,
                 targetFile = targetFile,
                 baseDirectory = projectBaseDirectory(),
             )
