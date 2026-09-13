@@ -110,7 +110,7 @@ object AiCompletionSetupInspector {
     fun isAiAssistantEnabled(): Boolean {
         return AI_ASSISTANT_PLUGIN_IDS.any { id ->
             val pluginId = PluginId.getId(id)
-            PluginManagerCore.getPlugin(pluginId) != null && !PluginManagerCore.isDisabled(pluginId)
+            PluginManagerCore.isPluginInstalled(pluginId) && !PluginManagerCore.isDisabled(pluginId)
         }
     }
 
