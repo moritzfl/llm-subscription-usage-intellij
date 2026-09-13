@@ -2,16 +2,16 @@
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-09-13
+
 - MiniMax quota now reads Token Plan `/v1/token_plan/remains` (5-hour and weekly windows). When the API leaves counts at 0, remaining percent is used. Legacy `coding_plan/remains` still works. Settings ask for a Subscription key, not a pay-as-you-go API key.
 - `subscription_tools_status` can take an optional capability/model and reports cached quota freshness, the limiting pool, reset time, and whether that operation is exhausted. Failover can follow the same operation-specific pools.
 - MCP `subscription_web_fetch` reads a page through Ollama `/api/web_fetch` or Z.ai `/paas/v4/reader` and returns provider JSON. Images are not requested.
-- Local proxy exposes OpenAI media routes `/v1/images/generations`, `/v1/audio/speech`, and `/v1/audio/transcriptions`. Images return a URL (no `b64_json`). Speech is binary audio. SuperGrok, MiniMax, and Z.ai cover images; SuperGrok covers speech and transcription.
+- Local proxy exposes OpenAI media routes `/v1/images/generations`, `/v1/audio/speech`, and `/v1/audio/transcriptions`. Images return a URL (no `b64_json`). Speech is binary. SuperGrok covers all three; MiniMax and Z.ai cover images; speech and transcription also use Mistral, MiniMax, Z.ai (STT), and OpenAI/Codex when those accounts are configured. `/v1/models` lists working media ids (for example `sg-grok-imagine-image`, MiniMax/Z.ai image, Mistral Voxtral, Codex TTS/STT). Mistral TTS/STT ids are no longer advertised as chat models.
 - MiniMax speech-to-text uses `POST /v1/speech_to_text` (`asr-1.0`) with a local file. Diarization requests `verbose_json`.
 - SuperGrok image edits use xAI JSON `POST /v1/images/edits` (not OpenAI multipart). Masks are rejected. MiniMax image-to-image is not treated as screenshot editing.
 - `/v1/model/info` reports `fim_mode` (`native` / `adapter` / `none`) for the selected FIM model and the `qwen2.5-coder` alias. Mistral Codestral/`*fim*` models advertise native `/v1/fim/completions`.
 - Local proxy `/v1/usage` counts prompt/completion tokens from chat, responses, and completions JSON.
-- Proxy speech and transcription also use Mistral, MiniMax, Z.ai (STT), and OpenAI/Codex when those accounts are configured. SuperGrok still covers all three media routes.
-- `/v1/models` lists working media ids (for example `sg-grok-imagine-image`, MiniMax/Z.ai image, Mistral Voxtral, Codex TTS/STT). Mistral TTS/STT ids are no longer advertised as chat models.
 
 ## [1.12.2] - 2026-09-13
 
