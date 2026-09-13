@@ -173,6 +173,17 @@ class SubscriptionUsageMcpToolsetTest {
         )
     }
 
+    @Test
+    fun subscriptionWebFetchUsesSingleToolWithProviderEnumParameter() {
+        val fetchTools = mcpTools("subscription_web_fetch")
+
+        assertEquals(listOf("subscription_web_fetch"), fetchTools.map { it.mcpName() })
+        assertEquals(
+            listOf(WebFetchProvider::class, String::class),
+            fetchTools.single().mcpParamClassifiers(),
+        )
+    }
+
     private fun mcpTools(name: String? = null): List<KFunction<*>> {
         return SubscriptionUsageMcpToolset::class.functions
             .filter { it.findAnnotation<McpTool>() != null }

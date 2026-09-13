@@ -42,6 +42,23 @@ open class OllamaWebSearchClient(
         return McpJson.providerJsonOrRaw(body)
     }
 
+    open fun webFetch(apiKey: String, url: String): String {
+        val target = normalizeHttpUrl(url)
+        val token = apiKey.trim().ifBlank {
+            throw OllamaQuotaException("Ollama API key missing. Add an Ollama API key in settings.")
+        }
+        val response = send(fetchRequest(token, target))
+        val status = response.statusCode()
+        val body = response.body()
+        if (status == 401 || status == 403) {
+            throw OllamaQuotaException("Ollama API key invalid. Check your Ollama API key.", status, body)
+        }
+        if (status !in 200..299) {
+            throw OllamaQuotaException("Ollama web fetch failed (HTTP $status). Try again later.", status, body)
+        }
+        return McpJson.providerJsonOrRaw(body)
+    }
+
     private fun searchRequest(apiKey: String, query: String, limit: Int): HttpRequest {
         val body = JsonSupport.json.encodeToString(OllamaSearchRequestDto(query, limit))
 
@@ -53,6 +70,22 @@ open class OllamaWebSearchClient(
             .header("Accept", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(body))
             .build()
+    }
+
+    private fun fetchRequest(apiKey: String, url: String): HttpRequest {
+        val body = JsonSupport.json.encodeToString(OllamaFetchRequestDto(url))
+        return HttpRequest.newBuilder()
+            .uri(endpoint(WEB_FETCH_PATH))
+            .timeout(Duration.ofSeconds(60))
+            .header("Authorization", "Bearer $apiKey")
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(body))
+            .build()
+    }
+
+    private fun endpoint(path: String): URI {
+        return URI.create(baseUri.toString().trimEnd('/') + path)
     }
 
     private fun send(request: HttpRequest): HttpResponse<String> {
@@ -71,7 +104,22 @@ open class OllamaWebSearchClient(
         const val MIN_LIMIT = 1
         const val MAX_LIMIT = 10
         private const val WEB_SEARCH_PATH = "/api/web_search"
+        private const val WEB_FETCH_PATH = "/api/web_fetch"
         private val DEFAULT_BASE_URI = URI.create("https://ollama.com")
+
+        internal fun normalizeHttpUrl(value: String): String {
+            val trimmed = value.trim()
+            if (trimmed.isBlank()) {
+                throw OllamaQuotaException("URL is required.")
+            }
+            val withScheme = if ("://" in trimmed) trimmed else "https://$trimmed"
+            val uri = runCatching { URI(withScheme) }.getOrNull()
+            val scheme = uri?.scheme?.lowercase()
+            if (uri?.host.isNullOrBlank() || (scheme != "http" && scheme != "https")) {
+                throw OllamaQuotaException("URL must be http or https.")
+            }
+            return withScheme
+        }
 
         fun createDefault(): OllamaWebSearchClient = OllamaWebSearchClient()
 
@@ -87,4 +135,9 @@ open class OllamaWebSearchClient(
 private data class OllamaSearchRequestDto(
     val query: String,
     @SerialName("max_results") val maxResults: Int,
+)
+
+@Serializable
+private data class OllamaFetchRequestDto(
+    val url: String,
 )

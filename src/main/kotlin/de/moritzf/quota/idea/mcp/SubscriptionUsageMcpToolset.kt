@@ -179,6 +179,18 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
+    @McpTool(name = "subscription_web_fetch")
+    @McpDescription(description = "Fetches a web page through a subscription-backed provider and returns the provider JSON (title, content, links). PDF conversion stays on subscription_document_to_markdown.")
+    suspend fun subscription_web_fetch(
+        @McpDescription(description = "Provider to use. Supported providers are derived from the WebFetchProvider enum.") provider: WebFetchProvider = WebFetchProvider.OLLAMA,
+        @McpDescription(description = "Page URL to fetch.") url: String,
+    ): String {
+        return when (provider) {
+            WebFetchProvider.OLLAMA -> ollamaWebFetch(url)
+            WebFetchProvider.ZAI -> zaiWebFetch(url)
+        }
+    }
+
     @McpTool(name = "subscription_image_generation")
     @McpDescription(description = "Generates one image through a subscription-backed provider. Without targetFile, SuperGrok, Z.ai, and MiniMax return an image URL; OpenAI/Codex and Mistral write a unique image-<uuid>.png in the project. With targetFile, the image is written to that path. Never returns base64.")
     suspend fun subscription_image_generation(
@@ -484,6 +496,7 @@ class SubscriptionUsageMcpToolset(
             quotaConfigured = quotaConfigured,
             webSearchAvailable = webSearchAvailable,
             webSearchType = searchType,
+            webFetchAvailable = caps.webFetch && webSearchAvailable,
             imageGenerationAvailable = caps.imageGeneration && descriptor.isImageGenerationConfiguredForAccount(id),
             videoGenerationAvailable = caps.videoGeneration && quotaConfigured,
             speechToTextAvailable = caps.speechToText && descriptor.isVoiceConfiguredForAccount(id),
@@ -979,6 +992,34 @@ class SubscriptionUsageMcpToolset(
         if (path.isAbsolute) return path.normalize()
         val project = currentCoroutineContext().projectOrNull ?: return path.normalize()
         return project.resolveInProject(trimmed, throwWhenOutside = false)
+    }
+
+    private suspend fun ollamaWebFetch(url: String): String {
+        val apiKey = resolvedApiKey(QuotaProviderType.OLLAMA) { OllamaApiKeyStore.forAccount(it).loadBlocking() }
+        if (apiKey.isNullOrBlank()) {
+            return errorResult("Ollama API key missing. Add an Ollama API key in settings.")
+        }
+        return try {
+            ollamaSearchClient.webFetch(apiKey, url)
+        } catch (exception: OllamaQuotaException) {
+            errorResult(exception.message ?: "Ollama web fetch failed.")
+        } catch (exception: Exception) {
+            errorResult(exception.message ?: "Ollama web fetch failed.")
+        }
+    }
+
+    private suspend fun zaiWebFetch(url: String): String {
+        val apiKey = resolvedApiKey(QuotaProviderType.ZAI) { ZaiApiKeyStore.forAccount(it).loadBlocking() }
+        if (apiKey.isNullOrBlank()) {
+            return errorResult("Z.ai API key missing. Add a Z.ai API key in settings.")
+        }
+        return try {
+            zaiSearchClient.webFetch(apiKey, url)
+        } catch (exception: ZaiQuotaException) {
+            errorResult(exception.message ?: "Z.ai web fetch failed.")
+        } catch (exception: Exception) {
+            errorResult(exception.message ?: "Z.ai web fetch failed.")
+        }
     }
 
     private suspend fun ollamaWebSearch(query: String, limit: Int, includeContent: Boolean): String {

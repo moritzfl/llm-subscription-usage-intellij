@@ -94,6 +94,42 @@ class OllamaWebSearchClientTest {
         }
     }
 
+    @Test
+    fun postsWebFetchRequestAndReturnsProviderJson() {
+        TestOllamaServer(
+            responseBody = """
+                {
+                  "title": "Ollama",
+                  "content": "Cloud models are now available",
+                  "links": ["https://ollama.com/", "https://github.com/ollama/ollama"]
+                }
+            """.trimIndent(),
+        ).use { server ->
+            val client = newClient(server)
+
+            val result = client.webFetch("ollama-key", "ollama.com")
+
+            val body = parseObject(result)
+            assertEquals("Ollama", body["title"]!!.jsonPrimitive.content)
+            val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
+            assertEquals("POST", request.method)
+            assertEquals("/api/web_fetch", request.path)
+            assertEquals("https://ollama.com", parseObject(request.body)["url"]!!.jsonPrimitive.content)
+        }
+    }
+
+    @Test
+    fun rejectsNonHttpFetchUrl() {
+        TestOllamaServer().use { server ->
+            val client = newClient(server)
+            val exception = assertFailsWith<OllamaQuotaException> {
+                client.webFetch("ollama-key", "ftp://example.test")
+            }
+            assertEquals("URL must be http or https.", exception.message)
+            assertNull(server.requests.poll(500, TimeUnit.MILLISECONDS))
+        }
+    }
+
     private fun newClient(server: TestOllamaServer): OllamaWebSearchClient {
         return OllamaWebSearchClient(httpClient = httpClient, baseUri = server.baseUri)
     }

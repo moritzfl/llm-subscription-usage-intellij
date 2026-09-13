@@ -39,7 +39,7 @@
 - `QuotaProviderRegistry`, `ProviderSettingsRegistry`, `ProviderUiRegistry`, and `UsageQuotaMcpRegistry` are facades over the catalog — do not add parallel per-provider maps.
 - Keep `QuotaProviderType` as the catalog / MCP type id. Runtime logins are `ProviderAccount` rows (`id`, `typeId`, `name`, `isDefault`, `allowFailover`). Migrated first accounts keep `id == type.id`.
 - Settings list is add/remove accounts, not a fixed type inventory. Names are unique per type; Apply blocks duplicates/blanks. Show the name only when that type has two or more accounts.
-- Capability flags drive proxy-supported lists and MCP status. Keep MCP param enums (`ListSearchProvider`, `ImageGenerationProvider`, `SpeechToTextProvider`, `TextToSpeechProvider`, `DocumentToMarkdownProvider`) in sync with capabilities (`ProviderCatalogTest` enforces this).
+- Capability flags drive proxy-supported lists and MCP status. Keep MCP param enums (`ListSearchProvider`, `WebFetchProvider`, `ImageGenerationProvider`, `SpeechToTextProvider`, `TextToSpeechProvider`, `DocumentToMarkdownProvider`) in sync with capabilities (`ProviderCatalogTest` enforces this).
 - New provider checklist: `QuotaProviderType` (+ `QuotaIndicatorSource` if shown in the status bar), one `ProviderCatalog` entry (including `ideProxyFactory` when `subscriptionProxy`), icon/`QuotaIcons`, MCP enum + tool dispatch arm if needed, standalone env wiring if proxy CLI, tests, `plugin.xml` + `README` table, changelog.
 
 ## Proxy Providers

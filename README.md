@@ -91,6 +91,7 @@ The plugin registers subscription-backed tools with IntelliJ's built-in MCP serv
 | `supergrok_web_search` | Web search answered by Grok (model selection, domain filters) |
 | `mistral_web_search` | Answer-style web search via Mistral Conversations |
 | `subscription_web_search` | Result-list web search via Kimi, Z.ai, MiniMax, or Ollama |
+| `subscription_web_fetch` | Fetch a page as JSON (title/content/links) via Ollama or Z.ai |
 | `subscription_document_to_markdown` | Convert a PDF/image to markdown via Mistral OCR, Z.ai GLM-OCR, OpenAI/Codex, or SuperGrok. Native OCR providers extract figures; Codex/SuperGrok crop figure regions locally from vision-estimated boxes |
 | `subscription_image_generation` | Image generation via OpenAI/Codex, SuperGrok/xAI Imagine, Mistral, Z.ai GLM-Image, or MiniMax. Returns a download URL or writes a file; never base64 |
 | `subscription_speech_to_text` | Transcribe audio via OpenAI/Codex, SuperGrok/xAI, Mistral, or Z.ai |

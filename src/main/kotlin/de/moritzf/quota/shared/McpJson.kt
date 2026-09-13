@@ -66,6 +66,7 @@ internal data class McpAccountToolStatus(
     @SerialName("quota_configured") val quotaConfigured: Boolean,
     @SerialName("web_search_available") val webSearchAvailable: Boolean,
     @SerialName("web_search_type") val webSearchType: String? = null,
+    @SerialName("web_fetch_available") val webFetchAvailable: Boolean = false,
     @SerialName("image_generation_available") val imageGenerationAvailable: Boolean,
     @SerialName("video_generation_available") val videoGenerationAvailable: Boolean,
     @SerialName("speech_to_text_available") val speechToTextAvailable: Boolean = false,

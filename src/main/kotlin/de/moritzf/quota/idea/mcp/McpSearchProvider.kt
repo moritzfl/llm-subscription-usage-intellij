@@ -44,6 +44,11 @@ enum class VideoGenerationProvider(val providerType: QuotaProviderType) {
     ZAI(QuotaProviderType.ZAI),
 }
 
+enum class WebFetchProvider(val providerType: QuotaProviderType) {
+    OLLAMA(QuotaProviderType.OLLAMA),
+    ZAI(QuotaProviderType.ZAI),
+}
+
 enum class DocumentToMarkdownProvider(val providerType: QuotaProviderType) {
     MISTRAL(QuotaProviderType.MISTRAL),
     ZAI(QuotaProviderType.ZAI),

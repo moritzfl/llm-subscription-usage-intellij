@@ -106,6 +106,36 @@ class ZaiWebSearchClientTest {
         }
     }
 
+    @Test
+    fun postsWebReaderRequestWithoutImages() {
+        TestZaiServer(
+            responseBody = """
+                {
+                  "id": "read-1",
+                  "reader_result": {
+                    "title": "Example",
+                    "content": "# Example",
+                    "url": "https://www.example.com"
+                  }
+                }
+            """.trimIndent(),
+        ).use { server ->
+            val client = newClient(server)
+
+            val result = client.webFetch("zai-key", "https://www.example.com")
+
+            val body = parseObject(result)
+            assertEquals("read-1", body["id"]!!.jsonPrimitive.content)
+            val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
+            assertEquals("/reader", request.path)
+            val payload = parseObject(request.body)
+            assertEquals("https://www.example.com", payload["url"]!!.jsonPrimitive.content)
+            assertEquals("markdown", payload["return_format"]!!.jsonPrimitive.content)
+            assertEquals(false, payload["retain_images"]!!.jsonPrimitive.boolean)
+            assertEquals(false, payload["keep_img_data_url"]!!.jsonPrimitive.boolean)
+        }
+    }
+
     private fun newClient(server: TestZaiServer): ZaiWebSearchClient {
         return ZaiWebSearchClient(httpClient = httpClient, baseUri = server.baseUri)
     }

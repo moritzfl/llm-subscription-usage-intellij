@@ -65,6 +65,7 @@ internal data class ProviderCapabilities(
     val speechToText: Boolean = false,
     val textToSpeech: Boolean = false,
     val documentToMarkdown: Boolean = false,
+    val webFetch: Boolean = false,
     val subscriptionProxy: Boolean = false,
     val oauth: Boolean = false,
 )
@@ -271,6 +272,7 @@ internal object ProviderCatalog {
             type = QuotaProviderType.OLLAMA,
             capabilities = ProviderCapabilities(
                 webSearch = WebSearchCapability.LIST,
+                webFetch = true,
                 subscriptionProxy = true,
             ),
             quotaFactory = { OllamaQuotaProvider(accountId = it.id) },
@@ -384,6 +386,7 @@ internal object ProviderCatalog {
                 videoGeneration = true,
                 speechToText = true,
                 documentToMarkdown = true,
+                webFetch = true,
                 subscriptionProxy = true,
             ),
             quotaFactory = { ZaiQuotaProvider(accountId = it.id) },
