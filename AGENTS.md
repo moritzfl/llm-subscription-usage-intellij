@@ -7,6 +7,7 @@
 - The plugin tracks LLM subscription quotas, exposes MCP tools, syncs IntelliJ MCP server URLs, and runs a local OpenAI-compatible subscription proxy.
 - Build target is JVM 21 with Kotlin API/language version 2.3 to match IntelliJ 2026.1 bundled Kotlin.
 - Credentials and API keys belong in IntelliJ Password Safe. Never add secrets, raw tokens, or generated logs to git.
+- Auth is self-maintained: browser login or keys the user enters in this plugin. Never read, write, watch, or import auth files other tools put on disk (Codex `auth.json`, ChatGPT local, OS stores of other apps). Do not add “import from ~/.codex” or similar.
 
 ## Validation
 
