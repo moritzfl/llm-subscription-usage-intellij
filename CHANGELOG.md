@@ -10,6 +10,8 @@
 - SuperGrok image edits use xAI JSON `POST /v1/images/edits` (not OpenAI multipart). Masks are rejected. MiniMax image-to-image is not treated as screenshot editing.
 - `/v1/model/info` reports `fim_mode` (`native` / `adapter` / `none`) for the selected FIM model and the `qwen2.5-coder` alias. Mistral Codestral/`*fim*` models advertise native `/v1/fim/completions`.
 - Local proxy `/v1/usage` counts prompt/completion tokens from chat, responses, and completions JSON.
+- Proxy speech and transcription also use Mistral, MiniMax, Z.ai (STT), and OpenAI/Codex when those accounts are configured. SuperGrok still covers all three media routes.
+- `/v1/models` lists working media ids (for example `sg-grok-imagine-image`, MiniMax/Z.ai image, Mistral Voxtral, Codex TTS/STT). Mistral TTS/STT ids are no longer advertised as chat models.
 
 ## [1.12.2] - 2026-09-13
 

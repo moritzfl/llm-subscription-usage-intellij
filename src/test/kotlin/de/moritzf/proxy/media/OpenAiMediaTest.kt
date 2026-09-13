@@ -3,11 +3,25 @@ package de.moritzf.proxy.media
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 class OpenAiMediaTest {
+    @Test
+    fun advertisesWorkingMediaIdsPerProvider() {
+        assertEquals(
+            setOf("sg-grok-imagine-image"),
+            OpenAiMedia.advertisedMediaIds(setOf("supergrok")),
+        )
+        assertTrue("mi-voxtral-mini-tts-2603" in OpenAiMedia.advertisedMediaIds(setOf("mistral")))
+        assertTrue(OpenAiMedia.isChatDiscoveryId("mistral-small-latest"))
+        assertTrue(OpenAiMedia.isChatDiscoveryId("codestral-latest"))
+        assertTrue(!OpenAiMedia.isChatDiscoveryId("voxtral-mini-tts-2603"))
+        assertTrue(!OpenAiMedia.isChatDiscoveryId("grok-imagine-image"))
+    }
+
     @Test
     fun mapsPrefixedModels() {
         assertEquals("supergrok", OpenAiMedia.providerIdForModel("sg-grok-imagine-image"))

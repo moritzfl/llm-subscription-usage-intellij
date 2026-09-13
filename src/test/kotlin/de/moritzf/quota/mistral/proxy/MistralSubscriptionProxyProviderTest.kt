@@ -2,6 +2,7 @@ package de.moritzf.quota.mistral.proxy
 
 import com.sun.net.httpserver.HttpServer
 import de.moritzf.proxy.fim.CompletionsConfig
+import de.moritzf.proxy.media.OpenAiMedia
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.subscription.SubscriptionProxyServer
 import java.net.InetAddress
@@ -34,7 +35,11 @@ class MistralSubscriptionProxyProviderTest {
                 assertEquals(200, modelsResponse.statusCode())
                 val ids = JsonHelper.JSON.parseToJsonElement(modelsResponse.body()).jsonObject["data"]!!.jsonArray
                     .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertEquals(listOf("mi-mistral-small-latest", "mi-codestral-latest"), ids)
+                assertEquals(
+                    listOf("mi-mistral-small-latest", "mi-codestral-latest"),
+                    ids.filter { it !in OpenAiMedia.advertisedMediaIds(setOf("mistral")) },
+                )
+                assertTrue("mi-voxtral-mini-tts-2603" in ids)
                 assertEquals("/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
 
                 val chatResponse = post(
@@ -217,6 +222,7 @@ class MistralSubscriptionProxyProviderTest {
                     "{\"object\":\"list\",\"data\":[" +
                         "{\"id\":\"mistral-small-latest\",\"object\":\"model\"}," +
                         "{\"id\":\"codestral-latest\",\"object\":\"model\"}," +
+                        "{\"id\":\"voxtral-mini-latest\",\"object\":\"model\"}," +
                         "{\"id\":\"mistral-embed\",\"object\":\"embedding\"}" +
                         "]}"
                 } else if (path.endsWith("/fim/completions")) {

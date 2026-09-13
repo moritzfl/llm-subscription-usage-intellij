@@ -1,6 +1,7 @@
 package de.moritzf.quota.supergrok.proxy
 
 import com.sun.net.httpserver.HttpServer
+import de.moritzf.proxy.media.OpenAiMedia
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.subscription.SubscriptionProxyServer
 import java.net.InetAddress
@@ -33,7 +34,8 @@ class SuperGrokSubscriptionProxyProviderTest {
                 assertEquals(200, response.statusCode())
                 val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
                     .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertEquals(listOf("sg-grok-4.3"), ids)
+                assertEquals(listOf("sg-grok-4.3"), ids.filter { it !in OpenAiMedia.advertisedMediaIds(setOf("supergrok")) })
+                assertTrue("sg-grok-imagine-image" in ids)
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/v1/models", request.path)
                 assertEquals("Bearer grok-token", request.firstHeader("Authorization"))
@@ -54,7 +56,8 @@ class SuperGrokSubscriptionProxyProviderTest {
                 assertEquals(200, response.statusCode())
                 val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
                     .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertEquals(emptyList(), ids)
+                assertEquals(emptyList(), ids.filter { it !in OpenAiMedia.advertisedMediaIds(setOf("supergrok")) })
+                assertTrue("sg-grok-imagine-image" in ids)
             } finally {
                 proxy.stop()
             }
@@ -77,7 +80,8 @@ class SuperGrokSubscriptionProxyProviderTest {
                 assertEquals(200, response.statusCode())
                 val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
                     .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertEquals(listOf("sg-grok-4.3"), ids)
+                assertEquals(listOf("sg-grok-4.3"), ids.filter { it !in OpenAiMedia.advertisedMediaIds(setOf("supergrok")) })
+                assertTrue("sg-grok-imagine-image" in ids)
             } finally {
                 proxy.stop()
             }

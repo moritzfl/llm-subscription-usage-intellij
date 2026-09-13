@@ -1,6 +1,7 @@
 package de.moritzf.quota.minimax.proxy
 
 import com.sun.net.httpserver.HttpServer
+import de.moritzf.proxy.media.OpenAiMedia
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.subscription.SubscriptionProxyServer
 import de.moritzf.quota.minimax.MiniMaxRegion
@@ -34,7 +35,11 @@ class MiniMaxSubscriptionProxyProviderTest {
                 assertEquals(200, modelsResponse.statusCode())
                 val ids = JsonHelper.JSON.parseToJsonElement(modelsResponse.body()).jsonObject["data"]!!.jsonArray
                     .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertEquals(listOf("mm-MiniMax-M2.1"), ids)
+                assertEquals(
+                    listOf("mm-MiniMax-M2.1"),
+                    ids.filter { it !in OpenAiMedia.advertisedMediaIds(setOf("minimax")) },
+                )
+                assertTrue("mm-image-01" in ids)
                 assertEquals("/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
 
                 val chatResponse = post(

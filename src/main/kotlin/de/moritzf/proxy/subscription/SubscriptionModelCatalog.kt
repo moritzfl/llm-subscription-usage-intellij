@@ -32,6 +32,10 @@ class SubscriptionModelCatalog(
         return providersById[model.providerId]?.takeIf { it.isConfigured() }
     }
 
+    fun configuredProviderIds(): Set<String> {
+        return providers.filter { it.isConfigured() }.map { it.id }.toSet()
+    }
+
     fun defaultModel(route: SubscriptionProxyRoute): SubscriptionProxyModel? {
         val routeModels = models.filter { route in it.supportedRoutes }
         return routeModels.firstOrNull { it.isDefault }

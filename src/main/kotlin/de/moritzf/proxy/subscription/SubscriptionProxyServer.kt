@@ -2,6 +2,7 @@ package de.moritzf.proxy.subscription
 
 import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.proxy.fim.FimModels
+import de.moritzf.proxy.media.OpenAiMedia
 import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.proxy.server.AccessLogFields
 import de.moritzf.proxy.server.ApiKeyStore
@@ -194,12 +195,29 @@ class SubscriptionProxyServer(
                 ),
             )
         }
+        extraMediaModels().forEach { media ->
+            if (data.none { it["id"] == media.localId }) {
+                data.add(
+                    linkedMapOf(
+                        "id" to media.localId,
+                        "object" to "model",
+                        "created" to 0,
+                        "owned_by" to media.providerId,
+                    ),
+                )
+            }
+        }
         JsonHelper.toJsonResponse(ctx, mapOf("object" to "list", "data" to data))
     }
 
     private suspend fun modelInfo(ctx: ProxyCall) {
         val data = catalog().models.map(::liteLlmInfo).toMutableList()
         fimAliasLiteLlmInfo()?.let { data.add(0, it) }
+        extraMediaModels().forEach { media ->
+            if (data.none { it["id"] == media.localId }) {
+                data.add(mediaLiteLlmInfo(media))
+            }
+        }
         JsonHelper.toJsonResponse(ctx, mapOf("data" to data))
     }
 
@@ -273,6 +291,29 @@ class SubscriptionProxyServer(
         if (selectedFimModel() == null) return false
         if (model.localId == completionsConfig().aliasId) return true
         return selectedFimModel()?.localId == model.localId
+    }
+
+    private fun extraMediaModels(): List<OpenAiMedia.AdvertisedMediaModel> {
+        return OpenAiMedia.advertisedMediaModels(catalog().configuredProviderIds())
+    }
+
+    private fun mediaLiteLlmInfo(model: OpenAiMedia.AdvertisedMediaModel): Map<String, Any> {
+        return linkedMapOf(
+            "id" to model.localId,
+            "model_name" to model.localId,
+            "litellm_params" to linkedMapOf(
+                "model" to model.localId,
+                "custom_llm_provider" to model.providerId,
+            ),
+            "model_info" to linkedMapOf<String, Any>(
+                "id" to model.localId,
+                "mode" to model.mode,
+                "litellm_provider" to model.providerId,
+                "fim_mode" to "none",
+                "supports_native_fim" to false,
+                "supports_fim_adapter" to false,
+            ),
+        )
     }
 
     private fun applyCorsHeaders(ctx: ProxyCall) {

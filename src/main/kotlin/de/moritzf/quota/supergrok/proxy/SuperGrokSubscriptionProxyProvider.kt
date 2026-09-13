@@ -73,6 +73,7 @@ class SuperGrokSubscriptionProxyProvider(
             .takeIf { it.startsWith(PREFIX) && it.length > PREFIX.length }
             ?.removePrefix(PREFIX)
             ?: return null
+        if (upstreamId.contains("imagine", ignoreCase = true)) return null
         return SubscriptionProxyModel(
             localId = localId,
             upstreamId = upstreamId,

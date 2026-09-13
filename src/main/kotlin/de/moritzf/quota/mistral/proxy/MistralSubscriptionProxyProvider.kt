@@ -1,6 +1,7 @@
 package de.moritzf.quota.mistral.proxy
 
 import de.moritzf.proxy.fim.FimModels
+import de.moritzf.proxy.media.OpenAiMedia
 import de.moritzf.proxy.server.CompletionsHandler
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.subscription.OpenAiCompatibleApiKeySubscriptionProxyProvider
@@ -32,6 +33,7 @@ class MistralSubscriptionProxyProvider(
         apiKeyProvider = apiKeyProvider,
         localIdPrefix = PREFIX,
         nativeCompletionsRoute = SubscriptionProxyRoute.FIM_COMPLETIONS,
+        includeModel = OpenAiMedia::isChatDiscoveryId,
         extraRoutesForModel = { id ->
             if (FimModels.isNativeFimId(id)) setOf(SubscriptionProxyRoute.FIM_COMPLETIONS) else emptySet()
         },
