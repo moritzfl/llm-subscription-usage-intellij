@@ -6,6 +6,7 @@
 - `subscription_tools_status` can take an optional capability/model and reports cached quota freshness, the limiting pool, reset time, and whether that operation is exhausted. Failover can follow the same operation-specific pools.
 - MCP `subscription_web_fetch` reads a page through Ollama `/api/web_fetch` or Z.ai `/paas/v4/reader` and returns provider JSON. Images are not requested.
 - Local proxy exposes OpenAI media routes `/v1/images/generations`, `/v1/audio/speech`, and `/v1/audio/transcriptions`. Images return a URL (no `b64_json`). Speech is binary audio. SuperGrok, MiniMax, and Z.ai cover images; SuperGrok covers speech and transcription.
+- MiniMax speech-to-text uses `POST /v1/speech_to_text` (`asr-1.0`) with a local file. Diarization requests `verbose_json`.
 
 ## [1.12.2] - 2026-09-13
 

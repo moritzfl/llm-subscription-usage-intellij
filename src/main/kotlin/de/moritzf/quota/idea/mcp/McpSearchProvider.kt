@@ -30,6 +30,7 @@ enum class SpeechToTextProvider(val providerType: QuotaProviderType) {
     SUPERGROK(QuotaProviderType.SUPERGROK),
     MISTRAL(QuotaProviderType.MISTRAL),
     ZAI(QuotaProviderType.ZAI),
+    MINIMAX(QuotaProviderType.MINIMAX),
 }
 
 enum class TextToSpeechProvider(val providerType: QuotaProviderType) {

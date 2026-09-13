@@ -310,6 +310,9 @@ class SubscriptionUsageMcpToolset(
 
             SpeechToTextProvider.ZAI ->
                 zaiSpeechToText(localFile, model.ifBlank { ZaiAudioClient.DEFAULT_MODEL })
+
+            SpeechToTextProvider.MINIMAX ->
+                miniMaxSpeechToText(localFile, language, diarize, model.ifBlank { MiniMaxAudioClient.DEFAULT_TRANSCRIBE_MODEL })
         }
     }
 
@@ -765,6 +768,24 @@ class SubscriptionUsageMcpToolset(
     private suspend fun miniMaxListVoices(): String {
         return withMiniMaxKey("MiniMax voice list failed.") { apiKey, region ->
             miniMaxAudioClient.listVoices(apiKey, region)
+        }
+    }
+
+    private suspend fun miniMaxSpeechToText(
+        localFile: String?,
+        language: String?,
+        diarize: Boolean,
+        model: String,
+    ): String {
+        return withMiniMaxKey("MiniMax speech-to-text failed.") { apiKey, region ->
+            miniMaxAudioClient.transcribe(
+                apiKey,
+                region,
+                resolveOptionalPath(localFile),
+                language,
+                diarize,
+                model,
+            )
         }
     }
 

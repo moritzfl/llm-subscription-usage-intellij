@@ -3,6 +3,7 @@ package de.moritzf.quota.minimax
 import de.moritzf.quota.shared.DefaultOutputFiles
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
+import de.moritzf.quota.shared.MultipartFilePublisher
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
@@ -11,6 +12,7 @@ import java.net.http.HttpResponse
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
+import java.util.UUID
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -92,6 +94,59 @@ open class MiniMaxAudioClient(
         return McpJson.providerJsonOrRaw(responseBody)
     }
 
+    open fun transcribe(
+        apiKey: String,
+        region: MiniMaxRegion,
+        localFile: Path? = null,
+        language: String? = null,
+        diarize: Boolean = false,
+        model: String = DEFAULT_TRANSCRIBE_MODEL,
+    ): String {
+        val token = apiKey.trim().ifBlank {
+            throw MiniMaxQuotaException("MiniMax subscription key missing. Add a MiniMax Token Plan subscription key in settings.")
+        }
+        val path = localFile
+        if (path == null || !Files.isRegularFile(path)) {
+            throw MiniMaxQuotaException("MiniMax speech-to-text requires a local audio file.")
+        }
+        if (Files.size(path) > MAX_TRANSCRIBE_BYTES) {
+            throw MiniMaxQuotaException("Audio file exceeds MiniMax's 50 MB speech-to-text limit.")
+        }
+        val boundary = "----MiniMaxAsr${UUID.randomUUID().toString().replace("-", "")}"
+        val format = if (diarize) "verbose_json" else "json"
+        val builder = HttpRequest.newBuilder()
+            .uri(apiHost(region).resolve(TRANSCRIBE_PATH))
+            .timeout(Duration.ofSeconds(180))
+            .header("Authorization", "Bearer $token")
+            .header("Content-Type", "multipart/form-data; boundary=$boundary")
+            .header("Accept", "application/json")
+        language?.trim()?.takeIf { it.isNotEmpty() }?.let { builder.header("language", it) }
+        val response = send(
+            builder.POST(
+                MultipartFilePublisher.of(
+                    boundary,
+                    listOf(
+                        "model" to model.trim().ifBlank { DEFAULT_TRANSCRIBE_MODEL },
+                        "response_format" to format,
+                    ),
+                    path,
+                ),
+            ).build(),
+        )
+        val status = response.statusCode()
+        val body = response.body()
+        if (status == 401 || status == 403) {
+            throw MiniMaxQuotaException("Session expired. Check your MiniMax subscription key.", status, body)
+        }
+        if (status == 402) {
+            throw MiniMaxQuotaException("MiniMax speech-to-text is not included for this subscription key.", status, body)
+        }
+        if (status !in 200..299) {
+            throw MiniMaxQuotaException("MiniMax speech-to-text failed (HTTP $status). Try again later.", status, body)
+        }
+        return McpJson.providerJsonOrRaw(body)
+    }
+
     private fun postJson(apiKey: String, uri: URI, body: String): HttpRequest {
         return HttpRequest.newBuilder()
             .uri(uri)
@@ -123,10 +178,13 @@ open class MiniMaxAudioClient(
 
     companion object {
         const val DEFAULT_SPEECH_MODEL = "speech-2.6-turbo"
+        const val DEFAULT_TRANSCRIBE_MODEL = "asr-1.0"
         const val DEFAULT_VOICE = "English_expressive_narrator"
         const val DEFAULT_FORMAT = "mp3"
         private const val SPEECH_PATH = "v1/t2a_v2"
         private const val VOICE_PATH = "v1/get_voice"
+        private const val TRANSCRIBE_PATH = "v1/speech_to_text"
+        private const val MAX_TRANSCRIBE_BYTES = 50L * 1024L * 1024L
         private val GLOBAL_API_HOST = URI.create("https://api.minimax.io/")
         private val CN_API_HOST = URI.create("https://api.minimaxi.com/")
 

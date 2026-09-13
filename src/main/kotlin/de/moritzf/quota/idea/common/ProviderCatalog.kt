@@ -201,6 +201,7 @@ internal object ProviderCatalog {
             capabilities = ProviderCapabilities(
                 webSearch = WebSearchCapability.LIST,
                 imageGeneration = true,
+                speechToText = true,
                 textToSpeech = true,
                 subscriptionProxy = true,
             ),
