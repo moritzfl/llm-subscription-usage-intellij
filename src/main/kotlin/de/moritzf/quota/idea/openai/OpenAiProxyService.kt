@@ -120,6 +120,7 @@ class OpenAiProxyService(
                     fullRequestLogging = logRequests,
                     requestLogDir = requestLogDir().toString(),
                     completionsConfig = { settingsProvider()?.completionsConfig() ?: CompletionsConfig.DISABLED },
+                    mediaOperations = IdeMediaOperations(),
                 )
                 proxyServer.start()
                 server = proxyServer

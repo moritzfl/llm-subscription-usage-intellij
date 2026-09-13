@@ -44,9 +44,11 @@ class SubscriptionProxyServer(
     fullRequestLogging: Boolean = false,
     requestLogDir: String = REQUEST_LOG_DIR,
     private val completionsConfig: () -> CompletionsConfig = { CompletionsConfig.DISABLED },
+    mediaOperations: de.moritzf.proxy.media.MediaOperations = de.moritzf.proxy.media.UnsupportedMediaOperations(),
 ) {
     private val running = AtomicBoolean(false)
     private val requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir))
+    private val mediaHandler = de.moritzf.proxy.media.MediaProxyHandler(mediaOperations, requestLogger)
     private val usageTracker = UsageTracker()
     private val completionsHandler = CompletionsHandler(
         catalog = { catalog() },
@@ -82,6 +84,12 @@ class SubscriptionProxyServer(
                     getProxy("/v1/model/info", ::modelInfo)
                     getProxy("/model/info", ::modelInfo)
                     getProxy("/v1/usage", UsageHandler(usageTracker)::handle)
+                    postProxy("/v1/images/generations", mediaHandler::images)
+                    postProxy("/images/generations", mediaHandler::images)
+                    postProxy("/v1/audio/speech", mediaHandler::speech)
+                    postProxy("/audio/speech", mediaHandler::speech)
+                    postProxy("/v1/audio/transcriptions", mediaHandler::transcriptions)
+                    postProxy("/audio/transcriptions", mediaHandler::transcriptions)
                     postProxy("/v1/chat/completions", ::inference)
                     postProxy("/chat/completions", ::inference)
                     postProxy("/v1/responses", ::inference)

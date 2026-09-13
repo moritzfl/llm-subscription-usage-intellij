@@ -5,6 +5,7 @@
 - MiniMax quota now reads Token Plan `/v1/token_plan/remains` (5-hour and weekly windows). When the API leaves counts at 0, remaining percent is used. Legacy `coding_plan/remains` still works. Settings ask for a Subscription key, not a pay-as-you-go API key.
 - `subscription_tools_status` can take an optional capability/model and reports cached quota freshness, the limiting pool, reset time, and whether that operation is exhausted. Failover can follow the same operation-specific pools.
 - MCP `subscription_web_fetch` reads a page through Ollama `/api/web_fetch` or Z.ai `/paas/v4/reader` and returns provider JSON. Images are not requested.
+- Local proxy exposes OpenAI media routes `/v1/images/generations`, `/v1/audio/speech`, and `/v1/audio/transcriptions`. Images return a URL (no `b64_json`). Speech is binary audio. SuperGrok, MiniMax, and Z.ai cover images; SuperGrok covers speech and transcription.
 
 ## [1.12.2] - 2026-09-13
 

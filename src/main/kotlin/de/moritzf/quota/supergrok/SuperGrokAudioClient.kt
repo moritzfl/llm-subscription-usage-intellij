@@ -56,8 +56,40 @@ open class SuperGrokAudioClient(
             throw SuperGrokQuotaException("Speech text is required.")
         }
         val format = responseFormat.trim().ifBlank { DEFAULT_SPEECH_FORMAT }
+        val bytes = requestSpeechBytes(token, input, voiceId, language, format)
         val output = resolveSpeechOutput(targetFile, baseDirectory, format)
             ?: throw SuperGrokQuotaException("Provide targetFile so the audio is written to disk.")
+        val parent = output.parent
+        if (parent != null) {
+            Files.createDirectories(parent)
+        }
+        Files.write(output, bytes)
+        return JsonSupport.json.encodeToString(GrokSpeechWriteResult(output.toString(), bytes.size.toLong()))
+    }
+
+    open fun synthesizeBytes(
+        accessToken: String,
+        text: String,
+        voiceId: String? = null,
+        language: String? = null,
+        responseFormat: String = DEFAULT_SPEECH_FORMAT,
+    ): ByteArray {
+        val token = requireToken(accessToken)
+        val input = text.trim()
+        if (input.isBlank()) {
+            throw SuperGrokQuotaException("Speech text is required.")
+        }
+        val format = responseFormat.trim().ifBlank { DEFAULT_SPEECH_FORMAT }
+        return requestSpeechBytes(token, input, voiceId, language, format)
+    }
+
+    private fun requestSpeechBytes(
+        token: String,
+        input: String,
+        voiceId: String?,
+        language: String?,
+        format: String,
+    ): ByteArray {
         val body = JsonSupport.json.encodeToString(
             GrokTtsRequestDto(
                 text = input,
@@ -75,13 +107,7 @@ open class SuperGrokAudioClient(
             .header("User-Agent", USER_AGENT)
             .POST(HttpRequest.BodyPublishers.ofString(body))
             .build()
-        val bytes = sendBytes(request, "Grok text-to-speech failed")
-        val parent = output.parent
-        if (parent != null) {
-            Files.createDirectories(parent)
-        }
-        Files.write(output, bytes)
-        return JsonSupport.json.encodeToString(GrokSpeechWriteResult(output.toString(), bytes.size.toLong()))
+        return sendBytes(request, "Grok text-to-speech failed")
     }
 
     open fun listVoices(accessToken: String): String {

@@ -137,6 +137,7 @@ Use **Test FIM** on the Proxy tab to send a sample completion and inspect the in
 
 - Configure clients with the base URL **without** a `/v1` suffix (for example `http://127.0.0.1:14621`) — clients append `/v1/...` themselves, and all routes also answer unprefixed.
 - For JetBrains Junie, add the proxy as a LiteLLM provider with that base URL and the copied API key; available models are discovered automatically. Do not pick `qwen2.5-coder` for Junie chat.
+- Image, speech, and transcription OpenAI routes are on the same base URL (`/v1/images/generations`, `/v1/audio/speech`, `/v1/audio/transcriptions`). Use a prefixed model id (`sg-`, `mm-`, `za-`). Images return a URL, not base64.
 - The API key is generated locally and stored in IntelliJ Password Safe. Provider credentials never leave the plugin's regular secure storage.
 - `Log requests and responses to disk` writes full request/response bodies to a temp folder for debugging. Off by default; logs are pruned automatically (7 days / 2000 files).
 
