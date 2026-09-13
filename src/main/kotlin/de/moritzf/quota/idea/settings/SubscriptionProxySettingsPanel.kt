@@ -57,7 +57,7 @@ internal class SubscriptionProxySettingsPanel(
     val proxyEnabledCheckBox = JBCheckBox("Enable local subscription proxy")
     val proxyLogRequestsCheckBox = JBCheckBox("Log requests and responses to disk")
     val completionsEnabledCheckBox = JBCheckBox("Enable FIM (fill in middle) for code completions in the editor")
-    val completionsUseChatAdapterCheckBox = JBCheckBox("Use chat models for FIM").apply {
+    val completionsUseChatAdapterCheckBox = JBCheckBox("Adapt model for FIM").apply {
         isSelected = true
     }
     val completionsPriorityCheckBox = JBCheckBox("Use fast/priority processing")
@@ -324,7 +324,7 @@ internal class SubscriptionProxySettingsPanel(
                     }
                     row {
                         cell(completionsUseChatAdapterCheckBox)
-                            .comment("Most models do not support FIM. Leave this on so ChatGPT, Grok, and similar chat models can fill in code. Off: only native FIM models (some Ollama/Mistral coder models).")
+                            .comment("Converts FIM calls into chat requests a chat model can understand. Leave this on for ChatGPT, Grok, and similar models. Off: only native FIM models (some Ollama/Mistral coder models).")
                     }
                     row("Max output tokens:") {
                         cell(completionsMaxTokensField).gap(RightGap.SMALL)

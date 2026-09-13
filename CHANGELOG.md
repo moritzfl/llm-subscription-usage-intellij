@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Proxy tab FIM adapter checkbox is now **Adapt model for FIM**. It explains that the option converts FIM calls into chat requests a chat model can understand.
+
 ## [1.12.1] - 2026-09-12
 
 - Proxy tab wording talks about Junie, AI Assistant, and editor completions. The FIM toggle names both fill-in-middle and the editor use case. The chat-FIM adapter explains that most models do not support FIM.

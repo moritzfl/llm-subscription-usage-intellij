@@ -119,7 +119,7 @@ The plugin can run a local proxy that exposes your subscriptions through standar
 
 **Setup:** open the **Proxy** tab in `Settings` > `Tools` > `LLM Subscription Usage`, tick `Enable local subscription proxy`, choose the providers to expose, and apply. Then use `Copy Base URL` and `Copy API Key` to configure your client.
 
-**FIM / AI Completion:** when the proxy is on, `/v1/completions` is on too. Pick one completion model on the Proxy tab, then point JetBrains AI Completion at this proxy using the stable model id `qwen2.5-coder` (JetBrains Auto maps that name to `(fim) Qwen`). Ghost text stays off until that IDE setup is done. Changing the underlying model in this plugin does not require changing the IDE completion model. Most models do not support FIM — leave **Use chat models for FIM** on unless the selected model already infills via `/v1/completions` (some Ollama/Mistral coder models). Expect seconds of latency and quota use on chat models. Claude stays quota-only.
+**FIM / AI Completion:** when the proxy is on, `/v1/completions` is on too. Pick one completion model on the Proxy tab, then point JetBrains AI Completion at this proxy using the stable model id `qwen2.5-coder` (JetBrains Auto maps that name to `(fim) Qwen`). Ghost text stays off until that IDE setup is done. Changing the underlying model in this plugin does not require changing the IDE completion model. Most models do not support FIM — leave **Adapt model for FIM** on so the proxy converts FIM calls into chat requests, unless the selected model already infills via `/v1/completions` (some Ollama/Mistral coder models). Expect seconds of latency and quota use on chat models. Claude stays quota-only.
 
 Point JetBrains AI Completion at:
 
