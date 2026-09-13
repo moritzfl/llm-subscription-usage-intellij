@@ -320,7 +320,7 @@ internal class SubscriptionProxySettingsPanel(
                         cell(completionsModelCombo)
                             .resizableColumn()
                             .align(AlignX.FILL)
-                            .comment("Where the proxy sends those incoming FIM calls. Change it here; keep the AI Completion model as ${CompletionsConfig.FIM_ALIAS_ID}.")
+                            .comment("Where the proxy sends those incoming FIM calls.")
                     }
                     row {
                         cell(completionsUseChatAdapterCheckBox)
