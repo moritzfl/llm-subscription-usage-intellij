@@ -1,5 +1,7 @@
 package de.moritzf.quota.supergrok
 
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Instant
 import java.net.Authenticator
 import java.net.CookieHandler
@@ -134,7 +136,7 @@ class SuperGrokQuotaClientTest {
 
     @Test
     fun fetchQuotaAttachesUnexpiredResetTokens() {
-        val expiresAt = Instant.parse("2026-09-13T00:00:00Z")
+        val expiresAt = Clock.System.now() + 1.days
         val httpClient = FakeHttpClient(
             FakeResponseSpec(BILLING_WEEKLY_RESPONSE),
             FakeResponseSpec(SETTINGS_RESPONSE),
