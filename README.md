@@ -86,7 +86,7 @@ The plugin registers subscription-backed tools with IntelliJ's built-in MCP serv
 | Tool | What it does |
 |---|---|
 | `subscription_quota` | Current usage for any configured provider (optional `account` when you have more than one login of that type) |
-| `subscription_tools_status` | Which accounts and tools are ready to use |
+| `subscription_tools_status` | Which accounts and tools are ready to use. Optional `capability`/`model` adds cached quota freshness, limiting pool, reset time, and whether that operation can still run |
 | `codex_web_search` | Web search answered by OpenAI/Codex (context size, live access, domain filters) |
 | `supergrok_web_search` | Web search answered by Grok (model selection, domain filters) |
 | `mistral_web_search` | Answer-style web search via Mistral Conversations |

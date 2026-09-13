@@ -26,8 +26,22 @@ internal object McpJson {
         return JsonSupport.json.encodeToString(McpToolsStatusResponse(providers = providers))
     }
 
-    fun accountToolsStatus(accounts: List<McpAccountToolStatus>): String {
-        return JsonSupport.json.encodeToString(McpAccountsToolsStatusResponse(accounts = accounts))
+    fun accountToolsStatus(
+        accounts: List<McpAccountToolStatus>,
+        capability: String? = null,
+        model: String? = null,
+        resolvedAccountId: String? = null,
+        fallbackReason: String? = null,
+    ): String {
+        return JsonSupport.json.encodeToString(
+            McpAccountsToolsStatusResponse(
+                accounts = accounts,
+                capability = capability,
+                model = model,
+                resolvedAccountId = resolvedAccountId,
+                fallbackReason = fallbackReason,
+            ),
+        )
     }
 
 }
@@ -58,6 +72,13 @@ internal data class McpAccountToolStatus(
     @SerialName("text_to_speech_available") val textToSpeechAvailable: Boolean = false,
     @SerialName("document_to_markdown_available") val documentToMarkdownAvailable: Boolean = false,
     val reason: String? = null,
+    @SerialName("snapshot_age_ms") val snapshotAgeMs: Long? = null,
+    @SerialName("fetched_at") val fetchedAt: String? = null,
+    @SerialName("quota_available") val quotaAvailable: Boolean? = null,
+    @SerialName("limiting_pool") val limitingPool: String? = null,
+    @SerialName("usage_percent") val usagePercent: Double? = null,
+    @SerialName("resets_at") val resetsAt: String? = null,
+    @SerialName("exhaustion_reason") val exhaustionReason: String? = null,
 )
 
 @Serializable
@@ -104,4 +125,8 @@ private data class McpAccountsToolsStatusResponse(
     val check: String = "credentials",
     val note: String = "This status does not call provider APIs.",
     val accounts: List<McpAccountToolStatus>,
+    val capability: String? = null,
+    val model: String? = null,
+    @SerialName("resolved_account_id") val resolvedAccountId: String? = null,
+    @SerialName("fallback_reason") val fallbackReason: String? = null,
 )

@@ -61,11 +61,14 @@ class SubscriptionUsageMcpToolsetTest {
     }
 
     @Test
-    fun subscriptionToolsStatusUsesSingleNoArgTool() {
+    fun subscriptionToolsStatusAcceptsOptionalCapabilityAndModel() {
         val statusTools = mcpTools().filter { it.mcpName()?.startsWith("subscription_tools_status") == true }
 
         assertEquals(listOf("subscription_tools_status"), statusTools.map { it.mcpName() })
-        assertEquals(emptyList(), statusTools.single().mcpParamClassifiers())
+        assertEquals(
+            listOf(de.moritzf.quota.idea.settings.AccountCapability::class, String::class),
+            statusTools.single().mcpParamClassifiers(),
+        )
     }
 
     @Test

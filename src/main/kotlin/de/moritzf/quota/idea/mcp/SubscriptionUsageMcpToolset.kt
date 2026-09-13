@@ -84,10 +84,14 @@ class SubscriptionUsageMcpToolset(
     }
 
     @McpTool(name = "subscription_tools_status")
-    @McpDescription(description = "Returns per-provider status showing whether subscription quota access is configured and whether web search, image generation, video generation, speech-to-text, and text-to-speech are available. Does not call provider APIs.")
-    suspend fun subscription_tools_status(): String {
+    @McpDescription(description = "Returns per-account status: credential presence, cached quota freshness, limiting pool, reset time, and whether a requested operation can run. Optional capability/model uses cached quota only and does not call provider APIs.")
+    suspend fun subscription_tools_status(
+        @McpDescription(description = "Optional operation to evaluate against cached quota, such as PROXY or WEB_SEARCH.") capability: de.moritzf.quota.idea.settings.AccountCapability? = null,
+        @McpDescription(description = "Optional model id when availability depends on a specific pool, such as gpt-5.6-luna versus gpt-reserve.") model: String? = null,
+    ): String {
         val settings = runCatching { QuotaSettingsState.getInstance() }.getOrNull()
         val accounts = settings?.accounts.orEmpty()
+        val requestedCapability = capability ?: de.moritzf.quota.idea.settings.AccountCapability.QUOTA
         val statuses = if (accounts.isEmpty() || settings == null) {
             ProviderCatalog.all.map { descriptor ->
                 accountStatus(
@@ -98,6 +102,8 @@ class SubscriptionUsageMcpToolset(
                     isDefault = true,
                     allowFailover = false,
                     descriptor = descriptor,
+                    capability = requestedCapability,
+                    model = model,
                 )
             }
         } else {
@@ -112,10 +118,16 @@ class SubscriptionUsageMcpToolset(
                     isDefault = account.isDefault,
                     allowFailover = account.allowFailover,
                     descriptor = descriptor,
+                    capability = requestedCapability,
+                    model = model,
                 )
             }
         }
-        return McpJson.accountToolsStatus(statuses)
+        return McpJson.accountToolsStatus(
+            statuses,
+            capability = capability?.name,
+            model = model?.trim()?.takeIf { it.isNotEmpty() },
+        )
     }
 
     @McpTool(name = "codex_web_search")
@@ -442,6 +454,8 @@ class SubscriptionUsageMcpToolset(
         isDefault: Boolean,
         allowFailover: Boolean,
         descriptor: de.moritzf.quota.idea.common.ProviderDescriptor,
+        capability: de.moritzf.quota.idea.settings.AccountCapability,
+        model: String?,
     ): de.moritzf.quota.shared.McpAccountToolStatus {
         val caps = descriptor.capabilities
         val searchType = descriptor.webSearchType
@@ -453,6 +467,12 @@ class SubscriptionUsageMcpToolset(
             descriptor.webSearchMissingReason
         } else {
             null
+        }
+        val quota = runCatching { QuotaUsageService.getInstance().getLastQuota(id) }.getOrNull()
+        val op = de.moritzf.quota.idea.settings.OperationQuota.status(quota, capability, model)
+        val now = kotlin.time.Clock.System.now()
+        val snapshotAgeMs = op.fetchedAt?.let { fetched ->
+            (now - fetched).inWholeMilliseconds.coerceAtLeast(0)
         }
         return de.moritzf.quota.shared.McpAccountToolStatus(
             id = id,
@@ -470,6 +490,13 @@ class SubscriptionUsageMcpToolset(
             textToSpeechAvailable = caps.textToSpeech && descriptor.isVoiceConfiguredForAccount(id),
             documentToMarkdownAvailable = caps.documentToMarkdown && descriptor.isDocumentConfiguredForAccount(id),
             reason = reason,
+            snapshotAgeMs = snapshotAgeMs,
+            fetchedAt = op.fetchedAt?.toString(),
+            quotaAvailable = if (quota == null) null else !op.exhausted,
+            limitingPool = op.limitingPool,
+            usagePercent = op.usagePercent,
+            resetsAt = op.resetsAt?.toString(),
+            exhaustionReason = op.reason,
         )
     }
 
