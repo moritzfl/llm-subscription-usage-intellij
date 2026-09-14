@@ -1,5 +1,7 @@
 package de.moritzf.quota.idea.settings
 
+import de.moritzf.quota.idea.common.IdeProxyBuildContext
+import de.moritzf.quota.idea.common.IdeProxyFactories
 import de.moritzf.quota.idea.common.ProviderSnapshot
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageSnapshot
@@ -130,6 +132,36 @@ class AccountResolverTest {
                 quotaLookup = { quotas[it] },
             )
             assertEquals("openai", defaultAgain.id)
+        } finally {
+            AccountResolver.clearAllRateLimited()
+        }
+    }
+
+    @Test
+    fun proxy429MarksResolvedAccountForFailover() {
+        AccountResolver.clearAllRateLimited()
+        try {
+            val settings = twoOpenAi()
+            val context = IdeProxyBuildContext(settings = settings, logRequests = false, requestLogDir = "/tmp")
+            assertEquals(
+                "openai",
+                AccountResolver.resolve(
+                    QuotaProviderType.OPEN_AI,
+                    capability = AccountCapability.PROXY,
+                    settings = settings,
+                    quotaLookup = { null },
+                ).id,
+            )
+            IdeProxyFactories.noteProxyRateLimit(context, QuotaProviderType.OPEN_AI, 429)
+            assertEquals(
+                "personal",
+                AccountResolver.resolve(
+                    QuotaProviderType.OPEN_AI,
+                    capability = AccountCapability.PROXY,
+                    settings = settings,
+                    quotaLookup = { null },
+                ).id,
+            )
         } finally {
             AccountResolver.clearAllRateLimited()
         }

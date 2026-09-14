@@ -6,6 +6,7 @@
 - Copilot (and other transformed SSE) proxy streams keep blank event separators so clients can split chunks.
 - Last-used status shows the remaining default account after that login is removed, instead of a blank bar.
 - Kimi proxy 401 refresh is single-flight, so parallel calls cannot burn a rotated refresh token.
+- Local proxy 429s mark that account rate-limited so failover can pick the next login without waiting for a quota refresh.
 
 ## [1.13.1] - 2026-09-14
 

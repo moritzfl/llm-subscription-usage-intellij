@@ -469,7 +469,7 @@ internal object ProviderCatalog {
         return all.mapNotNull { descriptor ->
             if (descriptor.type !in enabled) return@mapNotNull null
             val factory = descriptor.ideProxyFactory ?: return@mapNotNull null
-            factory(context)
+            IdeProxyFactories.withProxyRateLimit(context, descriptor.type, factory(context))
         }
     }
 

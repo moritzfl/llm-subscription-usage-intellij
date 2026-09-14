@@ -1,6 +1,9 @@
 package de.moritzf.quota.idea.common
 
+import de.moritzf.proxy.server.AccessLogFields
+import de.moritzf.proxy.server.ProxyCall
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
+import de.moritzf.proxy.subscription.SubscriptionProxyRequest
 import de.moritzf.quota.github.GitHubQuotaClient
 import de.moritzf.quota.github.proxy.GitHubCopilotSubscriptionProxyProvider
 import de.moritzf.quota.idea.auth.QuotaAuthService
@@ -185,6 +188,19 @@ internal object IdeProxyFactories {
         )
     }
 
+    fun withProxyRateLimit(
+        ctx: IdeProxyBuildContext,
+        type: QuotaProviderType,
+        provider: SubscriptionProxyProvider,
+    ): SubscriptionProxyProvider {
+        return RateLimitedSubscriptionProxyProvider(provider, type, ctx)
+    }
+
+    fun noteProxyRateLimit(ctx: IdeProxyBuildContext, type: QuotaProviderType, status: Int) {
+        if (status != 429) return
+        resolvedAccount(ctx, type)?.id?.let(AccountResolver::markRateLimited)
+    }
+
     private fun resolvedAccount(
         ctx: IdeProxyBuildContext,
         type: QuotaProviderType,
@@ -228,4 +244,18 @@ internal object IdeProxyFactories {
     }
 
     private val LOG = Logger.getInstance(IdeProxyFactories::class.java)
+}
+
+private class RateLimitedSubscriptionProxyProvider(
+    private val delegate: SubscriptionProxyProvider,
+    private val type: QuotaProviderType,
+    private val context: IdeProxyBuildContext,
+) : SubscriptionProxyProvider by delegate {
+    override suspend fun handle(ctx: ProxyCall, request: SubscriptionProxyRequest) {
+        delegate.handle(ctx, request)
+        val status = ctx.getAttribute(AccessLogFields.UPSTREAM_STATUS) ?: ctx.responseStatus()
+        if (status == 429) {
+            IdeProxyFactories.noteProxyRateLimit(context, type, status)
+        }
+    }
 }
