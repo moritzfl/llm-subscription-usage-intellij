@@ -395,7 +395,7 @@ class QuotaUsageService(
             if (accounts.isNotEmpty()) {
                 return ProviderCatalog.createAccountProviders(accounts)
             }
-            if (settings != null && settings.settingsVersion >= 3 && accounts.isEmpty()) {
+            if (settings != null && settings.settingsVersion >= 3) {
                 return emptyList()
             }
             return ProviderCatalog.createQuotaProviders()

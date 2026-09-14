@@ -7,10 +7,8 @@ import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.ui.indicator.clampPercent
 import kotlin.math.roundToInt
-import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.util.ui.JBUI
 import de.moritzf.quota.shared.ProviderQuota
-import javax.swing.JPanel
 
 internal class GitHubPopupSection : ProviderPopupSection() {
     private val separator = createSeparatedBlock()

@@ -102,14 +102,6 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         settingsVersion = QuotaSettingsMigrations.CURRENT_VERSION
     }
 
-    fun providerOrderList(): List<QuotaProviderType> {
-        val stored = providerOrder.split(",")
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .mapNotNull { QuotaProviderType.fromId(it) }
-        return QuotaProviderRegistry.mergeProviderOrder(stored)
-    }
-
     fun displayMode(): QuotaDisplayMode = QuotaDisplayMode.fromStorageValue(statusBarDisplayMode)
 
     fun setDisplayMode(displayMode: QuotaDisplayMode) {
@@ -183,14 +175,6 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
 
     fun isHiddenFromPopup(provider: QuotaProviderType): Boolean = provider.id in hiddenFromQuotaPopup
 
-    fun setHiddenFromPopup(provider: QuotaProviderType, hidden: Boolean) {
-        if (hidden) {
-            if (provider.id !in hiddenFromQuotaPopup) hiddenFromQuotaPopup.add(provider.id)
-        } else {
-            hiddenFromQuotaPopup.remove(provider.id)
-        }
-    }
-
     fun cachedQuotaJson(provider: QuotaProviderType): String? = cachedQuotaJson(provider.id)
 
     fun cachedQuotaJson(accountId: String): String? = cachedQuotaJsons[accountId]
@@ -207,13 +191,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         }
     }
 
-    fun lastUpdate(provider: QuotaProviderType): Long = lastUpdate(provider.id)
-
     fun lastUpdate(accountId: String): Long = lastProviderUpdates[accountId] ?: 0L
-
-    fun updateTimestamp(provider: QuotaProviderType) {
-        updateTimestamp(provider.id)
-    }
 
     fun updateTimestamp(accountId: String) {
         lastProviderUpdates[accountId] = System.currentTimeMillis()

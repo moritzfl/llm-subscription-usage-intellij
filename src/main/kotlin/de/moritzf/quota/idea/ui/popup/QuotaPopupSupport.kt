@@ -16,7 +16,6 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageListener
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.common.QuotaUsageSnapshot
-import de.moritzf.quota.idea.settings.ProviderAccount
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.ProviderAuthState
@@ -125,7 +124,7 @@ internal object QuotaPopupSupport {
 }
 
 internal class RefreshablePopupPanel<T>(
-    private val content: JComponent,
+    content: JComponent,
     private val updater: (T) -> Unit,
 ) : BorderLayoutPanel() {
     init {

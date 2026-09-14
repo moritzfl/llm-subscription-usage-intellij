@@ -21,7 +21,7 @@ import java.time.Duration
 
 /**
  * Encodes provider quotas to JSON for persistent caching and decodes them back.
- * New providers register a single codec entry in [codecs].
+ * New providers register a snapshot codec on their catalog descriptor.
  */
 internal object QuotaSnapshotCache {
     @Suppress("UNCHECKED_CAST")

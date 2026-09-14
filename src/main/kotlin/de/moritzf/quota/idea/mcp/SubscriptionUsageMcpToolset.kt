@@ -35,7 +35,6 @@ import de.moritzf.quota.ollama.OllamaQuotaException
 import de.moritzf.quota.ollama.OllamaWebSearchClient
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
-import de.moritzf.quota.shared.McpProviderToolStatus
 import de.moritzf.quota.supergrok.SuperGrokAudioClient
 import de.moritzf.quota.supergrok.SuperGrokDocumentClient
 import de.moritzf.quota.supergrok.SuperGrokImagineClient
@@ -454,7 +453,7 @@ class SubscriptionUsageMcpToolset(
         )
     }
 
-    private suspend fun quotaResult(type: QuotaProviderType, accountParam: String? = null): String {
+    private fun quotaResult(type: QuotaProviderType, accountParam: String? = null): String {
         val account = try {
             de.moritzf.quota.idea.settings.AccountResolver.resolve(
                 type,
@@ -490,7 +489,7 @@ class SubscriptionUsageMcpToolset(
         descriptor: de.moritzf.quota.idea.common.ProviderDescriptor,
         capability: de.moritzf.quota.idea.settings.AccountCapability,
         model: String?,
-    ): de.moritzf.quota.shared.McpAccountToolStatus {
+    ): McpAccountToolStatus {
         val caps = descriptor.capabilities
         val searchType = descriptor.webSearchType
         val webSearchAvailable = searchType != null && descriptor.isWebSearchConfiguredForAccount(id)
@@ -508,7 +507,7 @@ class SubscriptionUsageMcpToolset(
         val snapshotAgeMs = op.fetchedAt?.let { fetched ->
             (now - fetched).inWholeMilliseconds.coerceAtLeast(0)
         }
-        return de.moritzf.quota.shared.McpAccountToolStatus(
+        return McpAccountToolStatus(
             id = id,
             type = type.id,
             name = name,
@@ -1032,7 +1031,7 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private suspend fun mistralListVoices(): String {
+    private fun mistralListVoices(): String {
         val apiKey = resolvedApiKey(QuotaProviderType.MISTRAL) { MistralApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return errorResult("Mistral API key missing. Add a Mistral API key in settings.")
@@ -1054,7 +1053,7 @@ class SubscriptionUsageMcpToolset(
         return project.resolveInProject(trimmed, throwWhenOutside = false)
     }
 
-    private suspend fun ollamaWebFetch(url: String): String {
+    private fun ollamaWebFetch(url: String): String {
         val apiKey = resolvedApiKey(QuotaProviderType.OLLAMA) { OllamaApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return errorResult("Ollama API key missing. Add an Ollama API key in settings.")
@@ -1068,7 +1067,7 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private suspend fun zaiWebFetch(url: String): String {
+    private fun zaiWebFetch(url: String): String {
         val apiKey = resolvedApiKey(QuotaProviderType.ZAI) { ZaiApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return errorResult("Z.ai API key missing. Add a Z.ai API key in settings.")
@@ -1143,7 +1142,7 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private suspend fun searchError(message: String): String {
+    private fun searchError(message: String): String {
         val settings = runCatching { QuotaSettingsState.getInstance() }.getOrNull()
         val available = mutableListOf<String>()
         for (descriptor in ProviderCatalog.all) {

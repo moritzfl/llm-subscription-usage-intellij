@@ -15,7 +15,6 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.shared.JsonSupport
-import kotlinx.serialization.encodeToString
 import java.awt.Color
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection

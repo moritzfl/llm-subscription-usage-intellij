@@ -96,7 +96,7 @@ internal data class ProviderDescriptor(
     val isVoiceConfiguredForAccount: (accountId: String) -> Boolean = { isVoiceConfigured() },
     val isDocumentConfiguredForAccount: (accountId: String) -> Boolean = { isDocumentConfigured() },
     /**
-     * Proxy-credential check. [onCredentialsLoaded] is invoked when PasswordSafe finishes an async load
+     * Proxy-credential check. The optional callback is invoked when PasswordSafe finishes an async load
      * (settings UI refresh). Null for blocking-only callers.
      */
     val isProxyConfigured: (onCredentialsLoaded: (() -> Unit)?) -> Boolean = { _ -> false },

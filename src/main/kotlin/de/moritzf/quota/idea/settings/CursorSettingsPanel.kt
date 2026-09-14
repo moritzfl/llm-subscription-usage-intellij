@@ -195,7 +195,7 @@ internal class CursorSettingsPanel(
             else -> {
                 try {
                     de.moritzf.quota.shared.JsonSupport.json.encodeToString(
-                        de.moritzf.quota.cursor.CursorQuota.serializer(),
+                        CursorQuota.serializer(),
                         quota,
                     )
                 } catch (exception: Exception) {

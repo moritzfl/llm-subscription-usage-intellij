@@ -178,10 +178,6 @@ internal class ProviderReorderPanel(
         onProviderSelected(selectedProvider)
     }
 
-    fun refreshStatuses() {
-        list.repaint()
-    }
-
     fun moveSelected(delta: Int) {
         if (filterField.text.isNotBlank()) {
             return

@@ -17,8 +17,6 @@ enum class QuotaProviderType(val id: String, val displayName: String) {
         fun fromId(id: String): QuotaProviderType? =
             entries.firstOrNull { it.id.equals(id.trim(), ignoreCase = true) }
 
-        fun alphabeticalOrder(): List<QuotaProviderType> = QuotaProviderRegistry.defaultProviderOrder()
-
         fun defaultProviderOrder(): List<QuotaProviderType> = QuotaProviderRegistry.defaultProviderOrder()
 
         /**

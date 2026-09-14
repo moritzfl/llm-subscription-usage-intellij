@@ -3,7 +3,6 @@ package de.moritzf.quota.idea.settings
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.ui.ComboBox
-import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.dsl.builder.AlignX
@@ -215,7 +214,7 @@ internal class OpenCodeSettingsPanel(
             else -> {
                 try {
                     de.moritzf.quota.shared.JsonSupport.json.encodeToString(
-                        de.moritzf.quota.opencode.OpenCodeQuota.serializer(),
+                        OpenCodeQuota.serializer(),
                         quota,
                     )
                 } catch (exception: Exception) {

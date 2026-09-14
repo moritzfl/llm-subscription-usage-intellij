@@ -5,14 +5,6 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
-import de.moritzf.quota.idea.auth.OAuthClientConfig
-import de.moritzf.quota.idea.auth.OAuthCredentialStore
-import de.moritzf.quota.idea.auth.OAuthCredentials
-import de.moritzf.quota.idea.auth.OAuthCredentialsStore
-import de.moritzf.quota.idea.auth.OAuthLoginFlow
-import de.moritzf.quota.idea.auth.OAuthTokenClient
-import de.moritzf.quota.idea.auth.OAuthTokenRequestException
-import de.moritzf.quota.idea.auth.OAuthTokenOperations
 import de.moritzf.quota.idea.common.CredentialStorage
 import de.moritzf.quota.idea.common.QuotaProviderType
 import kotlinx.coroutines.CancellationException
@@ -61,8 +53,6 @@ class QuotaAuthService(
         val credentials: OAuthCredentials,
         val failedAtMs: Long,
     )
-
-    private fun stateFor(type: QuotaProviderType): ProviderAuthState = stateFor(type.id, type)
 
     private fun stateFor(accountId: String, type: QuotaProviderType): ProviderAuthState {
         return providerStates.computeIfAbsent(accountId) { ProviderAuthState(accountId, type) }
@@ -131,7 +121,7 @@ class QuotaAuthService(
         }
 
         scope.launch {
-            var deliverResult = false
+            var deliverResult: Boolean
             val result = try {
                 runLoginFlow(state, loginGeneration, onAuthUrl)
             } catch (exception: Exception) {
@@ -281,9 +271,6 @@ class QuotaAuthService(
 
     fun getAccountId(accountId: String, type: QuotaProviderType): String? =
         cachedCredentialsOrScheduleLoad(stateFor(accountId, type))?.accountId
-
-    fun getHd(type: QuotaProviderType = QuotaProviderType.OPEN_AI): String? =
-        cachedCredentialsOrScheduleLoad(stateFor(type))?.hd
 
     fun peekAccessToken(accountId: String, type: QuotaProviderType): String? {
         return stateFor(accountId, type).cachedCredentials.get()?.accessToken

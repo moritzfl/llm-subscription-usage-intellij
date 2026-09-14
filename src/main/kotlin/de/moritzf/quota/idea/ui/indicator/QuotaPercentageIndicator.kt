@@ -32,8 +32,8 @@ internal object QuotaUsageColors {
 
 internal class QuotaPercentageIndicator(
     private val minWidth: Int = 110,
-    private val usageBarHeight: Int = JBUI.scale(5),
-    private val periodBarHeight: Int = JBUI.scale(5),
+    usageBarHeight: Int = JBUI.scale(5),
+    periodBarHeight: Int = JBUI.scale(5),
 ) : NonOpaquePanel(VerticalLayout(JBUI.scale(1), 0)) {
     private val textLabel = JBLabel().apply {
         horizontalAlignment = SwingConstants.LEFT
@@ -88,7 +88,7 @@ internal class QuotaPercentageIndicator(
     override fun getMaximumSize(): Dimension = preferredSize
 
     private class CompactProgressBar(
-        private val barWidth: Int,
+        barWidth: Int,
         height: Int,
         private val isPeriodTrack: Boolean = false,
     ) : JBPanel<CompactProgressBar>(null) {

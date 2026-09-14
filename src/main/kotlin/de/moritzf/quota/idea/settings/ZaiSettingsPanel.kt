@@ -111,7 +111,7 @@ internal class ZaiSettingsPanel(
             else -> {
                 try {
                     de.moritzf.quota.shared.JsonSupport.json.encodeToString(
-                        de.moritzf.quota.zai.ZaiQuota.serializer(),
+                        ZaiQuota.serializer(),
                         quota,
                     )
                 } catch (exception: Exception) {
