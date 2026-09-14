@@ -16,6 +16,7 @@ import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 import de.moritzf.quota.minimax.MiniMaxAudioClient
 import de.moritzf.quota.minimax.MiniMaxImageClient
+import de.moritzf.quota.minimax.MiniMaxQuotaException
 import de.moritzf.quota.minimax.MiniMaxRegion
 import de.moritzf.quota.minimax.MiniMaxRegionPreference
 import de.moritzf.quota.mistral.MistralAudioClient
@@ -43,7 +44,9 @@ internal class IdeMediaOperations(
         val body = runMedia {
             when (providerId) {
                 "supergrok" -> superGrokImages.generateImage(superGrokToken(), prompt, model)
-                "minimax" -> miniMaxImages.generateImage(miniMaxKey(AccountCapability.IMAGE_GENERATION), miniMaxRegion(AccountCapability.IMAGE_GENERATION), prompt, model = model)
+                "minimax" -> withMiniMaxRegions(AccountCapability.IMAGE_GENERATION) { region ->
+                    miniMaxImages.generateImage(miniMaxKey(AccountCapability.IMAGE_GENERATION), region, prompt, model = model)
+                }
                 "zai" -> zaiImages.generateImage(zaiKey(AccountCapability.IMAGE_GENERATION), prompt, model = model)
                 else -> throw MediaOperationException("Image generation is not available for $providerId.")
             }
@@ -74,17 +77,19 @@ internal class IdeMediaOperations(
                     Files.readAllBytes(path)
                 }
                 "minimax" -> withTempAudio("proxy-tts-", ".$format") { path ->
-                    miniMaxAudio.synthesize(
-                        apiKey = miniMaxKey(AccountCapability.TEXT_TO_SPEECH),
-                        region = miniMaxRegion(AccountCapability.TEXT_TO_SPEECH),
-                        text = input,
-                        targetFile = path.toString(),
-                        baseDirectory = null,
-                        voiceId = voice,
-                        model = model,
-                        responseFormat = format,
-                    )
-                    Files.readAllBytes(path)
+                    withMiniMaxRegions(AccountCapability.TEXT_TO_SPEECH) { region ->
+                        miniMaxAudio.synthesize(
+                            apiKey = miniMaxKey(AccountCapability.TEXT_TO_SPEECH),
+                            region = region,
+                            text = input,
+                            targetFile = path.toString(),
+                            baseDirectory = null,
+                            voiceId = voice,
+                            model = model,
+                            responseFormat = format,
+                        )
+                        Files.readAllBytes(path)
+                    }
                 }
                 "openai" -> withTempAudio("proxy-tts-", ".$format") { path ->
                     requireCodex(
@@ -122,13 +127,15 @@ internal class IdeMediaOperations(
                         language = language,
                         model = model,
                     )
-                    "minimax" -> miniMaxAudio.transcribe(
-                        apiKey = miniMaxKey(AccountCapability.SPEECH_TO_TEXT),
-                        region = miniMaxRegion(AccountCapability.SPEECH_TO_TEXT),
-                        localFile = path,
-                        language = language,
-                        model = model,
-                    )
+                    "minimax" -> withMiniMaxRegions(AccountCapability.SPEECH_TO_TEXT) { region ->
+                        miniMaxAudio.transcribe(
+                            apiKey = miniMaxKey(AccountCapability.SPEECH_TO_TEXT),
+                            region = region,
+                            localFile = path,
+                            language = language,
+                            model = model,
+                        )
+                    }
                     "zai" -> zaiAudio.transcribe(
                         apiKey = zaiKey(AccountCapability.SPEECH_TO_TEXT),
                         localFile = path,
@@ -177,12 +184,27 @@ internal class IdeMediaOperations(
         throw MediaOperationException(exception.message ?: "Account not configured.")
     }
 
-    private fun miniMaxRegion(capability: AccountCapability): MiniMaxRegion {
+    private fun <T> withMiniMaxRegions(capability: AccountCapability, block: (MiniMaxRegion) -> T): T {
+        var lastException: Exception? = null
+        for (region in miniMaxRegions(capability)) {
+            try {
+                return block(region)
+            } catch (exception: MiniMaxQuotaException) {
+                lastException = exception
+            } catch (exception: Exception) {
+                lastException = exception
+            }
+        }
+        throw lastException ?: MediaOperationException("MiniMax request failed.")
+    }
+
+    private fun miniMaxRegions(capability: AccountCapability): List<MiniMaxRegion> {
         val settings = QuotaSettingsState.getInstance()
         val account = AccountResolver.resolveOrNull(QuotaProviderType.MINIMAX, capability = capability)
-        return when (account?.let { settings.miniMaxRegionFor(it.id) } ?: MiniMaxRegionPreference.GLOBAL) {
-            MiniMaxRegionPreference.CN -> MiniMaxRegion.CN
-            MiniMaxRegionPreference.GLOBAL, MiniMaxRegionPreference.AUTO -> MiniMaxRegion.GLOBAL
+        return when (account?.let { settings.miniMaxRegionFor(it.id) } ?: MiniMaxRegionPreference.AUTO) {
+            MiniMaxRegionPreference.CN -> listOf(MiniMaxRegion.CN)
+            MiniMaxRegionPreference.GLOBAL -> listOf(MiniMaxRegion.GLOBAL)
+            MiniMaxRegionPreference.AUTO -> listOf(MiniMaxRegion.GLOBAL, MiniMaxRegion.CN)
         }
     }
 
