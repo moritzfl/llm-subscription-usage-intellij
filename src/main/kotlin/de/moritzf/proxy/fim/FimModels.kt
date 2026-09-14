@@ -39,6 +39,16 @@ object FimModels {
         return id.startsWith("sg-") || id.startsWith("oa-")
     }
 
+    fun fimReasoningEffort(model: SubscriptionProxyModel): String? {
+        return fimReasoningEffort(model.localId, model.upstreamId, model.providerId)
+    }
+
+    fun fimReasoningEffort(localId: String, upstreamId: String = "", providerId: String = ""): String? {
+        val blob = "$localId $upstreamId".lowercase()
+        if ("non-reasoning" in blob || "nonreasoning" in blob) return null
+        return if (supportsPriorityTier(localId, providerId)) "low" else null
+    }
+
     private val NON_FIM_MARKERS = listOf(
         "embed",
         "ocr",

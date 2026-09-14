@@ -183,6 +183,7 @@ class CompletionsHandler(
             maxTokens,
             temperature,
             priorityTier = cfg.priorityTier && FimModels.supportsPriorityTier(model),
+            reasoningEffort = FimModels.fimReasoningEffort(model),
         )
         val payload = JsonHelper.encodeToString(chatBody)
         val apiKey = localApiKey()?.takeIf { it.isNotBlank() }
@@ -470,6 +471,7 @@ class CompletionsHandler(
             maxTokens: Int,
             temperature: Double,
             priorityTier: Boolean = false,
+            reasoningEffort: String? = null,
         ): JsonObject {
             val stops = CompletionSanitizer.effectiveStops(fim.prefix, request.stop, fim.languageHint)
             return buildJsonObject {
@@ -477,7 +479,8 @@ class CompletionsHandler(
                 put("stream", request.stream)
                 put("temperature", temperature)
                 put("max_tokens", maxTokens)
-                put("reasoning_effort", "low")
+                if (!reasoningEffort.isNullOrBlank()) put("reasoning_effort", reasoningEffort)
+                put("prompt_cache_key", ChatFimPromptBuilder.PROMPT_CACHE_KEY)
                 if (priorityTier) put("service_tier", CompletionsConfig.SERVICE_TIER_PRIORITY)
                 put("messages", buildJsonArray {
                     add(buildJsonObject {

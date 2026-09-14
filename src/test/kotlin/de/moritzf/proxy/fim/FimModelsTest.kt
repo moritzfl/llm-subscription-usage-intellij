@@ -3,7 +3,9 @@ package de.moritzf.proxy.fim
 import de.moritzf.proxy.subscription.SubscriptionProxyModel
 import de.moritzf.proxy.subscription.SubscriptionProxyRoute
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class FimModelsTest {
@@ -30,6 +32,15 @@ class FimModelsTest {
         assertFalse(FimModels.supportsPriorityTier("ol-glm-5.3", "ollama"))
         assertTrue(FimModels.supportsPriorityTier(model("sg-grok-4", "supergrok")))
         assertFalse(FimModels.supportsPriorityTier(model("mi-codestral-latest", "mistral")))
+    }
+
+    @Test
+    fun fimReasoningEffortOnlyForGrokAndCodexReasoningModels() {
+        assertEquals("low", FimModels.fimReasoningEffort("sg-grok-4.6", "grok-4.6", "supergrok"))
+        assertEquals("low", FimModels.fimReasoningEffort("oa-gpt-6-astra", "gpt-6-astra", "openai"))
+        assertNull(FimModels.fimReasoningEffort("sg-grok-4.20-0309-non-reasoning", "grok-4.20-0309-non-reasoning", "supergrok"))
+        assertNull(FimModels.fimReasoningEffort("mi-mistral-small-latest", "mistral-small-latest", "mistral"))
+        assertNull(FimModels.fimReasoningEffort("ol-kimi-k3", "kimi-k3", "ollama"))
     }
 
     private fun model(localId: String, providerId: String): SubscriptionProxyModel {
