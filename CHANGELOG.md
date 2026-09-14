@@ -13,6 +13,7 @@
 - MiniMax Auto on proxy media tries the global endpoint then China, like MCP search.
 - Browser login failure pages escape provider error text.
 - Proxy model lists keep the last good catalog when a live `/models` refresh fails.
+- Native FIM `stream:true` (adapter off) returns OpenAI text-completion SSE when upstream JSON is non-streaming.
 
 ## [1.13.1] - 2026-09-14
 

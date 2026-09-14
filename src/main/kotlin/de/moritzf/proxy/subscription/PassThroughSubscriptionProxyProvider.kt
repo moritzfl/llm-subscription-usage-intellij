@@ -24,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -197,13 +198,33 @@ class PassThroughSubscriptionProxyProvider(
         val raw = upstream.body().use(JsonHelper::readUtf8Body)
         val transformed = transformer(request, raw)
         UsageJson.record(ctx, transformed)
-        AccessLogFields.responseBytes(ctx, transformed.toByteArray(StandardCharsets.UTF_8).size.toLong())
-        ctx.call.respondText(
-            transformed,
-            responseContentType(upstream),
-            HttpStatusCode.fromValue(upstream.statusCode()),
-        )
+        if (shouldEmitCompletionSse(request)) {
+            val sse = "data: $transformed\n\ndata: [DONE]\n\n"
+            AccessLogFields.responseBytes(ctx, sse.toByteArray(StandardCharsets.UTF_8).size.toLong())
+            JsonHelper.setSseHeaders(ctx)
+            ctx.call.respondText(
+                sse,
+                ContentType.parse(JsonHelper.SSE_CONTENT_TYPE),
+                HttpStatusCode.fromValue(upstream.statusCode()),
+            )
+        } else {
+            AccessLogFields.responseBytes(ctx, transformed.toByteArray(StandardCharsets.UTF_8).size.toLong())
+            ctx.call.respondText(
+                transformed,
+                responseContentType(upstream),
+                HttpStatusCode.fromValue(upstream.statusCode()),
+            )
+        }
         ctx.handled = true
+    }
+
+    private fun shouldEmitCompletionSse(request: SubscriptionProxyRequest): Boolean {
+        if (request.route != SubscriptionProxyRoute.COMPLETIONS &&
+            request.route != SubscriptionProxyRoute.FIM_COMPLETIONS
+        ) {
+            return false
+        }
+        return (request.body["stream"] as? JsonPrimitive)?.booleanOrNull == true
     }
 
     private suspend fun copyTransformedSseResponse(

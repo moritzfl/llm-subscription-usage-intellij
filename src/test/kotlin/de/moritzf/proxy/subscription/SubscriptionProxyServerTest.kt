@@ -388,6 +388,38 @@ class SubscriptionProxyServerTest {
     }
 
     @Test
+    fun nativeCompletionsStreamWrapsJsonAsSse() {
+        val completionBody =
+            """{"id":"cmpl_1","object":"text_completion","choices":[{"index":0,"text":"a + b","finish_reason":"stop"}]}"""
+        TestUpstream(responseBody = completionBody).use { upstream ->
+            val server = newServer(
+                providers = listOf(fakeProvider("ollama", "Ollama", upstream.baseUri, "ol-token", "ol-qwen", "qwen")),
+                completionsConfig = CompletionsConfig(
+                    enabled = true,
+                    modelLocalId = "ol-qwen",
+                    useChatAdapter = false,
+                ),
+            )
+            try {
+                server.start()
+                val response = post(
+                    server.port,
+                    "/v1/completions",
+                    """{"model":"ol-qwen","prompt":"fun add() { return ","suffix":"}","stream":true}""",
+                )
+                assertEquals(200, response.statusCode(), response.body())
+                assertTrue(response.headers().firstValue("Content-Type").orElse("").contains("text/event-stream"))
+                assertTrue(response.body().contains("data: "), response.body())
+                assertTrue(response.body().contains("\"object\":\"text_completion\""), response.body())
+                assertTrue(response.body().contains("data: [DONE]"), response.body())
+                assertTrue(response.body().contains("\n\n"), response.body())
+            } finally {
+                server.stop()
+            }
+        }
+    }
+
+    @Test
     fun completionsStreamMapsChatChunks() {
         val sse = "data: {\"id\":\"chatcmpl_1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"xyz\"},\"finish_reason\":null}]}\n\ndata: [DONE]\n\n"
         TestUpstream(responseBody = sse, responseContentType = "text/event-stream").use { upstream ->

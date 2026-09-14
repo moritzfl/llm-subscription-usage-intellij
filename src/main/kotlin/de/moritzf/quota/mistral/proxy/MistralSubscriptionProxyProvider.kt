@@ -37,6 +37,18 @@ class MistralSubscriptionProxyProvider(
         extraRoutesForModel = { id ->
             if (FimModels.isNativeFimId(id)) setOf(SubscriptionProxyRoute.FIM_COMPLETIONS) else emptySet()
         },
+        requestBodyTransformer = { request, body ->
+            if (request.route == SubscriptionProxyRoute.COMPLETIONS ||
+                request.route == SubscriptionProxyRoute.FIM_COMPLETIONS
+            ) {
+                buildJsonObject {
+                    body.forEach { (key, value) -> if (key != "stream") put(key, value) }
+                    put("stream", false)
+                }
+            } else {
+                body
+            }
+        },
         jsonResponseTransformer = { request, raw ->
             if (request.route == SubscriptionProxyRoute.COMPLETIONS ||
                 request.route == SubscriptionProxyRoute.FIM_COMPLETIONS
