@@ -186,6 +186,41 @@ class SuperGrokSubscriptionProxyProviderTest {
         }
     }
 
+    @Test
+    fun dropsJunieLiteLlmExtrasButKeepsReasoningEffort() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{" +
+                        "\"model\":\"sg-grok-4.3\"," +
+                        "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]," +
+                        "\"user\":\"primary\"," +
+                        "\"seed\":100000," +
+                        "\"drop_params\":true," +
+                        "\"reasoning_effort\":\"medium\"," +
+                        "\"stop\":[\"</COMMAND>\"]" +
+                        "}",
+                )
+
+                assertEquals(200, response.statusCode())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                val inferenceRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/chat/completions", inferenceRequest.path)
+                assertTrue(inferenceRequest.body.contains("\"reasoning_effort\":\"medium\""), inferenceRequest.body)
+                assertTrue(!inferenceRequest.body.contains("drop_params"), inferenceRequest.body)
+                assertTrue(!inferenceRequest.body.contains("\"user\":\"primary\""), inferenceRequest.body)
+                assertTrue(!inferenceRequest.body.contains("\"seed\""), inferenceRequest.body)
+                assertTrue(!inferenceRequest.body.contains("\"stop\""), inferenceRequest.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
     private fun newProxy(upstreamBaseUri: URI): TestProxy {
         val port = freePort()
         val provider = SuperGrokSubscriptionProxyProvider(

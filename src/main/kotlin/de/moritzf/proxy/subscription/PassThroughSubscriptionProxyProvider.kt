@@ -119,7 +119,9 @@ class PassThroughSubscriptionProxyProvider(
         request: SubscriptionProxyRequest,
         accessToken: String,
     ): HttpRequest {
-        val upstreamBody = requestBodyTransformer(request, rewriteModel(request.body, request.model.upstreamId))
+        val rewritten = rewriteModel(request.body, request.model.upstreamId)
+        val sanitized = LiteLlmRequestSanitizer.sanitize(request.route, rewritten)
+        val upstreamBody = requestBodyTransformer(request, sanitized)
         val payload = JsonHelper.encodeToString(upstreamBody)
         val upstreamPath = upstreamRouteProvider(request).upstreamPath
         val targetUrl = resolveUpstreamUrl(request, upstreamPath)
