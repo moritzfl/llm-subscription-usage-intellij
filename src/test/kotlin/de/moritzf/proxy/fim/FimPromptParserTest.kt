@@ -123,6 +123,24 @@ class FimPromptParserTest {
     }
 
     @Test
+    fun keepsWhitespaceOnlySuffixField() {
+        val parsed = FimPromptParser.parse("return ", "\n  ")
+
+        assertEquals(FimSchema.UNKNOWN_CHAT, parsed.schema)
+        assertEquals("return ", parsed.prefix)
+        assertEquals("\n  ", parsed.suffix)
+    }
+
+    @Test
+    fun doesNotTreatSourcePrefixLiteralAsCodestralWhenSuffixFieldPresent() {
+        val parsed = FimPromptParser.parse("const marker = \"[PREFIX]\";\nreturn ", ";\n")
+
+        assertEquals(FimSchema.UNKNOWN_CHAT, parsed.schema)
+        assertEquals("const marker = \"[PREFIX]\";\nreturn ", parsed.prefix)
+        assertEquals(";\n", parsed.suffix)
+    }
+
+    @Test
     fun prefersFimTokensOverSuffixField() {
         val parsed = FimPromptParser.parse("<|fim_prefix|>pre<|fim_suffix|>suf<|fim_middle|>", "ignored")
 

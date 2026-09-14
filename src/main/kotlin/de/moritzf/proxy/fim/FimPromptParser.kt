@@ -19,22 +19,12 @@ object FimPromptParser {
     private const val FILE_SEP = "<|file_sep|>"
     private const val REPO_NAME = "<|repo_name|>"
 
-    private val KNOWN_TOKENS = listOf(
-        QWEN_PREFIX, QWEN_SUFFIX, QWEN_MIDDLE,
-        DEEPSEEK_PREFIX, DEEPSEEK_SUFFIX, DEEPSEEK_MIDDLE,
-        CJK_BEGIN, CJK_HOLE, CJK_END,
-        CODESTRAL_PREFIX, CODESTRAL_SUFFIX, CODESTRAL_MIDDLE,
-        GENERIC_PRE, GENERIC_SUF, GENERIC_MID,
-        FILE_SEP, REPO_NAME,
-    )
-
     fun parse(prompt: String, suffix: String? = null): FimContext {
-        val fieldSuffix = suffix?.takeIf { it.isNotBlank() }
-        if (fieldSuffix != null && !containsFimTokens(prompt)) {
+        if (suffix != null && !hasStructuredFimTokens(prompt)) {
             return context(
                 schema = FimSchema.UNKNOWN_CHAT,
                 prefix = prompt,
-                suffix = fieldSuffix,
+                suffix = suffix,
                 originalPrompt = prompt,
             )
         }
@@ -47,19 +37,32 @@ object FimPromptParser {
         triple(prompt, CJK_BEGIN, CJK_HOLE, CJK_END)?.let { (prefix, parsedSuffix) ->
             return context(FimSchema.DEEPSEEK_CJK, prefix, parsedSuffix, prompt)
         }
-        codestral(prompt, fieldSuffix)?.let { return it }
+        codestral(prompt, suffix)?.let { return it }
         triple(prompt, GENERIC_PRE, GENERIC_SUF, GENERIC_MID)?.let { (prefix, parsedSuffix) ->
             return context(FimSchema.GENERIC_PRE, prefix, parsedSuffix, prompt)
         }
         return context(
             schema = FimSchema.UNKNOWN_CHAT,
             prefix = prompt,
-            suffix = fieldSuffix.orEmpty(),
+            suffix = suffix.orEmpty(),
             originalPrompt = prompt,
         )
     }
 
-    private fun containsFimTokens(prompt: String): Boolean = KNOWN_TOKENS.any { prompt.contains(it) }
+    private fun hasStructuredFimTokens(prompt: String): Boolean {
+        return triple(prompt, QWEN_PREFIX, QWEN_SUFFIX, QWEN_MIDDLE) != null ||
+            triple(prompt, DEEPSEEK_PREFIX, DEEPSEEK_SUFFIX, DEEPSEEK_MIDDLE) != null ||
+            triple(prompt, CJK_BEGIN, CJK_HOLE, CJK_END) != null ||
+            triple(prompt, GENERIC_PRE, GENERIC_SUF, GENERIC_MID) != null ||
+            structuredCodestral(prompt)
+    }
+
+    private fun structuredCodestral(prompt: String): Boolean {
+        val prefixAt = prompt.indexOf(CODESTRAL_PREFIX)
+        if (prefixAt < 0) return false
+        if (prefixAt > 0 && prompt[prefixAt - 1] != '\n') return false
+        return prompt.contains(CODESTRAL_SUFFIX) || prompt.contains(CODESTRAL_MIDDLE)
+    }
 
     private fun triple(prompt: String, prefixTok: String, suffixTok: String, middleTok: String): Pair<String, String>? {
         val prefixAt = prompt.indexOf(prefixTok)
@@ -82,6 +85,7 @@ object FimPromptParser {
     private fun codestral(prompt: String, fieldSuffix: String?): FimContext? {
         val prefixAt = prompt.indexOf(CODESTRAL_PREFIX)
         if (prefixAt < 0) return null
+        if (prefixAt > 0 && prompt[prefixAt - 1] != '\n') return null
         val suffixAt = prompt.indexOf(CODESTRAL_SUFFIX)
         val middleAt = prompt.indexOf(CODESTRAL_MIDDLE)
         val prefixStart = prefixAt + CODESTRAL_PREFIX.length

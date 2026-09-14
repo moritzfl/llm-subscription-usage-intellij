@@ -27,7 +27,7 @@ data class CompletionsRequest(
             return CompletionsRequest(
                 model = body.stringPath("model").trim(),
                 prompt = promptText(body),
-                suffix = body.stringPathOrNull("suffix")?.takeIf { it.isNotBlank() },
+                suffix = body.stringPathOrNull("suffix"),
                 stream = body.booleanPath("stream"),
                 maxTokens = maxTokens,
                 temperature = (body["temperature"] as? JsonPrimitive)?.doubleOrNull,
