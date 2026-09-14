@@ -63,6 +63,7 @@ class KimiSubscriptionProxyProvider(
         requestLogger = requestLogger,
     )
 
+    private val refreshLock = Any()
     @Volatile private var modelCache: ModelCache? = null
 
     override val id: String = ID
@@ -127,17 +128,24 @@ class KimiSubscriptionProxyProvider(
     }
 
     private fun accessToken(): String? {
-        val credentials = credentialsProvider() ?: return null
-        val refreshed = runCatching { credentialRefresher.refreshIfNeeded(credentials) }.getOrDefault(credentials)
-        if (refreshed != credentials) credentialsSaver(refreshed)
-        return refreshed.accessToken.trim().takeIf { it.isNotBlank() }
+        synchronized(refreshLock) {
+            val credentials = credentialsProvider() ?: return null
+            val refreshed = runCatching { credentialRefresher.refreshIfNeeded(credentials) }.getOrDefault(credentials)
+            if (refreshed != credentials) credentialsSaver(refreshed)
+            return refreshed.accessToken.trim().takeIf { it.isNotBlank() }
+        }
     }
 
-    private fun refreshAfterUnauthorized(@Suppress("UNUSED_PARAMETER") staleAccessToken: String?): String? {
-        val credentials = credentialsProvider() ?: return null
-        val refreshed = runCatching { credentialRefresher.refresh(credentials) }.getOrNull() ?: return null
-        credentialsSaver(refreshed)
-        return refreshed.accessToken.trim().takeIf { it.isNotBlank() }
+    private fun refreshAfterUnauthorized(staleAccessToken: String?): String? {
+        synchronized(refreshLock) {
+            val credentials = credentialsProvider() ?: return null
+            if (!staleAccessToken.isNullOrBlank() && credentials.accessToken != staleAccessToken) {
+                return credentials.accessToken.trim().takeIf { it.isNotBlank() }
+            }
+            val refreshed = runCatching { credentialRefresher.refresh(credentials) }.getOrNull() ?: return null
+            credentialsSaver(refreshed)
+            return refreshed.accessToken.trim().takeIf { it.isNotBlank() }
+        }
     }
 
     private fun modelMappings(): List<PassThroughSubscriptionProxyProvider.ModelMapping> {
