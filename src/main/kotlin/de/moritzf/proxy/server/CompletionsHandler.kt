@@ -30,9 +30,9 @@ import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.util.UUID
-import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
@@ -86,7 +86,7 @@ class CompletionsHandler(
             JsonHelper.toErrorResponse(ctx, "Model ${model.localId} cannot be used for FIM completions.", 400, "invalid_request_error")
             return
         }
-        val job = coroutineContext[Job]
+        val job = currentCoroutineContext()[Job]
         val key = ctx.getAttribute(ProxyCallAttributes.KEY_FINGERPRINT) ?: "local"
         val fim = CompletionsGuard.budget(FimPromptParser.parse(parsed.prompt, parsed.suffix), cfg.maxPromptChars)
         val maxTokens = CompletionsGuard.clampMaxTokens(parsed.maxTokens, cfg)
@@ -141,7 +141,7 @@ class CompletionsHandler(
                     handleNative(ctx, models, model, parsed, fim, maxTokens, requestId)
                 }
             }
-        } catch (timeout: TimeoutCancellationException) {
+        } catch (_: TimeoutCancellationException) {
             LOG.debug("FIM completion timed out for {}", model.localId)
             if (!ctx.handled) writeEmptyCompletion(ctx, parsed.stream, advertised, requestId)
         } catch (cancellation: CancellationException) {
@@ -585,8 +585,8 @@ class CompletionsHandler(
         }
 
         private fun isEventStream(response: HttpResponse<InputStream>): Boolean {
-            return response.headers().firstValue(HttpHeaders.ContentType).orElse("")
-                .contains("text/event-stream", ignoreCase = true)
+            return response.headers().allValues(HttpHeaders.ContentType)
+                .any { it.contains("text/event-stream", ignoreCase = true) }
         }
     }
 }

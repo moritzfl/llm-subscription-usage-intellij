@@ -307,10 +307,7 @@ class ChatCompletionsHandler {
             toolCalls.add(chatToolCall(junieNativeToolName, collectedText))
         }
         if (legacyFunctionCallProtocol && !message.has("function_call") && !toolCalls.isEmpty()) {
-            val legacyFunctionCall = toLegacyFunctionCall(toolCalls.get(0))
-            if (legacyFunctionCall != null) {
-                message.set("function_call", legacyFunctionCall)
-            }
+            message.set("function_call", toLegacyFunctionCall(toolCalls.get(0)))
         } else if (!toolCalls.isEmpty()) {
             message.set("tool_calls", toolCalls)
         }
@@ -350,7 +347,7 @@ class ChatCompletionsHandler {
             { it.pathOrNull("function").stringPath("arguments", "") },
         )
     }
-    private fun toLegacyFunctionCall(toolCall: JsonElement?): MutableJsonObject? {
+    private fun toLegacyFunctionCall(toolCall: JsonElement?): MutableJsonObject {
         val function = toolCall.pathOrNull("function")
         val legacyFunctionCall = createObjectNode()
         legacyFunctionCall.put("name", function.stringPath("name", ""))
