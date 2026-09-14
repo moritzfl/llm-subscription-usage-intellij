@@ -11,6 +11,7 @@
 - OpenCode Go `$R[0]=null` is treated as empty usage so billing balance can still show.
 - MCP URL sync can update JSONC files that use `//` or `/* */` comments.
 - MiniMax Auto on proxy media tries the global endpoint then China, like MCP search.
+- Browser login failure pages escape provider error text.
 
 ## [1.13.1] - 2026-09-14
 

@@ -351,15 +351,26 @@ class OAuthLoginFlow private constructor(
                 .encode(value)
         }
 
-        private fun buildHtmlResponse(title: String, message: String, success: Boolean): String {
+        internal fun htmlEscape(value: String): String {
+            return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;")
+        }
+
+        internal fun buildHtmlResponse(title: String, message: String, success: Boolean): String {
             val background = if (success) "#0d8f6f" else "#b3282d"
+            val safeTitle = htmlEscape(title)
+            val safeMessage = htmlEscape(message)
             @Language("HTML")
-            val response = """
+            return """
                 <!DOCTYPE html>
                 <html lang="en">
                 <head>
                 <meta charset="utf-8">
-                <title>%s</title>
+                <title>$safeTitle</title>
                 <style>
                   body {
                     font-family: Arial,serif;
@@ -368,7 +379,7 @@ class OAuthLoginFlow private constructor(
                     align-items: center;
                     height: 100vh;
                     margin: 0;
-                    background: %s;
+                    background: $background;
                     color: white;
                   }
                   .container {
@@ -381,13 +392,12 @@ class OAuthLoginFlow private constructor(
                 </head>
                 <body>
                 <div class="container">
-                  <h1>%s</h1>
-                  <p>%s</p>
+                  <h1>$safeTitle</h1>
+                  <p>$safeMessage</p>
                 </div>
                 </body>
                 </html>
             """.trimIndent()
-            return response.format(title, background, title, message)
         }
     }
 }
