@@ -12,6 +12,7 @@
 - MCP URL sync can update JSONC files that use `//` or `/* */` comments.
 - MiniMax Auto on proxy media tries the global endpoint then China, like MCP search.
 - Browser login failure pages escape provider error text.
+- Proxy model lists keep the last good catalog when a live `/models` refresh fails.
 
 ## [1.13.1] - 2026-09-14
 

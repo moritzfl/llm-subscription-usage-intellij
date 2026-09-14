@@ -12,6 +12,7 @@ import java.net.http.HttpResponse
 import java.nio.file.Files
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -95,6 +96,47 @@ class OpenAiCompatibleApiKeySubscriptionProxyProviderTest {
         }
     }
 
+    @Test
+    fun keepsLastDiscoveredModelsWhenRefreshFails() {
+        TestUpstream(
+            modelsBody = """{"object":"list","data":[{"id":"model-a","object":"model"}]}""",
+            modelsStatus = AtomicInteger(200),
+        ).use { upstream ->
+            val proxy = newProxy(
+                OpenAiCompatibleApiKeySubscriptionProxyProvider(
+                    id = "test-provider",
+                    displayName = "Test Provider",
+                    litellmProvider = "test-provider",
+                    baseUri = upstream.baseUri,
+                    apiKeyProvider = { "provider-key" },
+                    localIdPrefix = "test-",
+                    requestLogDir = Files.createTempDirectory("api-key-provider-stale-logs").toString(),
+                    modelCacheTtl = kotlin.time.Duration.ZERO,
+                ),
+            )
+            try {
+                proxy.server.start()
+                val first = get(proxy.port, "/v1/models")
+                assertEquals(200, first.statusCode())
+                assertEquals(
+                    listOf("test-model-a"),
+                    JsonHelper.JSON.parseToJsonElement(first.body()).jsonObject["data"]!!.jsonArray
+                        .map { it.jsonObject["id"]!!.jsonPrimitive.content },
+                )
+                upstream.modelsStatus.set(500)
+                val second = get(proxy.port, "/v1/models")
+                assertEquals(200, second.statusCode())
+                assertEquals(
+                    listOf("test-model-a"),
+                    JsonHelper.JSON.parseToJsonElement(second.body()).jsonObject["data"]!!.jsonArray
+                        .map { it.jsonObject["id"]!!.jsonPrimitive.content },
+                )
+            } finally {
+                proxy.server.stop()
+            }
+        }
+    }
+
     private fun newProxy(provider: SubscriptionProxyProvider): TestProxy {
         val port = freePort()
         return TestProxy(
@@ -133,6 +175,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProviderTest {
 
     private class TestUpstream(
         private val modelsBody: String = "{\"object\":\"list\",\"data\":[]}",
+        val modelsStatus: AtomicInteger = AtomicInteger(200),
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
         private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
@@ -153,7 +196,8 @@ class OpenAiCompatibleApiKeySubscriptionProxyProviderTest {
                 }
                 val response = responseBody.toByteArray(Charsets.UTF_8)
                 exchange.responseHeaders.set("Content-Type", "application/json")
-                exchange.sendResponseHeaders(200, response.size.toLong())
+                val status = if (exchange.requestURI.rawPath.endsWith("/models")) modelsStatus.get() else 200
+                exchange.sendResponseHeaders(status, response.size.toLong())
                 exchange.responseBody.use { output -> output.write(response) }
             }
             server.start()

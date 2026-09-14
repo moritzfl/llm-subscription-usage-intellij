@@ -38,6 +38,7 @@ class SuperGrokSubscriptionProxyProvider(
     private val upstreamBaseUri: URI = DEFAULT_UPSTREAM_BASE_URI,
     fullRequestLogging: Boolean = false,
     requestLogDir: String = DEFAULT_REQUEST_LOG_DIR,
+    private val modelCacheTtl: kotlin.time.Duration = CACHE_TTL,
 ) : SubscriptionProxyProvider {
     private val delegate = PassThroughSubscriptionProxyProvider(
         id = ID,
@@ -157,15 +158,15 @@ class SuperGrokSubscriptionProxyProvider(
     private fun remoteModels(): List<RemoteModel> {
         val now = Clock.System.now()
         val cached = modelCache
-        if (cached != null && now - cached.fetchedAt < CACHE_TTL) {
+        if (cached != null && now - cached.fetchedAt < modelCacheTtl) {
             return cached.models
         }
-        val token = accessTokenProvider().trimmedOrNull() ?: return emptyList()
+        val token = accessTokenProvider().trimmedOrNull() ?: return cached?.models.orEmpty()
         val models = runCatching { fetchModels(token) }.getOrDefault(emptyList())
         if (models.isNotEmpty()) {
             modelCache = ModelCache(models, now)
         }
-        return models
+        return models.ifEmpty { cached?.models.orEmpty() }
     }
 
     private fun fetchModels(token: String): List<RemoteModel> {
