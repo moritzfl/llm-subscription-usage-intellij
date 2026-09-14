@@ -110,11 +110,7 @@ class OpenCodeSessionCookieStore(
 
     fun clear() {
         loadGeneration.incrementAndGet()
-        try {
-            PasswordSafe.instance.set(attributes, null)
-        } catch (exception: Exception) {
-            // ignore
-        }
+        de.moritzf.quota.idea.auth.PasswordSafeSecrets.clear(attributes, "OpenCode session cookie")
         cachedCookie.set(null)
         loaded.set(true)
         loading.set(false)

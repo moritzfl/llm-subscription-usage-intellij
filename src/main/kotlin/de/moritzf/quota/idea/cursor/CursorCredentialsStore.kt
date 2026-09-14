@@ -86,11 +86,7 @@ class CursorCredentialsStore(
 
     fun clearSessionCookie() {
         loadGeneration.incrementAndGet()
-        try {
-            PasswordSafe.instance.set(sessionAttributes, null)
-        } catch (exception: Exception) {
-            // ignore
-        }
+        de.moritzf.quota.idea.auth.PasswordSafeSecrets.clear(sessionAttributes, "Cursor session cookie")
         cachedSessionCookie.set(null)
         loaded.set(true)
         loading.set(false)

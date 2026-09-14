@@ -99,11 +99,7 @@ class ZaiApiKeyStore(
 
     fun clear() {
         loadGeneration.incrementAndGet()
-        try {
-            PasswordSafe.instance.set(attributes, null)
-        } catch (exception: Exception) {
-            // ignore
-        }
+        de.moritzf.quota.idea.auth.PasswordSafeSecrets.clear(attributes, "Z.ai API key")
         cachedApiKey.set(null)
         loaded.set(true)
         loading.set(false)

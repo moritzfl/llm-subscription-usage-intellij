@@ -16,6 +16,7 @@
 - Native FIM `stream:true` (adapter off) returns OpenAI text-completion SSE when upstream JSON is non-streaming.
 - Canceling GitHub or Kimi device login no longer saves a token that arrived after cancel.
 - The local proxy does not start again after the plugin service is disposed.
+- Clearing a provider key fails visibly if Password Safe cannot drop it, instead of looking logged out while the secret remains.
 
 ## [1.13.1] - 2026-09-14
 

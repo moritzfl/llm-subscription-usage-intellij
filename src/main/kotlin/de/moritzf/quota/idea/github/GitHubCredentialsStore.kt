@@ -57,7 +57,7 @@ class GitHubCredentialsStore(
 
     fun clear() {
         loadGeneration.incrementAndGet()
-        PasswordSafe.instance.set(attributes, null)
+        de.moritzf.quota.idea.auth.PasswordSafeSecrets.clear(attributes, "GitHub credentials")
         cachedCredentials.set(null)
         loaded.set(true)
         loading.set(false)

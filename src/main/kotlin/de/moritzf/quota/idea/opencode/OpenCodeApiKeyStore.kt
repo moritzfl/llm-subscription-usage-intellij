@@ -59,10 +59,7 @@ class OpenCodeApiKeyStore(
 
     fun clear() {
         loadGeneration.incrementAndGet()
-        try {
-            PasswordSafe.instance.set(attributes, null)
-        } catch (_: Exception) {
-        }
+        de.moritzf.quota.idea.auth.PasswordSafeSecrets.clear(attributes, "OpenCode API key")
         cachedApiKey.set(null)
         loaded.set(true)
         loading.set(false)

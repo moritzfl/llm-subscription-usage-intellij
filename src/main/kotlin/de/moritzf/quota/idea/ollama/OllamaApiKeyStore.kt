@@ -68,11 +68,7 @@ class OllamaApiKeyStore(
 
     fun clear() {
         loadGeneration.incrementAndGet()
-        try {
-            PasswordSafe.instance.set(attributes, null)
-        } catch (_: Exception) {
-            // ignore
-        }
+        de.moritzf.quota.idea.auth.PasswordSafeSecrets.clear(attributes, "Ollama API key")
         cachedApiKey.set(null)
         loaded.set(true)
         loading.set(false)

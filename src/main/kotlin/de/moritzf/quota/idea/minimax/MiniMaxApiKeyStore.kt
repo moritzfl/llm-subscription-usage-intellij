@@ -54,7 +54,7 @@ class MiniMaxApiKeyStore(
 
     fun clear() {
         loadGeneration.incrementAndGet()
-        PasswordSafe.instance.set(attributes, null)
+        de.moritzf.quota.idea.auth.PasswordSafeSecrets.clear(attributes, "MiniMax API key")
         cachedApiKey.set(null)
         loaded.set(true)
         loading.set(false)
