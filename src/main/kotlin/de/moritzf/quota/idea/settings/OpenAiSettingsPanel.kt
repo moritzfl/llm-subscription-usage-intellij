@@ -9,7 +9,6 @@ import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
-import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
@@ -39,8 +38,6 @@ internal class OpenAiSettingsPanel(
     private val codexResponseViewer = createResponseViewer()
     private var authUrl: String? = null
     private var authStatusMessage: AuthStatusMessage? = null
-
-    var onLoginStarted: (() -> Unit)? = null
     var onLoginResult: ((Boolean, String?) -> Unit)? = null
     var onAuthUrlReceived: ((String) -> Unit)? = null
     var onCancelLogin: (() -> Unit)? = null
@@ -81,13 +78,13 @@ internal class OpenAiSettingsPanel(
                     if (result.success) {
                         QuotaUsageService.getInstance().refreshAsync(accountKey())
                     }
-                }, ModalityState.stateForComponent(this@OpenAiSettingsPanel))
+                }, ModalityState.stateForComponent(modalityComponentProvider() ?: this@OpenAiSettingsPanel))
             }, onAuthUrl = { url ->
                 ApplicationManager.getApplication().invokeLater({
                     authUrl = url
                     copyUrlButton.isVisible = true
                     onAuthUrlReceived?.invoke(url)
-                }, ModalityState.stateForComponent(this@OpenAiSettingsPanel))
+                }, ModalityState.stateForComponent(modalityComponentProvider() ?: this@OpenAiSettingsPanel))
             })
             updateAuthUi()
         }

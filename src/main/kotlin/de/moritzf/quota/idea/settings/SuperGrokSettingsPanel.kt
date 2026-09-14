@@ -13,7 +13,6 @@ import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.supergrok.SuperGrokQuota
-import kotlinx.serialization.encodeToString
 import java.awt.Color
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
@@ -69,12 +68,12 @@ internal class SuperGrokSettingsPanel(
                     if (result.success) {
                         QuotaUsageService.getInstance().refreshAsync(accountId())
                     }
-                }, ModalityState.stateForComponent(this@SuperGrokSettingsPanel))
+                }, ModalityState.stateForComponent(modalityComponentProvider() ?: this@SuperGrokSettingsPanel))
             }, onAuthUrl = { url ->
                 ApplicationManager.getApplication().invokeLater({
                     authUrl = url
                     copyUrlButton.isVisible = true
-                }, ModalityState.stateForComponent(this@SuperGrokSettingsPanel))
+                }, ModalityState.stateForComponent(modalityComponentProvider() ?: this@SuperGrokSettingsPanel))
             })
             updateAuthUi()
         }
