@@ -9,6 +9,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class McpJsonTargetUpdaterTest {
     private val json = Json { ignoreUnknownKeys = true }
@@ -62,6 +63,32 @@ class McpJsonTargetUpdaterTest {
             """.trimIndent(),
             updated,
         )
+    }
+
+    @Test
+    fun jsoncCommentsDoNotBreakRangeFinder() {
+        val updated = McpJsonTargetUpdater().updateContent(
+            """
+            {
+              // jetbrains MCP
+              "mcpServers": {
+                /* nested */
+                "jetbrains": {
+                  "url": "http://localhost:1/sse"
+                }
+              }
+            }
+            """.trimIndent(),
+            "mcpServers.jetbrains.url",
+            "http://localhost:63342/sse",
+        )
+        val parsed = Json { allowComments = true }.parseToJsonElement(updated).jsonObject
+        assertEquals(
+            "http://localhost:63342/sse",
+            parsed["mcpServers"]!!.jsonObject["jetbrains"]!!.jsonObject["url"]!!.jsonPrimitive.content,
+        )
+        assertTrue(updated.contains("// jetbrains MCP"))
+        assertTrue(updated.contains("/* nested */"))
     }
 
     @Test

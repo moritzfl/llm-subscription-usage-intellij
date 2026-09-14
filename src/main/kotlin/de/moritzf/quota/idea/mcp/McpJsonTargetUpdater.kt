@@ -239,8 +239,24 @@ class McpJsonTargetUpdater(
 
         private fun skipWhitespace(content: String, start: Int): Int {
             var cursor = start
-            while (cursor < content.length && content[cursor].isWhitespace()) {
-                cursor++
+            while (cursor < content.length) {
+                when {
+                    content[cursor].isWhitespace() -> cursor++
+                    content.startsWith("//", cursor) -> {
+                        cursor += 2
+                        while (cursor < content.length && content[cursor] != '\n') {
+                            cursor++
+                        }
+                    }
+                    content.startsWith("/*", cursor) -> {
+                        val end = content.indexOf("*/", cursor + 2)
+                        if (end < 0) {
+                            error("JSON comment is not terminated.")
+                        }
+                        cursor = end + 2
+                    }
+                    else -> return cursor
+                }
             }
             return cursor
         }
