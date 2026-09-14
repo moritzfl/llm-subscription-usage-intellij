@@ -74,6 +74,9 @@ class KimiAuthService(
         while (loginInProgress.get() && System.currentTimeMillis() - startedAt < expiresAfterMs) {
             when (val result = oauthClient.pollDeviceToken(authorization.deviceCode)) {
                 is KimiDeviceTokenPollResult.Authorized -> {
+                    if (!loginInProgress.get()) {
+                        return LoginResult.error("Login canceled")
+                    }
                     credentialsStore.save(result.credentials)
                     return LoginResult.success()
                 }

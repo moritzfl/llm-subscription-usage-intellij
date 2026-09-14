@@ -100,6 +100,9 @@ class GitHubAuthService(
             if (!loginInProgress.get()) break
             when (val result = oauthClient.pollDeviceToken(authorization.deviceCode)) {
                 is GitHubDeviceTokenPollResult.Authorized -> {
+                    if (!loginInProgress.get()) {
+                        return LoginResult.error("Login canceled")
+                    }
                     credentialsStore.save(result.credentials)
                     return LoginResult.success()
                 }
