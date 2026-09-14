@@ -125,7 +125,8 @@ class QuotaUsageService(
         }
         val type = source.providerType ?: QuotaProviderType.OPEN_AI
         val accountId = when (configured) {
-            QuotaIndicatorSource.LAST_USED -> settings?.lastActiveAccount()?.id ?: type.id
+            QuotaIndicatorSource.LAST_USED ->
+                settings?.lastActiveAccount()?.id ?: settings?.defaultAccount(type)?.id ?: type.id
             else -> settings?.defaultAccount(type)?.id ?: type.id
         }
         val accountProvider = providerForAccount(accountId)

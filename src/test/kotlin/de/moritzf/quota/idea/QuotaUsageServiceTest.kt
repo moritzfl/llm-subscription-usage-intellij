@@ -989,6 +989,60 @@ class QuotaUsageServiceTest {
     }
 
     @Test
+    fun lastUsedIndicatorUsesRemainingDefaultAfterAccountRemoved() {
+        val settings = QuotaSettingsState().apply {
+            accounts = mutableListOf(
+                de.moritzf.quota.idea.settings.ProviderAccount(
+                    id = "work-uuid",
+                    typeId = QuotaProviderType.OPEN_AI.id,
+                    name = "Work",
+                    isDefault = true,
+                ),
+                de.moritzf.quota.idea.settings.ProviderAccount(
+                    id = "personal-uuid",
+                    typeId = QuotaProviderType.OPEN_AI.id,
+                    name = "Personal",
+                ),
+            )
+            setSource(QuotaIndicatorSource.LAST_USED)
+            setLastActiveAccount("personal-uuid")
+        }
+        val work = OpenAiQuotaProvider(
+            accountId = "work-uuid",
+            quotaFetcher = { _, _ ->
+                OpenAiCodexQuota(allowed = true).apply { primary = UsageWindow(usedPercent = 10.0) }
+            },
+            accessTokenProvider = { "token" },
+            accountIdProvider = { "work" },
+        )
+        val personal = OpenAiQuotaProvider(
+            accountId = "personal-uuid",
+            quotaFetcher = { _, _ ->
+                OpenAiCodexQuota(allowed = true).apply { primary = UsageWindow(usedPercent = 77.0) }
+            },
+            accessTokenProvider = { "token" },
+            accountIdProvider = { "personal" },
+        )
+        val service = QuotaUsageService(
+            providers = listOf(work, personal),
+            settingsProvider = { settings },
+            updatePublisher = {},
+            scheduleOnInit = false,
+        )
+        try {
+            service.refreshNowBlocking()
+            settings.accounts.removeIf { it.id == "personal-uuid" }
+            settings.dropAccountData("personal-uuid")
+            val indicator = service.getEffectiveIndicatorData()
+            assertEquals(QuotaProviderType.OPEN_AI, indicator.type)
+            assertEquals("work-uuid", indicator.accountId)
+            assertEquals(0.10, indicator.quota!!.usageFraction()!!, 0.0001)
+        } finally {
+            service.dispose()
+        }
+    }
+
+    @Test
     fun consumeOpenAiResetCreditDoesNotFallBackToSibling() {
         var workConsumed = false
         var personalConsumed = false
