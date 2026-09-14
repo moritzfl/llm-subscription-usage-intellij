@@ -15,6 +15,7 @@
 - Proxy model lists keep the last good catalog when a live `/models` refresh fails.
 - Native FIM `stream:true` (adapter off) returns OpenAI text-completion SSE when upstream JSON is non-streaming.
 - Canceling GitHub or Kimi device login no longer saves a token that arrived after cancel.
+- The local proxy does not start again after the plugin service is disposed.
 
 ## [1.13.1] - 2026-09-14
 

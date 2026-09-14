@@ -48,6 +48,7 @@ class OpenAiProxyService(
     @Volatile private var runningLogRequests: Boolean = false
     @Volatile private var runningProviderIds: Set<String> = emptySet()
     @Volatile private var lastError: String? = null
+    @Volatile private var disposed = false
 
     init {
         if (subscribeToSettings) {
@@ -93,6 +94,9 @@ class OpenAiProxyService(
         val providerIds = settings?.enabledSubscriptionProxyProviders().orEmpty().map { it.id }.toSet()
 
         synchronized(lock) {
+            if (disposed) {
+                return
+            }
             if (!enabled) {
                 stopLocked()
                 lastError = null
@@ -172,6 +176,7 @@ class OpenAiProxyService(
 
     override fun dispose() {
         synchronized(lock) {
+            disposed = true
             stopLocked()
         }
     }
