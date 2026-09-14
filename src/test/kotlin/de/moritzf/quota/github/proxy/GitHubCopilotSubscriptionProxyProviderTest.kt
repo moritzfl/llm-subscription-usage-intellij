@@ -120,6 +120,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 assertTrue(response.body().contains("\"model\":\"gpt-5-mini\""), response.body())
                 assertTrue(response.body().contains("\"choices\""), response.body())
                 assertTrue(response.body().contains("data: [DONE]"), response.body())
+                assertTrue(response.body().contains("\n\n"), response.body())
             } finally {
                 proxy.stop()
             }
@@ -378,6 +379,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 assertTrue(response.body().contains("\"object\":\"chat.completion.chunk\""), response.body())
                 assertTrue(response.body().contains("hi from claude"), response.body())
                 assertTrue(response.body().contains("data: [DONE]"), response.body())
+                assertTrue(response.body().contains("\n\n"), response.body())
                 assertFalse(response.body().contains("event: message_start"), response.body())
                 assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery only
                 val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))

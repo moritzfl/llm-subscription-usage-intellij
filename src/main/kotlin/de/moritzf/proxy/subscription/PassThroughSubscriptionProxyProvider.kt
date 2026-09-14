@@ -223,7 +223,13 @@ class PassThroughSubscriptionProxyProvider(
                         val transformedLine = sseLineTransformer?.invoke(request, line)
                             ?: transformer?.let { transformSseLine(request, line, it) }
                             ?: line
-                        if (transformedLine.isEmpty()) continue
+                        if (transformedLine.isEmpty()) {
+                            if (line.isNotEmpty()) continue
+                            write("\n".toByteArray(StandardCharsets.UTF_8))
+                            AccessLogFields.addResponseBytes(ctx, 1)
+                            flush()
+                            continue
+                        }
                         val output = transformedLine + "\n"
                         val bytes = output.toByteArray(StandardCharsets.UTF_8)
                         write(bytes)
