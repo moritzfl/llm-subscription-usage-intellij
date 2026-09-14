@@ -53,6 +53,7 @@ class SuperGrokSubscriptionProxyProvider(
             "User-Agent" to "openai-usage-quota-intellij",
         ),
         requestBodyTransformer = ::requestBody,
+        requestHeadersProvider = ::cacheHeaders,
         jsonResponseTransformer = ::jsonResponse,
         httpClient = httpClient,
         requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir)),
@@ -97,15 +98,22 @@ class SuperGrokSubscriptionProxyProvider(
                 localId = PREFIX + model.id,
                 upstreamId = model.id,
                 supportedRoutes = SUPPORTED_ROUTES,
-                supportsPromptCaching = false,
+                supportsPromptCaching = true,
                 isDefault = model.isDefault,
             )
         }
     }
 
+    private fun cacheHeaders(request: SubscriptionProxyRequest): Map<String, String> {
+        val key = (request.body["prompt_cache_key"] as? JsonPrimitive)?.contentOrNull?.trim()
+        return if (key.isNullOrEmpty()) emptyMap() else mapOf("x-grok-conv-id" to key)
+    }
+
     private fun requestBody(request: SubscriptionProxyRequest, body: JsonObject): JsonObject {
-        if (request.route != SubscriptionProxyRoute.CHAT_COMPLETIONS || body["stop"] == null) return body
-        return body.remove("stop")
+        var next = body
+        if (next["prompt_cache_key"] != null) next = next.remove("prompt_cache_key")
+        if (request.route != SubscriptionProxyRoute.CHAT_COMPLETIONS || next["stop"] == null) return next
+        return next.remove("stop")
     }
 
     private fun jsonResponse(request: SubscriptionProxyRequest, body: String): String {

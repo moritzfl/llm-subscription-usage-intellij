@@ -240,6 +240,7 @@ class GitHubCopilotSubscriptionProxyProvider(
 
     private fun responsesChatBody(body: MutableJsonObject) {
         body.remove("store")
+        body.remove("prompt_cache_key")
         val model = (body.get("model") as? JsonPrimitive)?.contentOrNull.orEmpty()
         if (model.startsWith("mai-code-")) {
             body.remove("temperature")

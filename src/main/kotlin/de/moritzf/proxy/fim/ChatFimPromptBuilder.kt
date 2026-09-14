@@ -1,6 +1,7 @@
 package de.moritzf.proxy.fim
 
 object ChatFimPromptBuilder {
+    const val PROMPT_CACHE_KEY = "lsu-fim-chat-v1"
     const val SYSTEM_PROMPT =
         """You are a low-latency fill-in-the-middle engine for source files.
 Return only the exact text to insert at the cursor.

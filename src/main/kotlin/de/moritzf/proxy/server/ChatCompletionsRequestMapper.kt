@@ -155,6 +155,10 @@ internal class ChatCompletionsRequestMapper(
         if (!serviceTier.isNullOrEmpty()) {
             upstream.put("service_tier", serviceTier)
         }
+        val promptCacheKey = (chatBody["prompt_cache_key"] as? JsonPrimitive)?.contentOrNull?.trim()
+        if (!promptCacheKey.isNullOrEmpty()) {
+            upstream.put("prompt_cache_key", promptCacheKey)
+        }
 
         return upstream
     }

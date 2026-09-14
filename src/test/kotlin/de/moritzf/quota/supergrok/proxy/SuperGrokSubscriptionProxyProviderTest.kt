@@ -163,6 +163,29 @@ class SuperGrokSubscriptionProxyProviderTest {
         }
     }
 
+    @Test
+    fun mapsPromptCacheKeyToGrokConvIdHeader() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"sg-grok-4.3\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"prompt_cache_key\":\"lsu-fim-chat-v1\"}",
+                )
+
+                assertEquals(200, response.statusCode())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                val inferenceRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("lsu-fim-chat-v1", inferenceRequest.firstHeader("x-grok-conv-id"))
+                assertTrue(!inferenceRequest.body.contains("prompt_cache_key"), inferenceRequest.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
     private fun newProxy(upstreamBaseUri: URI): TestProxy {
         val port = freePort()
         val provider = SuperGrokSubscriptionProxyProvider(
