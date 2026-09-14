@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.mcp
 
 import com.sun.net.httpserver.HttpServer
+import de.moritzf.quota.shared.DefaultOutputFiles
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.DocumentLimits
 import java.io.RandomAccessFile
@@ -353,7 +354,7 @@ class CodexMcpClientTest {
 
     @Test
     fun defaultImageFileNamesAreUnique() {
-        assertNotEquals(CodexMcpClient.defaultImageFileName(), CodexMcpClient.defaultImageFileName())
+        assertNotEquals(DefaultOutputFiles.image(), DefaultOutputFiles.image())
     }
 
     @Test

@@ -675,7 +675,7 @@ class CodexMcpClient(
         if (trimmed == null && baseDirectory == null) {
             return null
         }
-        return resolveImageOutputTarget(trimmed ?: defaultImageFileName(), baseDirectory)
+        return resolveImageOutputTarget(trimmed ?: DefaultOutputFiles.image(), baseDirectory)
     }
 
     private fun resolveImageOutputTarget(targetFile: String, baseDirectory: Path?): ImageOutputTarget? {
@@ -806,8 +806,6 @@ class CodexMcpClient(
         private const val DOCUMENT_INSTRUCTIONS = DocumentImageGrounding.INSTRUCTIONS
         private const val DOCUMENT_PROMPT = DocumentImageGrounding.PROMPT
         private val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "gif", "webp")
-
-        internal fun defaultImageFileName(): String = "image-${UUID.randomUUID()}.png"
 
         internal fun isImageName(value: String): Boolean {
             val name = value.substringAfterLast('/').substringBefore('?').lowercase(Locale.ROOT)
