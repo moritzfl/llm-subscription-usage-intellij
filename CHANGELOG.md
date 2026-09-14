@@ -18,6 +18,7 @@
 - The local proxy does not start again after the plugin service is disposed.
 - Clearing a provider key fails visibly if Password Safe cannot drop it, instead of looking logged out while the secret remains.
 - Local proxy honors LiteLLM `drop_params` on chat completions, so Junie CLI extras (`user`, `seed`, `thinking`) are not forwarded to strict providers such as Mistral.
+- Mistral chat proxy omits `reasoning_effort`.
 
 ## [1.13.1] - 2026-09-14
 

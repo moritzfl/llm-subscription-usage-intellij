@@ -4,6 +4,7 @@ import de.moritzf.proxy.fim.FimModels
 import de.moritzf.proxy.media.OpenAiMedia
 import de.moritzf.proxy.server.CompletionsHandler
 import de.moritzf.proxy.server.JsonHelper
+import de.moritzf.proxy.server.remove
 import de.moritzf.proxy.subscription.OpenAiCompatibleApiKeySubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyRequest
@@ -45,6 +46,8 @@ class MistralSubscriptionProxyProvider(
                     body.forEach { (key, value) -> if (key != "stream") put(key, value) }
                     put("stream", false)
                 }
+            } else if (body["reasoning_effort"] != null) {
+                body.remove("reasoning_effort")
             } else {
                 body
             }

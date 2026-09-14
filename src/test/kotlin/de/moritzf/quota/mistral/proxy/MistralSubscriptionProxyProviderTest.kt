@@ -85,6 +85,46 @@ class MistralSubscriptionProxyProviderTest {
     }
 
     @Test
+    fun dropsJunieLiteLlmExtrasAndReasoningEffortBeforeUpstream() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.server.start()
+                get(proxy.port, "/v1/models")
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{" +
+                        "\"model\":\"mi-codestral-latest\"," +
+                        "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]," +
+                        "\"user\":\"capability_filter\"," +
+                        "\"seed\":100000," +
+                        "\"drop_params\":true," +
+                        "\"thinking\":{\"type\":\"enabled\"}," +
+                        "\"reasoning_effort\":\"medium\"," +
+                        "\"temperature\":0.0" +
+                        "}",
+                )
+
+                assertEquals(200, response.statusCode(), response.body())
+                val chatRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/chat/completions", chatRequest.path)
+                assertTrue(chatRequest.body.contains("\"model\":\"codestral-latest\""), chatRequest.body)
+                assertTrue(chatRequest.body.contains("\"temperature\""), chatRequest.body)
+                assertTrue(!chatRequest.body.contains("drop_params"), chatRequest.body)
+                assertTrue(!chatRequest.body.contains("capability_filter"), chatRequest.body)
+                assertTrue(!chatRequest.body.contains("\"seed\""), chatRequest.body)
+                assertTrue(!chatRequest.body.contains("thinking"), chatRequest.body)
+                assertTrue(!chatRequest.body.contains("reasoning_effort"), chatRequest.body)
+            } finally {
+                proxy.server.stop()
+            }
+        }
+    }
+
+    @Test
     fun advertisesNativeFimOnCodestralAndKeepsChatModelsNone() {
         TestUpstream().use { upstream ->
             val proxy = newProxy(upstream.baseUri)
