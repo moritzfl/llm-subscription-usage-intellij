@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- The leftover CLI OpenAI proxy no longer reads or writes Codex or ChatGPT-local `auth.json` files. Pass `--oauth-file` with a file this plugin owns.
+
 ## [1.13.1] - 2026-09-14
 
 - FIM chat adapter treats comments quote-aware, strips only a repeated marker/indent on the current line, and no longer eats string syllables, call closers, Markdown/XML, or same-line operators.

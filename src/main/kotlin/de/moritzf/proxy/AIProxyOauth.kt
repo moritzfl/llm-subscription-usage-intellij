@@ -247,13 +247,11 @@ class AIProxyOauth : Callable<Int> {
     private fun checkAuthFileExists(config: ServerConfig): Boolean {
         val existingAuthFile = findExistingAuthFile(config.oauthFilePath)
         if (existingAuthFile == null) {
-            val candidates = AuthFileResolver.resolveCandidates(config.oauthFilePath)
             if (!config.oauthFilePath.isNullOrEmpty()) {
                 System.err.println("No auth file was found at ${config.oauthFilePath}.")
             } else {
-                System.err.println("No auth file was found in the default search paths: ${candidates.joinToString(", ")}.")
+                System.err.println("OAuth file path is required. Pass --oauth-file with a file this plugin owns.")
             }
-            System.err.println("Run `codex login` and try again.")
             return false
         }
         return true

@@ -45,15 +45,23 @@ class AuthManager(
         lock.lock()
         try {
             current = null
+            val loaded = AuthLoader.loadAuthTokens(
+                config.oauthFilePath,
+                config.oauthClientId,
+                null,
+                config.oauthTokenUrl,
+                httpClient,
+                forceRefresh = true,
+            )
+            current = loaded
+            if (loaded.accessToken.isEmpty()) {
+                return false
+            }
+            val rejectedToken = stripBearer(rejectedAuthorizationHeader)
+            return loaded.accessToken != rejectedToken
         } finally {
             lock.unlock()
         }
-        val refreshed = ensureFresh()
-        if (refreshed.accessToken.isEmpty()) {
-            return false
-        }
-        val rejectedToken = stripBearer(rejectedAuthorizationHeader)
-        return refreshed.accessToken != rejectedToken
     }
 
     override fun getAuthHeaders(): Map<String, String> {

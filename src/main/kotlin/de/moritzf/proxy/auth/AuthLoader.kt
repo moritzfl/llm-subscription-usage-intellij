@@ -38,6 +38,7 @@ object AuthLoader {
         issuer: String?,
         tokenUrl: String?,
         httpClient: HttpClient,
+        forceRefresh: Boolean = false,
     ): AuthResult {
         var resolvedClientId = clientId
         if (resolvedClientId.isNullOrEmpty()) {
@@ -50,6 +51,9 @@ object AuthLoader {
             resolvedIssuer = if (!envIssuer.isNullOrEmpty()) envIssuer else ServerConfig.DEFAULT_ISSUER
         }
         val candidates = AuthFileResolver.resolveCandidates(authFilePath)
+        if (candidates.isEmpty()) {
+            throw IOException("OAuth file path is required. Pass --oauth-file with a file this plugin owns.")
+        }
         var foundPath: String? = null
         var authData: JsonObject? = null
         for (candidate in candidates) {
@@ -66,8 +70,8 @@ object AuthLoader {
             } catch (_: Exception) {
             }
         }
-        if (authData == null) {
-            authData = JsonObject(emptyMap())
+        if (authData == null || foundPath == null) {
+            throw IOException("OAuth file not found. Pass --oauth-file with a file this plugin owns.")
         }
         val tokensNode = authData["tokens"] as? JsonObject
         var accessToken = getStringField(tokensNode, "access_token")
@@ -78,7 +82,8 @@ object AuthLoader {
         if (accountId.isNullOrEmpty()) {
             accountId = JwtParser.deriveAccountId(idToken)
         }
-        val needsRefresh = !refreshToken.isNullOrEmpty() && shouldRefreshAccessToken(accessToken, lastRefresh)
+        val needsRefresh = !refreshToken.isNullOrEmpty() &&
+            (forceRefresh || shouldRefreshAccessToken(accessToken, lastRefresh))
         if (needsRefresh) {
             var resolvedTokenUrl = tokenUrl
             if (resolvedTokenUrl.isNullOrEmpty()) {
@@ -95,20 +100,18 @@ object AuthLoader {
                 if (refreshed.refreshToken != null) refreshToken = refreshed.refreshToken
                 if (refreshed.accountId != null) accountId = refreshed.accountId
                 lastRefresh = Instant.now().toString()
-                val writePath = AuthFileResolver.resolveWritePath(foundPath ?: authFilePath)
-                writeAuthFile(writePath, authData, idToken, accessToken, refreshToken, accountId, lastRefresh)
+                writeAuthFile(foundPath, authData, idToken, accessToken, refreshToken, accountId, lastRefresh)
             }
         }
         if (accessToken.isNullOrEmpty()) {
-            throw IOException("ChatGPT access token not found. Run `codex login` to create auth.json.")
+            throw IOException("ChatGPT access token not found in --oauth-file.")
         }
         if (accountId.isNullOrEmpty()) {
-            throw IOException("ChatGPT account id not found in auth.json. Run `codex login` to create auth.json.")
+            throw IOException("ChatGPT account id not found in --oauth-file.")
         }
         val finalAccessToken = accessToken
         val finalAccountId = accountId
-        val sourcePath = foundPath ?: AuthFileResolver.resolveWritePath(authFilePath)
-        return AuthResult(finalAccessToken, finalAccountId, refreshToken, sourcePath)
+        return AuthResult(finalAccessToken, finalAccountId, refreshToken, foundPath)
     }
     private fun shouldRefreshAccessToken(accessToken: String?, lastRefresh: String?): Boolean {
         if (accessToken.isNullOrEmpty()) {
