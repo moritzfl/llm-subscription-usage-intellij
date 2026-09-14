@@ -201,6 +201,7 @@ class CompletionsHandler(
         AccessLogFields.upstreamStatus(ctx, upstream.statusCode())
         if (upstream.statusCode() == 429) {
             guard.noteQuotaError(key)
+            upstream.body().close()
             writeEmptyCompletion(ctx, parsed.stream, advertised, requestId)
             return
         }
@@ -220,17 +221,31 @@ class CompletionsHandler(
             return
         }
         guard.noteSuccess(key)
+        val stops = CompletionSanitizer.effectiveStops(fim.prefix, parsed.stop, fim.languageHint)
         val sanitizer = StreamingCompletionSanitizer(
-            fim.prefix,
-            fim.suffix,
-            CompletionSanitizer.effectiveStops(fim.prefix, parsed.stop),
+            prefix = fim.prefix,
+            suffix = fim.suffix,
+            stop = stops,
+            languageHint = fim.languageHint,
         )
-        if (parsed.stream || isEventStream(upstream)) {
-            val text = writeChatStream(ctx, upstream, sanitizer, completionId, created, advertised)
+        val upstreamStream = isEventStream(upstream)
+        if (parsed.stream) {
+            val text = if (upstreamStream) {
+                writeChatStream(ctx, upstream, sanitizer, completionId, created, advertised)
+            } else {
+                val raw = upstream.body().use { JsonHelper.readUtf8Body(it) }
+                val assembled = sanitizer.push(chatMessageContent(raw)) + sanitizer.finish()
+                writeCompletion(ctx, true, advertised, requestId, assembled)
+                assembled
+            }
             guard.publish(key, producerJob, text)
         } else {
-            val raw = upstream.body().use { JsonHelper.readUtf8Body(it) }
-            val text = sanitizer.push(chatMessageContent(raw)) + sanitizer.finish()
+            val text = if (upstreamStream) {
+                collectChatStream(upstream, sanitizer)
+            } else {
+                val raw = upstream.body().use { JsonHelper.readUtf8Body(it) }
+                sanitizer.push(chatMessageContent(raw)) + sanitizer.finish()
+            }
             guard.publish(key, producerJob, text)
             JsonHelper.toJsonResponse(ctx, textCompletionJson(completionId, created, advertised, text))
         }
@@ -258,6 +273,26 @@ class CompletionsHandler(
                 body = nativeBody(model.localId, parsed, fim, maxTokens),
             ),
         )
+    }
+
+    private fun collectChatStream(
+        upstream: HttpResponse<InputStream>,
+        sanitizer: StreamingCompletionSanitizer,
+    ): String {
+        val assembled = StringBuilder()
+        upstream.body().bufferedReader(StandardCharsets.UTF_8).use { reader ->
+            while (true) {
+                val line = reader.readLine() ?: break
+                if (line.isEmpty()) continue
+                if (!line.startsWith("data:")) continue
+                val data = line.substringAfter("data:").trim()
+                if (data == "[DONE]") break
+                val delta = chatDeltaContent(data)
+                if (delta != null) assembled.append(sanitizer.push(delta))
+            }
+        }
+        assembled.append(sanitizer.finish())
+        return assembled.toString()
     }
 
     private suspend fun writeChatStream(
@@ -412,10 +447,10 @@ class CompletionsHandler(
             fim: FimContext,
             maxTokens: Int,
         ): JsonObject {
-            val stops = CompletionSanitizer.effectiveStops(fim.prefix, request.stop)
-            return buildJsonObject {
-                put("model", modelId)
-                put("prompt", fim.prefix)
+        val stops = CompletionSanitizer.effectiveStops(fim.prefix, request.stop, fim.languageHint)
+        return buildJsonObject {
+            put("model", modelId)
+            put("prompt", fim.prefix)
                 put("stream", request.stream)
                 put("max_tokens", maxTokens)
                 if (fim.suffix.isNotEmpty()) put("suffix", fim.suffix)
@@ -436,7 +471,7 @@ class CompletionsHandler(
             temperature: Double,
             priorityTier: Boolean = false,
         ): JsonObject {
-            val stops = CompletionSanitizer.effectiveStops(fim.prefix, request.stop)
+            val stops = CompletionSanitizer.effectiveStops(fim.prefix, request.stop, fim.languageHint)
             return buildJsonObject {
                 put("model", modelId)
                 put("stream", request.stream)
