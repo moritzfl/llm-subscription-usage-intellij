@@ -23,20 +23,20 @@ data class CompletionsConfig(
 
     companion object {
         const val FIM_ALIAS_ID = "qwen2.5-coder"
-        const val DEFAULT_MAX_OUTPUT_TOKENS = 128
+        const val DEFAULT_MAX_OUTPUT_TOKENS = 512
         const val MIN_OUTPUT_TOKENS = 16
-        const val MAX_OUTPUT_TOKENS = 512
+        const val MAX_OUTPUT_TOKENS = 4096
         const val DEFAULT_MAX_REQUESTS_PER_MINUTE = 20
         const val MIN_REQUESTS_PER_MINUTE = 1
         const val MAX_REQUESTS_PER_MINUTE = 120
         const val DEFAULT_MIN_INTERVAL_MILLIS = 500L
-        const val DEFAULT_TIMEOUT_SECONDS = 15
+        const val DEFAULT_TIMEOUT_SECONDS = 28
         const val MIN_TIMEOUT_SECONDS = 3
         const val JETBRAINS_AI_COMPLETION_REQUEST_TIMEOUT_SECONDS = 30
         const val JETBRAINS_AI_COMPLETION_CONNECT_TIMEOUT_SECONDS = 5
-        const val MAX_TIMEOUT_SECONDS = JETBRAINS_AI_COMPLETION_REQUEST_TIMEOUT_SECONDS
+        const val MAX_TIMEOUT_SECONDS = 28
         const val DEFAULT_TIMEOUT_MILLIS = DEFAULT_TIMEOUT_SECONDS * 1000L
-        const val DEFAULT_MAX_PROMPT_CHARS = 16_000
+        const val DEFAULT_MAX_PROMPT_CHARS = 16_384
         const val SERVICE_TIER_PRIORITY = "priority"
         val DISABLED = CompletionsConfig()
 

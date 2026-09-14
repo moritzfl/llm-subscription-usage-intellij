@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 - FIM chat adapter treats comments quote-aware, strips only a repeated marker/indent on the current line, and no longer eats string syllables, call closers, Markdown/XML, or same-line operators.
+- FIM chat adapter keeps a one-shot `[system, user]` (no growing conversation) and sends a stable `prompt_cache_key`. SuperGrok maps that to `x-grok-conv-id` so prefix cache can stick.
+- FIM chat adapter sends `reasoning_effort=low` only for Grok/Codex reasoning models. Mistral and non-reasoning Grok ids omit it.
+- FIM defaults: 28s timeout (under AI Completion’s 30s), 4096 max output tokens, ~4k-token prompt budget.
 
 ## [1.13.0] - 2026-09-13
 

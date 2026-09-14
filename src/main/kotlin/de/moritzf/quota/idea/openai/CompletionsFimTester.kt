@@ -32,7 +32,7 @@ object CompletionsFimTester {
         baseUrl: String,
         apiKey: String,
         modelId: String = CompletionsConfig.FIM_ALIAS_ID,
-        timeout: Duration = Duration.ofSeconds(15),
+        timeout: Duration = Duration.ofSeconds(CompletionsConfig.DEFAULT_TIMEOUT_SECONDS.toLong()),
         httpClient: HttpClient = CLIENT,
     ): CompletionsFimTestResult {
         val url = baseUrl.trimEnd('/') + "/v1/completions"
