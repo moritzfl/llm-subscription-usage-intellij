@@ -15,6 +15,7 @@ import de.moritzf.quota.idea.kimi.KimiCredentialsStore
 import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
 import de.moritzf.quota.idea.mistral.MistralApiKeyStore
 import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
+import de.moritzf.quota.idea.settings.AccountCapability
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.shared.McpAccountToolStatus
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
@@ -731,7 +732,7 @@ class SubscriptionUsageMcpToolset(
     }
 
     private suspend fun zaiWebSearch(query: String, limit: Int, includeContent: Boolean): String {
-        val apiKey = resolvedApiKey(QuotaProviderType.ZAI) { ZaiApiKeyStore.forAccount(it).loadBlocking() }
+        val apiKey = resolvedApiKey(QuotaProviderType.ZAI, AccountCapability.WEB_SEARCH) { ZaiApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return searchError("Z.ai API key missing. Add a Z.ai API key in settings.")
         }
@@ -745,12 +746,12 @@ class SubscriptionUsageMcpToolset(
     }
 
     private suspend fun miniMaxWebSearch(query: String, limit: Int, includeContent: Boolean): String {
-        val apiKey = resolvedApiKey(QuotaProviderType.MINIMAX) { MiniMaxApiKeyStore.forAccount(it).loadBlocking() }
+        val apiKey = resolvedApiKey(QuotaProviderType.MINIMAX, AccountCapability.WEB_SEARCH) { MiniMaxApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return searchError("MiniMax API key missing. Add a MiniMax API key in settings.")
         }
         var lastException: Exception? = null
-        for (region in miniMaxSearchRegions()) {
+        for (region in miniMaxSearchRegions(AccountCapability.WEB_SEARCH)) {
             try {
                 return miniMaxSearchClient.webSearch(apiKey, region, query, limit, includeContent)
             } catch (exception: MiniMaxQuotaException) {
@@ -763,7 +764,7 @@ class SubscriptionUsageMcpToolset(
     }
 
     private suspend fun mistralWebSearch(query: String, model: String, premium: Boolean): String {
-        val apiKey = resolvedApiKey(QuotaProviderType.MISTRAL) { MistralApiKeyStore.forAccount(it).loadBlocking() }
+        val apiKey = resolvedApiKey(QuotaProviderType.MISTRAL, AccountCapability.WEB_SEARCH) { MistralApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return searchError("Mistral API key missing. Add a Mistral API key in settings.")
         }
@@ -777,7 +778,7 @@ class SubscriptionUsageMcpToolset(
     }
 
     private suspend fun miniMaxImageGeneration(prompt: String, targetFile: String?): String {
-        return withMiniMaxKey("MiniMax image generation failed.") { apiKey, region ->
+        return withMiniMaxKey("MiniMax image generation failed.", AccountCapability.IMAGE_GENERATION) { apiKey, region ->
             miniMaxImageClient.generateImage(apiKey, region, prompt, targetFile, projectBaseDirectory())
         }
     }
@@ -789,7 +790,7 @@ class SubscriptionUsageMcpToolset(
         model: String,
         responseFormat: String,
     ): String {
-        return withMiniMaxKey("MiniMax text-to-speech failed.") { apiKey, region ->
+        return withMiniMaxKey("MiniMax text-to-speech failed.", AccountCapability.TEXT_TO_SPEECH) { apiKey, region ->
             miniMaxAudioClient.synthesize(
                 apiKey,
                 region,
@@ -804,7 +805,7 @@ class SubscriptionUsageMcpToolset(
     }
 
     private suspend fun miniMaxListVoices(): String {
-        return withMiniMaxKey("MiniMax voice list failed.") { apiKey, region ->
+        return withMiniMaxKey("MiniMax voice list failed.", AccountCapability.LIST_VOICES) { apiKey, region ->
             miniMaxAudioClient.listVoices(apiKey, region)
         }
     }
@@ -815,7 +816,7 @@ class SubscriptionUsageMcpToolset(
         diarize: Boolean,
         model: String,
     ): String {
-        return withMiniMaxKey("MiniMax speech-to-text failed.") { apiKey, region ->
+        return withMiniMaxKey("MiniMax speech-to-text failed.", AccountCapability.SPEECH_TO_TEXT) { apiKey, region ->
             miniMaxAudioClient.transcribe(
                 apiKey,
                 region,
@@ -828,7 +829,7 @@ class SubscriptionUsageMcpToolset(
     }
 
     private suspend fun zaiSpeechToText(localFile: String?, model: String): String {
-        val apiKey = resolvedApiKey(QuotaProviderType.ZAI) { ZaiApiKeyStore.forAccount(it).loadBlocking() }
+        val apiKey = resolvedApiKey(QuotaProviderType.ZAI, AccountCapability.SPEECH_TO_TEXT) { ZaiApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return errorResult("Z.ai API key missing. Add a Z.ai API key in settings.")
         }
@@ -849,7 +850,7 @@ class SubscriptionUsageMcpToolset(
         pollTimeoutSeconds: Int,
         targetFile: String? = null,
     ): String {
-        val apiKey = resolvedApiKey(QuotaProviderType.ZAI) { ZaiApiKeyStore.forAccount(it).loadBlocking() }
+        val apiKey = resolvedApiKey(QuotaProviderType.ZAI, AccountCapability.VIDEO_GENERATION) { ZaiApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return errorResult("Z.ai API key missing. Add a Z.ai API key in settings.")
         }
@@ -871,13 +872,17 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private suspend fun withMiniMaxKey(failureLabel: String, block: suspend (String, MiniMaxRegion) -> String): String {
-        val apiKey = resolvedApiKey(QuotaProviderType.MINIMAX) { MiniMaxApiKeyStore.forAccount(it).loadBlocking() }
+    private suspend fun withMiniMaxKey(
+        failureLabel: String,
+        capability: AccountCapability,
+        block: suspend (String, MiniMaxRegion) -> String,
+    ): String {
+        val apiKey = resolvedApiKey(QuotaProviderType.MINIMAX, capability) { MiniMaxApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return errorResult("MiniMax API key missing. Add a MiniMax API key in settings.")
         }
         var lastException: Exception? = null
-        for (region in miniMaxSearchRegions()) {
+        for (region in miniMaxSearchRegions(capability)) {
             try {
                 return block(apiKey, region)
             } catch (exception: MiniMaxQuotaException) {
@@ -890,7 +895,7 @@ class SubscriptionUsageMcpToolset(
     }
 
     private suspend fun zaiImageGeneration(prompt: String, targetFile: String?): String {
-        val apiKey = resolvedApiKey(QuotaProviderType.ZAI) { ZaiApiKeyStore.forAccount(it).loadBlocking() }
+        val apiKey = resolvedApiKey(QuotaProviderType.ZAI, AccountCapability.IMAGE_GENERATION) { ZaiApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return errorResult("Z.ai API key missing. Add a Z.ai API key in settings.")
         }
@@ -904,7 +909,7 @@ class SubscriptionUsageMcpToolset(
     }
 
     private suspend fun mistralImageGeneration(prompt: String, targetFile: String?): String {
-        val apiKey = resolvedApiKey(QuotaProviderType.MISTRAL) { MistralApiKeyStore.forAccount(it).loadBlocking() }
+        val apiKey = resolvedApiKey(QuotaProviderType.MISTRAL, AccountCapability.IMAGE_GENERATION) { MistralApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return errorResult("Mistral API key missing. Add a Mistral API key in settings.")
         }
@@ -926,7 +931,7 @@ class SubscriptionUsageMcpToolset(
     ): String {
         val apiKey = resolvedApiKey(
             QuotaProviderType.MISTRAL,
-            de.moritzf.quota.idea.settings.AccountCapability.DOCUMENT_TO_MARKDOWN,
+            AccountCapability.DOCUMENT_TO_MARKDOWN,
         ) { MistralApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return errorResult("Mistral API key missing. Add a Mistral API key in settings.")
@@ -954,7 +959,7 @@ class SubscriptionUsageMcpToolset(
         includeImages: Boolean,
         model: String,
     ): String {
-        val apiKey = resolvedApiKey(QuotaProviderType.ZAI) { ZaiApiKeyStore.forAccount(it).loadBlocking() }
+        val apiKey = resolvedApiKey(QuotaProviderType.ZAI, AccountCapability.DOCUMENT_TO_MARKDOWN) { ZaiApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return errorResult("Z.ai API key missing. Add a Z.ai API key in settings.")
         }
@@ -981,7 +986,7 @@ class SubscriptionUsageMcpToolset(
         diarize: Boolean,
         model: String,
     ): String {
-        val apiKey = resolvedApiKey(QuotaProviderType.MISTRAL) { MistralApiKeyStore.forAccount(it).loadBlocking() }
+        val apiKey = resolvedApiKey(QuotaProviderType.MISTRAL, AccountCapability.SPEECH_TO_TEXT) { MistralApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return errorResult("Mistral API key missing. Add a Mistral API key in settings.")
         }
@@ -1009,7 +1014,7 @@ class SubscriptionUsageMcpToolset(
         model: String,
         responseFormat: String,
     ): String {
-        val apiKey = resolvedApiKey(QuotaProviderType.MISTRAL) { MistralApiKeyStore.forAccount(it).loadBlocking() }
+        val apiKey = resolvedApiKey(QuotaProviderType.MISTRAL, AccountCapability.TEXT_TO_SPEECH) { MistralApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return errorResult("Mistral API key missing. Add a Mistral API key in settings.")
         }
@@ -1032,7 +1037,7 @@ class SubscriptionUsageMcpToolset(
     }
 
     private fun mistralListVoices(): String {
-        val apiKey = resolvedApiKey(QuotaProviderType.MISTRAL) { MistralApiKeyStore.forAccount(it).loadBlocking() }
+        val apiKey = resolvedApiKey(QuotaProviderType.MISTRAL, AccountCapability.LIST_VOICES) { MistralApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return errorResult("Mistral API key missing. Add a Mistral API key in settings.")
         }
@@ -1054,7 +1059,7 @@ class SubscriptionUsageMcpToolset(
     }
 
     private fun ollamaWebFetch(url: String): String {
-        val apiKey = resolvedApiKey(QuotaProviderType.OLLAMA) { OllamaApiKeyStore.forAccount(it).loadBlocking() }
+        val apiKey = resolvedApiKey(QuotaProviderType.OLLAMA, AccountCapability.WEB_SEARCH) { OllamaApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return errorResult("Ollama API key missing. Add an Ollama API key in settings.")
         }
@@ -1068,7 +1073,7 @@ class SubscriptionUsageMcpToolset(
     }
 
     private fun zaiWebFetch(url: String): String {
-        val apiKey = resolvedApiKey(QuotaProviderType.ZAI) { ZaiApiKeyStore.forAccount(it).loadBlocking() }
+        val apiKey = resolvedApiKey(QuotaProviderType.ZAI, AccountCapability.WEB_SEARCH) { ZaiApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return errorResult("Z.ai API key missing. Add a Z.ai API key in settings.")
         }
@@ -1082,7 +1087,7 @@ class SubscriptionUsageMcpToolset(
     }
 
     private suspend fun ollamaWebSearch(query: String, limit: Int, includeContent: Boolean): String {
-        val apiKey = resolvedApiKey(QuotaProviderType.OLLAMA) { OllamaApiKeyStore.forAccount(it).loadBlocking() }
+        val apiKey = resolvedApiKey(QuotaProviderType.OLLAMA, AccountCapability.WEB_SEARCH) { OllamaApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
             return searchError("Ollama API key missing. Add an Ollama API key in settings.")
         }
@@ -1103,8 +1108,7 @@ class SubscriptionUsageMcpToolset(
 
     private fun resolvedApiKey(
         type: QuotaProviderType,
-        capability: de.moritzf.quota.idea.settings.AccountCapability =
-            de.moritzf.quota.idea.settings.AccountCapability.WEB_SEARCH,
+        capability: AccountCapability,
         load: (String) -> String?,
     ): String? {
         val account = try {
@@ -1122,12 +1126,12 @@ class SubscriptionUsageMcpToolset(
         return currentCoroutineContext().projectOrNull?.projectDirectory
     }
 
-    private fun miniMaxSearchRegions(): List<MiniMaxRegion> {
+    private fun miniMaxSearchRegions(capability: AccountCapability): List<MiniMaxRegion> {
         val settings = runCatching { QuotaSettingsState.getInstance() }.getOrNull()
         val accountId = runCatching {
             de.moritzf.quota.idea.settings.AccountResolver.resolve(
                 QuotaProviderType.MINIMAX,
-                capability = de.moritzf.quota.idea.settings.AccountCapability.WEB_SEARCH,
+                capability = capability,
             ).id
         }.getOrNull()
         val preference = when {
