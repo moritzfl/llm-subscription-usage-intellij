@@ -25,7 +25,7 @@ data class FimContext(
         return "$hash:${prefix.length}:${suffix.length}"
     }
 
-    fun isCommentHole(): Boolean = CompletionSanitizer.isCommentHole(prefix)
+    fun isCommentHole(): Boolean = FimCommentContext.detect(prefix, languageHint) != null
 
     fun commentContinuesAfterCursor(): Boolean = CompletionSanitizer.commentContinuesAfterCursor(suffix)
 }

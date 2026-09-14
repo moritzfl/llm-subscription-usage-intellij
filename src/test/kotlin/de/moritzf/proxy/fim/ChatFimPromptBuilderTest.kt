@@ -27,7 +27,7 @@ class ChatFimPromptBuilderTest {
     }
 
     @Test
-    fun allowsClosingWhenCommentEndsAfterCursor() {
+    fun doesNotAskToCloseWhenSuffixAlreadyHasCloser() {
         val prompt = ChatFimPromptBuilder.userPrompt(
             FimContext(
                 schema = FimSchema.QWEN,
@@ -38,11 +38,11 @@ class ChatFimPromptBuilderTest {
             ),
         )
 
-        assertTrue(prompt.contains("The comment ends after the cursor"))
-        assertTrue(prompt.contains("closing it is fine"))
-        assertFalse(prompt.contains("do not close it"))
+        assertTrue(prompt.contains("already contains `*/`"))
+        assertTrue(prompt.contains("do not close it"))
+        assertFalse(prompt.contains("closing it is fine"))
         assertTrue(ChatFimPromptBuilder.SYSTEM_PROMPT.contains("KDoc"))
-        assertTrue(ChatFimPromptBuilder.SYSTEM_PROMPT.contains("no more comment follows"))
+        assertTrue(ChatFimPromptBuilder.SYSTEM_PROMPT.contains("do not repeat it"))
     }
 
     @Test
@@ -60,6 +60,38 @@ class ChatFimPromptBuilderTest {
         assertTrue(prompt.contains("More comment follows after the cursor"))
         assertTrue(prompt.contains("do not close it"))
         assertFalse(prompt.contains("closing it is fine"))
+    }
+
+    @Test
+    fun treatsTrailingLineCommentAsCommentHole() {
+        val prompt = ChatFimPromptBuilder.userPrompt(
+            FimContext(
+                schema = FimSchema.QWEN,
+                prefix = "    foo(); // ",
+                suffix = "\n    bar()",
+                filePath = "src/Main.kt",
+                languageHint = "kt",
+            ),
+        )
+
+        assertTrue(prompt.contains("inside a line comment"))
+    }
+
+    @Test
+    fun doesNotTreatUrlSchemeAsCommentHole() {
+        val prompt = ChatFimPromptBuilder.userPrompt(
+            FimContext(
+                schema = FimSchema.QWEN,
+                prefix = "val url = \"http://",
+                suffix = "\"\n",
+                filePath = "src/Main.kt",
+                languageHint = "kt",
+            ),
+        )
+
+        assertFalse(prompt.contains("inside a comment"))
+        assertFalse(prompt.contains("The comment ends after the cursor"))
+        assertFalse(prompt.contains("More comment follows after the cursor"))
     }
 
     @Test
