@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.13.2] - 2026-09-14
+
 - The leftover CLI OpenAI proxy no longer reads or writes Codex or ChatGPT-local `auth.json` files. Pass `--oauth-file` with a file this plugin owns.
 - Copilot (and other transformed SSE) proxy streams keep blank event separators so clients can split chunks.
 - Last-used status shows the remaining default account after that login is removed, instead of a blank bar.
