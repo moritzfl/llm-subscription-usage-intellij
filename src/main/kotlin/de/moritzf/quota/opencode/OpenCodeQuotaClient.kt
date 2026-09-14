@@ -370,7 +370,7 @@ open class OpenCodeQuotaClient(
         private fun isNullQuotaResponse(body: String, exception: OpenCodeQuotaException): Boolean {
             return exception.message?.contains("unexpected format") == true &&
                 (body.contains("$ROOT_ASSIGNMENT_MARKER null") ||
-                    body.contains("$ROOT_ASSIGNMENT_MARKER=null") ||
+                    body.contains("${ROOT_ASSIGNMENT_MARKER}null") ||
                     body.trim().endsWith(",null)"))
         }
 

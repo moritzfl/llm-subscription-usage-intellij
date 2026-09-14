@@ -135,7 +135,31 @@ class OpenCodeQuotaClientTest {
     }
 
     @Test
+    fun fetchQuotaFallsBackToBillingForNullRootAssignment() {
+        OpenCodeQuotaClient.clearCachedFunctionId()
+        val goResponse = ";0x00000001;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[]," +
+            "(\$R=>\$R[0]=null)(\$R[\"server-fn:1\"]))"
+        val billingResponse = ";0x00000040;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[]," +
+            "(\$R=>\$R[0]={balance:1234560000,customerID:\"cus_123\"})(\$R[\"server-fn:1\"]))"
+        val client = OpenCodeQuotaClient(
+            httpClient = FakeHttpClient(
+                "<script type=\"module\" src=\"/_build/assets/app.js\"></script>",
+                "const queryLiteSubscription_query=createServerReference(\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\")",
+                goResponse,
+                billingResponse,
+            ),
+            endpoint = URI.create("https://opencode.test/_server"),
+        )
+
+        val quota = client.fetchQuota("session", "wrk_123")
+
+        assertTrue(!quota.hasUsageState())
+        assertEquals(1234560000L, quota.availableBalance)
+    }
+
+    @Test
     fun fetchQuotaFallsBackToBillingForNullGoResponse() {
+        OpenCodeQuotaClient.clearCachedFunctionId()
         val goResponse = ";0x0000002e;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[],null)"
         val billingResponse = ";0x00000040;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[]," +
             "(\$R=>\$R[0]={balance:1234560000,customerID:\"cus_123\"})(\$R[\"server-fn:1\"]))"

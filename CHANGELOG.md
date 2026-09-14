@@ -8,6 +8,7 @@
 - Kimi proxy 401 refresh is single-flight, so parallel calls cannot burn a rotated refresh token.
 - Local proxy 429s mark that account rate-limited so failover can pick the next login without waiting for a quota refresh.
 - MCP image, audio, video, and OCR account failover uses that operation’s quota pool instead of the web-search pool.
+- OpenCode Go `$R[0]=null` is treated as empty usage so billing balance can still show.
 
 ## [1.13.1] - 2026-09-14
 
