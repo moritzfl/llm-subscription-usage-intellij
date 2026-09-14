@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- FIM chat adapter treats comments quote-aware, strips only a repeated marker/indent on the current line, and no longer eats string syllables, call closers, Markdown/XML, or same-line operators.
+
 ## [1.13.0] - 2026-09-13
 
 - MiniMax quota now reads Token Plan `/v1/token_plan/remains` (5-hour and weekly windows). When the API leaves counts at 0, remaining percent is used. Legacy `coding_plan/remains` still works. Settings ask for a Subscription key, not a pay-as-you-go API key.
