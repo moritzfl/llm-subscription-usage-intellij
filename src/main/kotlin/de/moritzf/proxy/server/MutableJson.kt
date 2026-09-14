@@ -5,8 +5,6 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 
 /**
  * Mutable JSON object builder that wraps an immutable [JsonObject].
@@ -65,15 +63,11 @@ class MutableJsonObject(initial: JsonObject = JsonObject(emptyMap())) {
 
     fun has(key: String): Boolean = entries.containsKey(key) && entries[key] !is JsonNull
 
-    fun hasNonNull(key: String): Boolean = has(key)
-
     fun get(key: String): JsonElement? = entries[key]
 
-    fun path(key: String): JsonElement? = entries[key] ?: JsonNull
+    fun path(key: String): JsonElement = entries[key] ?: JsonNull
 
     fun pathOrNull(key: String): JsonElement? = entries[key]
-
-    fun isObject(): Boolean = true
 
     fun build(): JsonObject = JsonObject(entries.toMap())
 
@@ -137,10 +131,6 @@ class MutableJsonArray(initial: JsonArray = JsonArray(emptyList())) {
         this.elements.addAll(other.elements)
     }
 
-    fun removeIf(predicate: (JsonElement) -> Boolean): MutableJsonArray = apply {
-        elements.removeAll(predicate)
-    }
-
     fun removeAll(): MutableJsonArray = apply {
         elements.clear()
     }
@@ -162,8 +152,6 @@ class MutableJsonArray(initial: JsonArray = JsonArray(emptyList())) {
     fun get(index: Int): JsonElement? = elements.getOrNull(index)
 
     fun build(): JsonArray = JsonArray(elements.toList())
-
-    fun deepCopy(): MutableJsonArray = MutableJsonArray(build())
 
     companion object {
         fun from(element: JsonElement?): MutableJsonArray? {

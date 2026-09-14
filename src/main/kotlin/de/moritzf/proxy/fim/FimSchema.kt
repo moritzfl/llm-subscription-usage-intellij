@@ -5,7 +5,6 @@ enum class FimSchema {
     DEEPSEEK,
     DEEPSEEK_CJK,
     CODESTRAL,
-    STARCODER,
     GENERIC_PRE,
     UNKNOWN_CHAT,
 }

@@ -8,7 +8,6 @@ import io.ktor.http.withCharset
 import io.ktor.server.response.respondText
 import java.io.InputStream
 import java.nio.charset.StandardCharsets
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -16,14 +15,9 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
-import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 
 object JsonHelper {
@@ -279,13 +273,7 @@ fun JsonElement?.booleanPath(key: String, default: Boolean = false): Boolean {
     return prim.content == "true" || prim.contentOrNull == "true"
 }
 
-fun JsonElement?.isArray(): Boolean = this is JsonArray
-
-fun JsonElement?.isObject(): Boolean = this is JsonObject
-
 fun JsonElement?.isTextual(): Boolean = this is JsonPrimitive && this.isString
-
-fun JsonElement?.isNotNull(): Boolean = this != null && this !is JsonNull
 
 val JsonElement?.textOrNull: String?
     get() = if (this is JsonPrimitive && isString) content else null
@@ -297,19 +285,10 @@ fun JsonObject.hasKey(key: String): Boolean = this[key] != null && this[key] !is
 
 fun JsonObject.hasNonNull(key: String): Boolean = this[key] != null && this[key] !is JsonNull
 
-fun JsonElement?.deepCopy(): JsonElement? {
-    // kotlinx.serialization JsonElement is already immutable, so a "copy" is just itself.
-    return this
-}
-
 fun JsonObject.put(key: String, value: JsonElement): JsonObject {
     return JsonObject(this.toMutableMap().apply { this[key] = value })
 }
 
 fun JsonObject.remove(key: String): JsonObject {
     return JsonObject(this.toMutableMap().apply { this.remove(key) })
-}
-
-fun JsonArray.addElements(elements: Iterable<JsonElement>): JsonArray {
-    return JsonArray(this + elements)
 }

@@ -1,12 +1,10 @@
 package de.moritzf.proxy.model
 import de.moritzf.proxy.server.createObjectNode
-import de.moritzf.proxy.server.intPath
 import de.moritzf.proxy.server.longPath
 import de.moritzf.proxy.server.pathOrNull
 import de.moritzf.proxy.server.stringPath
 import de.moritzf.proxy.server.stringPathOrNull
 import de.moritzf.proxy.util.Json
-import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest

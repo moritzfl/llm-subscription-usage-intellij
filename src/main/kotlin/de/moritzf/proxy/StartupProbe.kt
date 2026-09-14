@@ -3,8 +3,6 @@ package de.moritzf.proxy
 import de.moritzf.proxy.config.ServerConfig
 import de.moritzf.proxy.config.HostBinding
 import de.moritzf.proxy.server.JsonHelper
-import de.moritzf.proxy.server.isArray
-import de.moritzf.proxy.server.isTextual
 import de.moritzf.proxy.sse.SseParser
 import de.moritzf.proxy.util.Json
 import java.io.ByteArrayInputStream

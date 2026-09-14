@@ -1,10 +1,5 @@
 package de.moritzf.proxy.model
 
-import de.moritzf.proxy.server.booleanPath
-import de.moritzf.proxy.server.hasKey
-import de.moritzf.proxy.server.isObject
-import de.moritzf.proxy.server.isTextual
-import de.moritzf.proxy.server.pathOrNull
 import de.moritzf.proxy.transport.CodexHttpClient
 import de.moritzf.proxy.util.CollectionUtils
 import de.moritzf.proxy.util.Json

@@ -124,7 +124,7 @@ class RequestLogger(
             )
             Files.writeString(
                 file,
-                Json.INSTANCE.encodeToString(kotlinx.serialization.json.JsonObject.serializer(), entry.build()),
+                Json.INSTANCE.encodeToString(JsonObject.serializer(), entry.build()),
                 StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE_NEW,
                 StandardOpenOption.WRITE,

@@ -29,10 +29,8 @@ object AuthLoader {
     class AuthResult(
         val accessToken: String,
         val accountId: String,
-        val idToken: String?,
         val refreshToken: String?,
         val sourcePath: String,
-        val lastRefresh: String?,
     )
     fun loadAuthTokens(
         authFilePath: String?,
@@ -110,7 +108,7 @@ object AuthLoader {
         val finalAccessToken = accessToken
         val finalAccountId = accountId
         val sourcePath = foundPath ?: AuthFileResolver.resolveWritePath(authFilePath)
-        return AuthResult(finalAccessToken, finalAccountId, idToken, refreshToken, sourcePath, lastRefresh)
+        return AuthResult(finalAccessToken, finalAccountId, refreshToken, sourcePath)
     }
     private fun shouldRefreshAccessToken(accessToken: String?, lastRefresh: String?): Boolean {
         if (accessToken.isNullOrEmpty()) {
