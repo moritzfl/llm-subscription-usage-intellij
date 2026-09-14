@@ -19,7 +19,6 @@ import java.nio.file.Path
 import java.time.Duration
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
-import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -155,7 +154,6 @@ class SuperGrokSubscriptionProxyProvider(
         })
     }
 
-    @OptIn(ExperimentalTime::class)
     private fun remoteModels(): List<RemoteModel> {
         val now = Clock.System.now()
         val cached = modelCache

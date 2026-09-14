@@ -29,14 +29,14 @@ import kotlinx.serialization.json.put
 
 class OpenAiCodexSubscriptionProxyProvider(
     private val accessTokenProvider: () -> String?,
-    private val accountIdProvider: () -> String?,
-    private val tokenRefresher: (staleAccessToken: String?) -> String? = { null },
-    private val httpClient: HttpClient = HttpClient.newBuilder()
+    accountIdProvider: () -> String?,
+    tokenRefresher: (staleAccessToken: String?) -> String? = { null },
+    httpClient: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(30))
         .build(),
-    private val upstreamBaseUri: URI = OpenAiProxyServer.DEFAULT_UPSTREAM_BASE_URI,
-    private val fullRequestLogging: Boolean = false,
-    private val requestLogDir: String = DEFAULT_REQUEST_LOG_DIR,
+    upstreamBaseUri: URI = OpenAiProxyServer.DEFAULT_UPSTREAM_BASE_URI,
+    fullRequestLogging: Boolean = false,
+    requestLogDir: String = DEFAULT_REQUEST_LOG_DIR,
 ) : SubscriptionProxyProvider {
     override val id: String = "openai"
     override val displayName: String = "OpenAI/Codex"

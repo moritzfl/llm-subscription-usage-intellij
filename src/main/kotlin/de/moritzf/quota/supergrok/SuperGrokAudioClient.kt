@@ -15,7 +15,6 @@ import java.time.Duration
 import java.util.UUID
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 
 open class SuperGrokAudioClient(
     private val httpClient: HttpClient = defaultHttpClient(),
@@ -205,12 +204,6 @@ open class SuperGrokAudioClient(
         private val DEFAULT_BASE_URI = URI.create("https://api.x.ai/v1/")
 
         fun createDefault(): SuperGrokAudioClient = SuperGrokAudioClient()
-
-        internal fun ttsRequestJson(text: String, voiceId: String, language: String, format: String): String {
-            return JsonSupport.json.encodeToString(
-                GrokTtsRequestDto(text, voiceId, language, GrokTtsOutputFormatDto(format)),
-            )
-        }
 
         internal fun resolveSpeechOutput(targetFile: String?, baseDirectory: Path?, format: String): Path? {
             val trimmed = targetFile?.trim()?.takeIf { it.isNotBlank() }

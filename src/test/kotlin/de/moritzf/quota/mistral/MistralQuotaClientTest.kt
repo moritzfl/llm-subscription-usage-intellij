@@ -129,12 +129,11 @@ class MistralQuotaClientTest {
 
     @Test
     fun monthlyWindowPrefersVibePercentOverBilling() {
-        val now = Instant.parse("2026-08-19T00:00:00Z")
         val billing = MistralQuotaClient.parseBilling(
             """{"vibe_usage":10.0,"start_date":"2026-08-01","end_date":"2026-08-31"}""",
         )
         val vibe = MistralVibeUsage(42.5, Instant.parse("2026-09-01T00:00:00Z"))
-        val window = assertNotNull(MistralQuotaClient.monthlyWindow(vibe, billing, now))
+        val window = assertNotNull(MistralQuotaClient.monthlyWindow(vibe, billing))
         assertEquals(42.5, window.usagePercent)
         assertEquals(Instant.parse("2026-09-01T00:00:00Z"), window.resetsAt)
         assertEquals(true, (window.periodDurationMs ?: 0L) > 0L)

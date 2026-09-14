@@ -11,7 +11,6 @@ import java.time.Duration
 import java.util.Locale
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 
 open class SuperGrokWebSearchClient(
     private val httpClient: HttpClient = defaultHttpClient(),

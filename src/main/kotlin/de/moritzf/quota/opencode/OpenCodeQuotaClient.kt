@@ -93,9 +93,9 @@ open class OpenCodeQuotaClient(
             val (mine, hasGo) = try {
                 val quota = fetchQuota(sessionCookie, id)
                 quota.mine to quota.hasUsageState()
-            } catch (exception: OpenCodeQuotaException) {
+            } catch (_: OpenCodeQuotaException) {
                 false to false
-            } catch (exception: Exception) {
+            } catch (_: Exception) {
                 false to false
             }
             OpenCodeWorkspace(id = id, name = name, mine = mine, hasGoSubscription = hasGo)

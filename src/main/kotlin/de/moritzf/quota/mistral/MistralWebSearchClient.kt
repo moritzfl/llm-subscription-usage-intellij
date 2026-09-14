@@ -3,7 +3,6 @@ package de.moritzf.quota.mistral
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient

@@ -6,7 +6,6 @@ import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -54,7 +53,7 @@ open class MistralQuotaClient(
             }.getOrNull()
         }
         val vibe = vibeBody?.let(::parseVibeUsage)
-        val monthly = monthlyWindow(vibe, billing, now)
+        val monthly = monthlyWindow(vibe, billing)
         val identityBody = apiKey?.takeIf { it.isNotBlank() }?.let { key ->
             runCatching { getJson(key, IDENTITY_URI) }.getOrNull()
         }
@@ -312,7 +311,7 @@ open class MistralQuotaClient(
             }
         }
 
-        internal fun monthlyWindow(vibe: MistralVibeUsage?, billing: MistralBillingDto, now: Instant): MistralUsageWindow? {
+        internal fun monthlyWindow(vibe: MistralVibeUsage?, billing: MistralBillingDto): MistralUsageWindow? {
             val percent = vibe?.usagePercent
                 ?: billing.vibeUsage?.takeIf { it.isFinite() && it in 0.0..100.0 }
                 ?: return null
