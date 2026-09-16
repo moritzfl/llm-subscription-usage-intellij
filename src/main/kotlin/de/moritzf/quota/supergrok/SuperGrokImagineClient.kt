@@ -1,5 +1,6 @@
 package de.moritzf.quota.supergrok
 
+import de.moritzf.quota.shared.DefaultOutputFiles
 import de.moritzf.quota.shared.HttpJsonUrls
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
@@ -154,9 +155,7 @@ open class SuperGrokImagineClient(
     }
 
     private fun resolveVideoOutput(targetFile: String?, baseDirectory: Path?): Path? {
-        val trimmed = targetFile?.trim()?.takeIf { it.isNotBlank() } ?: return null
-        val path = Path.of(trimmed)
-        return if (path.isAbsolute || baseDirectory == null) path.normalize() else baseDirectory.resolve(path).normalize()
+        return DefaultOutputFiles.resolveInsideBase(targetFile, baseDirectory, null)
     }
 
     private fun pollVideo(accessToken: String, requestId: String, timeoutSeconds: Int): String {

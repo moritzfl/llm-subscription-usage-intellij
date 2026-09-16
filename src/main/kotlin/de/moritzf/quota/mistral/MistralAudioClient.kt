@@ -210,13 +210,7 @@ open class MistralAudioClient(
         }
 
         internal fun resolveOutput(targetFile: String?, baseDirectory: Path?, format: String): Path? {
-            val trimmed = targetFile?.trim()?.takeIf { it.isNotBlank() }
-            if (trimmed != null) {
-                val path = Path.of(trimmed)
-                return if (path.isAbsolute || baseDirectory == null) path.normalize() else baseDirectory.resolve(path)
-                    .normalize()
-            }
-            return baseDirectory?.resolve(DefaultOutputFiles.speech(format))
+            return DefaultOutputFiles.resolveInsideBase(targetFile, baseDirectory, DefaultOutputFiles.speech(format))
         }
 
         private fun requireApiKey(apiKey: String): String {

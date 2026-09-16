@@ -1,10 +1,34 @@
 package de.moritzf.quota.shared
 
+import java.nio.file.Path
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class DefaultOutputFilesTest {
+    @Test
+    fun resolveInsideBaseKeepsRelativePath() {
+        val dir = Path.of("/tmp/project").toAbsolutePath().normalize()
+        assertEquals(dir.resolve("out/hi.png"), DefaultOutputFiles.resolveInsideBase("out/hi.png", dir, null))
+    }
+
+    @Test
+    fun resolveInsideBaseRejectsAbsoluteAndEscape() {
+        val dir = Path.of("/tmp/project").toAbsolutePath().normalize()
+        assertNull(DefaultOutputFiles.resolveInsideBase("/tmp/evil.png", dir, null))
+        assertNull(DefaultOutputFiles.resolveInsideBase("../evil.png", dir, null))
+    }
+
+    @Test
+    fun resolveInsideBaseUsesDefaultNameWhenTargetMissing() {
+        val dir = Path.of("/tmp/project").toAbsolutePath().normalize()
+        val resolved = DefaultOutputFiles.resolveInsideBase(null, dir, "speech-x.mp3")
+        assertEquals(dir.resolve("speech-x.mp3"), resolved)
+        assertNull(DefaultOutputFiles.resolveInsideBase(null, null, "speech-x.mp3"))
+    }
+
     @Test
     fun speechFileNamesAreUnique() {
         val first = DefaultOutputFiles.speech("mp3")

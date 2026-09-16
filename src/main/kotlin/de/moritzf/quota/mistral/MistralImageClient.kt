@@ -114,12 +114,7 @@ open class MistralImageClient(
         fun createDefault(): MistralImageClient = MistralImageClient()
 
         internal fun resolveOutput(targetFile: String?, baseDirectory: Path?): Path? {
-            val trimmed = targetFile?.trim()?.takeIf { it.isNotBlank() }
-            if (trimmed != null) {
-                val path = Path.of(trimmed)
-                return if (path.isAbsolute || baseDirectory == null) path.normalize() else baseDirectory.resolve(path).normalize()
-            }
-            return baseDirectory?.resolve(DefaultOutputFiles.image())
+            return DefaultOutputFiles.resolveInsideBase(targetFile, baseDirectory, DefaultOutputFiles.image())
         }
 
         internal fun firstToolFileId(body: String): String? {

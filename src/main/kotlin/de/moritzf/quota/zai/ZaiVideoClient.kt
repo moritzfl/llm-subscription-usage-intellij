@@ -1,5 +1,6 @@
 package de.moritzf.quota.zai
 
+import de.moritzf.quota.shared.DefaultOutputFiles
 import de.moritzf.quota.shared.HttpJsonUrls
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
@@ -84,9 +85,7 @@ open class ZaiVideoClient(
     }
 
     private fun resolveVideoOutput(targetFile: String?, baseDirectory: Path?): Path? {
-        val trimmed = targetFile?.trim()?.takeIf { it.isNotBlank() } ?: return null
-        val path = Path.of(trimmed)
-        return if (path.isAbsolute || baseDirectory == null) path.normalize() else baseDirectory.resolve(path).normalize()
+        return DefaultOutputFiles.resolveInsideBase(targetFile, baseDirectory, null)
     }
 
     private fun download(url: String): ByteArray {
@@ -125,6 +124,13 @@ open class ZaiVideoClient(
                     .build(),
             )
             lastBody = response.body()
+            val status = response.statusCode()
+            if (status == 401 || status == 403) {
+                throw ZaiQuotaException("Z.ai video poll failed (HTTP $status).", status, lastBody)
+            }
+            if (status !in 200..299) {
+                throw ZaiQuotaException("Z.ai video poll failed (HTTP $status).", status, lastBody)
+            }
             when (taskStatus(lastBody)?.uppercase(Locale.ROOT)) {
                 "SUCCESS" -> return McpJson.providerJsonOrRaw(lastBody)
                 "FAIL", "FAILED", "ERROR" ->
