@@ -27,24 +27,13 @@ open class OpenCodeQuotaClient(
         require(sessionCookie.isNotBlank()) { "sessionCookie must not be null or blank" }
         require(workspaceId.isNotBlank()) { "workspaceId must not be null or blank" }
 
-        val functionId = resolveFunctionId(sessionCookie, workspaceId)
-        val argsJson = """["$workspaceId"]"""
-        val encodedArgs = java.net.URLEncoder.encode(argsJson, Charsets.UTF_8)
-        val uri = URI.create("${endpoint}?id=$functionId&args=$encodedArgs")
-
-        val request = HttpRequest.newBuilder()
-            .uri(uri)
-            .timeout(Duration.ofSeconds(30))
-            .header("Cookie", "auth=$sessionCookie")
-            .header("Accept", "application/json")
-            .header("X-Server-Id", functionId)
-            .header("X-Server-Instance", "server-fn:1")
-            .header("Referer", "https://opencode.ai/workspace/$workspaceId/go")
-            .header("Origin", "https://opencode.ai")
-            .GET()
-            .build()
-
-        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        var functionId = resolveFunctionId(sessionCookie, workspaceId)
+        var response = sendQuotaRequest(sessionCookie, workspaceId, functionId)
+        if (response.statusCode() == 404) {
+            clearCachedFunctionId()
+            functionId = resolveFunctionId(sessionCookie, workspaceId)
+            response = sendQuotaRequest(sessionCookie, workspaceId, functionId)
+        }
         val status = response.statusCode()
         val body = response.body()
 
@@ -71,6 +60,28 @@ open class OpenCodeQuotaClient(
         quota.rawBillingJson = billingResponse?.rawBody
         quota.rawJson = buildRawResponse(body, billingResponse?.rawBody)
         return quota
+    }
+
+    private fun sendQuotaRequest(
+        sessionCookie: String,
+        workspaceId: String,
+        functionId: String,
+    ): HttpResponse<String> {
+        val argsJson = """["$workspaceId"]"""
+        val encodedArgs = java.net.URLEncoder.encode(argsJson, Charsets.UTF_8)
+        val uri = URI.create("${endpoint}?id=$functionId&args=$encodedArgs")
+        val request = HttpRequest.newBuilder()
+            .uri(uri)
+            .timeout(Duration.ofSeconds(30))
+            .header("Cookie", "auth=$sessionCookie")
+            .header("Accept", "application/json")
+            .header("X-Server-Id", functionId)
+            .header("X-Server-Instance", "server-fn:1")
+            .header("Referer", "https://opencode.ai/workspace/$workspaceId/go")
+            .header("Origin", "https://opencode.ai")
+            .GET()
+            .build()
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString())
     }
 
     /**

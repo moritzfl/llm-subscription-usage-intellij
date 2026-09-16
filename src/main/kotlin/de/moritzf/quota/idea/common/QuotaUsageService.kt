@@ -247,12 +247,8 @@ class QuotaUsageService(
     }
 
     private fun refreshNow() {
-        val executor = AppExecutorUtil.getAppExecutorService()
-        val futures = states.keys.map { accountId ->
-            executor.submit { refreshProvider(accountId) }
-        }
-        futures.forEach { future ->
-            runCatching { future.get() }
+        states.keys.forEach { accountId ->
+            runCatching { refreshProvider(accountId) }
                 .onFailure { LOG.warn("Quota provider refresh failed", it) }
         }
     }

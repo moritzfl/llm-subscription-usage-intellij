@@ -60,7 +60,7 @@ class SubscriptionProxyServer(
         localApiKey = localApiKeyProvider,
     )
     private var app: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
-    private var apiKeyStore: ApiKeyStore? = null
+    @Volatile private var apiKeyStore: ApiKeyStore? = null
 
     val isRunning: Boolean
         get() = running.get()

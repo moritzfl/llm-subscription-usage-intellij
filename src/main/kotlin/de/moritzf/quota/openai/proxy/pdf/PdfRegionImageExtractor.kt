@@ -4,6 +4,7 @@ import java.awt.image.BufferedImage
 import java.io.Closeable
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.LinkedHashMap
 import javax.imageio.ImageIO
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -26,7 +27,11 @@ internal class PdfRegionImageExtractor private constructor(
 ) : Closeable {
 
     private val renderer = PDFRenderer(document)
-    private val pageCache = HashMap<Int, BufferedImage>()
+    private val pageCache = object : LinkedHashMap<Int, BufferedImage>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, BufferedImage>?): Boolean {
+            return size > MAX_CACHED_PAGES
+        }
+    }
     val pageCount: Int get() = document.numberOfPages
 
     fun renderRegion(region: PageRegion, targetFile: Path, dpi: Float = DEFAULT_DPI): Boolean {
@@ -90,6 +95,7 @@ internal class PdfRegionImageExtractor private constructor(
 
     companion object {
         private const val DEFAULT_DPI = 150f
+        private const val MAX_CACHED_PAGES = 6
         private const val MIN_REGION_PX = 16
         private const val MIN_NORMALIZED_SIZE = 0.01f
 

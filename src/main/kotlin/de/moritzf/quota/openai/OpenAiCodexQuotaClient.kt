@@ -55,11 +55,8 @@ class OpenAiCodexQuotaClient(
         quota.fetchedAt = Clock.System.now()
         quota.rawJson = body
         val resetCredits = fetchResetCredits(accessToken, accountId)
-        val resetCreditsAvailableCount = resetCredits.effectiveAvailableCount()
-        if (resetCreditsAvailableCount > quota.resetCreditsAvailableCount) {
-            quota.resetCreditsAvailableCount = resetCreditsAvailableCount
-        }
-        if (resetCredits.credits.isNotEmpty()) {
+        if (resetCredits != null) {
+            quota.resetCreditsAvailableCount = resetCredits.effectiveAvailableCount()
             quota.resetCredits = resetCredits.credits
         }
         return quota
@@ -102,7 +99,7 @@ class OpenAiCodexQuotaClient(
         }
     }
 
-    private fun fetchResetCredits(accessToken: String, accountId: String?): RateLimitResetCreditsResponse {
+    private fun fetchResetCredits(accessToken: String, accountId: String?): RateLimitResetCreditsResponse? {
         val requestBuilder = HttpRequest.newBuilder()
             .uri(resetCreditsEndpoint)
             .timeout(Duration.ofSeconds(30))
@@ -118,11 +115,11 @@ class OpenAiCodexQuotaClient(
         val status = response.statusCode()
         val body = response.body()
         if (status !in 200..299) {
-            return RateLimitResetCreditsResponse()
+            return null
         }
         return runCatching {
             JsonSupport.json.decodeFromString<RateLimitResetCreditsResponse>(body)
-        }.getOrDefault(RateLimitResetCreditsResponse())
+        }.getOrNull()
     }
 
     companion object {

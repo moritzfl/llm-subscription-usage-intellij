@@ -126,6 +126,7 @@ class OpenCodeQuotaProvider(
         return exception.statusCode == 0 ||
             exception.statusCode == 401 ||
             exception.statusCode == 403 ||
+            exception.statusCode == 404 ||
             exception.message?.contains("Could not parse OpenCode quota response") == true
     }
 
