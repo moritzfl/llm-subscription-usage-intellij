@@ -3,6 +3,7 @@ package de.moritzf.quota.kimi
 import com.intellij.ide.util.PropertiesComponent
 import java.net.InetAddress
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 object KimiDeviceHeaders {
     private const val KEY_DEVICE_ID = "kimi.oauth.device.id"
@@ -38,7 +39,7 @@ object KimiDeviceHeaders {
         val arch = System.getProperty("os.arch") ?: ""
         val version = System.getProperty("os.version") ?: ""
         return when {
-            system.startsWith("Mac") -> buildModel("macOS", macProductVersion() ?: version, arch)
+            system.startsWith("Mac") -> buildModel("macOS", cachedMacProductVersion ?: version, arch)
             system.startsWith("Windows") -> buildModel("Windows", windowsRelease(version), arch)
             system.isNotBlank() -> buildModel(system, version, arch)
             else -> "Unknown"
@@ -62,13 +63,19 @@ object KimiDeviceHeaders {
         }
     }
 
+    private val cachedMacProductVersion: String? by lazy { macProductVersion() }
+
     private fun macProductVersion(): String? {
         return runCatching {
             val process = ProcessBuilder("sw_vers", "-productVersion")
                 .redirectErrorStream(true)
                 .start()
             val output = process.inputStream.bufferedReader().readText().trim()
-            process.waitFor()
+            val finished = process.waitFor(2, TimeUnit.SECONDS)
+            if (!finished) {
+                process.destroyForcibly()
+                return@runCatching null
+            }
             output.ifBlank { null }
         }.getOrNull()
     }

@@ -11,6 +11,9 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ExecutionException
 
 internal class KimiCredentialRefresher(
     private val httpClient: HttpClient,
@@ -26,7 +29,25 @@ internal class KimiCredentialRefresher(
 
     fun refresh(credentials: KimiCredentials): KimiCredentials? {
         val refreshToken = credentials.refreshToken.ifBlank { return null }
-        return refreshCredentials(refreshToken)
+        val existing = inFlight[refreshToken]
+        if (existing != null) {
+            return awaitRefresh(existing)
+        }
+        val created = CompletableFuture<KimiCredentials?>()
+        val winner = inFlight.putIfAbsent(refreshToken, created)
+        if (winner != null) {
+            return awaitRefresh(winner)
+        }
+        try {
+            val refreshed = refreshCredentials(refreshToken)
+            created.complete(refreshed)
+            return refreshed
+        } catch (exception: Exception) {
+            created.completeExceptionally(exception)
+            throw exception
+        } finally {
+            inFlight.remove(refreshToken, created)
+        }
     }
 
     private fun refreshCredentials(refreshToken: String): KimiCredentials {
@@ -82,6 +103,17 @@ internal class KimiCredentialRefresher(
         val TOKEN_ENDPOINT: URI = URI.create("https://auth.kimi.com/api/oauth/token")
         const val CLIENT_ID = "17e5f671-d194-4dfb-9706-5516cb48c098"
         const val REFRESH_BUFFER_SECONDS = 300L
+        private val inFlight = ConcurrentHashMap<String, CompletableFuture<KimiCredentials?>>()
+
+        fun awaitRefresh(future: CompletableFuture<KimiCredentials?>): KimiCredentials? {
+            return try {
+                future.get()
+            } catch (exception: ExecutionException) {
+                val cause = exception.cause
+                if (cause is RuntimeException) throw cause
+                throw exception
+            }
+        }
     }
 }
 
