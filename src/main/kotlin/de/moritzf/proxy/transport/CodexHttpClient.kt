@@ -212,7 +212,7 @@ open class CodexHttpClient {
         if (response.statusCode() in 200..<300 || !reserveHop.isEligibleRequest(path, method, body)) {
             return response
         }
-        val errorBody = response.body().use { it.readBytes().toString(StandardCharsets.UTF_8) }
+        val errorBody = response.body().use { it.readNBytes(MAX_RESERVE_HOP_ERROR_BYTES).toString(StandardCharsets.UTF_8) }
         if (!reserveHop.isUsageLimit(errorBody)) {
             return BodyReplacingHttpResponse(response, errorBody.byteInputStream(StandardCharsets.UTF_8))
         }
@@ -426,6 +426,7 @@ open class CodexHttpClient {
     }
     companion object {
         private const val CLIENT_ORIGINATOR = "openai-usage-quota-plugin"
+        private const val MAX_RESERVE_HOP_ERROR_BYTES = 64 * 1024
         private val CLIENT_USER_AGENT = "$CLIENT_ORIGINATOR/${ProxyVersion.get()}"
         private val REQUEST_TIMEOUT: Duration = Duration.ofMinutes(15)
         private val CONVERSATION_ID_HEADER = codexIdHeader("conversation")

@@ -2,6 +2,7 @@ package de.moritzf.proxy.server
 import java.io.IOException
 import java.io.InputStream
 import java.net.http.HttpResponse
+import kotlinx.coroutines.delay
 /**
  * Honors LiteLLM's `x-litellm-num-retries` request header by retrying the upstream call
  * on failures where no model work could have happened: I/O errors and gateway statuses
@@ -14,7 +15,7 @@ object UpstreamRetry {
     fun interface UpstreamCall {
         fun send(): HttpResponse<InputStream>
     }
-    fun withRetries(numRetriesHeader: String?, call: UpstreamCall): HttpResponse<InputStream> {
+    suspend fun withRetries(numRetriesHeader: String?, call: UpstreamCall): HttpResponse<InputStream> {
         val retries = parseRetries(numRetriesHeader)
         var attempt = 0
         while (true) {
@@ -30,7 +31,7 @@ object UpstreamRetry {
                 }
             }
             attempt++
-            Thread.sleep(RETRY_BACKOFF_MILLIS * attempt)
+            delay(RETRY_BACKOFF_MILLIS * attempt)
         }
     }
     private fun isRetryableStatus(status: Int): Boolean {
