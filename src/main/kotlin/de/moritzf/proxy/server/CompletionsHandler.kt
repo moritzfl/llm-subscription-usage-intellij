@@ -307,6 +307,7 @@ class CompletionsHandler(
         val assembled = StringBuilder()
         JsonHelper.setSseHeaders(ctx)
         ctx.setStatus(200)
+        ctx.handled = true
         ctx.call.respondOutputStream(ContentType.parse(JsonHelper.SSE_CONTENT_TYPE), HttpStatusCode.OK) {
             upstream.body().bufferedReader(StandardCharsets.UTF_8).use { reader ->
                 while (true) {
@@ -331,7 +332,6 @@ class CompletionsHandler(
                 assembled.append(writeFinish(ctx, this, sanitizer, id, created, model))
             }
         }
-        ctx.handled = true
         return assembled.toString()
     }
 
@@ -371,6 +371,7 @@ class CompletionsHandler(
         if (stream) {
             JsonHelper.setSseHeaders(ctx)
             ctx.setStatus(200)
+            ctx.handled = true
             ctx.call.respondOutputStream(ContentType.parse(JsonHelper.SSE_CONTENT_TYPE), HttpStatusCode.OK) {
                 writeSseData(ctx, this, textCompletionChunk(id, created, model, text, null))
                 writeSseData(ctx, this, textCompletionChunk(id, created, model, "", "stop"))
@@ -379,7 +380,6 @@ class CompletionsHandler(
                 AccessLogFields.addResponseBytes(ctx, done.size.toLong())
                 flush()
             }
-            ctx.handled = true
         } else {
             JsonHelper.toJsonResponse(ctx, textCompletionJson(id, created, model, text))
         }
@@ -391,6 +391,7 @@ class CompletionsHandler(
         if (stream) {
             JsonHelper.setSseHeaders(ctx)
             ctx.setStatus(200)
+            ctx.handled = true
             ctx.call.respondOutputStream(ContentType.parse(JsonHelper.SSE_CONTENT_TYPE), HttpStatusCode.OK) {
                 writeSseData(ctx, this, textCompletionChunk(id, created, model, "", "stop"))
                 val done = "data: [DONE]\n\n".toByteArray(StandardCharsets.UTF_8)
@@ -398,7 +399,6 @@ class CompletionsHandler(
                 AccessLogFields.addResponseBytes(ctx, done.size.toLong())
                 flush()
             }
-            ctx.handled = true
         } else {
             JsonHelper.toJsonResponse(ctx, textCompletionJson(id, created, model, ""))
         }
@@ -501,7 +501,7 @@ class CompletionsHandler(
         }
 
         internal fun chatMessageContent(raw: String): String {
-            val root = JsonHelper.parseToJsonElementOrNull(raw) as? JsonObject ?: return raw
+            val root = JsonHelper.parseToJsonElementOrNull(raw) as? JsonObject ?: return ""
             val choices = root["choices"] as? JsonArray ?: return ""
             val choice = choices.firstOrNull() as? JsonObject ?: return ""
             val message = choice["message"] as? JsonObject

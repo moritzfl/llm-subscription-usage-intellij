@@ -50,4 +50,10 @@ class FimCommentContextTest {
     fun markdownStarIsNotComment() {
         assertNull(FimCommentContext.detect("# Example\n\n*", "md"))
     }
+
+    @Test
+    fun tomlHashIsComment() {
+        val comment = assertNotNull(FimCommentContext.detect("name = \"x\"\n# ", "toml"))
+        assertEquals("#", comment.marker)
+    }
 }

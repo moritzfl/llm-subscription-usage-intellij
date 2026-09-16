@@ -38,7 +38,7 @@ data class CompletionsRequest(
 
         private fun promptText(body: JsonObject): String {
             val prompt = body["prompt"] ?: return ""
-            if (prompt is JsonPrimitive) return prompt.content
+            if (prompt is JsonPrimitive) return prompt.contentOrNull.orEmpty()
             if (prompt is JsonArray) {
                 return prompt.joinToString("") { element ->
                     (element as? JsonPrimitive)?.contentOrNull.orEmpty()

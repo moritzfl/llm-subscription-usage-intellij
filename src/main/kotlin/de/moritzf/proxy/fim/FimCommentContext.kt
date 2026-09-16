@@ -107,7 +107,10 @@ internal data class FimCommentContext(
             return comment
         }
 
-        private val HASH_LANGUAGES = setOf("py", "pyw", "python", "sh", "shell", "bash", "zsh", "fish", "yaml", "yml", "rb", "ruby")
+        private val HASH_LANGUAGES = setOf(
+            "py", "pyw", "python", "sh", "shell", "bash", "zsh", "fish",
+            "yaml", "yml", "rb", "ruby", "toml", "ini", "conf", "properties", "ps1", "r", "jl",
+        )
         private val INLINE_HASH_LANGUAGES = setOf("py", "pyw", "python", "rb", "ruby")
         private val MARKUP_LANGUAGES = setOf("md", "markdown", "mdx", "html", "htm", "xml", "svg")
         private val NESTED_BLOCK_LANGUAGES = setOf("kt", "kts", "kotlin", "rs", "rust", "scala", "sc", "swift", "sql")

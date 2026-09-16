@@ -2,6 +2,7 @@ package de.moritzf.proxy.fim
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class CompletionSanitizerTest {
     @Test
@@ -147,6 +148,7 @@ class CompletionSanitizerTest {
 
         assertEquals(true, "\n\n" in stops)
         assertEquals(false, "\n\n" in commentStops)
+        assertEquals(false, "\n\n\n" in commentStops)
     }
 
     @Test
@@ -361,5 +363,21 @@ class CompletionSanitizerTest {
         assertEquals("", sanitizer.push("```kt\n"))
         assertEquals("hello", sanitizer.push("hello"))
         assertEquals("", sanitizer.finish())
+    }
+
+    @Test
+    fun streamingDoesNotLatchWhenSuffixOverlapGrowsPastHoldWindow() {
+        val suffix = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\nmore"
+        val sanitizer = StreamingCompletionSanitizer(
+            prefix = "fun f() {\n    ",
+            suffix = suffix,
+            stop = emptyList(),
+        )
+
+        sanitizer.push(suffix.take(8))
+        val extra = sanitizer.push(suffix.drop(8) + "inserted")
+        val finished = sanitizer.finish()
+
+        assertTrue((extra + finished).contains("inserted"), extra + finished)
     }
 }

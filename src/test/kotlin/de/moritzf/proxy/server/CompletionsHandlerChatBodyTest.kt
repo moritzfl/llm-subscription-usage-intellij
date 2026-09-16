@@ -10,9 +10,12 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 class CompletionsHandlerChatBodyTest {
     @Test
@@ -41,5 +44,19 @@ class CompletionsHandlerChatBodyTest {
         assertEquals("fun add(a: Int, b: Int): Int {\n    return ", body["prompt"]?.jsonPrimitive?.contentOrNull)
         assertEquals("\n}\n", body["suffix"]?.jsonPrimitive?.contentOrNull)
         assertEquals(false, body["prompt"]?.jsonPrimitive?.contentOrNull?.contains("<|fim_"))
+    }
+
+    @Test
+    fun chatMessageContentIgnoresNonJsonBody() {
+        assertEquals("", CompletionsHandler.chatMessageContent("<html>error</html>"))
+    }
+
+    @Test
+    fun parseTreatsJsonNullPromptAsEmpty() {
+        val body = buildJsonObject {
+            put("model", JsonPrimitive("qwen2.5-coder"))
+            put("prompt", JsonNull)
+        }
+        assertEquals("", CompletionsRequest.parse(body).prompt)
     }
 }

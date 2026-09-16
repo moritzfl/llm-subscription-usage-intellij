@@ -81,7 +81,11 @@ object CompletionSanitizer {
 
     fun effectiveStops(prefix: String, clientStops: List<String>, languageHint: String? = null): List<String> {
         val stops = (clientStops + INTERNAL_STOPS).distinct()
-        return if (isCommentHole(prefix, languageHint)) stops.filter { it != "\n\n" } else stops
+        return if (isCommentHole(prefix, languageHint)) {
+            stops.filter { it != "\n\n" && it != "\n\n\n" }
+        } else {
+            stops
+        }
     }
 
     fun cutAtStopSequence(text: String, stopSequences: List<String>): StopCut? {
@@ -248,7 +252,7 @@ class StreamingCompletionSanitizer(
     private val prefix: String,
     private val suffix: String,
     private val stop: List<String>,
-    private val holdChars: Int = 32,
+    private val     holdChars: Int = 64,
     private val languageHint: String? = null,
 ) {
     private val raw = StringBuilder()

@@ -361,6 +361,7 @@ class ChatCompletionsHandler {
         junieNativeProtocol: Boolean, requestBody: JsonObject
     ) {
         setSseHeaders(ctx)
+        ctx.handled = true
         ctx.call.respondOutputStream(ContentType.parse(JsonHelper.SSE_CONTENT_TYPE), HttpStatusCode.OK) {
             val os = this
             val id = "chatcmpl_" + UUID.randomUUID()
@@ -629,7 +630,6 @@ class ChatCompletionsHandler {
                 }
             }
         }
-        ctx.handled = true
     }
     private data class StopCut(val content: String, val sequence: String)
     private fun addFinishDetailsToFirstChoice(chunk: MutableJsonObject, finishDetails: MutableJsonObject) {
