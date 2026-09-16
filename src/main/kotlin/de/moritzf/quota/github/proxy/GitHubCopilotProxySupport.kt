@@ -115,3 +115,34 @@ internal fun containsImageInput(element: JsonElement?): Boolean {
         else -> false
     }
 }
+
+internal data class RemoteImageHop(
+    val statusCode: Int,
+    val uri: URI,
+    val location: String?,
+    val contentType: String?,
+    val body: ByteArray,
+)
+
+internal object SafeRemoteImageFetcher {
+    const val MAX_REDIRECTS = 5
+
+    fun get(
+        url: String,
+        send: (URI) -> RemoteImageHop?,
+        isSafe: (URI) -> Boolean,
+    ): RemoteImageHop? {
+        var current = runCatching { URI.create(url) }.getOrNull() ?: return null
+        repeat(MAX_REDIRECTS + 1) {
+            if (!isSafe(current)) return null
+            val hop = send(current) ?: return null
+            if (hop.statusCode in 200..<300) {
+                return hop.takeIf { isSafe(it.uri) }
+            }
+            if (hop.statusCode !in 300..399) return null
+            val location = hop.location?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+            current = current.resolve(location)
+        }
+        return null
+    }
+}

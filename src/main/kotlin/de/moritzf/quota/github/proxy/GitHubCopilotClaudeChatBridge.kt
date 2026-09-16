@@ -25,7 +25,7 @@ internal class GitHubCopilotClaudeChatBridge {
     private val streamToolCallIndexes = ConcurrentHashMap<String, MutableMap<Int, Int>>()
     private val remoteImageHttpClient = HttpClient.newBuilder()
         .connectTimeout(java.time.Duration.ofSeconds(30))
-        .followRedirects(HttpClient.Redirect.NORMAL)
+        .followRedirects(HttpClient.Redirect.NEVER)
         .build()
 
     fun clearStreamState(requestId: String) {
@@ -252,29 +252,14 @@ internal class GitHubCopilotClaudeChatBridge {
     }
 
     private fun fetchRemoteImageUrlToAnthropicImage(url: String): JsonObject? {
-        val requestUri = runCatching { URI.create(url) }.getOrNull() ?: return null
-        if (!isSafeRemoteImageUri(requestUri)) return null
-        val response = try {
-            remoteImageHttpClient.send(
-                HttpRequest.newBuilder(requestUri)
-                    .timeout(GitHubCopilotProxyIds.REMOTE_IMAGE_TIMEOUT)
-                    .header("Accept", "image/*")
-                    .GET()
-                    .build(),
-                HttpResponse.BodyHandlers.ofByteArray(),
-            )
-        } catch (_: Exception) {
-            return null
-        }
-        if (response.statusCode() !in 200..<300) return null
-        // Re-validate the final URI after redirects (HttpClient follows NORMAL redirects).
-        if (!isSafeRemoteImageUri(response.uri())) return null
-        val bytes = response.body()
+        val hop = SafeRemoteImageFetcher.get(url, ::sendRemoteImageHop, ::isSafeRemoteImageUri) ?: return null
+        val bytes = hop.body
         if (bytes.isEmpty() || bytes.size > GitHubCopilotProxyIds.MAX_REMOTE_IMAGE_BYTES) return null
-        val mediaType = response.headers().firstValue("Content-Type").orElse("")
-            .substringBefore(';')
-            .trim()
-            .takeIf { it.startsWith("image/") }
+        val mediaType = hop.contentType
+            ?.substringBefore(';')
+            ?.trim()
+            ?.takeIf { it.startsWith("image/") }
+            ?: mediaTypeFromImageUrl(hop.uri.toString())
             ?: mediaTypeFromImageUrl(url)
             ?: return null
         return buildJsonObject {
@@ -285,6 +270,28 @@ internal class GitHubCopilotClaudeChatBridge {
                 put("data", Base64.getEncoder().encodeToString(bytes))
             })
         }
+    }
+
+    private fun sendRemoteImageHop(uri: URI): RemoteImageHop? {
+        val response = try {
+            remoteImageHttpClient.send(
+                HttpRequest.newBuilder(uri)
+                    .timeout(GitHubCopilotProxyIds.REMOTE_IMAGE_TIMEOUT)
+                    .header("Accept", "image/*")
+                    .GET()
+                    .build(),
+                HttpResponse.BodyHandlers.ofByteArray(),
+            )
+        } catch (_: Exception) {
+            return null
+        }
+        return RemoteImageHop(
+            statusCode = response.statusCode(),
+            uri = response.uri(),
+            location = response.headers().firstValue("Location").orElse(null),
+            contentType = response.headers().firstValue("Content-Type").orElse(null),
+            body = response.body(),
+        )
     }
 
     private fun mediaTypeFromImageUrl(url: String): String? {
