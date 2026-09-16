@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+- Copilot Claude image fetch no longer follows redirects to private or metadata addresses.
+- Kimi quota and web-search 401 refresh is single-flight, matching the proxy.
+- The Proxy settings timer no longer rescan the IDE options directory every two seconds.
+- FIM streaming sanitizer holds 64 characters before overlap stripping, so a long suffix echo cannot drop the insertion.
+- FIM `prompt: null` is treated as empty, and non-JSON chat bodies are not inserted as ghost text.
+- Native FIM stream errors no longer try to write a second HTTP response after headers are committed.
+- LiteLLM retries wait with a cancellable delay instead of blocking the IO pool.
+- Codex reserve-hop reads at most 64 KB of an error body.
+- MCP image, audio, and video `targetFile` paths must stay inside the project directory.
+- OpenCode quota rediscovers the Go function id after a 404.
+- Z.ai video poll fails fast on HTTP errors instead of waiting out the timeout.
+- Codex reset-credit counts follow the dedicated credits endpoint when it returns 2xx.
+- YAML/TOML MCP URL sync keeps CRLF line endings.
+- Standalone proxy login writes a random local bearer key instead of a well-known default.
+
 ## [1.13.2] - 2026-09-14
 
 - The leftover CLI OpenAI proxy no longer reads or writes Codex or ChatGPT-local `auth.json` files. Pass `--oauth-file` with a file this plugin owns.
