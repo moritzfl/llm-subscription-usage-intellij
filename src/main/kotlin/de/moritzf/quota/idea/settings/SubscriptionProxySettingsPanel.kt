@@ -171,7 +171,7 @@ internal class SubscriptionProxySettingsPanel(
 
     private val proxyApiKeyLoadGeneration = AtomicLong(0)
     private val modelPreviewGeneration = AtomicLong(0)
-    private val proxyStatusRefreshTimer = Timer(PROXY_STATUS_REFRESH_MILLIS) { updateProxyStatus() }.apply {
+    private val proxyStatusRefreshTimer = Timer(PROXY_STATUS_REFRESH_MILLIS) { refreshProxyRunStatus() }.apply {
         isRepeats = true
     }
     private val copiedFeedbackTimers = HashMap<JButton, Timer>()
@@ -532,7 +532,10 @@ internal class SubscriptionProxySettingsPanel(
 
     fun updateProxyStatus() {
         updateProxyControlsEnabled()
+        refreshProxyRunStatus()
+    }
 
+    private fun refreshProxyRunStatus() {
         val settings = QuotaSettingsState.getInstance()
         val configuredEnabled = settings.openAiProxyEnabled
         val configuredPort = OpenAiProxyService.sanitizePort(settings.openAiProxyPort)
