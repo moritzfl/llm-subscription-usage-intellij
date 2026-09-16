@@ -2,6 +2,7 @@ package de.moritzf.quota.openai.proxy
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import de.moritzf.proxy.util.ApiKeyUtils
 import de.moritzf.quota.openai.dto.OAuthTokenResponseDto
 import de.moritzf.quota.shared.JsonSupport
 import java.awt.Desktop
@@ -378,7 +379,11 @@ private fun saveCredentialsToDotEnv(credentials: StandaloneCredentials) {
         existing["OPENAI_PROXY_EXPIRES_AT"] = credentials.expiresAt.toString()
     }
     credentials.accountId?.takeIf { it.isNotBlank() }?.let { existing["OPENAI_PROXY_ACCOUNT_ID"] = it }
-    existing.putIfAbsent("OPENAI_PROXY_API_KEY", DEFAULT_LOCAL_API_KEY)
+    if (existing["OPENAI_PROXY_API_KEY"].isNullOrBlank()) {
+        val generated = ApiKeyUtils.generateNewKey()
+        existing["OPENAI_PROXY_API_KEY"] = generated
+        println("Generated OPENAI_PROXY_API_KEY=$generated")
+    }
     existing.putIfAbsent("OPENAI_PROXY_PORT", DEFAULT_PORT.toString())
     val content = existing.entries.joinToString("\n", postfix = "\n") { (key, value) ->
         "$key=${value.toDotEnvValue()}"

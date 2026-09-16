@@ -1,5 +1,6 @@
 package de.moritzf.proxy.subscription
 
+import de.moritzf.proxy.util.ApiKeyUtils
 import de.moritzf.quota.github.GitHubDeviceTokenPollResult
 import de.moritzf.quota.github.GitHubOAuthClient
 import de.moritzf.quota.github.proxy.GitHubCopilotSubscriptionProxyProvider
@@ -264,15 +265,20 @@ private fun printModels(providers: List<SubscriptionProxyProvider>) {
 private fun saveGitHubCredentialsToDotEnv(path: Path, accessToken: String, envLocalApiKey: String?) {
     val existing = loadDotEnvValues(path).toMutableMap()
     existing["GITHUB_COPILOT_PROXY_ACCESS_TOKEN"] = accessToken
-    existing["SUBSCRIPTION_PROXY_API_KEY"] = envLocalApiKey
+    val generatedKey = envLocalApiKey == null && existing["SUBSCRIPTION_PROXY_API_KEY"].isNullOrBlank()
+    val localApiKey = envLocalApiKey
         ?: existing["SUBSCRIPTION_PROXY_API_KEY"]
-        ?: DEFAULT_LOCAL_API_KEY
+        ?: ApiKeyUtils.generateNewKey()
+    existing["SUBSCRIPTION_PROXY_API_KEY"] = localApiKey
     existing.putIfAbsent("SUBSCRIPTION_PROXY_PORT", DEFAULT_PORT.toString())
     restrictToOwner(path)
     Files.writeString(path, existing.entries.joinToString("\n", postfix = "\n") { (key, value) ->
         "$key=${value.toDotEnvValue()}"
     })
     println("Saved GitHub Copilot proxy credentials to ${path.toAbsolutePath().normalize()}")
+    if (generatedKey) {
+        println("Generated SUBSCRIPTION_PROXY_API_KEY=$localApiKey")
+    }
 }
 
 private fun parseProviders(value: String): Set<String> {
