@@ -418,6 +418,19 @@ class McpJsonTargetUpdaterTest {
     }
 
     @Test
+    fun yamlUpdatePreservesCrlfLineEndings() {
+        val updated = McpYamlTargetUpdater().updateContent(
+            "mcp_servers:\r\n  idea:\r\n    url: http://127.0.0.1:1/stream\r\n",
+            "mcp_servers.idea.url",
+            "http://127.0.0.1:64342/stream",
+        )
+
+        assertTrue(updated.contains("\r\n"))
+        assertTrue(updated.contains("http://127.0.0.1:64342/stream"))
+        assertEquals(false, updated.replace("\r\n", "").contains("\n"))
+    }
+
+    @Test
     fun yamlNonStringPathIsRejected() {
         val error = assertFailsWith<IllegalArgumentException> {
             McpYamlTargetUpdater().updateContent(

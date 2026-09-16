@@ -25,11 +25,11 @@ class McpYamlTargetUpdater {
         val root = parseRoot(content)
         requireExistingTargetValue(root, segments)
 
-        val lines = content.lines().toMutableList()
+        val (lines, separator) = McpJsonTargetUpdater.splitPreservingNewlines(content)
         val propertyIndex = findPropertyLine(lines, segments)
             ?: error("YAML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(segments)}")
         lines[propertyIndex] = replaceYamlStringValue(lines[propertyIndex], value)
-        return lines.joinToString("\n")
+        return lines.joinToString(separator)
     }
 
     companion object {

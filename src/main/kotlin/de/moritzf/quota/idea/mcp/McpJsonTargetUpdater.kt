@@ -59,6 +59,11 @@ class McpJsonTargetUpdater(
             allowTrailingComma = true
         }
 
+        internal fun splitPreservingNewlines(content: String): Pair<MutableList<String>, String> {
+            val separator = if (content.contains("\r\n")) "\r\n" else "\n"
+            return content.split(separator).toMutableList() to separator
+        }
+
         fun validateTargetFile(jsonFilePath: String, propertyPath: String): McpJsonTargetValidationError? {
             val file = resolveJsonFilePath(jsonFilePath)
             if (!Files.exists(file)) {
