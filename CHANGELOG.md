@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Quota refresh again runs providers in parallel on virtual threads, without blocking the IDE app pool.
+
 ## [1.13.3] - 2026-09-19
 
 - Ollama monthly credit plans accept an optional reset time in settings (ISO-8601 UTC from ollama.com/settings `data-time`). One stamp is enough; the same day and clock repeat each calendar month. `/api/usage` still has no anniversary field.

@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea.common
 
+import com.intellij.concurrency.virtualThreads.IntelliJVirtualThreads
 import com.intellij.ide.ActivityTracker
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
@@ -247,9 +248,17 @@ class QuotaUsageService(
     }
 
     private fun refreshNow() {
-        states.keys.forEach { accountId ->
-            runCatching { refreshProvider(accountId) }
-                .onFailure { LOG.warn("Quota provider refresh failed", it) }
+        val futures = states.keys.map { accountId ->
+            CompletableFuture.runAsync(
+                {
+                    runCatching { refreshProvider(accountId) }
+                        .onFailure { LOG.warn("Quota provider refresh failed", it) }
+                },
+                { command -> IntelliJVirtualThreads.ofVirtual().start(command) },
+            )
+        }
+        futures.forEach { future ->
+            runCatching { future.join() }
         }
     }
 
