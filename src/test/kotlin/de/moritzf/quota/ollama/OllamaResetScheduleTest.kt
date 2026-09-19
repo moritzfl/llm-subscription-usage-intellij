@@ -30,6 +30,51 @@ class OllamaResetScheduleTest {
     }
 
     @Test
+    fun monthlyKeepsFutureAnchor() {
+        val anchor = Instant.parse("2026-10-02T18:08:50Z")
+        val now = Instant.parse("2026-09-19T09:00:00Z")
+        assertEquals(anchor, OllamaResetSchedule.monthlyResetsAt(anchor, now))
+    }
+
+    @Test
+    fun monthlyRollsForwardAfterAnchor() {
+        val anchor = Instant.parse("2026-10-02T18:08:50Z")
+        val now = Instant.parse("2026-10-02T18:08:50Z")
+        assertEquals(Instant.parse("2026-11-02T18:08:50Z"), OllamaResetSchedule.monthlyResetsAt(anchor, now))
+        assertEquals(
+            Instant.parse("2026-11-02T18:08:50Z"),
+            OllamaResetSchedule.monthlyResetsAt(anchor, Instant.parse("2026-10-15T00:00:00Z")),
+        )
+    }
+
+    @Test
+    fun monthlyClampsShortMonthsThenRestoresDay() {
+        val jan31 = Instant.parse("2026-01-31T18:08:50Z")
+        assertEquals(
+            Instant.parse("2026-02-28T18:08:50Z"),
+            OllamaResetSchedule.monthlyResetsAt(jan31, Instant.parse("2026-01-31T18:08:50Z")),
+        )
+        assertEquals(
+            Instant.parse("2026-03-31T18:08:50Z"),
+            OllamaResetSchedule.monthlyResetsAt(jan31, Instant.parse("2026-02-28T18:08:50Z")),
+        )
+    }
+
+    @Test
+    fun parseMonthlyAnchorAcceptsIsoAndDateOnly() {
+        assertEquals(
+            Instant.parse("2026-10-02T18:08:50Z"),
+            OllamaResetSchedule.parseMonthlyAnchor(" 2026-10-02T18:08:50Z "),
+        )
+        assertEquals(
+            Instant.parse("2026-10-02T00:00:00Z"),
+            OllamaResetSchedule.parseMonthlyAnchor("2026-10-02"),
+        )
+        assertEquals(null, OllamaResetSchedule.parseMonthlyAnchor("the 2nd"))
+        assertEquals(null, OllamaResetSchedule.parseMonthlyAnchor(""))
+    }
+
+    @Test
     fun matchesShellRemainderFormulas() {
         val now = Instant.parse("2026-08-10T05:30:42Z")
         val nowSec = now.epochSeconds

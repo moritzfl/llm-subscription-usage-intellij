@@ -132,6 +132,25 @@ open class OllamaQuotaClient(
             return runCatching { JsonSupport.json.parseToJsonElement(value) }.getOrElse { JsonPrimitive(value) }
         }
 
+        fun applyConfiguredMonthlyReset(
+            quota: OllamaQuota,
+            anchor: Instant?,
+            now: Instant = Clock.System.now(),
+        ): OllamaQuota {
+            val monthly = quota.monthlyUsage ?: return quota
+            if (monthly.resetsAt != null || anchor == null) return quota
+            val next = OllamaResetSchedule.monthlyResetsAt(anchor, now)
+            val updated = quota.copy(monthlyUsage = monthly.copy(resetsAt = next))
+            updated.fetchedAt = quota.fetchedAt
+            updated.rawJson = buildRawResponse(
+                quota.rawJson ?: "{}",
+                updated.sessionUsage?.resetsAt,
+                updated.weeklyUsage?.resetsAt,
+                next,
+            )
+            return updated
+        }
+
         fun parseQuota(usageJson: String, now: Instant = Clock.System.now()): OllamaQuota {
             // Each limit window is decoded on its own so one reshaped or unparsable block (for
             // example a changed session entry, per-model details, activity/cost extras, or unknown

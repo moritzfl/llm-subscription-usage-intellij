@@ -236,6 +236,46 @@ class OllamaQuotaClientTest {
     }
 
     @Test
+    fun applyConfiguredMonthlyResetFillsMissingMonthlyStamp() {
+        val quota = OllamaQuotaClient.parseQuota(
+            """{"limits":{"monthly":{"usage":0.769}}}""",
+            Instant.parse("2026-09-19T09:00:00Z"),
+        )
+        val applied = OllamaQuotaClient.applyConfiguredMonthlyReset(
+            quota,
+            Instant.parse("2026-10-02T18:08:50Z"),
+            Instant.parse("2026-09-19T09:00:00Z"),
+        )
+        assertEquals(Instant.parse("2026-10-02T18:08:50Z"), assertNotNull(applied.monthlyUsage).resetsAt)
+        assertTrue(applied.rawJson!!.contains("2026-10-02T18:08:50Z"))
+    }
+
+    @Test
+    fun applyConfiguredMonthlyResetKeepsApiStamp() {
+        val quota = OllamaQuotaClient.parseQuota(
+            """{"limits":{"monthly":{"usage":0.1,"resets_at":"2026-09-10T00:00:00Z"}}}""",
+        )
+        val applied = OllamaQuotaClient.applyConfiguredMonthlyReset(
+            quota,
+            Instant.parse("2026-10-02T18:08:50Z"),
+            Instant.parse("2026-09-19T09:00:00Z"),
+        )
+        assertEquals(Instant.parse("2026-09-10T00:00:00Z"), assertNotNull(applied.monthlyUsage).resetsAt)
+    }
+
+    @Test
+    fun applyConfiguredMonthlyResetIgnoresLegacySessionPlans() {
+        val quota = OllamaQuotaClient.parseQuota("""{"limits":{"session":{"usage":0.1}}}""")
+        val applied = OllamaQuotaClient.applyConfiguredMonthlyReset(
+            quota,
+            Instant.parse("2026-10-02T18:08:50Z"),
+            Instant.parse("2026-09-19T09:00:00Z"),
+        )
+        assertNull(applied.monthlyUsage)
+        assertNotNull(applied.sessionUsage)
+    }
+
+    @Test
     fun parseQuotaClampsOutOfRangeUsage() {
         val quota = OllamaQuotaClient.parseQuota(
             """{"limits":{"session":{"usage":-0.5},"weekly":{"usage":250}}}""",

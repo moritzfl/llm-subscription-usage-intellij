@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Ollama monthly credit plans accept an optional reset time in settings (ISO-8601 UTC from ollama.com/settings `data-time`). One stamp is enough; the same day and clock repeat each calendar month. `/api/usage` still has no anniversary field.
 - Copilot Claude image fetch no longer follows redirects to private or metadata addresses.
 - Kimi quota and web-search 401 refresh is single-flight, matching the proxy.
 - The Proxy settings timer no longer rescan the IDE options directory every two seconds.

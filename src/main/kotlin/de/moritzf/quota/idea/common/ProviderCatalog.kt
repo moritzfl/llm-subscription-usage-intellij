@@ -25,6 +25,7 @@ import de.moritzf.quota.idea.settings.MistralSettingsPanel
 import de.moritzf.quota.idea.settings.OllamaSettingsPanel
 import de.moritzf.quota.idea.settings.OpenAiSettingsPanel
 import de.moritzf.quota.idea.settings.OpenCodeSettingsPanel
+import de.moritzf.quota.idea.settings.ProviderAccount
 import de.moritzf.quota.idea.settings.ProviderSettingsPanel
 import de.moritzf.quota.idea.settings.ProviderSettingsPanelContext
 import de.moritzf.quota.idea.settings.SuperGrokSettingsPanel
@@ -46,6 +47,7 @@ import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.mistral.MistralQuota
 import de.moritzf.quota.ollama.OllamaQuota
+import de.moritzf.quota.ollama.OllamaResetSchedule
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.ProviderQuota
@@ -277,7 +279,17 @@ internal object ProviderCatalog {
                 webFetch = true,
                 subscriptionProxy = true,
             ),
-            quotaFactory = { OllamaQuotaProvider(accountId = it.id) },
+            quotaFactory = { account ->
+                OllamaQuotaProvider(
+                    accountId = account.id,
+                    monthlyResetAnchorProvider = {
+                        de.moritzf.quota.idea.settings.QuotaSettingsState.getInstance()
+                            .account(account.id)
+                            ?.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET)
+                            ?.let(OllamaResetSchedule::parseMonthlyAnchor)
+                    },
+                )
+            },
             snapshotCodec = EnvelopeQuotaCodec(OllamaQuota.serializer()),
             mcpEmpty = "No Ollama usage response available",
             settings = { ctx -> OllamaSettingsPanel(ctx.modalityComponentProvider, ctx.statusLabelDefaultForeground) },

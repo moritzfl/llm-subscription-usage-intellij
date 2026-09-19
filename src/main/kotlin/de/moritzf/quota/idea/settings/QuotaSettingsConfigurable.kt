@@ -24,6 +24,7 @@ import com.intellij.util.ui.UIUtil
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.common.CredentialStorage
 import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.common.QuotaUsageListener
 import de.moritzf.quota.idea.mcp.McpServerSyncTarget
 import de.moritzf.quota.idea.mcp.McpServerUrlSyncService
@@ -508,6 +509,9 @@ class QuotaSettingsConfigurable : Configurable {
                 val gitHubPanel = gitHubPanel()
                 val gitHubEnterpriseHostChanged = selectedAccount?.providerType() == QuotaProviderType.GITHUB &&
                     gitHubPanel.normalizedEnterpriseHostForStorage() != state.githubHostFor(selectedAccount.id)
+                val ollamaMonthlyResetChanged = selectedAccount?.providerType() == QuotaProviderType.OLLAMA &&
+                    ollamaPanel().normalizedMonthlyResetForStorage() !=
+                    selectedAccount.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET)
                 if (locationChanged) {
                     state.setLocation(selectedLocation)
                 }
@@ -529,7 +533,7 @@ class QuotaSettingsConfigurable : Configurable {
                 if (proxyApiKeyChanged) {
                     proxyPanel.saveProxyApiKeyBlocking()
                 }
-                if (locationChanged || displayModeChanged || sourceChanged || popupVisibilityChanged || miniMaxRegionChanged || accountsChanged || mcpSyncChanged || mcpTargetsChanged || proxyEnabledChanged || proxyPortChanged || proxyApiKeyChanged || proxyLogRequestsChanged || proxyProviderSelectionChanged || proxyCompletionsChanged || gitHubEnterpriseHostChanged) {
+                if (locationChanged || displayModeChanged || sourceChanged || popupVisibilityChanged || miniMaxRegionChanged || accountsChanged || mcpSyncChanged || mcpTargetsChanged || proxyEnabledChanged || proxyPortChanged || proxyApiKeyChanged || proxyLogRequestsChanged || proxyProviderSelectionChanged || proxyCompletionsChanged || gitHubEnterpriseHostChanged || ollamaMonthlyResetChanged) {
                     ApplicationManager.getApplication().messageBus
                         .syncPublisher(QuotaSettingsListener.TOPIC)
                         .onSettingsChanged()
@@ -537,6 +541,10 @@ class QuotaSettingsConfigurable : Configurable {
                     OpenAiProxyService.getInstance().reloadFromSettings()
                     proxyPanel.refreshAfterApply()
                     gitHubPanel.updateFields()
+                    ollamaPanel().updateFields()
+                    if (ollamaMonthlyResetChanged) {
+                        QuotaUsageService.getInstance().refreshAsync(selectedAccount.id)
+                    }
                     if (state.syncIntellijMcpServerUrl) {
                         McpServerUrlSyncService.getInstance().syncNowAsync()
                     }
@@ -745,6 +753,11 @@ class QuotaSettingsConfigurable : Configurable {
                 }
             QuotaProviderType.OPEN_CODE ->
                 account.setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, openCodePanel().selectedWorkspaceId())
+            QuotaProviderType.OLLAMA ->
+                account.setExtra(
+                    ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET,
+                    ollamaPanel().normalizedMonthlyResetForStorage(),
+                )
             else -> Unit
         }
     }
@@ -761,6 +774,9 @@ class QuotaSettingsConfigurable : Configurable {
                 miniMaxPanel().regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionFor(selected.id)
             QuotaProviderType.OPEN_CODE ->
                 openCodePanel().selectedWorkspaceId() != state.openCodeWorkspaceIdFor(selected.id)
+            QuotaProviderType.OLLAMA ->
+                ollamaPanel().monthlyResetField.text.trim() !=
+                    (persisted?.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET) ?: selected.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET)).orEmpty()
             else -> false
         }
     }
@@ -771,6 +787,9 @@ class QuotaSettingsConfigurable : Configurable {
 
     private fun openCodePanel(): OpenCodeSettingsPanel =
         providerPanelsByType.getValue(QuotaProviderType.OPEN_CODE) as OpenCodeSettingsPanel
+
+    private fun ollamaPanel(): OllamaSettingsPanel =
+        providerPanelsByType.getValue(QuotaProviderType.OLLAMA) as OllamaSettingsPanel
 
     private fun normalizeTargets(targets: List<McpServerSyncTarget>): List<McpServerSyncTarget> {
         return targets.map { it.normalized() }

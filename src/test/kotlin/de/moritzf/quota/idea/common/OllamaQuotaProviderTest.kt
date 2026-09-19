@@ -5,6 +5,8 @@ import de.moritzf.quota.ollama.OllamaQuotaClient
 import de.moritzf.quota.ollama.OllamaQuotaException
 import de.moritzf.quota.ollama.OllamaUsageWindow
 import kotlin.test.Test
+import kotlin.test.assertNotNull
+import kotlin.time.Instant
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertSame
@@ -51,6 +53,27 @@ class OllamaQuotaProviderTest {
         assertEquals(
             "Ollama API key invalid. Check your Ollama API key in settings.",
             provider.getLastError(),
+        )
+    }
+
+    @Test
+    fun refreshAppliesConfiguredMonthlyReset() {
+        val quota = OllamaQuota(
+            monthlyUsage = OllamaUsageWindow(usagePercent = 76.9),
+            rawJson = """{"limits":{"monthly":{"usage":0.769}}}""",
+        )
+        val provider = OllamaQuotaProvider(
+            ollamaClient = FakeOllamaClient { quota },
+            apiKeyProvider = { "key" },
+            monthlyResetAnchorProvider = { Instant.parse("2026-10-02T18:08:50Z") },
+            nowProvider = { Instant.parse("2026-09-19T09:00:00Z") },
+        )
+
+        provider.refresh()
+
+        assertEquals(
+            Instant.parse("2026-10-02T18:08:50Z"),
+            assertNotNull(provider.getLastQuota()?.monthlyUsage).resetsAt,
         )
     }
 

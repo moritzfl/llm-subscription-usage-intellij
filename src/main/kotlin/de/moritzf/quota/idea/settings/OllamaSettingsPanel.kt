@@ -2,8 +2,10 @@ package de.moritzf.quota.idea.settings
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.options.ConfigurationException
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
+import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.idea.common.QuotaProviderType
@@ -12,6 +14,7 @@ import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.ollama.OllamaQuotaClient
+import de.moritzf.quota.ollama.OllamaResetSchedule
 import de.moritzf.quota.shared.JsonSupport
 import java.awt.Color
 import java.util.concurrent.atomic.AtomicLong
@@ -24,6 +27,10 @@ internal class OllamaSettingsPanel(
     private val modalityComponentProvider: () -> JComponent?,
     private val statusLabelDefaultForeground: Color? = null,
 ) : ProviderSettingsPanel() {
+    val monthlyResetField = JBTextField().apply {
+        columns = 40
+        toolTipText = "Optional ISO-8601 UTC reset from ollama.com/settings data-time, e.g. 2026-10-02T18:08:50Z"
+    }
     private val apiKeyField = JBPasswordField().apply {
         columns = 40
         toolTipText = "Ollama API key from ollama.com/settings/keys"
@@ -45,6 +52,15 @@ internal class OllamaSettingsPanel(
                     .resizableColumn()
                     .align(AlignX.FILL)
             }
+            row("Monthly reset:") {
+                cell(monthlyResetField)
+                    .resizableColumn()
+                    .align(AlignX.FILL)
+                    .comment(
+                        "Optional. Paste one ISO-8601 UTC time from ollama.com/settings (the Monthly usage data-time). " +
+                            "Used only on monthly credit plans. Same day and clock each calendar month.",
+                    )
+            }
             row {
                 button("Save API Key") {
                     saveApiKeyNow()
@@ -58,11 +74,21 @@ internal class OllamaSettingsPanel(
         install(ollamaConfigPanel, createResponseSection(ollamaJsonViewer))
     }
 
+    fun normalizedMonthlyResetForStorage(): String? {
+        val raw = monthlyResetField.text.trim()
+        if (raw.isEmpty()) return null
+        return OllamaResetSchedule.parseMonthlyAnchor(raw)?.toString()
+            ?: throw ConfigurationException(
+                "Ollama monthly reset must be ISO-8601 UTC (for example 2026-10-02T18:08:50Z from ollama.com/settings data-time).",
+            )
+    }
+
     override fun updateFields() {
         val id = accountKey(QuotaProviderType.OLLAMA)
         val apiKeyStore = OllamaApiKeyStore.forAccount(id)
         val apiKey = apiKeyStore.load(onLoaded = { if (accountKey(QuotaProviderType.OLLAMA) == id) refreshAfterCredentialLoad() })
         apiKeyField.text = if (apiKey.isNullOrBlank()) "" else API_KEY_PLACEHOLDER
+        monthlyResetField.text = boundAccount?.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET).orEmpty()
         updateStatus()
     }
 
