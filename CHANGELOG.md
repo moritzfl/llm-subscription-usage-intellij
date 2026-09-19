@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.13.4] - 2026-09-19
+
 - Quota refresh again runs providers in parallel on virtual threads, without blocking the IDE app pool.
 
 ## [1.13.3] - 2026-09-19
