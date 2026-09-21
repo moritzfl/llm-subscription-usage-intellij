@@ -23,10 +23,13 @@ internal object McpServerUrlResolver {
             val sseUrl = runCatching {
                 serviceClass.getMethod("getServerSseUrl").invoke(service) as? String
             }.getOrNull().takeUnless { it.isNullOrBlank() } ?: "http://localhost:$port/sse"
+            val streamUrl = runCatching {
+                serviceClass.getMethod("getServerStreamUrl").invoke(service) as? String
+            }.getOrNull().takeUnless { it.isNullOrBlank() }
             McpServerStatus(
                 state = McpServerStatusState.RUNNING,
                 message = "MCP server running at $sseUrl",
-                endpoints = McpServerEndpoints(sseUrl = sseUrl, port = port),
+                endpoints = McpServerEndpoints(sseUrl = sseUrl, port = port, streamUrl = streamUrl),
             )
         }.getOrElse { error ->
             statusForError(error).also { status ->

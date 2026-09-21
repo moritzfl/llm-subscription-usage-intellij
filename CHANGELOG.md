@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Streamable HTTP MCP URL sync writes IntelliJ's `/stream` endpoint (or `getServerStreamUrl` when the IDE exposes it), not `/mcp`.
+
 ## [1.13.4] - 2026-09-19
 
 - Quota refresh again runs providers in parallel on virtual threads, without blocking the IDE app pool.

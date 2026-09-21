@@ -276,7 +276,13 @@ class McpJsonTargetUpdaterTest {
         val endpoints = McpServerEndpoints("http://localhost:63342/sse", 63342)
 
         assertEquals("http://localhost:63342/sse", McpServerTransport.SSE.urlFor(endpoints))
-        assertEquals("http://localhost:63342/mcp", McpServerTransport.STREAMABLE_HTTP.urlFor(endpoints))
+        assertEquals("http://localhost:63342/stream", McpServerTransport.STREAMABLE_HTTP.urlFor(endpoints))
+        assertEquals(
+            "http://127.0.0.1:64342/stream",
+            McpServerTransport.STREAMABLE_HTTP.urlFor(
+                endpoints.copy(streamUrl = "http://127.0.0.1:64342/stream"),
+            ),
+        )
     }
 
     @Test

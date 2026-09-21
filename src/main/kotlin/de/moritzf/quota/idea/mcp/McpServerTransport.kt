@@ -8,13 +8,15 @@ enum class McpServerTransport(
     private val pathSuffix: String,
 ) {
     SSE("SSE", "/sse"),
-    STREAMABLE_HTTP("Streamable HTTP", "/mcp"),
+    // JetBrains mounts streamable HTTP at /stream, not the spec's usual /mcp.
+    STREAMABLE_HTTP("Streamable HTTP", "/stream"),
     ;
 
     fun urlFor(endpoints: McpServerEndpoints): String {
         return when (this) {
             SSE -> endpoints.sseUrl
-            STREAMABLE_HTTP -> endpoints.serverBaseUrl + pathSuffix
+            STREAMABLE_HTTP -> endpoints.streamUrl?.takeUnless { it.isBlank() }
+                ?: endpoints.serverBaseUrl + pathSuffix
         }
     }
 
@@ -38,6 +40,7 @@ enum class McpServerTransport(
 data class McpServerEndpoints(
     val sseUrl: String,
     val port: Int,
+    val streamUrl: String? = null,
 ) {
     val serverBaseUrl: String = sseUrl.trim().removeSuffix("/sse").trimEnd('/')
 }
