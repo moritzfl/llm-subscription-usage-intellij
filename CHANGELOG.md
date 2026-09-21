@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.13.5] - 2026-09-21
+
 - Streamable HTTP MCP URL sync writes IntelliJ's `/stream` endpoint (or `getServerStreamUrl` when the IDE exposes it), not `/mcp`.
 
 ## [1.13.4] - 2026-09-19
