@@ -23,6 +23,7 @@ internal class AntigravitySettingsPanel : ProviderSettingsPanel() {
 
     init {
         install(panel {
+            row { cell(status).align(AlignX.FILL).resizableColumn() }
             row { comment("Uses the current Antigravity CLI login. Install AGY 1.1.11 or later and run agy in a terminal to sign in.") }
             row { comment("Quota only. One CLI account; credentials stay with AGY. Change accounts in AGY.") }
             row("AGY executable:") {
@@ -36,7 +37,6 @@ internal class AntigravitySettingsPanel : ProviderSettingsPanel() {
             row {
                 browserLink("AGY setup (Google documentation)", "https://antigravity.google/docs/cli/install/")
             }
-            row { cell(status).align(AlignX.FILL).resizableColumn() }
         }, createResponseSection(viewer))
     }
 
@@ -64,12 +64,22 @@ internal class AntigravitySettingsPanel : ProviderSettingsPanel() {
         val service = QuotaUsageService.getInstance()
         val id = accountKey(QuotaProviderType.ANTIGRAVITY)
         val quota = service.getLastQuota(id) as? AntigravityQuota
-        val text = service.getLastError(id) ?: when {
-            quota == null -> "No AGY usage report yet."
-            quota.warnings.isNotEmpty() -> "Connected. ${quota.warnings.joinToString(" ")}"
-            else -> "Connected to the current AGY CLI account."
+        val error = service.getLastError(id)
+        val message = when {
+            error != null -> AuthStatusMessage(error, isError = true)
+            quota == null -> AuthStatusMessage("No AGY usage report yet.", kind = AuthStatusKind.PENDING)
+            quota.warnings.isNotEmpty() -> AuthStatusMessage(
+                "Connected. ${quota.warnings.joinToString(" ")}",
+                kind = AuthStatusKind.PENDING,
+            )
+            else -> AuthStatusMessage("Connected to the current AGY CLI account.")
         }
-        status.text = "<html>${QuotaUiUtil.escapeHtml(text)}</html>"
+        val color = when (message.kind) {
+            AuthStatusKind.CONNECTED -> "#4CAF50"
+            AuthStatusKind.DISCONNECTED -> "#F44336"
+            AuthStatusKind.PENDING -> "#FFC107"
+        }
+        status.text = "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(message.text)}</html>"
     }
 
     override fun updateResponseArea() {
