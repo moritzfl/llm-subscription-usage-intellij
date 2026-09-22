@@ -43,7 +43,7 @@ class QuotaUsageService(
     private val sleeper: (Long) -> Unit = { Thread.sleep(it) },
 ) : Disposable {
     private class ProviderState(val provider: QuotaProvider) {
-        @Volatile var inFlight: CompletableFuture<Unit>? = null
+        @Volatile var inFlight: CompletableFuture<ProviderSnapshot>? = null
         val lock = Any()
     }
 
@@ -151,9 +151,13 @@ class QuotaUsageService(
         AppExecutorUtil.getAppExecutorService().execute { refreshProvider(provider(type)?.accountId ?: type.id) }
     }
 
-    fun refreshAsync(accountId: String, forceUpdate: Boolean = false) {
-        AppExecutorUtil.getAppExecutorService().execute { refreshProvider(accountId, forceUpdate) }
-    }
+    fun refreshAsync(accountId: String, forceUpdate: Boolean = false): CompletableFuture<ProviderSnapshot?> =
+        CompletableFuture.supplyAsync(
+            { refreshProvider(accountId, forceUpdate) },
+            AppExecutorUtil.getAppExecutorService(),
+        ).whenComplete { _, failure ->
+            if (failure != null) LOG.warn("Quota provider refresh failed", failure)
+        }
 
     fun refreshBlocking(type: QuotaProviderType) {
         refreshProvider(provider(type)?.accountId ?: type.id)
@@ -262,29 +266,29 @@ class QuotaUsageService(
         }
     }
 
-    private fun refreshProvider(accountId: String, forceUpdate: Boolean = false) {
+    private fun refreshProvider(accountId: String, forceUpdate: Boolean = false): ProviderSnapshot? {
         while (true) {
-            val state = states[accountId] ?: return
-            val ownedFuture: CompletableFuture<Unit>?
-            val waitFuture: CompletableFuture<Unit>?
+            val state = states[accountId] ?: return null
+            val ownedFuture: CompletableFuture<ProviderSnapshot>?
+            val waitFuture: CompletableFuture<ProviderSnapshot>?
             synchronized(state.lock) {
                 val existing = state.inFlight
                 if (existing != null) {
                     ownedFuture = null
                     waitFuture = existing
                 } else {
-                    val created = CompletableFuture<Unit>()
+                    val created = CompletableFuture<ProviderSnapshot>()
                     state.inFlight = created
                     ownedFuture = created
                     waitFuture = null
                 }
             }
             if (waitFuture != null) {
-                runCatching { waitFuture.get() }
-                if (!forceUpdate) return
+                val result = runCatching { waitFuture.get() }
+                if (!forceUpdate) return result.getOrNull()
                 continue
             }
-            val future = ownedFuture ?: return
+            val future = ownedFuture ?: return null
 
             try {
                 val provider = state.provider
@@ -306,8 +310,11 @@ class QuotaUsageService(
                         AccountResolver.clearRateLimited(accountId)
                     }
                 }
+                // Keep the actual refresh error even when the popup retains a stale reading.
+                val result = ProviderSnapshot(quota, provider.getLastError())
                 publishUpdate()
-                future.complete(Unit)
+                future.complete(result)
+                return result
             } catch (exception: Exception) {
                 future.completeExceptionally(exception)
                 throw exception
@@ -318,7 +325,6 @@ class QuotaUsageService(
                     }
                 }
             }
-            return
         }
     }
 

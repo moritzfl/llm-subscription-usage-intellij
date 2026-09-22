@@ -67,7 +67,11 @@ class QuotaUsageServiceTest {
             assertNull(service.getLastError(QuotaProviderType.OPEN_AI))
 
             fail = true
-            service.refreshNowBlocking()
+            val result = service.refreshAsync(QuotaProviderType.OPEN_AI.id, forceUpdate = true)
+                .get(5, TimeUnit.SECONDS)
+
+            assertEquals("blip", result?.error)
+            assertNotNull(result?.quota)
 
             assertNotNull(service.getLastQuota(QuotaProviderType.OPEN_AI))
             assertEquals(0.42, service.getLastQuota(QuotaProviderType.OPEN_AI)!!.usageFraction()!!, 0.0001)
@@ -318,6 +322,98 @@ class QuotaUsageServiceTest {
             assertEquals(1, openAiFetchCount)
             assertEquals(listOf("token-a:wrk-token-a"), openCodeClient.fetchCalls)
         } finally {
+            service.dispose()
+        }
+    }
+
+    @Test
+    fun asyncRefreshCompletesOnlyAfterRequestedAccountUpdates() {
+        val started = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val personalQuota = OpenAiCodexQuota(allowed = true)
+        val work = OpenAiQuotaProvider(
+            quotaFetcher = { _, _ -> OpenAiCodexQuota(allowed = false) },
+            accessTokenProvider = { "token" },
+            accountIdProvider = { "work" },
+        )
+        val personal = OpenAiQuotaProvider(
+            accountId = "personal",
+            quotaFetcher = { _, _ ->
+                started.countDown()
+                check(release.await(5, TimeUnit.SECONDS))
+                personalQuota
+            },
+            accessTokenProvider = { "token" },
+            accountIdProvider = { "personal" },
+        )
+        val updates = AtomicInteger()
+        val service = QuotaUsageService(
+            providers = listOf(work, personal),
+            settingsProvider = { null },
+            updatePublisher = { updates.incrementAndGet() },
+            scheduleOnInit = false,
+        )
+        try {
+            val request = service.refreshAsync("personal", forceUpdate = true)
+            assertTrue(started.await(5, TimeUnit.SECONDS))
+            assertFalse(request.isDone)
+
+            service.refreshBlocking(QuotaProviderType.OPEN_AI)
+            assertEquals(1, updates.get())
+            assertFalse(request.isDone, "A sibling account's update must not complete this request")
+
+            release.countDown()
+            val result = request.get(5, TimeUnit.SECONDS)
+            assertSame(personalQuota, result?.quota)
+            assertNull(result?.error)
+            assertEquals(2, updates.get())
+            assertNull(service.refreshAsync("missing-account").get(5, TimeUnit.SECONDS))
+        } finally {
+            release.countDown()
+            service.dispose()
+        }
+    }
+
+    @Test
+    fun forcedAsyncRefreshWaitsForItsOwnResultAfterAnExistingRequest() {
+        val firstStarted = CountDownLatch(1)
+        val releaseFirst = CountDownLatch(1)
+        val secondStarted = CountDownLatch(1)
+        val releaseSecond = CountDownLatch(1)
+        val calls = AtomicInteger()
+        val firstQuota = OpenAiCodexQuota(allowed = false)
+        val secondQuota = OpenAiCodexQuota(allowed = true)
+        val provider = OpenAiQuotaProvider(
+            quotaFetcher = { _, _ ->
+                if (calls.incrementAndGet() == 1) {
+                    firstStarted.countDown()
+                    check(releaseFirst.await(5, TimeUnit.SECONDS))
+                    firstQuota
+                } else {
+                    secondStarted.countDown()
+                    check(releaseSecond.await(5, TimeUnit.SECONDS))
+                    secondQuota
+                }
+            },
+            accessTokenProvider = { "token" },
+            accountIdProvider = { "work" },
+        )
+        val service = createService(openAiProvider = provider)
+        try {
+            val automatic = service.refreshAsync(QuotaProviderType.OPEN_AI.id)
+            assertTrue(firstStarted.await(5, TimeUnit.SECONDS))
+            val manual = service.refreshAsync(QuotaProviderType.OPEN_AI.id, forceUpdate = true)
+            releaseFirst.countDown()
+            assertTrue(secondStarted.await(5, TimeUnit.SECONDS))
+            assertSame(firstQuota, automatic.get(5, TimeUnit.SECONDS)?.quota)
+            assertFalse(manual.isDone)
+
+            releaseSecond.countDown()
+            assertSame(secondQuota, manual.get(5, TimeUnit.SECONDS)?.quota)
+            assertEquals(2, calls.get())
+        } finally {
+            releaseFirst.countDown()
+            releaseSecond.countDown()
             service.dispose()
         }
     }

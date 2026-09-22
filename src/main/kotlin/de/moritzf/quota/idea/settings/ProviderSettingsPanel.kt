@@ -25,7 +25,12 @@ import javax.swing.Timer
 internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
     val popupVisibilityToggle = PopupVisibilityToggle()
     var boundAccountId: String = ""
+        set(value) {
+            field = value
+            refreshButton?.accountId = value
+        }
     var boundAccount: ProviderAccount? = null
+    private var refreshButton: QuotaRefreshButton? = null
     private val routingHost = BorderLayoutPanel().apply {
         isOpaque = false
         isVisible = false
@@ -104,23 +109,21 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
         viewer: JBTextArea,
         title: String = "Last quota response",
     ): JComponent {
-        val refreshButton = JButton(AllIcons.Actions.Refresh).apply {
-            isOpaque = false
-            isBorderPainted = false
-            isContentAreaFilled = false
-            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-            toolTipText = "Refresh quota"
-            accessibleContext.accessibleName = "Refresh quota"
-            addActionListener {
-                val accountId = boundAccountId
+        val refreshButton = QuotaRefreshButton(
+            refresh = { accountId -> QuotaUsageService.getInstance().refreshAsync(accountId, forceUpdate = true) },
+            onCompleted = {
                 val service = QuotaUsageService.getInstance()
-                if (service.providerForAccount(accountId) == null) {
+                if (service.providerForAccount(boundAccountId) == null) {
                     viewer.text = "Apply settings to refresh quota for this account."
                     viewer.caretPosition = 0
                 } else {
-                    service.refreshAsync(accountId, forceUpdate = true)
+                    updateResponseArea()
+                    updateStatus()
                 }
-            }
+            },
+        ).also {
+            it.accountId = boundAccountId
+            this.refreshButton = it
         }
         val copyButton = JButton(AllIcons.Actions.Copy).apply {
             isOpaque = false
