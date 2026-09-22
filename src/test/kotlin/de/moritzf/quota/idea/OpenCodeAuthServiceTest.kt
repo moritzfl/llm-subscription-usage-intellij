@@ -151,6 +151,7 @@ class OpenCodeAuthServiceTest {
     }
 
     private class Store(@Volatile var value: OAuthCredentials?) : OAuthCredentialStore {
+        override val coordinator = de.moritzf.quota.idea.auth.OAuthCredentialCoordinator()
         override fun load() = value
         override fun save(credentials: OAuthCredentials) { value = credentials }
         override fun clear() { value = null }

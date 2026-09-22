@@ -3,6 +3,7 @@ package de.moritzf.quota.idea.auth
 import com.intellij.credentialStore.CredentialAttributes
 import com.intellij.credentialStore.Credentials
 import com.intellij.ide.passwordSafe.PasswordSafe
+import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
 import de.moritzf.quota.idea.common.CredentialStorage
 import de.moritzf.quota.idea.common.QuotaProviderType
@@ -20,6 +21,10 @@ class OAuthCredentialsStore(
     private val credentialWriter: (CredentialAttributes, Credentials?) -> Unit = { attributes, credentials ->
         PasswordSafe.instance.set(attributes, credentials)
     },
+    override val coordinator: OAuthCredentialCoordinator = OAuthCredentialCoordinator(
+        PathManager.getCommonDataPath().resolve("llm-subscription-usage/oauth")
+            .resolve(OAuthCredentialCoordinator.hash(serviceName)),
+    ),
 ) : OAuthCredentialStore {
     private val attributes = CredentialAttributes(serviceName, userName)
     private val legacyAttributes = if (legacyServiceName != null && legacyUserName != null) {
@@ -38,10 +43,11 @@ class OAuthCredentialsStore(
         return legacy.credentials
     }
 
-    override fun save(credentials: OAuthCredentials) {
+    override fun save(credentials: OAuthCredentials) = coordinator.withWriteLock {
         val json = JsonSupport.json.encodeToString(credentials)
         try {
             credentialWriter(attributes, Credentials(userName, json))
+            coordinator.recordWrite()
             LOG.info(
                 "Saved OAuth credentials for $userName (access=${QuotaTokenUtil.fingerprint(credentials.accessToken)}," +
                     " refresh=${QuotaTokenUtil.fingerprint(credentials.refreshToken)}," +
@@ -53,9 +59,10 @@ class OAuthCredentialsStore(
         }
     }
 
-    override fun clear() {
+    override fun clear() = coordinator.withWriteLock {
         try {
             credentialWriter(attributes, Credentials(userName, CLEARED_MARKER))
+            coordinator.recordWrite()
         } catch (exception: Exception) {
             LOG.warn("Failed to clear stored OAuth credentials", exception)
             throw IllegalStateException("Could not clear OAuth credentials", exception)

@@ -1,6 +1,8 @@
 package de.moritzf.quota.idea.auth
 
 interface OAuthCredentialStore {
+    val coordinator: OAuthCredentialCoordinator
+
     fun load(): OAuthCredentials?
 
     fun save(credentials: OAuthCredentials)

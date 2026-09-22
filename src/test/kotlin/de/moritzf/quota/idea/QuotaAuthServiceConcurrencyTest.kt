@@ -3,6 +3,7 @@ package de.moritzf.quota.idea
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.auth.OAuthClientConfig
 import de.moritzf.quota.idea.auth.OAuthCredentialStore
+import de.moritzf.quota.idea.auth.OAuthCredentialCoordinator
 import de.moritzf.quota.idea.auth.OAuthCredentials
 import de.moritzf.quota.idea.auth.LoginResult
 import de.moritzf.quota.idea.auth.OAuthTokenRequestException
@@ -992,6 +993,7 @@ class QuotaAuthServiceConcurrencyTest {
     }
 
     private class InMemoryCredentialStore(initial: OAuthCredentials?) : OAuthCredentialStore {
+        override val coordinator = OAuthCredentialCoordinator()
         private val credentials = AtomicReference(copyCredentials(initial))
 
         override fun load(): OAuthCredentials? = copyCredentials(credentials.get())

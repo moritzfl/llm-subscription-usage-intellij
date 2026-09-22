@@ -66,6 +66,7 @@ class OAuthCredentialsStoreTest {
                 Credentials("claude-oauth", credentialsJson("legacy-token"))
             },
             credentialWriter = { _, _ -> writes++ },
+            coordinator = OAuthCredentialCoordinator(),
         )
 
         assertFailsWith<IllegalStateException> { store.load() }
@@ -78,6 +79,7 @@ class OAuthCredentialsStoreTest {
             serviceName = OAuthCredentialsStore.serviceNameForProvider(QuotaProviderType.CLAUDE),
             userName = "claude-oauth",
             credentialWriter = { _, _ -> throw IllegalStateException("Password Safe unavailable") },
+            coordinator = OAuthCredentialCoordinator(),
         )
 
         assertFailsWith<IllegalStateException> { store.clear() }
@@ -92,6 +94,7 @@ class OAuthCredentialsStoreTest {
             legacyUserName = userName,
             credentialReader = passwordSafe::get,
             credentialWriter = passwordSafe::set,
+            coordinator = OAuthCredentialCoordinator(),
         )
     }
 

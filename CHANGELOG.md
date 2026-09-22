@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Coordinated OAuth refreshes across IDEs sharing a login. Delayed refreshes can no longer overwrite a newer login or restore credentials after logout, and queued Password Safe writes no longer cause another IDE to reuse a rotated token.
 - Added Azure OpenAI accounts that use the signed-in Azure CLI identity. Each account can pin a subscription and resource. Quota calls that need extra roles are skipped instead of failing the account, so the local proxy and any usage the token can read still work.
 
 ## [1.14.0] - 2026-09-22
