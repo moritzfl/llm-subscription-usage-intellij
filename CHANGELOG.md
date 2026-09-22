@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Refined Antigravity UI with a Detect button, an explicitly labeled Google documentation link, and shorter weekly labels; removed the provider-specific quota refresh button.
 - Added quota-only Antigravity support through the official AGY CLI JSON usage report (1.1.11+), including model-group windows, reset times, and MCP quota export. Antigravity is the sole exception to plugin-managed authentication: it uses the current CLI login, with one entry and optional executable path.
 - OpenCode now uses one cookie-free Console device login for Go quotas, prepaid Zen balance, and the local Zen proxy, with automatic token refresh and organization selection. Console JSON APIs replace broken legacy page/RPC discovery; the proxy follows Console model URLs and headers with chat adapters for Responses and Anthropic Messages. Existing cookie- or API-key-based OpenCode connections need to sign in again.
 - OpenCode quota parsing preserves readable usage windows and balance when another section changes or fails, and reports partial-data warnings without hiding the remaining information.

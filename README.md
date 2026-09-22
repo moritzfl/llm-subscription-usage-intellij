@@ -80,7 +80,7 @@ Everything else is optional and lives in the same settings page: MCP tools, MCP 
 
 Quotas refresh automatically every 5 minutes, plus on login and when opening the popup. Plugin-managed credentials — OAuth tokens, API keys, and session cookies — are stored in IntelliJ Password Safe.
 
-**Antigravity is the sole CLI exception.** Install [Antigravity CLI](https://antigravity.google/docs/cli/install/) 1.1.11 or later, run `agy` in a terminal to sign in, then add Antigravity in the plugin settings. The plugin runs `agy -p /usage --output-format json` to read quotas without an agent turn. It uses the current CLI login; credentials stay with AGY. Only one Antigravity entry is supported. The executable is detected from `PATH` and standard install locations, with an optional absolute path in settings. Sign-in/account changes happen in AGY; click **Refresh quota** afterward. No credentials or conversation files are imported. Other providers continue to use plugin-managed credentials.
+**Antigravity is the sole CLI exception.** Install [Antigravity CLI (Google documentation)](https://antigravity.google/docs/cli/install/) 1.1.11 or later, run `agy` in a terminal to sign in, then add Antigravity in the plugin settings. The plugin runs `agy -p /usage --output-format json` to read quotas without an agent turn. It uses the current CLI login; credentials stay with AGY. Only one Antigravity entry is supported. Leave the executable path blank for automatic detection from `PATH` and standard install locations, use **Detect** to fill it, or browse to the binary. Sign-in/account changes happen in AGY; quotas refresh automatically. No credentials or conversation files are imported. Other providers continue to use plugin-managed credentials.
 
 ## MCP tools for IDE chat
 

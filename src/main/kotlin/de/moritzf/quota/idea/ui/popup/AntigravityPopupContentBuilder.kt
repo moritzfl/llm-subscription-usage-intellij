@@ -29,7 +29,8 @@ internal class AntigravityPopupSection : ProviderPopupSection() {
         blocks.forEach { it.clear() }
         if (error == null && quota is AntigravityQuota) {
             for ((index, window) in quota.windows.withIndex()) {
-                val title = "${window.group} / ${window.label}"
+                val label = if (window.window == "weekly") "Weekly" else window.label
+                val title = "${window.group} / $label"
                 val percent = window.usagePercent?.roundToInt()
                 val info = buildList {
                     add(when {
