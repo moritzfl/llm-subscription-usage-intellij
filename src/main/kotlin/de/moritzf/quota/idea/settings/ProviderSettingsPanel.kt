@@ -8,6 +8,7 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
+import de.moritzf.quota.idea.common.QuotaUsageService
 import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.Font
@@ -103,12 +104,31 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
         viewer: JBTextArea,
         title: String = "Last quota response",
     ): JComponent {
+        val refreshButton = JButton(AllIcons.Actions.Refresh).apply {
+            isOpaque = false
+            isBorderPainted = false
+            isContentAreaFilled = false
+            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+            toolTipText = "Refresh quota"
+            accessibleContext.accessibleName = "Refresh quota"
+            addActionListener {
+                val accountId = boundAccountId
+                val service = QuotaUsageService.getInstance()
+                if (service.providerForAccount(accountId) == null) {
+                    viewer.text = "Apply settings to refresh quota for this account."
+                    viewer.caretPosition = 0
+                } else {
+                    service.refreshAsync(accountId, forceUpdate = true)
+                }
+            }
+        }
         val copyButton = JButton(AllIcons.Actions.Copy).apply {
             isOpaque = false
             isBorderPainted = false
             isContentAreaFilled = false
             cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
             toolTipText = "Copy last quota response"
+            accessibleContext.accessibleName = "Copy last quota response"
             addActionListener {
                 Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(viewer.text), null)
                 icon = AllIcons.Actions.Checked
@@ -125,7 +145,11 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
         val headerRow = BorderLayoutPanel().apply {
             isOpaque = false
             addToLeft(JBLabel(title))
-            addToRight(copyButton)
+            addToRight(BorderLayoutPanel().apply {
+                isOpaque = false
+                addToLeft(refreshButton)
+                addToRight(copyButton)
+            })
         }
         return BorderLayoutPanel().apply {
             isOpaque = false
