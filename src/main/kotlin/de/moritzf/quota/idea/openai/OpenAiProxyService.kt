@@ -18,7 +18,7 @@ import de.moritzf.quota.idea.github.GitHubCredentialsStore
 import de.moritzf.quota.idea.kimi.KimiCredentialsStore
 import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
 import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
-import de.moritzf.quota.idea.opencode.OpenCodeApiKeyStore
+import de.moritzf.quota.idea.opencode.OpenCodeAuthService
 import de.moritzf.quota.idea.settings.QuotaSettingsListener
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
@@ -36,7 +36,7 @@ class OpenAiProxyService(
     private val kimiCredentialsStoreProvider: () -> KimiCredentialsStore = { KimiCredentialsStore.getInstance() },
     private val miniMaxApiKeyStoreProvider: () -> MiniMaxApiKeyStore = { MiniMaxApiKeyStore.getInstance() },
     private val ollamaApiKeyStoreProvider: () -> OllamaApiKeyStore = { OllamaApiKeyStore.getInstance() },
-    private val openCodeApiKeyStoreProvider: () -> OpenCodeApiKeyStore = { OpenCodeApiKeyStore.getInstance() },
+    private val openCodeAuthServiceProvider: () -> OpenCodeAuthService = { OpenCodeAuthService.getInstance() },
     private val zaiApiKeyStoreProvider: () -> ZaiApiKeyStore = { ZaiApiKeyStore.getInstance() },
     private val executor: Executor = AppExecutorUtil.getAppExecutorService(),
     subscribeToSettings: Boolean = true,
@@ -156,7 +156,7 @@ class OpenAiProxyService(
             kimiCredentials = kimiCredentialsStoreProvider,
             miniMaxApiKey = miniMaxApiKeyStoreProvider,
             ollamaApiKey = ollamaApiKeyStoreProvider,
-            openCodeApiKey = openCodeApiKeyStoreProvider,
+            openCodeAuth = openCodeAuthServiceProvider,
             zaiApiKey = zaiApiKeyStoreProvider,
         )
         return ProviderCatalog.createIdeProxyProviders(

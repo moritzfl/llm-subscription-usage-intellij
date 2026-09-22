@@ -11,9 +11,8 @@ import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
 import de.moritzf.quota.idea.mistral.MistralApiKeyStore
 import de.moritzf.quota.idea.mistral.MistralSessionCookieStore
 import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
-import de.moritzf.quota.idea.opencode.OpenCodeApiKeyStore
 import de.moritzf.quota.idea.opencode.OpenCodeAuthService
-import de.moritzf.quota.idea.opencode.LegacyOpenCodeCookie
+import de.moritzf.quota.idea.opencode.LegacyOpenCodeSecrets
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 import com.intellij.openapi.diagnostic.Logger
 
@@ -39,8 +38,7 @@ internal object AccountSecrets {
             QuotaProviderType.CURSOR -> CursorCredentialsStore.forAccount(id).clearSessionCookie()
             QuotaProviderType.OPEN_CODE -> {
                 OpenCodeAuthService.getInstance().clearCredentials(id)
-                LegacyOpenCodeCookie.clear(id)
-                OpenCodeApiKeyStore.forAccount(id).clear()
+                LegacyOpenCodeSecrets.clear(id)
             }
             QuotaProviderType.GITHUB -> {
                 runCatching { GitHubAuthService.forAccount(id).clearCredentials() }

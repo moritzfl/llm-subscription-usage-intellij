@@ -6,14 +6,12 @@ import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
-import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.idea.auth.OAuthCredentials
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
-import de.moritzf.quota.idea.opencode.OpenCodeApiKeyStore
 import de.moritzf.quota.idea.opencode.OpenCodeAuthService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.opencode.OpenCodeWorkspace
@@ -36,10 +34,6 @@ internal class OpenCodeSettingsPanel(
     private val userCodeLabel = JBLabel().apply { isVisible = false }
     private val workspaceComboBox = ComboBox<OpenCodeWorkspace>()
     private val workspaceStatus = JBLabel()
-    private val apiKeyField = JBPasswordField().apply {
-        columns = 40
-        toolTipText = "Optional OpenCode API key for the local proxy"
-    }
     private val responseViewer = createResponseViewer()
     private var verificationUrl: String? = null
     private var authMessage: AuthStatusMessage? = null
@@ -123,15 +117,10 @@ internal class OpenCodeSettingsPanel(
                 cell(cancelButton).gap(RightGap.SMALL)
                 cell(logoutButton)
             }
-            row { text("Sign in through OpenCode Console for Go quotas and Zen balance. Select the organization in your browser.") }
+            row { text("Sign in through OpenCode Console for Go quotas, Zen balance, and the local Zen proxy. Select the organization in your browser.") }
             row("Organization:") { cell(workspaceComboBox).resizableColumn().align(AlignX.FILL) }
             row { cell(workspaceStatus) }
-            row { text("To change a browser-scoped organization, sign in again. An API key is only needed for the local Zen proxy.") }
-            row("Proxy API key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
-            row {
-                button("Save API Key") { saveApiKey(clear = false) }
-                button("Clear API Key") { saveApiKey(clear = true) }
-            }
+            row { text("To change a browser-scoped organization, sign in again.") }
         }, createResponseSection(responseViewer))
     }
 
@@ -147,8 +136,6 @@ internal class OpenCodeSettingsPanel(
             loggingOut = false
             replaceWorkspaces(emptyList(), null)
         }
-        val key = OpenCodeApiKeyStore.forAccount(id).load { onUi(id) { updateFields() } }
-        apiKeyField.text = if (key.isNullOrBlank()) "" else API_KEY_PLACEHOLDER
         val credentials = auth().load(id) { onUi(id) { updateFields() } }
         if (credentials != null && credentials !== workspaceCredentials && !loggingOut) {
             workspaceCredentials = credentials
@@ -237,24 +224,6 @@ internal class OpenCodeSettingsPanel(
         ?: (workspaceComboBox.selectedItem as? OpenCodeWorkspace)?.id
         ?: boundAccount?.extra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE)
 
-    private fun saveApiKey(clear: Boolean) {
-        val id = accountId()
-        val key = String(apiKeyField.password).trim()
-        if (!clear && (key.isBlank() || key == API_KEY_PLACEHOLDER)) return
-        ApplicationManager.getApplication().executeOnPooledThread {
-            val result = runCatching {
-                val store = OpenCodeApiKeyStore.forAccount(id)
-                if (clear) store.clear() else store.save(key)
-            }
-            onUi(id) {
-                authMessage = result.exceptionOrNull()?.let {
-                    AuthStatusMessage(it.message ?: "Could not save API key", true, AuthStatusKind.DISCONNECTED)
-                }
-                updateFields()
-            }
-        }
-    }
-
     override fun updateResponseArea() {
         val service = QuotaUsageService.getInstance()
         val raw = service.getLastResponseJson(accountId())
@@ -272,9 +241,5 @@ internal class OpenCodeSettingsPanel(
         ApplicationManager.getApplication().invokeLater({
             if (accountId() == id) action()
         }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
-    }
-
-    private companion object {
-        const val API_KEY_PLACEHOLDER = "********"
     }
 }

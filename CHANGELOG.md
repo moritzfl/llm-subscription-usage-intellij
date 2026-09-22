@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- OpenCode quota checks now use cookie-free Console device login with automatic token refresh and organization selection. Go usage windows and prepaid Zen balance use the new Console JSON APIs, replacing broken legacy page/RPC discovery. Existing OpenCode connections need to sign in again.
+- OpenCode now uses one cookie-free Console device login for Go quotas, prepaid Zen balance, and the local Zen proxy, with automatic token refresh and organization selection. Console JSON APIs replace broken legacy page/RPC discovery; the proxy follows Console model URLs and headers with chat adapters for Responses and Anthropic Messages. Existing cookie- or API-key-based OpenCode connections need to sign in again.
 - OpenCode quota parsing preserves readable usage windows and balance when another section changes or fails, and reports partial-data warnings without hiding the remaining information.
 
 ## [1.13.6] - 2026-09-21

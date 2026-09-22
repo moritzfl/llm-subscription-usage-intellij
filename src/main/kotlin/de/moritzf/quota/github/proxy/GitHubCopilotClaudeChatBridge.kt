@@ -21,7 +21,9 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 
 /** OpenAI chat/completions <-> Anthropic messages bridge for Claude on GitHub Copilot. */
-internal class GitHubCopilotClaudeChatBridge {
+internal class GitHubCopilotClaudeChatBridge(
+    private val bridgeModel: (String) -> Boolean = ::isClaudeModel,
+) {
     private val streamToolCallIndexes = ConcurrentHashMap<String, MutableMap<Int, Int>>()
     private val remoteImageHttpClient = HttpClient.newBuilder()
         .connectTimeout(java.time.Duration.ofSeconds(30))
@@ -35,7 +37,7 @@ internal class GitHubCopilotClaudeChatBridge {
     fun shouldBridge(request: SubscriptionProxyRequest): Boolean {
         return request.route == SubscriptionProxyRoute.CHAT_COMPLETIONS &&
             SubscriptionProxyRoute.ANTHROPIC_MESSAGES in request.model.supportedRoutes &&
-            isClaudeModel(request.model.upstreamId)
+            bridgeModel(request.model.upstreamId)
     }
 
     fun openAiChatToAnthropicMessagesBody(request: SubscriptionProxyRequest, body: JsonObject): JsonObject {

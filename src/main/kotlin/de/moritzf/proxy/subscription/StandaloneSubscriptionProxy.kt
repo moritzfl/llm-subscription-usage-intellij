@@ -12,6 +12,7 @@ import de.moritzf.quota.mistral.proxy.MistralSubscriptionProxyProvider
 import de.moritzf.quota.ollama.proxy.OllamaSubscriptionProxyProvider
 import de.moritzf.quota.openai.proxy.OpenAiCodexSubscriptionProxyProvider
 import de.moritzf.quota.opencode.proxy.OpenCodeZenSubscriptionProxyProvider
+import de.moritzf.quota.opencode.proxy.OpenCodeConsoleSession
 import de.moritzf.quota.supergrok.proxy.SuperGrokSubscriptionProxyProvider
 import de.moritzf.quota.zai.proxy.ZaiSubscriptionProxyProvider
 import java.awt.Desktop
@@ -232,7 +233,11 @@ private fun createProviders(
     }
     if ("opencode" in selected || "opencode-zen" in selected || "zen" in selected) {
         providers += OpenCodeZenSubscriptionProxyProvider(
-            apiKeyProvider = { env.value("OPENCODE_PROXY_API_KEY") ?: env.value("OPENCODE_API_KEY") },
+            consoleSessionProvider = {
+                env.value("OPENCODE_PROXY_ACCESS_TOKEN")?.let { token ->
+                    OpenCodeConsoleSession("opencode", token, env.value("OPENCODE_PROXY_ORG_ID")) { null }
+                }
+            },
             fullRequestLogging = options.logRequests,
             requestLogDir = options.requestLogDir,
         )

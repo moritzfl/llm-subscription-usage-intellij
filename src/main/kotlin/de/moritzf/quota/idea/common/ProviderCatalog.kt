@@ -14,7 +14,6 @@ import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
 import de.moritzf.quota.idea.mistral.MistralApiKeyStore
 import de.moritzf.quota.idea.mistral.MistralSessionCookieStore
 import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
-import de.moritzf.quota.idea.opencode.OpenCodeApiKeyStore
 import de.moritzf.quota.idea.opencode.OpenCodeAuthService
 import de.moritzf.quota.idea.settings.ClaudeSettingsPanel
 import de.moritzf.quota.idea.settings.CursorSettingsPanel
@@ -351,7 +350,7 @@ internal object ProviderCatalog {
             ),
             settings = { ctx -> OpenCodeSettingsPanel(ctx.modalityComponentProvider, ctx.statusLabelDefaultForeground) },
             ui = OpenCodeUi,
-            // Quota uses Console OAuth; proxy uses API key.
+            // One Console login covers quota and proxy.
             isQuotaConfigured = {
                 OpenCodeAuthService.getInstance().loadBlocking(QuotaProviderType.OPEN_CODE.id) != null
             },
@@ -360,7 +359,9 @@ internal object ProviderCatalog {
             },
             isProxyConfigured = { onLoaded ->
                 anyAccount(QuotaProviderType.OPEN_CODE) { id ->
-                    !OpenCodeApiKeyStore.forAccount(id).load(onLoaded = onLoaded).isNullOrBlank()
+                    OpenCodeAuthService.getInstance().load(id, onLoaded = {
+                        onLoaded?.let { com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(it) }
+                    }) != null
                 }
             },
             ideProxyFactory = IdeProxyFactories::openCode,

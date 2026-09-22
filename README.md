@@ -41,7 +41,7 @@ Track and use your LLM subscriptions directly in IntelliJ IDEA.
 | SuperGrok / xAI | Browser login | ✓ | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ |
 | GitHub Copilot | Device code | ✓ | — | — | — | — | — | ✓ |
 | Cursor | Session cookie | ✓ | — | — | — | — | — | — |
-| OpenCode (Go / Zen) | Browser login (quota); API key (proxy) | ✓ | — | — | — | — | — | ✓ |
+| OpenCode (Go / Zen) | Browser login | ✓ | — | — | — | — | — | ✓ |
 | Ollama Cloud | API key | ✓ | ✓ | — | — | — | — | ✓ |
 | Z.ai | API key | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ | ✓ |
 | MiniMax | Subscription key | ✓ | ✓ | ✓ | — | ✓ | — | ✓ |

@@ -9,7 +9,6 @@ import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
 import de.moritzf.quota.idea.mistral.MistralApiKeyStore
 import de.moritzf.quota.idea.mistral.MistralSessionCookieStore
 import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
-import de.moritzf.quota.idea.opencode.OpenCodeApiKeyStore
 import de.moritzf.quota.idea.opencode.OpenCodeAuthService
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 
@@ -36,8 +35,7 @@ internal object TypeHasStoredCredentials {
             QuotaProviderType.OLLAMA ->
                 !OllamaApiKeyStore.getInstance().loadBlocking().isNullOrBlank()
             QuotaProviderType.OPEN_CODE ->
-                OpenCodeAuthService.getInstance().loadBlocking(type.id) != null ||
-                    !OpenCodeApiKeyStore.getInstance().loadBlocking().isNullOrBlank()
+                OpenCodeAuthService.getInstance().loadBlocking(type.id) != null
             QuotaProviderType.ZAI ->
                 !ZaiApiKeyStore.getInstance().loadBlocking().isNullOrBlank()
         }

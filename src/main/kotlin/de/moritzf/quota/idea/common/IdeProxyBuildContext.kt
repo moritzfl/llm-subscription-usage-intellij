@@ -12,7 +12,8 @@ import de.moritzf.quota.idea.kimi.KimiCredentialsStore
 import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
 import de.moritzf.quota.idea.mistral.MistralApiKeyStore
 import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
-import de.moritzf.quota.idea.opencode.OpenCodeApiKeyStore
+import de.moritzf.quota.idea.opencode.OpenCodeAuthService
+import de.moritzf.quota.opencode.proxy.OpenCodeConsoleSession
 import com.intellij.openapi.diagnostic.Logger
 import de.moritzf.quota.idea.settings.AccountCapability
 import de.moritzf.quota.idea.settings.AccountResolveException
@@ -42,7 +43,7 @@ internal data class IdeProxyBuildContext(
     val miniMaxApiKey: () -> MiniMaxApiKeyStore = { MiniMaxApiKeyStore.getInstance() },
     val mistralApiKey: () -> MistralApiKeyStore = { MistralApiKeyStore.getInstance() },
     val ollamaApiKey: () -> OllamaApiKeyStore = { OllamaApiKeyStore.getInstance() },
-    val openCodeApiKey: () -> OpenCodeApiKeyStore = { OpenCodeApiKeyStore.getInstance() },
+    val openCodeAuth: () -> OpenCodeAuthService = { OpenCodeAuthService.getInstance() },
     val zaiApiKey: () -> ZaiApiKeyStore = { ZaiApiKeyStore.getInstance() },
 )
 
@@ -166,9 +167,15 @@ internal object IdeProxyFactories {
 
     fun openCode(ctx: IdeProxyBuildContext): SubscriptionProxyProvider {
         return OpenCodeZenSubscriptionProxyProvider(
-            apiKeyProvider = {
+            consoleSessionProvider = {
                 resolvedAccount(ctx, QuotaProviderType.OPEN_CODE)?.let { account ->
-                    OpenCodeApiKeyStore.forAccount(account.id).loadBlocking()
+                    val auth = ctx.openCodeAuth()
+                    auth.credentials(account.id)?.let { credentials ->
+                        val organization = credentials.accountId ?: ctx.settings.openCodeWorkspaceIdFor(account.id)
+                        OpenCodeConsoleSession(account.id, checkNotNull(credentials.accessToken), organization) { stale ->
+                            auth.credentials(account.id, stale)?.takeIf { it.accountId == credentials.accountId }?.accessToken
+                        }
+                    }
                 }
             },
             fullRequestLogging = ctx.logRequests,

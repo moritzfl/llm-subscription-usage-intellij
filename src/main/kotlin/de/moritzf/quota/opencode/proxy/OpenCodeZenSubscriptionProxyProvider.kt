@@ -1,50 +1,46 @@
 package de.moritzf.quota.opencode.proxy
 
-import de.moritzf.proxy.subscription.OpenAiCompatibleApiKeySubscriptionProxyProvider
-import de.moritzf.proxy.subscription.SubscriptionProxyRoute
+import de.moritzf.proxy.server.JsonHelper
+import de.moritzf.proxy.server.ProxyCall
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyRequest
+import de.moritzf.proxy.logging.RequestLogger
+import de.moritzf.quota.opencode.OpenCodeQuotaClient
 import java.net.URI
 import java.net.http.HttpClient
+import java.nio.file.Path
 
 class OpenCodeZenSubscriptionProxyProvider(
-    apiKeyProvider: () -> String?,
+    private val consoleSessionProvider: () -> OpenCodeConsoleSession?,
     httpClient: HttpClient = HttpClient.newHttpClient(),
-    upstreamBaseUri: URI = DEFAULT_UPSTREAM_BASE_URI,
     fullRequestLogging: Boolean = false,
     requestLogDir: String = DEFAULT_REQUEST_LOG_DIR,
+    consoleEndpoint: URI = OpenCodeQuotaClient.DEFAULT_ENDPOINT,
 ) : SubscriptionProxyProvider {
-    private val delegate = OpenAiCompatibleApiKeySubscriptionProxyProvider(
-        id = ID,
-        displayName = DISPLAY_NAME,
-        litellmProvider = LITELLM_PROVIDER,
-        baseUri = upstreamBaseUri,
-        apiKeyProvider = apiKeyProvider,
-        localIdPrefix = PREFIX,
-        httpClient = httpClient,
-        fullRequestLogging = fullRequestLogging,
-        requestLogDir = requestLogDir,
-    )
+    private val console = OpenCodeConsoleProxy(httpClient, RequestLogger(fullRequestLogging, Path.of(requestLogDir)), consoleEndpoint)
 
     override val id: String = ID
     override val displayName: String = DISPLAY_NAME
 
-    override fun isConfigured(): Boolean = delegate.isConfigured()
+    override fun isConfigured(): Boolean = runCatching { consoleSessionProvider() != null }.getOrDefault(false)
 
-    override fun models() = delegate.models()
+    override fun models() = runCatching {
+        consoleSessionProvider()?.let { session -> console.models(session).map { it.model } }.orEmpty()
+    }.getOrDefault(emptyList())
 
-    override fun fallbackModel(localId: String, route: SubscriptionProxyRoute) = delegate.fallbackModel(localId, route)
-
-    override suspend fun handle(ctx: de.moritzf.proxy.server.ProxyCall, request: SubscriptionProxyRequest) {
-        delegate.handle(ctx, request)
+    override suspend fun handle(ctx: ProxyCall, request: SubscriptionProxyRequest) {
+        val session = consoleSessionProvider()
+        if (session == null) {
+            JsonHelper.toErrorResponse(ctx, "OpenCode Console login required.", 401, "authentication_error")
+            return
+        }
+        console.handle(ctx, request, session)
     }
 
     companion object {
         const val ID = "opencode"
         const val PREFIX = "oc-"
         private const val DISPLAY_NAME = "OpenCode Zen"
-        private const val LITELLM_PROVIDER = "opencode"
-        val DEFAULT_UPSTREAM_BASE_URI: URI = URI.create("https://opencode.ai/zen/v1")
         private val DEFAULT_REQUEST_LOG_DIR = System.getProperty("java.io.tmpdir") +
             "/openai-usage-quota-intellij/subscription-proxy-opencode-requests"
     }
