@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Replaced the Azure placeholder icon with the supplied Azure mark, adapted for light and dark IDE themes.
 - Temporary token-refresh and quota failures now keep the last quota visible instead of looking like a logout. Claude settings distinguish retained logins from reconnect-required states and allow reconnecting directly. Still-valid access tokens remain usable after an early refresh fails; expired or rejected tokens are never reused.
 - Coordinated OAuth refreshes across IDEs sharing a login. Delayed refreshes can no longer overwrite a newer login or restore credentials after logout, and queued Password Safe writes no longer cause another IDE to reuse a rotated token.
 - Added Azure OpenAI accounts that use the signed-in Azure CLI identity. Each account can pin a subscription and resource. Quota calls that need extra roles are skipped instead of failing the account, so the local proxy and any usage the token can read still work.
