@@ -18,7 +18,7 @@ class AzureQuotaProvider(
         val executable = executableForAccount(accountId)
             ?: throw AzureCliException("Azure CLI not found. Install az or set its path in settings.")
         val config = configForAccount(accountId)
-        AzureQuotaClient(AzureCli(executable), liveUsage = { AzureLiveUsage.read(accountId) }).fetch(config)
+        AzureQuotaClient(AzureCli(executable), liveUsage = { AzureLiveUsage.read(AzureLiveUsage.key(accountId, config)) }).fetch(config)
     },
 ) : CachedQuotaProvider<AzureQuota>() {
     override val type = QuotaProviderType.AZURE

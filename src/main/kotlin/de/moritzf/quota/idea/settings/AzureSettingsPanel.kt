@@ -70,7 +70,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
             }
             row("Deployments:") {
                 cell(deploymentsField).align(AlignX.FILL).resizableColumn()
-                    .comment("Optional deployment names. Used when the model list is not readable. Proxy still accepts other names.")
+                    .comment("Optional deployment names. Used when discovery is unavailable. Proxy accepts az-<deployment-name> even if unlisted.")
             }
             row {
                 browserLink(

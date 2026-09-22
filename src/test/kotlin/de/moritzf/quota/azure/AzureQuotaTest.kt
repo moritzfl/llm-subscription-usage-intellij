@@ -91,7 +91,7 @@ class AzureQuotaTest {
     fun quotaFetchKeepsIdentityWhenUsageIsForbidden() {
         val cli = AzureCli(java.nio.file.Path.of("/usr/bin/az"), run = { _, args, _, _ ->
             when {
-                args.contains("show") -> """{"id":"00000000-0000-0000-0000-000000000000","name":"Personal","user":{"name":"me@contoso.com","type":"user"}}"""
+                args.contains("list") -> """[{"id":"00000000-0000-0000-0000-000000000000","name":"Personal","isDefault":true,"user":{"name":"me@contoso.com","type":"user"}}]"""
                 args.contains("--scope") && args.any { it.contains("management") } -> """{"accessToken":"mgmt","expires_on":4102444800}"""
                 args.contains("--scope") -> """{"accessToken":"data","expires_on":4102444800}"""
                 else -> error("unexpected $args")

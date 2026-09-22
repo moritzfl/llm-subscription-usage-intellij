@@ -1,16 +1,33 @@
 package de.moritzf.quota.azure.proxy
 
 import de.moritzf.proxy.subscription.SubscriptionProxyRoute
+import de.moritzf.proxy.subscription.OpenAiCompatibleApiKeySubscriptionProxyProvider
+import de.moritzf.proxy.subscription.SubscriptionModelCatalog
 import de.moritzf.quota.azure.AzureAccountConfig
 import de.moritzf.quota.azure.AzureCli
 import de.moritzf.quota.azure.azureUpstreamUrl
 import java.nio.file.Path
+import java.net.URI
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 class AzureSubscriptionProxyProviderTest {
+    @Test
+    fun azureDoesNotStealOtherProvidersUndiscoveredPrefixedModels() {
+        val other = OpenAiCompatibleApiKeySubscriptionProxyProvider(
+            id = "minimax",
+            displayName = "MiniMax",
+            litellmProvider = "minimax",
+            baseUri = URI("https://unused.invalid"),
+            apiKeyProvider = { "test-key" },
+            localIdPrefix = "mm-",
+            discoverModels = false,
+        )
+        val catalog = SubscriptionModelCatalog(listOf(provider(), other))
+        assertEquals("minimax", catalog.resolve("mm-new-model", SubscriptionProxyRoute.CHAT_COMPLETIONS)?.providerId)
+    }
+
     @Test
     fun advertisedModelsUseAzPrefixAndUnknownDeploymentsStillProxy() {
         val provider = provider(deploymentNames = listOf("gpt-4o"))
@@ -19,9 +36,11 @@ class AzureSubscriptionProxyProviderTest {
         assertEquals("gpt-4o", advertised.upstreamId)
         assertEquals(true, advertised.isDefault)
 
-        val fallback = provider.fallbackModel("my-deployment", SubscriptionProxyRoute.CHAT_COMPLETIONS)
+        val fallback = provider.fallbackModel("az-my-deployment", SubscriptionProxyRoute.CHAT_COMPLETIONS)
         assertEquals("my-deployment", fallback?.upstreamId)
         assertNull(provider.fallbackModel("../etc", SubscriptionProxyRoute.CHAT_COMPLETIONS))
+        assertNull(provider.fallbackModel("my-deployment", SubscriptionProxyRoute.CHAT_COMPLETIONS))
+        assertNull(provider.fallbackModel("az-../etc", SubscriptionProxyRoute.CHAT_COMPLETIONS))
         assertNull(provider.fallbackModel("gpt-4o", SubscriptionProxyRoute.FIM_COMPLETIONS))
     }
 
@@ -31,7 +50,7 @@ class AzureSubscriptionProxyProviderTest {
             "https://demo.openai.azure.com/openai/v1/chat/completions?api-version=v1",
             azureUpstreamUrl("https://demo.openai.azure.com/openai/v1", "/chat/completions"),
         )
-        assertNotNull(provider().isConfigured())
+        assertEquals(true, provider().isConfigured())
     }
 
     private fun provider(deploymentNames: List<String> = emptyList()) = AzureSubscriptionProxyProvider(

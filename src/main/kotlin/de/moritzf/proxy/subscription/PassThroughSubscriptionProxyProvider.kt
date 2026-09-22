@@ -46,6 +46,7 @@ class PassThroughSubscriptionProxyProvider(
     private val sseDataTransformer: ((SubscriptionProxyRequest, String) -> String)? = null,
     private val sseLineTransformer: ((SubscriptionProxyRequest, String) -> String?)? = null,
     private val sseStreamComplete: ((SubscriptionProxyRequest) -> Unit)? = null,
+    private val responseHeadersObserver: (SubscriptionProxyRequest, Map<String, List<String>>) -> Unit = { _, _ -> },
     private val httpClient: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(30))
         .build(),
@@ -111,6 +112,7 @@ class PassThroughSubscriptionProxyProvider(
                 )
             }
         }
+        runCatching { responseHeadersObserver(request, response.headers().map()) }
         return response
     }
 

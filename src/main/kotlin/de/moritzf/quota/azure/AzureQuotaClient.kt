@@ -46,7 +46,7 @@ internal class AzureQuotaClient(
 ) {
     fun fetch(config: AzureAccountConfig): AzureQuota {
         val warnings = config.warnings.toMutableList()
-        val identity = cli.showAccount(config.subscriptionId)
+        val identity = cli.resolveAccount(config.subscriptionId)
         val subscriptionId = config.subscriptionId ?: identity.subscriptionId
         val target = azureInferenceTarget(config)
         val managementRoot = azureManagementRoot(target?.host)

@@ -40,39 +40,19 @@ internal class AzureCli(
     private val run: (Path, List<String>, Long, Int) -> String = ::runAzure,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
-    private val lock = Any()
-    private val tokens = mutableMapOf<String, AzureAccessToken>()
-
     fun listAccounts(): List<AzureCliAccount> = parseAzureAccountList(runJson(listOf("account", "list", "--output", "json")))
 
-    fun showAccount(subscriptionId: String?): AzureCliAccount {
-        val args = buildList {
-            add("account")
-            add("show")
-            if (!subscriptionId.isNullOrBlank()) {
-                add("--subscription")
-                add(subscriptionId)
-            }
-            add("--output")
-            add("json")
+    fun resolveAccount(subscriptionId: String?): AzureCliAccount {
+        return listAccounts().firstOrNull { account ->
+            if (subscriptionId.isNullOrBlank()) account.isDefault
+            else account.subscriptionId.equals(subscriptionId, ignoreCase = true)
         }
-        return parseAzureAccount(runJson(args))
             ?: throw AzureCliException("Azure CLI did not return a subscription. Run az login, then retry.")
     }
 
-    fun invalidate() = synchronized(lock) { tokens.clear() }
-
+    // Azure CLI owns token caching. A plugin-side cache would outlive az login/logout or
+    // changes to the default subscription, silently retaining the previous identity.
     fun accessToken(scope: String, subscriptionId: String?): AzureAccessToken {
-        val key = "$scope|${subscriptionId.orEmpty()}"
-        synchronized(lock) {
-            tokens[key]?.takeIf { it.expiresAtMillis - clock() > REFRESH_BUFFER_MILLIS }?.let { return it }
-        }
-        val token = requestToken(scope, subscriptionId)
-        synchronized(lock) { tokens[key] = token }
-        return token
-    }
-
-    private fun requestToken(scope: String, subscriptionId: String?): AzureAccessToken {
         val scopeArgs = tokenArgs("--scope", scope, subscriptionId)
         val scoped = runCatching { runJson(scopeArgs) }
         val raw = scoped.getOrElse {
@@ -109,7 +89,6 @@ internal class AzureCli(
     companion object {
         private const val COMMAND_TIMEOUT_MILLIS = 20_000L
         private const val MAX_OUTPUT_BYTES = 1_048_576
-        private const val REFRESH_BUFFER_MILLIS = 60_000L
 
         fun findExecutable(
             configuredPath: String? = null,
@@ -203,8 +182,6 @@ internal fun parseAzureAccountList(raw: String): List<AzureCliAccount> {
         .filter { it.subscriptionId.isNotEmpty() }
         .sortedWith(compareByDescending<AzureCliAccount> { it.userType.equals("user", ignoreCase = true) }.thenBy { it.subscriptionName })
 }
-
-internal fun parseAzureAccount(raw: String): AzureCliAccount? = parseAzureAccount(azureJsonObject(raw))
 
 private fun parseAzureAccount(json: JsonObject?): AzureCliAccount? {
     val id = json?.text("id") ?: return null

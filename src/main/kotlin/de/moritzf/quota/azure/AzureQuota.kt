@@ -91,6 +91,9 @@ internal object AzureLiveUsage {
     }
 
     fun read(accountKey: String): AzureRateLimitSnapshot? = values[accountKey]
+
+    fun key(accountId: String, config: AzureAccountConfig): String =
+        "$accountId|${AzureQuotaClient.catalogKey(config.subscriptionId, config)}"
 }
 
 internal fun parseAzureUsages(raw: String): Pair<List<AzureUsageWindow>, List<String>> {
