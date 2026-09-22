@@ -17,6 +17,8 @@ import de.moritzf.quota.ollama.OllamaQuotaClient
 import de.moritzf.quota.ollama.OllamaResetSchedule
 import de.moritzf.quota.shared.JsonSupport
 import java.awt.Color
+import java.awt.event.FocusAdapter
+import java.awt.event.FocusEvent
 import java.util.concurrent.atomic.AtomicLong
 import javax.swing.JComponent
 
@@ -29,7 +31,12 @@ internal class OllamaSettingsPanel(
 ) : ProviderSettingsPanel() {
     val monthlyResetField = JBTextField().apply {
         columns = 40
-        toolTipText = "Optional ISO-8601 UTC reset from ollama.com/settings data-time, e.g. 2026-10-02T18:08:50Z"
+        toolTipText = "Optional ISO-8601 UTC reset, or a paste of the ollama.com/settings page"
+        addFocusListener(object : FocusAdapter() {
+            override fun focusLost(e: FocusEvent) {
+                collapsePastedReset()
+            }
+        })
     }
     private val apiKeyField = JBPasswordField().apply {
         columns = 40
@@ -57,7 +64,8 @@ internal class OllamaSettingsPanel(
                     .resizableColumn()
                     .align(AlignX.FILL)
                     .comment(
-                        "Optional. Paste one ISO-8601 UTC time from ollama.com/settings (the Monthly usage data-time). " +
+                        "Optional. Paste an ISO-8601 UTC time, or the ollama.com/settings page HTML. " +
+                            "The Monthly usage Resets data-time is kept; other timestamps are ignored. " +
                             "Used only on monthly credit plans. Same day and clock each calendar month.",
                     )
             }
@@ -75,12 +83,22 @@ internal class OllamaSettingsPanel(
     }
 
     fun normalizedMonthlyResetForStorage(): String? {
+        collapsePastedReset()
         val raw = monthlyResetField.text.trim()
         if (raw.isEmpty()) return null
         return OllamaResetSchedule.parseMonthlyAnchor(raw)?.toString()
             ?: throw ConfigurationException(
-                "Ollama monthly reset must be ISO-8601 UTC (for example 2026-10-02T18:08:50Z from ollama.com/settings data-time).",
+                "Ollama monthly reset must be ISO-8601 UTC, or ollama.com/settings HTML containing the Monthly usage Resets data-time.",
             )
+    }
+
+    private fun collapsePastedReset() {
+        val raw = monthlyResetField.text
+        if (!raw.contains('<') && !raw.contains("data-time", ignoreCase = true)) return
+        val canonical = OllamaResetSchedule.parseMonthlyAnchor(raw)?.toString() ?: return
+        if (monthlyResetField.text != canonical) {
+            monthlyResetField.text = canonical
+        }
     }
 
     override fun updateFields() {

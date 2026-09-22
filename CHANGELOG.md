@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Ollama monthly reset accepts a paste of the ollama.com/settings page. The Monthly usage Resets `data-time` is stored; other timestamps on the page are ignored.
+
 ## [1.13.5] - 2026-09-21
 
 - Streamable HTTP MCP URL sync writes IntelliJ's `/stream` endpoint (or `getServerStreamUrl` when the IDE exposes it), not `/mcp`.

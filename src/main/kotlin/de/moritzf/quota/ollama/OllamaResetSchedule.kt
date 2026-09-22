@@ -65,16 +65,40 @@ object OllamaResetSchedule {
     }
 
     fun parseMonthlyAnchor(raw: String?): Instant? {
-        val value = raw?.trim()?.trim('"')?.takeIf { it.isNotEmpty() } ?: return null
-        runCatching { Instant.parse(value) }.getOrNull()?.let { return it }
-        val javaInstant = runCatching { java.time.Instant.parse(value) }.getOrNull()
-        if (javaInstant != null) {
-            return Instant.fromEpochSeconds(javaInstant.epochSecond, javaInstant.nano.toLong())
-        }
-        val date = runCatching { LocalDate.parse(value) }.getOrNull() ?: return null
+        val value = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val unquoted = value.trim('"')
+        parseInstant(unquoted)?.let { return it }
+        extractResetDataTime(value)?.let { return it }
+        val date = runCatching { LocalDate.parse(unquoted) }.getOrNull() ?: return null
         val start = date.atStartOfDay().toEpochSecond(ZoneOffset.UTC)
         return Instant.fromEpochSeconds(start)
     }
+
+    /**
+     * ollama.com/settings HTML has many `data-time` stamps (recent requests). The monthly
+     * anniversary is the one whose element text starts with "Reset".
+     */
+    private fun extractResetDataTime(raw: String): Instant? {
+        if (!raw.contains('<') && !raw.contains("data-time", ignoreCase = true)) return null
+        RESET_ELEMENT_DATA_TIME.find(raw)?.groupValues?.getOrNull(1)?.let { stamp ->
+            parseInstant(stamp)?.let { return it }
+        }
+        val stamps = DATA_TIME_ATTR.findAll(raw).map { it.groupValues[1] }.distinct().toList()
+        if (stamps.size != 1) return null
+        return parseInstant(stamps.single())
+    }
+
+    private fun parseInstant(value: String): Instant? {
+        runCatching { Instant.parse(value) }.getOrNull()?.let { return it }
+        val javaInstant = runCatching { java.time.Instant.parse(value) }.getOrNull() ?: return null
+        return Instant.fromEpochSeconds(javaInstant.epochSecond, javaInstant.nano.toLong())
+    }
+
+    private val RESET_ELEMENT_DATA_TIME = Regex(
+        """data-time\s*=\s*["']([^"']+)["'][^>]*>\s*Reset""",
+        RegexOption.IGNORE_CASE,
+    )
+    private val DATA_TIME_ATTR = Regex("""data-time\s*=\s*["']([^"']+)["']""")
 
     private fun positiveMod(value: Long, modulus: Long): Long {
         val rem = value % modulus
