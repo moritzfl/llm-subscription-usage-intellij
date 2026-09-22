@@ -21,6 +21,7 @@ internal object AccountSecrets {
         val id = account.id
         when (account.providerType()) {
             QuotaProviderType.ANTIGRAVITY -> Unit // Removing the entry never logs out the external CLI.
+            QuotaProviderType.AZURE -> Unit // Removing the entry never logs out Azure CLI.
             QuotaProviderType.OPEN_AI,
             QuotaProviderType.CLAUDE,
             QuotaProviderType.SUPERGROK,

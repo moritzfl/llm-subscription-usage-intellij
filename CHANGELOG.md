@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Added Azure OpenAI accounts that use the signed-in Azure CLI identity. Each account can pin a subscription and resource. Quota calls that need extra roles are skipped instead of failing the account, so the local proxy and any usage the token can read still work.
+
 ## [1.14.0] - 2026-09-22
 
 - Added a shared quota refresh action beside Copy in every provider's Last quota response header. Its arrows spin while the request is running, then briefly show a checkmark on success or an X on failure.

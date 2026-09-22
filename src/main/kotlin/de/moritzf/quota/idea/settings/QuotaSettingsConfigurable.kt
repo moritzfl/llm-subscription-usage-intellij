@@ -528,6 +528,19 @@ class QuotaSettingsConfigurable : Configurable {
                             account.extra(ProviderAccount.EXTRA_AGY_EXECUTABLE) != previous.extra(ProviderAccount.EXTRA_AGY_EXECUTABLE)
                         } == true
                 }.map { it.id }
+                val azureFieldChanges = accountListPanel?.accounts().orEmpty().filter { account ->
+                    account.providerType() == QuotaProviderType.AZURE &&
+                        state.account(account.id)?.let { previous ->
+                            listOf(
+                                ProviderAccount.EXTRA_AZURE_EXECUTABLE,
+                                ProviderAccount.EXTRA_AZURE_SUBSCRIPTION,
+                                ProviderAccount.EXTRA_AZURE_RESOURCE,
+                                ProviderAccount.EXTRA_AZURE_ENDPOINT,
+                                ProviderAccount.EXTRA_AZURE_LOCATION,
+                                ProviderAccount.EXTRA_AZURE_DEPLOYMENTS,
+                            ).any { key -> account.extra(key) != previous.extra(key) }
+                        } == true
+                }.map { it.id }
                 accountListPanel?.applyPendingChanges(state)
                 state.syncIntellijMcpServerUrl = mcpSyncCheckBox?.isSelected == true
                 state.mcpServerSyncTargets = normalizedMcpTargets.toMutableList()
@@ -539,7 +552,7 @@ class QuotaSettingsConfigurable : Configurable {
                 if (proxyApiKeyChanged) {
                     proxyPanel.saveProxyApiKeyBlocking()
                 }
-                if (locationChanged || displayModeChanged || sourceChanged || popupVisibilityChanged || miniMaxRegionChanged || accountsChanged || mcpSyncChanged || mcpTargetsChanged || proxyEnabledChanged || proxyPortChanged || proxyApiKeyChanged || proxyLogRequestsChanged || proxyProviderSelectionChanged || proxyCompletionsChanged || gitHubEnterpriseHostChanged || ollamaMonthlyResetChanged || agyExecutableChanges.isNotEmpty()) {
+                if (locationChanged || displayModeChanged || sourceChanged || popupVisibilityChanged || miniMaxRegionChanged || accountsChanged || mcpSyncChanged || mcpTargetsChanged || proxyEnabledChanged || proxyPortChanged || proxyApiKeyChanged || proxyLogRequestsChanged || proxyProviderSelectionChanged || proxyCompletionsChanged || gitHubEnterpriseHostChanged || ollamaMonthlyResetChanged || agyExecutableChanges.isNotEmpty() || azureFieldChanges.isNotEmpty()) {
                     ApplicationManager.getApplication().messageBus
                         .syncPublisher(QuotaSettingsListener.TOPIC)
                         .onSettingsChanged()
@@ -553,6 +566,10 @@ class QuotaSettingsConfigurable : Configurable {
                     }
                     for (id in agyExecutableChanges) {
                         QuotaUsageService.getInstance().clearUsageData(id, "Reading AGY quota...")
+                        QuotaUsageService.getInstance().refreshAsync(id, forceUpdate = true)
+                    }
+                    for (id in azureFieldChanges) {
+                        QuotaUsageService.getInstance().clearUsageData(id, "Reading Azure quota...")
                         QuotaUsageService.getInstance().refreshAsync(id, forceUpdate = true)
                     }
                     if (state.syncIntellijMcpServerUrl) {
@@ -754,6 +771,15 @@ class QuotaSettingsConfigurable : Configurable {
         when (account.providerType()) {
             QuotaProviderType.ANTIGRAVITY ->
                 account.setExtra(ProviderAccount.EXTRA_AGY_EXECUTABLE, antigravityPanel().normalizedExecutablePath())
+            QuotaProviderType.AZURE -> {
+                val panel = azurePanel()
+                account.setExtra(ProviderAccount.EXTRA_AZURE_EXECUTABLE, panel.normalizedExecutablePath())
+                account.setExtra(ProviderAccount.EXTRA_AZURE_SUBSCRIPTION, panel.subscriptionId())
+                account.setExtra(ProviderAccount.EXTRA_AZURE_RESOURCE, panel.resourceName())
+                account.setExtra(ProviderAccount.EXTRA_AZURE_ENDPOINT, panel.endpoint())
+                account.setExtra(ProviderAccount.EXTRA_AZURE_LOCATION, panel.locationId())
+                account.setExtra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS, panel.deploymentNames())
+            }
             QuotaProviderType.GITHUB ->
                 account.setExtra(
                     ProviderAccount.EXTRA_GITHUB_HOST,
@@ -782,6 +808,7 @@ class QuotaSettingsConfigurable : Configurable {
         return when (selected.providerType()) {
             QuotaProviderType.ANTIGRAVITY ->
                 antigravityPanel().executableField.text.trim() != persisted?.extra(ProviderAccount.EXTRA_AGY_EXECUTABLE).orEmpty()
+            QuotaProviderType.AZURE -> azurePanel().differsFrom(persisted ?: selected)
             QuotaProviderType.GITHUB ->
                 gitHubPanel().normalizedEnterpriseHostForStorage() != state.githubHostFor(selected.id)
             QuotaProviderType.MINIMAX ->
@@ -807,6 +834,9 @@ class QuotaSettingsConfigurable : Configurable {
 
     private fun antigravityPanel(): AntigravitySettingsPanel =
         providerPanelsByType.getValue(QuotaProviderType.ANTIGRAVITY) as AntigravitySettingsPanel
+
+    private fun azurePanel(): AzureSettingsPanel =
+        providerPanelsByType.getValue(QuotaProviderType.AZURE) as AzureSettingsPanel
 
     private fun normalizeTargets(targets: List<McpServerSyncTarget>): List<McpServerSyncTarget> {
         return targets.map { it.normalized() }

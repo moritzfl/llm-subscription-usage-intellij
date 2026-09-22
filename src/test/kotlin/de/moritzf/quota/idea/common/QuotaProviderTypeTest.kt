@@ -9,6 +9,7 @@ class QuotaProviderTypeTest {
         assertEquals(
             listOf(
                 QuotaProviderType.ANTIGRAVITY,
+                QuotaProviderType.AZURE,
                 QuotaProviderType.CLAUDE,
                 QuotaProviderType.CURSOR,
                 QuotaProviderType.GITHUB,
@@ -60,6 +61,7 @@ class QuotaProviderTypeTest {
         assertEquals(
             listOf(
                 QuotaProviderType.ANTIGRAVITY,
+                QuotaProviderType.AZURE,
                 QuotaProviderType.CLAUDE,
                 QuotaProviderType.CURSOR,
                 QuotaProviderType.GITHUB,
@@ -106,6 +108,7 @@ class QuotaProviderTypeTest {
         assertEquals(
             listOf(
                 QuotaProviderType.ANTIGRAVITY,
+                QuotaProviderType.AZURE,
                 QuotaProviderType.CLAUDE,
                 QuotaProviderType.CURSOR,
                 QuotaProviderType.GITHUB,

@@ -48,6 +48,7 @@ Track and use your LLM subscriptions directly in IntelliJ IDEA.
 | Mistral | Session cookie + API key | ✓ | ✓ | ✓ | — | ✓ | ✓ | ✓ |
 | Kimi | Device code | ✓ | ✓ | — | — | — | — | ✓ |
 | Antigravity (Gemini / Claude / GPT) | AGY CLI login | ✓ | — | — | — | — | — | — |
+| Azure OpenAI | Azure CLI login | ✓ | — | — | — | — | — | ✓ |
 
 - **Quota** — usage in the status bar and detail popup.
 - **Web search** — MCP tool that searches the web with your subscription. Copilot Chat can Bing-search in GitHub's own UI, but Copilot has no callable search API we can wrap.
@@ -82,7 +83,9 @@ Quotas refresh automatically every 5 minutes, plus on login and when opening the
 
 In each provider's settings, use **Refresh quota** beside the copy button in **Last quota response** for an immediate update of the selected account.
 
-**Antigravity is the sole CLI exception.** Install [Antigravity CLI (Google documentation)](https://antigravity.google/docs/cli/install/) 1.1.11 or later, run `agy` in a terminal to sign in, then add Antigravity in the plugin settings. The plugin runs `agy -p /usage --output-format json` to read quotas without an agent turn. It uses the current CLI login; credentials stay with AGY. Only one Antigravity entry is supported. Leave the executable path blank for automatic detection from `PATH` and standard install locations, use **Detect** to fill it, or browse to the binary. Sign-in/account changes happen in AGY; quotas refresh automatically. No credentials or conversation files are imported. Other providers continue to use plugin-managed credentials.
+**Antigravity is a CLI exception.** Install [Antigravity CLI (Google documentation)](https://antigravity.google/docs/cli/install/) 1.1.11 or later, run `agy` in a terminal to sign in, then add Antigravity in the plugin settings. The plugin runs `agy -p /usage --output-format json` to read quotas without an agent turn. It uses the current CLI login; credentials stay with AGY. Only one Antigravity entry is supported. Leave the executable path blank for automatic detection from `PATH` and standard install locations, use **Detect** to fill it, or browse to the binary. Sign-in/account changes happen in AGY; quotas refresh automatically. No credentials or conversation files are imported.
+
+**Azure is a separate CLI exception.** Install the [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli), run `az login`, then add an Azure account. Each account can pin a subscription from `az account list` and an Azure OpenAI resource name or endpoint. The plugin calls documented `az account get-access-token` and does not read `~/.azure`. Quota usage needs Cognitive Services Usages Reader and is optional: if that call is denied, the local proxy and any models or rate-limit numbers the token can read still work. Other providers continue to use plugin-managed credentials.
 
 ## MCP tools for IDE chat
 

@@ -2,8 +2,11 @@ package de.moritzf.quota.idea.common
 
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
 import de.moritzf.quota.antigravity.AntigravityQuota
+import de.moritzf.quota.azure.AzureQuota
 import de.moritzf.quota.idea.settings.AntigravitySettingsPanel
+import de.moritzf.quota.idea.settings.AzureSettingsPanel
 import de.moritzf.quota.idea.ui.indicator.AntigravityUi
+import de.moritzf.quota.idea.ui.indicator.AzureUi
 import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.cursor.CursorQuota
 import de.moritzf.quota.cursor.CursorQuotaClient
@@ -133,6 +136,27 @@ internal object ProviderCatalog {
             // CLI availability, not an assertion about the CLI's current login. Refresh verifies it.
             isQuotaConfigured = { AntigravityQuotaProvider.executableForAccount(QuotaProviderType.ANTIGRAVITY.id) != null },
             isQuotaConfiguredForAccount = { AntigravityQuotaProvider.executableForAccount(it) != null },
+        ),
+        descriptor(
+            type = QuotaProviderType.AZURE,
+            capabilities = ProviderCapabilities(subscriptionProxy = true),
+            quotaFactory = { AzureQuotaProvider(accountId = it.id) },
+            snapshotCodec = EnvelopeQuotaCodec(AzureQuota.serializer()),
+            mcpEmpty = "No Azure usage response available",
+            settings = { AzureSettingsPanel() },
+            ui = AzureUi,
+            // CLI availability, not an assertion about the current login. Refresh verifies it.
+            isQuotaConfigured = { AzureQuotaProvider.executableForAccount(QuotaProviderType.AZURE.id) != null },
+            isQuotaConfiguredForAccount = { AzureQuotaProvider.executableForAccount(it) != null },
+            isProxyConfigured = { _ ->
+                anyAccount(QuotaProviderType.AZURE) { id ->
+                    val account = de.moritzf.quota.idea.settings.QuotaSettingsState.getInstance().account(id)
+                    AzureQuotaProvider.executableForAccount(id) != null &&
+                        (account?.extra(de.moritzf.quota.idea.settings.ProviderAccount.EXTRA_AZURE_RESOURCE) != null ||
+                            account?.extra(de.moritzf.quota.idea.settings.ProviderAccount.EXTRA_AZURE_ENDPOINT) != null)
+                }
+            },
+            ideProxyFactory = IdeProxyFactories::azure,
         ),
         descriptor(
             type = QuotaProviderType.CLAUDE,

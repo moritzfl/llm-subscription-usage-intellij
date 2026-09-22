@@ -4,6 +4,7 @@ import de.moritzf.proxy.server.AccessLogFields
 import de.moritzf.proxy.server.ProxyCall
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyRequest
+import de.moritzf.quota.azure.proxy.AzureSubscriptionProxyProvider
 import de.moritzf.quota.github.GitHubQuotaClient
 import de.moritzf.quota.github.proxy.GitHubCopilotSubscriptionProxyProvider
 import de.moritzf.quota.idea.auth.QuotaAuthService
@@ -80,6 +81,22 @@ internal object IdeProxyFactories {
             tokenRefresher = { staleToken ->
                 refreshToken(ctx, QuotaProviderType.SUPERGROK, staleToken)
             },
+            fullRequestLogging = ctx.logRequests,
+            requestLogDir = ctx.requestLogDir,
+        )
+    }
+
+    fun azure(ctx: IdeProxyBuildContext): SubscriptionProxyProvider {
+        return AzureSubscriptionProxyProvider(
+            configProvider = {
+                val account = resolvedAccount(ctx, QuotaProviderType.AZURE) ?: return@AzureSubscriptionProxyProvider null
+                AzureSubscriptionProxyProvider.AzureProxyConfig(
+                    accountId = account.id,
+                    executable = AzureQuotaProvider.executableForAccount(account.id),
+                    account = AzureQuotaProvider.configForAccount(account.id),
+                )
+            },
+            accountKey = resolvedAccount(ctx, QuotaProviderType.AZURE)?.id ?: QuotaProviderType.AZURE.id,
             fullRequestLogging = ctx.logRequests,
             requestLogDir = ctx.requestLogDir,
         )

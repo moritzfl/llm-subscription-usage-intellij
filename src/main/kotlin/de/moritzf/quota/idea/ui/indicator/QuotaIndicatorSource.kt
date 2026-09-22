@@ -7,6 +7,7 @@ enum class QuotaIndicatorSource(
     val providerType: QuotaProviderType? = null,
 ) {
     ANTIGRAVITY("Antigravity", QuotaProviderType.ANTIGRAVITY),
+    AZURE("Azure", QuotaProviderType.AZURE),
     CLAUDE("Claude", QuotaProviderType.CLAUDE),
     CURSOR("Cursor", QuotaProviderType.CURSOR),
     GITHUB("GitHub Copilot", QuotaProviderType.GITHUB),

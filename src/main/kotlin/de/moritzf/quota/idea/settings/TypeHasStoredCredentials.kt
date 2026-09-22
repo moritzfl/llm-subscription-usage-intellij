@@ -18,6 +18,7 @@ internal object TypeHasStoredCredentials {
     private fun probe(type: QuotaProviderType): Boolean {
         return when (type) {
             QuotaProviderType.ANTIGRAVITY -> false // Opt-in only; AGY owns its credentials.
+            QuotaProviderType.AZURE -> false // Opt-in only; Azure CLI owns its credentials.
             QuotaProviderType.CLAUDE,
             QuotaProviderType.OPEN_AI,
             QuotaProviderType.SUPERGROK,

@@ -25,6 +25,12 @@ data class ProviderAccount(
 
     companion object {
         const val EXTRA_AGY_EXECUTABLE = "agyExecutable"
+        const val EXTRA_AZURE_EXECUTABLE = "azureExecutable"
+        const val EXTRA_AZURE_SUBSCRIPTION = "azureSubscriptionId"
+        const val EXTRA_AZURE_RESOURCE = "azureResourceName"
+        const val EXTRA_AZURE_ENDPOINT = "azureEndpoint"
+        const val EXTRA_AZURE_LOCATION = "azureLocation"
+        const val EXTRA_AZURE_DEPLOYMENTS = "azureDeployments"
         const val EXTRA_OPENCODE_WORKSPACE = "openCodeWorkspaceId"
         const val EXTRA_GITHUB_HOST = "githubEnterpriseHost"
         const val EXTRA_MINIMAX_REGION = "minimaxRegionPreference"

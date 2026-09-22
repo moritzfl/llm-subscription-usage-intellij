@@ -3,6 +3,9 @@ package de.moritzf.proxy.subscription
 import de.moritzf.proxy.util.ApiKeyUtils
 import de.moritzf.quota.github.GitHubDeviceTokenPollResult
 import de.moritzf.quota.github.GitHubOAuthClient
+import de.moritzf.quota.azure.AzureCli
+import de.moritzf.quota.azure.azureAccountConfig
+import de.moritzf.quota.azure.proxy.AzureSubscriptionProxyProvider
 import de.moritzf.quota.github.proxy.GitHubCopilotSubscriptionProxyProvider
 import de.moritzf.quota.kimi.KimiCredentials
 import de.moritzf.quota.kimi.proxy.KimiSubscriptionProxyProvider
@@ -237,6 +240,23 @@ private fun createProviders(
                 env.value("OPENCODE_PROXY_ACCESS_TOKEN")?.let { token ->
                     OpenCodeConsoleSession("opencode", token, env.value("OPENCODE_PROXY_ORG_ID")) { null }
                 }
+            },
+            fullRequestLogging = options.logRequests,
+            requestLogDir = options.requestLogDir,
+        )
+    }
+    if ("azure" in selected) {
+        providers += AzureSubscriptionProxyProvider(
+            configProvider = {
+                val executable = AzureCli.findExecutable(env.value("AZURE_PROXY_EXECUTABLE") ?: env.value("AZURE_CLI"))
+                val account = azureAccountConfig(
+                    subscriptionId = env.value("AZURE_PROXY_SUBSCRIPTION_ID") ?: env.value("AZURE_SUBSCRIPTION_ID"),
+                    resourceName = env.value("AZURE_PROXY_RESOURCE_NAME") ?: env.value("AZURE_RESOURCE_NAME"),
+                    endpoint = env.value("AZURE_PROXY_ENDPOINT") ?: env.value("AZURE_OPENAI_ENDPOINT"),
+                    location = env.value("AZURE_PROXY_LOCATION"),
+                    deploymentNames = env.value("AZURE_PROXY_DEPLOYMENTS"),
+                )
+                AzureSubscriptionProxyProvider.AzureProxyConfig(executable = executable, account = account)
             },
             fullRequestLogging = options.logRequests,
             requestLogDir = options.requestLogDir,
