@@ -8,6 +8,7 @@
 - Build target is JVM 21 with Kotlin API/language version 2.3 to match IntelliJ 2026.1 bundled Kotlin.
 - Credentials and API keys belong in IntelliJ Password Safe. Never add secrets, raw tokens, or generated logs to git.
 - Auth is self-maintained: browser login or keys the user enters in this plugin. Never read, write, watch, or import auth files other tools put on disk (Codex `auth.json`, ChatGPT local, OS stores of other apps). Do not add “import from ~/.codex” or similar.
+- Antigravity is the sole exception: quota-only through the official `agy` CLI (1.1.11+), using its own login. Invoke the documented JSON usage report; never inspect its credentials, internal APIs, or conversation files. One current CLI account only. Do not extend CLI-backed auth to other providers or build a general CLI-provider framework.
 
 ## Validation
 
