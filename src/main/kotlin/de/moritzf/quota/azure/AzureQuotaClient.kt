@@ -36,7 +36,7 @@ internal data class AzureHttpResult(val status: Int, val body: String)
 
 /**
  * Reads whatever the signed-in CLI identity can see. A 403 on quota, deployments, or models
- * becomes a warning. The account still resolves when `az account show` works.
+ * becomes a warning. Identity metadata is optional as well as management-plane access.
  */
 internal class AzureQuotaClient(
     private val cli: AzureCli,
@@ -46,21 +46,37 @@ internal class AzureQuotaClient(
 ) {
     fun fetch(config: AzureAccountConfig): AzureQuota {
         val warnings = config.warnings.toMutableList()
-        val identity = cli.resolveAccount(config.subscriptionId)
-        val subscriptionId = config.subscriptionId ?: identity.subscriptionId
+        val identity = try {
+            cli.resolveAccount(config.subscriptionId)
+        } catch (exception: AzureCliException) {
+            warnings += "Could not read Azure account metadata. ${exception.message}"
+            null
+        }
+        val subscriptionId = config.subscriptionId ?: identity?.subscriptionId
         val target = azureInferenceTarget(config)
         val managementRoot = azureManagementRoot(target?.host)
-        val managementToken = tokenOrNull(azureManagementScope(managementRoot), subscriptionId, warnings, "subscription quota")
+        val managementToken = subscriptionId?.let {
+            tokenOrNull(azureManagementScope(managementRoot), it, warnings, "subscription quota")
+        }
         val resources = if (managementToken != null) {
             readResources(managementRoot, subscriptionId, managementToken, warnings)
         } else {
             emptyList()
         }
         val matched = resources.filter { resource ->
-            val wanted = config.resourceName
-            wanted == null || resource.name.equals(wanted, ignoreCase = true) ||
-                resource.endpoint?.contains(wanted, ignoreCase = true) == true
-        }.ifEmpty { resources.take(1) }
+            when {
+                config.endpoint != null -> {
+                    val resourceHost = resource.endpoint?.let { runCatching { URI(it).host }.getOrNull() }
+                    resourceHost.equals(target?.host, ignoreCase = true) ||
+                        resource.name.equals(target?.host?.substringBefore('.'), ignoreCase = true)
+                }
+                config.resourceName != null -> resource.name.equals(config.resourceName, ignoreCase = true)
+                else -> true
+            }
+        }
+        if (target != null && resources.isNotEmpty() && matched.isEmpty()) {
+            warnings += "No readable Azure resource matches the configured endpoint. Named deployments can still be proxied."
+        }
         val locations = buildList {
             config.location?.let(::add)
             if (isEmpty()) matched.mapNotNull { it.location }.distinct().forEach(::add)
@@ -80,7 +96,7 @@ internal class AzureQuotaClient(
                 warnings += "Quota usage in $location returned HTTP ${result.status}."
                 continue
             }
-            val (parsed, parseWarnings) = parseAzureUsages(result.body)
+            val (parsed, parseWarnings) = parseAzureUsages(result.body, location)
             warnings += parseWarnings
             windows += parsed
         }
@@ -88,6 +104,8 @@ internal class AzureQuotaClient(
             val result = get("$managementRoot/subscriptions/$subscriptionId/providers/Microsoft.CognitiveServices/quotaTiers?api-version=2025-10-01-preview", token)
             if (result.status in 200..299) parseAzureQuotaTier(result.body) else null
         }
+        val models = mutableListOf<String>()
+        var modelsRead = false
         for (resource in matched.take(MAX_RESOURCES)) {
             val group = resource.resourceGroup ?: continue
             val token = managementToken ?: continue
@@ -99,15 +117,33 @@ internal class AzureQuotaClient(
                 warnings += "Deployment capacity for ${resource.name} is not readable with this login."
                 continue
             }
-            if (result.status in 200..299) windows += parseAzureDeployments(result.body)
+            if (result.status in 200..299) {
+                val deployments = parseAzureDeployments(result.body, resource)
+                if (deployments == null) {
+                    warnings += "Deployment list for ${resource.name} was not readable."
+                    continue
+                }
+                windows += deployments
+                if (target != null) {
+                    models += deployments.map { it.id }.filter { AZURE_DEPLOYMENT_NAME.matches(it) }
+                    modelsRead = true
+                }
+            }
         }
-        val models = mutableListOf<String>()
         if (target != null) {
-            val dataToken = tokenOrNull(azureScopeForUrl(target.baseUrl), subscriptionId, warnings, "the Azure OpenAI endpoint")
+            // ARM names are deployment IDs. The data-plane catalog is a fallback when ARM is unreadable.
+            val dataToken = if (modelsRead) null else
+                tokenOrNull(azureScopeForUrl(target.baseUrl), subscriptionId, warnings, "the Azure OpenAI endpoint")
             if (dataToken != null) {
                 val result = get("${target.baseUrl.trimEnd('/')}/models?api-version=v1", dataToken)
                 if (result.status in 200..299) {
-                    models += parseAzureModels(result.body)
+                    val parsed = parseAzureModels(result.body)
+                    if (parsed != null) {
+                        models += parsed
+                        modelsRead = true
+                    } else {
+                        warnings += "Model list was not readable. Named deployments can still be proxied."
+                    }
                 } else if (result.status == 403 || result.status == 401) {
                     warnings += "Model list is not readable with this login. Named deployments can still be proxied."
                 } else {
@@ -117,20 +153,20 @@ internal class AzureQuotaClient(
         } else {
             warnings += "Set a resource name or endpoint to use the local proxy."
         }
+        if (modelsRead) AzureModelCatalog.remember(catalogKey(config.subscriptionId, config), models.distinct())
         models += config.deploymentNames
         liveUsage()?.let { liveWindow(it, clock.now()) }?.let(windows::add)
         val distinctModels = models.distinct()
-        if (distinctModels.isNotEmpty()) AzureModelCatalog.remember(catalogKey(subscriptionId, config), distinctModels)
         return AzureQuota(
             account = AzureAccountIdentity(
-                userName = identity.userName,
-                userType = identity.userType,
-                subscriptionId = identity.subscriptionId,
-                subscriptionName = identity.subscriptionName,
-                tenantId = identity.tenantId,
+                userName = identity?.userName,
+                userType = identity?.userType,
+                subscriptionId = subscriptionId,
+                subscriptionName = identity?.subscriptionName,
+                tenantId = identity?.tenantId,
                 tier = tier,
             ),
-            windows = windows.distinctBy { "${it.kind}/${it.id}" },
+            windows = windows.distinctBy { it.key },
             models = distinctModels,
             warnings = warnings.distinct(),
             fetchedAt = clock.now(),
@@ -180,7 +216,7 @@ internal object AzureModelCatalog {
     private val values = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
 
     fun remember(key: String, models: List<String>) {
-        if (key.isNotBlank() && models.isNotEmpty()) values[key] = models
+        if (key.isNotBlank()) values[key] = models
     }
 
     fun read(key: String): List<String> = values[key].orEmpty()

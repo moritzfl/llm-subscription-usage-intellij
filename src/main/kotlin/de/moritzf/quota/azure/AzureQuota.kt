@@ -5,6 +5,7 @@ import de.moritzf.quota.shared.ProviderQuota
 import de.moritzf.quota.shared.lenientDoubleOrNull
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
@@ -21,16 +22,22 @@ data class AzureQuota(
     override var fetchedAt: Instant? = null,
     override var rawJson: String? = null,
 ) : ProviderQuota {
-    override fun hasUsageState(): Boolean = windows.any { it.usagePercent != null }
+    fun currentWindows(now: Instant = Clock.System.now()): List<AzureUsageWindow> = windows.filter {
+        it.kind != AzureUsageWindow.LIVE || it.expiresAt?.let { expiry -> now < expiry } == true
+    }
 
-    fun primaryWindow(): AzureUsageWindow? =
-        windows.filter { it.kind == AzureUsageWindow.LIVE && it.usagePercent != null }.maxByOrNull { it.usagePercent!! }
-            ?: windows.filter { it.usagePercent != null }.maxByOrNull { it.usagePercent!! }
+    override fun hasUsageState(): Boolean = currentWindows().any { it.usagePercent != null }
+
+    fun primaryWindow(): AzureUsageWindow? {
+        val current = currentWindows()
+        return current.filter { it.kind == AzureUsageWindow.LIVE && it.usagePercent != null }.maxByOrNull { it.usagePercent!! }
+            ?: current.filter { it.usagePercent != null }.maxByOrNull { it.usagePercent!! }
+    }
 
     override fun usageFraction(): Double? = primaryWindow()?.usagePercent?.div(100.0)
 
-    override fun activityWindows(): Map<String, Double> = windows.mapNotNull { window ->
-        window.usagePercent?.let { "${window.kind}/${window.id}" to it / 100.0 }
+    override fun activityWindows(): Map<String, Double> = currentWindows().mapNotNull { window ->
+        window.usagePercent?.let { window.key to it / 100.0 }
     }.toMap()
 }
 
@@ -54,7 +61,12 @@ data class AzureUsageWindow(
     val remaining: Double? = null,
     val unit: String? = null,
     val resetsAt: Instant? = null,
+    val location: String? = null,
+    val resourceName: String? = null,
+    val expiresAt: Instant? = null,
 ) {
+    val key: String get() = listOf(kind, location.orEmpty(), resourceName.orEmpty(), id).joinToString("/")
+
     val usagePercent: Double?
         get() {
             val cap = limit?.takeIf { it > 0 } ?: return null
@@ -79,6 +91,8 @@ internal data class AzureRateLimitSnapshot(
     val limitRequests: Double?,
     val remainingRequests: Double?,
     val resetTokensSeconds: Long?,
+    val resetRequestsSeconds: Long? = null,
+    val observedAt: Instant = Clock.System.now(),
 )
 
 internal object AzureLiveUsage {
@@ -90,13 +104,18 @@ internal object AzureLiveUsage {
         values[accountKey] = snapshot
     }
 
-    fun read(accountKey: String): AzureRateLimitSnapshot? = values[accountKey]
+    fun read(accountKey: String): AzureRateLimitSnapshot? {
+        val snapshot = values[accountKey] ?: return null
+        if (liveWindow(snapshot, Clock.System.now()) != null) return snapshot
+        values.remove(accountKey, snapshot)
+        return null
+    }
 
     fun key(accountId: String, config: AzureAccountConfig): String =
         "$accountId|${AzureQuotaClient.catalogKey(config.subscriptionId, config)}"
 }
 
-internal fun parseAzureUsages(raw: String): Pair<List<AzureUsageWindow>, List<String>> {
+internal fun parseAzureUsages(raw: String, location: String? = null): Pair<List<AzureUsageWindow>, List<String>> {
     val root = azureObject(raw) ?: return emptyList<AzureUsageWindow>() to listOf("Usage response was not JSON.")
     val value = root["value"] as? JsonArray ?: return emptyList<AzureUsageWindow>() to listOf("Usage response had no quota lines.")
     val warnings = mutableListOf<String>()
@@ -115,11 +134,12 @@ internal fun parseAzureUsages(raw: String): Pair<List<AzureUsageWindow>, List<St
         if (item["currentValue"] != null && current == null) warnings += "Usage amount unavailable for $id."
         parsed += AzureUsageWindow(
             id = id,
-            label = name.text("localizedValue") ?: id,
+            label = listOfNotNull(name.text("localizedValue") ?: id, location).joinToString(" · "),
             kind = AzureUsageWindow.ALLOCATION,
             used = current,
             limit = limit,
             unit = item.text("unit"),
+            location = location,
         )
     }
     if (skipped > 0 && parsed.isEmpty() && value.isNotEmpty()) warnings += "No readable quota lines in the usage response."
@@ -132,18 +152,18 @@ internal fun parseAzureUsages(raw: String): Pair<List<AzureUsageWindow>, List<St
     return emptyList<AzureUsageWindow>() to warnings
 }
 
-internal fun parseAzureModels(raw: String): List<String> {
-    val root = azureObject(raw) ?: return emptyList()
-    val data = (root["data"] as? JsonArray) ?: (root["value"] as? JsonArray) ?: return emptyList()
+internal fun parseAzureModels(raw: String): List<String>? {
+    val root = azureObject(raw) ?: return null
+    val data = (root["data"] as? JsonArray) ?: (root["value"] as? JsonArray) ?: return null
     return data.mapNotNull { element ->
         val item = element as? JsonObject ?: return@mapNotNull null
         item.text("id") ?: item.text("name")
     }.filter { AZURE_DEPLOYMENT_NAME.matches(it) }.distinct()
 }
 
-internal fun parseAzureDeployments(raw: String): List<AzureUsageWindow> {
-    val root = azureObject(raw) ?: return emptyList()
-    val value = root["value"] as? JsonArray ?: return emptyList()
+internal fun parseAzureDeployments(raw: String, resource: AzureResourceRef? = null): List<AzureUsageWindow>? {
+    val root = azureObject(raw) ?: return null
+    val value = root["value"] as? JsonArray ?: return null
     return value.mapNotNull { element ->
         val item = element as? JsonObject ?: return@mapNotNull null
         val name = item.text("name") ?: return@mapNotNull null
@@ -151,10 +171,13 @@ internal fun parseAzureDeployments(raw: String): List<AzureUsageWindow> {
         val capacity = sku?.get("capacity")?.lenientDoubleOrNull()
         AzureUsageWindow(
             id = name,
-            label = name,
+            label = listOfNotNull(name, resource?.name, resource?.location).joinToString(" · "),
             kind = AzureUsageWindow.DEPLOYMENT,
-            used = capacity?.times(1_000),
-            unit = if (capacity != null) "TPM allocated" else null,
+            used = capacity,
+            // Capacity-to-TPM ratios vary by model; provisioned SKUs use PTUs instead.
+            unit = if (sku?.text("name")?.contains("Provisioned", ignoreCase = true) == true) "PTU" else "capacity units",
+            location = resource?.location,
+            resourceName = resource?.name,
         )
     }
 }
@@ -196,17 +219,26 @@ internal data class AzureResourceRef(
 )
 
 internal fun liveWindow(snapshot: AzureRateLimitSnapshot, now: Instant): AzureUsageWindow? {
-    val limit = snapshot.limitTokens ?: snapshot.limitRequests ?: return null
-    val remaining = if (snapshot.limitTokens != null) snapshot.remainingTokens else snapshot.remainingRequests
-    return AzureUsageWindow(
-        id = snapshot.model ?: "deployment",
-        label = snapshot.model ?: "Live rate limit",
-        kind = AzureUsageWindow.LIVE,
-        limit = limit,
-        remaining = remaining,
-        unit = if (snapshot.limitTokens != null) "tokens" else "requests",
-        resetsAt = snapshot.resetTokensSeconds?.takeIf { it >= 0 }?.let { now.plus(kotlin.time.Duration.parse("${it}s")) },
-    )
+    fun window(limit: Double?, remaining: Double?, resetSeconds: Long?, unit: String): AzureUsageWindow? {
+        if (limit == null || limit <= 0 || remaining == null) return null
+        val resetsAt = resetSeconds?.takeIf { it >= 0 }?.let { snapshot.observedAt + it.seconds }
+        val expiresAt = resetsAt ?: (snapshot.observedAt + 60.seconds)
+        if (now >= expiresAt) return null
+        return AzureUsageWindow(
+            id = snapshot.model ?: "deployment",
+            label = snapshot.model ?: "Live rate limit",
+            kind = AzureUsageWindow.LIVE,
+            limit = limit,
+            remaining = remaining,
+            unit = unit,
+            resetsAt = resetsAt,
+            expiresAt = expiresAt,
+        )
+    }
+    return listOfNotNull(
+        window(snapshot.limitTokens, snapshot.remainingTokens, snapshot.resetTokensSeconds, "tokens"),
+        window(snapshot.limitRequests, snapshot.remainingRequests, snapshot.resetRequestsSeconds, "requests"),
+    ).maxByOrNull { it.usagePercent ?: 0.0 }
 }
 
 internal fun parseRateLimitHeaders(headers: Map<String, List<String>>, model: String?): AzureRateLimitSnapshot? {
@@ -219,6 +251,7 @@ internal fun parseRateLimitHeaders(headers: Map<String, List<String>>, model: St
         limitRequests = first("x-ratelimit-limit-requests"),
         remainingRequests = first("x-ratelimit-remaining-requests"),
         resetTokensSeconds = first("x-ratelimit-reset-tokens")?.toLong(),
+        resetRequestsSeconds = first("x-ratelimit-reset-requests")?.toLong(),
     )
     if (snapshot.limitTokens == null && snapshot.limitRequests == null) return null
     return snapshot

@@ -41,14 +41,15 @@ internal class AzurePopupSection : ProviderPopupSection() {
                 }.joinToString(" · ")
                 block(index++).showUnavailable(sub, info)
             }
-            for (window in azure.windows) {
+            val windows = azure.currentWindows()
+            for (window in windows) {
                 val percent = window.usagePercent?.roundToInt()
                 val info = window.describe()
                 block(index++).apply {
                     if (percent != null) update(window.label, info, percent) else showUnavailable(window.label, info)
                 }
             }
-            if (azure.windows.isEmpty() && azure.models.isNotEmpty()) {
+            if (windows.isEmpty() && azure.models.isNotEmpty()) {
                 block(index).showUnavailable("Deployments", azure.models.joinToString(", "))
             }
         } else if (error == null) {
@@ -65,7 +66,7 @@ internal class AzurePopupSection : ProviderPopupSection() {
             kind == AzureUsageWindow.ALLOCATION && used != null && limit != null ->
                 "${used.toLong()}/${limit.toLong()} allocated"
             kind == AzureUsageWindow.DEPLOYMENT && used != null ->
-                "${used.toLong()} TPM allocated"
+                "${used.toLong()} ${unit.orEmpty()} allocated".trim()
             usagePercent == null -> "Usage unavailable"
             else -> "${usagePercent!!.roundToInt()}% used"
         }

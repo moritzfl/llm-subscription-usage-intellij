@@ -87,6 +87,8 @@ In each provider's settings, use **Refresh quota** beside the copy button in **L
 
 **Azure is a separate CLI exception.** Install the [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli), run `az login`, then add an Azure account. Each account can pin a subscription from `az account list` and an Azure OpenAI resource name or endpoint. The plugin calls documented `az account get-access-token` and does not read `~/.azure`. Quota usage needs Cognitive Services Usages Reader and is optional: if that call is denied, the local proxy and any models or rate-limit numbers the token can read still work. Other providers continue to use plugin-managed credentials.
 
+Azure proxy model IDs use `az-<deployment-name>`, including deployments missing from discovery. Deployment names come from the selected resource when ARM access is available; otherwise the plugin uses the endpoint's model list or manually entered deployment names. Capacity allocations use Azure's native capacity units (PTU for provisioned deployments); live rate-limit percentages come from recent proxy response headers.
+
 ## MCP tools for IDE chat
 
 The plugin registers subscription-backed tools with IntelliJ's built-in MCP server. They are available to the IDE's AI chat — and to any external agent or AI harness that connects to IntelliJ's MCP server (Codex CLI, OpenCode, and others):

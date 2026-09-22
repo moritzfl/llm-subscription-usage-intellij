@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - Replaced the Azure placeholder icon with the supplied Azure mark, adapted for light and dark IDE themes.
+- Azure discovery now follows the selected endpoint, advertises ARM deployment names with the CLI default subscription, and preserves readable statistics when account metadata or optional APIs fail. Regional quotas stay separate, deployment capacity keeps its native units, and live rate-limit readings expire without moving their reset times forward.
 - Azure proxy requests keep one account, endpoint, and deployment through concurrent calls and token retries. CLI login/default changes take effect on the next token request, and unknown Azure deployments require the `az-` prefix so they cannot intercept other providers' models.
 - Temporary token-refresh and quota failures now keep the last quota visible instead of looking like a logout. Claude settings distinguish retained logins from reconnect-required states and allow reconnecting directly. Still-valid access tokens remain usable after an early refresh fails; expired or rejected tokens are never reused.
 - Coordinated OAuth refreshes across IDEs sharing a login. Delayed refreshes can no longer overwrite a newer login or restore credentials after logout, and queued Password Safe writes no longer cause another IDE to reuse a rotated token.
