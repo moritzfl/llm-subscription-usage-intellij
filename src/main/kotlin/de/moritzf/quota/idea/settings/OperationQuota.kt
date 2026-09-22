@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.settings
 
 import de.moritzf.proxy.model.CodexReserveHop
+import de.moritzf.quota.antigravity.AntigravityQuota
 import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.cursor.CursorQuota
 import de.moritzf.quota.github.GitHubQuota
@@ -38,6 +39,12 @@ internal object OperationQuota {
             return OperationQuotaStatus(exhausted = false, fetchedAt = quota.fetchedAt)
         }
         return when (quota) {
+            is AntigravityQuota -> fromPercentWindows(
+                quota.windows.mapNotNull { window ->
+                    window.usagePercent?.let { NamedWindow(window.id, it, window.resetsAt) }
+                },
+                quota.fetchedAt,
+            )
             is OpenAiCodexQuota -> openAi(quota, model)
             is ClaudeQuota -> fromPercentWindows(
                 listOfNotNull(

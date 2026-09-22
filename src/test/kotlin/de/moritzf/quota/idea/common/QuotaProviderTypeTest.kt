@@ -8,6 +8,7 @@ class QuotaProviderTypeTest {
     fun defaultProviderOrderIsAlphabetical() {
         assertEquals(
             listOf(
+                QuotaProviderType.ANTIGRAVITY,
                 QuotaProviderType.CLAUDE,
                 QuotaProviderType.CURSOR,
                 QuotaProviderType.GITHUB,
@@ -55,9 +56,10 @@ class QuotaProviderTypeTest {
             ),
         )
 
-        assertEquals(QuotaProviderType.CLAUDE, merged.first())
+        assertEquals(QuotaProviderType.ANTIGRAVITY, merged.first())
         assertEquals(
             listOf(
+                QuotaProviderType.ANTIGRAVITY,
                 QuotaProviderType.CLAUDE,
                 QuotaProviderType.CURSOR,
                 QuotaProviderType.GITHUB,
@@ -103,6 +105,7 @@ class QuotaProviderTypeTest {
 
         assertEquals(
             listOf(
+                QuotaProviderType.ANTIGRAVITY,
                 QuotaProviderType.CLAUDE,
                 QuotaProviderType.CURSOR,
                 QuotaProviderType.GITHUB,

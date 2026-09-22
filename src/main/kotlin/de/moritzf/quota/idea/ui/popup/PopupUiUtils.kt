@@ -383,7 +383,13 @@ internal class WindowBlockPanel(topInset: Int = 3) : JPanel(VerticalFlowLayout(V
         titleLabel.text = title
         infoLabel.text = info
         progressBar.value = percent
+        progressBar.isVisible = true
         isVisible = true
+    }
+
+    fun showUnavailable(title: String, info: String) {
+        update(title, info, 0)
+        progressBar.isVisible = false
     }
 
     fun showLoading(title: String) {

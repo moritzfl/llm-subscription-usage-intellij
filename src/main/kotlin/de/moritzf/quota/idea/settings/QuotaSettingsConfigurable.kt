@@ -521,8 +521,14 @@ class QuotaSettingsConfigurable : Configurable {
                 if (sourceChanged) {
                     state.setSource(selectedSource)
                 }
-                    persistAccountRouting()
-                    accountListPanel?.applyPendingChanges(state)
+                persistAccountRouting()
+                val agyExecutableChanges = accountListPanel?.accounts().orEmpty().filter { account ->
+                    account.providerType() == QuotaProviderType.ANTIGRAVITY &&
+                        state.account(account.id)?.let { previous ->
+                            account.extra(ProviderAccount.EXTRA_AGY_EXECUTABLE) != previous.extra(ProviderAccount.EXTRA_AGY_EXECUTABLE)
+                        } == true
+                }.map { it.id }
+                accountListPanel?.applyPendingChanges(state)
                 state.syncIntellijMcpServerUrl = mcpSyncCheckBox?.isSelected == true
                 state.mcpServerSyncTargets = normalizedMcpTargets.toMutableList()
                 state.openAiProxyEnabled = proxyPanel.proxyEnabledCheckBox.isSelected
@@ -533,7 +539,7 @@ class QuotaSettingsConfigurable : Configurable {
                 if (proxyApiKeyChanged) {
                     proxyPanel.saveProxyApiKeyBlocking()
                 }
-                if (locationChanged || displayModeChanged || sourceChanged || popupVisibilityChanged || miniMaxRegionChanged || accountsChanged || mcpSyncChanged || mcpTargetsChanged || proxyEnabledChanged || proxyPortChanged || proxyApiKeyChanged || proxyLogRequestsChanged || proxyProviderSelectionChanged || proxyCompletionsChanged || gitHubEnterpriseHostChanged || ollamaMonthlyResetChanged) {
+                if (locationChanged || displayModeChanged || sourceChanged || popupVisibilityChanged || miniMaxRegionChanged || accountsChanged || mcpSyncChanged || mcpTargetsChanged || proxyEnabledChanged || proxyPortChanged || proxyApiKeyChanged || proxyLogRequestsChanged || proxyProviderSelectionChanged || proxyCompletionsChanged || gitHubEnterpriseHostChanged || ollamaMonthlyResetChanged || agyExecutableChanges.isNotEmpty()) {
                     ApplicationManager.getApplication().messageBus
                         .syncPublisher(QuotaSettingsListener.TOPIC)
                         .onSettingsChanged()
@@ -544,6 +550,10 @@ class QuotaSettingsConfigurable : Configurable {
                     ollamaPanel().updateFields()
                     if (ollamaMonthlyResetChanged) {
                         QuotaUsageService.getInstance().refreshAsync(selectedAccount.id)
+                    }
+                    for (id in agyExecutableChanges) {
+                        QuotaUsageService.getInstance().clearUsageData(id, "Reading AGY quota...")
+                        QuotaUsageService.getInstance().refreshAsync(id, forceUpdate = true)
                     }
                     if (state.syncIntellijMcpServerUrl) {
                         McpServerUrlSyncService.getInstance().syncNowAsync()
@@ -742,6 +752,8 @@ class QuotaSettingsConfigurable : Configurable {
     private fun persistAccountFields(account: ProviderAccount) {
         account.hiddenFromPopup = providerPanelsByType[account.providerType()]?.popupVisibilityToggle?.isHidden == true
         when (account.providerType()) {
+            QuotaProviderType.ANTIGRAVITY ->
+                account.setExtra(ProviderAccount.EXTRA_AGY_EXECUTABLE, antigravityPanel().normalizedExecutablePath())
             QuotaProviderType.GITHUB ->
                 account.setExtra(
                     ProviderAccount.EXTRA_GITHUB_HOST,
@@ -768,6 +780,8 @@ class QuotaSettingsConfigurable : Configurable {
         val toggle = providerPanelsByType[selected.providerType()]?.popupVisibilityToggle
         if (toggle != null && toggle.isHidden != (persisted?.hiddenFromPopup ?: selected.hiddenFromPopup)) return true
         return when (selected.providerType()) {
+            QuotaProviderType.ANTIGRAVITY ->
+                antigravityPanel().executableField.text.trim() != persisted?.extra(ProviderAccount.EXTRA_AGY_EXECUTABLE).orEmpty()
             QuotaProviderType.GITHUB ->
                 gitHubPanel().normalizedEnterpriseHostForStorage() != state.githubHostFor(selected.id)
             QuotaProviderType.MINIMAX ->
@@ -790,6 +804,9 @@ class QuotaSettingsConfigurable : Configurable {
 
     private fun ollamaPanel(): OllamaSettingsPanel =
         providerPanelsByType.getValue(QuotaProviderType.OLLAMA) as OllamaSettingsPanel
+
+    private fun antigravityPanel(): AntigravitySettingsPanel =
+        providerPanelsByType.getValue(QuotaProviderType.ANTIGRAVITY) as AntigravitySettingsPanel
 
     private fun normalizeTargets(targets: List<McpServerSyncTarget>): List<McpServerSyncTarget> {
         return targets.map { it.normalized() }

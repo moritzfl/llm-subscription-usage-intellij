@@ -151,8 +151,8 @@ class QuotaUsageService(
         AppExecutorUtil.getAppExecutorService().execute { refreshProvider(provider(type)?.accountId ?: type.id) }
     }
 
-    fun refreshAsync(accountId: String) {
-        AppExecutorUtil.getAppExecutorService().execute { refreshProvider(accountId) }
+    fun refreshAsync(accountId: String, forceUpdate: Boolean = false) {
+        AppExecutorUtil.getAppExecutorService().execute { refreshProvider(accountId, forceUpdate) }
     }
 
     fun refreshBlocking(type: QuotaProviderType) {

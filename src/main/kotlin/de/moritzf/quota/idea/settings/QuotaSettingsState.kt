@@ -308,6 +308,9 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     fun hasDuplicateAccountNames(): Boolean = accounts.any(::duplicateAccountName)
 
     fun addAccount(type: QuotaProviderType): ProviderAccount {
+        require(ProviderCatalog.get(type).capabilities.multipleAccounts || accountsOf(type).isEmpty()) {
+            "${type.displayName} supports only one account."
+        }
         val created = ProviderAccount.create(type, suggestedAccountName(type), isFirstOfType = accountsOf(type).isEmpty())
         accounts.add(created)
         return created
@@ -382,6 +385,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
             get() = QuotaProviderRegistry.defaultProviderOrderStorageValue()
 
         fun sanitizeAccounts(raw: List<ProviderAccount>?): List<ProviderAccount> {
+            val singleAccountTypes = mutableSetOf<String>()
             val copied = raw.orEmpty().map { account ->
                 account.copy(
                     id = account.id.trim(),
@@ -390,6 +394,10 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
                     extras = account.extras.toMutableMap(),
                 )
             }.filter { it.id.isNotEmpty() && it.typeId.isNotEmpty() }
+                .filter { account ->
+                    val multiple = account.providerType()?.let { ProviderCatalog.get(it).capabilities.multipleAccounts } ?: true
+                    multiple || singleAccountTypes.add(account.typeId)
+                }
             val byType = copied.groupBy { it.typeId }
             return copied.map { account ->
                 val siblings = byType[account.typeId].orEmpty()

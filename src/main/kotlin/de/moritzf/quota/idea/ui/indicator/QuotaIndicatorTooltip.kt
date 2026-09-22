@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.ui.indicator
 
 import de.moritzf.quota.claude.ClaudeQuota
+import de.moritzf.quota.antigravity.AntigravityQuota
 import de.moritzf.quota.cursor.CursorQuota
 import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.idea.common.QuotaProviderType
@@ -106,6 +107,11 @@ private data class IndicatorTooltipUsage(
 
 private fun indicatorTooltipUsage(quota: ProviderQuota?): IndicatorTooltipUsage {
     return when (quota) {
+        is AntigravityQuota -> {
+            val window = quota.primaryWindow() ?: return IndicatorTooltipUsage(null, null)
+            val kind = listOfNotNull(window.group, window.window).joinToString(" / ")
+            IndicatorTooltipUsage(window.usagePercent?.roundToInt(), compactReset(window.resetsAt), "used ($kind)")
+        }
         is OpenAiCodexQuota -> openAiTooltipUsage(quota)
         is OpenCodeQuota -> {
             val state = openCodeIndicatorState(quota) ?: return IndicatorTooltipUsage(null, null)

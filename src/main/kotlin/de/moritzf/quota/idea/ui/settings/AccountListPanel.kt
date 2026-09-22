@@ -10,6 +10,7 @@ import com.intellij.ui.components.JBList
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.idea.common.ProviderCatalog
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.settings.ProviderAccount
 import de.moritzf.quota.idea.settings.QuotaSettingsState
@@ -154,6 +155,7 @@ internal class AccountListPanel(
 
     private fun addAccount(type: QuotaProviderType) {
         val siblings = model.items.filter { it.typeId == type.id }
+        if (!ProviderCatalog.get(type).capabilities.multipleAccounts && siblings.isNotEmpty()) return
         val reuseTypeId = siblings.isEmpty() && pendingRemovals.none { it.id == type.id }
         val created = ProviderAccount.create(
             type,
@@ -171,7 +173,9 @@ internal class AccountListPanel(
         val label = listLabel(account)
         val confirmed = Messages.showYesNoDialog(
             this,
-            "Remove $label and delete its stored login?",
+            if (account.providerType() == QuotaProviderType.ANTIGRAVITY) {
+                "Remove $label quota tracking? Your AGY CLI login will remain available."
+            } else "Remove $label and delete its stored login?",
             "Remove account",
             Messages.getQuestionIcon(),
         ) == Messages.YES
@@ -200,7 +204,9 @@ internal class AccountListPanel(
     }
 
     private fun showTypeChooser(button: AnActionButton) {
-        val types = QuotaProviderType.defaultProviderOrder()
+        val types = QuotaProviderType.defaultProviderOrder().filter { type ->
+            ProviderCatalog.get(type).capabilities.multipleAccounts || model.items.none { it.typeId == type.id }
+        }
         val popup = JBPopupFactory.getInstance()
             .createPopupChooserBuilder(types)
             .setTitle("Add provider")

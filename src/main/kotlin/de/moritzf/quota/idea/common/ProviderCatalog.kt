@@ -1,6 +1,9 @@
 package de.moritzf.quota.idea.common
 
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
+import de.moritzf.quota.antigravity.AntigravityQuota
+import de.moritzf.quota.idea.settings.AntigravitySettingsPanel
+import de.moritzf.quota.idea.ui.indicator.AntigravityUi
 import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.cursor.CursorQuota
 import de.moritzf.quota.cursor.CursorQuotaClient
@@ -70,6 +73,7 @@ internal data class ProviderCapabilities(
     val webFetch: Boolean = false,
     val subscriptionProxy: Boolean = false,
     val oauth: Boolean = false,
+    val multipleAccounts: Boolean = true,
 )
 
 /**
@@ -118,6 +122,18 @@ internal data class ProviderDescriptor(
  */
 internal object ProviderCatalog {
     val all: List<ProviderDescriptor> = listOf(
+        descriptor(
+            type = QuotaProviderType.ANTIGRAVITY,
+            capabilities = ProviderCapabilities(multipleAccounts = false),
+            quotaFactory = { AntigravityQuotaProvider(accountId = it.id) },
+            snapshotCodec = EnvelopeQuotaCodec(AntigravityQuota.serializer()),
+            mcpEmpty = "No Antigravity usage report available",
+            settings = { AntigravitySettingsPanel() },
+            ui = AntigravityUi,
+            // CLI availability, not an assertion about the CLI's current login. Refresh verifies it.
+            isQuotaConfigured = { AntigravityQuotaProvider.executableForAccount(QuotaProviderType.ANTIGRAVITY.id) != null },
+            isQuotaConfiguredForAccount = { AntigravityQuotaProvider.executableForAccount(it) != null },
+        ),
         descriptor(
             type = QuotaProviderType.CLAUDE,
             capabilities = ProviderCapabilities(oauth = true),

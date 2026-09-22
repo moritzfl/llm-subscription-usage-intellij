@@ -7,6 +7,7 @@ import javax.swing.Icon
  * Central icon references used by the plugin UI.
  */
 object QuotaIcons {
+    @JvmField val ANTIGRAVITY: Icon = IconLoader.getIcon("/icons/antigravity.svg", QuotaIcons::class.java)
     @JvmField val STATUS: Icon = IconLoader.getIcon("/icons/quota.svg", QuotaIcons::class.java)
     @JvmField val CAKE_0: Icon = IconLoader.getIcon("/icons/clock_loader_0.svg", QuotaIcons::class.java)
     @JvmField val CAKE_5: Icon = IconLoader.getIcon("/icons/clock_loader_5.svg", QuotaIcons::class.java)

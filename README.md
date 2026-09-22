@@ -47,6 +47,7 @@ Track and use your LLM subscriptions directly in IntelliJ IDEA.
 | MiniMax | Subscription key | ✓ | ✓ | ✓ | — | ✓ | — | ✓ |
 | Mistral | Session cookie + API key | ✓ | ✓ | ✓ | — | ✓ | ✓ | ✓ |
 | Kimi | Device code | ✓ | ✓ | — | — | — | — | ✓ |
+| Antigravity (Gemini / Claude / GPT) | AGY CLI login | ✓ | — | — | — | — | — | — |
 
 - **Quota** — usage in the status bar and detail popup.
 - **Web search** — MCP tool that searches the web with your subscription. Copilot Chat can Bing-search in GitHub's own UI, but Copilot has no callable search API we can wrap.
@@ -77,7 +78,9 @@ Everything else is optional and lives in the same settings page: MCP tools, MCP 
 
 **Detail popup** — one block per login, with usage windows, next reset times, and last refresh timestamps. Reorder accounts in settings (the list on the left); the popup follows that order.
 
-Quotas refresh automatically every 5 minutes, plus on login and when opening the popup. Credentials — OAuth tokens, API keys, and session cookies — are stored in IntelliJ Password Safe.
+Quotas refresh automatically every 5 minutes, plus on login and when opening the popup. Plugin-managed credentials — OAuth tokens, API keys, and session cookies — are stored in IntelliJ Password Safe.
+
+**Antigravity is the sole CLI exception.** Install [Antigravity CLI](https://antigravity.google/docs/cli/install/) 1.1.11 or later, run `agy` in a terminal to sign in, then add Antigravity in the plugin settings. The plugin runs `agy -p /usage --output-format json` to read quotas without an agent turn. It uses the current CLI login; credentials stay with AGY. Only one Antigravity entry is supported. The executable is detected from `PATH` and standard install locations, with an optional absolute path in settings. Sign-in/account changes happen in AGY; click **Refresh quota** afterward. No credentials or conversation files are imported. Other providers continue to use plugin-managed credentials.
 
 ## MCP tools for IDE chat
 

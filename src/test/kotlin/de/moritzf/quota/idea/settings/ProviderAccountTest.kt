@@ -4,10 +4,25 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 class ProviderAccountTest {
+    @Test
+    fun antigravityFollowsOnlyOneCliAccount() {
+        val state = QuotaSettingsState()
+        val account = state.addAccount(QuotaProviderType.ANTIGRAVITY)
+        account.setExtra(ProviderAccount.EXTRA_AGY_EXECUTABLE, "/opt/agy")
+        assertFailsWith<IllegalArgumentException> { state.addAccount(QuotaProviderType.ANTIGRAVITY) }
+        assertEquals(listOf(account), state.accounts)
+
+        val restored = QuotaSettingsState.sanitizeAccounts(listOf(account, account.copy(id = "second")))
+        assertEquals(listOf(account), restored)
+        assertFalse(restored.single().allowFailover)
+        assertFalse(TypeHasStoredCredentials(QuotaProviderType.ANTIGRAVITY))
+    }
+
     @Test
     fun extraGithubHostDoesNotOverwriteFirstAccount() {
         val state = QuotaSettingsState()

@@ -24,6 +24,7 @@ data class ProviderAccount(
     fun snapshot(): ProviderAccount = copy(extras = extras.toMutableMap())
 
     companion object {
+        const val EXTRA_AGY_EXECUTABLE = "agyExecutable"
         const val EXTRA_OPENCODE_WORKSPACE = "openCodeWorkspaceId"
         const val EXTRA_GITHUB_HOST = "githubEnterpriseHost"
         const val EXTRA_MINIMAX_REGION = "minimaxRegionPreference"
