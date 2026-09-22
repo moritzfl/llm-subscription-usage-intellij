@@ -60,10 +60,9 @@ internal class OpenCodePopupSection : ProviderPopupSection() {
             }
             else -> {
                 val limitReached = isAnyLimitReached(quota)
-                errorLabel.isVisible = limitReached
-                if (limitReached) {
-                    errorLabel.text = "OpenCode limit reached"
-                }
+                val warnings = listOfNotNull("OpenCode limit reached".takeIf { limitReached }) + quota.warnings
+                errorLabel.isVisible = warnings.isNotEmpty()
+                errorLabel.text = warnings.joinToString("; ")
 
                 titleLabel.isVisible = true
                 titleLabel.text = sectionTitle(if (quota.hasUsageState()) OPENCODE_GO_LABEL else OPENCODE_ZEN_LABEL)

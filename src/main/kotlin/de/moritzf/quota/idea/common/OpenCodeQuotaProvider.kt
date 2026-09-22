@@ -1,136 +1,88 @@
 package de.moritzf.quota.idea.common
 
-import de.moritzf.quota.idea.opencode.OpenCodeSessionCookieStore
+import de.moritzf.quota.idea.auth.OAuthCredentials
+import de.moritzf.quota.idea.opencode.OpenCodeAuthService
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.opencode.OpenCodeQuotaClient
 import de.moritzf.quota.opencode.OpenCodeQuotaException
 import java.util.concurrent.atomic.AtomicReference
 
-/**
- * Fetches and caches OpenCode quota data.
- */
 class OpenCodeQuotaProvider(
     override val accountId: String = QuotaProviderType.OPEN_CODE.id,
     private val openCodeClient: OpenCodeQuotaClient = OpenCodeQuotaClient(),
-    private val openCodeCookieProvider: () -> String? = { OpenCodeSessionCookieStore.forAccount(accountId).loadBlocking() },
+    private val credentialsProvider: (String?) -> OAuthCredentials? = { rejected ->
+        OpenCodeAuthService.getInstance().credentials(accountId, rejected)
+    },
     private val settingsProvider: () -> QuotaSettingsState? = {
         runCatching { QuotaSettingsState.getInstance() }.getOrNull()
     },
 ) : CachedQuotaProvider<OpenCodeQuota>() {
     override val type = QuotaProviderType.OPEN_CODE
-    override val notConfiguredMessage = "No session cookie configured"
-
-    private val lastCookieRef = AtomicReference<String?>()
+    override val notConfiguredMessage = "Not signed in to OpenCode"
+    private val lastToken = AtomicReference<String?>()
     private val cachedWorkspaceId = AtomicReference<String?>()
-    private val cachedWorkspaceIdTimestamp = AtomicReference(0L)
+    private val dataLock = Any()
+    private var generation = 0L
 
-    override fun getLastRawJson(): String? {
-        return lastRawJsonRef.get() ?: lastQuotaRef.get()?.rawJson
-    }
+    override fun getLastRawJson(): String? = lastRawJsonRef.get() ?: lastQuotaRef.get()?.rawJson
 
     override fun refresh() {
-        val cookie = openCodeCookieProvider()
-        if (cookie.isNullOrBlank()) {
-            clearData(notConfiguredMessage)
-            return
+        val startedGeneration = synchronized(dataLock) { generation }
+        fun update(action: () -> Unit) = synchronized(dataLock) {
+            if (generation == startedGeneration) action()
         }
-
-        resetOpenCodeCachesIfCookieChanged(cookie)
-
         try {
-            val quota = fetchOpenCodeQuota(cookie)
-            storeQuota(quota, quota.rawJson)
-        } catch (exception: OpenCodeQuotaException) {
-            if (shouldRetryOpenCode(exception)) {
-                resetOpenCodeCaches()
-                try {
-                    val quota = fetchOpenCodeQuota(cookie)
-                    storeQuota(quota, quota.rawJson)
-                } catch (retryException: OpenCodeQuotaException) {
-                    storeFetchFailure(
-                        retryException.statusCode,
-                        retryException.message ?: "Request failed (${retryException.statusCode})",
-                        retryException.rawBody,
-                    )
-                } catch (retryException: Exception) {
-                    storeError(retryException.message ?: "Request failed")
-                }
-            } else {
-                storeFetchFailure(
-                    exception.statusCode,
-                    exception.message ?: "Request failed (${exception.statusCode})",
-                    exception.rawBody,
-                )
+            val credentials = credentialsProvider(null)
+            if (credentials?.accessToken.isNullOrBlank()) {
+                update { clearData(notConfiguredMessage) }
+                return
             }
+            val quota = try {
+                fetch(checkNotNull(credentials))
+            } catch (exception: OpenCodeQuotaException) {
+                if (exception.statusCode != 401) throw exception
+                val refreshed = credentialsProvider(credentials.accessToken)
+                if (refreshed?.accessToken.isNullOrBlank()) {
+                    update { clearData(notConfiguredMessage) }
+                    return
+                }
+                fetch(checkNotNull(refreshed))
+            }
+            update { storeQuota(quota, quota.rawJson) }
+        } catch (exception: OpenCodeQuotaException) {
+            update { storeFetchFailure(exception.statusCode, exception.message ?: "OpenCode request failed", exception.rawBody) }
         } catch (exception: Exception) {
-            storeError(exception.message ?: "Request failed")
+            update { storeError(exception.message ?: "OpenCode request failed") }
         }
+    }
+
+    private fun fetch(credentials: OAuthCredentials): OpenCodeQuota {
+        val token = checkNotNull(credentials.accessToken)
+        if (lastToken.getAndSet(token) != token) resetWorkspaceCache()
+        val settings = settingsProvider()
+        // Browser-selected organization scope wins over any workspace left by an earlier login.
+        val workspace = credentials.accountId?.takeIf { it.isNotBlank() }
+            ?: settings?.openCodeWorkspaceIdFor(accountId)?.takeIf { it.isNotBlank() }
+            ?: cachedWorkspaceId.get()
+            ?: openCodeClient.discoverWorkspaceId(token)
+        cachedWorkspaceId.set(workspace)
+        if (settings != null && settings.openCodeWorkspaceIdFor(accountId) != workspace) {
+            settings.setOpenCodeWorkspaceIdFor(accountId, workspace)
+        }
+        return openCodeClient.fetchQuota(token, workspace)
     }
 
     override fun clearData(error: String?) {
-        resetOpenCodeCaches()
-        lastCookieRef.set(null)
-        super.clearData(error)
+        synchronized(dataLock) {
+            generation++
+            resetWorkspaceCache()
+            lastToken.set(null)
+            super.clearData(error)
+        }
     }
 
     fun resetWorkspaceCache() {
         cachedWorkspaceId.set(null)
-        cachedWorkspaceIdTimestamp.set(0)
-        OpenCodeQuotaClient.clearCachedFunctionId()
-    }
-
-    private fun fetchOpenCodeQuota(sessionCookie: String): OpenCodeQuota {
-        val workspaceId = resolveWorkspaceId(sessionCookie)
-        return openCodeClient.fetchQuota(sessionCookie, workspaceId)
-    }
-
-    private fun resolveWorkspaceId(sessionCookie: String): String {
-        val cached = cachedWorkspaceId.get()
-        val timestamp = cachedWorkspaceIdTimestamp.get()
-        if (cached != null && System.currentTimeMillis() - timestamp < WORKSPACE_CACHE_TTL_MS) {
-            return cached
-        }
-
-        val settings = settingsProvider()
-        val storedWorkspaceId = settings?.openCodeWorkspaceIdFor(accountId)
-        if (!storedWorkspaceId.isNullOrBlank()) {
-            cachedWorkspaceId.set(storedWorkspaceId)
-            cachedWorkspaceIdTimestamp.set(System.currentTimeMillis())
-            return storedWorkspaceId
-        }
-
-        val workspaceId = openCodeClient.discoverWorkspaceId(sessionCookie)
-        cachedWorkspaceId.set(workspaceId)
-        cachedWorkspaceIdTimestamp.set(System.currentTimeMillis())
-        if (settings != null && settings.openCodeWorkspaceIdFor(accountId) != workspaceId) {
-            settings.setOpenCodeWorkspaceIdFor(accountId, workspaceId)
-        }
-        return workspaceId
-    }
-
-    private fun resetOpenCodeCachesIfCookieChanged(sessionCookie: String) {
-        val previousCookie = lastCookieRef.getAndSet(sessionCookie)
-        if (previousCookie != null && previousCookie != sessionCookie) {
-            resetOpenCodeCaches()
-        }
-    }
-
-    private fun resetOpenCodeCaches() {
-        cachedWorkspaceId.set(null)
-        cachedWorkspaceIdTimestamp.set(0)
-        OpenCodeQuotaClient.clearCachedFunctionId()
-    }
-
-    private fun shouldRetryOpenCode(exception: OpenCodeQuotaException): Boolean {
-        return exception.statusCode == 0 ||
-            exception.statusCode == 401 ||
-            exception.statusCode == 403 ||
-            exception.statusCode == 404 ||
-            exception.message?.contains("Could not parse OpenCode quota response") == true
-    }
-
-    companion object {
-        private const val WORKSPACE_CACHE_TTL_MS = 30 * 60 * 1000L
     }
 }

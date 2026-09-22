@@ -1,312 +1,280 @@
 package de.moritzf.quota.idea.settings
 
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
+import de.moritzf.quota.idea.auth.OAuthCredentials
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.opencode.OpenCodeApiKeyStore
-import de.moritzf.quota.idea.opencode.OpenCodeSessionCookieStore
+import de.moritzf.quota.idea.opencode.OpenCodeAuthService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
-import de.moritzf.quota.opencode.OpenCodeQuota
-import de.moritzf.quota.opencode.OpenCodeQuotaClient
 import de.moritzf.quota.opencode.OpenCodeWorkspace
+import de.moritzf.quota.opencode.OpenCodeQuota
 import java.awt.Color
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
+import javax.swing.JButton
 import javax.swing.JComponent
 
-/**
- * OpenCode settings tab.
- */
 internal class OpenCodeSettingsPanel(
     private val modalityComponentProvider: () -> JComponent?,
     private val statusLabelDefaultForeground: Color? = null,
 ) : ProviderSettingsPanel() {
-    private val openCodeCookieField = JBPasswordField().apply {
-        columns = 40
-        toolTipText = "Session cookie from opencode.ai (extract from browser DevTools)"
-    }
+    private val statusLabel = JBLabel()
+    private val loginButton = ActionLink("Sign in to OpenCode").apply { autoHideOnDisable = false }
+    private val cancelButton = ActionLink("Cancel Login").apply { autoHideOnDisable = false }
+    private val logoutButton = ActionLink("Log Out").apply { autoHideOnDisable = false }
+    private val copyUrlButton = JButton("Copy URL", AllIcons.Actions.Copy).apply { isVisible = false }
+    private val userCodeLabel = JBLabel().apply { isVisible = false }
+    private val workspaceComboBox = ComboBox<OpenCodeWorkspace>()
+    private val workspaceStatus = JBLabel()
     private val apiKeyField = JBPasswordField().apply {
         columns = 40
-        toolTipText = "OpenCode API key for the local proxy"
+        toolTipText = "Optional OpenCode API key for the local proxy"
     }
-    private val openCodeStatusLabel = JBLabel().apply { isVisible = false }
-    private val workspaceComboBox = ComboBox<OpenCodeWorkspace>().apply {
-        isVisible = false
-    }
-    private val workspaceLabel = JBLabel("Workspace:").apply { isVisible = false }
-    private val workspaceLoadingLabel = JBLabel("Loading workspaces...").apply { isVisible = false }
-    private val openCodeJsonViewer = createResponseViewer()
-    private var updatingWorkspaceComboBox: Boolean = false
-    private var awaitingCookieLoadRefresh: Boolean = false
+    private val responseViewer = createResponseViewer()
+    private var verificationUrl: String? = null
+    private var authMessage: AuthStatusMessage? = null
+    private var shownAccountId: String? = null
+    private var workspaceCredentials: OAuthCredentials? = null
+    private var workspaceRequest = 0L
+    private var updatingWorkspaces = false
+    private var loggingOut = false
+    private var uiGeneration = 0L
+
+    private fun accountId() = accountKey(QuotaProviderType.OPEN_CODE)
+    private fun auth() = OpenCodeAuthService.getInstance()
 
     init {
-        workspaceComboBox.addActionListener {
-            if (updatingWorkspaceComboBox) return@addActionListener
-            val selected = workspaceComboBox.selectedItem as? OpenCodeWorkspace ?: return@addActionListener
-            if (boundAccount?.extra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE) == selected.id) return@addActionListener
-            boundAccount?.setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, selected.id)
+        copyUrlButton.addActionListener {
+            verificationUrl?.let { Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(it), null) }
         }
-
-        val openCodeConfigPanel = panel {
-            row {
-                cell(openCodeStatusLabel)
-            }
-            row {
-                text("Extract from opencode.ai → DevTools → Storage → Cookies → \"auth\" cookie value. Valid for 1 year.")
-            }
-            row("Session cookie:") {
-                cell(openCodeCookieField)
-                    .resizableColumn()
-                    .align(AlignX.FILL)
-            }
-            row {
-                button("Save") {
-                    val cookie = String(openCodeCookieField.password)
-                    if (cookie.isNotBlank() && cookie != OPENCODE_COOKIE_PLACEHOLDER) {
-                        OpenCodeSessionCookieStore.forAccount(accountKey(QuotaProviderType.OPEN_CODE)).save(cookie)
-                        openCodeCookieField.text = OPENCODE_COOKIE_PLACEHOLDER
-                        setOpenCodePendingStatus("Validating session cookie...")
-                        loadWorkspaces(cookie)
-                        QuotaUsageService.getInstance().refreshAsync(accountKey(QuotaProviderType.OPEN_CODE))
-                    }
+        loginButton.addActionListener {
+            val id = accountId()
+            val generation = ++uiGeneration
+            authMessage = AuthStatusMessage("Opening browser...", false, AuthStatusKind.PENDING)
+            auth().startLoginFlow(id, callback = { result ->
+                if (result.success) QuotaUsageService.getInstance().refreshAsync(id)
+                onUi(id) {
+                    if (uiGeneration != generation) return@onUi
+                    authMessage = if (result.success) null
+                    else AuthStatusMessage(result.message ?: "Login failed", true, AuthStatusKind.DISCONNECTED)
+                    workspaceCredentials = null
+                    updateFields()
                 }
-                button("Clear") {
-                    OpenCodeSessionCookieStore.forAccount(accountKey(QuotaProviderType.OPEN_CODE)).clear()
-                    openCodeCookieField.text = ""
-                    boundAccount?.setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, null)
-                    workspaceComboBox.removeAllItems()
-                    workspaceComboBox.isVisible = false
-                    workspaceLabel.isVisible = false
-                    workspaceLoadingLabel.isVisible = false
+            }, onVerificationUrl = { url, code ->
+                onUi(id) {
+                    if (uiGeneration != generation) return@onUi
+                    verificationUrl = url
+                    copyUrlButton.isVisible = true
+                    userCodeLabel.text = "OpenCode code: ${QuotaUiUtil.escapeHtml(code)}"
+                    userCodeLabel.isVisible = code.isNotBlank()
+                    authMessage = AuthStatusMessage("Waiting for browser authorization...", false, AuthStatusKind.PENDING)
                     updateStatus()
-                    QuotaUsageService.getInstance().clearUsageData(accountKey(QuotaProviderType.OPEN_CODE))
                 }
-            }
-            row {
-                text("Optional: add an OpenCode API key to expose OpenCode Zen through the local proxy. Quota fetching still uses the session cookie above.")
-            }
-            row("API key:") {
-                cell(apiKeyField)
-                    .resizableColumn()
-                    .align(AlignX.FILL)
-            }
-            row {
-                button("Save API Key") {
-                    saveApiKeyNow()
+            })
+            updateStatus()
+        }
+        cancelButton.addActionListener {
+            uiGeneration++
+            auth().abortLogin(accountId())
+            authMessage = AuthStatusMessage("Login canceled", false, AuthStatusKind.DISCONNECTED)
+            updateStatus()
+        }
+        logoutButton.addActionListener {
+            val id = accountId()
+            uiGeneration++
+            workspaceRequest++
+            loggingOut = true
+            updateStatus()
+            ApplicationManager.getApplication().executeOnPooledThread {
+                val result = runCatching { auth().clearCredentials(id) }
+                if (result.isSuccess) QuotaUsageService.getInstance().clearUsageData(id, "Not signed in to OpenCode")
+                onUi(id) {
+                    loggingOut = false
+                    authMessage = result.exceptionOrNull()?.let {
+                        AuthStatusMessage(it.message ?: "Could not log out", true, AuthStatusKind.DISCONNECTED)
+                    }
+                    if (result.isSuccess) boundAccount?.setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, null)
+                    workspaceCredentials = null
+                    updateFields()
                 }
-                button("Clear API Key") {
-                    clearApiKeyNow()
-                }
-            }
-            row {
-                cell(workspaceLoadingLabel)
-            }
-            row {
-                cell(workspaceLabel).gap(RightGap.SMALL)
-                cell(workspaceComboBox)
-                    .resizableColumn()
-                    .align(AlignX.FILL)
             }
         }
-
-        install(openCodeConfigPanel, createResponseSection(openCodeJsonViewer))
+        workspaceComboBox.addActionListener {
+            if (!updatingWorkspaces) {
+                val selected = workspaceComboBox.selectedItem as? OpenCodeWorkspace
+                if (selected != null) boundAccount?.setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, selected.id)
+            }
+        }
+        install(panel {
+            row { cell(statusLabel).gap(RightGap.SMALL); cell(copyUrlButton) }
+            row { cell(userCodeLabel) }
+            row {
+                cell(loginButton).gap(RightGap.SMALL)
+                cell(cancelButton).gap(RightGap.SMALL)
+                cell(logoutButton)
+            }
+            row { text("Sign in through OpenCode Console for Go quotas and Zen balance. Select the organization in your browser.") }
+            row("Organization:") { cell(workspaceComboBox).resizableColumn().align(AlignX.FILL) }
+            row { cell(workspaceStatus) }
+            row { text("To change a browser-scoped organization, sign in again. An API key is only needed for the local Zen proxy.") }
+            row("Proxy API key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
+            row {
+                button("Save API Key") { saveApiKey(clear = false) }
+                button("Clear API Key") { saveApiKey(clear = true) }
+            }
+        }, createResponseSection(responseViewer))
     }
 
     override fun updateFields() {
-        val apiKey = OpenCodeApiKeyStore.forAccount(accountKey(QuotaProviderType.OPEN_CODE)).load(onLoaded = ::refreshAfterApiKeyLoad)
-        val cookieStore = OpenCodeSessionCookieStore.forAccount(accountKey(QuotaProviderType.OPEN_CODE))
-        val cookie = cookieStore.load(onLoaded = ::refreshAfterCookieLoad)
-        apiKeyField.text = if (apiKey.isNullOrBlank()) "" else API_KEY_PLACEHOLDER
-        openCodeCookieField.text = if (cookie.isNullOrBlank()) "" else OPENCODE_COOKIE_PLACEHOLDER
-        if (!cookie.isNullOrBlank()) {
-            loadWorkspaces(cookie)
-        } else if (cookieStore.isLoaded()) {
-            workspaceComboBox.removeAllItems()
-            workspaceComboBox.isVisible = false
-            workspaceLabel.isVisible = false
-            workspaceLoadingLabel.isVisible = false
-        } else {
-            workspaceLoadingLabel.text = "Loading session cookie..."
-            workspaceLoadingLabel.isVisible = true
-            workspaceLabel.isVisible = false
-            workspaceComboBox.isVisible = false
+        val id = accountId()
+        if (shownAccountId != id) {
+            shownAccountId = id
+            uiGeneration++
+            workspaceRequest++
+            workspaceCredentials = null
+            authMessage = null
+            verificationUrl = null
+            loggingOut = false
+            replaceWorkspaces(emptyList(), null)
+        }
+        val key = OpenCodeApiKeyStore.forAccount(id).load { onUi(id) { updateFields() } }
+        apiKeyField.text = if (key.isNullOrBlank()) "" else API_KEY_PLACEHOLDER
+        val credentials = auth().load(id) { onUi(id) { updateFields() } }
+        if (credentials != null && credentials !== workspaceCredentials && !loggingOut) {
+            workspaceCredentials = credentials
+            loadWorkspaces(id)
+        } else if (credentials == null && auth().isLoaded(id)) {
+            workspaceRequest++
+            workspaceCredentials = null
+            replaceWorkspaces(emptyList(), null)
+            workspaceStatus.text = ""
         }
         updateStatus()
     }
 
     override fun updateStatus() {
-        val apiKeyStore = OpenCodeApiKeyStore.forAccount(accountKey(QuotaProviderType.OPEN_CODE))
-        val cookieStore = OpenCodeSessionCookieStore.forAccount(accountKey(QuotaProviderType.OPEN_CODE))
-        val apiKey = apiKeyStore.load(onLoaded = ::refreshAfterApiKeyLoad)
-        val cookie = cookieStore.load(onLoaded = ::refreshAfterCookieLoad)
-        val openCodeQuota = QuotaUsageService.getInstance().getLastQuota(accountKey(QuotaProviderType.OPEN_CODE)) as? OpenCodeQuota
-        val openCodeError = QuotaUsageService.getInstance().getLastError(accountKey(QuotaProviderType.OPEN_CODE))
-
-        when {
-            !apiKeyStore.isLoaded() || !cookieStore.isLoaded() -> {
-                openCodeStatusLabel.text = formatStatusText("Loading OpenCode credentials...", AuthStatusKind.PENDING)
-                openCodeStatusLabel.foreground = statusLabelDefaultForeground ?: openCodeStatusLabel.foreground
-            }
-            cookie == null && apiKey.isNullOrBlank() -> {
-                openCodeStatusLabel.text = formatStatusText("No session cookie configured for quota; no API key configured for proxy", AuthStatusKind.DISCONNECTED)
-                openCodeStatusLabel.foreground = statusLabelDefaultForeground ?: openCodeStatusLabel.foreground
-            }
-            cookie == null -> {
-                openCodeStatusLabel.text = formatStatusText("API key stored for proxy; no session cookie configured for quota", AuthStatusKind.CONNECTED)
-                openCodeStatusLabel.foreground = statusLabelDefaultForeground ?: openCodeStatusLabel.foreground
-            }
-            workspaceComboBox.isVisible && workspaceComboBox.itemCount > 0 -> {
-                openCodeStatusLabel.text = formatStatusText("Connected", AuthStatusKind.CONNECTED)
-                openCodeStatusLabel.foreground = statusLabelDefaultForeground ?: openCodeStatusLabel.foreground
-            }
-            openCodeError != null -> {
-                openCodeStatusLabel.text = formatStatusText("Error: $openCodeError", AuthStatusKind.DISCONNECTED)
-                openCodeStatusLabel.foreground = statusLabelDefaultForeground ?: openCodeStatusLabel.foreground
-            }
-            openCodeQuota != null -> {
-                openCodeStatusLabel.text = formatStatusText("Connected", AuthStatusKind.CONNECTED)
-                openCodeStatusLabel.foreground = statusLabelDefaultForeground ?: openCodeStatusLabel.foreground
-            }
-            else -> {
-                openCodeStatusLabel.text = formatStatusText("Session cookie stored securely", AuthStatusKind.CONNECTED)
-                openCodeStatusLabel.foreground = statusLabelDefaultForeground ?: openCodeStatusLabel.foreground
-            }
+        val id = accountId()
+        val credentials = auth().load(id) { onUi(id) { updateFields() } }
+        val inProgress = auth().isLoginInProgress(id)
+        if (credentials != null && credentials !== workspaceCredentials && !loggingOut) {
+            workspaceCredentials = credentials
+            loadWorkspaces(id)
         }
-        openCodeStatusLabel.isVisible = true
-    }
-
-    private fun setOpenCodePendingStatus(text: String) {
-        openCodeStatusLabel.text = formatStatusText(text, AuthStatusKind.PENDING)
-        openCodeStatusLabel.foreground = statusLabelDefaultForeground ?: openCodeStatusLabel.foreground
-        openCodeStatusLabel.isVisible = true
-    }
-
-    private fun saveApiKeyNow() {
-        val apiKey = String(apiKeyField.password).trim()
-        if (apiKey.isNotBlank() && apiKey != API_KEY_PLACEHOLDER) {
-            OpenCodeApiKeyStore.forAccount(accountKey(QuotaProviderType.OPEN_CODE)).save(apiKey)
-            apiKeyField.text = API_KEY_PLACEHOLDER
-            updateStatus()
+        val error = QuotaUsageService.getInstance().getLastError(id)
+        val warnings = (QuotaUsageService.getInstance().getLastQuota(id) as? OpenCodeQuota)?.warnings.orEmpty()
+        val message = when {
+            loggingOut -> AuthStatusMessage("Logging out...", false, AuthStatusKind.PENDING)
+            authMessage != null -> authMessage!!
+            !auth().isLoaded(id) -> AuthStatusMessage("Loading credentials...", false, AuthStatusKind.PENDING)
+            auth().loadError(id) != null -> AuthStatusMessage(auth().loadError(id)!!, true, AuthStatusKind.DISCONNECTED)
+            credentials == null -> AuthStatusMessage("Not signed in to OpenCode", false, AuthStatusKind.DISCONNECTED)
+            error != null -> AuthStatusMessage(error, true, AuthStatusKind.DISCONNECTED)
+            warnings.isNotEmpty() -> AuthStatusMessage("Connected; ${warnings.joinToString("; ")}", false, AuthStatusKind.PENDING)
+            else -> AuthStatusMessage("Connected", false, AuthStatusKind.CONNECTED)
         }
-    }
-
-    private fun clearApiKeyNow() {
-        OpenCodeApiKeyStore.forAccount(accountKey(QuotaProviderType.OPEN_CODE)).clear()
-        apiKeyField.text = ""
-        updateStatus()
-    }
-
-    override fun updateResponseArea() {
-        val quota = QuotaUsageService.getInstance().getLastQuota(accountKey(QuotaProviderType.OPEN_CODE)) as? OpenCodeQuota
-        val error = QuotaUsageService.getInstance().getLastError(accountKey(QuotaProviderType.OPEN_CODE))
-        val rawJson = QuotaUsageService.getInstance().getLastResponseJson(accountKey(QuotaProviderType.OPEN_CODE))
-
-        openCodeJsonViewer.text = when {
-            error != null && !rawJson.isNullOrBlank() -> "Error: $error\n\n$rawJson"
-            error != null -> "Error: $error"
-            quota == null -> "No OpenCode response yet."
-            !rawJson.isNullOrBlank() -> rawJson
-            else -> {
-                try {
-                    de.moritzf.quota.shared.JsonSupport.json.encodeToString(
-                        OpenCodeQuota.serializer(),
-                        quota,
-                    )
-                } catch (exception: Exception) {
-                    "Could not serialize response: ${exception.message}"
-                }
-            }
-        }
-        openCodeJsonViewer.setCaretPosition(0)
-    }
-
-    private fun loadWorkspaces(cookie: String) {
-        workspaceLoadingLabel.text = "Loading workspaces..."
-        workspaceLoadingLabel.isVisible = true
-        workspaceLabel.isVisible = false
-        workspaceComboBox.isVisible = false
-
-        ApplicationManager.getApplication().executeOnPooledThread {
-            try {
-                val client = OpenCodeQuotaClient()
-                val workspaces = client.fetchWorkspaces(cookie)
-
-                ApplicationManager.getApplication().invokeLater({
-                    workspaceComboBox.removeAllItems()
-                    workspaces.forEach { workspaceComboBox.addItem(it) }
-
-                    val accountId = accountKey(QuotaProviderType.OPEN_CODE)
-                    val storedId = boundAccount?.extra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE)
-                        ?: QuotaSettingsState.getInstance().openCodeWorkspaceIdFor(accountId)
-                    val preselected = workspaces.find { it.id == storedId }
-                        ?: workspaces.firstOrNull { it.mine && it.hasGoSubscription }
-                        ?: workspaces.firstOrNull { it.hasGoSubscription }
-                        ?: workspaces.firstOrNull()
-
-                    updatingWorkspaceComboBox = true
-                    try {
-                        preselected?.let { workspace ->
-                            workspaceComboBox.selectedItem = workspace
-                            boundAccount?.setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, workspace.id)
-                        }
-                    } finally {
-                        updatingWorkspaceComboBox = false
-                    }
-
-                    workspaceLoadingLabel.isVisible = false
-                    workspaceLabel.isVisible = true
-                    workspaceComboBox.isVisible = true
-                    updateStatus()
-                }, ModalityState.stateForComponent(modalityComponentProvider() ?: this@OpenCodeSettingsPanel))
-            } catch (e: Exception) {
-                ApplicationManager.getApplication().invokeLater({
-                    workspaceComboBox.removeAllItems()
-                    workspaceComboBox.isVisible = false
-                    workspaceLabel.isVisible = false
-                    workspaceLoadingLabel.text = "Could not load workspaces: ${e.message}"
-                    workspaceLoadingLabel.isVisible = true
-                    updateStatus()
-                }, ModalityState.stateForComponent(modalityComponentProvider() ?: this@OpenCodeSettingsPanel))
-            }
-        }
-    }
-
-    private fun refreshAfterCookieLoad() {
-        if (awaitingCookieLoadRefresh) {
-            return
-        }
-        awaitingCookieLoadRefresh = true
-        ApplicationManager.getApplication().invokeLater({
-            awaitingCookieLoadRefresh = false
-            updateFields()
-        }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
-    }
-
-    fun selectedWorkspaceId(): String? = (workspaceComboBox.selectedItem as? OpenCodeWorkspace)?.id
-
-    private fun refreshAfterApiKeyLoad() {
-        updateFields()
-        updateResponseArea()
-    }
-
-
-
-    private fun formatStatusText(text: String, kind: AuthStatusKind): String {
-        val color = when (kind) {
+        val color = when (message.kind) {
             AuthStatusKind.CONNECTED -> "#4CAF50"
             AuthStatusKind.DISCONNECTED -> "#F44336"
             AuthStatusKind.PENDING -> "#FFC107"
         }
-        return "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
+        statusLabel.text = "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(message.text)}</html>"
+        statusLabel.foreground = statusLabelDefaultForeground ?: statusLabel.foreground
+        loginButton.isEnabled = !inProgress && !loggingOut
+        cancelButton.isEnabled = inProgress && !loggingOut
+        logoutButton.isEnabled = credentials != null && !inProgress && !loggingOut
+        if (!inProgress) {
+            verificationUrl = null
+            copyUrlButton.isVisible = false
+            userCodeLabel.isVisible = false
+        }
+    }
+
+    private fun loadWorkspaces(id: String) {
+        val request = ++workspaceRequest
+        val scoped = auth().load(id)?.accountId?.let(::OpenCodeWorkspace)
+        replaceWorkspaces(listOfNotNull(scoped), scoped)
+        workspaceStatus.text = "Loading organizations..."
+        workspaceComboBox.isEnabled = false
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val result = runCatching { auth().workspaces(id) }
+            onUi(id) {
+                if (request != workspaceRequest) return@onUi
+                result.fold(onSuccess = { workspaces ->
+                    val selected = workspaces.find { it.id == selectedWorkspaceId() } ?: workspaces.firstOrNull()
+                    replaceWorkspaces(workspaces, selected)
+                    selected?.let { boundAccount?.setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, it.id) }
+                    workspaceStatus.text = if (workspaces.isEmpty()) "No organizations found" else ""
+                }, onFailure = {
+                    workspaceStatus.text = "Could not load organizations: ${it.message}"
+                })
+            }
+        }
+    }
+
+    private fun replaceWorkspaces(workspaces: List<OpenCodeWorkspace>, selected: OpenCodeWorkspace?) {
+        updatingWorkspaces = true
+        try {
+            workspaceComboBox.removeAllItems()
+            workspaces.forEach(workspaceComboBox::addItem)
+            workspaceComboBox.selectedItem = selected
+            workspaceComboBox.isEnabled = workspaces.size > 1
+        } finally {
+            updatingWorkspaces = false
+        }
+    }
+
+    fun selectedWorkspaceId(): String? = auth().load(accountId())?.accountId
+        ?: (workspaceComboBox.selectedItem as? OpenCodeWorkspace)?.id
+        ?: boundAccount?.extra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE)
+
+    private fun saveApiKey(clear: Boolean) {
+        val id = accountId()
+        val key = String(apiKeyField.password).trim()
+        if (!clear && (key.isBlank() || key == API_KEY_PLACEHOLDER)) return
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val result = runCatching {
+                val store = OpenCodeApiKeyStore.forAccount(id)
+                if (clear) store.clear() else store.save(key)
+            }
+            onUi(id) {
+                authMessage = result.exceptionOrNull()?.let {
+                    AuthStatusMessage(it.message ?: "Could not save API key", true, AuthStatusKind.DISCONNECTED)
+                }
+                updateFields()
+            }
+        }
+    }
+
+    override fun updateResponseArea() {
+        val service = QuotaUsageService.getInstance()
+        val raw = service.getLastResponseJson(accountId())
+        val error = service.getLastError(accountId())
+        responseViewer.text = when {
+            error != null && !raw.isNullOrBlank() -> "Error: $error\n\n$raw"
+            error != null -> "Error: $error"
+            raw.isNullOrBlank() -> "No OpenCode response yet."
+            else -> raw
+        }
+        responseViewer.setCaretPosition(0)
+    }
+
+    private fun onUi(id: String, action: () -> Unit) {
+        ApplicationManager.getApplication().invokeLater({
+            if (accountId() == id) action()
+        }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
     }
 
     private companion object {
-        private const val OPENCODE_COOKIE_PLACEHOLDER = "********"
-        private const val API_KEY_PLACEHOLDER = "********"
+        const val API_KEY_PLACEHOLDER = "********"
     }
 }

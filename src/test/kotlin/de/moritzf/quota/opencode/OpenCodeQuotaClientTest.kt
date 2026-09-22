@@ -1,242 +1,160 @@
 package de.moritzf.quota.opencode
 
-import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpHeaders
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
-import java.util.Optional
-import javax.net.ssl.SSLSession
+import de.moritzf.quota.shared.JsonSupport
+import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 class OpenCodeQuotaClientTest {
+    private val now = Instant.parse("2026-09-20T00:00:00Z")
 
     @Test
-    fun workspaceToStringIncludesNameIdMineAndGo() {
-        val ws1 = OpenCodeWorkspace("wrk_a", "My Workspace", true, true)
-        assertEquals("My Workspace (wrk_a) [mine] [Go]", ws1.toString())
-
-        val ws2 = OpenCodeWorkspace("wrk_b", "", false, true)
-        assertEquals("wrk_b [Go]", ws2.toString())
-
-        val ws3 = OpenCodeWorkspace("wrk_c", "wrk_c", true, false)
-        assertEquals("wrk_c [mine]", ws3.toString())
-    }
-    @Test
-    fun parsesRealSolidStartResponse() {
-        val body = ";0x00000126;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[]," +
-            "(\$R=>\$R[0]={mine:!0,useBalance:!1," +
-            "rollingUsage:\$R[1]={status:\"ok\",resetInSec:17999,usagePercent:1}," +
-            "weeklyUsage:\$R[2]={status:\"ok\",resetInSec:545090,usagePercent:6}," +
-            "monthlyUsage:\$R[3]={status:\"ok\",resetInSec:2503851,usagePercent:24}})" +
-            "(\$R[\"server-fn:1\"]))"
-
-        val quota = OpenCodeQuotaClient.parseQuotaResponse(body)
-
-        assertTrue(quota.mine)
-        assertEquals(false, quota.useBalance)
-
-        assertEquals(1.0, quota.rollingUsage?.usagePercent)
-        assertEquals(17999L, quota.rollingUsage?.resetInSec)
-        assertEquals("ok", quota.rollingUsage?.status)
-
-        assertEquals(6.0, quota.weeklyUsage?.usagePercent)
-        assertEquals(545090L, quota.weeklyUsage?.resetInSec)
-
-        assertEquals(24.0, quota.monthlyUsage?.usagePercent)
-        assertEquals(2503851L, quota.monthlyUsage?.resetInSec)
+    fun parsesConsoleMetersAndMonthlyPeriodEnd() {
+        val quota = OpenCodeQuotaClient.parseQuotaResponse(GO_STATUS, now)
+        assertEquals(25.0, quota.rollingUsage?.usagePercent)
+        assertEquals(40.0, quota.weeklyUsage?.usagePercent)
+        assertEquals(10.0, quota.monthlyUsage?.usagePercent)
+        assertEquals(10800L, quota.rollingUsage?.resetInSec)
+        assertEquals(86400L, quota.weeklyUsage?.resetInSec)
+        assertEquals(2505600L, quota.monthlyUsage?.resetInSec)
     }
 
     @Test
-    fun parsesFractionalUsagePercentAndRegionArray() {
-        val body = ";0x000001b4;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[]," +
-            "(\$R=>\$R[0]={mine:!0,useBalance:!1,allowTraining:!1," +
-            "region:\$R[1]=[\"us\",\"eu\",\"sg\"]," +
-            "rollingUsage:\$R[2]={status:\"ok\",resetInSec:18000,usagePercent:0,usage:0,limit:1200000000}," +
-            "weeklyUsage:\$R[3]={status:\"ok\",resetInSec:317561,usagePercent:15.2,usage:456329164,limit:3000000000}," +
-            "monthlyUsage:\$R[4]={status:\"ok\",resetInSec:2066078,usagePercent:8.4,usage:506438552,limit:6000000000}})" +
-            "(\$R[\"server-fn:1\"]))"
-
-        val quota = OpenCodeQuotaClient.parseQuotaResponse(body)
-
-        assertTrue(quota.mine)
-        assertEquals(false, quota.useBalance)
-        assertEquals(0.0, quota.rollingUsage?.usagePercent)
-        assertEquals(18000L, quota.rollingUsage?.resetInSec)
-        assertEquals(15.2, quota.weeklyUsage?.usagePercent)
-        assertEquals(317561L, quota.weeklyUsage?.resetInSec)
-        assertEquals(8.4, quota.monthlyUsage?.usagePercent)
-        assertEquals(2066078L, quota.monthlyUsage?.resetInSec)
+    fun missingResetsAndMetersRemainAbsentAndExhaustionIsNotClamped() {
+        val body = """{"access":{"meters":{"fiveHour":{"usedMicroCents":"101","limitMicroCents":"100","resetsAt":null}}}}"""
+        val quota = OpenCodeQuotaClient.parseQuotaResponse(body, now)
+        assertEquals(101.0, quota.rollingUsage?.usagePercent)
+        assertTrue(quota.rollingUsage!!.isRateLimited)
+        assertEquals(0L, quota.rollingUsage.resetInSec)
+        assertNull(quota.weeklyUsage)
+        assertNull(quota.monthlyUsage)
     }
 
     @Test
-    fun parsesRateLimitedResponse() {
-        val body = ";0x00000126;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[]," +
-            "(\$R=>\$R[0]={mine:!0,useBalance:!1," +
-            "rollingUsage:\$R[1]={status:\"rate-limited\",resetInSec:3600,usagePercent:100}," +
-            "weeklyUsage:\$R[2]={status:\"ok\",resetInSec:100000,usagePercent:50}," +
-            "monthlyUsage:\$R[3]={status:\"ok\",resetInSec:2000000,usagePercent:30}})" +
-            "(\$R[\"server-fn:1\"]))"
-
-        val quota = OpenCodeQuotaClient.parseQuotaResponse(body)
-        val rollingUsage = quota.rollingUsage!!
-
-        assertTrue(rollingUsage.isRateLimited)
-        assertEquals(100.0, rollingUsage.usagePercent)
-        assertEquals(50.0, quota.weeklyUsage?.usagePercent)
-    }
-
-    @Test
-    fun parsesStringsContainingBracesWithoutRegexRewrite() {
-        val body = ";0x00000126;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[]," +
-            "(\$R=>\$R[0]={mine:!0,useBalance:!1," +
-            "rollingUsage:\$R[1]={status:\"ok {still-json}\",resetInSec:17999,usagePercent:1}," +
-            "weeklyUsage:\$R[2]={status:\"ok\",resetInSec:545090,usagePercent:6}," +
-            "monthlyUsage:\$R[3]={status:\"ok\",resetInSec:2503851,usagePercent:24}})" +
-            "(\$R[\"server-fn:1\"]))"
-
-        val quota = OpenCodeQuotaClient.parseQuotaResponse(body)
-
-        assertEquals("ok {still-json}", quota.rollingUsage?.status)
-        assertEquals(1.0, quota.rollingUsage?.usagePercent)
-    }
-
-    @Test
-    fun parsesNullResponse() {
-        val body = ";0x00000001;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[]," +
-            "(\$R=>\$R[0]=null)(\$R[\"server-fn:1\"]))"
-
-        try {
-            OpenCodeQuotaClient.parseQuotaResponse(body)
-            assertTrue(false, "Should have thrown for null response")
-        } catch (e: OpenCodeQuotaException) {
-            assertTrue(e.message?.contains("unexpected format") == true)
+    fun nullGoResponsesStillFetchZenBalanceWithBearerAndOrganization() {
+        for (go in listOf("null", """{"access":null}""")) {
+            OpenCodeTestServer { request ->
+                200 to if (request.path.endsWith("go/status")) go else BILLING_STATUS
+            }.use { server ->
+                val quota = OpenCodeQuotaClient(endpoint = server.endpoint).fetchQuota("user-token", "org_test")
+                assertFalse(quota.hasUsageState())
+                assertEquals(1_234_567_890L, quota.availableBalance)
+                assertEquals(listOf("/console/api/go/status", "/console/api/billing/status"), server.requests.map { it.path })
+                server.requests.forEach {
+                    assertEquals("GET", it.method)
+                    assertEquals("Bearer user-token", it.headers.getFirst("Authorization"))
+                    assertEquals("org_test", it.headers.getFirst("x-org-id"))
+                    assertNull(it.headers.getFirst("Cookie"))
+                }
+                val raw = JsonSupport.json.parseToJsonElement(quota.rawJson!!).jsonObject
+                assertEquals(JsonSupport.json.parseToJsonElement(go), raw["go"])
+                assertEquals(JsonSupport.json.parseToJsonElement(BILLING_STATUS), raw["billing"])
+            }
         }
     }
 
     @Test
-    fun parsesBillingInfoResponse() {
-        val body = ";0x00000040;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[]," +
-            "(\$R=>\$R[0]={balance:1234560000,customerID:\"cus_123\"})(\$R[\"server-fn:1\"]))"
-
-        val billingInfo = OpenCodeQuotaClient.parseBillingInfoResponse(body)
-
-        assertEquals(1234560000L, billingInfo.balance)
-    }
-
-    @Test
-    fun balanceOnlyQuotaHasAvailableBalanceWithoutUsageState() {
-        val quota = OpenCodeQuota(availableBalance = 1_234_560_000L, useBalance = true)
-
-        assertTrue(quota.hasAvailableBalance())
-        assertTrue(!quota.hasUsageState())
-    }
-
-    @Test
-    fun fetchQuotaFallsBackToBillingForNullRootAssignment() {
-        OpenCodeQuotaClient.clearCachedFunctionId()
-        val goResponse = ";0x00000001;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[]," +
-            "(\$R=>\$R[0]=null)(\$R[\"server-fn:1\"]))"
-        val billingResponse = ";0x00000040;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[]," +
-            "(\$R=>\$R[0]={balance:1234560000,customerID:\"cus_123\"})(\$R[\"server-fn:1\"]))"
-        val client = OpenCodeQuotaClient(
-            httpClient = FakeHttpClient(
-                "<script type=\"module\" src=\"/_build/assets/app.js\"></script>",
-                "const queryLiteSubscription_query=createServerReference(\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\")",
-                goResponse,
-                billingResponse,
-            ),
-            endpoint = URI.create("https://opencode.test/_server"),
-        )
-
-        val quota = client.fetchQuota("session", "wrk_123")
-
-        assertTrue(!quota.hasUsageState())
-        assertEquals(1234560000L, quota.availableBalance)
-    }
-
-    @Test
-    fun fetchQuotaFallsBackToBillingForNullGoResponse() {
-        OpenCodeQuotaClient.clearCachedFunctionId()
-        val goResponse = ";0x0000002e;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[],null)"
-        val billingResponse = ";0x00000040;((self.\$R=self.\$R||{})[\"server-fn:1\"]=[]," +
-            "(\$R=>\$R[0]={balance:1234560000,customerID:\"cus_123\"})(\$R[\"server-fn:1\"]))"
-        val client = OpenCodeQuotaClient(
-            httpClient = FakeHttpClient(
-                "<script type=\"module\" src=\"/_build/assets/app.js\"></script>",
-                "const queryLiteSubscription_query=createServerReference(\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\")",
-                goResponse,
-                billingResponse,
-            ),
-            endpoint = URI.create("https://opencode.test/_server"),
-        )
-
-        val quota = client.fetchQuota("session", "wrk_123")
-
-        assertTrue(!quota.hasUsageState())
-        assertEquals(1234560000L, quota.availableBalance)
-        assertEquals(goResponse, quota.rawGoJson)
-        assertEquals(billingResponse, quota.rawBillingJson)
-        assertEquals(
-            "OpenCode Go response:\n$goResponse\n\nOpenCode billing response:\n$billingResponse",
-            quota.rawJson,
-        )
-    }
-
-    @Test
-    fun buildsCombinedRawResponseFromGoAndBillingBodies() {
-        assertEquals(
-            "OpenCode Go response:\ngo\n\nOpenCode billing response:\nbilling",
-            OpenCodeQuotaClient.buildRawResponse("go", "billing"),
-        )
-        assertEquals("OpenCode Go response:\ngo", OpenCodeQuotaClient.buildRawResponse("go", null))
-        assertEquals("OpenCode billing response:\nbilling", OpenCodeQuotaClient.buildRawResponse(null, "billing"))
-    }
-
-    private class FakeHttpClient(private vararg val bodies: String) : HttpClient() {
-        private var index = 0
-
-        override fun <T : Any?> send(request: HttpRequest, responseBodyHandler: HttpResponse.BodyHandler<T>): HttpResponse<T> {
-            @Suppress("UNCHECKED_CAST")
-            return FakeResponse(bodies[index++]) as HttpResponse<T>
+    fun malformedOrDeniedGoPreservesBalanceWithPartialDataWarning() {
+        for ((status, go) in listOf(200 to "{}", 200 to """{"access":{}}""", 200 to "<html>login</html>", 403 to "{}")) {
+            OpenCodeTestServer { request ->
+                if (request.path.endsWith("go/status")) status to go else 200 to BILLING_STATUS
+            }.use { server ->
+                val quota = OpenCodeQuotaClient(endpoint = server.endpoint).fetchQuota("token", "wrk_test")
+                assertEquals(1_234_567_890L, quota.availableBalance)
+                assertFalse(quota.hasUsageState())
+                assertTrue(quota.warnings.isNotEmpty())
+                assertEquals(2, server.requests.size)
+            }
         }
-
-        override fun <T : Any?> sendAsync(
-            request: HttpRequest,
-            responseBodyHandler: HttpResponse.BodyHandler<T>,
-        ): java.util.concurrent.CompletableFuture<HttpResponse<T>> {
-            throw UnsupportedOperationException()
-        }
-
-        override fun <T : Any?> sendAsync(
-            request: HttpRequest,
-            responseBodyHandler: HttpResponse.BodyHandler<T>,
-            pushPromiseHandler: HttpResponse.PushPromiseHandler<T>,
-        ): java.util.concurrent.CompletableFuture<HttpResponse<T>> {
-            throw UnsupportedOperationException()
-        }
-
-        override fun cookieHandler(): Optional<java.net.CookieHandler> = Optional.empty()
-        override fun connectTimeout(): Optional<java.time.Duration> = Optional.empty()
-        override fun followRedirects(): Redirect = Redirect.NEVER
-        override fun proxy(): Optional<java.net.ProxySelector> = Optional.empty()
-        override fun sslContext(): javax.net.ssl.SSLContext = javax.net.ssl.SSLContext.getDefault()
-        override fun sslParameters(): javax.net.ssl.SSLParameters = javax.net.ssl.SSLParameters()
-        override fun authenticator(): Optional<java.net.Authenticator> = Optional.empty()
-        override fun version(): Version = Version.HTTP_1_1
-        override fun executor(): Optional<java.util.concurrent.Executor> = Optional.empty()
     }
 
-    private class FakeResponse(private val body: String) : HttpResponse<String> {
-        override fun statusCode(): Int = 200
-        override fun request(): HttpRequest? = null
-        override fun previousResponse(): Optional<HttpResponse<String>> = Optional.empty()
-        override fun headers(): HttpHeaders = HttpHeaders.of(emptyMap()) { _, _ -> true }
-        override fun body(): String = body
-        override fun sslSession(): Optional<SSLSession> = Optional.empty()
-        override fun uri(): URI = URI.create("https://opencode.test/_server")
-        override fun version(): HttpClient.Version = HttpClient.Version.HTTP_1_1
+    @Test
+    fun malformedWindowAndResetDoNotHideOtherWindowsOrValidPercent() {
+        val body = """{"unrelated":{"new":true},"access":{"endsAt":"changed","meters":{
+            "fiveHour":{"usedMicroCents":"25.5","limitMicroCents":100,"resetsAt":{"changed":true}},
+            "week":{"usedMicroCents":{"newShape":120},"limitMicroCents":"300"},
+            "month":{"usedMicroCents":"10","limitMicroCents":"100"}}}}"""
+        val quota = OpenCodeQuotaClient.parseQuotaResponse(body, now)
+        assertEquals(25.5, quota.rollingUsage?.usagePercent)
+        assertEquals(0L, quota.rollingUsage?.resetInSec)
+        assertNull(quota.weeklyUsage)
+        assertEquals(10.0, quota.monthlyUsage?.usagePercent)
+        assertEquals(3, quota.warnings.size)
+    }
+
+    @Test
+    fun malformedBillingPreservesAllGoWindowsAndRawResponse() {
+        OpenCodeTestServer { request ->
+            200 to if (request.path.endsWith("go/status")) GO_STATUS else """{"balanceMicroCents":{"new":"shape"}}"""
+        }.use { server ->
+            val quota = OpenCodeQuotaClient(endpoint = server.endpoint).fetchQuota("token", "org_test")
+            assertEquals(25.0, quota.rollingUsage?.usagePercent)
+            assertEquals(40.0, quota.weeklyUsage?.usagePercent)
+            assertEquals(10.0, quota.monthlyUsage?.usagePercent)
+            assertNull(quota.availableBalance)
+            assertTrue(quota.warnings.single().contains("Zen balance"))
+            assertTrue(quota.rawJson!!.contains("new"))
+        }
+    }
+
+    @Test
+    fun reportsFailureOnlyWhenNoSectionIsUsable() {
+        OpenCodeTestServer { 200 to "{}" }.use { server ->
+            val failure = assertFailsWith<OpenCodeQuotaException> {
+                OpenCodeQuotaClient(endpoint = server.endpoint).fetchQuota("token", "org_test")
+            }
+            assertEquals(2, server.requests.size)
+            assertTrue(failure.message!!.contains("Go usage"))
+            assertTrue(failure.message!!.contains("Zen balance"))
+        }
+    }
+
+    @Test
+    fun optionalBillingFailurePreservesGoButUnauthorizedTriggersRefresh() {
+        for (status in listOf(401, 403, 500)) {
+            OpenCodeTestServer { request ->
+                if (request.path.endsWith("go/status")) 200 to GO_STATUS else status to "{}"
+            }.use { server ->
+                val client = OpenCodeQuotaClient(endpoint = server.endpoint)
+                if (status == 401) {
+                    assertEquals(401, assertFailsWith<OpenCodeQuotaException> { client.fetchQuota("t", "org_test") }.statusCode)
+                } else {
+                    val quota = client.fetchQuota("t", "org_test")
+                    assertEquals(25.0, quota.rollingUsage?.usagePercent)
+                    assertNull(quota.availableBalance)
+                }
+            }
+        }
+        OpenCodeTestServer { request ->
+            if (request.path.endsWith("go/status")) 200 to "null" else 403 to "{}"
+        }.use { server ->
+            assertEquals(403, assertFailsWith<OpenCodeQuotaException> {
+                OpenCodeQuotaClient(endpoint = server.endpoint).fetchQuota("t", "org_test")
+            }.statusCode)
+        }
+    }
+
+    @Test
+    fun organizationsUseJsonWithoutProbingEverySubscription() {
+        OpenCodeTestServer { 200 to """[{"id":"wrk_old","name":"Default"},{"id":{},"name":"changed"},{"id":"org_new","name":"Team"}]""" }.use { server ->
+            val workspaces = OpenCodeQuotaClient(endpoint = server.endpoint).fetchWorkspaces("user-token")
+            assertEquals(listOf("wrk_old", "org_new"), workspaces.map { it.id })
+            assertEquals("Default (wrk_old)", workspaces.first().toString())
+            assertEquals("/console/api/orgs", server.requests.single().path)
+            assertNull(server.requests.single().headers.getFirst("x-org-id"))
+        }
+    }
+
+    companion object {
+        const val GO_STATUS = """{"useBalance":false,"access":{"endsAt":"2026-10-19T00:00:00Z","meters":{
+            "fiveHour":{"usedMicroCents":"300000000","limitMicroCents":"1200000000","resetsAt":"2026-09-20T03:00:00Z"},
+            "week":{"usedMicroCents":"1200000000","limitMicroCents":"3000000000","resetsAt":"2026-09-21T00:00:00Z"},
+            "month":{"usedMicroCents":"600000000","limitMicroCents":"6000000000","resetsAt":null}}}}"""
+        const val BILLING_STATUS = """{"billingMode":"prepaid","mode":"pay-as-you-go","balanceMicroCents":"1234567890","availableMicroCents":"9876543210"}"""
     }
 }

@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- OpenCode quota checks now use cookie-free Console device login with automatic token refresh and organization selection. Go usage windows and prepaid Zen balance use the new Console JSON APIs, replacing broken legacy page/RPC discovery. Existing OpenCode connections need to sign in again.
+- OpenCode quota parsing preserves readable usage windows and balance when another section changes or fails, and reports partial-data warnings without hiding the remaining information.
+
 ## [1.13.6] - 2026-09-21
 
 - Ollama monthly reset accepts a paste of the ollama.com/settings page. The Monthly usage Resets `data-time` is stored; other timestamps on the page are ignored.

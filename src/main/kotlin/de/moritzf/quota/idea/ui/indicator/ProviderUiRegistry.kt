@@ -12,7 +12,7 @@ import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
 import de.moritzf.quota.idea.mistral.MistralApiKeyStore
 import de.moritzf.quota.idea.mistral.MistralSessionCookieStore
 import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
-import de.moritzf.quota.idea.opencode.OpenCodeSessionCookieStore
+import de.moritzf.quota.idea.opencode.OpenCodeAuthService
 import de.moritzf.quota.idea.ui.popup.ClaudePopupSection
 import de.moritzf.quota.idea.ui.popup.CursorPopupSection
 import de.moritzf.quota.idea.ui.popup.GitHubPopupSection
@@ -146,10 +146,12 @@ internal object OpenCodeUi : ProviderUi {
         openCodePeriodElapsedFraction(quota as? OpenCodeQuota, error)
 
     override fun authState(accountId: String): ProviderAuthState {
-        return if (OpenCodeSessionCookieStore.forAccount(accountId).load() != null) {
-            ProviderAuthState.AUTHENTICATED
-        } else {
-            ProviderAuthState.UNAUTHENTICATED
+        val auth = OpenCodeAuthService.getInstance()
+        val credentials = auth.load(accountId)
+        return when {
+            !auth.isLoaded(accountId) -> ProviderAuthState.UNKNOWN
+            credentials != null -> ProviderAuthState.AUTHENTICATED
+            else -> ProviderAuthState.UNAUTHENTICATED
         }
     }
 

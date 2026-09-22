@@ -15,7 +15,7 @@ import de.moritzf.quota.idea.mistral.MistralApiKeyStore
 import de.moritzf.quota.idea.mistral.MistralSessionCookieStore
 import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
 import de.moritzf.quota.idea.opencode.OpenCodeApiKeyStore
-import de.moritzf.quota.idea.opencode.OpenCodeSessionCookieStore
+import de.moritzf.quota.idea.opencode.OpenCodeAuthService
 import de.moritzf.quota.idea.settings.ClaudeSettingsPanel
 import de.moritzf.quota.idea.settings.CursorSettingsPanel
 import de.moritzf.quota.idea.settings.GitHubSettingsPanel
@@ -346,17 +346,17 @@ internal object ProviderCatalog {
                 emptyMessage = "No OpenCode usage response available",
                 json = { service, _ ->
                     val quota = service.getLastQuota(QuotaProviderType.OPEN_CODE) as? OpenCodeQuota
-                    quota?.let { runCatching { JsonSupport.json.encodeToString(OpenCodeQuota.serializer(), it) }.getOrNull() }
+                    quota?.rawJson
                 },
             ),
             settings = { ctx -> OpenCodeSettingsPanel(ctx.modalityComponentProvider, ctx.statusLabelDefaultForeground) },
             ui = OpenCodeUi,
-            // Quota uses session cookie; proxy uses API key.
+            // Quota uses Console OAuth; proxy uses API key.
             isQuotaConfigured = {
-                !OpenCodeSessionCookieStore.getInstance().loadBlocking().isNullOrBlank()
+                OpenCodeAuthService.getInstance().loadBlocking(QuotaProviderType.OPEN_CODE.id) != null
             },
             isQuotaConfiguredForAccount = { accountId ->
-                !OpenCodeSessionCookieStore.forAccount(accountId).loadBlocking().isNullOrBlank()
+                OpenCodeAuthService.getInstance().loadBlocking(accountId) != null
             },
             isProxyConfigured = { onLoaded ->
                 anyAccount(QuotaProviderType.OPEN_CODE) { id ->

@@ -21,6 +21,7 @@ data class OpenCodeQuota(
     @Transient override var rawJson: String? = null,
     @Transient var rawGoJson: String? = null,
     @Transient var rawBillingJson: String? = null,
+    var warnings: List<String> = emptyList(),
 ) : ProviderQuota {
     override fun hasUsageState(): Boolean {
         return rollingUsage != null || weeklyUsage != null || monthlyUsage != null

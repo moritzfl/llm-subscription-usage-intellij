@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea
 
 import de.moritzf.quota.idea.common.*
+import de.moritzf.quota.idea.auth.OAuthCredentials
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorSource
 import de.moritzf.quota.openai.OpenAiCodexQuota
@@ -136,7 +137,7 @@ class QuotaUsageServiceTest {
             assertEquals("Not logged in", service.getLastError(QuotaProviderType.OPEN_AI))
             assertNull(service.getLastResponseJson(QuotaProviderType.OPEN_AI))
             assertNull(service.getLastQuota(QuotaProviderType.OPEN_CODE))
-            assertEquals("No session cookie configured", service.getLastError(QuotaProviderType.OPEN_CODE))
+            assertEquals("Not signed in to OpenCode", service.getLastError(QuotaProviderType.OPEN_CODE))
         } finally {
             service.dispose()
         }
@@ -157,7 +158,7 @@ class QuotaUsageServiceTest {
         val openCodeClient = RecordingOpenCodeQuotaClient()
         val openCodeProvider = OpenCodeQuotaProvider(
             openCodeClient = openCodeClient,
-            openCodeCookieProvider = { "cookie-a" },
+            credentialsProvider = { OAuthCredentials(accessToken = "token-a") },
             settingsProvider = { null },
         )
         val service = createService(
@@ -173,31 +174,31 @@ class QuotaUsageServiceTest {
             assertNotNull(service.getLastQuota(QuotaProviderType.OPEN_AI))
             assertEquals(rawJson, service.getLastResponseJson(QuotaProviderType.OPEN_AI))
             assertNull(service.getLastQuota(QuotaProviderType.OPEN_CODE))
-            assertEquals("No session cookie configured", service.getLastError(QuotaProviderType.OPEN_CODE))
+            assertEquals("Not signed in to OpenCode", service.getLastError(QuotaProviderType.OPEN_CODE))
         } finally {
             service.dispose()
         }
     }
 
     @Test
-    fun changingCookieInvalidatesWorkspaceCache() {
+    fun changingTokenInvalidatesWorkspaceCache() {
         val openCodeClient = RecordingOpenCodeQuotaClient()
-        var cookie = "cookie-a"
+        var token = "token-a"
         val openCodeProvider = OpenCodeQuotaProvider(
             openCodeClient = openCodeClient,
-            openCodeCookieProvider = { cookie },
+            credentialsProvider = { OAuthCredentials(accessToken = token) },
             settingsProvider = { null },
         )
         val service = createService(openCodeProvider = openCodeProvider)
 
         try {
             service.refreshNowBlocking()
-            cookie = "cookie-b"
+            token = "token-b"
             service.refreshNowBlocking()
 
-            assertEquals(listOf("cookie-a", "cookie-b"), openCodeClient.discoveredCookies)
+            assertEquals(listOf("token-a", "token-b"), openCodeClient.discoveredTokens)
             assertEquals(
-                listOf("cookie-a:wrk-cookie-a", "cookie-b:wrk-cookie-b"),
+                listOf("token-a:wrk-token-a", "token-b:wrk-token-b"),
                 openCodeClient.fetchCalls,
             )
         } finally {
@@ -206,13 +207,17 @@ class QuotaUsageServiceTest {
     }
 
     @Test
-    fun staleOpenCodeCacheTriggersSingleRetry() {
+    fun rejectedOpenCodeTokenTriggersSingleRefreshAndRetry() {
         val openCodeClient = RecordingOpenCodeQuotaClient().apply {
-            failFirstFetch = OpenCodeQuotaException("Could not parse OpenCode quota response", 200, "broken")
+            failFirstFetch = OpenCodeQuotaException("Unauthorized", 401, "{}")
         }
+        val rejectedTokens = mutableListOf<String?>()
         val openCodeProvider = OpenCodeQuotaProvider(
             openCodeClient = openCodeClient,
-            openCodeCookieProvider = { "cookie-a" },
+            credentialsProvider = { rejected ->
+                rejectedTokens += rejected
+                OAuthCredentials(accessToken = if (rejected == null) "token-a" else "token-b")
+            },
             settingsProvider = { null },
         )
         val service = createService(openCodeProvider = openCodeProvider)
@@ -222,6 +227,7 @@ class QuotaUsageServiceTest {
 
             assertEquals(2, openCodeClient.discoverCount)
             assertEquals(2, openCodeClient.fetchCalls.size)
+            assertEquals(listOf(null, "token-a"), rejectedTokens)
             assertNotNull(service.getLastQuota(QuotaProviderType.OPEN_CODE))
             assertNull(service.getLastError(QuotaProviderType.OPEN_CODE))
         } finally {
@@ -237,7 +243,7 @@ class QuotaUsageServiceTest {
         val openCodeClient = RecordingOpenCodeQuotaClient()
         val openCodeProvider = OpenCodeQuotaProvider(
             openCodeClient = openCodeClient,
-            openCodeCookieProvider = { "cookie-a" },
+            credentialsProvider = { OAuthCredentials(accessToken = "token-a") },
             settingsProvider = { settings },
         )
         val service = createService(
@@ -249,7 +255,7 @@ class QuotaUsageServiceTest {
             service.refreshNowBlocking()
 
             assertEquals(0, openCodeClient.discoverCount)
-            assertEquals(listOf("cookie-a:wrk-stored"), openCodeClient.fetchCalls)
+            assertEquals(listOf("token-a:wrk-stored"), openCodeClient.fetchCalls)
         } finally {
             service.dispose()
         }
@@ -261,7 +267,7 @@ class QuotaUsageServiceTest {
         val openCodeClient = RecordingOpenCodeQuotaClient()
         val openCodeProvider = OpenCodeQuotaProvider(
             openCodeClient = openCodeClient,
-            openCodeCookieProvider = { "cookie-a" },
+            credentialsProvider = { OAuthCredentials(accessToken = "token-a") },
             settingsProvider = { settings },
         )
         val service = createService(
@@ -273,7 +279,7 @@ class QuotaUsageServiceTest {
             service.refreshNowBlocking()
 
             assertEquals(1, openCodeClient.discoverCount)
-            assertEquals("wrk-cookie-a", settings.openCodeWorkspaceId)
+            assertEquals("wrk-token-a", settings.openCodeWorkspaceId)
         } finally {
             service.dispose()
         }
@@ -293,7 +299,7 @@ class QuotaUsageServiceTest {
         val openCodeClient = RecordingOpenCodeQuotaClient()
         val openCodeProvider = OpenCodeQuotaProvider(
             openCodeClient = openCodeClient,
-            openCodeCookieProvider = { "cookie-a" },
+            credentialsProvider = { OAuthCredentials(accessToken = "token-a") },
             settingsProvider = { null },
         )
         val service = createService(
@@ -310,7 +316,7 @@ class QuotaUsageServiceTest {
             service.refreshBlocking(QuotaProviderType.OPEN_CODE)
 
             assertEquals(1, openAiFetchCount)
-            assertEquals(listOf("cookie-a:wrk-cookie-a"), openCodeClient.fetchCalls)
+            assertEquals(listOf("token-a:wrk-token-a"), openCodeClient.fetchCalls)
         } finally {
             service.dispose()
         }
@@ -331,16 +337,16 @@ class QuotaUsageServiceTest {
             accountIdProvider = { "account-1" },
         )
         val openCodeClient = object : RecordingOpenCodeQuotaClient() {
-            override fun fetchQuota(sessionCookie: String, workspaceId: String): OpenCodeQuota {
+            override fun fetchQuota(accessToken: String, workspaceId: String): OpenCodeQuota {
                 started.countDown()
                 assertTrue(started.await(2, TimeUnit.SECONDS))
                 release.countDown()
-                return super.fetchQuota(sessionCookie, workspaceId)
+                return super.fetchQuota(accessToken, workspaceId)
             }
         }
         val openCodeProvider = OpenCodeQuotaProvider(
             openCodeClient = openCodeClient,
-            openCodeCookieProvider = { "cookie-a" },
+            credentialsProvider = { OAuthCredentials(accessToken = "token-a") },
             settingsProvider = { null },
         )
         val service = createService(openAiProvider = openAiProvider, openCodeProvider = openCodeProvider)
@@ -364,16 +370,16 @@ class QuotaUsageServiceTest {
         )
         val completedOpenCodeRefresh = CountDownLatch(1)
         val openCodeClient = object : RecordingOpenCodeQuotaClient() {
-            override fun fetchQuota(sessionCookie: String, workspaceId: String): OpenCodeQuota {
+            override fun fetchQuota(accessToken: String, workspaceId: String): OpenCodeQuota {
                 Thread.sleep(50)
-                return super.fetchQuota(sessionCookie, workspaceId).also {
+                return super.fetchQuota(accessToken, workspaceId).also {
                     completedOpenCodeRefresh.countDown()
                 }
             }
         }
         val openCodeProvider = OpenCodeQuotaProvider(
             openCodeClient = openCodeClient,
-            openCodeCookieProvider = { "cookie-a" },
+            credentialsProvider = { OAuthCredentials(accessToken = "token-a") },
             settingsProvider = { null },
         )
         val service = createService(openAiProvider = openAiProvider, openCodeProvider = openCodeProvider)
@@ -395,7 +401,7 @@ class QuotaUsageServiceTest {
             accountIdProvider = { "account-1" },
         ),
         openCodeProvider: OpenCodeQuotaProvider = OpenCodeQuotaProvider(
-            openCodeCookieProvider = { null },
+            credentialsProvider = { null },
             settingsProvider = { null },
         ),
         settingsProvider: () -> QuotaSettingsState? = { null },
@@ -610,7 +616,7 @@ class QuotaUsageServiceTest {
                 accountIdProvider = { "a" },
             ),
             openCodeProvider = OpenCodeQuotaProvider(
-                openCodeCookieProvider = { error("restart path must not refresh") },
+                credentialsProvider = { error("restart path must not refresh") },
                 settingsProvider = { settings },
             ),
             settingsProvider = { settings },
@@ -632,13 +638,13 @@ class QuotaUsageServiceTest {
         var rolling = 80.0
         val openCodeProvider = OpenCodeQuotaProvider(
             openCodeClient = object : OpenCodeQuotaClient() {
-                override fun discoverWorkspaceId(sessionCookie: String) = "wrk-1"
-                override fun fetchQuota(sessionCookie: String, workspaceId: String) = OpenCodeQuota(
+                override fun discoverWorkspaceId(accessToken: String) = "wrk-1"
+                override fun fetchQuota(accessToken: String, workspaceId: String) = OpenCodeQuota(
                     rollingUsage = OpenCodeUsageWindow(status = "ok", resetInSec = 1000, usagePercent = rolling),
                     weeklyUsage = OpenCodeUsageWindow(status = "ok", resetInSec = 10000, usagePercent = 50.0),
                 )
             },
-            openCodeCookieProvider = { "cookie" },
+            credentialsProvider = { OAuthCredentials(accessToken = "token") },
             settingsProvider = { settings },
         )
         val service = createService(openCodeProvider = openCodeProvider, settingsProvider = { settings })
@@ -677,7 +683,7 @@ class QuotaUsageServiceTest {
         val client = RecordingOpenCodeQuotaClient()
         val provider = OpenCodeQuotaProvider(
             openCodeClient = client,
-            openCodeCookieProvider = { "c" },
+            credentialsProvider = { OAuthCredentials(accessToken = "token") },
             settingsProvider = { null },
         )
         val service = createService(openCodeProvider = provider)
@@ -745,7 +751,7 @@ class QuotaUsageServiceTest {
         val openCodeClient = RecordingOpenCodeQuotaClient()
         val openCodeProvider = OpenCodeQuotaProvider(
             openCodeClient = openCodeClient,
-            openCodeCookieProvider = { "cookie" },
+            credentialsProvider = { OAuthCredentials(accessToken = "token") },
             settingsProvider = { null },
         )
         val service = createService(openCodeProvider = openCodeProvider)
@@ -1135,19 +1141,19 @@ class QuotaUsageServiceTest {
     }
 
     private open class RecordingOpenCodeQuotaClient : OpenCodeQuotaClient() {
-        val discoveredCookies = mutableListOf<String>()
+        val discoveredTokens = mutableListOf<String>()
         val fetchCalls = mutableListOf<String>()
         var discoverCount: Int = 0
         var failFirstFetch: OpenCodeQuotaException? = null
 
-        override fun discoverWorkspaceId(sessionCookie: String): String {
+        override fun discoverWorkspaceId(accessToken: String): String {
             discoverCount++
-            discoveredCookies += sessionCookie
-            return "wrk-$sessionCookie"
+            discoveredTokens += accessToken
+            return "wrk-$accessToken"
         }
 
-        override fun fetchQuota(sessionCookie: String, workspaceId: String): OpenCodeQuota {
-            fetchCalls += "$sessionCookie:$workspaceId"
+        override fun fetchQuota(accessToken: String, workspaceId: String): OpenCodeQuota {
+            fetchCalls += "$accessToken:$workspaceId"
             failFirstFetch?.let { exception ->
                 failFirstFetch = null
                 throw exception

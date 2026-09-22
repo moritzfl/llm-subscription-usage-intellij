@@ -1,407 +1,171 @@
 package de.moritzf.quota.opencode
 
 import de.moritzf.quota.shared.JsonSupport
-import kotlin.time.Clock
+import de.moritzf.quota.shared.lenientDoubleOrNull
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.decodeFromJsonElement
-import kotlinx.serialization.Serializable
-import java.io.IOException
-import java.time.Duration
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
-import java.util.concurrent.atomic.AtomicReference
-import java.util.logging.Logger
+import java.time.Duration
+import kotlin.time.Clock
+import kotlin.time.Instant
 
-/**
- * HTTP client for fetching OpenCode quota data via SolidStart RPC.
- */
+/** Reads Go meters and prepaid Zen balance from the Console JSON API. */
 open class OpenCodeQuotaClient(
     private val httpClient: HttpClient = HttpClient.newHttpClient(),
     private val endpoint: URI = DEFAULT_ENDPOINT,
 ) {
-    @Throws(IOException::class, InterruptedException::class)
-    open fun fetchQuota(sessionCookie: String, workspaceId: String): OpenCodeQuota {
-        require(sessionCookie.isNotBlank()) { "sessionCookie must not be null or blank" }
-        require(workspaceId.isNotBlank()) { "workspaceId must not be null or blank" }
-
-        var functionId = resolveFunctionId(sessionCookie, workspaceId)
-        var response = sendQuotaRequest(sessionCookie, workspaceId, functionId)
-        if (response.statusCode() == 404) {
-            clearCachedFunctionId()
-            functionId = resolveFunctionId(sessionCookie, workspaceId)
-            response = sendQuotaRequest(sessionCookie, workspaceId, functionId)
+    open fun fetchQuota(accessToken: String, workspaceId: String): OpenCodeQuota {
+        val now = Clock.System.now()
+        val warnings = mutableListOf<String>()
+        var failureStatus: Int? = null
+        val failedBodies = mutableMapOf<String, String?>()
+        fun section(path: String): String? = try {
+            get(path, accessToken, workspaceId)
+        } catch (exception: java.io.IOException) {
+            // Authentication still gets one token refresh; other failures only affect this section.
+            val status = (exception as? OpenCodeQuotaException)?.statusCode ?: 0
+            if (status == 401) throw exception
+            failureStatus = failureStatus ?: status
+            failedBodies[path] = (exception as? OpenCodeQuotaException)?.rawBody
+            warnings += exception.message ?: "OpenCode $path is unavailable"
+            null
         }
-        val status = response.statusCode()
-        val body = response.body()
-
-        if (status !in 200..299) {
-            throw OpenCodeQuotaException("OpenCode quota request failed: HTTP $status", status, body)
+        val goBody = section("api/go/status")
+        val quota = goBody?.let { parseQuotaResponse(it, now) } ?: OpenCodeQuota()
+        warnings += quota.warnings
+        val billingBody = section("api/billing/status")
+        billingBody?.let { body ->
+            val billing = parseBilling(body)
+            quota.availableBalance = billing.first
+            billing.second?.let(warnings::add)
         }
-
-        val quota = try {
-            parseQuotaResponse(body)
-        } catch (exception: OpenCodeQuotaException) {
-            if (!isNullQuotaResponse(body, exception)) {
-                throw exception
-            }
-            OpenCodeQuota()
+        val rawGo = goBody ?: failedBodies["api/go/status"]
+        val rawBilling = billingBody ?: failedBodies["api/billing/status"]
+        val raw = buildRawResponse(rawGo, rawBilling)
+        if (!quota.hasUsageState() && !quota.hasAvailableBalance() && warnings.isNotEmpty()) {
+            throw OpenCodeQuotaException(warnings.joinToString("; "), failureStatus ?: 200, raw)
         }
-        val billingResponse = runCatching {
-            fetchBillingInfo(sessionCookie, workspaceId)
-        }.onFailure { exception ->
-            LOG.warning("Could not fetch OpenCode billing balance: ${exception.message}")
-        }.getOrNull()
-        quota.availableBalance = billingResponse?.info?.balance
-        quota.fetchedAt = Clock.System.now()
-        quota.rawGoJson = body
-        quota.rawBillingJson = billingResponse?.rawBody
-        quota.rawJson = buildRawResponse(body, billingResponse?.rawBody)
+        quota.warnings = warnings
+        quota.fetchedAt = now
+        quota.rawGoJson = rawGo
+        quota.rawBillingJson = rawBilling
+        quota.rawJson = raw
         return quota
     }
 
-    private fun sendQuotaRequest(
-        sessionCookie: String,
-        workspaceId: String,
-        functionId: String,
-    ): HttpResponse<String> {
-        val argsJson = """["$workspaceId"]"""
-        val encodedArgs = java.net.URLEncoder.encode(argsJson, Charsets.UTF_8)
-        val uri = URI.create("${endpoint}?id=$functionId&args=$encodedArgs")
-        val request = HttpRequest.newBuilder()
-            .uri(uri)
+    open fun fetchWorkspaces(accessToken: String): List<OpenCodeWorkspace> {
+        val body = get("api/orgs", accessToken)
+        return try {
+            val entries = JsonSupport.json.parseToJsonElement(body) as JsonArray
+            JsonSupport.decodeListItemsLeniently(entries, OpenCodeWorkspace.serializer()).filter { it.id.isNotBlank() }
+        } catch (exception: Exception) {
+            throw OpenCodeQuotaException("Could not parse OpenCode organizations", 200, body, exception)
+        }
+    }
+
+    open fun discoverWorkspaceId(accessToken: String): String = fetchWorkspaces(accessToken)
+        .sortedWith(compareBy({ it.name }, { it.id })).firstOrNull()?.id
+        ?: throw OpenCodeQuotaException("No OpenCode organizations found. Sign in to OpenCode Console first.", 200)
+
+    private fun get(path: String, accessToken: String, workspaceId: String? = null): String {
+        require(accessToken.isNotBlank()) { "OpenCode access token is missing" }
+        val request = HttpRequest.newBuilder(endpoint.resolve(path))
             .timeout(Duration.ofSeconds(30))
-            .header("Cookie", "auth=$sessionCookie")
+            .header("Authorization", "Bearer $accessToken")
             .header("Accept", "application/json")
-            .header("X-Server-Id", functionId)
-            .header("X-Server-Instance", "server-fn:1")
-            .header("Referer", "https://opencode.ai/workspace/$workspaceId/go")
-            .header("Origin", "https://opencode.ai")
-            .GET()
-            .build()
-        return httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-    }
-
-    /**
-     * Fetches all workspaces for the user and enriches them with quota info
-     * so the caller can pick the right one.
-     */
-    @Throws(IOException::class, InterruptedException::class)
-    open fun fetchWorkspaces(sessionCookie: String): List<OpenCodeWorkspace> {
-        require(sessionCookie.isNotBlank()) { "sessionCookie must not be null or blank" }
-
-        val workspaces = fetchWorkspaceList(sessionCookie)
-        if (workspaces.isEmpty()) {
-            throw OpenCodeQuotaException(
-                "No workspaces found. Please ensure you have access to opencode.ai.",
-                200, null
-            )
-        }
-
-        return workspaces.map { (id, name) ->
-            val (mine, hasGo) = try {
-                val quota = fetchQuota(sessionCookie, id)
-                quota.mine to quota.hasUsageState()
-            } catch (_: OpenCodeQuotaException) {
-                false to false
-            } catch (_: Exception) {
-                false to false
-            }
-            OpenCodeWorkspace(id = id, name = name, mine = mine, hasGoSubscription = hasGo)
-        }.toList()
-    }
-
-    /**
-     * Discovers the workspace ID from the user's opencode.ai console.
-     * Iterates all workspaces and returns the first one with Go usage state or Zen credits.
-     */
-    @Throws(IOException::class, InterruptedException::class)
-    open fun discoverWorkspaceId(sessionCookie: String): String {
-        require(sessionCookie.isNotBlank()) { "sessionCookie must not be null or blank" }
-
-        val workspaces = fetchWorkspaceList(sessionCookie)
-        if (workspaces.isEmpty()) {
-            throw OpenCodeQuotaException(
-                "No workspace found. Please ensure you have access to OpenCode Go or Zen credits.",
-                200, null
-            )
-        }
-
-        for ((workspaceId, _) in workspaces) {
-            try {
-                val quota = fetchQuota(sessionCookie, workspaceId)
-                if (quota.hasUsageState() || quota.hasAvailableBalance()) {
-                    return workspaceId
-                }
-            } catch (exception: OpenCodeQuotaException) {
-                when (exception.statusCode) {
-                    0, 401, 403, 404 -> continue
-                    else -> throw exception
-                }
-            }
-        }
-
-        throw OpenCodeQuotaException(
-            "No workspace with OpenCode Go usage or Zen credits found.",
-            200, null
-        )
-    }
-
-    private fun fetchWorkspaceList(sessionCookie: String): List<Pair<String, String>> {
-        val uri = URI.create("https://opencode.ai/_server?id=$WORKSPACES_FUNCTION_ID&args=%5B%5D")
-
-        val request = HttpRequest.newBuilder()
-            .uri(uri)
-            .timeout(Duration.ofSeconds(15))
-            .header("Cookie", "auth=$sessionCookie")
-            .header("Accept", "application/json")
-            .header("X-Server-Id", WORKSPACES_FUNCTION_ID)
-            .header("X-Server-Instance", "server-fn:2")
-            .GET()
-            .build()
-
-        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-
-        if (response.statusCode() == 401 || response.statusCode() == 403) {
-            throw OpenCodeQuotaException(
-                "Could not fetch workspace list: session cookie is invalid or expired (HTTP ${response.statusCode()}). " +
-                    "Please update your session cookie in the plugin settings.",
-                response.statusCode(), response.body()
-            )
-        }
-        if (response.statusCode() !in 200..299) {
-            throw OpenCodeQuotaException(
-                "Could not fetch workspace list: HTTP ${response.statusCode()}. " +
-                    "The opencode.ai API may have changed — please report this issue if it persists.",
-                response.statusCode(), response.body()
-            )
-        }
-
-        val workspaces = WORKSPACE_ID_PATTERN.findAll(response.body()).map {
-            it.groupValues[1] to it.groupValues[2]
-        }.toList()
-
-        if (workspaces.isEmpty() && response.body().isNotBlank()) {
-            LOG.warning(
-                "Workspace list response was successful but no workspace IDs could be parsed. " +
-                    "The opencode.ai page format may have changed. Body preview: ${response.body().take(300)}"
-            )
-        }
-
-        return workspaces
-    }
-
-    /**
-     * Resolves the server function ID, using a cached value if available.
-     * Falls back to extracting it from the JS bundle.
-     */
-    private fun resolveFunctionId(sessionCookie: String, workspaceId: String): String {
-        cachedFunctionId.get()?.let { return it }
-
-        val functionId = extractFunctionIdFromBundle(sessionCookie, workspaceId)
-            ?: throw OpenCodeQuotaException(
-                "Could not discover OpenCode server function ID. " +
-                    "The opencode console may have been updated. Please report this issue.",
-                0, null
-            )
-        cachedFunctionId.set(functionId)
-        return functionId
-    }
-
-    /**
-     * Fetches the Go page JS bundle and extracts the queryLiteSubscription server function hash.
-     */
-    private fun extractFunctionIdFromBundle(sessionCookie: String, workspaceId: String): String? {
-        val pageRequest = HttpRequest.newBuilder()
-            .uri(URI.create("https://opencode.ai/workspace/$workspaceId/go"))
-            .timeout(Duration.ofSeconds(15))
-            .header("Cookie", "auth=$sessionCookie")
-            .header("Accept", "text/html")
-            .GET()
-            .build()
-
-        val pageResponse = httpClient.send(pageRequest, HttpResponse.BodyHandlers.ofString())
-        if (pageResponse.statusCode() !in 200..299) return null
-
-        val bundleMatches = Regex("""_build/assets/([^.]+)\.js""").findAll(pageResponse.body())
-        for (match in bundleMatches) {
-            val bundlePath = match.value
-            val bundleRequest = HttpRequest.newBuilder()
-                .uri(URI.create("https://opencode.ai/$bundlePath"))
-                .timeout(Duration.ofSeconds(15))
-                .header("Cookie", "auth=$sessionCookie")
-                .GET()
-                .build()
-
-            val bundleResponse = httpClient.send(bundleRequest, HttpResponse.BodyHandlers.ofString())
-            if (bundleResponse.statusCode() !in 200..299) continue
-
-            val extracted = FUNCTION_ID_PATTERN.find(bundleResponse.body())?.groupValues?.get(1)
-            if (extracted != null) return extracted
-        }
-        return null
-    }
-
-    /**
-     * Fetches billing info so we can surface the available workspace balance next to Go limits or by itself.
-     */
-    private fun fetchBillingInfo(sessionCookie: String, workspaceId: String): OpenCodeBillingResponse? {
-        val argsJson = """["$workspaceId"]"""
-        val encodedArgs = java.net.URLEncoder.encode(argsJson, Charsets.UTF_8)
-        val uri = URI.create("${endpoint}?id=$BILLING_INFO_FUNCTION_ID&args=$encodedArgs")
-
-        val request = HttpRequest.newBuilder()
-            .uri(uri)
-            .timeout(Duration.ofSeconds(15))
-            .header("Cookie", "auth=$sessionCookie")
-            .header("Accept", "application/json")
-            .header("X-Server-Id", BILLING_INFO_FUNCTION_ID)
-            .header("X-Server-Instance", "server-fn:1")
-            .header("Referer", "https://opencode.ai/workspace/$workspaceId/billing")
-            .header("Origin", "https://opencode.ai")
-            .GET()
-            .build()
-
+            .apply { if (workspaceId != null) header("x-org-id", workspaceId) }
+            .GET().build()
         val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         val status = response.statusCode()
-        val body = response.body()
-
-        if (status == 401 || status == 403) {
-            throw OpenCodeQuotaException(
-                "OpenCode billing request failed: session cookie is invalid or expired (HTTP $status). " +
-                    "Please update your session cookie in the plugin settings.",
-                status, body
-            )
-        }
-        if (status == 404) {
-            // Billing endpoint hash may have rotated — log prominently but treat as non-fatal
-            LOG.warning(
-                "OpenCode billing endpoint returned 404. The server function ID ($BILLING_INFO_FUNCTION_ID) " +
-                    "may be outdated. Balance will not be shown. Please report this issue."
-            )
-            return null
-        }
         if (status !in 200..299) {
-            throw OpenCodeQuotaException(
-                "OpenCode billing request failed: HTTP $status. " +
-                    "The opencode.ai API may have changed — please report this issue if it persists.",
-                status, body
-            )
+            val message = when (status) {
+                401 -> "OpenCode session expired. Sign in again."
+                403 -> "OpenCode denied access to $path for this organization (HTTP 403)."
+                else -> "OpenCode $path request failed: HTTP $status"
+            }
+            throw OpenCodeQuotaException(message, status, response.body())
         }
-
-        return OpenCodeBillingResponse(parseBillingInfoResponse(body), body)
+        return response.body()
     }
 
     companion object {
         @JvmField
-        val DEFAULT_ENDPOINT: URI = URI.create("https://opencode.ai/_server")
+        val DEFAULT_ENDPOINT: URI = URI.create("https://opencode.ai/console/")
 
-        private val LOG = Logger.getLogger(OpenCodeQuotaClient::class.java.name)
-        private val cachedFunctionId = AtomicReference<String?>()
-
-        private const val WORKSPACES_FUNCTION_ID = "def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f"
-        private const val BILLING_INFO_FUNCTION_ID = "c83b78a614689c38ebee981f9b39a8b377716db85c1fd7dbab604adc02d3313d"
-
-        private val FUNCTION_ID_PATTERN = Regex(
-            """queryLiteSubscription_query\s*=\s*createServerReference\("([a-f0-9]{64})"\)"""
-        )
-
-        private val WORKSPACE_ID_PATTERN = Regex(
-            """id:"(wrk_[A-Za-z0-9]+)",name:"([^"]*)""""
-        )
-
-        /** Clear the cached function ID to force re-discovery. */
-        fun clearCachedFunctionId() {
-            cachedFunctionId.set(null)
+        fun parseQuotaResponse(body: String, now: Instant = Clock.System.now()): OpenCodeQuota {
+            val root = runCatching { JsonSupport.json.parseToJsonElement(body) }.getOrNull()
+            if (root == JsonNull) return OpenCodeQuota()
+            fun unreadable() = OpenCodeQuota(warnings = listOf("Go usage response could not be read"))
+            if (root !is JsonObject) return unreadable()
+            val useBalance = (root["useBalance"] as? JsonPrimitive)?.booleanOrNull ?: false
+            if (root["access"] == JsonNull) return OpenCodeQuota(useBalance = useBalance)
+            val access = root["access"] as? JsonObject ?: return unreadable()
+            val meters = access["meters"] as? JsonObject ?: return unreadable()
+            val warnings = mutableListOf<String>()
+            fun window(name: String): OpenCodeUsageWindow? {
+                val value = meters[name]?.takeUnless { it == JsonNull } ?: return null
+                val meter = value as? JsonObject
+                val limit = meter?.get("limitMicroCents")?.lenientDoubleOrNull()
+                val used = meter?.get("usedMicroCents")?.lenientDoubleOrNull()
+                if (limit == null || used == null || limit < 0 || used < 0) {
+                    warnings += "Go $name usage is unavailable"
+                    return null
+                }
+                if (limit == 0.0) return null
+                val percent = (used / limit * 100.0).takeIf { it.isFinite() } ?: run {
+                    warnings += "Go $name usage is unavailable"
+                    return null
+                }
+                val reset = meter["resetsAt"]?.takeUnless { it == JsonNull }
+                val periodEnd = if (name == "month") access["endsAt"]?.takeUnless { it == JsonNull } else null
+                fun resetTime(value: JsonElement?): Instant? =
+                    (value as? JsonPrimitive)?.content?.let { runCatching { Instant.parse(it) }.getOrNull() }
+                val resetAt = resetTime(reset) ?: resetTime(periodEnd)
+                if (resetAt == null && (reset != null || periodEnd != null)) warnings += "Go $name reset time is unavailable"
+                val seconds = resetAt?.let { (it - now).inWholeSeconds.coerceAtLeast(0) } ?: 0
+                return OpenCodeUsageWindow(if (percent >= 100) "rate-limited" else "ok", seconds, percent)
+            }
+            if (listOf("fiveHour", "week", "month").none { meters.containsKey(it) }) return unreadable()
+            return OpenCodeQuota(
+                rollingUsage = window("fiveHour"),
+                weeklyUsage = window("week"),
+                monthlyUsage = window("month"),
+                useBalance = useBalance,
+                warnings = warnings,
+            )
         }
 
-        fun parseQuotaResponse(body: String): OpenCodeQuota {
-            val rootObject = parseRootObject(body)
+        internal fun parseBillingBalance(body: String): Long? = parseBilling(body).first
 
-            return try {
-                JsonSupport.json.decodeFromJsonElement<OpenCodeQuota>(rootObject)
-            } catch (exception: Exception) {
-                throw OpenCodeQuotaException(
-                    "Could not parse OpenCode quota response",
-                    200,
-                    body,
-                    exception,
-                )
-            }
-        }
-
-        internal fun parseBillingInfoResponse(body: String): OpenCodeBillingInfo {
-            val rootObject = parseRootObject(body)
-
-            return try {
-                JsonSupport.json.decodeFromJsonElement<OpenCodeBillingInfo>(rootObject)
-            } catch (exception: Exception) {
-                throw OpenCodeQuotaException(
-                    "Could not parse OpenCode billing response",
-                    200,
-                    body,
-                    exception,
-                )
-            }
-        }
-
-        private fun parseRootObject(body: String): JsonObject {
-            val rootAssignmentIndex = body.indexOf(ROOT_ASSIGNMENT_MARKER)
-            if (rootAssignmentIndex < 0) {
-                throw OpenCodeQuotaException("Could not parse OpenCode response: unexpected format", 200, body)
-            }
-
-            val parser = SolidStartValueParser(body, rootAssignmentIndex + ROOT_ASSIGNMENT_MARKER.length)
-            val rootElement = try {
-                parser.parseValue()
-            } catch (exception: OpenCodeQuotaException) {
-                throw exception
-            } catch (exception: Exception) {
-                throw OpenCodeQuotaException(
-                    "Could not parse OpenCode quota response",
-                    200,
-                    body,
-                    exception,
-                )
-            }
-
-            if (rootElement == JsonNull) {
-                throw OpenCodeQuotaException("Could not parse OpenCode response: unexpected format", 200, body)
-            }
-
-            val rootObject = rootElement as? JsonObject
-                ?: throw OpenCodeQuotaException("Could not parse OpenCode response: unexpected format", 200, body)
-            return rootObject
-        }
-
-        private const val ROOT_ASSIGNMENT_MARKER = "\$R[0]="
-
-        private fun isNullQuotaResponse(body: String, exception: OpenCodeQuotaException): Boolean {
-            return exception.message?.contains("unexpected format") == true &&
-                (body.contains("$ROOT_ASSIGNMENT_MARKER null") ||
-                    body.contains("${ROOT_ASSIGNMENT_MARKER}null") ||
-                    body.trim().endsWith(",null)"))
+        private fun parseBilling(body: String): Pair<Long?, String?> {
+            val root = runCatching { JsonSupport.json.parseToJsonElement(body) as? JsonObject }.getOrNull()
+                ?: return null to "Zen balance response could not be read"
+            val billingMode = (root["billingMode"] as? JsonPrimitive)?.content
+            val mode = (root["mode"] as? JsonPrimitive)?.content
+            if (billingMode in setOf("seat", "credit", "legacy") || mode in setOf("invoiceable", "none")) return null to null
+            // Missing or changed ancillary metadata must not hide a usable balance field.
+            // Available credit is a different quantity and must never stand in for wallet balance.
+            val balance = (root["balanceMicroCents"] as? JsonPrimitive)?.content?.trim()?.toBigDecimalOrNull()
+                ?.let { runCatching { it.longValueExact() }.getOrNull() }
+            return if (balance != null) balance to null else null to "Zen balance is unavailable"
         }
 
         fun buildRawResponse(goBody: String?, billingBody: String?): String? {
             val sections = listOfNotNull(
-                goBody?.takeIf { it.isNotBlank() }?.let { "OpenCode Go response:\n$it" },
-                billingBody?.takeIf { it.isNotBlank() }?.let { "OpenCode billing response:\n$it" },
-            )
-            return sections.takeIf { it.isNotEmpty() }?.joinToString("\n\n")
+                goBody?.let { "go" to it },
+                billingBody?.let { "billing" to it },
+            ).associate { (name, body) ->
+                name to (runCatching { JsonSupport.json.parseToJsonElement(body) }.getOrNull()
+                    ?: JsonObject(mapOf("raw_response" to JsonPrimitive(body))))
+            }
+            return sections.takeIf { it.isNotEmpty() }?.let { JsonSupport.json.encodeToString(JsonObject(it)) }
         }
-
     }
 }
-
-@Serializable
-internal data class OpenCodeBillingInfo(
-    val balance: Long? = null,
-)
-
-private data class OpenCodeBillingResponse(
-    val info: OpenCodeBillingInfo,
-    val rawBody: String,
-)
