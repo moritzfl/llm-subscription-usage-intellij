@@ -175,7 +175,7 @@ class ClaudeQuotaClientTest {
             client.fetchQuota("token-123")
         }
 
-        assertEquals("Claude auth expired. Log in to Claude again from settings.", exception.message)
+        assertEquals("Claude usage API rejected the access token (HTTP 401).", exception.message)
         assertEquals(401, exception.statusCode)
     }
 

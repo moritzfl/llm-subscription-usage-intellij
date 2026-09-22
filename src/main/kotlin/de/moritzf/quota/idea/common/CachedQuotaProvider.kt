@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.common
 
 import de.moritzf.quota.idea.settings.QuotaSettingsState
+import de.moritzf.quota.idea.auth.OAuthConnectionState
 import de.moritzf.quota.shared.ProviderQuota
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -67,11 +68,13 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
      * be refreshed right now is a transient failure, not a logout, so the login and the last
      * reading are kept instead of reporting the provider as not configured.
      */
-    protected fun storeMissingAccessToken(loggedIn: Boolean, refreshFailedMessage: String) {
-        if (loggedIn) {
-            storeError(refreshFailedMessage)
-        } else {
-            clearData(notConfiguredMessage)
+    protected fun storeMissingAccessToken(connectionState: OAuthConnectionState, refreshFailedMessage: String) {
+        when (connectionState) {
+            OAuthConnectionState.LOGGED_OUT -> clearData(notConfiguredMessage)
+            OAuthConnectionState.RECONNECT_REQUIRED -> storeError(
+                "${type.displayName} login needs to be renewed. Log in again from settings.",
+            )
+            else -> storeError(refreshFailedMessage, transient = true)
         }
     }
 

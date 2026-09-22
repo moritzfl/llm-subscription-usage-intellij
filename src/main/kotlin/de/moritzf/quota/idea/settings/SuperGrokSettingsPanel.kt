@@ -46,10 +46,6 @@ internal class SuperGrokSettingsPanel(
 
         loginButton.addActionListener {
             val authService = QuotaAuthService.getInstance()
-            if (authService.isLoggedIn(accountId(), QuotaProviderType.SUPERGROK)) {
-                updateAuthUi()
-                return@addActionListener
-            }
             loginButton.isEnabled = false
             authStatusMessage = AuthStatusMessage("Opening browser...", false, AuthStatusKind.PENDING)
             updateAuthUi()
@@ -133,19 +129,15 @@ internal class SuperGrokSettingsPanel(
         val authService = QuotaAuthService.getInstance()
         val loggedIn = authService.isLoggedIn(accountId(), QuotaProviderType.SUPERGROK)
         val inProgress = authService.isLoginInProgress(accountId(), QuotaProviderType.SUPERGROK)
-        val quota = QuotaUsageService.getInstance().getLastQuota(accountId()) as? SuperGrokQuota
         val error = QuotaUsageService.getInstance().getLastError(accountId())
-        val uiState = QuotaSettingsAuthUiState.create(loggedIn, inProgress, authStatusMessage)
+        val uiState = QuotaSettingsAuthUiState.create(
+            loggedIn, inProgress, authStatusMessage,
+            authService.connectionState(accountId(), QuotaProviderType.SUPERGROK), error,
+        )
         loginButton.isEnabled = uiState.loginEnabled
         cancelLoginButton.isEnabled = uiState.cancelEnabled
         logoutButton.isEnabled = uiState.logoutEnabled
-        val status = when {
-            inProgress -> uiState.visibleStatusMessage ?: AuthStatusMessage("Complete the login in your browser.", false, AuthStatusKind.PENDING)
-            error != null -> AuthStatusMessage("Error: $error", true, AuthStatusKind.DISCONNECTED)
-            quota != null -> AuthStatusMessage("Connected to xAI/Grok", false, AuthStatusKind.CONNECTED)
-            loggedIn -> AuthStatusMessage("xAI/Grok login stored securely", false, AuthStatusKind.CONNECTED)
-            else -> AuthStatusMessage("Not configured", true, AuthStatusKind.DISCONNECTED)
-        }
+        val status = requireNotNull(uiState.visibleStatusMessage)
         statusLabel.text = formatStatusText(status.text, status.kind)
         statusLabel.foreground = statusLabelDefaultForeground ?: statusLabel.foreground
         statusLabel.isVisible = true

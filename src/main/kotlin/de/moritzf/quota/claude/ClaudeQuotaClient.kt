@@ -62,7 +62,7 @@ open class ClaudeQuotaClient(
         val status = response.statusCode()
         val body = response.body()
         if (status == 401) {
-            throw ClaudeQuotaException("Claude auth expired. Log in to Claude again from settings.", status, body)
+            throw ClaudeQuotaException("Claude usage API rejected the access token (HTTP 401).", status, body)
         }
         if (status == 403) {
             if (body.contains("user:profile", ignoreCase = true)) {
@@ -72,7 +72,7 @@ open class ClaudeQuotaClient(
                     body,
                 )
             }
-            throw ClaudeQuotaException("Claude auth expired. Log in to Claude again from settings.", status, body)
+            throw ClaudeQuotaException("Claude usage API denied access (HTTP 403).", status, body)
         }
         if (status == 429) {
             throw ClaudeQuotaException("Claude usage API rate limited. Try again later.", status, body)

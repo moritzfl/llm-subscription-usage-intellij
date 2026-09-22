@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.common
 
 import de.moritzf.quota.idea.auth.QuotaAuthService
+import de.moritzf.quota.idea.auth.OAuthConnectionState
 import de.moritzf.quota.supergrok.SuperGrokQuota
 import de.moritzf.quota.supergrok.SuperGrokQuotaClient
 import de.moritzf.quota.supergrok.SuperGrokQuotaException
@@ -14,8 +15,8 @@ class SuperGrokQuotaProvider(
     private val tokenRefresher: (staleAccessToken: String?) -> String? = { staleToken ->
         QuotaAuthService.getInstance().forceRefreshBlocking(accountId, QuotaProviderType.SUPERGROK, staleToken)
     },
-    private val loggedInProvider: () -> Boolean = {
-        QuotaAuthService.getInstance().isLoggedIn(accountId, QuotaProviderType.SUPERGROK)
+    private val connectionStateProvider: () -> OAuthConnectionState = {
+        QuotaAuthService.getInstance().connectionState(accountId, QuotaProviderType.SUPERGROK)
     },
     private val resetConsumer: (String, String) -> Unit = { accessToken, tokenId ->
         client.redeemReset(accessToken, tokenId)
@@ -32,7 +33,7 @@ class SuperGrokQuotaProvider(
         val accessToken = tokenProvider()
         if (accessToken.isNullOrBlank()) {
             storeMissingAccessToken(
-                loggedInProvider(),
+                connectionStateProvider(),
                 "Grok token could not be refreshed. Trying again with the next update.",
             )
             return

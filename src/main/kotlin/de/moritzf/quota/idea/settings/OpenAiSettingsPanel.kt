@@ -53,11 +53,6 @@ internal class OpenAiSettingsPanel(
 
         loginButton.addActionListener {
             val authService = QuotaAuthService.getInstance()
-            if (authService.isLoggedIn(accountKey(), QuotaProviderType.OPEN_AI)) {
-                updateAuthUi()
-                return@addActionListener
-            }
-
             loginButton.isEnabled = false
             authStatusMessage = AuthStatusMessage("Opening browser...", false, AuthStatusKind.PENDING)
             updateAuthUi()
@@ -158,7 +153,10 @@ internal class OpenAiSettingsPanel(
         val authService = QuotaAuthService.getInstance()
         val loggedIn = authService.isLoggedIn(accountKey(), QuotaProviderType.OPEN_AI)
         val inProgress = authService.isLoginInProgress(accountKey(), QuotaProviderType.OPEN_AI)
-        val uiState = QuotaSettingsAuthUiState.create(loggedIn, inProgress, authStatusMessage)
+        val uiState = QuotaSettingsAuthUiState.create(
+            loggedIn, inProgress, authStatusMessage,
+            authService.connectionState(accountKey(), QuotaProviderType.OPEN_AI),
+        )
         loginButton.isEnabled = uiState.loginEnabled
         cancelLoginButton.isEnabled = uiState.cancelEnabled
         logoutButton.isEnabled = uiState.logoutEnabled

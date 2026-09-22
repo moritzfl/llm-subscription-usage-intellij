@@ -96,6 +96,7 @@ internal data class OAuthRefreshReceipt(
     val credentialsHash: String,
     val outcome: Outcome,
     val attemptedAtMs: Long,
+    val accessTokenRejected: Boolean = false,
 ) {
     enum class Outcome { TEMPORARY_FAILURE, REJECTED, ROTATED }
 

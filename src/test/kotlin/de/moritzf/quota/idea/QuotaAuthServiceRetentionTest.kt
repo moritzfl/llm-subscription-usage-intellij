@@ -2,6 +2,7 @@ package de.moritzf.quota.idea
 
 import com.intellij.credentialStore.Credentials
 import de.moritzf.quota.idea.auth.OAuthCredentialCoordinator
+import de.moritzf.quota.idea.auth.OAuthConnectionState
 import de.moritzf.quota.idea.auth.OAuthCredentialStore
 import de.moritzf.quota.idea.auth.OAuthCredentials
 import de.moritzf.quota.idea.auth.OAuthCredentialsStore
@@ -15,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
+import java.io.IOException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -47,8 +49,8 @@ class QuotaAuthServiceRetentionTest {
             if (rejected) throw OAuthTokenRequestException("invalid grant", 400, "invalid_grant")
             credentials("rotated")
         }
-        val first = service(Store(current, OAuthCredentialCoordinator(directory)), refresh)
-        val second = service(Store(current, OAuthCredentialCoordinator(directory)), refresh)
+        val first = service(Store(current, OAuthCredentialCoordinator(directory)), refresh = refresh)
+        val second = service(Store(current, OAuthCredentialCoordinator(directory)), refresh = refresh)
         val executor = Executors.newFixedThreadPool(2)
         try {
             val a = executor.submit<String?> { first.getAccessTokenBlocking(QuotaProviderType.CLAUDE) }
@@ -79,8 +81,14 @@ class QuotaAuthServiceRetentionTest {
     @Test
     fun delayedRefreshCannotOverwriteQueuedLogout() = queuedCredentialChange(null)
 
-    private fun queuedCredentialChange(replacement: OAuthCredentials?) {
-        val current = AtomicReference(Credentials("test", JsonSupport.json.encodeToString(credentials("expired", -60_000))))
+    @Test
+    fun earlyRefreshCannotFallBackAfterQueuedLogout() = queuedCredentialChange(null, 4 * 60_000)
+
+    @Test
+    fun earlyRefreshCannotFallBackAfterQueuedNewLogin() = queuedCredentialChange(credentials("new-login"), 4 * 60_000)
+
+    private fun queuedCredentialChange(replacement: OAuthCredentials?, expiresIn: Long = -60_000) {
+        val current = AtomicReference(Credentials("test", JsonSupport.json.encodeToString(credentials("expired", expiresIn))))
         val queued = AtomicReference<Credentials>()
         val store = OAuthCredentialsStore(
             serviceName = "test", userName = "test",
@@ -197,7 +205,114 @@ class QuotaAuthServiceRetentionTest {
         }
     }
 
-    private fun service(store: OAuthCredentialStore, refresh: (OAuthCredentials) -> OAuthCredentials): QuotaAuthService =
+    @Test
+    fun earlyRefreshFailureKeepsUnexpiredTokenDuringBackoff() {
+        val store = Store(AtomicReference(credentials("still-valid", 4 * 60_000)))
+        val calls = AtomicInteger()
+        val service = service(store) { calls.incrementAndGet(); throw IOException("offline") }
+        try {
+            assertEquals("still-valid", service.getAccessTokenBlocking(QuotaProviderType.CLAUDE))
+            assertEquals("still-valid", service.getAccessTokenBlocking(QuotaProviderType.CLAUDE))
+            assertEquals(1, calls.get())
+            assertEquals(OAuthConnectionState.TEMPORARY_FAILURE, service.connectionState(QuotaProviderType.CLAUDE))
+        } finally {
+            service.dispose()
+        }
+    }
+
+    @Test
+    fun expiredTokenIsNeverUsedAfterTemporaryRefreshFailure() {
+        val store = Store(AtomicReference(credentials("expired", -60_000)))
+        val service = service(store) { throw IOException("offline") }
+        try {
+            assertNull(service.getAccessTokenBlocking(QuotaProviderType.CLAUDE))
+            assertEquals(OAuthConnectionState.TEMPORARY_FAILURE, service.connectionState(QuotaProviderType.CLAUDE))
+            assertEquals("expired", store.current.get()?.accessToken)
+        } finally {
+            service.dispose()
+        }
+    }
+
+    @Test
+    fun terminalFailureBlocksTokenUntilStoredCredentialsChange() {
+        var now = System.currentTimeMillis()
+        val store = Store(AtomicReference(credentials("rejected", 4 * 60_000)))
+        val calls = AtomicInteger()
+        val service = service(store, nowMs = { now }) {
+            calls.incrementAndGet()
+            throw OAuthTokenRequestException("invalid grant", 400, "invalid_grant")
+        }
+        try {
+            assertNull(service.getAccessTokenBlocking(QuotaProviderType.CLAUDE))
+            now += 60_000
+            assertNull(service.getAccessTokenBlocking(QuotaProviderType.CLAUDE))
+            assertNull(service.forceRefreshBlocking(QuotaProviderType.CLAUDE, "rejected"))
+            assertEquals(1, calls.get(), "terminal rejection must outlive the temporary-failure backoff")
+            assertEquals(OAuthConnectionState.RECONNECT_REQUIRED, service.connectionState(QuotaProviderType.CLAUDE))
+            assertTrue(service.isLoggedIn(QuotaProviderType.CLAUDE), "reconnect must retain the stored login")
+            store.save(credentials("new-login"))
+            assertEquals("new-login", service.getAccessTokenBlocking(QuotaProviderType.CLAUDE))
+            assertEquals(OAuthConnectionState.CONNECTED, service.connectionState(QuotaProviderType.CLAUDE))
+            service.requireReconnect(QuotaProviderType.CLAUDE.id, QuotaProviderType.CLAUDE, "rejected")
+            assertEquals(OAuthConnectionState.CONNECTED, service.connectionState(QuotaProviderType.CLAUDE), "stale usage errors must not poison a new login")
+            assertTrue(service.clearCredentials(QuotaProviderType.CLAUDE))
+            assertEquals(OAuthConnectionState.LOGGED_OUT, service.connectionState(QuotaProviderType.CLAUDE))
+        } finally {
+            service.dispose()
+        }
+    }
+
+    @Test
+    fun forcedRefreshFailureNeverFallsBackToRejectedAccessToken() {
+        var now = System.currentTimeMillis()
+        val store = Store(AtomicReference(credentials("rejected")))
+        val calls = AtomicInteger()
+        val service = service(store, nowMs = { now }) {
+            if (calls.incrementAndGet() == 1) throw IOException("offline")
+            credentials("recovered")
+        }
+        try {
+            assertNull(service.forceRefreshBlocking(QuotaProviderType.CLAUDE, "rejected"))
+            assertNull(service.getAccessTokenBlocking(QuotaProviderType.CLAUDE))
+            assertEquals(1, calls.get())
+            now += 31_000
+            assertEquals("recovered", service.getAccessTokenBlocking(QuotaProviderType.CLAUDE))
+            assertEquals(2, calls.get())
+            assertEquals(OAuthConnectionState.CONNECTED, service.connectionState(QuotaProviderType.CLAUDE))
+        } finally {
+            service.dispose()
+        }
+    }
+
+    @Test
+    fun terminalReceiptSurvivesServiceRestartBeyondBackoff() {
+        var now = System.currentTimeMillis()
+        val current = AtomicReference<OAuthCredentials?>(credentials("expired", -60_000))
+        val first = service(Store(current, OAuthCredentialCoordinator(directory)), nowMs = { now }) {
+            throw OAuthTokenRequestException("invalid grant", 400, "invalid_grant")
+        }
+        try {
+            assertNull(first.getAccessTokenBlocking(QuotaProviderType.CLAUDE))
+        } finally {
+            first.dispose()
+        }
+        now += 60_000
+        val restarted = service(Store(current, OAuthCredentialCoordinator(directory)), nowMs = { now }) {
+            error("a restarted IDE must not reuse a terminally rejected refresh token")
+        }
+        try {
+            assertNull(restarted.getAccessTokenBlocking(QuotaProviderType.CLAUDE))
+            assertEquals(OAuthConnectionState.RECONNECT_REQUIRED, restarted.connectionState(QuotaProviderType.CLAUDE))
+        } finally {
+            restarted.dispose()
+        }
+    }
+
+    private fun service(
+        store: OAuthCredentialStore,
+        nowMs: () -> Long = System::currentTimeMillis,
+        refresh: (OAuthCredentials) -> OAuthCredentials,
+    ): QuotaAuthService =
         QuotaAuthService(
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
             credentialStoreFactory = { _, _ -> store },
@@ -208,6 +323,7 @@ class QuotaAuthServiceRetentionTest {
                 override suspend fun refreshCredentials(existing: OAuthCredentials): OAuthCredentials = refresh(existing)
             } },
             browserOpener = {},
+            nowMs = nowMs,
         )
 
     private fun credentials(id: String, expiresIn: Long = 60 * 60_000): OAuthCredentials = OAuthCredentials(

@@ -39,6 +39,7 @@ class QuotaAuthService(
         OAuthCredentialsStore.forAccount(accountId, type)
     },
     private val browserOpener: (String) -> Unit = BrowserUtil::browse,
+    private val nowMs: () -> Long = System::currentTimeMillis,
 ) : Disposable {
     private val providerStates = ConcurrentHashMap<String, ProviderAuthState>()
     private val typeLoginLocks = ConcurrentHashMap<QuotaProviderType, Any>()
@@ -54,6 +55,7 @@ class QuotaAuthService(
         val credentials: OAuthCredentials,
         val failedAtMs: Long,
         val reconnectRequired: Boolean = false,
+        val accessTokenUnusable: Boolean = false,
     )
 
     private fun stateFor(accountId: String, type: QuotaProviderType): ProviderAuthState {
@@ -218,16 +220,47 @@ class QuotaAuthService(
         return credentials?.accessToken?.isNotBlank() == true || state.credentialLoadFailed.get()
     }
 
+    fun connectionState(type: QuotaProviderType): OAuthConnectionState = connectionState(type.id, type)
+
+    fun connectionState(accountId: String, type: QuotaProviderType): OAuthConnectionState {
+        val state = stateFor(accountId, type)
+        val credentials = cachedCredentialsOrScheduleLoad(state)
+        val failure = matchingFailure(state, credentials)
+        return when {
+            failure?.reconnectRequired == true -> OAuthConnectionState.RECONNECT_REQUIRED
+            state.credentialLoadFailed.get() -> OAuthConnectionState.TEMPORARY_FAILURE
+            credentials?.accessToken.isNullOrBlank() -> OAuthConnectionState.LOGGED_OUT
+            failure != null -> OAuthConnectionState.TEMPORARY_FAILURE
+            else -> OAuthConnectionState.CONNECTED
+        }
+    }
+
+    /** A fresh token still rejected by the usage API, or missing consent, needs a new login. */
+    fun requireReconnect(accountId: String, type: QuotaProviderType, rejectedAccessToken: String) {
+        val state = stateFor(accountId, type)
+        synchronized(state.credentialsLock) {
+            val current = state.cachedCredentials.get() ?: return
+            if (current.accessToken == rejectedAccessToken) {
+                state.lastRefreshFailure.set(RefreshFailure(current, nowMs(), reconnectRequired = true, accessTokenUnusable = true))
+            }
+        }
+    }
+
     fun getAccessTokenBlocking(type: QuotaProviderType = QuotaProviderType.OPEN_AI): String? =
         getAccessTokenBlocking(type.id, type)
 
     fun getAccessTokenBlocking(accountId: String, type: QuotaProviderType): String? {
         val state = stateFor(accountId, type)
         var credentials = getCredentialsBlocking(state) ?: return null
-        if (isExpired(credentials)) {
-            credentials = refreshCredentialsBlocking(state) ?: return null
+        if (matchingFailure(state, credentials)?.reconnectRequired == true) return null
+        if (isExpired(credentials) || matchingFailure(state, credentials)?.accessTokenUnusable == true) {
+            credentials = refreshCredentialsBlocking(state) ?: getCredentialsBlocking(state) ?: return null
         }
-        return credentials.accessToken
+        val failure = matchingFailure(state, credentials)
+        return credentials.accessToken?.takeIf {
+            // Early refresh is best-effort. Never reuse an expired, rejected, or superseded token.
+            nowMs() < credentials.expiresAt && failure?.reconnectRequired != true && failure?.accessTokenUnusable != true
+        }
     }
 
     fun hasCredentialsBlocking(type: QuotaProviderType): Boolean = hasCredentialsBlocking(type.id, type)
@@ -259,13 +292,15 @@ class QuotaAuthService(
         return withRefreshCoordination(state) {
             val clearMarker = currentCredentialClearMarker(state)
             val latestCredentials = getCredentialsBlocking(state) ?: return@withRefreshCoordination null
-            if (!staleAccessToken.isNullOrBlank() && latestCredentials.accessToken != staleAccessToken) {
+            val rejected = staleAccessToken.isNullOrBlank() || latestCredentials.accessToken == staleAccessToken
+            if (!rejected && !isExpired(latestCredentials)) {
                 // Another request already refreshed past the rejected token.
                 return@withRefreshCoordination latestCredentials.accessToken
             }
 
             logRefreshAttempt(state, latestCredentials, "upstream rejected the access token")
-            refreshWithFailureBackoff(state, clearMarker, latestCredentials, "force-refresh")?.accessToken
+            refreshWithFailureBackoff(state, clearMarker, latestCredentials, "force-refresh", rejected)
+                ?.takeIf { nowMs() < it.expiresAt }?.accessToken
         }
     }
 
@@ -524,11 +559,16 @@ class QuotaAuthService(
         return withRefreshCoordination(state) {
             val clearMarker = currentCredentialClearMarker(state)
             val latestCredentials = getCredentialsBlocking(state) ?: return@withRefreshCoordination null
-            if (!isExpired(latestCredentials)) {
+            if (!isExpired(latestCredentials) && matchingFailure(state, latestCredentials)?.accessTokenUnusable != true) {
                 return@withRefreshCoordination latestCredentials
             }
 
-            logRefreshAttempt(state, latestCredentials, "access token expired")
+            val reason = when {
+                matchingFailure(state, latestCredentials)?.accessTokenUnusable == true -> "access token is no longer usable"
+                nowMs() >= latestCredentials.expiresAt -> "access token expired"
+                else -> "access token expires soon"
+            }
+            logRefreshAttempt(state, latestCredentials, reason)
             refreshWithFailureBackoff(state, clearMarker, latestCredentials, "refresh")
         }
     }
@@ -541,6 +581,11 @@ class QuotaAuthService(
         } catch (exception: Exception) {
             if (exception is InterruptedException) Thread.currentThread().interrupt()
             LOG.warn("Could not coordinate token refresh for ${state.type.displayName}; will retry later", exception)
+            state.cachedCredentials.get()?.let { credentials ->
+                if (matchingFailure(state, credentials) == null) {
+                    state.lastRefreshFailure.set(RefreshFailure(credentials, nowMs()))
+                }
+            }
             null
         }
     }
@@ -554,8 +599,10 @@ class QuotaAuthService(
         clearMarker: Long,
         initialCredentials: OAuthCredentials,
         operation: String,
+        accessTokenRejected: Boolean = false,
     ): OAuthCredentials? {
-        val now = System.currentTimeMillis()
+        val now = nowMs()
+        val rejected = accessTokenRejected || matchingFailure(state, initialCredentials)?.accessTokenUnusable == true
         val receipt = state.credentialStore.coordinator.readReceipt()
         if (receipt != null && receipt.matches(initialCredentials) &&
             (receipt.outcome != OAuthRefreshReceipt.Outcome.TEMPORARY_FAILURE ||
@@ -564,6 +611,7 @@ class QuotaAuthService(
             state.lastRefreshFailure.set(RefreshFailure(
                 initialCredentials, receipt.attemptedAtMs,
                 reconnectRequired = receipt.outcome == OAuthRefreshReceipt.Outcome.REJECTED,
+                accessTokenUnusable = rejected || receipt.accessTokenRejected || receipt.outcome == OAuthRefreshReceipt.Outcome.ROTATED,
             ))
             LOG.info("Skipped token $operation for ${state.type.displayName} after a shared ${receipt.outcome} outcome")
             return null
@@ -573,20 +621,24 @@ class QuotaAuthService(
             sameCredentials(previousFailure.credentials, initialCredentials) &&
             (previousFailure.reconnectRequired || now - previousFailure.failedAtMs < REFRESH_FAILURE_BACKOFF_MS)
         ) {
+            if (rejected && !previousFailure.accessTokenUnusable) {
+                state.lastRefreshFailure.set(previousFailure.copy(accessTokenUnusable = true))
+            }
             LOG.info("Skipped repeated token $operation for ${state.type.displayName} after a recent failure")
             return null
         }
         var attemptedCredentials = initialCredentials
-        val refreshed = refreshWithStoreRecovery(state, clearMarker, initialCredentials, operation) {
+        val refreshed = refreshWithStoreRecovery(state, clearMarker, initialCredentials, operation, rejected) {
             attemptedCredentials = it
         }
         if (refreshed == null) {
             if (currentCredentialClearMarker(state) == clearMarker) {
+                val outcome = state.credentialStore.coordinator.readReceipt()?.takeIf { it.matches(attemptedCredentials) }
                 state.lastRefreshFailure.set(
-                    RefreshFailure(attemptedCredentials, System.currentTimeMillis(),
-                        reconnectRequired = state.credentialStore.coordinator.readReceipt()?.let {
-                            it.matches(attemptedCredentials) && it.outcome == OAuthRefreshReceipt.Outcome.REJECTED
-                        } == true,
+                    RefreshFailure(attemptedCredentials, nowMs(),
+                        reconnectRequired = outcome?.outcome == OAuthRefreshReceipt.Outcome.REJECTED,
+                        accessTokenUnusable = outcome?.outcome == OAuthRefreshReceipt.Outcome.ROTATED ||
+                            (rejected && sameCredentials(attemptedCredentials, initialCredentials)),
                     )
                 )
             }
@@ -601,6 +653,7 @@ class QuotaAuthService(
         clearMarker: Long,
         initialCredentials: OAuthCredentials,
         operation: String,
+        accessTokenRejected: Boolean,
         onAttempt: (OAuthCredentials) -> Unit,
     ): OAuthCredentials? {
         var credentials = initialCredentials
@@ -617,7 +670,8 @@ class QuotaAuthService(
             }
             val receipt = OAuthRefreshReceipt(
                 OAuthRefreshReceipt.fingerprint(credentials), OAuthRefreshReceipt.Outcome.TEMPORARY_FAILURE,
-                System.currentTimeMillis(),
+                nowMs(),
+                accessTokenRejected = accessTokenRejected && sameCredentials(credentials, initialCredentials),
             )
             // Record before sending: a crashed/interrupted caller must also leave a backoff.
             state.credentialStore.coordinator.writeReceipt(receipt)
@@ -716,7 +770,7 @@ class QuotaAuthService(
         LOG.info(
             "Refreshing ${state.type.displayName} token because $reason" +
                 " (refresh=${QuotaTokenUtil.fingerprint(credentials.refreshToken)}," +
-                " expiredForMs=${System.currentTimeMillis() - credentials.expiresAt})"
+                " expiredForMs=${nowMs() - credentials.expiresAt})"
         )
     }
 
@@ -805,6 +859,10 @@ class QuotaAuthService(
         scope.cancel()
     }
 
+    private fun isExpired(credentials: OAuthCredentials): Boolean = nowMs() >= credentials.expiresAt - EXPIRY_SKEW_MS
+
+    private fun matchingFailure(state: ProviderAuthState, credentials: OAuthCredentials?): RefreshFailure? =
+        state.lastRefreshFailure.get()?.takeIf { sameCredentials(it.credentials, credentials) }
 
     companion object {
         private val LOG = Logger.getInstance(QuotaAuthService::class.java)
@@ -822,10 +880,6 @@ class QuotaAuthService(
         @JvmStatic
         fun parseUri(type: QuotaProviderType, value: String): URI {
             return OAuthLoginFlow.parseUri(value, OAuthClientConfig.forProvider(type).redirectUri)
-        }
-
-        private fun isExpired(credentials: OAuthCredentials): Boolean {
-            return System.currentTimeMillis() >= credentials.expiresAt - EXPIRY_SKEW_MS
         }
 
         private fun sameCredentials(left: OAuthCredentials?, right: OAuthCredentials?): Boolean {

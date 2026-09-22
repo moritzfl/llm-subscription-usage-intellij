@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea.common
 
+import de.moritzf.quota.idea.auth.OAuthConnectionState
 import de.moritzf.quota.supergrok.SuperGrokQuota
 import de.moritzf.quota.supergrok.SuperGrokQuotaClient
 import de.moritzf.quota.supergrok.SuperGrokQuotaException
@@ -9,6 +10,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 class SuperGrokQuotaProviderTest {
     @Test
@@ -23,7 +25,7 @@ class SuperGrokQuotaProviderTest {
             client = FakeSuperGrokClient { quota },
             tokenProvider = { token },
             tokenRefresher = { null },
-            loggedInProvider = { true },
+            connectionStateProvider = { OAuthConnectionState.TEMPORARY_FAILURE },
         )
 
         provider.refresh()
@@ -31,6 +33,7 @@ class SuperGrokQuotaProviderTest {
         provider.refresh()
 
         assertSame(quota, provider.getLastQuota(), "a failed refresh must not drop the last reading")
+        assertTrue(provider.isLastErrorTransient())
         assertEquals(
             "Grok token could not be refreshed. Trying again with the next update.",
             provider.getLastError(),
@@ -43,7 +46,7 @@ class SuperGrokQuotaProviderTest {
             client = FakeSuperGrokClient { throw SuperGrokQuotaException("unused", 200) },
             tokenProvider = { null },
             tokenRefresher = { null },
-            loggedInProvider = { false },
+            connectionStateProvider = { OAuthConnectionState.LOGGED_OUT },
         )
 
         provider.refresh()

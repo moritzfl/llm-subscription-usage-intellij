@@ -11,6 +11,7 @@ import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.idea.auth.QuotaAuthService
+import de.moritzf.quota.idea.auth.OAuthConnectionState
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
@@ -67,10 +68,6 @@ internal class ClaudeSettingsPanel(
 
         loginButton.addActionListener {
             val authService = QuotaAuthService.getInstance()
-            if (authService.isLoggedIn(accountId(), QuotaProviderType.CLAUDE)) {
-                updateAuthUi()
-                return@addActionListener
-            }
             loginButton.isEnabled = false
             authCodeField.text = ""
             authStatusMessage = AuthStatusMessage(
@@ -200,26 +197,16 @@ internal class ClaudeSettingsPanel(
         val authService = QuotaAuthService.getInstance()
         val loggedIn = authService.isLoggedIn(accountId(), QuotaProviderType.CLAUDE)
         val inProgress = authService.isLoginInProgress(accountId(), QuotaProviderType.CLAUDE)
-        val quota = QuotaUsageService.getInstance().getLastQuota(accountId()) as? ClaudeQuota
         val error = QuotaUsageService.getInstance().getLastError(accountId())
-        val uiState = QuotaSettingsAuthUiState.create(loggedIn, inProgress, authStatusMessage)
+        val connection = authService.connectionState(accountId(), QuotaProviderType.CLAUDE)
+        val uiState = QuotaSettingsAuthUiState.create(loggedIn, inProgress, authStatusMessage, connection, error)
         loginButton.isEnabled = uiState.loginEnabled
+        loginButton.text = if (connection == OAuthConnectionState.RECONNECT_REQUIRED) "Reconnect with Claude" else "Log In with Claude"
         cancelLoginButton.isEnabled = uiState.cancelEnabled
         logoutButton.isEnabled = uiState.logoutEnabled
-        authCodeField.isEnabled = inProgress || !loggedIn
+        authCodeField.isEnabled = inProgress || uiState.loginEnabled
         submitCodeButton.isEnabled = inProgress
-        val status = when {
-            inProgress -> uiState.visibleStatusMessage
-                ?: AuthStatusMessage(
-                    "Complete Claude login in your browser, then paste the authorization code below.",
-                    false,
-                    AuthStatusKind.PENDING,
-                )
-            error != null -> AuthStatusMessage("Error: $error", true, AuthStatusKind.DISCONNECTED)
-            quota != null -> AuthStatusMessage("Connected to Claude", false, AuthStatusKind.CONNECTED)
-            loggedIn -> AuthStatusMessage("Claude login stored securely", false, AuthStatusKind.CONNECTED)
-            else -> AuthStatusMessage("Not configured", true, AuthStatusKind.DISCONNECTED)
-        }
+        val status = requireNotNull(uiState.visibleStatusMessage)
         statusLabel.text = formatStatusText(status.text, status.kind)
         statusLabel.foreground = statusLabelDefaultForeground ?: statusLabel.foreground
         statusLabel.isVisible = true

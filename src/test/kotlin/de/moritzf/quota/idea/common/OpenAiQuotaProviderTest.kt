@@ -1,11 +1,13 @@
 package de.moritzf.quota.idea.common
 
+import de.moritzf.quota.idea.auth.OAuthConnectionState
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.UsageWindow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
 
@@ -19,7 +21,7 @@ class OpenAiQuotaProviderTest {
             accessTokenProvider = { token },
             accountIdProvider = { "account-1" },
             tokenRefresher = { null },
-            loggedInProvider = { true },
+            connectionStateProvider = { OAuthConnectionState.TEMPORARY_FAILURE },
         )
 
         provider.refresh()
@@ -27,6 +29,7 @@ class OpenAiQuotaProviderTest {
         provider.refresh()
 
         assertSame(quota, provider.getLastQuota(), "a failed refresh must not drop the last reading")
+        assertTrue(provider.isLastErrorTransient())
         assertEquals(
             "OpenAI token could not be refreshed. Trying again with the next update.",
             provider.getLastError(),
@@ -40,7 +43,7 @@ class OpenAiQuotaProviderTest {
             accessTokenProvider = { null },
             accountIdProvider = { null },
             tokenRefresher = { null },
-            loggedInProvider = { false },
+            connectionStateProvider = { OAuthConnectionState.LOGGED_OUT },
         )
 
         provider.refresh()

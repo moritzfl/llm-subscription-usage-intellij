@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.common
 
 import de.moritzf.quota.idea.auth.QuotaAuthService
+import de.moritzf.quota.idea.auth.OAuthConnectionState
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.OpenAiCodexQuotaClient
 import de.moritzf.quota.openai.OpenAiCodexQuotaException
@@ -27,8 +28,8 @@ class OpenAiQuotaProvider(
     private val tokenRefresher: (staleAccessToken: String?) -> String? = { staleToken ->
         QuotaAuthService.getInstance().forceRefreshBlocking(accountId, QuotaProviderType.OPEN_AI, staleToken)
     },
-    private val loggedInProvider: () -> Boolean = {
-        QuotaAuthService.getInstance().isLoggedIn(accountId, QuotaProviderType.OPEN_AI)
+    private val connectionStateProvider: () -> OAuthConnectionState = {
+        QuotaAuthService.getInstance().connectionState(accountId, QuotaProviderType.OPEN_AI)
     },
 ) : CachedQuotaProvider<OpenAiCodexQuota>() {
     override val type = QuotaProviderType.OPEN_AI
@@ -42,7 +43,7 @@ class OpenAiQuotaProvider(
         val accessToken = accessTokenProvider()
         if (accessToken.isNullOrBlank()) {
             storeMissingAccessToken(
-                loggedInProvider(),
+                connectionStateProvider(),
                 "OpenAI token could not be refreshed. Trying again with the next update.",
             )
             return

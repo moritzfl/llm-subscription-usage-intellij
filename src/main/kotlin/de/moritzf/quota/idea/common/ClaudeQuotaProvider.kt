@@ -4,6 +4,7 @@ import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.claude.ClaudeQuotaClient
 import de.moritzf.quota.claude.ClaudeQuotaException
 import de.moritzf.quota.idea.auth.QuotaAuthService
+import de.moritzf.quota.idea.auth.OAuthConnectionState
 
 class ClaudeQuotaProvider(
     override val accountId: String = QuotaProviderType.CLAUDE.id,
@@ -14,8 +15,11 @@ class ClaudeQuotaProvider(
     private val tokenRefresher: (staleAccessToken: String?) -> String? = { staleToken ->
         QuotaAuthService.getInstance().forceRefreshBlocking(accountId, QuotaProviderType.CLAUDE, staleToken)
     },
-    private val loggedInProvider: () -> Boolean = {
-        QuotaAuthService.getInstance().isLoggedIn(accountId, QuotaProviderType.CLAUDE)
+    private val connectionStateProvider: () -> OAuthConnectionState = {
+        QuotaAuthService.getInstance().connectionState(accountId, QuotaProviderType.CLAUDE)
+    },
+    private val reconnectRequired: (String) -> Unit = { rejectedToken ->
+        QuotaAuthService.getInstance().requireReconnect(accountId, QuotaProviderType.CLAUDE, rejectedToken)
     },
 ) : CachedQuotaProvider<ClaudeQuota>() {
     override val type = QuotaProviderType.CLAUDE
@@ -24,12 +28,12 @@ class ClaudeQuotaProvider(
     override fun refresh() {
         val accessToken = tokenProvider()
         if (accessToken.isNullOrBlank()) {
-            storeMissingAccessToken(loggedInProvider(), TOKEN_UNAVAILABLE_MESSAGE)
+            storeMissingAccessToken(connectionStateProvider(), TOKEN_UNAVAILABLE_MESSAGE)
             return
         }
 
         try {
-            val quota = fetchQuotaWithAuthRetry(accessToken)
+            val quota = fetchQuotaWithAuthRetry(accessToken) ?: return
             storeQuota(quota, quota.rawJson)
         } catch (exception: ClaudeQuotaException) {
             storeFetchFailure(exception.statusCode, exception.message ?: "Request failed", exception.rawBody)
@@ -38,16 +42,32 @@ class ClaudeQuotaProvider(
         }
     }
 
-    private fun fetchQuotaWithAuthRetry(accessToken: String): ClaudeQuota {
+    private fun fetchQuotaWithAuthRetry(accessToken: String): ClaudeQuota? {
         return try {
             client.fetchQuota(accessToken)
         } catch (exception: ClaudeQuotaException) {
             val missingProfileScope = exception.statusCode == 403 &&
                 exception.rawBody?.contains("user:profile", ignoreCase = true) == true
-            if (missingProfileScope || (exception.statusCode != 401 && exception.statusCode != 403)) throw exception
+            if (missingProfileScope) {
+                reconnectRequired(accessToken)
+                throw exception
+            }
+            if (exception.statusCode != 401 && exception.statusCode != 403) throw exception
             val refreshed = tokenRefresher(accessToken)?.takeIf { it.isNotBlank() && it != accessToken }
-                ?: throw exception
-            client.fetchQuota(refreshed)
+            if (refreshed == null) {
+                storeMissingAccessToken(connectionStateProvider(), TOKEN_UNAVAILABLE_MESSAGE)
+                return null
+            }
+            try {
+                client.fetchQuota(refreshed)
+            } catch (retryFailure: ClaudeQuotaException) {
+                if (retryFailure.statusCode == 401 ||
+                    (retryFailure.statusCode == 403 && retryFailure.rawBody?.contains("user:profile", ignoreCase = true) == true)
+                ) {
+                    reconnectRequired(refreshed)
+                }
+                throw retryFailure
+            }
         }
     }
 
