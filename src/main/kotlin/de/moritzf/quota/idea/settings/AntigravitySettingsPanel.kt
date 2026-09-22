@@ -23,16 +23,16 @@ internal class AntigravitySettingsPanel : ProviderSettingsPanel() {
 
     init {
         install(panel {
-            row { text("Uses the current Antigravity CLI login. Install AGY 1.1.11 or later and run agy in a terminal to sign in.") }
-            row { text("Quota only. One CLI account; credentials stay with AGY. Change accounts in AGY.") }
+            row { comment("Uses the current Antigravity CLI login. Install AGY 1.1.11 or later and run agy in a terminal to sign in.") }
+            row { comment("Quota only. One CLI account; credentials stay with AGY. Change accounts in AGY.") }
             row("AGY executable:") {
                 cell(executableField).align(AlignX.FILL).resizableColumn()
+                    .comment("Leave blank for automatic detection. Changes take effect after Apply.")
                 button("Detect") { detectExecutable() }.applyToComponent {
                     toolTipText = "Auto-detect AGY from PATH and standard install locations and fill the path"
                     accessibleContext.accessibleName = "Detect AGY executable path"
                 }
             }
-            row { text("Leave blank for automatic detection. Changes take effect after Apply.") }
             row {
                 browserLink("AGY setup (Google documentation)", "https://antigravity.google/docs/cli/install/")
             }
