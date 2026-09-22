@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.13.6] - 2026-09-21
+
 - Ollama monthly reset accepts a paste of the ollama.com/settings page. The Monthly usage Resets `data-time` is stored; other timestamps on the page are ignored.
 
 ## [1.13.5] - 2026-09-21
