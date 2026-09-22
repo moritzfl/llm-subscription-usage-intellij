@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-09-22
+
 - Added a shared quota refresh action beside Copy in every provider's Last quota response header. Its arrows spin while the request is running, then briefly show a checkmark on success or an X on failure.
 - Refined Antigravity UI with a Detect button, an explicitly labeled Google documentation link, gray explanatory text, connection-status dots, and shorter weekly labels.
 - Added quota-only Antigravity support through the official AGY CLI JSON usage report (1.1.11+), including model-group windows, reset times, and MCP quota export. Antigravity is the sole exception to plugin-managed authentication: it uses the current CLI login, with one entry and optional executable path.
