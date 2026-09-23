@@ -2,12 +2,11 @@
 
 ## [Unreleased]
 
-- Replaced the Azure placeholder icon with the supplied Azure mark, adapted for light and dark IDE themes.
-- Azure discovery now follows the selected endpoint, advertises ARM deployment names with the CLI default subscription, and preserves readable statistics when account metadata or optional APIs fail. Regional quotas stay separate, deployment capacity keeps its native units, and live rate-limit readings expire without moving their reset times forward.
-- Azure proxy requests keep one account, endpoint, and deployment through concurrent calls and token retries. CLI login/default changes take effect on the next token request, and unknown Azure deployments require the `az-` prefix so they cannot intercept other providers' models.
+## [1.15.0] - 2026-09-23
+
+- Added one Azure OpenAI entry that uses the signed-in Azure CLI identity. It can pin a subscription and resource. Quota calls that need extra roles are skipped instead of failing the entry, so the local proxy and any usage the token can read still work. Discovery follows the selected endpoint and lists ARM deployments. Regional quota lines show current usage. Deployment scale is shown as allocated capacity units or PTUs, not as usage. A failed optional lookup does not hide the rest. The proxy keeps that entry, endpoint, and deployment through concurrent calls and token retries, and does not send `api-version` on `/v1` paths. CLI login changes apply on the next token request. Unknown deployments require the `az-` prefix. Last quota response keeps the Azure CLI and ARM JSON, grouped by call.
 - Temporary token-refresh and quota failures now keep the last quota visible instead of looking like a logout. Claude settings distinguish retained logins from reconnect-required states and allow reconnecting directly. Still-valid access tokens remain usable after an early refresh fails; expired or rejected tokens are never reused.
 - Coordinated OAuth refreshes across IDEs sharing a login. Delayed refreshes can no longer overwrite a newer login or restore credentials after logout, and queued Password Safe writes no longer cause another IDE to reuse a rotated token.
-- Added Azure OpenAI accounts that use the signed-in Azure CLI identity. Each account can pin a subscription and resource. Quota calls that need extra roles are skipped instead of failing the account, so the local proxy and any usage the token can read still work.
 
 ## [1.14.0] - 2026-09-22
 
