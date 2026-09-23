@@ -58,6 +58,8 @@ data class AzureUsageWindow(
     val kind: String,
     val used: Double? = null,
     val limit: Double? = null,
+    /** Deployment SKU scale. Not consumption. */
+    val capacity: Double? = null,
     val remaining: Double? = null,
     val unit: String? = null,
     val resetsAt: Instant? = null,
@@ -173,7 +175,7 @@ internal fun parseAzureDeployments(raw: String, resource: AzureResourceRef? = nu
             id = name,
             label = listOfNotNull(name, resource?.name, resource?.location).joinToString(" · "),
             kind = AzureUsageWindow.DEPLOYMENT,
-            used = capacity,
+            capacity = capacity,
             // Capacity-to-TPM ratios vary by model; provisioned SKUs use PTUs instead.
             unit = if (sku?.text("name")?.contains("Provisioned", ignoreCase = true) == true) "PTU" else "capacity units",
             location = resource?.location,

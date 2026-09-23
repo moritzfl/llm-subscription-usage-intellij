@@ -64,9 +64,9 @@ internal class AzurePopupSection : ProviderPopupSection() {
             kind == AzureUsageWindow.LIVE && remaining != null && limit != null ->
                 "${remaining.toLong()} remaining of ${limit.toLong()} ${unit.orEmpty()}".trim()
             kind == AzureUsageWindow.ALLOCATION && used != null && limit != null ->
-                "${used.toLong()}/${limit.toLong()} allocated"
-            kind == AzureUsageWindow.DEPLOYMENT && used != null ->
-                "${used.toLong()} ${unit.orEmpty()} allocated".trim()
+                "${used.toLong()}/${limit.toLong()} ${unit.orEmpty()} used".trim()
+            kind == AzureUsageWindow.DEPLOYMENT && capacity != null ->
+                "${capacity.toLong()} ${unit.orEmpty()} allocated".trim()
             usagePercent == null -> "Usage unavailable"
             else -> "${usagePercent!!.roundToInt()}% used"
         }

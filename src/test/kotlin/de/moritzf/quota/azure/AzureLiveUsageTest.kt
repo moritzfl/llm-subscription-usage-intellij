@@ -62,9 +62,11 @@ class AzureLiveUsageTest {
             {"name":"reasoning","sku":{"name":"Standard","capacity":10},"properties":{"model":{"name":"o1"}}},
             {"name":"reserved","sku":{"name":"GlobalProvisionedManaged","capacity":50}}
         ]}"""))
-        assertEquals(10.0, windows[0].used)
+        assertEquals(null, windows[0].used)
+        assertEquals(null, windows[0].usagePercent)
+        assertEquals(10.0, windows[0].capacity)
         assertEquals("capacity units", windows[0].unit)
-        assertEquals(50.0, windows[1].used)
+        assertEquals(50.0, windows[1].capacity)
         assertEquals("PTU", windows[1].unit)
     }
 }
