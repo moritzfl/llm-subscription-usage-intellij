@@ -14,6 +14,7 @@ import de.moritzf.quota.minimax.proxy.MiniMaxSubscriptionProxyProvider
 import de.moritzf.quota.mistral.proxy.MistralSubscriptionProxyProvider
 import de.moritzf.quota.ollama.proxy.OllamaSubscriptionProxyProvider
 import de.moritzf.quota.openai.proxy.OpenAiCodexSubscriptionProxyProvider
+import de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel
 import de.moritzf.quota.opencode.proxy.OpenCodeZenSubscriptionProxyProvider
 import de.moritzf.quota.opencode.proxy.OpenCodeConsoleSession
 import de.moritzf.quota.supergrok.proxy.SuperGrokSubscriptionProxyProvider
@@ -243,6 +244,7 @@ private fun createProviders(
             },
             fullRequestLogging = options.logRequests,
             requestLogDir = options.requestLogDir,
+            pools = { OpenCodeConsoleModel.fetchPools() },
         )
     }
     if ("azure" in selected) {

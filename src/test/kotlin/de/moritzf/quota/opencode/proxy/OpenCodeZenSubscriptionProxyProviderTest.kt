@@ -174,7 +174,35 @@ class OpenCodeZenSubscriptionProxyProviderTest {
             .POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString(),
     )
 
-    private class Upstream(private var rejectInference: Boolean = false, private var rejectConfig: Boolean = false) : AutoCloseable {
+    @Test
+    fun zenConsoleUrlAlsoAdvertisesGoAndOldPrefixPrefersGo() {
+        Upstream(useZenBase = true).use { upstream ->
+            val provider = OpenCodeZenSubscriptionProxyProvider(
+                consoleSessionProvider = { OpenCodeConsoleSession("account", "oauth", "org_a") { null } },
+                consoleEndpoint = upstream.endpoint,
+                pools = { OpenCodePools(go = setOf("chat")) },
+            )
+            withProxy(provider) { port ->
+                val ids = JsonHelper.JSON.parseToJsonElement(get(port, "/v1/models").body()).jsonObject["data"]!!.jsonArray
+                    .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                assertTrue("oc-zen-chat" in ids, ids.toString())
+                assertTrue("oc-go-chat" in ids, ids.toString())
+                assertFalse("oc-chat" in ids)
+                val go = post(port, "/v1/chat/completions", """{"model":"oc-go-chat","messages":[{"role":"user","content":"hi"}]}""")
+                assertEquals(200, go.statusCode(), go.body())
+                val legacy = post(port, "/v1/chat/completions", """{"model":"oc-chat","messages":[{"role":"user","content":"hi"}]}""")
+                assertEquals(200, legacy.statusCode(), legacy.body())
+                val calls = upstream.requests.filter { it.path.endsWith("/chat/completions") }
+                assertEquals(listOf("/zen/go/v1/chat/completions", "/zen/go/v1/chat/completions"), calls.map { it.path })
+            }
+        }
+    }
+
+    private class Upstream(
+        private var rejectInference: Boolean = false,
+        private var rejectConfig: Boolean = false,
+        private val useZenBase: Boolean = false,
+    ) : AutoCloseable {
         data class Request(val path: String, val authorization: String?, val organization: String?, val inferenceOrganization: String?, val cookie: String?, val body: String)
         val requests = CopyOnWriteArrayList<Request>()
         private val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
@@ -206,7 +234,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
 
         private fun config(org: String?): String = """{"providers":{"opencode":{
             "package":"aisdk:@ai-sdk/openai-compatible",
-            "settings":{"baseURL":"http://127.0.0.1:${server.address.port}/inference/openai/v1"},
+            "settings":{"baseURL":"http://127.0.0.1:${server.address.port}/${if (useZenBase) "zen/v1" else "inference/openai/v1"}"},
             "headers":{"x-opencode-org-id":"$org"},"models":{
                 "chat":{"modelID":"chat-native","capabilities":{"tools":true,"input":["text"],"output":["text"]}},
                 "gpt":{"package":"aisdk:@ai-sdk/openai","limit":{"context":100000,"output":10000}},

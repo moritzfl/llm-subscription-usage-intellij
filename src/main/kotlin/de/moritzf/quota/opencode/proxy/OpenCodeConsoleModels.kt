@@ -5,8 +5,15 @@ import de.moritzf.proxy.subscription.SubscriptionProxyRoute
 import de.moritzf.quota.shared.JsonSupport
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.time.Duration
 
 /** Only the Console fields needed to route models; credentials come from the active OAuth login. */
 @Serializable
@@ -42,6 +49,16 @@ internal data class ConsoleCapabilities(val tools: Boolean = true, val input: Li
 @Serializable
 internal data class ConsoleLimit(val context: Int? = null, val input: Int? = null, val output: Int? = null)
 
+internal enum class OpenCodePool {
+    GO,
+    ZEN,
+}
+
+internal data class OpenCodePools(
+    val go: Set<String> = emptySet(),
+    val zen: Set<String> = emptySet(),
+)
+
 internal data class OpenCodeConsoleModel(
     val model: SubscriptionProxyModel,
     val nativeRoute: SubscriptionProxyRoute,
@@ -52,42 +69,150 @@ internal data class OpenCodeConsoleModel(
     val targetUri: URI get() = URI.create(baseUri.toString().trimEnd('/') + nativeRoute.normalizedPath)
 
     companion object {
-        fun parse(body: String): List<OpenCodeConsoleModel> {
+        const val GO_MODELS_URL = "https://opencode.ai/zen/go/v1/models"
+        const val ZEN_MODELS_URL = "https://opencode.ai/zen/v1/models"
+
+        fun parse(body: String, pools: OpenCodePools = OpenCodePools()): List<OpenCodeConsoleModel> {
             val provider = JsonSupport.json.decodeFromString<OpenCodeConsoleConfig>(body).providers["opencode"]
                 ?: return emptyList()
-            return provider.models.mapNotNull { (id, model) ->
-                if (model.disabled) return@mapNotNull null
-                val nativeRoute = when (model.packageName ?: provider.packageName) {
-                    "aisdk:@ai-sdk/openai-compatible", "@opencode/ai/providers/openai-compatible" -> SubscriptionProxyRoute.CHAT_COMPLETIONS
-                    "aisdk:@ai-sdk/openai", "@opencode/ai/providers/openai", "@opencode/ai/providers/openai-compatible-responses" -> SubscriptionProxyRoute.RESPONSES
-                    "aisdk:@ai-sdk/anthropic", "@opencode/ai/providers/anthropic", "@opencode/ai/providers/anthropic-compatible" -> SubscriptionProxyRoute.ANTHROPIC_MESSAGES
-                    else -> return@mapNotNull null
+            val parsed = provider.models.mapNotNull { (id, model) -> toModel(provider, id, model) }
+            return withPoolTwins(parsed, pools)
+        }
+
+        fun fetchPools(httpClient: HttpClient = HttpClient.newHttpClient()): OpenCodePools {
+            return OpenCodePools(fetchIds(httpClient, GO_MODELS_URL), fetchIds(httpClient, ZEN_MODELS_URL))
+        }
+
+        internal fun poolOf(uri: URI): OpenCodePool? {
+            val path = uri.path.trimEnd('/')
+            return when {
+                path.contains("/zen/go/") || path.endsWith("/zen/go") -> OpenCodePool.GO
+                path.contains("/zen/") || path.endsWith("/zen") -> OpenCodePool.ZEN
+                else -> null
+            }
+        }
+
+        internal fun localId(pool: OpenCodePool?, modelId: String): String = when (pool) {
+            OpenCodePool.GO -> "oc-go-$modelId"
+            OpenCodePool.ZEN -> "oc-zen-$modelId"
+            null -> "oc-$modelId"
+        }
+
+        internal fun rewritePoolBase(uri: URI, target: OpenCodePool): URI? {
+            val raw = uri.toString().trimEnd('/')
+            val rewritten = when (target) {
+                OpenCodePool.GO -> if (raw.contains("/zen/go/") || raw.endsWith("/zen/go")) {
+                    return null
+                } else if (raw.contains("/zen/")) {
+                    raw.replace("/zen/", "/zen/go/")
+                } else {
+                    return null
                 }
-                val base = model.settings?.baseURL ?: provider.settings?.baseURL ?: return@mapNotNull null
-                val uri = URI.create(base)
-                require(uri.scheme in setOf("https", "http") && uri.host != null && uri.userInfo == null && uri.query == null && uri.fragment == null) {
-                    "Invalid OpenCode inference URL"
+                OpenCodePool.ZEN -> if (raw.contains("/zen/go/")) {
+                    raw.replace("/zen/go/", "/zen/")
+                } else if (raw.endsWith("/zen/go")) {
+                    raw.removeSuffix("/go")
+                } else {
+                    return null
                 }
-                OpenCodeConsoleModel(
-                    model = SubscriptionProxyModel(
-                        localId = OpenCodeZenSubscriptionProxyProvider.PREFIX + id,
-                        upstreamId = model.modelID ?: id,
-                        providerId = OpenCodeZenSubscriptionProxyProvider.ID,
-                        providerName = "OpenCode Zen",
-                        litellmProvider = "opencode",
-                        supportedRoutes = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, nativeRoute),
-                        supportsFunctionCalling = model.capabilities?.tools ?: true,
-                        supportsToolChoice = model.capabilities?.tools ?: true,
-                        supportsVision = model.capabilities?.input?.contains("image") == true,
-                        maxInputTokens = model.limit?.input ?: model.limit?.context,
-                        maxOutputTokens = model.limit?.output,
-                    ),
-                    nativeRoute = nativeRoute,
-                    baseUri = uri,
-                    headers = provider.headers + model.headers,
-                    body = JsonObject(provider.body + model.body),
+            }
+            return runCatching { URI.create(rewritten) }.getOrNull()
+        }
+
+        private fun toModel(provider: ConsoleProvider, id: String, model: ConsoleModel): OpenCodeConsoleModel? {
+            if (model.disabled) return null
+            val nativeRoute = when (model.packageName ?: provider.packageName) {
+                "aisdk:@ai-sdk/openai-compatible", "@opencode/ai/providers/openai-compatible" -> SubscriptionProxyRoute.CHAT_COMPLETIONS
+                "aisdk:@ai-sdk/openai", "@opencode/ai/providers/openai", "@opencode/ai/providers/openai-compatible-responses" -> SubscriptionProxyRoute.RESPONSES
+                "aisdk:@ai-sdk/anthropic", "@opencode/ai/providers/anthropic", "@opencode/ai/providers/anthropic-compatible" -> SubscriptionProxyRoute.ANTHROPIC_MESSAGES
+                else -> return null
+            }
+            val base = model.settings?.baseURL ?: provider.settings?.baseURL ?: return null
+            val uri = URI.create(base)
+            require(uri.scheme in setOf("https", "http") && uri.host != null && uri.userInfo == null && uri.query == null && uri.fragment == null) {
+                "Invalid OpenCode inference URL"
+            }
+            return entry(id, model.modelID ?: id, model, provider, nativeRoute, uri)
+        }
+
+        private fun entry(
+            id: String,
+            upstreamId: String,
+            model: ConsoleModel,
+            provider: ConsoleProvider,
+            nativeRoute: SubscriptionProxyRoute,
+            uri: URI,
+        ): OpenCodeConsoleModel {
+            val pool = poolOf(uri)
+            return OpenCodeConsoleModel(
+                model = SubscriptionProxyModel(
+                    localId = localId(pool, id),
+                    upstreamId = upstreamId,
+                    providerId = OpenCodeZenSubscriptionProxyProvider.ID,
+                    providerName = poolLabel(pool),
+                    litellmProvider = "opencode",
+                    supportedRoutes = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, nativeRoute),
+                    supportsFunctionCalling = model.capabilities?.tools ?: true,
+                    supportsToolChoice = model.capabilities?.tools ?: true,
+                    supportsVision = model.capabilities?.input?.contains("image") == true,
+                    maxInputTokens = model.limit?.input ?: model.limit?.context,
+                    maxOutputTokens = model.limit?.output,
+                ),
+                nativeRoute = nativeRoute,
+                baseUri = uri,
+                headers = provider.headers + model.headers,
+                body = JsonObject(provider.body + model.body),
+            )
+        }
+
+        private fun withPoolTwins(models: List<OpenCodeConsoleModel>, pools: OpenCodePools): List<OpenCodeConsoleModel> {
+            val present = models.map { it.model.localId }.toMutableSet()
+            val twins = models.mapNotNull { model ->
+                val pool = poolOf(model.baseUri) ?: return@mapNotNull null
+                val other = if (pool == OpenCodePool.ZEN) OpenCodePool.GO else OpenCodePool.ZEN
+                val ids = if (other == OpenCodePool.GO) pools.go else pools.zen
+                val catalogId = catalogId(model)
+                if (catalogId !in ids && model.model.upstreamId !in ids) return@mapNotNull null
+                val rewritten = rewritePoolBase(model.baseUri, other) ?: return@mapNotNull null
+                val id = localId(other, catalogId)
+                if (!present.add(id)) return@mapNotNull null
+                model.copy(
+                    model = model.model.copy(localId = id, providerName = poolLabel(other)),
+                    baseUri = rewritten,
                 )
             }
+            return models + twins
+        }
+
+        private fun catalogId(model: OpenCodeConsoleModel): String {
+            val local = model.model.localId
+            return when {
+                local.startsWith("oc-go-") -> local.removePrefix("oc-go-")
+                local.startsWith("oc-zen-") -> local.removePrefix("oc-zen-")
+                local.startsWith("oc-") -> local.removePrefix("oc-")
+                else -> model.model.upstreamId
+            }
+        }
+
+        private fun poolLabel(pool: OpenCodePool?): String = when (pool) {
+            OpenCodePool.GO -> "OpenCode Go"
+            OpenCodePool.ZEN -> "OpenCode Zen"
+            null -> "OpenCode"
+        }
+
+        private fun fetchIds(httpClient: HttpClient, url: String): Set<String> {
+            return runCatching {
+                val request = HttpRequest.newBuilder(URI.create(url))
+                    .timeout(Duration.ofSeconds(8))
+                    .header("Accept", "application/json")
+                    .GET()
+                    .build()
+                val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+                if (response.statusCode() !in 200..299) return emptySet()
+                val data = (JsonSupport.json.parseToJsonElement(response.body()) as? JsonObject)?.get("data") as? JsonArray
+                    ?: return emptySet()
+                data.mapNotNull { (it as? JsonObject)?.get("id")?.let { id -> (id as? JsonPrimitive)?.contentOrNull } }.toSet()
+            }.getOrDefault(emptySet())
         }
     }
 }

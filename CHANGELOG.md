@@ -1,5 +1,9 @@
 # LLM Subscription Usage Changelog
 
+## [Unreleased]
+
+- OpenCode proxy models are now `oc-go-` and `oc-zen-`, so the pool is part of the id. A Zen console URL still gets a Go entry when that model is on the Go catalog. An old `oc-` id prefers Go when that pool has the model.
+
 ## [1.15.3] - 2026-09-23
 
 - FIM chat adapter sends `reasoning_effort=none` for Codex `gpt-6-sol` and `gpt-6-luna`. The ChatGPT backend accepts that and spends no reasoning tokens. Astra and older Codex models stay on `low`; Astra rejects `none`.

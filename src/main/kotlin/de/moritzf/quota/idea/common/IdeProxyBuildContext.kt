@@ -14,6 +14,7 @@ import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
 import de.moritzf.quota.idea.mistral.MistralApiKeyStore
 import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
 import de.moritzf.quota.idea.opencode.OpenCodeAuthService
+import de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel
 import de.moritzf.quota.opencode.proxy.OpenCodeConsoleSession
 import com.intellij.openapi.diagnostic.Logger
 import de.moritzf.quota.idea.settings.AccountCapability
@@ -197,6 +198,7 @@ internal object IdeProxyFactories {
             },
             fullRequestLogging = ctx.logRequests,
             requestLogDir = ctx.requestLogDir,
+            pools = { OpenCodeConsoleModel.fetchPools() },
         )
     }
 

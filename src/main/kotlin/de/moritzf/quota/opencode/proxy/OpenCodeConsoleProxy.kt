@@ -34,6 +34,7 @@ internal class OpenCodeConsoleProxy(
     private val httpClient: HttpClient,
     private val requestLogger: RequestLogger,
     private val endpoint: URI = OpenCodeQuotaClient.DEFAULT_ENDPOINT,
+    private val pools: () -> OpenCodePools = { OpenCodePools() },
 ) {
     private data class Catalog(
         val accountId: String,
@@ -58,7 +59,7 @@ internal class OpenCodeConsoleProxy(
             throw OpenCodeQuotaException("OpenCode inference configuration failed: HTTP ${response.statusCode()}", response.statusCode())
         }
         val models = try {
-            OpenCodeConsoleModel.parse(response.body())
+            OpenCodeConsoleModel.parse(response.body(), pools())
         } catch (_: Exception) {
             throw OpenCodeQuotaException("Could not parse OpenCode inference configuration", 200)
         }
