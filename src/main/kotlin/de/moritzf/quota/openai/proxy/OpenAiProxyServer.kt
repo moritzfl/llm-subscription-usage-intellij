@@ -200,10 +200,12 @@ class OpenAiProxyServer(
         // visibility/priority as a guide (not the incomplete ChatGPT /models endpoint).
         // gpt-5.2 is still marked list upstream but is no longer a useful ChatGPT-subscription
         // choice; omit it. gpt-5.5-pro stays absent (backend rejects ChatGPT accounts).
-        // Hidden/legacy slugs still work via fallbackModel if a client requests them.
-        // Advertise base ids only; harnesses send reasoning_effort themselves.
+        // Hidden/legacy slugs (gpt-5.4, Daybreak, auto-review) still work via fallbackModel
+        // if a client requests them. Advertise base ids only; harnesses send reasoning_effort.
         private val ADVERTISED_BASE_MODELS = listOf(
             "gpt-6-astra",
+            "gpt-6-sol",
+            "gpt-6-luna",
             "gpt-5.6-sol",
             "gpt-5.6-terra",
             "gpt-5.6-luna",
