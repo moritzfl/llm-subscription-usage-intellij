@@ -1,6 +1,6 @@
 # LLM Subscription Usage Changelog
 
-## [Unreleased]
+## [1.15.1] - 2026-09-23
 
 - OpenAI/Codex proxy advertises `gpt-6-sol` and `gpt-6-luna` (Codex UI list, priorities 2 and 3). Default advertised model stays `gpt-6-astra`.
 - OpenAI/Codex proxy clamps `gpt-6-luna` `ultra` to `max` and hops its usage limits to `gpt-reserve`, same as `gpt-5.6-luna`.
@@ -528,7 +528,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.0...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.1...HEAD
+[1.15.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.0...1.15.1
 [1.15.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.14.0...1.15.0
 [1.14.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.13.6...1.14.0
 [1.13.6]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.13.5...1.13.6
