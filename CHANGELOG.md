@@ -1,6 +1,6 @@
 # LLM Subscription Usage Changelog
 
-## [Unreleased]
+## [1.15.4] - 2026-09-24
 
 - OpenCode proxy reads both Console providers. `opencode` is `oc-zen-` (`/inference/…`). `opencode-go` is `oc-go-` and keeps that provider's own `/inference/go/…` URL and API package. An old `oc-` id prefers Go when the Go provider lists the model.
 - FIM chat adapter shows a cursor preview and tells the model not to repeat the suffix. DeepSeek V4 FIM requests send `reasoning_effort=none` so thinking does not consume the completion budget.
@@ -542,7 +542,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.3...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.4...HEAD
+[1.15.4]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.3...1.15.4
 [1.15.3]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.2...1.15.3
 [1.15.2]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.1...1.15.2
 [1.15.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.0...1.15.1
