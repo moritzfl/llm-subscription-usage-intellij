@@ -9,7 +9,7 @@
 - Credentials and API keys belong in IntelliJ Password Safe. Never add secrets, raw tokens, or generated logs to git.
 - Auth is self-maintained: browser login or keys the user enters in this plugin. Never read, write, watch, or import auth files other tools put on disk (Codex `auth.json`, ChatGPT local, OS stores of other apps). Do not add “import from ~/.codex” or similar.
 - Antigravity is a CLI exception: quota-only through the official `agy` CLI (1.1.11+), using its own login. Invoke the documented JSON usage report; never inspect its credentials, internal APIs, or conversation files. One current CLI account only.
-- Azure is a separate CLI exception: personalized accounts through documented `az account list` and `az account get-access-token` only. Never read `~/.azure`. Do not call `az account set`. Do not extend CLI-backed auth to other providers or build a general CLI-provider framework.
+- Azure is a separate CLI exception: one plugin entry, through documented `az account list` and `az account get-access-token` only. Never read `~/.azure`. Do not call `az account set`. Do not extend CLI-backed auth to other providers or build a general CLI-provider framework.
 
 ## Validation
 

@@ -139,7 +139,7 @@ internal object ProviderCatalog {
         ),
         descriptor(
             type = QuotaProviderType.AZURE,
-            capabilities = ProviderCapabilities(subscriptionProxy = true),
+            capabilities = ProviderCapabilities(subscriptionProxy = true, multipleAccounts = false),
             quotaFactory = { AzureQuotaProvider(accountId = it.id) },
             snapshotCodec = EnvelopeQuotaCodec(AzureQuota.serializer()),
             mcpEmpty = "No Azure usage response available",

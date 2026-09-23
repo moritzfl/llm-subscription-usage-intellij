@@ -173,9 +173,13 @@ internal class AccountListPanel(
         val label = listLabel(account)
         val confirmed = Messages.showYesNoDialog(
             this,
-            if (account.providerType() == QuotaProviderType.ANTIGRAVITY) {
-                "Remove $label quota tracking? Your AGY CLI login will remain available."
-            } else "Remove $label and delete its stored login?",
+            when (account.providerType()) {
+                QuotaProviderType.ANTIGRAVITY ->
+                    "Remove $label quota tracking? Your AGY CLI login will remain available."
+                QuotaProviderType.AZURE ->
+                    "Remove $label? Your Azure CLI login will remain available."
+                else -> "Remove $label and delete its stored login?"
+            },
             "Remove account",
             Messages.getQuestionIcon(),
         ) == Messages.YES

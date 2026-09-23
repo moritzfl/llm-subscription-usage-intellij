@@ -24,6 +24,19 @@ class ProviderAccountTest {
     }
 
     @Test
+    fun azureFollowsOnlyOneEntry() {
+        val state = QuotaSettingsState()
+        val account = state.addAccount(QuotaProviderType.AZURE)
+        assertFailsWith<IllegalArgumentException> { state.addAccount(QuotaProviderType.AZURE) }
+        assertEquals(listOf(account), state.accounts)
+
+        val restored = QuotaSettingsState.sanitizeAccounts(listOf(account, account.copy(id = "second")))
+        assertEquals(listOf(account.id), restored.map { it.id })
+        assertFalse(restored.single().allowFailover)
+        assertFalse(TypeHasStoredCredentials(QuotaProviderType.AZURE))
+    }
+
+    @Test
     fun extraGithubHostDoesNotOverwriteFirstAccount() {
         val state = QuotaSettingsState()
         val first = state.addAccount(QuotaProviderType.GITHUB)

@@ -19,13 +19,20 @@ import kotlin.test.assertTrue
 
 class ProviderCatalogTest {
     @Test
-    fun antigravityIsQuotaOnlyAndOnlySingleAccountProvider() {
+    fun antigravityIsQuotaOnly() {
         val descriptor = ProviderCatalog.get(QuotaProviderType.ANTIGRAVITY)
         assertEquals(ProviderCapabilities(multipleAccounts = false), descriptor.capabilities)
+    }
+
+    @Test
+    fun cliExceptionsAllowOnlyOneEntry() {
         assertEquals(
-            listOf(QuotaProviderType.ANTIGRAVITY),
+            listOf(QuotaProviderType.ANTIGRAVITY, QuotaProviderType.AZURE),
             ProviderCatalog.all.filter { !it.capabilities.multipleAccounts }.map { it.type },
         )
+        val azure = ProviderCatalog.get(QuotaProviderType.AZURE)
+        assertEquals(true, azure.capabilities.subscriptionProxy)
+        assertEquals(false, azure.capabilities.multipleAccounts)
     }
 
     @Test
