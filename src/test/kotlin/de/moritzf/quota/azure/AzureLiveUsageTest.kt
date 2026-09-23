@@ -1,9 +1,11 @@
 package de.moritzf.quota.azure
 
+import de.moritzf.quota.shared.JsonSupport
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 
@@ -68,5 +70,18 @@ class AzureLiveUsageTest {
         assertEquals("capacity units", windows[0].unit)
         assertEquals(50.0, windows[1].capacity)
         assertEquals("PTU", windows[1].unit)
+    }
+
+    @Test
+    fun rawResponseKeepsAzureBodies() {
+        val json = assertNotNull(buildAzureRawResponse(
+            account = JsonSupport.json.parseToJsonElement("""{"id":"sub","name":"Personal","user":{"name":"me@contoso.com"}}"""),
+            deployments = mapOf("resource" to """{"value":[{"name":"gpt","sku":{"name":"Standard","capacity":3333}}]}"""),
+            usages = mapOf("westeurope" to """{"value":[{"currentValue":1,"limit":2,"unit":"Count"}]}"""),
+        ))
+        assertTrue(json.contains("\"capacity\": 3333"))
+        assertTrue(json.contains("\"currentValue\": 1"))
+        assertTrue(!json.contains("\"used\""))
+        assertTrue(!json.contains("\"kind\""))
     }
 }

@@ -7,7 +7,6 @@ import de.moritzf.quota.azure.AzureLiveUsage
 import de.moritzf.quota.azure.AzureQuota
 import de.moritzf.quota.azure.AzureQuotaClient
 import de.moritzf.quota.azure.azureAccountConfig
-import de.moritzf.quota.azure.azureQuotaJson
 import de.moritzf.quota.idea.settings.ProviderAccount
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import java.nio.file.Path
@@ -31,8 +30,7 @@ class AzureQuotaProvider(
         fun update(action: () -> Unit) = synchronized(lock) { if (generation == started) action() }
         try {
             val quota = fetchQuota()
-            val raw = azureQuotaJson(quota)
-            update { storeQuota(quota.copy(rawJson = raw), raw) }
+            update { storeQuota(quota, quota.rawJson) }
         } catch (_: InterruptedException) {
             update { clearData("Azure quota refresh cancelled.") }
             Thread.currentThread().interrupt()

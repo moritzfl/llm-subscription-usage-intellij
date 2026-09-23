@@ -8,10 +8,14 @@ import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.put
 
 @Serializable
 data class AzureQuota(
@@ -20,7 +24,7 @@ data class AzureQuota(
     val models: List<String> = emptyList(),
     val warnings: List<String> = emptyList(),
     override var fetchedAt: Instant? = null,
-    override var rawJson: String? = null,
+    @Transient override var rawJson: String? = null,
 ) : ProviderQuota {
     fun currentWindows(now: Instant = Clock.System.now()): List<AzureUsageWindow> = windows.filter {
         it.kind != AzureUsageWindow.LIVE || it.expiresAt?.let { expiry -> now < expiry } == true
@@ -270,5 +274,34 @@ private fun azureObject(raw: String): JsonObject? =
 private fun JsonObject.text(key: String): String? =
     (this[key] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
 
-internal fun azureQuotaJson(quota: AzureQuota): String =
-    JsonSupport.json.encodeToString(AzureQuota.serializer(), quota.copy(rawJson = null, fetchedAt = quota.fetchedAt ?: Clock.System.now()))
+internal fun buildAzureRawResponse(
+    account: JsonElement? = null,
+    resources: String? = null,
+    usages: Map<String, String> = emptyMap(),
+    quotaTiers: String? = null,
+    deployments: Map<String, String> = emptyMap(),
+    models: String? = null,
+): String? {
+    val root = buildJsonObject {
+        account?.let { put("account", it) }
+        jsonOrRaw(resources)?.let { put("resources", it) }
+        objectOf(usages)?.let { put("usages", it) }
+        jsonOrRaw(quotaTiers)?.let { put("quotaTiers", it) }
+        objectOf(deployments)?.let { put("deployments", it) }
+        jsonOrRaw(models)?.let { put("models", it) }
+    }
+    if (root.isEmpty()) return null
+    return JsonSupport.json.encodeToString(JsonObject.serializer(), root)
+}
+
+private fun objectOf(sections: Map<String, String>): JsonObject? {
+    val objectValue = buildJsonObject {
+        sections.forEach { (name, body) -> jsonOrRaw(body)?.let { put(name, it) } }
+    }
+    return objectValue.takeIf { it.isNotEmpty() }
+}
+
+private fun jsonOrRaw(body: String?): JsonElement? {
+    val value = body?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    return runCatching { JsonSupport.json.parseToJsonElement(value) }.getOrElse { JsonPrimitive(value) }
+}

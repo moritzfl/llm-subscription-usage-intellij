@@ -14,6 +14,7 @@ import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import kotlin.time.Instant
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -40,7 +41,9 @@ internal class AzureCli(
     private val run: (Path, List<String>, Long, Int) -> String = ::runAzure,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
-    fun listAccounts(): List<AzureCliAccount> = parseAzureAccountList(runJson(listOf("account", "list", "--output", "json")))
+    fun listAccounts(): List<AzureCliAccount> = parseAzureAccountList(listAccountsJson())
+
+    fun listAccountsJson(): String = runJson(listOf("account", "list", "--output", "json"))
 
     fun resolveAccount(subscriptionId: String?): AzureCliAccount {
         return listAccounts().firstOrNull { account ->
@@ -173,6 +176,18 @@ internal fun parseAzureCliToken(raw: String, nowMillis: Long): AzureAccessToken 
     val expires = tokenExpiryMillis(json, nowMillis)
         ?: throw AzureCliException("Azure CLI returned an invalid token expiration.")
     return AzureAccessToken(token, expires)
+}
+
+internal fun selectedAzureAccountElement(raw: String, subscriptionId: String?): JsonObject? {
+    val array = runCatching { JsonSupport.json.parseToJsonElement(extractJson(raw)) as? JsonArray }.getOrNull() ?: return null
+    return array.mapNotNull { it as? JsonObject }.firstOrNull { item ->
+        val id = item.text("id") ?: return@firstOrNull false
+        if (subscriptionId.isNullOrBlank()) {
+            (item["isDefault"] as? JsonPrimitive)?.contentOrNull.equals("true", ignoreCase = true)
+        } else {
+            id.equals(subscriptionId, ignoreCase = true)
+        }
+    }
 }
 
 internal fun parseAzureAccountList(raw: String): List<AzureCliAccount> {
