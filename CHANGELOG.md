@@ -1,6 +1,6 @@
 # LLM Subscription Usage Changelog
 
-## [Unreleased]
+## [1.15.2] - 2026-09-23
 
 - GitHub Copilot chat again forwards models ChatGPT retired but Copilot still serves (`gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex`, and the rest of that blocklist). OpenAI/Codex still refuses those slugs locally.
 
@@ -532,7 +532,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.1...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.2...HEAD
+[1.15.2]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.1...1.15.2
 [1.15.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.0...1.15.1
 [1.15.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.14.0...1.15.0
 [1.14.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.13.6...1.14.0
