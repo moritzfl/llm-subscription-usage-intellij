@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Azure proxy lists chat-capable deployments for Junie and adapts GPT 5/6 and Mistral chat token limits to their upstream APIs. Unsupported GPT 5/6 sampling and stop fields no longer break Junie-style requests.
+
 ## [1.15.0] - 2026-09-23
 
 - Added one Azure OpenAI entry that uses the signed-in Azure CLI identity. It can pin a subscription and resource. Quota calls that need extra roles are skipped instead of failing the entry, so the local proxy and any usage the token can read still work. Discovery follows the selected endpoint and lists ARM deployments. Regional quota lines show current usage. Deployment scale is shown as allocated capacity units or PTUs, not as usage. A failed optional lookup does not hide the rest. The proxy keeps that entry, endpoint, and deployment through concurrent calls and token retries, and does not send `api-version` on `/v1` paths. CLI login changes apply on the next token request. Unknown deployments require the `az-` prefix. Last quota response keeps the Azure CLI and ARM JSON, grouped by call.

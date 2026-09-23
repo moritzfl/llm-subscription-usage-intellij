@@ -45,6 +45,22 @@ class AzureSubscriptionProxyProviderTest {
     }
 
     @Test
+    fun onlyChatDeploymentsAreAdvertisedToJunie() {
+        val provider = provider(
+            deploymentNames = listOf(
+                "text-embedding-3-large", "mistral-ocr-4-0", "mistral-document-ai-2512",
+                "gpt-4.1", "Mistral-Large-3",
+            ),
+            resourceName = "azure-chat-filter-test",
+        )
+        assertEquals(listOf("az-gpt-4.1", "az-Mistral-Large-3"), provider.models().map { it.localId })
+        assertEquals("az-gpt-4.1", provider.models().single { it.isDefault }.localId)
+        assertNull(provider.fallbackModel("az-text-embedding-3-large", SubscriptionProxyRoute.CHAT_COMPLETIONS))
+        assertNull(provider.fallbackModel("az-mistral-ocr-4-0", SubscriptionProxyRoute.CHAT_COMPLETIONS))
+        assertNull(provider.fallbackModel("az-mistral-document-ai-2512", SubscriptionProxyRoute.CHAT_COMPLETIONS))
+    }
+
+    @Test
     fun upstreamUrlOmitsApiVersionOnV1Paths() {
         assertEquals(
             "https://demo.openai.azure.com/openai/v1/chat/completions",
@@ -61,11 +77,11 @@ class AzureSubscriptionProxyProviderTest {
         assertEquals(true, provider().isConfigured())
     }
 
-    private fun provider(deploymentNames: List<String> = emptyList()) = AzureSubscriptionProxyProvider(
+    private fun provider(deploymentNames: List<String> = emptyList(), resourceName: String = "demo") = AzureSubscriptionProxyProvider(
         configProvider = {
             AzureSubscriptionProxyProvider.AzureProxyConfig(
                 executable = Path.of("/usr/bin/az"),
-                account = AzureAccountConfig(resourceName = "demo", deploymentNames = deploymentNames),
+                account = AzureAccountConfig(resourceName = resourceName, deploymentNames = deploymentNames),
             )
         },
         cliFactory = { AzureCli(it, run = { _, _, _, _ -> error("az should not run while listing models") }) },

@@ -22,12 +22,49 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class AzureProxyRequestTest {
+    @Test
+    fun junieChatParametersFollowDeploymentApi() {
+        val requests = LinkedBlockingQueue<String>()
+        TestUpstream { exchange, body ->
+            requests += body
+            reply(exchange)
+        }.use { upstream ->
+            withProxy({ config(upstream.url, "chat") }) { port ->
+                for (model in listOf("gpt-5.6-luna", "gpt-6-sol")) {
+                    val body = """{"model":"az-$model","messages":[],"max_tokens":64,"stop":["</COMMAND>"],"temperature":0.2,"top_p":0.9,"stream":true}"""
+                    assertEquals(200, postAsync(port, model, body).get(5, TimeUnit.SECONDS).statusCode())
+                    val sent = Json.parseToJsonElement(assertNotNull(requests.poll(5, TimeUnit.SECONDS))) as JsonObject
+                    assertEquals(model, sent["model"]?.jsonPrimitive?.content)
+                    assertEquals("64", sent["max_completion_tokens"]?.jsonPrimitive?.content)
+                    assertTrue(listOf("max_tokens", "stop", "temperature", "top_p").none { it in sent })
+                    assertEquals("true", sent["stream"]?.jsonPrimitive?.content)
+                }
+
+                val mistral = """{"model":"az-Mistral-Large-3","messages":[],"max_completion_tokens":64,"temperature":0.2}"""
+                assertEquals(200, postAsync(port, "Mistral-Large-3", mistral).get(5, TimeUnit.SECONDS).statusCode())
+                val sentMistral = Json.parseToJsonElement(assertNotNull(requests.poll(5, TimeUnit.SECONDS))) as JsonObject
+                assertEquals("64", sentMistral["max_tokens"]?.jsonPrimitive?.content)
+                assertTrue("max_completion_tokens" !in sentMistral)
+                assertEquals("0.2", sentMistral["temperature"]?.jsonPrimitive?.content)
+
+                val older = """{"model":"az-gpt-4.1","messages":[],"max_tokens":64,"temperature":0.2}"""
+                assertEquals(200, postAsync(port, "gpt-4.1", older).get(5, TimeUnit.SECONDS).statusCode())
+                val sentOlder = Json.parseToJsonElement(assertNotNull(requests.poll(5, TimeUnit.SECONDS))) as JsonObject
+                assertEquals("64", sentOlder["max_tokens"]?.jsonPrimitive?.content)
+                assertEquals("0.2", sentOlder["temperature"]?.jsonPrimitive?.content)
+            }
+        }
+    }
+
     @Test
     fun overlappingRequestsKeepTheirOwnAccountAndDeploymentCounters() {
         val slowStarted = CountDownLatch(1)
@@ -121,11 +158,15 @@ class AzureProxyRequestTest {
         }
     }
 
-    private fun postAsync(port: Int, deployment: String) = client.sendAsync(
+    private fun postAsync(
+        port: Int,
+        deployment: String,
+        body: String = """{"model":"az-$deployment","messages":[]}""",
+    ) = client.sendAsync(
         HttpRequest.newBuilder(URI("http://127.0.0.1:$port/v1/chat/completions"))
             .header("Authorization", "Bearer local-key")
             .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString("""{"model":"az-$deployment","messages":[]}"""))
+            .POST(HttpRequest.BodyPublishers.ofString(body))
             .build(),
         HttpResponse.BodyHandlers.ofString(),
     )

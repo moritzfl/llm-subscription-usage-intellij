@@ -20,6 +20,8 @@ import de.moritzf.quota.azure.parseRateLimitHeaders
 import java.net.http.HttpClient
 import java.nio.file.Path
 import java.time.Duration
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 
 /**
  * OpenAI v1 proxy for one Azure CLI account. Token comes from `az account get-access-token`,
@@ -61,7 +63,8 @@ internal class AzureSubscriptionProxyProvider(
 
     override fun fallbackModel(localId: String, route: SubscriptionProxyRoute): SubscriptionProxyModel? {
         if (!isConfigured() || route !in ROUTES || !localId.startsWith(PREFIX)) return null
-        val upstream = localId.removePrefix(PREFIX).takeIf { AZURE_DEPLOYMENT_NAME.matches(it) } ?: return null
+        val upstream = localId.removePrefix(PREFIX)
+            .takeIf { AZURE_DEPLOYMENT_NAME.matches(it) && isChatDeployment(it) } ?: return null
         return model(localId, upstream)
     }
 
@@ -89,6 +92,7 @@ internal class AzureSubscriptionProxyProvider(
             tokenRefresher = { tokenOrNull() },
             modelMappingsProvider = { emptyList() },
             upstreamUrlProvider = { azureUpstreamUrl(target.baseUrl, it.route.upstreamPath) },
+            requestBodyTransformer = { req, body -> adaptChatRequest(req, body) },
             responseHeadersObserver = { req, headers ->
                 parseRateLimitHeaders(headers, req.model.upstreamId)?.let { AzureLiveUsage.record(key, it) }
             },
@@ -100,7 +104,7 @@ internal class AzureSubscriptionProxyProvider(
     private fun modelMappings(): List<PassThroughSubscriptionProxyProvider.ModelMapping> {
         val config = configProvider() ?: return emptyList()
         val key = AzureQuotaClient.catalogKey(config.account.subscriptionId, config.account)
-        val ids = (AzureModelCatalog.read(key) + config.account.deploymentNames).distinct()
+        val ids = (AzureModelCatalog.read(key) + config.account.deploymentNames).distinct().filter(::isChatDeployment)
         if (ids.isEmpty()) return emptyList()
         val defaultId = ids.maxOrNull()
         return ids.map { id ->
@@ -127,6 +131,34 @@ internal class AzureSubscriptionProxyProvider(
         )
     }
 
+    private fun adaptChatRequest(request: SubscriptionProxyRequest, body: JsonObject): JsonObject {
+        if (request.route != SubscriptionProxyRoute.CHAT_COMPLETIONS) return body
+        val id = request.model.upstreamId.lowercase()
+        val reasoning = REASONING_MODEL.matches(id)
+        val mistral = id.startsWith("mistral-")
+        if (!reasoning && !mistral) return body
+        return buildJsonObject {
+            body.forEach { (key, value) ->
+                when {
+                    reasoning && key == "max_tokens" -> {
+                        if ("max_completion_tokens" !in body) put("max_completion_tokens", value)
+                    }
+                    reasoning && key in setOf("stop", "temperature", "top_p") -> Unit
+                    mistral && key == "max_completion_tokens" -> {
+                        if ("max_tokens" !in body) put("max_tokens", value)
+                    }
+                    else -> put(key, value)
+                }
+            }
+        }
+    }
+
+    private fun isChatDeployment(id: String): Boolean {
+        val name = id.lowercase()
+        return !name.startsWith("text-embedding-") && !name.startsWith("mistral-ocr-") &&
+            !name.startsWith("mistral-document-ai-")
+    }
+
     data class AzureProxyConfig(
         val accountId: String = "azure",
         val executable: Path?,
@@ -136,6 +168,7 @@ internal class AzureSubscriptionProxyProvider(
     }
 
     companion object {
+        private val REASONING_MODEL = Regex("gpt-[56](?:[.-].*)?")
         const val ID = "azure"
         const val DISPLAY_NAME = "Azure"
         const val PREFIX = "az-"
