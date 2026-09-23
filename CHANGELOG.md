@@ -1,5 +1,9 @@
 # LLM Subscription Usage Changelog
 
+## [Unreleased]
+
+- GitHub Copilot chat again forwards models ChatGPT retired but Copilot still serves (`gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex`, and the rest of that blocklist). OpenAI/Codex still refuses those slugs locally.
+
 ## [1.15.1] - 2026-09-23
 
 - OpenAI/Codex proxy advertises `gpt-6-sol` and `gpt-6-luna` (Codex UI list, priorities 2 and 3). Default advertised model stays `gpt-6-astra`.

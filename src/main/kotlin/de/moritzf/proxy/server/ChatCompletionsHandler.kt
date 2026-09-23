@@ -58,6 +58,7 @@ class ChatCompletionsHandler {
     private val fullRequestLogging: Boolean
     private val forwardPromptCacheHeaders: Boolean
     private val responsesBodyTransformer: (MutableJsonObject) -> Unit
+    private val rejectRetiredChatGptModels: Boolean
     private val modelAliasResolver = ModelAliasResolver()
     private val upstreamErrorMapper = UpstreamErrorMapper()
     private val requestMapper: ChatCompletionsRequestMapper
@@ -95,6 +96,7 @@ class ChatCompletionsHandler {
         fullRequestLogging = config.fullRequestLogging,
         forwardPromptCacheHeaders = config.forwardPromptCacheHeaders,
         instructionsProvider = instructionsProvider,
+        rejectRetiredChatGptModels = true,
     )
 
     constructor(
@@ -107,6 +109,8 @@ class ChatCompletionsHandler {
         forwardPromptCacheHeaders: Boolean,
         instructionsProvider: CodexInstructionsProvider,
         responsesBodyTransformer: (MutableJsonObject) -> Unit = {},
+        // ChatGPT accounts reject retired slugs. Copilot and other Responses bridges reuse this handler.
+        rejectRetiredChatGptModels: Boolean = false,
     ) {
         this.requestLogger = requestLogger
         this.usageTracker = usageTracker
@@ -115,6 +119,7 @@ class ChatCompletionsHandler {
         this.fullRequestLogging = fullRequestLogging
         this.forwardPromptCacheHeaders = forwardPromptCacheHeaders
         this.responsesBodyTransformer = responsesBodyTransformer
+        this.rejectRetiredChatGptModels = rejectRetiredChatGptModels
         requestMapper = ChatCompletionsRequestMapper(store, instructionsProvider, modelAliasResolver)
     }
 
@@ -156,7 +161,7 @@ class ChatCompletionsHandler {
         val model = body.stringPath("model", defaultModel)
         val resolvedModel = modelAliasResolver.resolve(model)
         val upstreamModel = resolvedModel.model ?: model
-        if (ChatGptSubscriptionModels.isUnsupported(upstreamModel)) {
+        if (rejectRetiredChatGptModels && ChatGptSubscriptionModels.isUnsupported(upstreamModel)) {
             JsonHelper.toErrorResponse(ctx, ChatGptSubscriptionModels.unsupportedMessage(upstreamModel))
             return
         }
