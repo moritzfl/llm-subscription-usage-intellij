@@ -4,6 +4,7 @@
 
 - OpenAI/Codex proxy advertises `gpt-6-sol` and `gpt-6-luna` (Codex UI list, priorities 2 and 3). Default advertised model stays `gpt-6-astra`.
 - OpenAI/Codex proxy clamps `gpt-6-luna` `ultra` to `max` and hops its usage limits to `gpt-reserve`, same as `gpt-5.6-luna`.
+- OpenAI/Codex proxy no longer forwards ChatGPT-rejected models (`gpt-5.4`, `gpt-5.4-mini`, `gpt-5.2`, `gpt-5.3-codex`, `gpt-5.5-pro`). `gpt-5.6-*`, `gpt-5.5`, and `gpt-reserve` still work.
 - Azure GPT 5/6 chat tool calls now use the required `reasoning_effort: none`; Azure rejects tools with requested chat reasoning (and with GPT-6's default reasoning). Requests without tools retain their requested reasoning effort.
 - Azure Mistral chat drops Junie's unsupported `user` field while preserving its supported `seed` and other request fields.
 - Azure proxy lists chat-capable deployments for Junie and adapts GPT 5/6 and Mistral chat token limits to their upstream APIs. Unsupported GPT 5/6 sampling and stop fields no longer break Junie-style requests.

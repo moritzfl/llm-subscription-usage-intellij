@@ -198,10 +198,9 @@ class OpenAiProxyServer(
         // Curated Codex models for /v1/models and /v1/model/info.
         // Align with the Codex UI menu for ChatGPT subscriptions, using models.json
         // visibility/priority as a guide (not the incomplete ChatGPT /models endpoint).
-        // gpt-5.2 is still marked list upstream but is no longer a useful ChatGPT-subscription
-        // choice; omit it. gpt-5.5-pro stays absent (backend rejects ChatGPT accounts).
-        // Hidden/legacy slugs (gpt-5.4, Daybreak, auto-review) still work via fallbackModel
-        // if a client requests them. Advertise base ids only; harnesses send reasoning_effort.
+        // ChatGPT accounts reject gpt-5.4, gpt-5.4-mini, gpt-5.2, gpt-5.3-codex, and gpt-5.5-pro.
+        // Those are not advertised and are not forwarded. Other unlisted oa- slugs still
+        // forward via fallbackModel. Advertise base ids only; harnesses send reasoning_effort.
         private val ADVERTISED_BASE_MODELS = listOf(
             "gpt-6-astra",
             "gpt-6-sol",

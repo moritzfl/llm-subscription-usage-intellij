@@ -1,6 +1,7 @@
 package de.moritzf.proxy.server
 import de.moritzf.proxy.config.ServerConfig
 import de.moritzf.proxy.logging.RequestLogger
+import de.moritzf.proxy.model.ChatGptSubscriptionModels
 import de.moritzf.proxy.model.CodexInstructionsProvider
 import de.moritzf.proxy.model.ModelAliasResolver
 import de.moritzf.proxy.sse.SseCollector
@@ -75,6 +76,11 @@ class ResponsesHandler {
         val expandedJson = expanded.build()
         // Normalize body.
         val normalized = requestSanitizer.sanitize(normalizeBody(expanded), config.store)
+        val normalizedModel = (normalized.get("model") as? JsonPrimitive)?.content
+        if (ChatGptSubscriptionModels.isUnsupported(normalizedModel)) {
+            JsonHelper.toErrorResponse(ctx, ChatGptSubscriptionModels.unsupportedMessage(normalizedModel))
+            return
+        }
         val promptCacheKey = if (config.forwardPromptCacheHeaders) {
             (normalized.get("prompt_cache_key") as? JsonPrimitive)?.content
         } else {

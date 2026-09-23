@@ -91,14 +91,14 @@ class OpenAiCodexSubscriptionProxyProviderTest {
                 val response = post(
                     proxy.port,
                     "/v1/responses",
-                    "{\"model\":\"oa-gpt-5.4\",\"input\":\"Say pong\"}",
+                    "{\"model\":\"oa-gpt-unlisted\",\"input\":\"Say pong\"}",
                 )
 
                 assertEquals(200, response.statusCode())
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/backend-api/codex/responses", request.path)
                 val upstreamBody = JsonHelper.JSON.parseToJsonElement(request.body).jsonObject
-                assertEquals("gpt-5.4", upstreamBody["model"]!!.jsonPrimitive.content)
+                assertEquals("gpt-unlisted", upstreamBody["model"]!!.jsonPrimitive.content)
                 val input = upstreamBody["input"]!!.jsonArray
                 assertEquals("message", input[0].jsonObject["type"]!!.jsonPrimitive.content)
                 assertEquals("user", input[0].jsonObject["role"]!!.jsonPrimitive.content)
@@ -106,6 +106,24 @@ class OpenAiCodexSubscriptionProxyProviderTest {
                     "Say pong",
                     input[0].jsonObject["content"]!!.jsonArray[0].jsonObject["text"]!!.jsonPrimitive.content,
                 )
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun rejectsChatGptRetiredModelsWithoutUpstreamRequest() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                for (model in listOf("oa-gpt-5.4", "oa-gpt-5.4-mini", "oa-gpt-5.2", "oa-gpt-5.3-codex", "oa-gpt-5.5-pro")) {
+                    val response = post(proxy.port, "/v1/chat/completions", """{"model":"$model","messages":[]}""")
+                    assertEquals(400, response.statusCode(), model)
+                    assertTrue(response.body().contains("not supported when using Codex with a ChatGPT account"), response.body())
+                }
+                assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
             } finally {
                 proxy.stop()
             }

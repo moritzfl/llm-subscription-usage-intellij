@@ -1,6 +1,7 @@
 package de.moritzf.proxy.server
 import de.moritzf.proxy.config.ServerConfig
 import de.moritzf.proxy.logging.RequestLogger
+import de.moritzf.proxy.model.ChatGptSubscriptionModels
 import de.moritzf.proxy.model.CodexInstructionsProvider
 import de.moritzf.proxy.model.ModelAliasResolver
 import de.moritzf.proxy.server.AccessLogFields.addResponseBytes
@@ -155,6 +156,10 @@ class ChatCompletionsHandler {
         val model = body.stringPath("model", defaultModel)
         val resolvedModel = modelAliasResolver.resolve(model)
         val upstreamModel = resolvedModel.model ?: model
+        if (ChatGptSubscriptionModels.isUnsupported(upstreamModel)) {
+            JsonHelper.toErrorResponse(ctx, ChatGptSubscriptionModels.unsupportedMessage(upstreamModel))
+            return
+        }
         // Build upstream Responses API request
         val upstreamBody = requestMapper.build(body, upstreamModel, resolvedModel.reasoningEffort)
         val promptCacheKey = if (forwardPromptCacheHeaders)
