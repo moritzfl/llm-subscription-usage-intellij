@@ -5,6 +5,7 @@ import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
+import com.intellij.ui.DocumentAdapter
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
@@ -15,7 +16,10 @@ import de.moritzf.quota.azure.AzureQuota
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
+import java.awt.event.ItemEvent
 import javax.swing.DefaultComboBoxModel
+import javax.swing.Timer
+import javax.swing.event.DocumentEvent
 
 internal class AzureSettingsPanel : ProviderSettingsPanel() {
     val executableField = TextFieldWithBrowseButton().apply {
@@ -31,10 +35,25 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
     private val accountCombo = ComboBox<AzureCliAccount>()
     private val status = JBLabel()
     private val viewer = createResponseViewer()
-    private var listing = false
+    private var applyingFields = false
+    private var suppressSelection = false
+    private var refreshGeneration = 0
+    private val refreshTimer = Timer(400) { refreshAccounts(interactive = false) }.apply { isRepeats = false }
 
     init {
         accountCombo.renderer = AzureAccountRenderer()
+        accountCombo.addItemListener { event ->
+            if (suppressSelection || event.stateChange != ItemEvent.SELECTED) return@addItemListener
+            val selected = event.item as? AzureCliAccount ?: return@addItemListener
+            if (subscriptionField.text.trim() != selected.subscriptionId) {
+                subscriptionField.text = selected.subscriptionId
+            }
+        }
+        executableField.textField.document.addDocumentListener(object : DocumentAdapter() {
+            override fun textChanged(event: DocumentEvent) {
+                if (!applyingFields) refreshTimer.restart()
+            }
+        })
         install(panel {
             row { cell(status).align(AlignX.FILL).resizableColumn() }
             row {
@@ -45,16 +64,16 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
             }
             row("Azure CLI:") {
                 cell(executableField).align(AlignX.FILL).resizableColumn()
-                button("Detect") { detectExecutable() }
+                    .comment("Leave blank to find az automatically. Browse only if it is not on PATH.")
             }
             row("Subscription:") {
                 cell(subscriptionField).align(AlignX.FILL).resizableColumn()
-                    .comment("Blank uses the CLI default. Pin a subscription so this account stays personal.")
+                    .comment("Blank uses the CLI default. Picking a CLI account pins that subscription.")
             }
             row("CLI accounts:") {
                 cell(accountCombo).align(AlignX.FILL).resizableColumn()
-                button("List") { listAccounts() }
-                button("Use") { useSelectedAccount() }
+                    .comment("Loaded from az account list. Refresh after az login. Your pinned subscription stays selected.")
+                button("Refresh") { refreshAccounts(interactive = true) }
             }
             row("Resource:") {
                 cell(resourceField).align(AlignX.FILL).resizableColumn()
@@ -103,18 +122,9 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
             deploymentNames().orEmpty() != account?.extra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS).orEmpty()
     }
 
-    private fun detectExecutable() {
-        val detected = AzureCli.findExecutable()
-        if (detected == null) {
-            Messages.showWarningDialog(this, "Could not find az on PATH or in standard install locations.", "Azure CLI Not Found")
-            return
-        }
-        executableField.text = detected.toString()
-    }
-
-    private fun listAccounts() {
-        if (listing) return
-        listing = true
+    private fun refreshAccounts(interactive: Boolean) {
+        refreshTimer.stop()
+        val generation = ++refreshGeneration
         val path = normalizedExecutablePath()
         ApplicationManager.getApplication().executeOnPooledThread {
             val result = runCatching {
@@ -123,34 +133,52 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                 AzureCli(executable).listAccounts()
             }
             ApplicationManager.getApplication().invokeLater {
-                listing = false
-                if (!isDisplayable) return@invokeLater
+                if (generation != refreshGeneration) return@invokeLater
                 result.onFailure {
-                    Messages.showWarningDialog(this, it.message ?: "Could not list Azure CLI accounts.", "Azure CLI")
+                    if (interactive) {
+                        Messages.showWarningDialog(this, it.message ?: "Could not list Azure CLI accounts.", "Azure CLI")
+                    }
                 }.onSuccess { accounts ->
-                    accountCombo.model = DefaultComboBoxModel(accounts.toTypedArray())
-                    if (accounts.isEmpty()) {
-                        Messages.showWarningDialog(this, "az account list returned no subscriptions. Run az login, then list again.", "Azure CLI")
+                    applyAccounts(accounts, subscriptionId())
+                    if (interactive && accounts.isEmpty()) {
+                        Messages.showWarningDialog(
+                            this,
+                            "az account list returned no subscriptions. Run az login, then refresh.",
+                            "Azure CLI",
+                        )
                     }
                 }
             }
         }
     }
 
-    private fun useSelectedAccount() {
-        val selected = accountCombo.selectedItem as? AzureCliAccount ?: return
-        subscriptionField.text = selected.subscriptionId
+    private fun applyAccounts(accounts: List<AzureCliAccount>, pinnedSubscriptionId: String?) {
+        val preferred = preferredAzureCliAccount(accounts, pinnedSubscriptionId)
+        suppressSelection = true
+        try {
+            accountCombo.model = DefaultComboBoxModel(accounts.toTypedArray())
+            if (preferred != null) accountCombo.selectedItem = preferred
+            else accountCombo.selectedIndex = -1
+        } finally {
+            suppressSelection = false
+        }
     }
 
     override fun updateFields() {
         val account = boundAccount
-        executableField.text = account?.extra(ProviderAccount.EXTRA_AZURE_EXECUTABLE).orEmpty()
-        subscriptionField.text = account?.extra(ProviderAccount.EXTRA_AZURE_SUBSCRIPTION).orEmpty()
-        resourceField.text = account?.extra(ProviderAccount.EXTRA_AZURE_RESOURCE).orEmpty()
-        endpointField.text = account?.extra(ProviderAccount.EXTRA_AZURE_ENDPOINT).orEmpty()
-        locationField.text = account?.extra(ProviderAccount.EXTRA_AZURE_LOCATION).orEmpty()
-        deploymentsField.text = account?.extra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS).orEmpty()
+        applyingFields = true
+        try {
+            executableField.text = account?.extra(ProviderAccount.EXTRA_AZURE_EXECUTABLE).orEmpty()
+            subscriptionField.text = account?.extra(ProviderAccount.EXTRA_AZURE_SUBSCRIPTION).orEmpty()
+            resourceField.text = account?.extra(ProviderAccount.EXTRA_AZURE_RESOURCE).orEmpty()
+            endpointField.text = account?.extra(ProviderAccount.EXTRA_AZURE_ENDPOINT).orEmpty()
+            locationField.text = account?.extra(ProviderAccount.EXTRA_AZURE_LOCATION).orEmpty()
+            deploymentsField.text = account?.extra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS).orEmpty()
+        } finally {
+            applyingFields = false
+        }
         updateStatus()
+        refreshAccounts(interactive = false)
     }
 
     override fun updateStatus() {
@@ -186,6 +214,12 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
         viewer.text = service.getLastError(id) ?: service.getLastResponseJson(id) ?: "No Azure reading yet."
         viewer.caretPosition = 0
     }
+}
+
+internal fun preferredAzureCliAccount(accounts: List<AzureCliAccount>, subscriptionId: String?): AzureCliAccount? {
+    val pinned = subscriptionId?.trim()?.takeIf { it.isNotEmpty() }
+    if (pinned != null) return accounts.firstOrNull { it.subscriptionId.equals(pinned, ignoreCase = true) }
+    return accounts.firstOrNull { it.isDefault } ?: accounts.singleOrNull()
 }
 
 private class AzureAccountRenderer : javax.swing.DefaultListCellRenderer() {
