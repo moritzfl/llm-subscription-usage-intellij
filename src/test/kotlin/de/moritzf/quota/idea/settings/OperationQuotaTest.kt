@@ -52,7 +52,9 @@ class OperationQuotaTest {
         )
 
         assertFalse(AccountResolver.isHardStop(quota))
+        assertFalse(AccountResolver.isHardStop(quota, AccountCapability.PROXY, "gpt-6-luna"))
         assertFalse(AccountResolver.isHardStop(quota, AccountCapability.PROXY, "gpt-5.6-luna"))
+        assertTrue(AccountResolver.isHardStop(quota, AccountCapability.PROXY, "gpt-6-sol"))
         assertTrue(AccountResolver.isHardStop(quota, AccountCapability.PROXY, "gpt-5.5"))
     }
 

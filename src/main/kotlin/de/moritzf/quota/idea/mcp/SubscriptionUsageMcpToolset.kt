@@ -87,7 +87,7 @@ class SubscriptionUsageMcpToolset(
     @McpDescription(description = "Returns per-account status: credential presence, cached quota freshness, limiting pool, reset time, and whether a requested operation can run. Optional capability/model uses cached quota only and does not call provider APIs.")
     suspend fun subscription_tools_status(
         @McpDescription(description = "Optional operation to evaluate against cached quota, such as PROXY or WEB_SEARCH.") capability: de.moritzf.quota.idea.settings.AccountCapability? = null,
-        @McpDescription(description = "Optional model id when availability depends on a specific pool, such as gpt-5.6-luna versus gpt-reserve.") model: String? = null,
+        @McpDescription(description = "Optional model id when availability depends on a specific pool, such as gpt-6-luna versus gpt-reserve.") model: String? = null,
     ): String {
         val settings = runCatching { QuotaSettingsState.getInstance() }.getOrNull()
         val accounts = settings?.accounts.orEmpty()

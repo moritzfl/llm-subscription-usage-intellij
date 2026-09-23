@@ -59,7 +59,9 @@ class ModelAliasResolver {
         return modelName.contains("codex")
     }
     private fun isLunaModel(modelName: String): Boolean {
-        return modelName.startsWith("gpt-5.6-luna") || modelName.startsWith("gpt-reserve")
+        return modelName.startsWith("gpt-6-luna") ||
+            modelName.startsWith("gpt-5.6-luna") ||
+            modelName.startsWith("gpt-reserve")
     }
     private fun supportsXHigh(modelName: String): Boolean {
         // Codex models.json: gpt-5.2+ , the 5.6 family, gpt-6, and gpt-reserve accept xhigh.

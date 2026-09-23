@@ -13,6 +13,7 @@ class CodexReserveHopTest {
 
     @Test
     fun rewritesLunaResponsesPostToGptReserve() {
+        assertTrue(hop.isEligibleRequest("/responses", "POST", """{"model":"gpt-6-luna"}"""))
         assertTrue(hop.isEligibleRequest("/responses", "POST", """{"model":"gpt-5.6-luna"}"""))
         val rewritten = hop.rewriteRequestToReserve(
             """{"model":"gpt-5.6-luna","reasoning":{"effort":"ultra"},"stream":true}""",
@@ -30,6 +31,7 @@ class CodexReserveHopTest {
 
     @Test
     fun doesNotHopHigherTierModels() {
+        assertFalse(hop.isEligibleRequest("/responses", "POST", """{"model":"gpt-6-sol"}"""))
         assertFalse(hop.isEligibleRequest("/responses", "POST", """{"model":"gpt-5.6-sol"}"""))
         assertFalse(hop.isEligibleRequest("/responses", "POST", """{"model":"gpt-5.6-terra"}"""))
         assertFalse(hop.isEligibleRequest("/responses", "POST", """{"model":"gpt-6-astra"}"""))

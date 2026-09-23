@@ -97,7 +97,10 @@ internal class CodexReserveHop(
         }
 
         fun isLunaModel(model: String): Boolean {
-            return model.trim().lowercase(Locale.ROOT).startsWith("gpt-5.6-luna")
+            // Codex LUNA_MODEL is gpt-6-luna. Keep gpt-5.6-luna so the previous fast model still hops.
+            // gpt-reserve is not eligible (would hop to itself). Sol/Astra/Terra stay on their own buckets.
+            val name = model.trim().lowercase(Locale.ROOT)
+            return name.startsWith("gpt-6-luna") || name.startsWith("gpt-5.6-luna")
         }
     }
 }
