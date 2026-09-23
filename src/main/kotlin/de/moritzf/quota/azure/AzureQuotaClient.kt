@@ -71,7 +71,7 @@ internal class AzureQuotaClient(
         }
         val resourcesBody = mutableListOf<String?>()
         val resources = if (managementToken != null) {
-            val (body, parsed) = readResources(managementRoot, subscriptionId!!, managementToken, warnings)
+            val (body, parsed) = readResources(managementRoot, subscriptionId, managementToken, warnings)
             resourcesBody += body
             parsed
         } else {
