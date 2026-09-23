@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Azure GPT 5/6 chat tool calls now use the required `reasoning_effort: none`; Azure rejects tools with requested chat reasoning (and with GPT-6's default reasoning). Requests without tools retain their requested reasoning effort.
+- Azure Mistral chat drops Junie's unsupported `user` field while preserving its supported `seed` and other request fields.
 - Azure proxy lists chat-capable deployments for Junie and adapts GPT 5/6 and Mistral chat token limits to their upstream APIs. Unsupported GPT 5/6 sampling and stop fields no longer break Junie-style requests.
 
 ## [1.15.0] - 2026-09-23

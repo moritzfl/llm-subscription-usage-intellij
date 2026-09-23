@@ -20,7 +20,9 @@ import de.moritzf.quota.azure.parseRateLimitHeaders
 import java.net.http.HttpClient
 import java.nio.file.Path
 import java.time.Duration
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 
 /**
@@ -137,6 +139,8 @@ internal class AzureSubscriptionProxyProvider(
         val reasoning = REASONING_MODEL.matches(id)
         val mistral = id.startsWith("mistral-")
         if (!reasoning && !mistral) return body
+        val reasoningTools = reasoning &&
+            listOf("tools", "functions").any { (body[it] as? JsonArray)?.isNotEmpty() == true }
         return buildJsonObject {
             body.forEach { (key, value) ->
                 when {
@@ -147,9 +151,13 @@ internal class AzureSubscriptionProxyProvider(
                     mistral && key == "max_completion_tokens" -> {
                         if ("max_tokens" !in body) put("max_tokens", value)
                     }
+                    mistral && key == "user" -> Unit
                     else -> put(key, value)
                 }
             }
+            // Azure GPT 5/6 chat rejects function tools with reasoning (including the
+            // default on GPT-6). Their Responses route permits both; chat needs "none".
+            if (reasoningTools) put("reasoning_effort", JsonPrimitive("none"))
         }
     }
 

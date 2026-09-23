@@ -49,12 +49,35 @@ class AzureProxyRequestTest {
                     assertEquals("true", sent["stream"]?.jsonPrimitive?.content)
                 }
 
-                val mistral = """{"model":"az-Mistral-Large-3","messages":[],"max_completion_tokens":64,"temperature":0.2}"""
+                for (model in listOf("gpt-5.6-luna", "gpt-5.6-sol", "gpt-6-luna", "gpt-6-sol")) {
+                    val body = """{"model":"az-$model","messages":[],"max_tokens":64,"reasoning_effort":"low","tools":[{"type":"function","function":{"name":"answer"}}]}"""
+                    assertEquals(200, postAsync(port, model, body).get(5, TimeUnit.SECONDS).statusCode())
+                    val sent = Json.parseToJsonElement(assertNotNull(requests.poll(5, TimeUnit.SECONDS))) as JsonObject
+                    assertEquals("none", sent["reasoning_effort"]?.jsonPrimitive?.content)
+                    assertEquals("64", sent["max_completion_tokens"]?.jsonPrimitive?.content)
+                    assertTrue("tools" in sent)
+                }
+
+                val defaultEffort = """{"model":"az-gpt-6-luna","messages":[],"tools":[{"type":"function","function":{"name":"answer"}}]}"""
+                assertEquals(200, postAsync(port, "gpt-6-luna", defaultEffort).get(5, TimeUnit.SECONDS).statusCode())
+                val sentDefault = Json.parseToJsonElement(assertNotNull(requests.poll(5, TimeUnit.SECONDS))) as JsonObject
+                assertEquals("none", sentDefault["reasoning_effort"]?.jsonPrimitive?.content)
+
+                for (model in listOf("gpt-5.6-luna", "gpt-6-luna")) {
+                    val noTools = """{"model":"az-$model","messages":[],"reasoning_effort":"low"}"""
+                    assertEquals(200, postAsync(port, model, noTools).get(5, TimeUnit.SECONDS).statusCode())
+                    val sentNoTools = Json.parseToJsonElement(assertNotNull(requests.poll(5, TimeUnit.SECONDS))) as JsonObject
+                    assertEquals("low", sentNoTools["reasoning_effort"]?.jsonPrimitive?.content)
+                }
+
+                val mistral = """{"model":"az-Mistral-Large-3","messages":[],"max_completion_tokens":64,"temperature":0.2,"user":"primary","seed":100000}"""
                 assertEquals(200, postAsync(port, "Mistral-Large-3", mistral).get(5, TimeUnit.SECONDS).statusCode())
                 val sentMistral = Json.parseToJsonElement(assertNotNull(requests.poll(5, TimeUnit.SECONDS))) as JsonObject
                 assertEquals("64", sentMistral["max_tokens"]?.jsonPrimitive?.content)
                 assertTrue("max_completion_tokens" !in sentMistral)
                 assertEquals("0.2", sentMistral["temperature"]?.jsonPrimitive?.content)
+                assertTrue("user" !in sentMistral)
+                assertEquals("100000", sentMistral["seed"]?.jsonPrimitive?.content)
 
                 val older = """{"model":"az-gpt-4.1","messages":[],"max_tokens":64,"temperature":0.2}"""
                 assertEquals(200, postAsync(port, "gpt-4.1", older).get(5, TimeUnit.SECONDS).statusCode())
