@@ -43,6 +43,8 @@ class FimModelsTest {
         assertEquals("low", FimModels.fimReasoningEffort("oa-gpt-5.6-sol", "gpt-5.6-sol", "openai"))
         assertNull(FimModels.fimReasoningEffort("sg-grok-4.20-0309-non-reasoning", "grok-4.20-0309-non-reasoning", "supergrok"))
         assertNull(FimModels.fimReasoningEffort("mi-mistral-small-latest", "mistral-small-latest", "mistral"))
+        assertEquals("none", FimModels.fimReasoningEffort("ol-deepseek-v4.1-flash", "deepseek-v4.1-flash", "ollama"))
+        assertEquals("none", FimModels.fimReasoningEffort("ol-deepseek-v4-pro:0813", "deepseek-v4-pro:0813", "ollama"))
         assertNull(FimModels.fimReasoningEffort("ol-kimi-k3", "kimi-k3", "ollama"))
     }
 

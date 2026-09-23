@@ -22,6 +22,9 @@ class ChatFimPromptBuilderTest {
         assertTrue(prompt.contains("<code_before_cursor>\nfun add(a: Int, b: Int): Int {\n    return \n</code_before_cursor>"))
         assertTrue(prompt.contains("<CURSOR>"))
         assertTrue(prompt.contains("<code_after_cursor>\n\n}\n</code_after_cursor>"))
+        assertTrue(prompt.contains("Cursor preview (│ is the cursor, do not emit │): "))
+        assertTrue(prompt.contains("return │\\n}"))
+        assertTrue(ChatFimPromptBuilder.SYSTEM_PROMPT.contains("never repeat a prefix of it"))
         assertFalse(prompt.contains("<|fim_prefix|>"))
         assertFalse(prompt.contains("inside a comment"))
     }

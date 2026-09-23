@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - OpenCode proxy models are now `oc-go-` and `oc-zen-`, so the pool is part of the id. A Zen console URL still gets a Go entry when that model is on the Go catalog. An old `oc-` id prefers Go when that pool has the model.
+- FIM chat adapter shows a cursor preview and tells the model not to repeat the suffix. DeepSeek V4 FIM requests send `reasoning_effort=none` so thinking does not consume the completion budget.
 
 ## [1.15.3] - 2026-09-23
 

@@ -46,10 +46,17 @@ object FimModels {
     fun fimReasoningEffort(localId: String, upstreamId: String = "", providerId: String = ""): String? {
         val blob = "$localId $upstreamId".lowercase()
         if ("non-reasoning" in blob || "nonreasoning" in blob) return null
+        // DeepSeek V4 thinks by default and spends the FIM token cap before any insert.
+        // Ollama accepts reasoning_effort=none and returns the insert with no reasoning.
+        if (isDeepSeekReasoning(blob)) return "none"
         if (!supportsPriorityTier(localId, providerId)) return null
         // ChatGPT Codex backend accepts none on gpt-6-sol and gpt-6-luna (0 reasoning tokens).
         // gpt-6-astra rejects none. models.json still lists low as the picker floor.
         return if (acceptsNoReasoning(blob)) "none" else "low"
+    }
+
+    private fun isDeepSeekReasoning(blob: String): Boolean {
+        return blob.contains("deepseek-v4") || blob.contains("deepseek-flash")
     }
 
     private fun acceptsNoReasoning(blob: String): Boolean {
