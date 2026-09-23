@@ -1,6 +1,6 @@
 # LLM Subscription Usage Changelog
 
-## [Unreleased]
+## [1.15.5] - 2026-09-24
 
 - OpenCode proxy sends `x-opencode-session` on inference requests. Go rejects calls that omit it. An incoming session id or `prompt_cache_key` is kept; otherwise the proxy sends a stable hash of the first message.
 
@@ -546,7 +546,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.4...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.5...HEAD
+[1.15.5]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.4...1.15.5
 [1.15.4]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.3...1.15.4
 [1.15.3]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.2...1.15.3
 [1.15.2]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.1...1.15.2
