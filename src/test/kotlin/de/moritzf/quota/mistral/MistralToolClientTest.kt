@@ -23,7 +23,7 @@ class MistralToolClientTest {
 
     @Test
     fun imageOutputDefaultsToUniqueProjectFile() {
-        val dir = Path.of("/tmp/project")
+        val dir = Path.of("/tmp/project").toAbsolutePath().normalize()
         val default = MistralImageClient.resolveOutput(null, dir)
         assertEquals(dir, default?.parent)
         assertTrue(default!!.fileName.toString().matches(Regex("image-[0-9a-f-]{36}\\.png")))
@@ -67,7 +67,7 @@ class MistralToolClientTest {
 
     @Test
     fun speechOutputDefaultsToProjectSpeechFile() {
-        val dir = Path.of("/tmp/project")
+        val dir = Path.of("/tmp/project").toAbsolutePath().normalize()
         assertEquals(dir.resolve("out/hi.mp3"), MistralAudioClient.resolveOutput("out/hi.mp3", dir, "mp3"))
         val default = MistralAudioClient.resolveOutput(null, dir, "wav")
         assertEquals(dir, default?.parent)
