@@ -1,5 +1,9 @@
 # LLM Subscription Usage Changelog
 
+## [Unreleased]
+
+- OpenCode proxy sends `x-opencode-session` on inference requests. Go rejects calls that omit it. An incoming session id or `prompt_cache_key` is kept; otherwise the proxy sends a stable hash of the first message.
+
 ## [1.15.4] - 2026-09-24
 
 - OpenCode proxy reads both Console providers. `opencode` is `oc-zen-` (`/inference/…`). `opencode-go` is `oc-go-` and keeps that provider's own `/inference/go/…` URL and API package. An old `oc-` id prefers Go when the Go provider lists the model.

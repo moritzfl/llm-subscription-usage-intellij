@@ -169,9 +169,10 @@ class OpenCodeZenSubscriptionProxyProviderTest {
         HttpResponse.BodyHandlers.ofString(),
     )
 
-    private fun post(port: Int, path: String, body: String) = client.send(
+    private fun post(port: Int, path: String, body: String, headers: Map<String, String> = emptyMap()) = client.send(
         HttpRequest.newBuilder(URI.create("http://127.0.0.1:$port$path"))
             .header("Authorization", "Bearer local").header("Content-Type", "application/json")
+            .apply { headers.forEach { (name, value) -> header(name, value) } }
             .POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString(),
     )
 
@@ -240,6 +241,33 @@ class OpenCodeZenSubscriptionProxyProviderTest {
     }
 
     @Test
+    fun goInferenceKeepsClientSessionOrPromptCacheKey() {
+        Upstream(includeGoProvider = true).use { upstream ->
+            val provider = OpenCodeZenSubscriptionProxyProvider(
+                consoleSessionProvider = { OpenCodeConsoleSession("account", "oauth", "org_a") { null } },
+                consoleEndpoint = upstream.endpoint,
+            )
+            withProxy(provider) { port ->
+                val kept = post(
+                    port,
+                    "/v1/chat/completions",
+                    """{"model":"oc-go-chat","messages":[{"role":"user","content":"hi"}]}""",
+                    mapOf("x-opencode-session" to "ses_keep"),
+                )
+                assertEquals(200, kept.statusCode(), kept.body())
+                val cached = post(
+                    port,
+                    "/v1/chat/completions",
+                    """{"model":"oc-go-chat","prompt_cache_key":"lsu-fim-chat-v2","messages":[{"role":"user","content":"hi"}]}""",
+                )
+                assertEquals(200, cached.statusCode(), cached.body())
+                val calls = upstream.requests.filter { it.path.endsWith("/chat/completions") }
+                assertEquals(listOf("ses_keep", "lsu-fim-chat-v2"), calls.map { it.session })
+            }
+        }
+    }
+
+    @Test
     fun zenConsoleUrlAlsoAdvertisesGoAndOldPrefixPrefersGo() {
         Upstream(useZenBase = true).use { upstream ->
             val provider = OpenCodeZenSubscriptionProxyProvider(
@@ -259,6 +287,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                 assertEquals(200, legacy.statusCode(), legacy.body())
                 val calls = upstream.requests.filter { it.path.endsWith("/chat/completions") }
                 assertEquals(listOf("/zen/go/v1/chat/completions", "/zen/go/v1/chat/completions"), calls.map { it.path })
+                assertTrue(calls.all { !it.session.isNullOrBlank() && it.userAgent?.startsWith("llm-subscription-usage/") == true })
             }
         }
     }
@@ -269,7 +298,16 @@ class OpenCodeZenSubscriptionProxyProviderTest {
         private val useZenBase: Boolean = false,
         private val includeGoProvider: Boolean = false,
     ) : AutoCloseable {
-        data class Request(val path: String, val authorization: String?, val organization: String?, val inferenceOrganization: String?, val cookie: String?, val body: String)
+        data class Request(
+            val path: String,
+            val authorization: String?,
+            val organization: String?,
+            val inferenceOrganization: String?,
+            val cookie: String?,
+            val body: String,
+            val session: String? = null,
+            val userAgent: String? = null,
+        )
         val requests = CopyOnWriteArrayList<Request>()
         private val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         val endpoint = URI.create("http://127.0.0.1:${server.address.port}/console/")
@@ -278,7 +316,16 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                 val path = exchange.requestURI.path
                 val body = exchange.requestBody.bufferedReader().readText()
                 val headers = exchange.requestHeaders
-                requests += Request(path, headers.getFirst("Authorization"), headers.getFirst("x-org-id"), headers.getFirst("x-opencode-org-id"), headers.getFirst("Cookie"), body)
+                requests += Request(
+                    path,
+                    headers.getFirst("Authorization"),
+                    headers.getFirst("x-org-id"),
+                    headers.getFirst("x-opencode-org-id"),
+                    headers.getFirst("Cookie"),
+                    body,
+                    headers.getFirst("x-opencode-session"),
+                    headers.getFirst("User-Agent"),
+                )
                 val config = path.endsWith("/config")
                 val reject = if (config) rejectConfig.also { rejectConfig = false } else rejectInference.also { rejectInference = false }
                 val responses = path.endsWith("/responses")

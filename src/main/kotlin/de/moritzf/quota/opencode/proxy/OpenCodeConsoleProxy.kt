@@ -84,13 +84,17 @@ internal class OpenCodeConsoleProxy(
             return
         }
         val scoped = request.copy(model = configured.model)
+        val clientHeaders = OpenCodeRequestHeaders.forRequest(ctx.header(OpenCodeRequestHeaders.SESSION), request.body)
         if (request.route == SubscriptionProxyRoute.CHAT_COMPLETIONS && configured.nativeRoute == SubscriptionProxyRoute.RESPONSES) {
             val handler = ChatCompletionsHandler(
                 requestLogger = requestLogger,
                 usageTracker = UsageTracker(),
                 responsesRequester = ChatCompletionsHandler.ResponsesRequester { payload, requestId, _ ->
                     fun send(): HttpResponse<java.io.InputStream> {
-                        val headers = configured.headers + mapOf("Authorization" to "Bearer ${session.accessToken}", "Content-Type" to "application/json")
+                        val headers = configured.headers + clientHeaders + mapOf(
+                            "Authorization" to "Bearer ${session.accessToken}",
+                            "Content-Type" to "application/json",
+                        )
                         val builder = HttpRequest.newBuilder(configured.targetUri).timeout(Duration.ofMinutes(15))
                         headers.forEach { (name, value) -> builder.setHeader(name, value) }
                         requestLogger.logUpstreamRequest(requestId, "POST", "/responses", headers, payload)
@@ -131,6 +135,7 @@ internal class OpenCodeConsoleProxy(
             tokenRefresher = { stale -> stale?.let(session::refresh) },
             modelMappingsProvider = { emptyList() },
             defaultHeaders = headers,
+            requestHeadersProvider = { clientHeaders },
             upstreamUrlProvider = { configured.targetUri.toString() },
             requestBodyTransformer = { req, body ->
                 val transformed = if (bridge) anthropicBridge.openAiChatToAnthropicMessagesBody(req, body) else body
