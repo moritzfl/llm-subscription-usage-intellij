@@ -16,6 +16,7 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -220,6 +221,17 @@ class KimiSubscriptionProxyProviderTest {
                 assertEquals("/coding/v1/chat/completions", request.path)
                 assertTrue(request.body.contains("\"model\":\"kimi-for-coding\""), request.body)
                 assertTrue(!request.body.contains("temperature"), request.body)
+
+                val k27 = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"ki-kimi-k2.7-code\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]," +
+                        "\"reasoning_effort\":\"low\",\"stop\":[\"</COMMAND>\"]}",
+                )
+                assertEquals(200, k27.statusCode(), k27.body())
+                val k27Request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertFalse(k27Request.body.contains("reasoning_effort"), k27Request.body)
+                assertFalse(k27Request.body.contains("\"stop\""), k27Request.body)
             } finally {
                 proxy.server.stop()
             }

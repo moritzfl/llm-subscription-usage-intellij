@@ -52,6 +52,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                         "gh-gpt-5.4",
                         "gh-gpt-5.4-mini",
                         "gh-mai-code-1-flash-picker",
+                        "gh-grok-4.7",
                     ),
                     ids,
                 )
@@ -286,6 +287,73 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 assertTrue(inference.body.contains("\"model\":\"mai-code-1-flash-picker\""), inference.body)
                 assertFalse(inference.body.contains("\"messages\""), inference.body)
                 assertFalse(inference.body.contains("\"temperature\""), inference.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun bridgesGrokResponsesOnlyChatCompletionsAndStripsRejectedFields() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"gh-grok-4.7\",\"temperature\":0.2,\"max_tokens\":32," +
+                        "\"stop\":[\"</COMMAND>\"],\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    bearer = true,
+                )
+
+                assertEquals(200, response.statusCode(), response.body())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/responses", inference.path)
+                assertTrue(inference.body.contains("\"model\":\"grok-4.7\""), inference.body)
+                assertFalse(inference.body.contains("\"temperature\""), inference.body)
+                assertFalse(inference.body.contains("max_output_tokens"), inference.body)
+                assertFalse(inference.body.contains("\"stop\""), inference.body)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun dropsJunieFieldsCopilotChatRejects() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val mini = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"gh-gpt-5-mini\",\"stop\":[\"</COMMAND>\"],\"reasoning_effort\":\"low\"," +
+                        "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    bearer = true,
+                )
+                assertEquals(200, mini.statusCode(), mini.body())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                val miniUpstream = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/chat/completions", miniUpstream.path)
+                assertFalse(miniUpstream.body.contains("\"stop\""), miniUpstream.body)
+                assertTrue(miniUpstream.body.contains("\"reasoning_effort\":\"low\""), miniUpstream.body)
+
+                val gemini = post(
+                    proxy.port,
+                    "/v1/chat/completions",
+                    "{\"model\":\"gh-gemini-3.5-flash\",\"stop\":[\"</COMMAND>\"],\"reasoning_effort\":\"low\"," +
+                        "\"max_tokens\":64,\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"submit\"}}]," +
+                        "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    bearer = true,
+                )
+                assertEquals(200, gemini.statusCode(), gemini.body())
+                val geminiUpstream = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertFalse(geminiUpstream.body.contains("reasoning_effort"), geminiUpstream.body)
+                assertTrue(geminiUpstream.body.contains("\"stop\""), geminiUpstream.body)
+                assertTrue(geminiUpstream.body.contains("\"max_tokens\":2112"), geminiUpstream.body)
             } finally {
                 proxy.stop()
             }
@@ -875,7 +943,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
     }
 
     private fun shouldBridgeChatToResponses(upstreamModelId: String): Boolean {
-        if (upstreamModelId.startsWith("mai-code-")) {
+        if (upstreamModelId.startsWith("mai-code-") || upstreamModelId.startsWith("grok-")) {
             return true
         }
         val gptMajor = GPT_MAJOR_REGEX.find(upstreamModelId)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: return false
@@ -1033,6 +1101,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 toolCalls = null,
                 maxOutputTokens = null,
             ),
+            copilotModel("grok-4.7", family = "grok", endpoints = listOf("/responses")),
             copilotModel("gpt-5.5", family = "gpt", pickerEnabled = false),
             copilotModel("disabled-model", family = "test", disabled = true),
         )

@@ -4,6 +4,7 @@ import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.server.put
 import de.moritzf.proxy.server.remove
+import de.moritzf.proxy.subscription.ChatUpstreamCompat
 import de.moritzf.proxy.subscription.PassThroughSubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyModel
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
@@ -113,7 +114,7 @@ class KimiSubscriptionProxyProvider(
 
     private fun chatRequestBody(request: SubscriptionProxyRequest, body: JsonObject): JsonObject {
         if (request.route != SubscriptionProxyRoute.CHAT_COMPLETIONS) return body
-        var transformed = body.remove("temperature")
+        var transformed = ChatUpstreamCompat.omitUnsupportedChatFields(request.model.upstreamId, body).remove("temperature")
         if (requiresAutoToolChoice(transformed["tool_choice"])) {
             transformed = transformed.put("tool_choice", JsonPrimitive("auto"))
         }

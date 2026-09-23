@@ -93,7 +93,8 @@ internal fun routeForStorageValue(value: String?): SubscriptionProxyRoute? {
 }
 
 internal fun shouldUseResponsesApi(modelId: String): Boolean {
-    if (modelId.startsWith("mai-code-")) {
+    // Copilot Grok is responses-only. Junie speaks chat, so bridge it the same way as MAI.
+    if (modelId.startsWith("mai-code-") || modelId.startsWith("grok-")) {
         return true
     }
     val major = GPT_MAJOR_REGEX.find(modelId)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: return false

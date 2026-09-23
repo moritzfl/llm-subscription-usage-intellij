@@ -7,6 +7,7 @@ import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.server.MutableJsonObject
 import de.moritzf.proxy.server.ProxyCall
 import de.moritzf.proxy.server.remove
+import de.moritzf.proxy.subscription.ChatUpstreamCompat
 import de.moritzf.proxy.subscription.PassThroughSubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyModel
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
@@ -199,6 +200,9 @@ class GitHubCopilotSubscriptionProxyProvider(
         if (request.route == SubscriptionProxyRoute.RESPONSES && request.model.upstreamId.startsWith("gpt-")) {
             return body.remove("max_output_tokens")
         }
+        if (request.route == SubscriptionProxyRoute.CHAT_COMPLETIONS) {
+            return ChatUpstreamCompat.adaptChat(request.model.upstreamId, body)
+        }
         if (request.route != SubscriptionProxyRoute.ANTHROPIC_MESSAGES) return body
         return buildJsonObject {
             body.forEach { (key, value) ->
@@ -235,17 +239,17 @@ class GitHubCopilotSubscriptionProxyProvider(
                 if (key !in GitHubCopilotProxyIds.OPENAI_CHAT_ENVELOPE_FIELDS && value != JsonNull) put(key, value)
             }
         }
-        return JsonHelper.encodeToString(normalized)
+        return ChatUpstreamCompat.applyStop(JsonHelper.encodeToString(normalized), request.body)
     }
 
     private fun responsesChatBody(body: MutableJsonObject) {
         body.remove("store")
         body.remove("prompt_cache_key")
         val model = (body.get("model") as? JsonPrimitive)?.contentOrNull.orEmpty()
-        if (model.startsWith("mai-code-")) {
+        if (model.startsWith("mai-code-") || model.startsWith("grok-")) {
             body.remove("temperature")
         }
-        if (model.startsWith("gpt-")) {
+        if (model.startsWith("gpt-") || model.startsWith("grok-")) {
             body.remove("max_output_tokens")
         }
     }
