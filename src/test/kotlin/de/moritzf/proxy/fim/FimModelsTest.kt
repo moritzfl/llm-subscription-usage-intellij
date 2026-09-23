@@ -38,6 +38,9 @@ class FimModelsTest {
     fun fimReasoningEffortOnlyForGrokAndCodexReasoningModels() {
         assertEquals("low", FimModels.fimReasoningEffort("sg-grok-4.6", "grok-4.6", "supergrok"))
         assertEquals("low", FimModels.fimReasoningEffort("oa-gpt-6-astra", "gpt-6-astra", "openai"))
+        assertEquals("none", FimModels.fimReasoningEffort("oa-gpt-6-sol", "gpt-6-sol", "openai"))
+        assertEquals("none", FimModels.fimReasoningEffort("oa-gpt-6-luna", "gpt-6-luna", "openai"))
+        assertEquals("low", FimModels.fimReasoningEffort("oa-gpt-5.6-sol", "gpt-5.6-sol", "openai"))
         assertNull(FimModels.fimReasoningEffort("sg-grok-4.20-0309-non-reasoning", "grok-4.20-0309-non-reasoning", "supergrok"))
         assertNull(FimModels.fimReasoningEffort("mi-mistral-small-latest", "mistral-small-latest", "mistral"))
         assertNull(FimModels.fimReasoningEffort("ol-kimi-k3", "kimi-k3", "ollama"))

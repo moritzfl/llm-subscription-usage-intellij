@@ -46,7 +46,18 @@ object FimModels {
     fun fimReasoningEffort(localId: String, upstreamId: String = "", providerId: String = ""): String? {
         val blob = "$localId $upstreamId".lowercase()
         if ("non-reasoning" in blob || "nonreasoning" in blob) return null
-        return if (supportsPriorityTier(localId, providerId)) "low" else null
+        if (!supportsPriorityTier(localId, providerId)) return null
+        // ChatGPT Codex backend accepts none on gpt-6-sol and gpt-6-luna (0 reasoning tokens).
+        // gpt-6-astra rejects none. models.json still lists low as the picker floor.
+        return if (acceptsNoReasoning(blob)) "none" else "low"
+    }
+
+    private fun acceptsNoReasoning(blob: String): Boolean {
+        return blob.split(Regex("\\s+")).any { id ->
+            val bare = id.substringAfterLast('/').substringBefore('(').trim().removePrefix("oa-")
+            bare == "gpt-6-sol" || bare.startsWith("gpt-6-sol-") ||
+                bare == "gpt-6-luna" || bare.startsWith("gpt-6-luna-")
+        }
     }
 
     private val NON_FIM_MARKERS = listOf(

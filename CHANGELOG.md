@@ -1,5 +1,9 @@
 # LLM Subscription Usage Changelog
 
+## [Unreleased]
+
+- FIM chat adapter sends `reasoning_effort=none` for Codex `gpt-6-sol` and `gpt-6-luna`. The ChatGPT backend accepts that and spends no reasoning tokens. Astra and older Codex models stay on `low`; Astra rejects `none`.
+
 ## [1.15.2] - 2026-09-23
 
 - GitHub Copilot chat again forwards models ChatGPT retired but Copilot still serves (`gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex`, and the rest of that blocklist). OpenAI/Codex still refuses those slugs locally.
