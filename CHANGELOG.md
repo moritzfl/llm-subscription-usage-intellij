@@ -1,6 +1,6 @@
 # LLM Subscription Usage Changelog
 
-## [Unreleased]
+## [1.15.3] - 2026-09-23
 
 - FIM chat adapter sends `reasoning_effort=none` for Codex `gpt-6-sol` and `gpt-6-luna`. The ChatGPT backend accepts that and spends no reasoning tokens. Astra and older Codex models stay on `low`; Astra rejects `none`.
 - Quota refresh icon spins with its arrowheads instead of against them.
@@ -537,7 +537,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.2...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.3...HEAD
+[1.15.3]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.2...1.15.3
 [1.15.2]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.1...1.15.2
 [1.15.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.0...1.15.1
 [1.15.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.14.0...1.15.0
