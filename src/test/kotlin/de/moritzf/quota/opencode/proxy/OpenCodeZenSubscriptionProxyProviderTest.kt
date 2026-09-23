@@ -2,6 +2,7 @@ package de.moritzf.quota.opencode.proxy
 
 import com.sun.net.httpserver.HttpServer
 import de.moritzf.proxy.server.JsonHelper
+import de.moritzf.proxy.subscription.SubscriptionProxyRoute
 import de.moritzf.proxy.subscription.SubscriptionProxyServer
 import de.moritzf.quota.opencode.OpenCodeTestServer
 import de.moritzf.quota.opencode.OpenCodeQuotaException
@@ -78,7 +79,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                 assertEquals(200, models.statusCode(), models.body())
                 val ids = JsonHelper.JSON.parseToJsonElement(models.body()).jsonObject["data"]!!.jsonArray
                     .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertEquals(listOf("oc-chat", "oc-gpt", "oc-claude"), ids)
+                assertEquals(listOf("oc-zen-chat", "oc-zen-gpt", "oc-zen-claude"), ids)
                 val config = upstream.requests.single()
                 assertEquals("/console/api/v2/config", config.path)
                 assertEquals("Bearer oauth-access", config.authorization)
@@ -103,17 +104,17 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                 consoleEndpoint = upstream.endpoint,
             )
             withProxy(provider) { port ->
-                for (model in listOf("oc-gpt", "oc-claude")) {
+                for (model in listOf("oc-zen-gpt", "oc-zen-claude")) {
                     val chat = post(port, "/v1/chat/completions", """{"model":"$model","messages":[{"role":"user","content":"hi"}]}""")
                     assertEquals(200, chat.statusCode(), chat.body())
                     val body = JsonHelper.JSON.parseToJsonElement(chat.body()).jsonObject
                     assertEquals("chat.completion", body["object"]?.jsonPrimitive?.content)
                     assertTrue(chat.body().contains("hello"), chat.body())
                 }
-                val responses = post(port, "/responses", """{"model":"oc-gpt","input":"hello","stream":true}""")
+                val responses = post(port, "/responses", """{"model":"oc-zen-gpt","input":"hello","stream":true}""")
                 assertEquals(200, responses.statusCode())
                 assertTrue(responses.body().contains("response.completed"))
-                val messages = post(port, "/v1/messages", """{"model":"oc-claude","max_tokens":5,"messages":[{"role":"user","content":"hi"}]}""")
+                val messages = post(port, "/v1/messages", """{"model":"oc-zen-claude","max_tokens":5,"messages":[{"role":"user","content":"hi"}]}""")
                 assertEquals(200, messages.statusCode())
                 assertTrue(messages.body().contains("\"type\":\"message\""), messages.body())
                 val calls = upstream.requests.filterNot { it.path.endsWith("config") }
@@ -175,6 +176,70 @@ class OpenCodeZenSubscriptionProxyProviderTest {
     )
 
     @Test
+    fun consoleGoProviderKeepsItsOwnUrlAndPackage() {
+        val body = """{"providers":{
+            "opencode":{"package":"aisdk:@ai-sdk/openai-compatible","settings":{"baseURL":"https://opencode.ai/inference/openai/v1"},"models":{
+                "deepseek-v4.1-flash":{},
+                "qwen3.6-plus":{"package":"aisdk:@ai-sdk/anthropic","settings":{"baseURL":"https://opencode.ai/inference/anthropic/v1"}}
+            }},
+            "opencode-go":{"package":"aisdk:@ai-sdk/openai-compatible","settings":{"baseURL":"https://opencode.ai/inference/go/openai/v1"},"models":{
+                "deepseek-v4.1-flash":{},
+                "hy3":{},
+                "minimax-m3":{"package":"aisdk:@ai-sdk/anthropic","settings":{"baseURL":"https://opencode.ai/inference/go/anthropic/v1"}}
+            }}
+        }}"""
+        val models = OpenCodeConsoleModel.parse(
+            body,
+            OpenCodePools(go = setOf("deepseek-v4.1-flash", "qwen3.6-plus", "hy3"), zen = setOf("deepseek-v4.1-flash")),
+        ).associateBy { it.model.localId }
+
+        assertEquals("https://opencode.ai/inference/openai/v1", models["oc-zen-deepseek-v4.1-flash"]!!.baseUri.toString())
+        assertEquals("https://opencode.ai/inference/go/openai/v1", models["oc-go-deepseek-v4.1-flash"]!!.baseUri.toString())
+        assertEquals("https://opencode.ai/inference/anthropic/v1", models["oc-zen-qwen3.6-plus"]!!.baseUri.toString())
+        assertEquals(SubscriptionProxyRoute.ANTHROPIC_MESSAGES, models["oc-zen-qwen3.6-plus"]!!.nativeRoute)
+        assertEquals("https://opencode.ai/inference/go/anthropic/v1", models["oc-go-minimax-m3"]!!.baseUri.toString())
+        assertEquals(SubscriptionProxyRoute.ANTHROPIC_MESSAGES, models["oc-go-minimax-m3"]!!.nativeRoute)
+        assertTrue("oc-go-hy3" in models)
+        assertFalse("oc-go-qwen3.6-plus" in models)
+        assertFalse(models.keys.any { it.startsWith("oc-") && !it.startsWith("oc-go-") && !it.startsWith("oc-zen-") })
+        assertEquals(5, models.size)
+    }
+
+    @Test
+    fun goProviderRoutesToInferenceGoAndOldPrefixPrefersGo() {
+        Upstream(includeGoProvider = true).use { upstream ->
+            val provider = OpenCodeZenSubscriptionProxyProvider(
+                consoleSessionProvider = { OpenCodeConsoleSession("account", "oauth", "org_a") { null } },
+                consoleEndpoint = upstream.endpoint,
+                pools = { OpenCodePools(go = setOf("chat", "mini")) },
+            )
+            withProxy(provider) { port ->
+                val ids = JsonHelper.JSON.parseToJsonElement(get(port, "/v1/models").body()).jsonObject["data"]!!.jsonArray
+                    .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                assertTrue("oc-zen-chat" in ids, ids.toString())
+                assertTrue("oc-go-chat" in ids, ids.toString())
+                assertTrue("oc-go-mini" in ids, ids.toString())
+                assertFalse("oc-chat" in ids)
+                val go = post(port, "/v1/chat/completions", """{"model":"oc-go-chat","messages":[{"role":"user","content":"hi"}]}""")
+                assertEquals(200, go.statusCode(), go.body())
+                val mini = post(port, "/v1/chat/completions", """{"model":"oc-go-mini","messages":[{"role":"user","content":"hi"}]}""")
+                assertEquals(200, mini.statusCode(), mini.body())
+                val legacy = post(port, "/v1/chat/completions", """{"model":"oc-chat","messages":[{"role":"user","content":"hi"}]}""")
+                assertEquals(200, legacy.statusCode(), legacy.body())
+                val calls = upstream.requests.filter { !it.path.endsWith("/config") }
+                assertEquals(
+                    listOf(
+                        "/inference/go/openai/v1/chat/completions",
+                        "/inference/go/anthropic/v1/messages",
+                        "/inference/go/openai/v1/chat/completions",
+                    ),
+                    calls.map { it.path },
+                )
+            }
+        }
+    }
+
+    @Test
     fun zenConsoleUrlAlsoAdvertisesGoAndOldPrefixPrefersGo() {
         Upstream(useZenBase = true).use { upstream ->
             val provider = OpenCodeZenSubscriptionProxyProvider(
@@ -202,6 +267,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
         private var rejectInference: Boolean = false,
         private var rejectConfig: Boolean = false,
         private val useZenBase: Boolean = false,
+        private val includeGoProvider: Boolean = false,
     ) : AutoCloseable {
         data class Request(val path: String, val authorization: String?, val organization: String?, val inferenceOrganization: String?, val cookie: String?, val body: String)
         val requests = CopyOnWriteArrayList<Request>()
@@ -232,7 +298,15 @@ class OpenCodeZenSubscriptionProxyProviderTest {
             server.start()
         }
 
-        private fun config(org: String?): String = """{"providers":{"opencode":{
+        private fun config(org: String?): String {
+            val go = if (!includeGoProvider) "" else ""","opencode-go":{
+                "package":"aisdk:@ai-sdk/openai-compatible",
+                "settings":{"baseURL":"http://127.0.0.1:${server.address.port}/inference/go/openai/v1"},
+                "headers":{"x-opencode-org-id":"$org"},"models":{
+                    "chat":{},
+                    "mini":{"package":"aisdk:@ai-sdk/anthropic","settings":{"baseURL":"http://127.0.0.1:${server.address.port}/inference/go/anthropic/v1"}}
+                }}"""
+            return """{"providers":{"opencode":{
             "package":"aisdk:@ai-sdk/openai-compatible",
             "settings":{"baseURL":"http://127.0.0.1:${server.address.port}/${if (useZenBase) "zen/v1" else "inference/openai/v1"}"},
             "headers":{"x-opencode-org-id":"$org"},"models":{
@@ -240,7 +314,8 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                 "gpt":{"package":"aisdk:@ai-sdk/openai","limit":{"context":100000,"output":10000}},
                 "claude":{"package":"aisdk:@ai-sdk/anthropic","settings":{"baseURL":"http://127.0.0.1:${server.address.port}/inference/anthropic/v1"}},
                 "disabled":{"disabled":true}
-            }}}}"""
+            }}$go}}"""
+        }
 
         override fun close() = server.stop(0)
     }

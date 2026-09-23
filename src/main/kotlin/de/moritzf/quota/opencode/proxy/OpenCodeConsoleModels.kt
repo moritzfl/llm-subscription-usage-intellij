@@ -73,10 +73,14 @@ internal data class OpenCodeConsoleModel(
         const val ZEN_MODELS_URL = "https://opencode.ai/zen/v1/models"
 
         fun parse(body: String, pools: OpenCodePools = OpenCodePools()): List<OpenCodeConsoleModel> {
-            val provider = JsonSupport.json.decodeFromString<OpenCodeConsoleConfig>(body).providers["opencode"]
-                ?: return emptyList()
-            val parsed = provider.models.mapNotNull { (id, model) -> toModel(provider, id, model) }
-            return withPoolTwins(parsed, pools)
+            val providers = JsonSupport.json.decodeFromString<OpenCodeConsoleConfig>(body).providers
+            // Console Zen is provider "opencode" (/inference/…). Go is "opencode-go" (/inference/go/…).
+            // Do not invent the other pool's URL when that provider is already in the config.
+            val configured = providers.keys.mapNotNull(::providerPool).toSet()
+            val parsed = providers.flatMap { (providerId, provider) ->
+                provider.models.mapNotNull { (id, model) -> toModel(providerId, provider, id, model) }
+            }
+            return withPoolTwins(parsed, pools, configured)
         }
 
         fun fetchPools(httpClient: HttpClient = HttpClient.newHttpClient()): OpenCodePools {
@@ -86,10 +90,29 @@ internal data class OpenCodeConsoleModel(
         internal fun poolOf(uri: URI): OpenCodePool? {
             val path = uri.path.trimEnd('/')
             return when {
-                path.contains("/zen/go/") || path.endsWith("/zen/go") -> OpenCodePool.GO
-                path.contains("/zen/") || path.endsWith("/zen") -> OpenCodePool.ZEN
+                isGoPath(path) -> OpenCodePool.GO
+                isZenPath(path) -> OpenCodePool.ZEN
                 else -> null
             }
+        }
+
+        private fun providerPool(providerId: String): OpenCodePool? = when (providerId) {
+            "opencode-go" -> OpenCodePool.GO
+            "opencode" -> OpenCodePool.ZEN
+            else -> null
+        }
+
+        private fun poolFor(providerId: String, uri: URI): OpenCodePool? = poolOf(uri) ?: providerPool(providerId)
+
+        private fun isGoPath(path: String): Boolean {
+            return path.contains("/zen/go/") || path.endsWith("/zen/go") ||
+                path.contains("/inference/go/") || path.endsWith("/inference/go")
+        }
+
+        private fun isZenPath(path: String): Boolean {
+            if (isGoPath(path)) return false
+            return path.contains("/zen/") || path.endsWith("/zen") ||
+                path.contains("/inference/") || path.endsWith("/inference")
         }
 
         internal fun localId(pool: OpenCodePool?, modelId: String): String = when (pool) {
@@ -100,17 +123,24 @@ internal data class OpenCodeConsoleModel(
 
         internal fun rewritePoolBase(uri: URI, target: OpenCodePool): URI? {
             val raw = uri.toString().trimEnd('/')
+            val path = uri.path.trimEnd('/')
             val rewritten = when (target) {
-                OpenCodePool.GO -> if (raw.contains("/zen/go/") || raw.endsWith("/zen/go")) {
+                OpenCodePool.GO -> if (isGoPath(path)) {
                     return null
                 } else if (raw.contains("/zen/")) {
                     raw.replace("/zen/", "/zen/go/")
+                } else if (raw.contains("/inference/")) {
+                    raw.replace("/inference/", "/inference/go/")
                 } else {
                     return null
                 }
                 OpenCodePool.ZEN -> if (raw.contains("/zen/go/")) {
                     raw.replace("/zen/go/", "/zen/")
                 } else if (raw.endsWith("/zen/go")) {
+                    raw.removeSuffix("/go")
+                } else if (raw.contains("/inference/go/")) {
+                    raw.replace("/inference/go/", "/inference/")
+                } else if (raw.endsWith("/inference/go")) {
                     raw.removeSuffix("/go")
                 } else {
                     return null
@@ -119,7 +149,7 @@ internal data class OpenCodeConsoleModel(
             return runCatching { URI.create(rewritten) }.getOrNull()
         }
 
-        private fun toModel(provider: ConsoleProvider, id: String, model: ConsoleModel): OpenCodeConsoleModel? {
+        private fun toModel(providerId: String, provider: ConsoleProvider, id: String, model: ConsoleModel): OpenCodeConsoleModel? {
             if (model.disabled) return null
             val nativeRoute = when (model.packageName ?: provider.packageName) {
                 "aisdk:@ai-sdk/openai-compatible", "@opencode/ai/providers/openai-compatible" -> SubscriptionProxyRoute.CHAT_COMPLETIONS
@@ -132,7 +162,8 @@ internal data class OpenCodeConsoleModel(
             require(uri.scheme in setOf("https", "http") && uri.host != null && uri.userInfo == null && uri.query == null && uri.fragment == null) {
                 "Invalid OpenCode inference URL"
             }
-            return entry(id, model.modelID ?: id, model, provider, nativeRoute, uri)
+            val pool = poolFor(providerId, uri) ?: return null
+            return entry(id, model.modelID ?: id, model, provider, nativeRoute, uri, pool)
         }
 
         private fun entry(
@@ -142,8 +173,8 @@ internal data class OpenCodeConsoleModel(
             provider: ConsoleProvider,
             nativeRoute: SubscriptionProxyRoute,
             uri: URI,
+            pool: OpenCodePool,
         ): OpenCodeConsoleModel {
-            val pool = poolOf(uri)
             return OpenCodeConsoleModel(
                 model = SubscriptionProxyModel(
                     localId = localId(pool, id),
@@ -165,11 +196,16 @@ internal data class OpenCodeConsoleModel(
             )
         }
 
-        private fun withPoolTwins(models: List<OpenCodeConsoleModel>, pools: OpenCodePools): List<OpenCodeConsoleModel> {
+        private fun withPoolTwins(
+            models: List<OpenCodeConsoleModel>,
+            pools: OpenCodePools,
+            configured: Set<OpenCodePool>,
+        ): List<OpenCodeConsoleModel> {
             val present = models.map { it.model.localId }.toMutableSet()
             val twins = models.mapNotNull { model ->
                 val pool = poolOf(model.baseUri) ?: return@mapNotNull null
                 val other = if (pool == OpenCodePool.ZEN) OpenCodePool.GO else OpenCodePool.ZEN
+                if (other in configured) return@mapNotNull null
                 val ids = if (other == OpenCodePool.GO) pools.go else pools.zen
                 val catalogId = catalogId(model)
                 if (catalogId !in ids && model.model.upstreamId !in ids) return@mapNotNull null
