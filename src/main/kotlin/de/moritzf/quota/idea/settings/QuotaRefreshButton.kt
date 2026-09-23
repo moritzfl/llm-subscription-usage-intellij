@@ -101,7 +101,9 @@ internal class QuotaRefreshButton(
                     override fun paintIcon(component: Component?, graphics: Graphics, x: Int, y: Int) {
                         val rotated = graphics.create() as Graphics2D
                         try {
-                            rotated.rotate(frame * 2.0 * Math.PI / 24, x + iconWidth / 2.0, y + iconHeight / 2.0)
+                            // Positive Graphics2D angles are clockwise in Y-down space. The refresh
+                            // arrowheads face the other way, so advance frames backward.
+                            rotated.rotate(-frame * 2.0 * Math.PI / 24, x + iconWidth / 2.0, y + iconHeight / 2.0)
                             base.paintIcon(component, rotated, x, y)
                         } finally {
                             rotated.dispose()

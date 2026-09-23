@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - FIM chat adapter sends `reasoning_effort=none` for Codex `gpt-6-sol` and `gpt-6-luna`. The ChatGPT backend accepts that and spends no reasoning tokens. Astra and older Codex models stay on `low`; Astra rejects `none`.
+- Quota refresh icon spins with its arrowheads instead of against them.
 
 ## [1.15.2] - 2026-09-23
 
