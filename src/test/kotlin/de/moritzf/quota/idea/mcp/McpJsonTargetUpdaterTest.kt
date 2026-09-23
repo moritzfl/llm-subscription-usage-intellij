@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea.mcp
 
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonObject
@@ -11,8 +12,12 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+@OptIn(ExperimentalSerializationApi::class)
 class McpJsonTargetUpdaterTest {
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = Json {
+        ignoreUnknownKeys = true
+        allowComments = true
+    }
 
     @Test
     fun dotPathUpdatesNestedValueAndPreservesSiblings() {
@@ -82,7 +87,7 @@ class McpJsonTargetUpdaterTest {
             "mcpServers.jetbrains.url",
             "http://localhost:63342/sse",
         )
-        val parsed = Json { allowComments = true }.parseToJsonElement(updated).jsonObject
+        val parsed = json.parseToJsonElement(updated).jsonObject
         assertEquals(
             "http://localhost:63342/sse",
             parsed["mcpServers"]!!.jsonObject["jetbrains"]!!.jsonObject["url"]!!.jsonPrimitive.content,
