@@ -45,10 +45,18 @@ class AzureSubscriptionProxyProviderTest {
     }
 
     @Test
-    fun upstreamUrlUsesOpenAiV1AndApiVersion() {
+    fun upstreamUrlOmitsApiVersionOnV1Paths() {
         assertEquals(
-            "https://demo.openai.azure.com/openai/v1/chat/completions?api-version=v1",
+            "https://demo.openai.azure.com/openai/v1/chat/completions",
             azureUpstreamUrl("https://demo.openai.azure.com/openai/v1", "/chat/completions"),
+        )
+        assertEquals(
+            "https://ael.services.ai.azure.com/api/projects/ael/openai/v1/chat/completions",
+            azureUpstreamUrl("https://ael.services.ai.azure.com/api/projects/ael/openai/v1", "chat/completions"),
+        )
+        assertEquals(
+            "https://demo.openai.azure.com/openai/deployments/gpt-4o/chat/completions?api-version=v1",
+            azureUpstreamUrl("https://demo.openai.azure.com/openai/deployments/gpt-4o", "/chat/completions"),
         )
         assertEquals(true, provider().isConfigured())
     }

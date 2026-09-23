@@ -88,7 +88,7 @@ class AzureProxyRequestTest {
             }) { port ->
                 assertEquals(200, postAsync(port, "chat").get(5, TimeUnit.SECONDS).statusCode())
                 assertEquals(2, requests.size)
-                assertTrue(requests.all { it.first == "/openai/v1/first/chat/completions?api-version=v1" }, requests.toString())
+                assertTrue(requests.all { it.first == "/openai/v1/first/chat/completions" }, requests.toString())
                 assertEquals(listOf("Bearer first-token", "Bearer refreshed-token"), requests.map { it.second })
                 assertTrue(calls.all { it[it.indexOf("--subscription") + 1] == first.account.subscriptionId })
                 assertNotNull(AzureLiveUsage.read(AzureLiveUsage.key(first.accountId, first.account)))

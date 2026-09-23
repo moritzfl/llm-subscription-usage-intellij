@@ -121,5 +121,13 @@ internal fun azureManagementScope(root: String): String = "$root/.default"
 internal fun azureUpstreamUrl(baseUrl: String, upstreamPath: String): String {
     val root = baseUrl.trimEnd('/')
     val path = upstreamPath.trimStart('/')
-    return "$root/$path?api-version=v1"
+    val url = "$root/$path"
+    // GA /v1 rejects the query. Older non-v1 routes still need it.
+    if (pathSegments(url).any { it == "v1" }) return url
+    return "$url?api-version=v1"
+}
+
+private fun pathSegments(url: String): List<String> {
+    val path = runCatching { URI(url).rawPath }.getOrNull() ?: url.substringBefore('?')
+    return path.split('/').filter { it.isNotEmpty() }
 }

@@ -135,7 +135,7 @@ internal class AzureQuotaClient(
             val dataToken = if (modelsRead) null else
                 tokenOrNull(azureScopeForUrl(target.baseUrl), subscriptionId, warnings, "the Azure OpenAI endpoint")
             if (dataToken != null) {
-                val result = get("${target.baseUrl.trimEnd('/')}/models?api-version=v1", dataToken)
+                val result = get(azureUpstreamUrl(target.baseUrl, "models"), dataToken)
                 if (result.status in 200..299) {
                     val parsed = parseAzureModels(result.body)
                     if (parsed != null) {

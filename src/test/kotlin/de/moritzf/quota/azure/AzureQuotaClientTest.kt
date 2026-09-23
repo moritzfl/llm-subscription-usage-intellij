@@ -12,7 +12,7 @@ class AzureQuotaClientTest {
     fun defaultSubscriptionDiscoveryReachesTheProxyCatalog() {
         val config = AzureAccountConfig(resourceName = "catalog-${UUID.randomUUID()}")
         val quota = AzureQuotaClient(cli(), AzureHttp { url, _ ->
-            if ("/models?" in url) AzureHttpResult(200, """{"data":[{"id":"chat-deployment"}]}""")
+            if (url.substringBefore('?').endsWith("/models")) AzureHttpResult(200, """{"data":[{"id":"chat-deployment"}]}""")
             else AzureHttpResult(403, "")
         }).fetch(config)
 
@@ -80,7 +80,7 @@ class AzureQuotaClientTest {
             """{"accessToken":"data-token","expires_on":4102444800}"""
         })
         val quota = AzureQuotaClient(cli, AzureHttp { url, _ ->
-            if ("/models?" in url) AzureHttpResult(200, """{"data":[{"id":"chat"}]}""")
+            if (url.substringBefore('?').endsWith("/models")) AzureHttpResult(200, """{"data":[{"id":"chat"}]}""")
             else AzureHttpResult(403, "")
         }, liveUsage = { AzureRateLimitSnapshot("chat", 100.0, 25.0, null, null, 60) })
             .fetch(AzureAccountConfig(resourceName = "partial"))
@@ -95,7 +95,7 @@ class AzureQuotaClientTest {
         val config = AzureAccountConfig(subscriptionId = SUBSCRIPTION, resourceName = "cache-${UUID.randomUUID()}")
         var response = AzureHttpResult(200, """{"data":[{"id":"old-chat"}]}""")
         val client = AzureQuotaClient(cli(), AzureHttp { url, _ ->
-            if ("/models?" in url) response else AzureHttpResult(403, "")
+            if (url.substringBefore('?').endsWith("/models")) response else AzureHttpResult(403, "")
         })
         client.fetch(config)
         response = AzureHttpResult(403, "")
