@@ -8,6 +8,7 @@ import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.messages.MessageBusConnection
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
@@ -21,12 +22,16 @@ import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.ProviderAuthState
 import de.moritzf.quota.idea.ui.indicator.ProviderUiRegistry
 import de.moritzf.quota.shared.ProviderQuota
+import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Point
+import java.awt.Rectangle
+import java.awt.Toolkit
 import javax.swing.JComponent
 import javax.swing.JPanel
+import javax.swing.Scrollable
 
 internal enum class QuotaPopupLocation {
     ABOVE,
@@ -48,9 +53,13 @@ internal object QuotaPopupSupport {
         var popup: JBPopup? = null
 
         val contentPanel = QuotaPopupContentPanel(project, component) { popup?.cancel() }
-        val content = RefreshablePopupPanel<QuotaUsageSnapshot>(contentPanel) { state ->
+        val scrollPane = QuotaPopupScrollPane(contentPanel)
+        val content = RefreshablePopupPanel<QuotaUsageSnapshot>(scrollPane) { state ->
             contentPanel.update(state)
+            scrollPane.fitHeight(availablePopupHeight(component, location))
         }
+        var latestState = service.currentSnapshot()
+        content.refresh(latestState)
 
         popup = JBPopupFactory.getInstance()
             .createComponentPopupBuilder(content, content)
@@ -62,7 +71,6 @@ internal object QuotaPopupSupport {
 
         val currentPopup = popup
         val popupConnection: MessageBusConnection = ApplicationManager.getApplication().messageBus.connect(currentPopup)
-        var latestState = service.currentSnapshot()
         var refreshScheduled = false
         fun scheduleRefresh() {
             if (refreshScheduled) {
@@ -86,6 +94,7 @@ internal object QuotaPopupSupport {
             }
         })
 
+        latestState = service.currentSnapshot()
         content.refresh(latestState)
         popup.show(RelativePoint(component, popupPoint(component, content, location)))
     }
@@ -121,6 +130,55 @@ internal object QuotaPopupSupport {
         }
         return Point(x, y)
     }
+
+    private fun availablePopupHeight(component: Component, location: QuotaPopupLocation): Int {
+        val screen = component.graphicsConfiguration.bounds
+        val insets = Toolkit.getDefaultToolkit().getScreenInsets(component.graphicsConfiguration)
+        val anchor = component.locationOnScreen
+        val gap = JBUI.scale(4)
+        val height = when (location) {
+            QuotaPopupLocation.ABOVE -> anchor.y - (screen.y + insets.top) - gap
+            QuotaPopupLocation.BELOW -> screen.y + screen.height - insets.bottom - (anchor.y + component.height) - gap
+        }
+        return (height - JBUI.scale(4)).coerceAtLeast(1)
+    }
+}
+
+internal class QuotaPopupScrollPane(content: JComponent) : JBScrollPane(
+    ScrollablePopupContent(content),
+    VERTICAL_SCROLLBAR_AS_NEEDED,
+    HORIZONTAL_SCROLLBAR_NEVER,
+) {
+    init {
+        border = null
+        isOpaque = false
+        viewport.isOpaque = false
+        verticalScrollBar.unitIncrement = JBUI.scale(16)
+    }
+
+    fun fitHeight(maxHeight: Int) {
+        preferredSize = Dimension(JBUI.scale(280), viewport.view.preferredSize.height.coerceAtMost(maxHeight))
+        revalidate()
+    }
+}
+
+private class ScrollablePopupContent(content: JComponent) : JPanel(BorderLayout()), Scrollable {
+    init {
+        isOpaque = false
+        add(content, BorderLayout.CENTER)
+    }
+
+    override fun getPreferredScrollableViewportSize(): Dimension = preferredSize
+
+    override fun getScrollableUnitIncrement(visibleRect: Rectangle, orientation: Int, direction: Int): Int =
+        JBUI.scale(16)
+
+    override fun getScrollableBlockIncrement(visibleRect: Rectangle, orientation: Int, direction: Int): Int =
+        visibleRect.height
+
+    override fun getScrollableTracksViewportWidth(): Boolean = true
+
+    override fun getScrollableTracksViewportHeight(): Boolean = false
 }
 
 internal class RefreshablePopupPanel<T>(

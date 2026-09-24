@@ -1,5 +1,9 @@
 # LLM Subscription Usage Changelog
 
+## [Unreleased]
+
+- Quota popup stays one column wide and scrolls vertically when provider details exceed the available screen height.
+
 ## [1.15.5] - 2026-09-24
 
 - OpenCode proxy sends `x-opencode-session` on inference requests. Go rejects calls that omit it. An incoming session id or `prompt_cache_key` is kept; otherwise the proxy sends a stable hash of the first message.
