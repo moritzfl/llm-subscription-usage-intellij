@@ -42,12 +42,26 @@ class PdfDocumentConversionTest {
 
     @Test
     fun relativeOutputNameResolvesBesideTheSelectedPdf() {
-        val source = Path.of("C:/project/PDFs/sample-report.pdf")
+        val source = Path.of("project", "PDFs", "sample-report.pdf").toAbsolutePath()
         assertEquals(
             source.parent.resolve("sample-report.md"),
             resolveMarkdownOutput(source, "sample-report.md"),
         )
-        val chosen = source.parent.resolve("converted/result.md")
+    }
+
+    @Test
+    fun absoluteOutputPathCanSelectAnotherDirectory() {
+        val source = Path.of("project", "PDFs", "sample-report.pdf").toAbsolutePath()
+        val chosen = Path.of("converted", "result.md").toAbsolutePath()
         assertEquals(chosen, resolveMarkdownOutput(source, chosen.toString()))
+    }
+
+    @Test
+    fun relativeSourceAndOutputPathsAreResolvedAndNormalized() {
+        val source = Path.of("project", "PDFs", "sample-report.pdf")
+        assertEquals(
+            Path.of("project", "converted", "result.md").toAbsolutePath(),
+            resolveMarkdownOutput(source, "  ../converted/result.md  "),
+        )
     }
 }

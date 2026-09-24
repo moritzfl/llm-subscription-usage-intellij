@@ -1,5 +1,10 @@
 # LLM Subscription Usage Changelog
 
+## [Unreleased]
+
+- Fixed the PDF conversion path test on Linux and updated CI actions to Node.js 24 versions.
+- PDF conversion dialogs now open at a content-aware width, keep dropdown and browse buttons visible, and constrain long filenames instead of letting them push controls outside the window.
+
 ## [1.15.8] - 2026-09-24
 
 - Added opt-in Azure PDF/image-to-Markdown conversion through Mistral OCR/Document AI and Cohere Parse deployments or Document Intelligence `prebuilt-layout`. Cohere renders PDF pages locally for its image-only endpoint; Markdown and detected figures can be saved to files.

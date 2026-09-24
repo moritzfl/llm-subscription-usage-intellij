@@ -27,10 +27,10 @@ import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
 import de.moritzf.quota.shared.DocumentMarkdown
+import java.awt.Dimension
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
-import java.awt.Dimension
 import javax.swing.DefaultListCellRenderer
 import javax.swing.JComponent
 
@@ -124,6 +124,7 @@ private class ConvertPdfToMarkdownDialog(
     }
     private val imagesCheckBox = JBCheckBox("Save detected figures", true)
     private val outputField = TextFieldWithBrowseButton().apply {
+        textField.columns = 40
         text = defaultFileName.toString()
         addActionListener {
             val parent = LocalFileSystem.getInstance().findFileByNioFile(source.parent)
@@ -139,12 +140,19 @@ private class ConvertPdfToMarkdownDialog(
     init {
         title = "Convert PDF to Markdown"
         setOKButtonText("Convert")
+        isResizable = true
         init()
+        window.minimumSize = window.preferredSize
     }
 
     override fun createCenterPanel(): JComponent = panel {
         row("PDF:") {
-            cell(JBLabel(source.fileName.toString()).apply { toolTipText = source.toString() })
+            cell(JBLabel(source.fileName.toString()).apply {
+                toolTipText = source.toString()
+                // Ellipsize long names instead of widening the shared controls column.
+                preferredSize = Dimension(minOf(preferredSize.width, JBUI.scale(520)), preferredSize.height)
+                minimumSize = Dimension(0, minimumSize.height)
+            })
                 .align(AlignX.FILL).resizableColumn()
         }
         row("Provider:") { cell(providerCombo).align(AlignX.FILL).resizableColumn() }
@@ -154,8 +162,8 @@ private class ConvertPdfToMarkdownDialog(
                 .comment("Relative paths are saved beside the PDF. Browse to choose another folder.")
         }
     }.apply {
-        preferredSize = Dimension(JBUI.scale(540), preferredSize.height)
-        minimumSize = Dimension(JBUI.scale(450), minimumSize.height)
+        // Never pack the dialog narrower than the layout needs (including arrow/browse buttons).
+        preferredSize = Dimension(maxOf(JBUI.scale(640), preferredSize.width, minimumSize.width), preferredSize.height)
     }
 
     override fun doValidate(): ValidationInfo? {
