@@ -19,18 +19,22 @@ class AzurePopupContentBuilderTest {
     @Test
     fun showsAccountAndDiscoveredDeploymentsWithoutAllocationQuotasOrCapacity() {
         val west = assertNotNull(parseAzureDeployments(
-            """{"value":[{"name":"chat","sku":{"name":"DataZoneStandard","capacity":3333}}]}""",
+            """{"value":[
+                {"name":"chat-production","sku":{"name":"DataZoneStandard","capacity":3333},"properties":{"model":{"name":"gpt-6-sol"}}},
+                {"name":"chat-testing","sku":{"name":"DataZoneStandard","capacity":3333},"properties":{"model":{"name":"gpt-6-sol"}}},
+                {"name":"embeddings","sku":{"name":"DataZoneStandard","capacity":2000},"properties":{"model":{"name":"text-embedding-3-large"}}}
+            ]}""",
             AzureResourceRef("ai-west", "westeurope", null, null),
         ))
         val east = assertNotNull(parseAzureDeployments(
-            """{"value":[{"name":"embed","sku":{"name":"DataZoneStandard","capacity":2000}}]}""",
+            """{"value":[{"name":"chat-east","properties":{"model":{"name":"gpt-4.1"}}}]}""",
             AzureResourceRef("ai-east", "eastus", null, null),
         ))
         val quota = AzureQuota(
             account = AzureAccountIdentity(userName = "alex", subscriptionName = "Work subscription"),
             windows = listOf(
                 AzureUsageWindow("tokens", "Tokens / minute", AzureUsageWindow.ALLOCATION, used = 3333.0, limit = 3333.0),
-            ) + west + east,
+            ) + west.take(1) + east + west.drop(1),
             models = listOf("not-a-discovered-deployment"),
         )
         val section = AzurePopupSection()
@@ -40,14 +44,33 @@ class AzurePopupContentBuilderTest {
         assertEquals(
             listOf(
                 listOf("Work subscription", "User: alex"),
-                listOf("Deployment: chat", "Resource: ai-west · Region: westeurope"),
-                listOf("Deployment: embed", "Resource: ai-east · Region: eastus"),
+                listOf("Resource: ai-west", "Region: westeurope"),
+                listOf("gpt-6-sol"),
+                listOf("text-embedding-3-large"),
+                listOf("Resource: ai-east", "Region: eastus"),
+                listOf("gpt-4.1"),
             ),
-            section.visibleBlocks().map { block -> block.components.filterIsInstance<JLabel>().map { it.text } },
+            section.visibleLabels(),
         )
+        assertTrue(section.visibleBlocks()[1].components.filterIsInstance<JLabel>().first().font.isBold)
+        assertTrue(section.visibleBlocks()[2].components.filterIsInstance<JLabel>().first().font.isPlain)
         assertTrue(section.visibleBlocks().all { block -> block.components.filterIsInstance<JProgressBar>().none { it.isVisible } })
         assertEquals("alex", AzureUi.barText(quota, null))
         assertEquals(-1, AzureUi.displayPercent(quota, null))
+
+        section.update(quota.copy(windows = east), error = null, visible = true)
+        assertEquals(
+            listOf(
+                listOf("Work subscription", "User: alex"),
+                listOf("Resource: ai-east", "Region: eastus"),
+                listOf("gpt-4.1"),
+            ),
+            section.visibleLabels(),
+        )
+        section.update(quota.copy(account = null, windows = east), error = null, visible = true)
+        assertTrue(section.visibleBlocks()[1].components.filterIsInstance<JLabel>().first().font.isPlain)
+        section.update(quota.copy(windows = east), error = null, visible = true)
+        assertTrue(section.visibleBlocks()[1].components.filterIsInstance<JLabel>().first().font.isBold)
     }
 
     @Test
@@ -71,4 +94,8 @@ class AzurePopupContentBuilderTest {
 
     private fun AzurePopupSection.visibleBlocks(): List<WindowBlockPanel> =
         components.filterIsInstance<WindowBlockPanel>().filter { it.isVisible }
+
+    private fun AzurePopupSection.visibleLabels(): List<List<String>> = visibleBlocks().map { block ->
+        block.components.filterIsInstance<JLabel>().filter { it.isVisible }.map { it.text }
+    }
 }

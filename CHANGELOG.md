@@ -1,5 +1,9 @@
 # LLM Subscription Usage Changelog
 
+## [Unreleased]
+
+- Azure popup groups deployments by resource and region and lists distinct model names in regular weight underneath each resource.
+
 ## [1.15.6] - 2026-09-24
 
 - Azure popup shows subscription, user, and each discovered deployment's resource and region without listing regional allocation quotas or deployment capacity. Only observed live rate limits show usage percentages.

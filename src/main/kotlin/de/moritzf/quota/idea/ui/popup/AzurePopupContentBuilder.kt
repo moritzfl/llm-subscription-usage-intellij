@@ -35,12 +35,13 @@ internal class AzurePopupSection : ProviderPopupSection() {
                 val subscription = identity.subscriptionName ?: identity.subscriptionId ?: "Subscription unavailable"
                 block(index++).showUnavailable(subscription, "User: ${identity.userName ?: "unavailable"}")
             }
-            for (window in azure.currentWindows().filter { it.kind == AzureUsageWindow.DEPLOYMENT }) {
-                val details = listOfNotNull(
-                    window.resourceName?.let { "Resource: $it" },
-                    window.location?.let { "Region: $it" },
-                ).joinToString(" · ").ifEmpty { "Resource and region unavailable" }
-                block(index++).showUnavailable("Deployment: ${window.id}", details)
+            val deployments = azure.currentWindows().filter { it.kind == AzureUsageWindow.DEPLOYMENT }
+            for ((resource, windows) in deployments.groupBy { it.resourceName to it.location }) {
+                val (name, region) = resource
+                block(index++).showUnavailable("Resource: ${name ?: "unavailable"}", "Region: ${region ?: "unavailable"}")
+                for (model in windows.map { it.modelName?.takeIf(String::isNotBlank) ?: it.id }.distinct()) {
+                    block(index++).showTitleOnly(model)
+                }
             }
             for (window in azure.liveWindows()) {
                 block(index++).update("Live rate limit: ${window.label}", window.describeLive(), window.usagePercent!!.roundToInt())

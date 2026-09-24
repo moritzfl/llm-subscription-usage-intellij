@@ -381,7 +381,9 @@ internal class WindowBlockPanel(topInset: Int = 3) : JPanel(VerticalFlowLayout(V
 
     fun update(title: String, info: String, percent: Int) {
         titleLabel.text = title
+        if (!titleLabel.font.isBold) titleLabel.font = titleLabel.font.deriveFont(Font.BOLD)
         infoLabel.text = info
+        infoLabel.isVisible = true
         progressBar.value = percent
         progressBar.isVisible = true
         isVisible = true
@@ -389,6 +391,13 @@ internal class WindowBlockPanel(topInset: Int = 3) : JPanel(VerticalFlowLayout(V
 
     fun showUnavailable(title: String, info: String) {
         update(title, info, 0)
+        progressBar.isVisible = false
+    }
+
+    fun showTitleOnly(title: String) {
+        update(title, "", 0)
+        titleLabel.font = titleLabel.font.deriveFont(Font.PLAIN)
+        infoLabel.isVisible = false
         progressBar.isVisible = false
     }
 

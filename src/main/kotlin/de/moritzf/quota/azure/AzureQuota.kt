@@ -69,6 +69,7 @@ data class AzureUsageWindow(
     val location: String? = null,
     val resourceName: String? = null,
     val expiresAt: Instant? = null,
+    val modelName: String? = null,
 ) {
     val key: String get() = listOf(kind, location.orEmpty(), resourceName.orEmpty(), id).joinToString("/")
 
@@ -173,6 +174,8 @@ internal fun parseAzureDeployments(raw: String, resource: AzureResourceRef? = nu
         val item = element as? JsonObject ?: return@mapNotNull null
         val name = item.text("name") ?: return@mapNotNull null
         val sku = item["sku"] as? JsonObject
+        val properties = item["properties"] as? JsonObject
+        val model = properties?.get("model") as? JsonObject
         val capacity = sku?.get("capacity")?.lenientDoubleOrNull()
         AzureUsageWindow(
             id = name,
@@ -183,6 +186,7 @@ internal fun parseAzureDeployments(raw: String, resource: AzureResourceRef? = nu
             unit = if (sku?.text("name")?.contains("Provisioned", ignoreCase = true) == true) "PTU" else "capacity units",
             location = resource?.location,
             resourceName = resource?.name,
+            modelName = model?.text("name"),
         )
     }
 }

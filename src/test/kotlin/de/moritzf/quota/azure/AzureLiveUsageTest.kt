@@ -67,8 +67,10 @@ class AzureLiveUsageTest {
         assertEquals(null, windows[0].used)
         assertEquals(null, windows[0].usagePercent)
         assertEquals(10.0, windows[0].capacity)
+        assertEquals("o1", windows[0].modelName)
         assertEquals("capacity units", windows[0].unit)
         assertEquals(50.0, windows[1].capacity)
+        assertNull(windows[1].modelName)
         assertEquals("PTU", windows[1].unit)
     }
 
