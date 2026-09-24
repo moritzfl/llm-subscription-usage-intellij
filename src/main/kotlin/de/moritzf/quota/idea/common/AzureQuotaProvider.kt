@@ -6,7 +6,12 @@ import de.moritzf.quota.azure.AzureCliException
 import de.moritzf.quota.azure.AzureLiveUsage
 import de.moritzf.quota.azure.AzureQuota
 import de.moritzf.quota.azure.AzureQuotaClient
+import de.moritzf.quota.azure.AZURE_DOCUMENT_INTELLIGENCE_LAYOUT
 import de.moritzf.quota.azure.azureAccountConfig
+import de.moritzf.quota.azure.azureCohereParseUri
+import de.moritzf.quota.azure.azureDocumentIntelligenceUri
+import de.moritzf.quota.azure.azureOcrUri
+import de.moritzf.quota.azure.isAzureCohereSelection
 import de.moritzf.quota.idea.settings.ProviderAccount
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import java.nio.file.Path
@@ -66,6 +71,22 @@ class AzureQuotaProvider(
                 location = account?.extra(ProviderAccount.EXTRA_AZURE_LOCATION),
                 deploymentNames = account?.extra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS),
             )
+        }
+
+        internal fun ocrDeploymentForAccount(accountId: String): String? =
+            runCatching {
+                QuotaSettingsState.getInstance().account(accountId)?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT)
+            }.getOrNull()
+
+        internal fun isDocumentConfiguredForAccount(accountId: String): Boolean {
+            val selection = ocrDeploymentForAccount(accountId) ?: return false
+            if (executableForAccount(accountId) == null) return false
+            val config = configForAccount(accountId)
+            return when {
+                selection == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT -> azureDocumentIntelligenceUri(config) != null
+                isAzureCohereSelection(selection) -> azureCohereParseUri(config) != null
+                else -> azureOcrUri(config) != null
+            }
         }
     }
 }

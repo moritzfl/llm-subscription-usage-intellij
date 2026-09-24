@@ -139,7 +139,7 @@ internal object ProviderCatalog {
         ),
         descriptor(
             type = QuotaProviderType.AZURE,
-            capabilities = ProviderCapabilities(subscriptionProxy = true, multipleAccounts = false),
+            capabilities = ProviderCapabilities(documentToMarkdown = true, subscriptionProxy = true, multipleAccounts = false),
             quotaFactory = { AzureQuotaProvider(accountId = it.id) },
             snapshotCodec = EnvelopeQuotaCodec(AzureQuota.serializer()),
             mcpEmpty = "No Azure usage response available",
@@ -148,6 +148,8 @@ internal object ProviderCatalog {
             // CLI availability, not an assertion about the current login. Refresh verifies it.
             isQuotaConfigured = { AzureQuotaProvider.executableForAccount(QuotaProviderType.AZURE.id) != null },
             isQuotaConfiguredForAccount = { AzureQuotaProvider.executableForAccount(it) != null },
+            isDocumentConfigured = { AzureQuotaProvider.isDocumentConfiguredForAccount(QuotaProviderType.AZURE.id) },
+            isDocumentConfiguredForAccount = AzureQuotaProvider::isDocumentConfiguredForAccount,
             isProxyConfigured = { _ ->
                 anyAccount(QuotaProviderType.AZURE) { id ->
                     val account = de.moritzf.quota.idea.settings.QuotaSettingsState.getInstance().account(id)

@@ -13,6 +13,10 @@ import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.azure.AzureCli
 import de.moritzf.quota.azure.AzureCliAccount
 import de.moritzf.quota.azure.AzureQuota
+import de.moritzf.quota.azure.AZURE_DOCUMENT_INTELLIGENCE_LAYOUT
+import de.moritzf.quota.azure.azureOcrDeployments
+import de.moritzf.quota.azure.azureOcrDeploymentId
+import de.moritzf.quota.azure.isAzureCohereSelection
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
@@ -32,6 +36,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
     val endpointField = JBTextField().apply { columns = 28 }
     val locationField = JBTextField().apply { columns = 16 }
     val deploymentsField = JBTextField().apply { columns = 28 }
+    val ocrDeploymentCombo = ComboBox<String>().apply { prototypeDisplayValue = "mistral-document-ai-2512" }
     private val accountCombo = ComboBox<AzureCliAccount>()
     private val status = JBLabel()
     private val viewer = createResponseViewer()
@@ -42,6 +47,16 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
 
     init {
         accountCombo.renderer = AzureAccountRenderer()
+        ocrDeploymentCombo.renderer = object : javax.swing.DefaultListCellRenderer() {
+            override fun getListCellRendererComponent(
+                list: javax.swing.JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean,
+            ): java.awt.Component {
+                val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+                if (value == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT) text = "Document Intelligence · prebuilt-layout"
+                else if (value is String && isAzureCohereSelection(value)) text = "Cohere Parse · ${azureOcrDeploymentId(value)}"
+                return component
+            }
+        }
         accountCombo.addItemListener { event ->
             if (suppressSelection || event.stateChange != ItemEvent.SELECTED) return@addItemListener
             val selected = event.item as? AzureCliAccount ?: return@addItemListener
@@ -54,6 +69,18 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                 if (!applyingFields) refreshTimer.restart()
             }
         })
+        deploymentsField.document.addDocumentListener(object : DocumentAdapter() {
+            override fun textChanged(event: DocumentEvent) {
+                if (!applyingFields) refreshOcrDeployments(ocrDeployment())
+            }
+        })
+        val targetChanged = object : DocumentAdapter() {
+            override fun textChanged(event: DocumentEvent) {
+                if (!applyingFields) refreshOcrDeployments(null)
+            }
+        }
+        resourceField.document.addDocumentListener(targetChanged)
+        endpointField.document.addDocumentListener(targetChanged)
         install(panel {
             row { cell(status).align(AlignX.FILL).resizableColumn() }
             row {
@@ -91,6 +118,12 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                 cell(deploymentsField).align(AlignX.FILL).resizableColumn()
                     .comment("Optional deployment names. Used when discovery is unavailable. Proxy accepts az-<deployment-name> even if unlisted.")
             }
+            row("Document model:") {
+                cell(ocrDeploymentCombo).align(AlignX.FILL).resizableColumn()
+                    .comment("- disables conversion. Mistral OCR/Document AI support PDFs and images; " +
+                        "Cohere Parse supports images (PDFs are rendered page by page); " +
+                        "Document Intelligence uses its prebuilt-layout service, not a deployment.")
+            }
             row {
                 browserLink(
                     "Azure OpenAI auth (Microsoft documentation)",
@@ -112,6 +145,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
     fun endpoint(): String? = endpointField.text.trim().takeIf { it.isNotEmpty() }
     fun locationId(): String? = locationField.text.trim().takeIf { it.isNotEmpty() }
     fun deploymentNames(): String? = deploymentsField.text.trim().takeIf { it.isNotEmpty() }
+    fun ocrDeployment(): String? = (ocrDeploymentCombo.selectedItem as? String)?.takeIf { it != NO_OCR }
 
     fun differsFrom(account: ProviderAccount?): Boolean {
         return normalizedExecutablePath().orEmpty() != account?.extra(ProviderAccount.EXTRA_AZURE_EXECUTABLE).orEmpty() ||
@@ -119,7 +153,8 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
             resourceName().orEmpty() != account?.extra(ProviderAccount.EXTRA_AZURE_RESOURCE).orEmpty() ||
             endpoint().orEmpty() != account?.extra(ProviderAccount.EXTRA_AZURE_ENDPOINT).orEmpty() ||
             locationId().orEmpty() != account?.extra(ProviderAccount.EXTRA_AZURE_LOCATION).orEmpty() ||
-            deploymentNames().orEmpty() != account?.extra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS).orEmpty()
+            deploymentNames().orEmpty() != account?.extra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS).orEmpty() ||
+            ocrDeployment().orEmpty() != account?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT).orEmpty()
     }
 
     private fun refreshAccounts(interactive: Boolean) {
@@ -174,6 +209,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
             endpointField.text = account?.extra(ProviderAccount.EXTRA_AZURE_ENDPOINT).orEmpty()
             locationField.text = account?.extra(ProviderAccount.EXTRA_AZURE_LOCATION).orEmpty()
             deploymentsField.text = account?.extra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS).orEmpty()
+            refreshOcrDeployments(account?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT))
         } finally {
             applyingFields = false
         }
@@ -185,6 +221,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
         val service = QuotaUsageService.getInstance()
         val id = accountKey(QuotaProviderType.AZURE)
         val quota = service.getLastQuota(id) as? AzureQuota
+        refreshOcrDeployments(ocrDeployment())
         val error = service.getLastError(id)
         val identity = quota?.account
         val message = when {
@@ -213,6 +250,25 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
         val id = accountKey(QuotaProviderType.AZURE)
         viewer.text = service.getLastError(id) ?: service.getLastResponseJson(id) ?: "No Azure reading yet."
         viewer.caretPosition = 0
+    }
+
+    private fun refreshOcrDeployments(selection: String?) {
+        val quota = runCatching { QuotaUsageService.getInstance().getLastQuota(accountKey(QuotaProviderType.AZURE)) as? AzureQuota }.getOrNull()
+        val sameTarget = resourceName() == boundAccount?.extra(ProviderAccount.EXTRA_AZURE_RESOURCE) &&
+            endpoint() == boundAccount?.extra(ProviderAccount.EXTRA_AZURE_ENDPOINT)
+        val choices = listOf(NO_OCR) + azureOcrDeployments(
+            quota.takeIf { sameTarget }, deploymentNames(), selection, resourceName(),
+            documentIntelligenceAvailable = resourceName() != null || endpoint() != null,
+        )
+        if ((0 until ocrDeploymentCombo.itemCount).map(ocrDeploymentCombo::getItemAt) != choices) {
+            ocrDeploymentCombo.model = DefaultComboBoxModel(choices.toTypedArray())
+        }
+        val selected = selection?.takeIf { it in choices } ?: NO_OCR
+        if (ocrDeploymentCombo.selectedItem != selected) ocrDeploymentCombo.selectedItem = selected
+    }
+
+    companion object {
+        private const val NO_OCR = "-"
     }
 }
 

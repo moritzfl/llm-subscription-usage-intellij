@@ -538,6 +538,7 @@ class QuotaSettingsConfigurable : Configurable {
                                 ProviderAccount.EXTRA_AZURE_ENDPOINT,
                                 ProviderAccount.EXTRA_AZURE_LOCATION,
                                 ProviderAccount.EXTRA_AZURE_DEPLOYMENTS,
+                                ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT,
                             ).any { key -> account.extra(key) != previous.extra(key) }
                         } == true
                 }.map { it.id }
@@ -779,6 +780,7 @@ class QuotaSettingsConfigurable : Configurable {
                 account.setExtra(ProviderAccount.EXTRA_AZURE_ENDPOINT, panel.endpoint())
                 account.setExtra(ProviderAccount.EXTRA_AZURE_LOCATION, panel.locationId())
                 account.setExtra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS, panel.deploymentNames())
+                account.setExtra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT, panel.ocrDeployment())
             }
             QuotaProviderType.GITHUB ->
                 account.setExtra(

@@ -164,7 +164,7 @@ internal class AzureSubscriptionProxyProvider(
     private fun isChatDeployment(id: String): Boolean {
         val name = id.lowercase()
         return !name.startsWith("text-embedding-") && !name.startsWith("mistral-ocr-") &&
-            !name.startsWith("mistral-document-ai-")
+            !name.startsWith("mistral-document-ai-") && !name.startsWith("cohere-parse-")
     }
 
     data class AzureProxyConfig(

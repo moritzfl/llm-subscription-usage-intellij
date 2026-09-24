@@ -239,6 +239,7 @@ internal data class MistralOcrDocumentDto(
     val type: String,
     @SerialName("document_url") val documentUrl: String? = null,
     @SerialName("file_id") val fileId: String? = null,
+    @SerialName("image_url") val imageUrl: String? = null,
 )
 
 @Serializable

@@ -9,6 +9,7 @@ import com.intellij.mcpserver.util.resolveInProject
 import kotlinx.coroutines.currentCoroutineContext
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.ProviderCatalog
+import de.moritzf.quota.idea.common.AzureQuotaProvider
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.kimi.KimiCredentialsStore
@@ -28,6 +29,14 @@ import de.moritzf.quota.minimax.MiniMaxRegion
 import de.moritzf.quota.minimax.MiniMaxRegionPreference
 import de.moritzf.quota.minimax.MiniMaxWebSearchClient
 import de.moritzf.quota.mistral.MistralAudioClient
+import de.moritzf.quota.azure.AzureCli
+import de.moritzf.quota.azure.AzureOcrClient
+import de.moritzf.quota.azure.AzureOcrException
+import de.moritzf.quota.azure.AzureCohereParseClient
+import de.moritzf.quota.azure.AzureDocumentIntelligenceClient
+import de.moritzf.quota.azure.AZURE_DOCUMENT_INTELLIGENCE_LAYOUT
+import de.moritzf.quota.azure.azureOcrDeploymentId
+import de.moritzf.quota.azure.isAzureCohereSelection
 import de.moritzf.quota.mistral.MistralImageClient
 import de.moritzf.quota.mistral.MistralOcrClient
 import de.moritzf.quota.mistral.MistralQuotaException
@@ -74,6 +83,10 @@ class SubscriptionUsageMcpToolset(
     private val zaiAudioClient: ZaiAudioClient = ZaiAudioClient.createDefault(),
     private val zaiVideoClient: ZaiVideoClient = ZaiVideoClient.createDefault(),
 ) : McpToolset {
+    private val azureOcrClient = AzureOcrClient()
+    private val azureCohereParseClient = AzureCohereParseClient()
+    private val azureDocumentIntelligenceClient = AzureDocumentIntelligenceClient()
+
     @McpTool(name = "subscription_quota")
     @McpDescription(description = "Returns the latest subscription quota response JSON for the selected provider.")
     suspend fun subscription_quota(
@@ -246,18 +259,21 @@ class SubscriptionUsageMcpToolset(
     }
 
     @McpTool(name = "subscription_document_to_markdown")
-    @McpDescription(description = "Converts a PDF or image to markdown. Mistral and Z.ai use dedicated OCR and extract embedded images to disk. OpenAI/Codex and SuperGrok send the original document to their vision models and, for a local PDF with includeImages=true, render cropped image regions to disk as image-p<page>-<index>.png. For large PDFs on Codex/SuperGrok, pass 1-based pageFrom/pageTo to convert a slice (the whole file is one model request; overflow fails). The result includes page_count so you can walk remaining pages. If outputFile is omitted and localFile is set, markdown is written beside the source as <name>.md. Images are never returned as base64.")
+    @McpDescription(description = "Converts a PDF or image to markdown. Azure uses the document model selected in settings: Mistral OCR/Document AI, Cohere Parse (PDF pages rendered locally), or Document Intelligence layout. Mistral and Z.ai use dedicated OCR. OpenAI/Codex and SuperGrok use vision models and crop figures locally. For large PDFs on Codex/SuperGrok/Cohere, use pageFrom/pageTo. With localFile, markdown defaults to <name>.md beside it. Images are never returned as base64.")
     suspend fun subscription_document_to_markdown(
         @McpDescription(description = "Provider to use. Supported providers are derived from the DocumentToMarkdownProvider enum.") provider: DocumentToMarkdownProvider = DocumentToMarkdownProvider.MISTRAL,
         @McpDescription(description = "Public document URL. Leave blank when localFile is set.") documentUrl: String? = null,
         @McpDescription(description = "Optional project-relative or absolute local file path.") localFile: String? = null,
         @McpDescription(description = "Optional markdown output path. Defaults to <localFile>.md beside the source.") outputFile: String? = null,
         @McpDescription(description = "Keep extracted images when the provider returns them.") includeImages: Boolean = true,
-        @McpDescription(description = "OCR model id. Leave blank for the provider default.") model: String = "",
-        @McpDescription(description = "Optional 1-based first page for Codex/SuperGrok local PDFs. Leave 0 for the start of the document.") pageFrom: Int = 0,
-        @McpDescription(description = "Optional 1-based last page for Codex/SuperGrok local PDFs. Leave 0 for the end of the document.") pageTo: Int = 0,
+        @McpDescription(description = "OCR model id. For Azure, leave blank to use the document model selected in settings.") model: String = "",
+        @McpDescription(description = "Optional 1-based first page for Codex/SuperGrok/Cohere PDFs. Leave 0 for the start of the document.") pageFrom: Int = 0,
+        @McpDescription(description = "Optional 1-based last page for Codex/SuperGrok/Cohere PDFs. Leave 0 for the end of the document.") pageTo: Int = 0,
     ): String {
         return when (provider) {
+            DocumentToMarkdownProvider.AZURE ->
+                azureDocumentToMarkdown(documentUrl, localFile, outputFile, includeImages, model, pageFrom, pageTo)
+
             DocumentToMarkdownProvider.MISTRAL ->
                 mistralDocumentToMarkdown(
                     documentUrl,
@@ -949,6 +965,61 @@ class SubscriptionUsageMcpToolset(
             errorResult(exception.message ?: "Mistral OCR failed.")
         } catch (exception: Exception) {
             errorResult(exception.message ?: "Mistral OCR failed.")
+        }
+    }
+
+    private suspend fun azureDocumentToMarkdown(
+        documentUrl: String?,
+        localFile: String?,
+        outputFile: String?,
+        includeImages: Boolean,
+        model: String,
+        pageFrom: Int,
+        pageTo: Int,
+    ): String {
+        val accountId = try {
+            de.moritzf.quota.idea.settings.AccountResolver.resolve(
+                QuotaProviderType.AZURE,
+                capability = AccountCapability.DOCUMENT_TO_MARKDOWN,
+            ).id
+        } catch (_: de.moritzf.quota.idea.settings.AccountResolveException) {
+            return errorResult("Add an Azure account in settings to use OCR.")
+        }
+        val deployment = AzureQuotaProvider.ocrDeploymentForAccount(accountId)
+            ?: return errorResult("Select an Azure document model in settings. '-' disables conversion.")
+        val deploymentId = azureOcrDeploymentId(deployment)
+        if (model.isNotBlank() && model.trim() != deployment && model.trim() != deploymentId &&
+            !(deployment == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT && model.trim() == "prebuilt-layout")) {
+            return errorResult("Azure document conversion uses the model selected in settings: $deploymentId.")
+        }
+        if (deployment != AZURE_DOCUMENT_INTELLIGENCE_LAYOUT && !isAzureCohereSelection(deployment) &&
+            (pageFrom > 0 || pageTo > 0)) return errorResult("pageFrom/pageTo are not supported for Azure Mistral OCR.")
+        if (deployment == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT && (pageFrom > 0 || pageTo > 0)) {
+            return errorResult("pageFrom/pageTo are not supported for Azure Document Intelligence.")
+        }
+        val executable = AzureQuotaProvider.executableForAccount(accountId)
+            ?: return errorResult("Azure CLI not found. Set its path in Azure settings.")
+        return try {
+            val cli = AzureCli(executable)
+            val config = AzureQuotaProvider.configForAccount(accountId)
+            val sourceFile = resolveOptionalPath(localFile)
+            val destination = resolveOptionalPath(outputFile)
+            when {
+                deployment == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT -> azureDocumentIntelligenceClient.convertDocument(
+                    cli, config, documentUrl, sourceFile, destination, includeImages,
+                )
+                isAzureCohereSelection(deployment) -> azureCohereParseClient.convertDocument(
+                    cli, config, deploymentId, documentUrl, sourceFile, destination, includeImages,
+                    pageFrom.takeIf { it > 0 }, pageTo.takeIf { it > 0 },
+                )
+                else -> azureOcrClient.convertDocument(
+                    cli, config, deploymentId, documentUrl, sourceFile, destination, includeImages,
+                )
+            }
+        } catch (exception: AzureOcrException) {
+            errorResult(exception.message ?: "Azure OCR failed.")
+        } catch (exception: Exception) {
+            errorResult(exception.message ?: "Azure OCR failed.")
         }
     }
 

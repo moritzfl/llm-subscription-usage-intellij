@@ -48,7 +48,7 @@ class AzureSubscriptionProxyProviderTest {
     fun onlyChatDeploymentsAreAdvertisedToJunie() {
         val provider = provider(
             deploymentNames = listOf(
-                "text-embedding-3-large", "mistral-ocr-4-0", "mistral-document-ai-2512",
+                "text-embedding-3-large", "mistral-ocr-4-0", "mistral-document-ai-2512", "Cohere-parse-v5",
                 "gpt-4.1", "Mistral-Large-3",
             ),
             resourceName = "azure-chat-filter-test",
@@ -58,6 +58,7 @@ class AzureSubscriptionProxyProviderTest {
         assertNull(provider.fallbackModel("az-text-embedding-3-large", SubscriptionProxyRoute.CHAT_COMPLETIONS))
         assertNull(provider.fallbackModel("az-mistral-ocr-4-0", SubscriptionProxyRoute.CHAT_COMPLETIONS))
         assertNull(provider.fallbackModel("az-mistral-document-ai-2512", SubscriptionProxyRoute.CHAT_COMPLETIONS))
+        assertNull(provider.fallbackModel("az-Cohere-parse-v5", SubscriptionProxyRoute.CHAT_COMPLETIONS))
     }
 
     @Test
