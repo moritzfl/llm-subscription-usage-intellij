@@ -1,6 +1,6 @@
 # LLM Subscription Usage Changelog
 
-## [Unreleased]
+## [1.15.6] - 2026-09-24
 
 - Azure popup shows subscription, user, and each discovered deployment's resource and region without listing regional allocation quotas or deployment capacity. Only observed live rate limits show usage percentages.
 - Quota popup stays one column wide and scrolls vertically when provider details exceed the available screen height.
@@ -551,7 +551,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.5...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.6...HEAD
+[1.15.6]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.5...1.15.6
 [1.15.5]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.4...1.15.5
 [1.15.4]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.3...1.15.4
 [1.15.3]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.2...1.15.3
