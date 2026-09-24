@@ -1,6 +1,6 @@
 # LLM Subscription Usage Changelog
 
-## [Unreleased]
+## [1.15.9] - 2026-09-24
 
 - Fixed the PDF conversion path test on Linux and updated CI actions to Node.js 24 versions.
 - PDF conversion dialogs now open at a content-aware width, keep dropdown and browse buttons visible, and constrain long filenames instead of letting them push controls outside the window.
@@ -566,7 +566,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.8...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.9...HEAD
+[1.15.9]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.8...1.15.9
 [1.15.8]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.7...1.15.8
 [1.15.7]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.6...1.15.7
 [1.15.6]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.5...1.15.6
