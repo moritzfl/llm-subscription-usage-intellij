@@ -31,45 +31,29 @@ internal class AzurePopupSection : ProviderPopupSection() {
         blocks.forEach { it.clear() }
         if (error == null && azure != null) {
             var index = 0
-            val identity = azure.account
-            if (identity != null) {
-                val who = identity.userName ?: "Signed in"
-                val sub = identity.subscriptionName ?: identity.subscriptionId ?: "subscription"
-                val info = buildList {
-                    add(who)
-                    identity.tier?.let { add(it) }
-                }.joinToString(" · ")
-                block(index++).showUnavailable(sub, info)
+            azure.account?.let { identity ->
+                val subscription = identity.subscriptionName ?: identity.subscriptionId ?: "Subscription unavailable"
+                block(index++).showUnavailable(subscription, "User: ${identity.userName ?: "unavailable"}")
             }
-            val windows = azure.currentWindows()
-            for (window in windows) {
-                val percent = window.usagePercent?.roundToInt()
-                val info = window.describe()
-                block(index++).apply {
-                    if (percent != null) update(window.label, info, percent) else showUnavailable(window.label, info)
-                }
+            for (window in azure.currentWindows().filter { it.kind == AzureUsageWindow.DEPLOYMENT }) {
+                val details = listOfNotNull(
+                    window.resourceName?.let { "Resource: $it" },
+                    window.location?.let { "Region: $it" },
+                ).joinToString(" · ").ifEmpty { "Resource and region unavailable" }
+                block(index++).showUnavailable("Deployment: ${window.id}", details)
             }
-            if (windows.isEmpty() && azure.models.isNotEmpty()) {
-                block(index).showUnavailable("Deployments", azure.models.joinToString(", "))
+            for (window in azure.liveWindows()) {
+                block(index++).update("Live rate limit: ${window.label}", window.describeLive(), window.usagePercent!!.roundToInt())
             }
         } else if (error == null) {
-            block(0).showLoading("Quota")
+            block(0).showUnavailable("Azure", "Loading...")
         }
         revalidate()
         repaint()
     }
 
-    private fun AzureUsageWindow.describe(): String {
-        val amount = when {
-            kind == AzureUsageWindow.LIVE && remaining != null && limit != null ->
-                "${remaining.toLong()} remaining of ${limit.toLong()} ${unit.orEmpty()}".trim()
-            kind == AzureUsageWindow.ALLOCATION && used != null && limit != null ->
-                "${used.toLong()}/${limit.toLong()} ${unit.orEmpty()} used".trim()
-            kind == AzureUsageWindow.DEPLOYMENT && capacity != null ->
-                "${capacity.toLong()} ${unit.orEmpty()} allocated".trim()
-            usagePercent == null -> "Usage unavailable"
-            else -> "${usagePercent!!.roundToInt()}% used"
-        }
+    private fun AzureUsageWindow.describeLive(): String {
+        val amount = "${remaining!!.toLong()} remaining of ${limit!!.toLong()} ${unit.orEmpty()}".trim()
         return listOfNotNull(amount, QuotaUiUtil.formatReset(resetsAt)).joinToString(" - ")
     }
 

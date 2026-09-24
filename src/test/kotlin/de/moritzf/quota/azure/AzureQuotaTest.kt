@@ -3,11 +3,37 @@ package de.moritzf.quota.azure
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.minutes
 
 class AzureQuotaTest {
+    @Test
+    fun allocatedQuotasAreNotReportedAsLiveConsumption() {
+        val allocation = AzureUsageWindow("chat", "Tokens / minute", AzureUsageWindow.ALLOCATION, used = 100.0, limit = 100.0)
+        val deployment = AzureUsageWindow("chat", "chat", AzureUsageWindow.DEPLOYMENT, capacity = 100.0)
+        val quota = AzureQuota(windows = listOf(allocation, deployment))
+
+        assertEquals(2, quota.currentWindows().size)
+        assertFalse(quota.hasUsageState())
+        assertNull(quota.primaryWindow())
+        assertNull(quota.usageFraction())
+        assertTrue(quota.activityWindows().isEmpty())
+
+        val live = AzureUsageWindow(
+            "chat", "chat", AzureUsageWindow.LIVE,
+            limit = 100.0, remaining = 25.0, expiresAt = Clock.System.now() + 1.minutes,
+        )
+        val observed = quota.copy(windows = quota.windows + live)
+        assertTrue(observed.hasUsageState())
+        assertEquals(live, observed.primaryWindow())
+        assertEquals(0.75, observed.usageFraction())
+        assertEquals(mapOf(live.key to 0.75), observed.activityWindows())
+    }
+
     @Test
     fun tokenAcceptsExpiresOnSecondsAndLegacyExpiresOn() {
         val now = 1_700_000_000_000L

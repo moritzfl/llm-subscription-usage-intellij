@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Azure popup shows subscription, user, and each discovered deployment's resource and region without listing regional allocation quotas or deployment capacity. Only observed live rate limits show usage percentages.
 - Quota popup stays one column wide and scrolls vertically when provider details exceed the available screen height.
 
 ## [1.15.5] - 2026-09-24

@@ -30,19 +30,18 @@ data class AzureQuota(
         it.kind != AzureUsageWindow.LIVE || it.expiresAt?.let { expiry -> now < expiry } == true
     }
 
-    override fun hasUsageState(): Boolean = currentWindows().any { it.usagePercent != null }
-
-    fun primaryWindow(): AzureUsageWindow? {
-        val current = currentWindows()
-        return current.filter { it.kind == AzureUsageWindow.LIVE && it.usagePercent != null }.maxByOrNull { it.usagePercent!! }
-            ?: current.filter { it.usagePercent != null }.maxByOrNull { it.usagePercent!! }
+    /** ARM quota allocations are not consumption; only observed data-plane rate limits represent usage. */
+    fun liveWindows(now: Instant = Clock.System.now()): List<AzureUsageWindow> = currentWindows(now).filter {
+        it.kind == AzureUsageWindow.LIVE && it.usagePercent != null
     }
+
+    override fun hasUsageState(): Boolean = liveWindows().isNotEmpty()
+
+    fun primaryWindow(): AzureUsageWindow? = liveWindows().maxByOrNull { it.usagePercent!! }
 
     override fun usageFraction(): Double? = primaryWindow()?.usagePercent?.div(100.0)
 
-    override fun activityWindows(): Map<String, Double> = currentWindows().mapNotNull { window ->
-        window.usagePercent?.let { window.key to it / 100.0 }
-    }.toMap()
+    override fun activityWindows(): Map<String, Double> = liveWindows().associate { it.key to it.usagePercent!! / 100.0 }
 }
 
 @Serializable
@@ -152,7 +151,7 @@ internal fun parseAzureUsages(raw: String, location: String? = null): Pair<List<
     val openai = parsed.filter { it.looksLikeModelQuota() }
     if (openai.isNotEmpty()) return openai to warnings
     if (parsed.isNotEmpty()) {
-        warnings += "Quota lines were not labeled as Azure OpenAI; showing them anyway."
+        warnings += "Quota lines were not labeled as Azure OpenAI."
         return parsed to warnings
     }
     return emptyList<AzureUsageWindow>() to warnings
