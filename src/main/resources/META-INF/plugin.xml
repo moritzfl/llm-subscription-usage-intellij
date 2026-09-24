@@ -35,6 +35,7 @@
         <action id="openai.usage.quota.convertPdfToMarkdown"
                 class="de.moritzf.quota.idea.action.ConvertPdfToMarkdownAction"
                 text="Convert PDF to Markdown..."
+                icon="/icons/pdfToMarkdown.svg"
                 description="Convert this PDF with a selected document provider">
             <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>

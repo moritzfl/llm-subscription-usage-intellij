@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- The PDF context action now has a dedicated icon and a wider, aligned conversion dialog. Its default output is shown as a short filename beside the source PDF.
 - Added a PDF context-menu action for document-to-markdown conversion. It prefills the preferred configured provider, image extraction, and a sibling Markdown output file while allowing all three to be changed.
 - The document-to-markdown MCP tool now guides callers toward Mistral OCR when configured, then available Azure or Z.ai OCR, before OpenAI/Codex or SuperGrok vision conversion. Explicit provider choices remain unchanged.
 - Azure document-to-markdown supports explicitly selected Mistral OCR/Document AI or Cohere Parse deployments and the Document Intelligence prebuilt layout service through the signed-in Azure CLI identity. The dropdown defaults to `-` (disabled); Cohere converts PDF pages to images locally before parsing. Markdown and available figures can be saved beside the source.

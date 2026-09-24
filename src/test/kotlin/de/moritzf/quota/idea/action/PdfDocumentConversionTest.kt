@@ -3,6 +3,7 @@ package de.moritzf.quota.idea.action
 import de.moritzf.quota.shared.DocumentMarkdownWriteResult
 import de.moritzf.quota.shared.JsonSupport
 import java.nio.file.Files
+import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -37,5 +38,16 @@ class PdfDocumentConversionTest {
         } finally {
             Files.deleteIfExists(output)
         }
+    }
+
+    @Test
+    fun relativeOutputNameResolvesBesideTheSelectedPdf() {
+        val source = Path.of("C:/project/PDFs/sample-report.pdf")
+        assertEquals(
+            source.parent.resolve("sample-report.md"),
+            resolveMarkdownOutput(source, "sample-report.md"),
+        )
+        val chosen = source.parent.resolve("converted/result.md")
+        assertEquals(chosen, resolveMarkdownOutput(source, chosen.toString()))
     }
 }

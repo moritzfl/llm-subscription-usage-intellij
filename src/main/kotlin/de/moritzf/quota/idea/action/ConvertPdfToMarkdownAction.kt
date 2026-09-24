@@ -21,13 +21,16 @@ import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.components.JBCheckBox
+import com.intellij.ui.components.JBLabel
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
+import com.intellij.util.ui.JBUI
 import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
 import de.moritzf.quota.shared.DocumentMarkdown
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
+import java.awt.Dimension
 import javax.swing.DefaultListCellRenderer
 import javax.swing.JComponent
 
@@ -97,7 +100,7 @@ internal fun pdfFromSelection(files: List<VirtualFile>?, single: VirtualFile?): 
 
 private class ConvertPdfToMarkdownDialog(
     private val project: Project,
-    source: Path,
+    private val source: Path,
     providers: List<DocumentToMarkdownProvider>,
 ) : DialogWrapper(project) {
     private val defaultFileName = checkNotNull(DocumentMarkdown.defaultOutput(source)).fileName
@@ -119,13 +122,17 @@ private class ConvertPdfToMarkdownDialog(
             }
         }
     }
-    private val imagesCheckBox = JBCheckBox("Save extracted images", true)
+    private val imagesCheckBox = JBCheckBox("Save detected figures", true)
     private val outputField = TextFieldWithBrowseButton().apply {
-        text = checkNotNull(DocumentMarkdown.defaultOutput(source)).toString()
+        text = defaultFileName.toString()
         addActionListener {
             val parent = LocalFileSystem.getInstance().findFileByNioFile(source.parent)
             val folder = FileChooser.chooseFile(FileChooserDescriptorFactory.createSingleFolderDescriptor(), project, parent)
-            if (folder != null) text = Path.of(folder.path).resolve(defaultFileName).toString()
+            if (folder != null) {
+                val name = runCatching { Path.of(text.trim()).fileName }.getOrNull()
+                    ?.takeIf { it.toString().endsWith(".md", ignoreCase = true) } ?: defaultFileName
+                text = Path.of(folder.path).resolve(name).toString()
+            }
         }
     }
 
@@ -136,9 +143,19 @@ private class ConvertPdfToMarkdownDialog(
     }
 
     override fun createCenterPanel(): JComponent = panel {
+        row("PDF:") {
+            cell(JBLabel(source.fileName.toString()).apply { toolTipText = source.toString() })
+                .align(AlignX.FILL).resizableColumn()
+        }
         row("Provider:") { cell(providerCombo).align(AlignX.FILL).resizableColumn() }
-        row { cell(imagesCheckBox) }
-        row("Output file:") { cell(outputField).align(AlignX.FILL).resizableColumn() }
+        row("Images:") { cell(imagesCheckBox) }
+        row("Output file:") {
+            cell(outputField).align(AlignX.FILL).resizableColumn()
+                .comment("Relative paths are saved beside the PDF. Browse to choose another folder.")
+        }
+    }.apply {
+        preferredSize = Dimension(JBUI.scale(540), preferredSize.height)
+        minimumSize = Dimension(JBUI.scale(450), minimumSize.height)
     }
 
     override fun doValidate(): ValidationInfo? {
@@ -151,5 +168,10 @@ private class ConvertPdfToMarkdownDialog(
 
     fun provider(): DocumentToMarkdownProvider = providerCombo.selectedItem as DocumentToMarkdownProvider
     fun includeImages(): Boolean = imagesCheckBox.isSelected
-    fun outputFile(): Path = Path.of(outputField.text.trim()).toAbsolutePath().normalize()
+    fun outputFile(): Path = resolveMarkdownOutput(source, outputField.text)
+}
+
+internal fun resolveMarkdownOutput(source: Path, value: String): Path {
+    val selected = Path.of(value.trim())
+    return (if (selected.isAbsolute) selected else source.toAbsolutePath().parent.resolve(selected)).normalize()
 }
