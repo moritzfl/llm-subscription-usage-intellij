@@ -1,5 +1,9 @@
 # LLM Subscription Usage Changelog
 
+## [Unreleased]
+
+- Azure document-to-markdown supports explicitly selected Mistral OCR/Document AI or Cohere Parse deployments and the Document Intelligence prebuilt layout service through the signed-in Azure CLI identity. The dropdown defaults to `-` (disabled); Cohere converts PDF pages to images locally before parsing. Markdown and available figures can be saved beside the source.
+
 ## [1.15.7] - 2026-09-24
 
 - Azure popup groups deployments by resource and region and lists distinct model names in regular weight underneath each resource.

@@ -48,13 +48,13 @@ Track and use your LLM subscriptions directly in IntelliJ IDEA.
 | Mistral | Session cookie + API key | ✓ | ✓ | ✓ | — | ✓ | ✓ | ✓ |
 | Kimi | Device code | ✓ | ✓ | — | — | — | — | ✓ |
 | Antigravity (Gemini / Claude / GPT) | AGY CLI login | ✓ | — | — | — | — | — | — |
-| Azure OpenAI | Azure CLI login | ✓ | — | — | — | — | — | ✓ |
+| Azure OpenAI / Foundry | Azure CLI login | ✓ | — | — | — | — | ✓* | ✓ |
 
 - **Quota** — usage in the status bar and detail popup.
 - **Web search** — MCP tool that searches the web with your subscription. Copilot Chat can Bing-search in GitHub's own UI, but Copilot has no callable search API we can wrap.
 - **Images** / **Video** — MCP tools that generate images or video with your subscription.
 - **Voice** — MCP tools for speech-to-text and text-to-speech. (✓) means only one of the two.
-- **Docs** — MCP tool that converts a PDF or image to markdown. ✓ uses a dedicated OCR API that returns figures. (✓) uses a chat/vision API and reconstructs figure images locally from estimated page boxes.
+- **Docs** — MCP tool that converts a PDF or image to markdown. ✓ uses a dedicated OCR API that returns figures. ✓* requires an explicitly selected Azure document model. (✓) uses a chat/vision API and reconstructs figure images locally from estimated page boxes.
 - **Proxy** — available through the local OpenAI-compatible proxy (for use of subscriptions in tools like Jetbrains AI Chat and other tools that require authentication by endpoint and API key).
 
 Claude is quota-only. Anthropic does not allow using a Claude subscription outside their own apps, so this plugin only shows usage and does not wrap Claude search, media, documents, or a proxy.
@@ -85,9 +85,11 @@ In each provider's settings, use **Refresh quota** beside the copy button in **L
 
 **Antigravity is a CLI exception.** Install [Antigravity CLI (Google documentation)](https://antigravity.google/docs/cli/install/) 1.1.11 or later, run `agy` in a terminal to sign in, then add Antigravity in the plugin settings. The plugin runs `agy -p /usage --output-format json` to read quotas without an agent turn. It uses the current CLI login; credentials stay with AGY. Only one Antigravity entry is supported. Leave the executable path blank for automatic detection from `PATH` and standard install locations, use **Detect** to fill it, or browse to the binary. Sign-in/account changes happen in AGY; quotas refresh automatically. No credentials or conversation files are imported.
 
-**Azure is a separate CLI exception.** Install the [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli), run `az login`, then add Azure in the plugin settings. Only one Azure entry is supported. It can pin a subscription from `az account list` and an Azure OpenAI resource name or endpoint. The plugin calls documented `az account get-access-token` and does not read `~/.azure`. Quota usage needs Cognitive Services Usages Reader and is optional: if that call is denied, the local proxy and any models or rate-limit numbers the token can read still work. Other providers continue to use plugin-managed credentials.
+**Azure is a separate CLI exception.** Install the [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli), run `az login`, then add Azure in the plugin settings. Only one Azure entry is supported. It can pin a subscription from `az account list` and an Azure OpenAI resource name or endpoint. The plugin calls documented `az account get-access-token` and does not read `~/.azure`. Quota usage needs Cognitive Services Usages Reader and is optional: if that call is denied, the local proxy and any models or rate-limit numbers the token can read still work. Other providers continue to use plugin-managed credentials. For document-to-markdown, choose a Mistral OCR/Document AI or Cohere Parse deployment, or the Document Intelligence `prebuilt-layout` service. `-` disables the tool for Azure. The dropdown lists matching discovered deployments, matching manually entered names, and the prebuilt layout option when an Azure resource is configured. OCR needs data-plane access to the selected resource; Document Intelligence requires Cognitive Services User access for the CLI identity. PDFs/images are sent inline to Azure, not to the providers' hosted APIs. Cohere Parse accepts images only, so PDF pages are rendered locally and processed page by page (up to 20 per call; use `pageFrom`/`pageTo` for larger PDFs). Document Intelligence uses its asynchronous layout analysis API and can download detected figures when requested.
 
 Azure proxy model IDs use `az-<deployment-name>`, including deployments missing from discovery. Deployment names come from the selected resource when ARM access is available; otherwise the plugin uses the endpoint's model list or manually entered deployment names. Capacity allocations use Azure's native capacity units (PTU for provisioned deployments); live rate-limit percentages come from recent proxy response headers.
+
+Azure document conversion currently accepts PDF, PNG, and JPEG inputs up to 20 MiB. Document Intelligence can support larger files through its own API; the plugin's inline-input limit is lower.
 
 ## MCP tools for IDE chat
 
@@ -102,7 +104,7 @@ The plugin registers subscription-backed tools with IntelliJ's built-in MCP serv
 | `mistral_web_search` | Answer-style web search via Mistral Conversations |
 | `subscription_web_search` | Result-list web search via Kimi, Z.ai, MiniMax, or Ollama |
 | `subscription_web_fetch` | Fetch a page as JSON (title/content/links) via Ollama or Z.ai |
-| `subscription_document_to_markdown` | Convert a PDF/image to markdown via Mistral OCR, Z.ai GLM-OCR, OpenAI/Codex, or SuperGrok. Native OCR providers extract figures; Codex/SuperGrok crop figure regions locally from vision-estimated boxes |
+| `subscription_document_to_markdown` | Convert a PDF/image to markdown via configured Azure Mistral OCR/Document AI, Cohere Parse, or Document Intelligence layout; also Mistral OCR, Z.ai GLM-OCR, OpenAI/Codex, or SuperGrok. Image-only Cohere Parse renders PDF pages locally; Document Intelligence retrieves detected figures; Codex/SuperGrok crop figures from vision-estimated boxes |
 | `subscription_image_generation` | Image generation via OpenAI/Codex, SuperGrok/xAI Imagine, Mistral, Z.ai GLM-Image, or MiniMax. Returns a download URL or writes a file; never base64 |
 | `subscription_image_edit` | SuperGrok/xAI JSON image edits from a source URL or local file. Masks are not supported |
 | `subscription_speech_to_text` | Transcribe audio via OpenAI/Codex, SuperGrok/xAI, Mistral, Z.ai, or MiniMax |
