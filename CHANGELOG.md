@@ -1,11 +1,10 @@
 # LLM Subscription Usage Changelog
 
-## [Unreleased]
+## [1.15.8] - 2026-09-24
 
-- The PDF context action now has a dedicated icon and a wider, aligned conversion dialog. Its default output is shown as a short filename beside the source PDF.
-- Added a PDF context-menu action for document-to-markdown conversion. It prefills the preferred configured provider, image extraction, and a sibling Markdown output file while allowing all three to be changed.
-- The document-to-markdown MCP tool now guides callers toward Mistral OCR when configured, then available Azure or Z.ai OCR, before OpenAI/Codex or SuperGrok vision conversion. Explicit provider choices remain unchanged.
-- Azure document-to-markdown supports explicitly selected Mistral OCR/Document AI or Cohere Parse deployments and the Document Intelligence prebuilt layout service through the signed-in Azure CLI identity. The dropdown defaults to `-` (disabled); Cohere converts PDF pages to images locally before parsing. Markdown and available figures can be saved beside the source.
+- Added opt-in Azure PDF/image-to-Markdown conversion through Mistral OCR/Document AI and Cohere Parse deployments or Document Intelligence `prebuilt-layout`. Cohere renders PDF pages locally for its image-only endpoint; Markdown and detected figures can be saved to files.
+- Added a PDF right-click conversion action with a provider, image-extraction, and output-file dialog. It prefills the preferred configured provider and a Markdown file beside the PDF, opens the result, and includes a light/dark action icon.
+- The document-to-Markdown MCP tool recommends Mistral OCR first, then Azure or Z.ai OCR, before OpenAI/Codex or SuperGrok vision.
 
 ## [1.15.7] - 2026-09-24
 
@@ -562,7 +561,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.7...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.8...HEAD
+[1.15.8]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.7...1.15.8
 [1.15.7]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.6...1.15.7
 [1.15.6]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.5...1.15.6
 [1.15.5]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.4...1.15.5
