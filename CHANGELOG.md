@@ -1,6 +1,6 @@
 # LLM Subscription Usage Changelog
 
-## [Unreleased]
+## [1.15.7] - 2026-09-24
 
 - Azure popup groups deployments by resource and region and lists distinct model names in regular weight underneath each resource.
 
@@ -555,7 +555,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.6...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.7...HEAD
+[1.15.7]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.6...1.15.7
 [1.15.6]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.5...1.15.6
 [1.15.5]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.4...1.15.5
 [1.15.4]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.3...1.15.4
