@@ -113,6 +113,8 @@ The plugin registers subscription-backed tools with IntelliJ's built-in MCP serv
 | `subscription_video_generation` | Video generation via SuperGrok/xAI Imagine or Z.ai CogVideoX |
 | `supergrok_video_generation` | SuperGrok/xAI Imagine video (same as `subscription_video_generation` with SUPERGROK) |
 
+Right-click a local PDF in the Project view or its editor and select **Convert PDF to Markdown...**. The dialog lists configured document providers, preferring Mistral, then Azure/Z.ai OCR, and prefills the sibling `.md` output with image extraction enabled. Provider, image extraction, and output location can all be changed before conversion; the generated Markdown opens in the editor.
+
 Individual tools can be enabled or disabled under `Settings` > `Tools` > `MCP Server` > `Exposed Tools`.
 
 ![PDF to markdown pipelines](docs/document-to-markdown-pipelines.svg)
