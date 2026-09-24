@@ -259,9 +259,9 @@ class SubscriptionUsageMcpToolset(
     }
 
     @McpTool(name = "subscription_document_to_markdown")
-    @McpDescription(description = "Converts a PDF or image to markdown. Azure uses the document model selected in settings: Mistral OCR/Document AI, Cohere Parse (PDF pages rendered locally), or Document Intelligence layout. Mistral and Z.ai use dedicated OCR. OpenAI/Codex and SuperGrok use vision models and crop figures locally. For large PDFs on Codex/SuperGrok/Cohere, use pageFrom/pageTo. With localFile, markdown defaults to <name>.md beside it. Images are never returned as base64.")
+    @McpDescription(description = "Converts a PDF or image to markdown. Prefer MISTRAL, then AZURE or ZAI OCR; use OPEN_AI/Codex or SUPERGROK vision when OCR is unavailable or explicitly requested. For large PDFs on Codex/SuperGrok/Cohere, use pageFrom/pageTo. With localFile, markdown defaults to <name>.md beside it. Images are never returned as base64.")
     suspend fun subscription_document_to_markdown(
-        @McpDescription(description = "Provider to use. Supported providers are derived from the DocumentToMarkdownProvider enum.") provider: DocumentToMarkdownProvider = DocumentToMarkdownProvider.MISTRAL,
+        @McpDescription(description = "Prefer MISTRAL, then AZURE or ZAI OCR, then OPEN_AI or SUPERGROK vision. Honor explicit provider requests.") provider: DocumentToMarkdownProvider = DocumentToMarkdownProvider.MISTRAL,
         @McpDescription(description = "Public document URL. Leave blank when localFile is set.") documentUrl: String? = null,
         @McpDescription(description = "Optional project-relative or absolute local file path.") localFile: String? = null,
         @McpDescription(description = "Optional markdown output path. Defaults to <localFile>.md beside the source.") outputFile: String? = null,

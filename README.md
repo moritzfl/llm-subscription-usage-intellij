@@ -104,7 +104,7 @@ The plugin registers subscription-backed tools with IntelliJ's built-in MCP serv
 | `mistral_web_search` | Answer-style web search via Mistral Conversations |
 | `subscription_web_search` | Result-list web search via Kimi, Z.ai, MiniMax, or Ollama |
 | `subscription_web_fetch` | Fetch a page as JSON (title/content/links) via Ollama or Z.ai |
-| `subscription_document_to_markdown` | Convert a PDF/image to markdown via configured Azure Mistral OCR/Document AI, Cohere Parse, or Document Intelligence layout; also Mistral OCR, Z.ai GLM-OCR, OpenAI/Codex, or SuperGrok. Image-only Cohere Parse renders PDF pages locally; Document Intelligence retrieves detected figures; Codex/SuperGrok crop figures from vision-estimated boxes |
+| `subscription_document_to_markdown` | Convert a PDF/image to markdown; prefer Mistral OCR, then Azure or Z.ai OCR, before OpenAI/Codex or SuperGrok vision conversion. Azure supports Mistral OCR/Document AI, Cohere Parse, and Document Intelligence layout. Image-only Cohere Parse renders PDF pages locally; Document Intelligence retrieves detected figures; Codex/SuperGrok crop figures from vision-estimated boxes |
 | `subscription_image_generation` | Image generation via OpenAI/Codex, SuperGrok/xAI Imagine, Mistral, Z.ai GLM-Image, or MiniMax. Returns a download URL or writes a file; never base64 |
 | `subscription_image_edit` | SuperGrok/xAI JSON image edits from a source URL or local file. Masks are not supported |
 | `subscription_speech_to_text` | Transcribe audio via OpenAI/Codex, SuperGrok/xAI, Mistral, Z.ai, or MiniMax |

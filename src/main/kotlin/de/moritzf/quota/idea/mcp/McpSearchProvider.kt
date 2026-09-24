@@ -55,8 +55,8 @@ enum class WebFetchProvider(val providerType: QuotaProviderType) {
 }
 
 enum class DocumentToMarkdownProvider(val providerType: QuotaProviderType) {
-    AZURE(QuotaProviderType.AZURE),
     MISTRAL(QuotaProviderType.MISTRAL),
+    AZURE(QuotaProviderType.AZURE),
     ZAI(QuotaProviderType.ZAI),
     OPEN_AI(QuotaProviderType.OPEN_AI),
     SUPERGROK(QuotaProviderType.SUPERGROK),
