@@ -27,12 +27,16 @@ import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
 import de.moritzf.quota.shared.DocumentMarkdown
+import de.moritzf.quota.shared.DocumentImageFormat
+import de.moritzf.quota.shared.DocumentImageOptions
 import java.awt.Dimension
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
 import javax.swing.DefaultListCellRenderer
 import javax.swing.JComponent
+import javax.swing.JSpinner
+import javax.swing.SpinnerNumberModel
 
 /** Shown for one local PDF in the Project View or an editor's context menu. */
 class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
@@ -63,13 +67,18 @@ class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
                 val dialog = ConvertPdfToMarkdownDialog(project, source, providers)
                 if (!dialog.showAndGet()) return@invokeLater
                 val destination = dialog.outputFile()
+                val provider = dialog.provider()
+                val includeImages = dialog.includeImages()
+                val imageOptions = dialog.imageOptions()
                 if (Files.exists(destination) && Messages.showYesNoDialog(
                         project, "Overwrite ${destination.fileName}?", "PDF to Markdown", Messages.getQuestionIcon(),
                     ) != Messages.YES) return@invokeLater
                 ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Converting PDF to Markdown", true) {
+                    private var warnings: List<String> = emptyList()
+
                     override fun run(indicator: ProgressIndicator) {
                         indicator.isIndeterminate = true
-                        PdfDocumentConversion.convert(dialog.provider(), source, destination, dialog.includeImages()) { completed, total, detail ->
+                        warnings = PdfDocumentConversion.convert(provider, source, destination, includeImages, imageOptions) { completed, total, detail ->
                             indicator.checkCanceled()
                             indicator.text = source.fileName.toString()
                             indicator.text2 = "$detail (cancellation takes effect between requests)"
@@ -87,6 +96,10 @@ class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
                             Messages.showErrorDialog(project, "Markdown file was not found after conversion.", "PDF to Markdown")
                         } else {
                             FileEditorManager.getInstance(project).openFile(result, true)
+                            if (warnings.isNotEmpty()) Messages.showWarningDialog(project,
+                                warnings.take(8).joinToString("\n") +
+                                    if (warnings.size > 8) "\n… and ${warnings.size - 8} more image-export warnings." else "",
+                                "PDF image export fallbacks")
                         }
                     }
 
@@ -131,6 +144,23 @@ private class ConvertPdfToMarkdownDialog(
         }
     }
     private val imagesCheckBox = JBCheckBox("Save detected figures", true)
+    private val formatCombo = ComboBox(DocumentImageFormat.entries.toTypedArray()).apply {
+        renderer = object : DefaultListCellRenderer() {
+            override fun getListCellRendererComponent(
+                list: javax.swing.JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean,
+            ): java.awt.Component {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+                text = when (value) {
+                    DocumentImageFormat.SVG -> "Prefer SVG from original PDF (PNG fallback)"
+                    DocumentImageFormat.PNG -> "PNG from original PDF"
+                    else -> "Provider image"
+                }
+                return this
+            }
+        }
+    }
+    private val dpiCombo = ComboBox(arrayOf(150, 300, 600)).apply { selectedItem = 300 }
+    private val paddingSpinner = JSpinner(SpinnerNumberModel(2.0, 0.0, 72.0, 1.0))
     private val outputField = TextFieldWithBrowseButton().apply {
         textField.columns = 40
         text = defaultFileName.toString()
@@ -149,6 +179,10 @@ private class ConvertPdfToMarkdownDialog(
         title = "Convert PDF to Markdown"
         setOKButtonText("Convert")
         isResizable = true
+        providerCombo.addActionListener { updateImageControls() }
+        imagesCheckBox.addActionListener { updateImageControls() }
+        formatCombo.addActionListener { updateImageControls() }
+        updateImageControls()
         init()
         window.minimumSize = window.preferredSize
     }
@@ -165,6 +199,18 @@ private class ConvertPdfToMarkdownDialog(
         }
         row("Provider:") { cell(providerCombo).align(AlignX.FILL).resizableColumn() }
         row("Images:") { cell(imagesCheckBox) }
+        row("Figure format:") {
+            cell(formatCombo).align(AlignX.FILL).resizableColumn()
+                .comment("Original-PDF export uses OCR figure coordinates (Mistral, Azure, Z.ai). Fallbacks are reported.")
+        }
+        row("PNG resolution:") {
+            cell(dpiCombo)
+            label("DPI (also used for PNG fallback)")
+        }
+        row("Figure padding:") {
+            cell(paddingSpinner)
+            label("PDF points (72 points = 1 inch)")
+        }
         row("Output file:") {
             cell(outputField).align(AlignX.FILL).resizableColumn()
                 .comment("Relative paths are saved beside the PDF. Browse to choose another folder.")
@@ -184,7 +230,21 @@ private class ConvertPdfToMarkdownDialog(
 
     fun provider(): DocumentToMarkdownProvider = providerCombo.selectedItem as DocumentToMarkdownProvider
     fun includeImages(): Boolean = imagesCheckBox.isSelected
+    fun imageOptions(): DocumentImageOptions = DocumentImageOptions(
+        formatCombo.selectedItem as DocumentImageFormat, dpiCombo.selectedItem as Int,
+        (paddingSpinner.value as Number).toDouble(),
+    )
     fun outputFile(): Path = resolveMarkdownOutput(source, outputField.text)
+
+    private fun updateImageControls() {
+        val enabled = imagesCheckBox.isSelected && provider() in listOf(
+            DocumentToMarkdownProvider.MISTRAL, DocumentToMarkdownProvider.AZURE, DocumentToMarkdownProvider.ZAI,
+        )
+        formatCombo.isEnabled = enabled
+        val localExport = enabled && formatCombo.selectedItem != DocumentImageFormat.PROVIDER
+        dpiCombo.isEnabled = localExport
+        paddingSpinner.isEnabled = localExport
+    }
 }
 
 internal fun resolveMarkdownOutput(source: Path, value: String): Path {

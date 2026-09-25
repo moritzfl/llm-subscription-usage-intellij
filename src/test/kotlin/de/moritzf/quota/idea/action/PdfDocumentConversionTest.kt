@@ -41,6 +41,16 @@ class PdfDocumentConversionTest {
     }
 
     @Test
+    fun imageFallbackWarningsReachThePdfAction() {
+        val output = Files.createTempFile("pdf-context-warning", ".md")
+        try {
+            val warnings = listOf("Page 3: SVG unavailable; used PNG at 300 DPI.")
+            val response = JsonSupport.json.encodeToString(DocumentMarkdownWriteResult(output.toString(), warnings = warnings))
+            assertEquals(warnings, checkConversionResult(response, output))
+        } finally { Files.deleteIfExists(output) }
+    }
+
+    @Test
     fun relativeOutputNameResolvesBesideTheSelectedPdf() {
         val source = Path.of("project", "PDFs", "sample-report.pdf").toAbsolutePath()
         assertEquals(

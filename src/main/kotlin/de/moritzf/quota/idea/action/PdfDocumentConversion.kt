@@ -20,6 +20,7 @@ import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 import de.moritzf.quota.mistral.MistralOcrClient
 import de.moritzf.quota.openai.proxy.pdf.PdfPages
 import de.moritzf.quota.shared.DocumentConversionProgress
+import de.moritzf.quota.shared.DocumentImageOptions
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.supergrok.SuperGrokDocumentClient
 import de.moritzf.quota.supergrok.SuperGrokQuotaException
@@ -27,6 +28,7 @@ import de.moritzf.quota.zai.ZaiOcrClient
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
@@ -42,8 +44,9 @@ internal object PdfDocumentConversion {
 
     fun convert(
         provider: DocumentToMarkdownProvider, source: Path, output: Path, includeImages: Boolean,
+        imageOptions: DocumentImageOptions = DocumentImageOptions(),
         progress: DocumentConversionProgress = DocumentConversionProgress.NONE,
-    ) {
+    ): List<String> {
         progress.update(0, 0, "Preparing document conversion")
         require(PdfPages.isPdf(source)) { "Select a readable PDF file." }
         val type = provider.providerType
@@ -53,7 +56,7 @@ internal object PdfDocumentConversion {
                 val key = MistralApiKeyStore.forAccount(account.id).loadBlocking()
                     ?: error("Mistral API key missing.")
                 MistralOcrClient.createDefault().convertDocument(key, localFile = source, outputFile = output,
-                    includeImages = includeImages)
+                    includeImages = includeImages, imageOptions = imageOptions)
             }
             DocumentToMarkdownProvider.AZURE -> {
                 val selection = AzureQuotaProvider.ocrDeploymentForAccount(account.id)
@@ -65,19 +68,20 @@ internal object PdfDocumentConversion {
                 when {
                     selection == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT ->
                         AzureDocumentIntelligenceClient().convertDocument(cli, config,
-                            localFile = source, outputFile = output, includeImages = includeImages)
+                            localFile = source, outputFile = output, includeImages = includeImages, imageOptions = imageOptions)
                     isAzureCohereSelection(selection) ->
                         AzureCohereParseClient().convertDocument(cli, config, azureOcrDeploymentId(selection),
-                            localFile = source, outputFile = output, includeImages = includeImages)
+                            localFile = source, outputFile = output, includeImages = includeImages, imageOptions = imageOptions)
                     else -> AzureOcrClient().convertDocument(cli, config, selection,
-                        localFile = source, outputFile = output, includeImages = includeImages, progress = progress)
+                        localFile = source, outputFile = output, includeImages = includeImages, progress = progress,
+                        imageOptions = imageOptions)
                 }
             }
             DocumentToMarkdownProvider.ZAI -> {
                 val key = ZaiApiKeyStore.forAccount(account.id).loadBlocking()
                     ?: error("Z.ai API key missing.")
                 ZaiOcrClient.createDefault().convertDocument(key, localFile = source, outputFile = output,
-                    includeImages = includeImages)
+                    includeImages = includeImages, imageOptions = imageOptions)
             }
             DocumentToMarkdownProvider.OPEN_AI -> {
                 val auth = QuotaAuthService.getInstance()
@@ -104,11 +108,11 @@ internal object PdfDocumentConversion {
                 }
             }
         }
-        checkConversionResult(response, output)
+        return checkConversionResult(response, output)
     }
 }
 
-internal fun checkConversionResult(response: String, output: Path) {
+internal fun checkConversionResult(response: String, output: Path): List<String> {
     val json = runCatching { JsonSupport.json.parseToJsonElement(response) as? JsonObject }.getOrNull()
     val error = (json?.get("error") as? JsonPrimitive)?.contentOrNull
     if (!error.isNullOrBlank()) throw IllegalStateException(error)
@@ -118,4 +122,5 @@ internal fun checkConversionResult(response: String, output: Path) {
         throw IllegalStateException("Provider wrote Markdown to an unexpected output path.")
     }
     if (!Files.isRegularFile(output)) throw IllegalStateException("Provider returned no Markdown output file.")
+    return (json["warnings"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
 }

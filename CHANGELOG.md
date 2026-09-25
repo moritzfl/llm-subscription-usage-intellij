@@ -1,5 +1,11 @@
 # LLM Subscription Usage Changelog
 
+## [Unreleased]
+
+- PDF-to-Markdown conversion can export figures from the original PDF as SVG (preferred) or PNG at selectable DPI, with configurable padding. Native OCR coordinates from Mistral, Z.ai, Azure Mistral, Cohere Parse, and Document Intelligence locate figures without an extra vision request.
+- Added figure format, PNG resolution, and padding options to the PDF dialog and document-to-Markdown MCP tool. Unsupported SVG features fall back to PNG; missing or invalid PDF coordinates fall back to provider images, with visible warnings.
+- SVG export preserves text outlines and supported linear/stitched RGB gradients. OCR figures share isolated, collision-safe output folders; Markdown remains one combined document.
+
 ## [1.15.10] - 2026-09-25
 
 - Azure Mistral OCR/Document AI now converts long PDFs automatically in requests of at most 30 pages and combines all pages into one Markdown document, with page-based progress and cancellation between requests in the PDF action.

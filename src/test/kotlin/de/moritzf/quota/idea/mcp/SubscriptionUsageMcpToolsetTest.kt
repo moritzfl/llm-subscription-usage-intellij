@@ -2,6 +2,7 @@ package de.moritzf.quota.idea.mcp
 
 import com.intellij.mcpserver.annotations.McpTool
 import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.shared.DocumentImageFormat
 import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
 import kotlin.reflect.full.findAnnotation
@@ -157,9 +158,15 @@ class SubscriptionUsageMcpToolsetTest {
                 String::class,
                 Int::class,
                 Int::class,
+                DocumentImageFormat::class,
+                Int::class,
+                Double::class,
             ),
             tools.single().mcpParamClassifiers(),
         )
+        val imageOptions = tools.single().valueParameters.takeLast(3)
+        assertEquals(listOf("imageFormat", "imageDpi", "imagePaddingPoints"), imageOptions.map { it.name })
+        assertTrue(imageOptions.all { it.isOptional }, "Existing callers must not have to provide the new options")
     }
 
     @Test

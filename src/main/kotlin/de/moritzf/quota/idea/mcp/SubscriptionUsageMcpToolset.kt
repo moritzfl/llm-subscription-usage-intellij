@@ -1,5 +1,8 @@
 package de.moritzf.quota.idea.mcp
 
+import de.moritzf.quota.shared.DocumentImageFormat
+import de.moritzf.quota.shared.DocumentImageOptions
+
 import com.intellij.mcpserver.McpToolset
 import com.intellij.mcpserver.annotations.McpDescription
 import com.intellij.mcpserver.annotations.McpTool
@@ -269,10 +272,15 @@ class SubscriptionUsageMcpToolset(
         @McpDescription(description = "OCR model id. For Azure, leave blank to use the document model selected in settings.") model: String = "",
         @McpDescription(description = "Optional 1-based first page for Codex/SuperGrok/Cohere PDFs. Leave 0 for the start of the document.") pageFrom: Int = 0,
         @McpDescription(description = "Optional 1-based last page for Codex/SuperGrok/Cohere PDFs. Leave 0 for the end of the document.") pageTo: Int = 0,
+        @McpDescription(description = "Figure export for MISTRAL/AZURE/ZAI PDFs: SVG prefers local vector export with PNG fallback; PNG renders the original PDF; PROVIDER keeps provider images. Other providers keep their existing image export. Fallbacks are returned in warnings.") imageFormat: DocumentImageFormat = DocumentImageFormat.SVG,
+        @McpDescription(description = "Local PNG export resolution, also for SVG fallback (72-600 DPI, default 300). This is not an OCR API request resolution.") imageDpi: Int = 300,
+        @McpDescription(description = "Extra figure margin in PDF points (0-72, default 2; 72 points = 1 inch). Applies to local SVG/PNG export.") imagePaddingPoints: Double = 2.0,
     ): String {
+        val imageOptions = try { DocumentImageOptions(imageFormat, imageDpi, imagePaddingPoints) }
+        catch (exception: IllegalArgumentException) { return errorResult(exception.message ?: "Invalid image export options.") }
         return when (provider) {
             DocumentToMarkdownProvider.AZURE ->
-                azureDocumentToMarkdown(documentUrl, localFile, outputFile, includeImages, model, pageFrom, pageTo)
+                azureDocumentToMarkdown(documentUrl, localFile, outputFile, includeImages, model, pageFrom, pageTo, imageOptions)
 
             DocumentToMarkdownProvider.MISTRAL ->
                 mistralDocumentToMarkdown(
@@ -281,6 +289,7 @@ class SubscriptionUsageMcpToolset(
                     outputFile,
                     includeImages,
                     model.ifBlank { MistralOcrClient.DEFAULT_MODEL },
+                    imageOptions,
                 )
 
             DocumentToMarkdownProvider.ZAI ->
@@ -290,6 +299,7 @@ class SubscriptionUsageMcpToolset(
                     outputFile,
                     includeImages,
                     model.ifBlank { ZaiOcrClient.DEFAULT_MODEL },
+                    imageOptions,
                 )
 
             DocumentToMarkdownProvider.OPEN_AI ->
@@ -944,6 +954,7 @@ class SubscriptionUsageMcpToolset(
         outputFile: String?,
         includeImages: Boolean,
         model: String,
+        imageOptions: DocumentImageOptions,
     ): String {
         val apiKey = resolvedApiKey(
             QuotaProviderType.MISTRAL,
@@ -960,6 +971,7 @@ class SubscriptionUsageMcpToolset(
                 outputFile = resolveOptionalPath(outputFile),
                 includeImages = includeImages,
                 model = model,
+                imageOptions = imageOptions,
             )
         } catch (exception: MistralQuotaException) {
             errorResult(exception.message ?: "Mistral OCR failed.")
@@ -976,6 +988,7 @@ class SubscriptionUsageMcpToolset(
         model: String,
         pageFrom: Int,
         pageTo: Int,
+        imageOptions: DocumentImageOptions,
     ): String {
         val accountId = try {
             de.moritzf.quota.idea.settings.AccountResolver.resolve(
@@ -1006,14 +1019,16 @@ class SubscriptionUsageMcpToolset(
             val destination = resolveOptionalPath(outputFile)
             when {
                 deployment == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT -> azureDocumentIntelligenceClient.convertDocument(
-                    cli, config, documentUrl, sourceFile, destination, includeImages,
+                    cli, config, documentUrl, sourceFile, destination, includeImages, imageOptions,
                 )
                 isAzureCohereSelection(deployment) -> azureCohereParseClient.convertDocument(
                     cli, config, deploymentId, documentUrl, sourceFile, destination, includeImages,
                     pageFrom.takeIf { it > 0 }, pageTo.takeIf { it > 0 },
+                    imageOptions,
                 )
                 else -> azureOcrClient.convertDocument(
                     cli, config, deploymentId, documentUrl, sourceFile, destination, includeImages,
+                    imageOptions = imageOptions,
                 )
             }
         } catch (exception: AzureOcrException) {
@@ -1029,6 +1044,7 @@ class SubscriptionUsageMcpToolset(
         outputFile: String?,
         includeImages: Boolean,
         model: String,
+        imageOptions: DocumentImageOptions,
     ): String {
         val apiKey = resolvedApiKey(QuotaProviderType.ZAI, AccountCapability.DOCUMENT_TO_MARKDOWN) { ZaiApiKeyStore.forAccount(it).loadBlocking() }
         if (apiKey.isNullOrBlank()) {
@@ -1042,6 +1058,7 @@ class SubscriptionUsageMcpToolset(
                 outputFile = resolveOptionalPath(outputFile),
                 includeImages = includeImages,
                 model = model,
+                imageOptions = imageOptions,
             )
         } catch (exception: ZaiQuotaException) {
             errorResult(exception.message ?: "Z.ai OCR failed.")

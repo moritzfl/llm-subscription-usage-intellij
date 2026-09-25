@@ -117,6 +117,20 @@ Right-click a local PDF in the Project view or its editor and select **Convert P
 
 Azure Mistral OCR/Document AI automatically splits PDFs into requests of at most 30 pages and joins the results in page order, both from this action and from MCP. The action shows completed pages and the current range; cancellation takes effect between requests. Azure's local input-size guard remains 20 MB. Mistral/Azure OCR images use a unique `<output>-images-…` folder and page-specific names, with matching relative Markdown links. Existing Markdown is replaced only after the whole conversion succeeds; failed or cancelled runs remove their partial output. Earlier image folders are retained so existing links are never overwritten. Without an output path, a multi-request MCP result contains `page_count` and `chunks` with `page_from`, `page_to`, and each original provider `response`.
 
+### Figure quality for OCR documents
+
+Mistral, Z.ai, and Azure document converters use the OCR response's figure coordinates to export from the original PDF. No extra vision-model request is needed. The PDF dialog and `subscription_document_to_markdown` expose:
+
+| Option | Default | Meaning |
+|---|---|---|
+| `imageFormat` | `SVG` | Prefer SVG from the original PDF, with PNG fallback. `PNG` renders the original PDF; `PROVIDER` retains the provider's image bytes. |
+| `imageDpi` | `300` | Resolution for local PNG export and SVG's PNG fallback. MCP accepts 72–600; the dialog offers 150, 300, and 600 DPI. This does not change the OCR service's input resolution. |
+| `imagePaddingPoints` | `2` | Extra margin around the detected figure (0–72 PDF points; 72 points = 1 inch). |
+
+SVG keeps vector graphics and text outlines sharp when zooming; existing raster content remains raster content. Linear and stitched RGB/gray gradients are supported. Unsupported paints, nonlinear gradients, complex transparency, or SVG errors fall back to PNG. Missing/invalid coordinates, mismatched page orientation, or an unavailable original PDF fall back to provider images. The result JSON includes `warnings`; the PDF action displays those warnings after conversion. PNG rendering is limited to 40 million page pixels to bound memory. Figures are stored in a unique `<output>-images-…` folder, with correct relative links in **one resulting Markdown document**.
+
+Azure reuses the document bytes submitted to OCR. For Mistral/Z.ai URL inputs, local figure export downloads the original PDF on demand (public HTTPS, no redirects, maximum 50 MB); prefer a local PDF for a stable source. Image inputs use provider images and report that original-PDF export is unavailable. OpenAI/Codex and SuperGrok keep their existing vision-based figure export; the new options apply to OCR providers only.
+
 Individual tools can be enabled or disabled under `Settings` > `Tools` > `MCP Server` > `Exposed Tools`.
 
 ![PDF to markdown pipelines](docs/document-to-markdown-pipelines.svg)
