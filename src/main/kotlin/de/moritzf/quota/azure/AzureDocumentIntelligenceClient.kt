@@ -3,11 +3,16 @@ package de.moritzf.quota.azure
 import de.moritzf.quota.shared.DocumentMarkdown
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
+import de.moritzf.quota.shared.DocumentImageOptions
+import de.moritzf.quota.shared.DocumentImageWriter
+import de.moritzf.quota.shared.OriginalPdf
+import de.moritzf.quota.shared.ProviderDocumentImage
+import de.moritzf.quota.shared.rewriteMarkdownImageLinks
+import de.moritzf.quota.openai.proxy.pdf.PdfFigureRegion
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
-import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
 import java.util.Base64
@@ -16,6 +21,8 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.intOrNull
 
 /** Document Intelligence's prebuilt layout is a service model, not a Foundry deployment. */
 internal class AzureDocumentIntelligenceClient(
@@ -36,6 +43,7 @@ internal class AzureDocumentIntelligenceClient(
         localFile: Path? = null,
         outputFile: Path? = null,
         includeImages: Boolean = true,
+        imageOptions: DocumentImageOptions = DocumentImageOptions(),
     ): String {
         val endpoint = azureDocumentIntelligenceUri(config)
             ?: throw AzureOcrException("Document Intelligence needs an Azure Cognitive Services resource name or endpoint.")
@@ -109,32 +117,30 @@ internal class AzureDocumentIntelligenceClient(
         if (markdownOutput == null) return McpJson.providerJsonOrRaw(jsonText)
 
         val figures = (result["figures"] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }
-        val imagePaths = mutableListOf<String>()
-        var content = markdown
-        if (writeImages) {
-            for (figure in figures) {
-                val id = (figure["id"] as? JsonPrimitive)?.contentOrNull
-                    ?.takeIf { it.matches(Regex("[A-Za-z0-9._-]{1,100}")) } ?: continue
-                val figureUri =
-                    URI.create(location.toString().substringBefore('?') + "/figures/$id?api-version=2024-11-30")
-                val image = request(figureUri, "GET")
-                if (image.status != 200 || image.body.size > AzureDocumentInput.MAX_DOCUMENT_BYTES || image.body.size < 8) {
-                    throw AzureOcrException("Could not retrieve Document Intelligence figure $id.")
+        DocumentImageWriter(markdownOutput, imageOptions, OriginalPdf.bytes(source.bytes, source.mime)).use { images ->
+            val links = mutableMapOf<String, String?>()
+            if (writeImages) {
+                figures.forEachIndexed { index, figure ->
+                    val id = (figure["id"] as? JsonPrimitive)?.contentOrNull
+                        ?.takeIf { it.matches(Regex("[A-Za-z0-9._-]{1,100}")) } ?: return@forEachIndexed
+                    val region = azureFigureRegion(figure, result["pages"] as? JsonArray)
+                    links["figures/$id"] = images.write(region?.page ?: 1, index + 1, region) {
+                        val figureUri = URI.create(location.toString().substringBefore('?') + "/figures/$id?api-version=2024-11-30")
+                        val image = request(figureUri, "GET")
+                        if (image.status != 200 || image.body.size > AzureDocumentInput.MAX_DOCUMENT_BYTES || image.body.size < 8) {
+                            throw AzureOcrException("Could not retrieve Document Intelligence figure $id.")
+                        }
+                        ProviderDocumentImage(image.body, "png")
+                    }
                 }
-                val stem = markdownOutput.fileName.toString().substringBeforeLast('.')
-                val name = "$stem-figure-$id.png"
-                val path = (markdownOutput.parent ?: Path.of(".")).resolve(name)
-                path.parent?.let(Files::createDirectories)
-                Files.write(path, image.body)
-                imagePaths += path.toString()
-                content = content.replace("figures/$id", name)
             }
+            var content = rewriteMarkdownImageLinks(markdown, links)
+            content = Regex("!\\[([^]]*)]\\(figures/[^)]+\\)").replace(content) { it.groupValues[1] }
+            val json = DocumentMarkdown.resultJson(content, markdownOutput, images.imageFiles,
+                pageCount = (result["pages"] as? JsonArray)?.size, warnings = images.warnings)
+            images.commit()
+            return json
         }
-        content = Regex("!\\[([^]]*)]\\(figures/[^)]+\\)").replace(content) { it.groupValues[1] }
-        return DocumentMarkdown.resultJson(
-            content, markdownOutput, imagePaths,
-            pageCount = (result["pages"] as? JsonArray)?.size
-        )
     }
 
     private fun azureDocumentError(context: String, response: AzureDocumentIntelligenceResponse): AzureOcrException {
@@ -146,6 +152,19 @@ internal class AzureDocumentIntelligenceClient(
             response.status
         )
     }
+}
+
+internal fun azureFigureRegion(figure: JsonObject, pages: JsonArray?): PdfFigureRegion? {
+    val region = (figure["boundingRegions"] as? JsonArray)?.singleOrNull() as? JsonObject ?: return null
+    val pageNumber = (region["pageNumber"] as? JsonPrimitive)?.intOrNull ?: return null
+    val page = pages.orEmpty().filterIsInstance<JsonObject>()
+        .firstOrNull { (it["pageNumber"] as? JsonPrimitive)?.intOrNull == pageNumber } ?: return null
+    val polygon = (region["polygon"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.doubleOrNull }
+        ?.takeIf { it.size == 8 } ?: return null
+    val xs = polygon.filterIndexed { index, _ -> index % 2 == 0 }
+    val ys = polygon.filterIndexed { index, _ -> index % 2 == 1 }
+    return PdfFigureRegion.fromPixels(pageNumber, listOf(xs.min(), ys.min(), xs.max(), ys.max()),
+        (page["width"] as? JsonPrimitive)?.doubleOrNull, (page["height"] as? JsonPrimitive)?.doubleOrNull)
 }
 
 @Serializable

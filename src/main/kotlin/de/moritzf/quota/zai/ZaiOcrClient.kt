@@ -3,6 +3,14 @@ package de.moritzf.quota.zai
 import de.moritzf.quota.shared.DocumentLimits
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
+import de.moritzf.quota.shared.DocumentImageOptions
+import de.moritzf.quota.shared.DocumentImageWriter
+import de.moritzf.quota.shared.DocumentMarkdown
+import de.moritzf.quota.shared.OriginalPdf
+import de.moritzf.quota.shared.ProviderDocumentImage
+import de.moritzf.quota.shared.rewriteMarkdownImageLinks
+import de.moritzf.quota.openai.proxy.pdf.PdfFigureRegion
+import de.moritzf.quota.openai.proxy.pdf.PdfFigureRenderer
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
@@ -14,12 +22,12 @@ import java.time.Duration
 import java.util.Base64
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
 
 open class ZaiOcrClient(
     private val httpClient: HttpClient = defaultHttpClient(),
@@ -32,6 +40,7 @@ open class ZaiOcrClient(
         outputFile: Path? = null,
         includeImages: Boolean = true,
         model: String = DEFAULT_MODEL,
+        imageOptions: DocumentImageOptions = DocumentImageOptions(),
     ): String {
         val token = apiKey.trim().ifBlank {
             throw ZaiQuotaException("Z.ai API key missing. Add a Z.ai API key in settings.")
@@ -58,7 +67,8 @@ open class ZaiOcrClient(
         if (markdownOutput == null) {
             return McpJson.providerJsonOrRaw(responseBody)
         }
-        val written = writeMarkdown(responseBody, markdownOutput, writeImages) { url -> downloadBytes(url) }
+        val written = writeMarkdown(responseBody, markdownOutput, writeImages, imageOptions,
+            OriginalPdf.source(localFile, documentUrl)) { url -> downloadBytes(url) }
         return JsonSupport.json.encodeToString(written)
     }
 
@@ -129,6 +139,8 @@ open class ZaiOcrClient(
             responseBody: String,
             outputFile: Path,
             includeImages: Boolean = false,
+            imageOptions: DocumentImageOptions = DocumentImageOptions(),
+            originalPdf: () -> PdfFigureRenderer? = { null },
             download: (String) -> ByteArray? = { null },
         ): ZaiOcrWriteResult {
             val parsed = try {
@@ -140,52 +152,40 @@ open class ZaiOcrClient(
             if (markdown.isEmpty()) {
                 throw ZaiQuotaException("Z.ai OCR returned no markdown.", 200, responseBody)
             }
-            val parent = outputFile.parent
-            if (parent != null) {
-                Files.createDirectories(parent)
-            }
-            val imageDir = outputFile.parent ?: Path.of(".")
-            val imageFiles = mutableListOf<String>()
-            if (includeImages) {
-                collectImageContents(parsed.layoutDetails).forEachIndexed { index, content ->
-                    val bytes = decodeImage(content, download) ?: return@forEachIndexed
-                    val name = uniqueName(imageDir, suggestedName(content, index), imageFiles)
-                    val imagePath = imageDir.resolve(name)
-                    Files.write(imagePath, bytes)
-                    imageFiles += imagePath.toString()
-                    markdown = markdown.replace(content, name)
+            DocumentImageWriter(outputFile, imageOptions, originalPdf).use { images ->
+                if (includeImages) {
+                    val details = parsed.layoutDetails as? JsonArray ?: JsonArray(emptyList())
+                    val pageGroups = if (details.any { it is JsonArray }) details else listOf(details)
+                    pageGroups.forEachIndexed { pageIndex, group ->
+                        (group as? JsonArray).orEmpty().filterIsInstance<JsonObject>()
+                            .filter { (it["label"] as? JsonPrimitive)?.contentOrNull == "image" }
+                            .forEachIndexed { index, item ->
+                                val content = (item["content"] as? JsonPrimitive)?.contentOrNull?.trim().orEmpty()
+                                if (content.isEmpty()) return@forEachIndexed
+                                val box = (item["bbox_2d"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.doubleOrNull }
+                                val region = box?.takeIf { it.size == 4 }?.let {
+                                    PdfFigureRegion(pageIndex + 1, it[0], it[1], it[2], it[3],
+                                        (item["width"] as? JsonPrimitive)?.doubleOrNull,
+                                        (item["height"] as? JsonPrimitive)?.doubleOrNull)
+                                }
+                                val link = images.write(pageIndex + 1, index + 1, region) {
+                                    decodeImage(content, download)?.let { bytes ->
+                                        ProviderDocumentImage(bytes, suggestedName(content, index).substringAfterLast('.'))
+                                    }
+                                }
+                                markdown = rewriteMarkdownImageLinks(markdown, mapOf(content to link))
+                            }
+                    }
                 }
+                DocumentMarkdown.writeAtomically(outputFile, markdown)
+                images.commit()
+                return ZaiOcrWriteResult(outputFile.toString(), images.imageFiles, parsed.dataInfo?.numPages ?: 0, images.warnings)
             }
-            Files.writeString(outputFile, markdown)
-            return ZaiOcrWriteResult(
-                outputFile = outputFile.toString(),
-                imageFiles = imageFiles,
-                pages = parsed.dataInfo?.numPages ?: 0,
-            )
         }
 
         internal fun imageFileName(id: String): String? {
             val name = Path.of(id.trim()).fileName.toString()
             return name.takeIf { it.isNotBlank() && it != "." && it != ".." }
-        }
-
-        internal fun collectImageContents(details: JsonElement?): List<String> {
-            val found = mutableListOf<String>()
-            fun walk(element: JsonElement?) {
-                when (element) {
-                    is JsonArray -> element.forEach(::walk)
-                    is JsonObject -> {
-                        val label = (element["label"] as? JsonPrimitive)?.contentOrNull
-                        val content = (element["content"] as? JsonPrimitive)?.contentOrNull?.trim()
-                        if (label == "image" && !content.isNullOrEmpty()) {
-                            found += content
-                        }
-                    }
-                    else -> Unit
-                }
-            }
-            walk(details)
-            return found
         }
 
         private fun decodeImage(content: String, download: (String) -> ByteArray?): ByteArray? {
@@ -215,22 +215,6 @@ open class ZaiOcrClient(
             val base = imageFileName(path.substringAfterLast('/').substringBefore('?'))
             if (base != null && '.' in base) return base
             return "img-$index.png"
-        }
-
-        private fun uniqueName(directory: Path, preferred: String, written: List<String>): String {
-            if (written.none { Path.of(it).fileName.toString() == preferred } && !Files.exists(directory.resolve(preferred))) {
-                return preferred
-            }
-            val stem = preferred.substringBeforeLast('.', preferred)
-            val ext = preferred.substringAfterLast('.', "png")
-            var n = 1
-            while (true) {
-                val candidate = "$stem-$n.$ext"
-                if (written.none { Path.of(it).fileName.toString() == candidate } && !Files.exists(directory.resolve(candidate))) {
-                    return candidate
-                }
-                n += 1
-            }
         }
 
         private fun mimeType(path: Path, bytes: ByteArray): String {
@@ -274,4 +258,5 @@ internal data class ZaiOcrWriteResult(
     @SerialName("output_file") val outputFile: String,
     @SerialName("image_files") val imageFiles: List<String> = emptyList(),
     val pages: Int,
+    val warnings: List<String> = emptyList(),
 )

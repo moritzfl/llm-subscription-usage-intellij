@@ -6,6 +6,8 @@ import de.moritzf.quota.mistral.MistralOcrDocumentDto
 import de.moritzf.quota.mistral.MistralOcrRequestDto
 import de.moritzf.quota.mistral.MistralOcrResponseDto
 import de.moritzf.quota.shared.DocumentConversionProgress
+import de.moritzf.quota.shared.DocumentImageOptions
+import de.moritzf.quota.shared.OriginalPdf
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
 import java.io.ByteArrayOutputStream
@@ -44,6 +46,7 @@ internal class AzureOcrClient(
         outputFile: Path? = null,
         includeImages: Boolean = true,
         progress: DocumentConversionProgress = DocumentConversionProgress.NONE,
+        imageOptions: DocumentImageOptions = DocumentImageOptions(),
     ): String {
         if (!AZURE_DEPLOYMENT_NAME.matches(deployment)) throw AzureOcrException("Invalid Azure OCR deployment name.")
         val endpoint = azureOcrUri(config)
@@ -53,7 +56,9 @@ internal class AzureOcrClient(
         val markdownOutput = outputFile ?: MistralOcrClient.defaultMarkdownOutput(localFile)
         val responses = mutableListOf<AzureOcrChunkResult>()
         var singleResponse: String? = null
-        val writer = markdownOutput?.let { MistralMarkdownWriter(it, includeImages) }
+        val writer = markdownOutput?.let {
+            MistralMarkdownWriter(it, includeImages, imageOptions, OriginalPdf.bytes(source.bytes, source.mime))
+        }
         writer.use {
             fun convertPart(part: AzureDocumentSource, from: Int, to: Int, total: Int) {
                 val detail = "Pages $from–$to of $total"
@@ -93,7 +98,7 @@ internal class AzureOcrClient(
                 if (parsed.pages.size != to - from + 1) {
                     throw AzureOcrException("Azure OCR returned ${parsed.pages.size} pages for pages $from–$to; output was not saved.")
                 }
-                if (writer != null) writer.append(parsed.pages) else {
+                if (writer != null) writer.append(parsed.pages, from - 1) else {
                     singleResponse = response.body
                     responses += AzureOcrChunkResult(from, to, JsonSupport.json.parseToJsonElement(response.body))
                 }

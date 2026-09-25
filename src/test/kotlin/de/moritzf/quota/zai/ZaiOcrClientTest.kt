@@ -3,6 +3,7 @@ package de.moritzf.quota.zai
 import de.moritzf.quota.shared.DocumentLimits
 import java.io.RandomAccessFile
 import java.nio.file.Files
+import java.nio.file.Path
 import java.util.Base64
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -70,9 +71,13 @@ class ZaiOcrClientTest {
             byteArrayOf(9, 8, 7)
         }
 
-        assertEquals(listOf(dir.resolve("figure-1.png").toString(), dir.resolve("img-1.png").toString()), result.imageFiles)
-        assertEquals(byteArrayOf(9, 8, 7).toList(), Files.readAllBytes(dir.resolve("figure-1.png")).toList())
-        assertEquals(byteArrayOf(1, 2, 3, 4).toList(), Files.readAllBytes(dir.resolve("img-1.png")).toList())
-        assertEquals("See ![](figure-1.png) and a data image", Files.readString(out))
+        assertEquals(2, result.imageFiles.size)
+        val first = Path.of(result.imageFiles[0])
+        val second = Path.of(result.imageFiles[1])
+        assertEquals(dir, first.parent.parent)
+        assertEquals(byteArrayOf(9, 8, 7).toList(), Files.readAllBytes(first).toList())
+        assertEquals(byteArrayOf(1, 2, 3, 4).toList(), Files.readAllBytes(second).toList())
+        assertEquals("See ![](${first.parent.fileName}/${first.fileName}) and a data image", Files.readString(out))
+        assertEquals(2, result.warnings.size)
     }
 }

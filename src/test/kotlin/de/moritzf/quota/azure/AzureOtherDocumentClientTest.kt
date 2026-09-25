@@ -2,6 +2,7 @@ package de.moritzf.quota.azure
 
 import de.moritzf.quota.shared.DocumentMarkdownWriteResult
 import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.mistral.MistralOcrWriteResult
 import java.awt.image.BufferedImage
 import java.nio.file.Files
 import java.nio.file.Path
@@ -80,7 +81,7 @@ class AzureOtherDocumentClientTest {
     fun cohereWritesGroundedImageCropsBesideMarkdown() {
         val image = Files.createTempFile("cohere-figures", ".png")
         val markdown = image.resolveSibling(image.fileName.toString().removeSuffix(".png") + ".md")
-        val crop = image.resolveSibling(image.fileName.toString().removeSuffix(".png") + "-cohere-p1-img-0.png")
+        var crop: Path? = null
         try {
             ImageIO.write(BufferedImage(80, 60, BufferedImage.TYPE_INT_RGB), "png", image.toFile())
             val client = AzureCohereParseClient(post = {
@@ -93,11 +94,14 @@ class AzureOtherDocumentClientTest {
                 }}]}"""
                 )
             })
-            client.convertDocument(cli(AZURE_FOUNDRY_SCOPE), config, "Cohere-parse-v5", localFile = image)
-            assertEquals("![Logo](${crop.fileName})", Files.readString(markdown))
+            val result = JsonSupport.json.decodeFromString<MistralOcrWriteResult>(
+                client.convertDocument(cli(AZURE_FOUNDRY_SCOPE), config, "Cohere-parse-v5", localFile = image))
+            crop = Path.of(result.imageFiles.single())
+            assertEquals("![Logo](${crop.parent.fileName}/${crop.fileName})", Files.readString(markdown))
             assertEquals(30, ImageIO.read(crop.toFile()).width)
+            assertTrue(result.warnings.single().contains("original PDF unavailable"))
         } finally {
-            Files.deleteIfExists(crop)
+            crop?.let { Files.deleteIfExists(it); Files.deleteIfExists(it.parent) }
             Files.deleteIfExists(markdown)
             Files.deleteIfExists(image)
         }
@@ -171,7 +175,7 @@ class AzureOtherDocumentClientTest {
     fun documentIntelligenceDownloadsFiguresAndFixesMarkdownLinks() {
         val source = Files.createTempFile("azure-di-figures", ".pdf")
         val target = source.resolveSibling(source.fileName.toString().removeSuffix(".pdf") + ".md")
-        val figure = source.resolveSibling(source.fileName.toString().removeSuffix(".pdf") + "-figure-1.0.png")
+        var figure: Path? = null
         val operation = "https://my-resource.cognitiveservices.azure.com/documentintelligence/" +
                 "documentModels/prebuilt-layout/analyzeResults/11111111-1111-1111-1111-111111111111?api-version=2024-11-30"
         try {
@@ -201,12 +205,15 @@ class AzureOtherDocumentClientTest {
                     }
                 }
             })
-            client.convertDocument(cli(AZURE_COGNITIVE_SCOPE), config, localFile = source)
+            val result = JsonSupport.json.decodeFromString<DocumentMarkdownWriteResult>(
+                client.convertDocument(cli(AZURE_COGNITIVE_SCOPE), config, localFile = source))
+            figure = Path.of(result.imageFiles.single())
             assertEquals(3, calls)
-            assertEquals("![Figure](${figure.fileName})", Files.readString(target))
+            assertEquals("![Figure](${figure.parent.fileName}/${figure.fileName})", Files.readString(target))
             assertTrue(Files.exists(figure))
+            assertTrue(result.warnings.isNotEmpty())
         } finally {
-            Files.deleteIfExists(figure)
+            figure?.let { Files.deleteIfExists(it); Files.deleteIfExists(it.parent) }
             Files.deleteIfExists(target)
             Files.deleteIfExists(source)
         }

@@ -3,6 +3,9 @@ package de.moritzf.quota.mistral
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
 import de.moritzf.quota.shared.MultipartFilePublisher
+import de.moritzf.quota.shared.DocumentImageOptions
+import de.moritzf.quota.shared.OriginalPdf
+import de.moritzf.quota.openai.proxy.pdf.PdfFigureRenderer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
@@ -31,6 +34,7 @@ open class MistralOcrClient(
         outputFile: Path? = null,
         includeImages: Boolean = true,
         model: String = DEFAULT_MODEL,
+        imageOptions: DocumentImageOptions = DocumentImageOptions(),
     ): String {
         val token = apiKey.trim().ifBlank {
             throw MistralQuotaException("Mistral API key missing. Add a Mistral API key in settings.")
@@ -55,7 +59,8 @@ open class MistralOcrClient(
         if (markdownOutput == null) {
             return McpJson.providerJsonOrRaw(responseBody)
         }
-        val written = writeMarkdown(responseBody, markdownOutput, writeImages)
+        val written = writeMarkdown(responseBody, markdownOutput, writeImages, imageOptions,
+            OriginalPdf.source(localFile, documentUrl))
         return JsonSupport.json.encodeToString(written)
     }
 
@@ -174,14 +179,16 @@ open class MistralOcrClient(
         internal fun writeMarkdown(
             responseBody: String,
             outputFile: Path,
-            includeImages: Boolean
+            includeImages: Boolean,
+            imageOptions: DocumentImageOptions = DocumentImageOptions(),
+            originalPdf: () -> PdfFigureRenderer? = { null },
         ): MistralOcrWriteResult {
             val parsed = try {
                 JsonSupport.json.decodeFromString<MistralOcrResponseDto>(responseBody)
             } catch (exception: Exception) {
                 throw MistralQuotaException("Could not parse OCR response.", 200, responseBody, exception)
             }
-            return MistralMarkdownWriter(outputFile, includeImages).use { writer ->
+            return MistralMarkdownWriter(outputFile, includeImages, imageOptions, originalPdf).use { writer ->
                 writer.append(parsed.pages)
                 writer.commit()
             }
@@ -228,12 +235,21 @@ internal data class MistralOcrResponseDto(
 internal data class MistralOcrPageDto(
     val markdown: String = "",
     val images: List<MistralOcrImageDto>? = emptyList(),
+    val index: Int? = null,
+    val dimensions: MistralOcrPageDimensionsDto? = null,
 )
+
+@Serializable
+internal data class MistralOcrPageDimensionsDto(val width: Double? = null, val height: Double? = null)
 
 @Serializable
 internal data class MistralOcrImageDto(
     val id: String = "",
     @SerialName("image_base64") val imageBase64: String? = null,
+    @SerialName("top_left_x") val topLeftX: Double? = null,
+    @SerialName("top_left_y") val topLeftY: Double? = null,
+    @SerialName("bottom_right_x") val bottomRightX: Double? = null,
+    @SerialName("bottom_right_y") val bottomRightY: Double? = null,
 )
 
 @Serializable
@@ -241,4 +257,5 @@ internal data class MistralOcrWriteResult(
     @SerialName("output_file") val outputFile: String,
     @SerialName("image_files") val imageFiles: List<String>,
     val pages: Int,
+    val warnings: List<String> = emptyList(),
 )
