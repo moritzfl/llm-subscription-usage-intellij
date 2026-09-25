@@ -1,6 +1,6 @@
 # LLM Subscription Usage Changelog
 
-## [Unreleased]
+## [1.15.11] - 2026-09-25
 
 - Z.ai OCR splits local PDFs into requests of at most 30 pages and 50 MB, then joins the markdown in page order. A document URL is still one request. Cancellation takes effect between requests.
 - Cohere Parse converts every selected PDF page instead of stopping at 20. Each page is still its own image request; cancellation takes effect between pages.
@@ -581,7 +581,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.10...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.11...HEAD
+[1.15.11]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.10...1.15.11
 [1.15.10]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.9...1.15.10
 [1.15.9]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.8...1.15.9
 [1.15.8]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.7...1.15.8
