@@ -1,9 +1,10 @@
 # LLM Subscription Usage Changelog
 
-## [Unreleased]
+## [1.15.10] - 2026-09-25
 
-- Azure Mistral OCR/Document AI now converts long PDFs automatically in requests of at most 30 pages, with page-based progress and cancellation between requests in the PDF action.
+- Azure Mistral OCR/Document AI now converts long PDFs automatically in requests of at most 30 pages and combines all pages into one Markdown document, with page-based progress and cancellation between requests in the PDF action.
 - Mistral/Azure OCR saves images in a unique folder per conversion, uses page-specific filenames, and rewrites Markdown links. Failed or cancelled conversions preserve existing output and clean up partial files.
+- Request-log cleanup snapshots file timestamps before sorting, preventing comparator failures when concurrent cleanup runs delete files.
 
 ## [1.15.9] - 2026-09-24
 
@@ -571,7 +572,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.9...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.10...HEAD
+[1.15.10]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.9...1.15.10
 [1.15.9]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.8...1.15.9
 [1.15.8]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.7...1.15.8
 [1.15.7]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.6...1.15.7
