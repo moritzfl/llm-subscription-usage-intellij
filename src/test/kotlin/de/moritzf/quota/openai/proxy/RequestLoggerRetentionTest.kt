@@ -1,8 +1,13 @@
 package de.moritzf.quota.openai.proxy
 
 import de.moritzf.proxy.logging.RequestLogger
+import java.io.IOException
+import java.nio.file.FileVisitResult
 import java.nio.file.Files
+import java.nio.file.NoSuchFileException
 import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.FileTime
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -96,8 +101,32 @@ class RequestLoggerRetentionTest {
     }
 
     private fun deleteRecursively(dir: Path) {
-        Files.walk(dir).use { stream ->
-            stream.sorted(Comparator.reverseOrder()).forEach { Files.deleteIfExists(it) }
+        // RequestLogger starts pruning on a virtual thread. Files.walk fails the test
+        // when that thread deletes an entry mid-walk; visitFileFailed tolerates it.
+        if (Files.notExists(dir)) return
+        try {
+            Files.walkFileTree(
+                dir,
+                object : SimpleFileVisitor<Path>() {
+                    override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                        Files.deleteIfExists(file)
+                        return FileVisitResult.CONTINUE
+                    }
+
+                    override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
+                        if (exc is NoSuchFileException) return FileVisitResult.CONTINUE
+                        throw exc
+                    }
+
+                    override fun postVisitDirectory(directory: Path, exc: IOException?): FileVisitResult {
+                        if (exc is NoSuchFileException) return FileVisitResult.CONTINUE
+                        if (exc != null) throw exc
+                        Files.deleteIfExists(directory)
+                        return FileVisitResult.CONTINUE
+                    }
+                },
+            )
+        } catch (_: NoSuchFileException) {
         }
     }
 }
