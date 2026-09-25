@@ -66,10 +66,18 @@ class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
                 if (Files.exists(destination) && Messages.showYesNoDialog(
                         project, "Overwrite ${destination.fileName}?", "PDF to Markdown", Messages.getQuestionIcon(),
                     ) != Messages.YES) return@invokeLater
-                ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Converting PDF to Markdown", false) {
+                ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Converting PDF to Markdown", true) {
                     override fun run(indicator: ProgressIndicator) {
                         indicator.isIndeterminate = true
-                        PdfDocumentConversion.convert(dialog.provider(), source, destination, dialog.includeImages())
+                        PdfDocumentConversion.convert(dialog.provider(), source, destination, dialog.includeImages()) { completed, total, detail ->
+                            indicator.checkCanceled()
+                            indicator.text = source.fileName.toString()
+                            indicator.text2 = "$detail (cancellation takes effect between requests)"
+                            indicator.isIndeterminate = total <= 0
+                            if (total > 0) indicator.fraction = (completed.toDouble() / total).coerceAtMost(0.99)
+                        }
+                        indicator.fraction = 1.0
+                        indicator.text2 = "Markdown saved"
                     }
 
                     override fun onSuccess() {

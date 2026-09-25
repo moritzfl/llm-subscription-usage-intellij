@@ -1,5 +1,10 @@
 # LLM Subscription Usage Changelog
 
+## [Unreleased]
+
+- Azure Mistral OCR/Document AI now converts long PDFs automatically in requests of at most 30 pages, with page-based progress and cancellation between requests in the PDF action.
+- Mistral/Azure OCR saves images in a unique folder per conversion, uses page-specific filenames, and rewrites Markdown links. Failed or cancelled conversions preserve existing output and clean up partial files.
+
 ## [1.15.9] - 2026-09-24
 
 - Fixed the PDF conversion path test on Linux and updated CI actions to Node.js 24 versions.

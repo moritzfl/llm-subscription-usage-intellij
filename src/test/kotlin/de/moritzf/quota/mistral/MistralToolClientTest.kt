@@ -76,7 +76,7 @@ class MistralToolClientTest {
     }
 
     @Test
-    fun writeMarkdownPersistsApiPlaceholdersAsSiblingImages() {
+    fun writeMarkdownPersistsImagesInIsolatedFolderAndRewritesLinks() {
         val dir = Files.createTempDirectory("mistral-ocr")
         val markdownFile = dir.resolve("doc.md")
         val png = Base64.getEncoder().encodeToString(byteArrayOf(1, 2, 3, 4))
@@ -95,9 +95,11 @@ class MistralToolClientTest {
 
         assertEquals(markdownFile.toString(), result.outputFile)
         assertEquals(1, result.pages)
-        assertEquals(listOf(dir.resolve("img-0.jpeg").toString()), result.imageFiles)
-        assertEquals("Hello ![img-0.jpeg](img-0.jpeg)", Files.readString(markdownFile))
-        assertTrue(Files.size(dir.resolve("img-0.jpeg")) > 0)
+        val image = Path.of(result.imageFiles.single())
+        assertEquals(dir, image.parent.parent)
+        assertTrue(image.parent.fileName.toString().startsWith("doc-images-"))
+        assertEquals("Hello ![img-0.jpeg](${image.parent.fileName}/${image.fileName})", Files.readString(markdownFile))
+        assertTrue(Files.size(image) > 0)
     }
 
     @Test
@@ -121,8 +123,10 @@ class MistralToolClientTest {
 
         val result = MistralOcrClient.writeMarkdown(body, markdownFile, includeImages = true)
 
-        assertEquals(listOf(dir.resolve("img-0.jpeg").toString()), result.imageFiles)
-        assertEquals(byteArrayOf(9, 8, 7).toList(), Files.readAllBytes(dir.resolve("img-0.jpeg")).toList())
+        val image = Path.of(result.imageFiles.single())
+        assertEquals(dir, image.parent.parent)
+        assertEquals(byteArrayOf(9, 8, 7).toList(), Files.readAllBytes(image).toList())
+        assertEquals("A ![img-0.jpeg](${image.parent.fileName}/${image.fileName})", Files.readString(markdownFile))
     }
 
     @Test

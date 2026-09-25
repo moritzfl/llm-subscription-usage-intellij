@@ -19,6 +19,7 @@ import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 import de.moritzf.quota.mistral.MistralOcrClient
 import de.moritzf.quota.openai.proxy.pdf.PdfPages
+import de.moritzf.quota.shared.DocumentConversionProgress
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.supergrok.SuperGrokDocumentClient
 import de.moritzf.quota.supergrok.SuperGrokQuotaException
@@ -39,7 +40,11 @@ internal object PdfDocumentConversion {
         }
     }
 
-    fun convert(provider: DocumentToMarkdownProvider, source: Path, output: Path, includeImages: Boolean) {
+    fun convert(
+        provider: DocumentToMarkdownProvider, source: Path, output: Path, includeImages: Boolean,
+        progress: DocumentConversionProgress = DocumentConversionProgress.NONE,
+    ) {
+        progress.update(0, 0, "Preparing document conversion")
         require(PdfPages.isPdf(source)) { "Select a readable PDF file." }
         val type = provider.providerType
         val account = AccountResolver.resolve(type, capability = AccountCapability.DOCUMENT_TO_MARKDOWN)
@@ -65,7 +70,7 @@ internal object PdfDocumentConversion {
                         AzureCohereParseClient().convertDocument(cli, config, azureOcrDeploymentId(selection),
                             localFile = source, outputFile = output, includeImages = includeImages)
                     else -> AzureOcrClient().convertDocument(cli, config, selection,
-                        localFile = source, outputFile = output, includeImages = includeImages)
+                        localFile = source, outputFile = output, includeImages = includeImages, progress = progress)
                 }
             }
             DocumentToMarkdownProvider.ZAI -> {

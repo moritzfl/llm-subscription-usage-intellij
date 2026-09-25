@@ -17,7 +17,6 @@ import java.net.http.HttpResponse
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
-import java.util.Base64
 import java.util.UUID
 
 open class MistralOcrClient(
@@ -113,7 +112,7 @@ open class MistralOcrClient(
         fun createDefault(): MistralOcrClient = MistralOcrClient()
 
         internal fun imageFileName(id: String): String? {
-            val name = Path.of(id.trim()).fileName.toString()
+            val name = id.trim().replace('\\', '/').substringAfterLast('/')
             return name.takeIf { it.isNotBlank() && it != "." && it != ".." }
         }
 
@@ -182,32 +181,10 @@ open class MistralOcrClient(
             } catch (exception: Exception) {
                 throw MistralQuotaException("Could not parse OCR response.", 200, responseBody, exception)
             }
-            val markdown = parsed.pages.joinToString("\n\n") { it.markdown }
-            val parent = outputFile.parent
-            if (parent != null) {
-                Files.createDirectories(parent)
+            return MistralMarkdownWriter(outputFile, includeImages).use { writer ->
+                writer.append(parsed.pages)
+                writer.commit()
             }
-            Files.writeString(outputFile, markdown)
-            val imageFiles = mutableListOf<String>()
-            if (includeImages) {
-                val imageDir = outputFile.parent ?: Path.of(".")
-                parsed.pages.forEach { page ->
-                    page.images.orEmpty().forEach { image ->
-                        val name = imageFileName(image.id) ?: return@forEach
-                        val encoded = image.imageBase64?.substringAfter("base64,", image.imageBase64)?.trim().orEmpty()
-                        if (encoded.isEmpty()) return@forEach
-                        val bytes = runCatching { Base64.getDecoder().decode(encoded) }.getOrNull() ?: return@forEach
-                        val imagePath = imageDir.resolve(name)
-                        Files.write(imagePath, bytes)
-                        imageFiles += imagePath.toString()
-                    }
-                }
-            }
-            return MistralOcrWriteResult(
-                outputFile = outputFile.toString(),
-                imageFiles = imageFiles,
-                pages = parsed.pages.size,
-            )
         }
 
         private fun defaultHttpClient(): HttpClient =

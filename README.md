@@ -115,6 +115,8 @@ The plugin registers subscription-backed tools with IntelliJ's built-in MCP serv
 
 Right-click a local PDF in the Project view or its editor and select **Convert PDF to Markdown...**. The dialog lists configured document providers, preferring Mistral, then Azure/Z.ai OCR, and prefills the sibling `.md` output with image extraction enabled. Provider, image extraction, and output location can all be changed before conversion; the generated Markdown opens in the editor.
 
+Azure Mistral OCR/Document AI automatically splits PDFs into requests of at most 30 pages and joins the results in page order, both from this action and from MCP. The action shows completed pages and the current range; cancellation takes effect between requests. Azure's local input-size guard remains 20 MB. Mistral/Azure OCR images use a unique `<output>-images-…` folder and page-specific names, with matching relative Markdown links. Existing Markdown is replaced only after the whole conversion succeeds; failed or cancelled runs remove their partial output. Earlier image folders are retained so existing links are never overwritten. Without an output path, a multi-request MCP result contains `page_count` and `chunks` with `page_from`, `page_to`, and each original provider `response`.
+
 Individual tools can be enabled or disabled under `Settings` > `Tools` > `MCP Server` > `Exposed Tools`.
 
 ![PDF to markdown pipelines](docs/document-to-markdown-pipelines.svg)
