@@ -3,6 +3,7 @@ package de.moritzf.quota.azure
 import de.moritzf.quota.mistral.MistralOcrClient
 import de.moritzf.quota.mistral.MistralOcrWriteResult
 import de.moritzf.quota.openai.proxy.pdf.PdfImageIoPlugins
+import de.moritzf.quota.shared.DocumentConversionProgress
 import de.moritzf.quota.shared.DocumentMarkdown
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
@@ -45,6 +46,7 @@ internal class AzureCohereParseClient(
         pageFrom: Int? = null,
         pageTo: Int? = null,
         imageOptions: DocumentImageOptions = DocumentImageOptions(),
+        progress: DocumentConversionProgress = DocumentConversionProgress.NONE,
     ): String {
         if (!AZURE_DEPLOYMENT_NAME.matches(deployment)) throw AzureOcrException("Invalid Cohere Parse deployment name.")
         val endpoint = azureCohereParseUri(config)
@@ -97,7 +99,7 @@ internal class AzureCohereParseClient(
                 if (response.status !in 200..299) {
                     val detail = MistralOcrClient.mistralErrorDetail(response.body)
                     throw AzureOcrException(
-                        "Cohere Parse failed (HTTP ${response.status})${
+                        "Cohere Parse failed for page $page (HTTP ${response.status})${
                             detail?.let { ": $it" }.orEmpty()
                         }.", response.status
                     )
@@ -147,16 +149,21 @@ internal class AzureCohereParseClient(
                 Loader.loadPDF(source.bytes).use { pdf ->
                     val from = pageFrom ?: 1
                     val to = pageTo ?: pdf.numberOfPages
-                    if (from < 1 || to < from || to > pdf.numberOfPages || to - from >= MAX_PAGES) {
-                        throw AzureOcrException("Cohere Parse accepts 1 to $MAX_PAGES PDF pages per request; set pageFrom/pageTo for larger files.")
+                    if (from < 1 || to < from || to > pdf.numberOfPages) {
+                        throw AzureOcrException("pageFrom/pageTo out of range (document has ${pdf.numberOfPages} pages).")
                     }
+                    val work = to - from + 1
                     val renderer = PDFRenderer(pdf)
+                    var done = 0
                     for (page in from..to) {
+                        progress.update(done, work, "Page $page of ${pdf.numberOfPages}")
                         val box = pdf.getPage(page - 1).cropBox
                         if (box.width.toDouble() * box.height.toDouble() * (DPI / 72.0) * (DPI / 72.0) > MAX_PIXELS) {
                             throw AzureOcrException("PDF page $page is too large to render for Cohere Parse.")
                         }
                         parseImage(renderer.renderImageWithDPI(page - 1, DPI, ImageType.RGB), page)
+                        done++
+                        progress.update(done, work, "Converted $done of $work pages")
                     }
                 }
             } else {
@@ -166,7 +173,9 @@ internal class AzureCohereParseClient(
                 val image = ImageIO.read(source.bytes.inputStream())
                     ?: throw AzureOcrException("Could not decode image for Cohere Parse.")
                 if (image.width.toLong() * image.height > MAX_PIXELS) throw AzureOcrException("Image is too large for Cohere Parse.")
+                progress.update(0, 1, "Page 1 of 1")
                 parseImage(image, 1)
+                progress.update(1, 1, "Converted 1 of 1 pages")
             }
             if (markdownOutput == null && responses.size == 1) return McpJson.providerJsonOrRaw(responses.single())
             val markdown = pages.joinToString("\n\n")
@@ -183,7 +192,6 @@ internal class AzureCohereParseClient(
     }
 
     companion object {
-        private const val MAX_PAGES = 20
         private const val MAX_PIXELS = 50_000_000
         private const val DPI = 144f
     }

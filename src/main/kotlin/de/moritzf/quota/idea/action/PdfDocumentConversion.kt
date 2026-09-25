@@ -71,7 +71,8 @@ internal object PdfDocumentConversion {
                             localFile = source, outputFile = output, includeImages = includeImages, imageOptions = imageOptions)
                     isAzureCohereSelection(selection) ->
                         AzureCohereParseClient().convertDocument(cli, config, azureOcrDeploymentId(selection),
-                            localFile = source, outputFile = output, includeImages = includeImages, imageOptions = imageOptions)
+                            localFile = source, outputFile = output, includeImages = includeImages,
+                            imageOptions = imageOptions, progress = progress)
                     else -> AzureOcrClient().convertDocument(cli, config, selection,
                         localFile = source, outputFile = output, includeImages = includeImages, progress = progress,
                         imageOptions = imageOptions)
@@ -81,7 +82,7 @@ internal object PdfDocumentConversion {
                 val key = ZaiApiKeyStore.forAccount(account.id).loadBlocking()
                     ?: error("Z.ai API key missing.")
                 ZaiOcrClient.createDefault().convertDocument(key, localFile = source, outputFile = output,
-                    includeImages = includeImages, imageOptions = imageOptions)
+                    includeImages = includeImages, imageOptions = imageOptions, progress = progress)
             }
             DocumentToMarkdownProvider.OPEN_AI -> {
                 val auth = QuotaAuthService.getInstance()

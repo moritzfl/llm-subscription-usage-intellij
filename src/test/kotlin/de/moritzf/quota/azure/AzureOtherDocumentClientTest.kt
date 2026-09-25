@@ -7,9 +7,11 @@ import java.awt.image.BufferedImage
 import java.nio.file.Files
 import java.nio.file.Path
 import javax.imageio.ImageIO
+import java.util.concurrent.CancellationException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
@@ -56,6 +58,57 @@ class AzureOtherDocumentClientTest {
                     )
             }
         } finally {
+            Files.deleteIfExists(source)
+        }
+    }
+
+    @Test
+    fun cohereConvertsEveryPageInsteadOfStoppingAtTwenty() {
+        val source = Files.createTempFile("cohere-long", ".pdf")
+        val target = source.resolveSibling(source.fileName.toString().removeSuffix(".pdf") + ".md")
+        try {
+            PDDocument().use { pdf ->
+                repeat(21) { pdf.addPage(PDPage()) }
+                pdf.save(source.toFile())
+            }
+            var calls = 0
+            val client = AzureCohereParseClient(post = {
+                calls++
+                AzureOcrResponse(200, """{"pages":[{"markdown":{"content":"# Page $calls"}}]}""")
+            })
+            client.convertDocument(cli(AZURE_FOUNDRY_SCOPE), config, "receipt-parser", localFile = source)
+            assertEquals(21, calls)
+            assertEquals((1..21).joinToString("\n\n") { "# Page $it" }, Files.readString(target).trim())
+        } finally {
+            Files.deleteIfExists(target)
+            Files.deleteIfExists(source)
+        }
+    }
+
+    @Test
+    fun cohereCancellationAfterPagePreventsNextRequestAndPublishing() {
+        val source = Files.createTempFile("cohere-cancel", ".pdf")
+        val target = source.resolveSibling(source.fileName.toString().removeSuffix(".pdf") + ".md")
+        try {
+            PDDocument().use { pdf ->
+                repeat(3) { pdf.addPage(PDPage()) }
+                pdf.save(source.toFile())
+            }
+            var calls = 0
+            val client = AzureCohereParseClient(post = {
+                calls++
+                AzureOcrResponse(200, """{"pages":[{"markdown":{"content":"Page"}}]}""")
+            })
+            assertFailsWith<CancellationException> {
+                client.convertDocument(
+                    cli(AZURE_FOUNDRY_SCOPE), config, "receipt-parser", localFile = source, outputFile = target,
+                    progress = { completed, _, _ -> if (completed == 1) throw CancellationException() },
+                )
+            }
+            assertEquals(1, calls)
+            assertFalse(Files.exists(target))
+        } finally {
+            Files.deleteIfExists(target)
             Files.deleteIfExists(source)
         }
     }
