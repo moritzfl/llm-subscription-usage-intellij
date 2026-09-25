@@ -17,7 +17,6 @@ import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 import java.time.Duration
 import java.time.Instant
-import java.util.Comparator
 import java.util.Locale
 import java.util.UUID
 @Suppress("UnstableApiUsage")
@@ -105,10 +104,12 @@ class RequestLogger(
                 val cutoffMillis = System.currentTimeMillis() - MAX_LOG_AGE.toMillis()
                 files.removeIf { deleteIfOlderThan(it, cutoffMillis) }
                 if (files.size > MAX_LOG_FILES) {
-                    files.sortWith(Comparator.comparingLong(::lastModifiedMillis))
+                    // Other cleanup runs may delete files while we sort. Keep comparison
+                    // keys stable instead of rereading timestamps inside the comparator.
+                    val oldestFirst = files.map { it to lastModifiedMillis(it) }.sortedBy { it.second }
                     val excess = files.size - MAX_LOG_FILES
                     for (index in 0 until excess) {
-                        deleteQuietly(files[index])
+                        deleteQuietly(oldestFirst[index].first)
                     }
                 }
             }

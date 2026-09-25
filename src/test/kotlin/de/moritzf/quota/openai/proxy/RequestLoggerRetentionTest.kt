@@ -4,6 +4,9 @@ import de.moritzf.proxy.logging.RequestLogger
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.FileTime
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertTrue
@@ -46,6 +49,38 @@ class RequestLoggerRetentionTest {
                 listOf(false, false, false),
                 files.take(3).map { Files.exists(it) },
             )
+            assertTrue(Files.exists(files.last()), "newest log should be retained")
+        } finally {
+            deleteRecursively(dir)
+        }
+    }
+
+    @Test
+    fun concurrentCleanupKeepsStableOrderingWhileOtherRunsDeleteFiles() {
+        val dir = Files.createTempDirectory("request-logger-concurrent")
+        try {
+            val total = 2003
+            val files = (0 until total).map { index ->
+                writeLog(dir, "entry-$index", daysAgo = 0, ageOffsetMillis = (total - index).toLong())
+            }
+            // Start all explicit pruning calls together, in addition to startup pruning.
+            val logger = RequestLogger(true, dir)
+            Executors.newFixedThreadPool(8).use { executor ->
+                val ready = CountDownLatch(8)
+                val start = CountDownLatch(1)
+                val runs = (0 until 8).map {
+                    executor.submit {
+                        ready.countDown()
+                        check(start.await(30, TimeUnit.SECONDS))
+                        repeat(3) { logger.pruneOldLogs() }
+                    }
+                }
+                assertTrue(ready.await(30, TimeUnit.SECONDS))
+                start.countDown()
+                runs.forEach { it.get(60, TimeUnit.SECONDS) }
+            }
+            val survivors = Files.list(dir).use { it.count() }
+            assertTrue(survivors <= 2000L, "concurrent cleanup should trim to the cap, was $survivors")
             assertTrue(Files.exists(files.last()), "newest log should be retained")
         } finally {
             deleteRecursively(dir)
