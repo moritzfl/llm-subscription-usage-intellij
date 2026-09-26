@@ -2,6 +2,7 @@ package de.moritzf.quota.idea.settings
 
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.ui.AnimatedIcon
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.ui.ComboBox
@@ -30,18 +31,23 @@ import de.moritzf.quota.idea.openai.OpenAiProxyApiKeyStore
 import de.moritzf.quota.idea.openai.OpenAiProxyService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.proxy.subscription.SubscriptionProxyModel
+import java.awt.BorderLayout
 import java.awt.Desktop
 import java.awt.Dimension
 import java.awt.Font
+import java.awt.event.ActionEvent
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import javax.swing.DefaultListCellRenderer
 import javax.swing.Action
 import javax.swing.JButton
 import javax.swing.JComponent
+import javax.swing.JPanel
+import javax.swing.SwingUtilities
 import javax.swing.JList
 import javax.swing.JScrollPane
 import javax.swing.ScrollPaneConstants
@@ -739,18 +745,7 @@ internal class SubscriptionProxySettingsPanel(
             Messages.showErrorDialog(this, "Local API key is missing.", "Test AI Completion")
             return
         }
-        testFimButton.isEnabled = false
-        completionsStatusLabel.text = "Testing…"
-        completionsStatusLabel.foreground = UIUtil.getContextHelpForeground()
-        completionsStatusLabel.isVisible = true
-        ApplicationManager.getApplication().executeOnPooledThread {
-            val result = CompletionsFimTester.test(status.baseUrl, apiKey)
-            ApplicationManager.getApplication().invokeLater({
-                completionsStatusLabel.isVisible = false
-                updateProxyControlsEnabled()
-                FimTestResultDialog(this, result).show()
-            }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
-        }
+        FimTestDialog(this, status.baseUrl, apiKey).show()
     }
 
     private fun updateFimSetupStatus() {
@@ -846,72 +841,158 @@ internal class SubscriptionProxySettingsPanel(
     }
 }
 
-private class FimTestResultDialog(
+private class FimTestDialog(
     parent: JComponent,
-    private val result: CompletionsFimTestResult,
+    private val baseUrl: String,
+    private val apiKey: String,
 ) : DialogWrapper(parent, true) {
+    private val generation = AtomicInteger()
+    private var worker: Thread? = null
+    private val statusIcon = JBLabel()
+    private val statusLabel = JBLabel().apply { font = font.deriveFont(Font.BOLD) }
+    private val latencyLabel = JBLabel().apply { foreground = UIUtil.getContextHelpForeground() }
+    private val sampleSlot = slot()
+    private val insertSlot = slot()
+    private val resultSlot = slot()
+    private val detailSlot = slot()
+    private val abortAction = object : DialogWrapperAction("Abort") {
+        override fun doAction(event: ActionEvent) {
+            abort()
+        }
+    }
+    private val retryAction = object : DialogWrapperAction("Retry") {
+        override fun doAction(event: ActionEvent) {
+            start()
+        }
+    }
+
     init {
         title = "Test AI Completion"
+        setOKButtonText("Close")
         init()
+        start()
     }
 
     override fun createCenterPanel(): JComponent {
-        val ok = result.ok
-        val status = result.status
-        val latency = result.elapsedMs?.let { "$it ms" }
-        val sample = result.sample
-        val insert = result.insert
-        val assembled = result.assembled
-        val detail = result.detail
-        val icon = if (ok) AllIcons.General.InspectionsOK else AllIcons.General.Error
         return panel {
             row {
-                icon(icon)
-                label(status).bold()
-                if (latency != null) {
-                    comment(latency)
-                }
+                cell(statusIcon)
+                cell(statusLabel)
+                cell(latencyLabel)
             }
-            if (sample != null) {
-                group("Sample") {
-                    row {
-                        cell(codeBlock(sample))
-                            .resizableColumn()
-                            .align(AlignX.FILL)
-                    }
-                }
-            }
-            if (insert != null) {
-                group("Inserted") {
-                    row {
-                        cell(codeBlock(insert))
-                            .resizableColumn()
-                            .align(AlignX.FILL)
-                    }
-                }
-            }
-            if (assembled != null) {
-                group("Result") {
-                    row {
-                        cell(codeBlock(assembled))
-                            .resizableColumn()
-                            .align(AlignX.FILL)
-                    }
-                }
-            }
-            if (detail != null) {
+            group("Sample") {
                 row {
-                    text(QuotaUiUtil.escapeHtml(detail).replace("\n", "<br>"))
+                    cell(sampleSlot)
                         .resizableColumn()
                         .align(AlignX.FILL)
                 }
+            }
+            group("Inserted") {
+                row {
+                    cell(insertSlot)
+                        .resizableColumn()
+                        .align(AlignX.FILL)
+                }
+            }
+            group("Result") {
+                row {
+                    cell(resultSlot)
+                        .resizableColumn()
+                        .align(AlignX.FILL)
+                }
+            }
+            row {
+                cell(detailSlot)
+                    .resizableColumn()
+                    .align(AlignX.FILL)
             }
         }.apply {
             preferredSize = Dimension(JBUI.scale(520), JBUI.scale(420))
         }
     }
 
-    override fun createActions(): Array<Action> = arrayOf(okAction)
+    override fun createActions(): Array<Action> = arrayOf(abortAction, retryAction, okAction)
+
+    override fun dispose() {
+        generation.incrementAndGet()
+        worker?.interrupt()
+        worker = null
+        super.dispose()
+    }
+
+    private fun start() {
+        val gen = generation.incrementAndGet()
+        worker?.interrupt()
+        showRunning()
+        val thread = Thread({ runGeneration(gen) }, "fim-test")
+        thread.isDaemon = true
+        worker = thread
+        thread.start()
+    }
+
+    private fun abort() {
+        generation.incrementAndGet()
+        worker?.interrupt()
+        worker = null
+        showAborted()
+    }
+
+    private fun runGeneration(gen: Int) {
+        val result = CompletionsFimTester.test(baseUrl, apiKey)
+        if (!isActive(gen) || Thread.currentThread().isInterrupted) return
+        SwingUtilities.invokeLater {
+            if (!isActive(gen)) return@invokeLater
+            showResult(result)
+        }
+    }
+
+    private fun showRunning() {
+        statusIcon.icon = AnimatedIcon.Default.INSTANCE
+        statusLabel.text = "Testing…"
+        latencyLabel.text = ""
+        latencyLabel.isVisible = false
+        replace(sampleSlot, codeBlock(CompletionsFimTester.SAMPLE_WITH_CURSOR.trimEnd()))
+        replace(insertSlot, note("Waiting for the model."))
+        replace(resultSlot, note("Waiting for the model."))
+        clear(detailSlot)
+        abortAction.isEnabled = true
+        retryAction.isEnabled = false
+    }
+
+    private fun showResult(result: CompletionsFimTestResult) {
+        statusIcon.icon = if (result.ok) AllIcons.General.InspectionsOK else AllIcons.General.Error
+        statusLabel.text = result.status
+        latencyLabel.text = result.elapsedMs?.let { "$it ms" }.orEmpty()
+        latencyLabel.isVisible = result.elapsedMs != null
+        result.sample?.let { replace(sampleSlot, codeBlock(it)) }
+        if (result.insert != null) replace(insertSlot, codeBlock(result.insert)) else replace(insertSlot, note("No insert."))
+        if (result.assembled != null) replace(resultSlot, codeBlock(result.assembled)) else clear(resultSlot)
+        showDetail(result.detail)
+        abortAction.isEnabled = false
+        retryAction.isEnabled = true
+    }
+
+    private fun showAborted() {
+        statusIcon.icon = AllIcons.Actions.Cancel
+        statusLabel.text = "Aborted"
+        latencyLabel.isVisible = false
+        replace(insertSlot, note("Test aborted."))
+        clear(resultSlot)
+        clear(detailSlot)
+        abortAction.isEnabled = false
+        retryAction.isEnabled = true
+    }
+
+    private fun showDetail(detail: String?) {
+        if (detail.isNullOrBlank()) {
+            clear(detailSlot)
+            return
+        }
+        val html = QuotaUiUtil.escapeHtml(detail).replace("\n", "<br>")
+        replace(detailSlot, JBLabel("<html><body style='width: 460px'>$html</body></html>"))
+    }
+
+    private fun isActive(gen: Int) = generation.get() == gen && !isDisposed
 
     private fun codeBlock(text: String): JComponent {
         val scheme = EditorColorsManager.getInstance().globalScheme
@@ -926,6 +1007,24 @@ private class FimTestResultDialog(
         return JBScrollPane(area).apply {
             border = JBUI.Borders.customLine(JBColor.border(), 1)
             horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
+            preferredSize = Dimension(JBUI.scale(480), JBUI.scale(72))
         }
     }
+
+    private fun note(text: String) = JBLabel(text).apply { foreground = UIUtil.getContextHelpForeground() }
+
+    private fun replace(slot: JPanel, component: JComponent) {
+        slot.removeAll()
+        slot.add(component, BorderLayout.NORTH)
+        slot.revalidate()
+        slot.repaint()
+    }
+
+    private fun clear(slot: JPanel) {
+        slot.removeAll()
+        slot.revalidate()
+        slot.repaint()
+    }
+
+    private fun slot() = JPanel(BorderLayout()).apply { isOpaque = false }
 }

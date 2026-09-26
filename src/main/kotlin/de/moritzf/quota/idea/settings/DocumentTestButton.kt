@@ -181,7 +181,7 @@ private class DocumentTestDialog(
         replace(outputSlot, note("Waiting for the model."))
         clear(detailSlot)
         abortAction.isEnabled = true
-        retryAction.isEnabled = true
+        retryAction.isEnabled = false
     }
 
     private fun showPage(image: BufferedImage) {
