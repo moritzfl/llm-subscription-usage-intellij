@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Settings quota responses wrap to the panel width. Compact provider JSON is shown indented, so a long line no longer adds a horizontal scrollbar.
 - PDF-to-Markdown can use local Apache PDFBox text extraction from the MCP tool (`PDFBOX`) and the PDF right-click action. It needs no subscription. It does not OCR scans, rebuild tables, or export figures, and the dialog warns about that.
 - Mistral quota refresh no longer fails when the admin billing page returns HTTP 500. Monthly usage still comes from the console usage report.
 - OpenAI and SuperGrok document conversion can use a vision model chosen in settings. Defaults are `gpt-6-sol` and `grok-4.7`, so a cheaper model can be selected instead. A warning icon next to that list, and next to the PDF dialog provider list, explains that a document or OCR model is the better choice (Mistral, Z.ai, or a company model such as Azure).

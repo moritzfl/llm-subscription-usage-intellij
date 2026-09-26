@@ -9,6 +9,7 @@ import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.common.QuotaUsageService
+import de.moritzf.quota.shared.JsonSupport
 import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.Font
@@ -80,10 +81,22 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
 
     /** Read-only view of the provider's raw quota response. */
     protected fun createResponseViewer(): JBTextArea {
-        return JBTextArea().apply {
+        return object : JBTextArea() {
+            override fun setText(text: String?) {
+                super.setText(JsonSupport.prettyResponse(text))
+            }
+
+            // A compact JSON line must not set the panel's minimum width. The scroll pane tracks the viewport.
+            override fun getMinimumSize(): Dimension = Dimension(0, super.getMinimumSize().height)
+
+            override fun getPreferredSize(): Dimension = Dimension(0, super.getPreferredSize().height)
+
+            override fun getScrollableTracksViewportWidth(): Boolean = true
+        }.apply {
             isEditable = false
-            lineWrap = false
+            lineWrap = true
             wrapStyleWord = false
+            columns = 1
             font = Font(Font.MONOSPACED, Font.PLAIN, font.size)
             margin = JBUI.insets(6)
         }
@@ -100,7 +113,7 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
             override fun getMinimumSize(): Dimension = Dimension(JBUI.scale(1), JBUI.scale(80))
         }.apply {
             border = JBUI.Borders.emptyTop(4)
-            horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED
+            horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
             verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
         }
     }
