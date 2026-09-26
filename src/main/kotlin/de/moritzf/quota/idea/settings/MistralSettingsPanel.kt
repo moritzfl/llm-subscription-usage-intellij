@@ -12,8 +12,12 @@ import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.mistral.MistralApiKeyStore
 import de.moritzf.quota.idea.mistral.MistralSessionCookieStore
 import de.moritzf.quota.idea.ui.QuotaUiUtil
+import de.moritzf.quota.mistral.MistralOcrClient
 import de.moritzf.quota.mistral.MistralQuota
 import de.moritzf.quota.mistral.MistralQuotaClient
+import de.moritzf.quota.mistral.proxy.MistralSubscriptionProxyProvider
+import de.moritzf.quota.shared.DocumentModels
+import java.net.URI
 import java.awt.Color
 import javax.swing.JComponent
 
@@ -38,6 +42,8 @@ internal class MistralSettingsPanel(
         columns = 40
         toolTipText = "Mistral API key for MCP search, images, and OCR"
     }
+    private val documentModelCombo = DocumentModelCombo(MistralOcrClient.DEFAULT_MODEL, vision = false)
+    private var modelRefreshGeneration = 0
     private val statusLabel = JBLabel().apply { isVisible = false }
     private val responseViewer = createResponseViewer()
 
@@ -51,6 +57,10 @@ internal class MistralSettingsPanel(
             row("ory_session value:") { cell(sessionValueField).resizableColumn().align(AlignX.FILL) }
             row("csrftoken:") { cell(csrfField).resizableColumn().align(AlignX.FILL) }
             row("API key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
+            row("Document model:") {
+                cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn()
+                    .comment("Loaded from the Mistral model list. Only mistral-ocr- and mistral-document-ai- models.")
+            }
             row {
                 button("Save") { saveNow() }
                 button("Clear") { clearNow() }
@@ -67,8 +77,38 @@ internal class MistralSettingsPanel(
         sessionValueField.text = if (stored?.sessionValue.isNullOrBlank()) "" else PLACEHOLDER
         csrfField.text = if (stored?.csrfToken.isNullOrBlank()) "" else PLACEHOLDER
         apiKeyField.text = if (apiKey.isNullOrBlank()) "" else PLACEHOLDER
+        showDocumentModels(emptyList())
         updateStatus()
+        refreshDocumentModels()
     }
+
+    private fun showDocumentModels(discovered: List<String>, selection: String? = boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)) {
+        documentModelCombo.show(
+            selection,
+            DocumentModels.prefixedChoices(discovered, selection, MistralOcrClient.DEFAULT_MODEL, DocumentModels::isMistralOcrModel),
+        )
+    }
+
+    private fun refreshDocumentModels() {
+        val accountId = accountKey(QuotaProviderType.MISTRAL)
+        val generation = ++modelRefreshGeneration
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val key = MistralApiKeyStore.forAccount(accountId).loadBlocking()
+            val discovered = if (key.isNullOrBlank()) {
+                emptyList()
+            } else {
+                DocumentModels.fetchModelIds(URI.create("${MistralSubscriptionProxyProvider.DEFAULT_UPSTREAM_BASE_URI}/models"), key)
+            }
+            ApplicationManager.getApplication().invokeLater({
+                if (generation != modelRefreshGeneration || accountKey(QuotaProviderType.MISTRAL) != accountId) return@invokeLater
+                showDocumentModels(discovered, documentModelCombo.selected() ?: boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
+            }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
+        }
+    }
+
+    fun documentModelForStorage(): String? = documentModelCombo.storedValue()
+
+    fun documentModelDiffers(saved: String?): Boolean = documentModelCombo.differs(saved)
 
     override fun updateStatus() {
         val cookieStore = MistralSessionCookieStore.forAccount(accountKey(QuotaProviderType.MISTRAL))

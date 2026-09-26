@@ -5,6 +5,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
+import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.idea.auth.QuotaAuthService
@@ -12,7 +13,14 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.supergrok.SuperGrokQuota
+import de.moritzf.quota.supergrok.proxy.SuperGrokSubscriptionProxyProvider
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.time.Duration
 import java.awt.Color
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
@@ -24,7 +32,9 @@ internal class SuperGrokSettingsPanel(
     private val modalityComponentProvider: () -> JComponent?,
     private val statusLabelDefaultForeground: Color? = null,
 ) : ProviderSettingsPanel() {
+    private val documentModelCombo = DocumentModelCombo(DocumentModels.SUPERGROK_DEFAULT, vision = true)
     private val statusLabel = JBLabel().apply { isVisible = false }
+    private var modelRefreshGeneration = 0
     private val loginButton = createActionLink("Log In with xAI/Grok")
     private val cancelLoginButton = createActionLink("Cancel Login")
     private val logoutButton = createActionLink("Log Out")
@@ -110,6 +120,11 @@ internal class SuperGrokSettingsPanel(
             row {
                 text("Uses plugin-managed xAI OAuth with the Grok CLI billing API. No local Grok CLI auth file is required.")
             }
+            row("Document model:") {
+                cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn()
+                    .comment("Loaded from the xAI model list. Image models are left out.")
+            }
+            row { cell(documentModelCombo.warning).align(AlignX.FILL) }
         }
 
         install(configPanel, createResponseSection(jsonViewer))
@@ -117,8 +132,31 @@ internal class SuperGrokSettingsPanel(
 
     override fun updateFields() {
         rememberAccount()
+        showDocumentModels(emptyList())
         updateAuthUi()
         updateResponseArea()
+        refreshDocumentModels()
+    }
+
+    fun documentModelForStorage(): String? = documentModelCombo.storedValue()
+
+    fun documentModelDiffers(saved: String?): Boolean = documentModelCombo.differs(saved)
+
+    private fun showDocumentModels(discovered: List<String>, selection: String? = boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)) {
+        documentModelCombo.show(selection, DocumentModels.superGrokChoices(discovered, selection))
+    }
+
+    private fun refreshDocumentModels() {
+        val accountId = accountId()
+        val generation = ++modelRefreshGeneration
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val token = QuotaAuthService.getInstance().getAccessTokenBlocking(accountId, QuotaProviderType.SUPERGROK)
+            val discovered = if (token.isNullOrBlank()) emptyList() else fetchSuperGrokModelIds(token)
+            ApplicationManager.getApplication().invokeLater({
+                if (generation != modelRefreshGeneration || accountId() != accountId) return@invokeLater
+                showDocumentModels(discovered, documentModelCombo.selected() ?: boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
+            }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
+        }
     }
 
     override fun updateStatus() {
@@ -193,4 +231,20 @@ internal class SuperGrokSettingsPanel(
         }
         return "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
     }
+}
+
+private fun fetchSuperGrokModelIds(token: String): List<String> {
+    val request = HttpRequest.newBuilder(URI.create("${SuperGrokSubscriptionProxyProvider.DEFAULT_UPSTREAM_BASE_URI}/models"))
+        .timeout(Duration.ofSeconds(30))
+        .header("Authorization", "Bearer $token")
+        .header("Accept", "application/json")
+        .header("User-Agent", "openai-usage-quota-intellij")
+        .GET()
+        .build()
+    val response = runCatching {
+        HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build()
+            .send(request, HttpResponse.BodyHandlers.ofString())
+    }.getOrNull() ?: return emptyList()
+    if (response.statusCode() !in 200..299) return emptyList()
+    return DocumentModels.parseSuperGrokDocumentModelIds(response.body())
 }

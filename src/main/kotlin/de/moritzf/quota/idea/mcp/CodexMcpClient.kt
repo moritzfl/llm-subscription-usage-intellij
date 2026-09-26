@@ -791,7 +791,7 @@ class CodexMcpClient(
         private const val RESPONSES_PATH = "/responses"
         private const val TRANSCRIPTIONS_PATH = "/audio/transcriptions"
         private const val SPEECH_PATH = "/audio/speech"
-        private const val DEFAULT_CHAT_MODEL = "gpt-5.6-sol"
+        private const val DEFAULT_CHAT_MODEL = de.moritzf.quota.shared.DocumentModels.OPEN_AI_DEFAULT
         private const val FAST_CHAT_MODEL = "gpt-5.6-luna"
         const val DEFAULT_TRANSCRIBE_MODEL = "gpt-transcribe"
         const val DEFAULT_SPEECH_MODEL = "gpt-4o-mini-tts"

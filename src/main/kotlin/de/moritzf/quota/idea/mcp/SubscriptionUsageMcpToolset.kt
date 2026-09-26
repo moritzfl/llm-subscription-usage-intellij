@@ -269,7 +269,7 @@ class SubscriptionUsageMcpToolset(
         @McpDescription(description = "Optional project-relative or absolute local file path.") localFile: String? = null,
         @McpDescription(description = "Optional markdown output path. Defaults to <localFile>.md beside the source.") outputFile: String? = null,
         @McpDescription(description = "Keep extracted images when the provider returns them.") includeImages: Boolean = true,
-        @McpDescription(description = "OCR model id. For Azure, leave blank to use the document model selected in settings.") model: String = "",
+        @McpDescription(description = "OCR or vision model id. Leave blank to use the document model selected in settings. Azure uses the deployment selected in settings.") model: String = "",
         @McpDescription(description = "Optional 1-based first page for Codex/SuperGrok/Cohere PDFs. Leave 0 for the start of the document.") pageFrom: Int = 0,
         @McpDescription(description = "Optional 1-based last page for Codex/SuperGrok/Cohere PDFs. Leave 0 for the end of the document.") pageTo: Int = 0,
         @McpDescription(description = "Figure export for MISTRAL/AZURE/ZAI PDFs: SVG prefers local vector export with PNG fallback; PNG renders the original PDF; PROVIDER keeps provider images. Other providers keep their existing image export. Fallbacks are returned in warnings.") imageFormat: DocumentImageFormat = DocumentImageFormat.SVG,
@@ -288,7 +288,7 @@ class SubscriptionUsageMcpToolset(
                     localFile,
                     outputFile,
                     includeImages,
-                    model.ifBlank { MistralOcrClient.DEFAULT_MODEL },
+                    model.ifBlank { documentModel(DocumentToMarkdownProvider.MISTRAL) },
                     imageOptions,
                 )
 
@@ -298,7 +298,7 @@ class SubscriptionUsageMcpToolset(
                     localFile,
                     outputFile,
                     includeImages,
-                    model.ifBlank { ZaiOcrClient.DEFAULT_MODEL },
+                    model.ifBlank { documentModel(DocumentToMarkdownProvider.ZAI) },
                     imageOptions,
                 )
 
@@ -309,7 +309,7 @@ class SubscriptionUsageMcpToolset(
                         resolveOptionalPath(localFile),
                         resolveOptionalPath(outputFile),
                         includeImages,
-                        model,
+                        model.ifBlank { documentModel(DocumentToMarkdownProvider.OPEN_AI) },
                         pageFrom.takeIf { it > 0 },
                         pageTo.takeIf { it > 0 },
                     ),
@@ -321,7 +321,7 @@ class SubscriptionUsageMcpToolset(
                     localFile,
                     outputFile,
                     includeImages,
-                    model.ifBlank { SuperGrokDocumentClient.DEFAULT_MODEL },
+                    model.ifBlank { documentModel(DocumentToMarkdownProvider.SUPERGROK) },
                     pageFrom.takeIf { it > 0 },
                     pageTo.takeIf { it > 0 },
                 )
@@ -1192,6 +1192,16 @@ class SubscriptionUsageMcpToolset(
         if (statusCode == 429) {
             de.moritzf.quota.idea.settings.AccountResolver.markRateLimited(accountId)
         }
+    }
+
+    private fun documentModel(provider: DocumentToMarkdownProvider): String {
+        val accountId = runCatching {
+            de.moritzf.quota.idea.settings.AccountResolver.resolve(
+                provider.providerType,
+                capability = de.moritzf.quota.idea.settings.AccountCapability.DOCUMENT_TO_MARKDOWN,
+            ).id
+        }.getOrNull() ?: return ""
+        return de.moritzf.quota.idea.settings.DocumentModelSelection.forAccount(provider.providerType, accountId)
     }
 
     private fun resolvedApiKey(

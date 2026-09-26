@@ -26,6 +26,8 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
+import de.moritzf.quota.idea.settings.DocumentModelCombo
+import de.moritzf.quota.idea.settings.DocumentModelSelection
 import de.moritzf.quota.shared.DocumentMarkdown
 import de.moritzf.quota.shared.DocumentImageFormat
 import de.moritzf.quota.shared.DocumentImageOptions
@@ -143,6 +145,7 @@ private class ConvertPdfToMarkdownDialog(
             }
         }
     }
+    private val visionWarning = JBLabel().apply { foreground = DocumentModelCombo.WARNING_COLOR }
     private val imagesCheckBox = JBCheckBox("Save detected figures", true)
     private val formatCombo = ComboBox(DocumentImageFormat.entries.toTypedArray()).apply {
         renderer = object : DefaultListCellRenderer() {
@@ -198,6 +201,7 @@ private class ConvertPdfToMarkdownDialog(
                 .align(AlignX.FILL).resizableColumn()
         }
         row("Provider:") { cell(providerCombo).align(AlignX.FILL).resizableColumn() }
+        row { cell(visionWarning).align(AlignX.FILL).resizableColumn() }
         row("Images:") { cell(imagesCheckBox) }
         row("Figure format:") {
             cell(formatCombo).align(AlignX.FILL).resizableColumn()
@@ -237,6 +241,9 @@ private class ConvertPdfToMarkdownDialog(
     fun outputFile(): Path = resolveMarkdownOutput(source, outputField.text)
 
     private fun updateImageControls() {
+        val hint = DocumentModelSelection.visionHint(provider())
+        visionWarning.isVisible = hint != null
+        visionWarning.text = hint?.let(DocumentModelCombo::warningHtml).orEmpty()
         val enabled = imagesCheckBox.isSelected && provider() in listOf(
             DocumentToMarkdownProvider.MISTRAL, DocumentToMarkdownProvider.AZURE, DocumentToMarkdownProvider.ZAI,
         )

@@ -90,7 +90,7 @@ class CodexMcpClientTest {
             val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
             assertEquals("/backend-api/codex/responses", request.path)
             val body = parseObject(request.body)
-            assertEquals("gpt-5.6-sol", body["model"]!!.jsonPrimitive.content)
+            assertEquals("gpt-6-sol", body["model"]!!.jsonPrimitive.content)
             val content = body["input"]!!.jsonArray[0].jsonObject["content"]!!.jsonArray
             assertEquals("input_file", content[0].jsonObject["type"]!!.jsonPrimitive.content)
             assertEquals("doc.pdf", content[0].jsonObject["filename"]!!.jsonPrimitive.content)

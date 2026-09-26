@@ -36,6 +36,7 @@ data class ProviderAccount(
         const val EXTRA_GITHUB_HOST = "githubEnterpriseHost"
         const val EXTRA_MINIMAX_REGION = "minimaxRegionPreference"
         const val EXTRA_OLLAMA_MONTHLY_RESET = "ollamaMonthlyResetAt"
+        const val EXTRA_DOCUMENT_MODEL = "documentModel"
 
         fun newId(): String = UUID.randomUUID().toString()
 

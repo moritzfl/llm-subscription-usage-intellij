@@ -228,7 +228,7 @@ open class ZaiOcrClient(
     }
 
     companion object {
-        const val DEFAULT_MODEL = "glm-ocr"
+        const val DEFAULT_MODEL = de.moritzf.quota.shared.DocumentModels.ZAI_DEFAULT
         private const val MAX_PAGES = 30
         private const val MAX_PDF_BYTES = 50L * 1024 * 1024
         private val LAYOUT_PARSING_URI = URI.create("https://api.z.ai/api/paas/v4/layout_parsing")

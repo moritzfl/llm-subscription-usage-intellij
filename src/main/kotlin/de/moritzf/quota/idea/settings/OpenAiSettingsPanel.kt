@@ -13,7 +13,9 @@ import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.openai.OpenAiCodexQuota
+import de.moritzf.quota.openai.proxy.OpenAiProxyServer
 import de.moritzf.quota.idea.ui.QuotaUiUtil
+import de.moritzf.quota.shared.DocumentModels
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import javax.swing.JButton
@@ -33,6 +35,7 @@ internal class OpenAiSettingsPanel(
         isVisible = false
         toolTipText = "Copy login URL to clipboard"
     }
+    private val documentModelCombo = DocumentModelCombo(DocumentModels.OPEN_AI_DEFAULT, vision = true)
     private val accountIdField = JBTextField().apply { isEditable = false }
     private val emailField = JBTextField().apply { isEditable = false }
     private val codexResponseViewer = createResponseViewer()
@@ -133,6 +136,11 @@ internal class OpenAiSettingsPanel(
                     .resizableColumn()
                     .align(AlignX.FILL)
             }
+            row("Document model:") {
+                cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn()
+                    .comment("Same models as the local proxy. Codex has no usable live model list.")
+            }
+            row { cell(documentModelCombo.warning).align(AlignX.FILL) }
         }
 
         install(usageTrackingConfigPanel, createResponseSection(codexResponseViewer))
@@ -140,9 +148,17 @@ internal class OpenAiSettingsPanel(
 
     override fun updateFields() {
         rememberAccount()
+        documentModelCombo.show(
+            boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL),
+            DocumentModels.openAiVisionModels(OpenAiProxyServer.advertisedModels()),
+        )
         updateAuthUi()
         updateAccountFields()
     }
+
+    fun documentModelForStorage(): String? = documentModelCombo.storedValue()
+
+    fun documentModelDiffers(saved: String?): Boolean = documentModelCombo.differs(saved)
 
     override fun updateStatus() {
         updateAuthUi()

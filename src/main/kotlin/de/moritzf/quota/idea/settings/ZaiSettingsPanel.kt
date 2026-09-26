@@ -7,11 +7,15 @@ import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.zai.ZaiOcrClient
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
+import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.zai.ZaiQuotaClient
+import de.moritzf.quota.zai.proxy.ZaiSubscriptionProxyProvider
+import java.net.URI
 import java.awt.Color
 import java.util.concurrent.atomic.AtomicLong
 import javax.swing.JComponent
@@ -23,6 +27,8 @@ internal class ZaiSettingsPanel(
     private val modalityComponentProvider: () -> JComponent?,
     private val statusLabelDefaultForeground: Color? = null,
 ) : ProviderSettingsPanel() {
+    private val documentModelCombo = DocumentModelCombo(ZaiOcrClient.DEFAULT_MODEL, vision = false)
+    private var modelRefreshGeneration = 0
     private val apiKeyField = JBPasswordField().apply {
         columns = 40
         toolTipText = "Z.ai API key from the Z.ai console"
@@ -41,6 +47,10 @@ internal class ZaiSettingsPanel(
                 cell(apiKeyField)
                     .resizableColumn()
                     .align(AlignX.FILL)
+            }
+            row("Document model:") {
+                cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn()
+                    .comment("Loaded from the Z.ai model list. Only glm-ocr models.")
             }
             row {
                 button("Save") {
@@ -64,7 +74,37 @@ internal class ZaiSettingsPanel(
     override fun updateFields() {
         val apiKey = ZaiApiKeyStore.forAccount(accountKey(QuotaProviderType.ZAI)).load(onLoaded = ::refreshAfterApiKeyLoad)
         apiKeyField.text = if (apiKey.isNullOrBlank()) "" else API_KEY_PLACEHOLDER
+        showDocumentModels(emptyList())
         updateStatus()
+        refreshDocumentModels()
+    }
+
+    fun documentModelForStorage(): String? = documentModelCombo.storedValue()
+
+    fun documentModelDiffers(saved: String?): Boolean = documentModelCombo.differs(saved)
+
+    private fun showDocumentModels(discovered: List<String>, selection: String? = boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)) {
+        documentModelCombo.show(
+            selection,
+            DocumentModels.prefixedChoices(discovered, selection, ZaiOcrClient.DEFAULT_MODEL, DocumentModels::isZaiOcrModel),
+        )
+    }
+
+    private fun refreshDocumentModels() {
+        val accountId = accountKey(QuotaProviderType.ZAI)
+        val generation = ++modelRefreshGeneration
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val key = ZaiApiKeyStore.forAccount(accountId).loadBlocking()
+            val discovered = if (key.isNullOrBlank()) {
+                emptyList()
+            } else {
+                DocumentModels.fetchModelIds(URI.create("${ZaiSubscriptionProxyProvider.DEFAULT_UPSTREAM_BASE_URI}/models"), key)
+            }
+            ApplicationManager.getApplication().invokeLater({
+                if (generation != modelRefreshGeneration || accountKey(QuotaProviderType.ZAI) != accountId) return@invokeLater
+                showDocumentModels(discovered, documentModelCombo.selected() ?: boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
+            }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
+        }
     }
 
     override fun updateStatus() {

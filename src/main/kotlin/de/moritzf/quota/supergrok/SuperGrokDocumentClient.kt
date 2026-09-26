@@ -180,7 +180,7 @@ open class SuperGrokDocumentClient(
     }
 
     companion object {
-        const val DEFAULT_MODEL = "grok-4.6"
+        const val DEFAULT_MODEL = de.moritzf.quota.shared.DocumentModels.SUPERGROK_DEFAULT
         private const val RESPONSES_PATH = "responses"
         private const val FILES_PATH = "files"
         private const val USER_AGENT = "openai-usage-quota-intellij"

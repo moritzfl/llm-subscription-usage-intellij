@@ -15,6 +15,7 @@ import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
 import de.moritzf.quota.idea.mistral.MistralApiKeyStore
 import de.moritzf.quota.idea.settings.AccountCapability
 import de.moritzf.quota.idea.settings.AccountResolver
+import de.moritzf.quota.idea.settings.DocumentModelSelection
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 import de.moritzf.quota.mistral.MistralOcrClient
@@ -56,7 +57,8 @@ internal object PdfDocumentConversion {
                 val key = MistralApiKeyStore.forAccount(account.id).loadBlocking()
                     ?: error("Mistral API key missing.")
                 MistralOcrClient.createDefault().convertDocument(key, localFile = source, outputFile = output,
-                    includeImages = includeImages, imageOptions = imageOptions)
+                    includeImages = includeImages, model = DocumentModelSelection.forAccount(type, account.id),
+                    imageOptions = imageOptions)
             }
             DocumentToMarkdownProvider.AZURE -> {
                 val selection = AzureQuotaProvider.ocrDeploymentForAccount(account.id)
@@ -82,7 +84,8 @@ internal object PdfDocumentConversion {
                 val key = ZaiApiKeyStore.forAccount(account.id).loadBlocking()
                     ?: error("Z.ai API key missing.")
                 ZaiOcrClient.createDefault().convertDocument(key, localFile = source, outputFile = output,
-                    includeImages = includeImages, imageOptions = imageOptions, progress = progress)
+                    includeImages = includeImages, model = DocumentModelSelection.forAccount(type, account.id),
+                    imageOptions = imageOptions, progress = progress)
             }
             DocumentToMarkdownProvider.OPEN_AI -> {
                 val auth = QuotaAuthService.getInstance()
@@ -92,7 +95,7 @@ internal object PdfDocumentConversion {
                     tokenRefresher = { auth.forceRefreshBlocking(account.id, type, it) },
                 )
                 client.documentToMarkdown(localFile = source, outputFile = output,
-                    includeImages = includeImages).body
+                    includeImages = includeImages, model = DocumentModelSelection.forAccount(type, account.id)).body
             }
             DocumentToMarkdownProvider.SUPERGROK -> {
                 val auth = QuotaAuthService.getInstance()
@@ -100,12 +103,12 @@ internal object PdfDocumentConversion {
                 val client = SuperGrokDocumentClient()
                 try {
                     client.convertDocument(token, localFile = source, outputFile = output,
-                        includeImages = includeImages)
+                        includeImages = includeImages, model = DocumentModelSelection.forAccount(type, account.id))
                 } catch (exception: SuperGrokQuotaException) {
                     if (exception.statusCode != 401 && exception.statusCode != 403) throw exception
                     val refreshed = auth.forceRefreshBlocking(account.id, type, token) ?: throw exception
                     client.convertDocument(refreshed, localFile = source, outputFile = output,
-                        includeImages = includeImages)
+                        includeImages = includeImages, model = DocumentModelSelection.forAccount(type, account.id))
                 }
             }
         }

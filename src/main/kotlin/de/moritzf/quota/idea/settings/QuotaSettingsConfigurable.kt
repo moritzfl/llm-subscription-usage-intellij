@@ -798,6 +798,14 @@ class QuotaSettingsConfigurable : Configurable {
                     ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET,
                     ollamaPanel().normalizedMonthlyResetForStorage(),
                 )
+            QuotaProviderType.MISTRAL ->
+                account.setExtra(ProviderAccount.EXTRA_DOCUMENT_MODEL, mistralPanel().documentModelForStorage())
+            QuotaProviderType.ZAI ->
+                account.setExtra(ProviderAccount.EXTRA_DOCUMENT_MODEL, zaiPanel().documentModelForStorage())
+            QuotaProviderType.OPEN_AI ->
+                account.setExtra(ProviderAccount.EXTRA_DOCUMENT_MODEL, openAiPanel().documentModelForStorage())
+            QuotaProviderType.SUPERGROK ->
+                account.setExtra(ProviderAccount.EXTRA_DOCUMENT_MODEL, superGrokPanel().documentModelForStorage())
             else -> Unit
         }
     }
@@ -820,6 +828,14 @@ class QuotaSettingsConfigurable : Configurable {
             QuotaProviderType.OLLAMA ->
                 ollamaPanel().monthlyResetField.text.trim() !=
                     (persisted?.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET) ?: selected.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET)).orEmpty()
+            QuotaProviderType.MISTRAL ->
+                mistralPanel().documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
+            QuotaProviderType.ZAI ->
+                zaiPanel().documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
+            QuotaProviderType.OPEN_AI ->
+                openAiPanel().documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
+            QuotaProviderType.SUPERGROK ->
+                superGrokPanel().documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
             else -> false
         }
     }
@@ -839,6 +855,18 @@ class QuotaSettingsConfigurable : Configurable {
 
     private fun azurePanel(): AzureSettingsPanel =
         providerPanelsByType.getValue(QuotaProviderType.AZURE) as AzureSettingsPanel
+
+    private fun mistralPanel(): MistralSettingsPanel =
+        providerPanelsByType.getValue(QuotaProviderType.MISTRAL) as MistralSettingsPanel
+
+    private fun zaiPanel(): ZaiSettingsPanel =
+        providerPanelsByType.getValue(QuotaProviderType.ZAI) as ZaiSettingsPanel
+
+    private fun openAiPanel(): OpenAiSettingsPanel =
+        providerPanelsByType.getValue(QuotaProviderType.OPEN_AI) as OpenAiSettingsPanel
+
+    private fun superGrokPanel(): SuperGrokSettingsPanel =
+        providerPanelsByType.getValue(QuotaProviderType.SUPERGROK) as SuperGrokSettingsPanel
 
     private fun normalizeTargets(targets: List<McpServerSyncTarget>): List<McpServerSyncTarget> {
         return targets.map { it.normalized() }

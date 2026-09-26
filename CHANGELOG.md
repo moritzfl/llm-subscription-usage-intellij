@@ -1,5 +1,10 @@
 # LLM Subscription Usage Changelog
 
+## [Unreleased]
+
+- OpenAI and SuperGrok document conversion can use a vision model chosen in settings. Defaults are `gpt-6-sol` and `grok-4.7`, so a cheaper model can be selected instead. Settings and the PDF dialog warn that a general vision model is less precise and usually costs more than Mistral or Z.ai OCR.
+- Mistral and Z.ai document conversion use an OCR model chosen in settings. The choices come from each provider's model list, filtered by OCR prefix, not a pinned version catalog.
+
 ## [1.15.11] - 2026-09-25
 
 - Z.ai OCR splits local PDFs into requests of at most 30 pages and 50 MB, then joins the markdown in page order. A document URL is still one request. Cancellation takes effect between requests.

@@ -71,7 +71,7 @@ class SuperGrokDocumentClientTest {
             val convert = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
             assertEquals("/v1/responses", convert.path)
             val body = JsonSupport.json.parseToJsonElement(convert.body).jsonObject
-            assertEquals("grok-4.6", body["model"]!!.jsonPrimitive.content)
+            assertEquals("grok-4.7", body["model"]!!.jsonPrimitive.content)
             val content = body["input"]!!.jsonArray[0].jsonObject["content"]!!.jsonArray
             assertEquals("input_file", content[0].jsonObject["type"]!!.jsonPrimitive.content)
             assertEquals("file-1", content[0].jsonObject["file_id"]!!.jsonPrimitive.content)
