@@ -1,17 +1,30 @@
 package de.moritzf.quota.idea.settings
 
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
+import com.intellij.ui.JBColor
+import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.components.JBTextArea
+import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
+import com.intellij.util.ui.JBUI
+import com.intellij.util.ui.UIUtil
 import de.moritzf.quota.idea.action.PdfDocumentConversion
 import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
+import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.shared.HelloPdf
+import java.awt.Dimension
+import java.awt.Font
 import java.nio.file.Files
+import javax.swing.Action
 import javax.swing.JButton
 import javax.swing.JComponent
+import javax.swing.ScrollPaneConstants
 
 /** Runs the selected document model against a one-page PDF created by PDFBox. */
 internal class DocumentTestButton(
@@ -36,11 +49,25 @@ internal class DocumentTestButton(
                     provider, pdf, output, includeImages = false, model = selected,
                 )
                 val markdown = Files.readString(output)
-                DocumentTestResult(true, "Converted", markdown, warnings.joinToString("\n").ifBlank { null })
+                DocumentTestResult(
+                    true,
+                    "Converted",
+                    selected,
+                    HelloPdf.TEXT,
+                    markdown,
+                    warnings.joinToString("\n").ifBlank { null },
+                )
             } catch (exception: ProcessCanceledException) {
                 throw exception
             } catch (exception: Exception) {
-                DocumentTestResult(false, exception.message ?: "Document test failed", null, null)
+                DocumentTestResult(
+                    false,
+                    exception.message ?: "Document test failed",
+                    selected,
+                    HelloPdf.TEXT,
+                    null,
+                    null,
+                )
             } finally {
                 Files.deleteIfExists(pdf)
                 Files.deleteIfExists(output)
@@ -61,6 +88,8 @@ internal class DocumentTestButton(
 internal data class DocumentTestResult(
     val ok: Boolean,
     val status: String,
+    val model: String,
+    val pdfText: String,
     val markdown: String?,
     val detail: String?,
 )
@@ -74,12 +103,58 @@ private class DocumentTestResultDialog(
         init()
     }
 
-    override fun createCenterPanel(): JComponent = panel {
-        row { label(result.status).bold() }
-        result.markdown?.take(1200)?.let { sample ->
-            row { comment(sample) }
+    override fun createCenterPanel(): JComponent {
+        val icon = if (result.ok) AllIcons.General.InspectionsOK else AllIcons.General.Error
+        return panel {
+            row {
+                icon(icon)
+                label(result.status).bold()
+                if (result.model.isNotBlank()) comment(result.model)
+            }
+            group("PDF text") {
+                row {
+                    cell(codeBlock(result.pdfText))
+                        .resizableColumn()
+                        .align(AlignX.FILL)
+                }
+            }
+            result.markdown?.let { markdown ->
+                group("Markdown") {
+                    row {
+                        cell(codeBlock(markdown))
+                            .resizableColumn()
+                            .align(AlignX.FILL)
+                    }
+                }
+            }
+            result.detail?.let { detail ->
+                row {
+                    text(QuotaUiUtil.escapeHtml(detail).replace("\n", "<br>"))
+                        .resizableColumn()
+                        .align(AlignX.FILL)
+                }
+            }
+        }.apply {
+            preferredSize = Dimension(JBUI.scale(520), JBUI.scale(360))
         }
-        result.detail?.let { row { comment(it) } }
-        row { comment("Sample PDF text: ${HelloPdf.TEXT}") }
+    }
+
+    override fun createActions(): Array<Action> = arrayOf(okAction)
+
+    private fun codeBlock(text: String): JComponent {
+        val scheme = EditorColorsManager.getInstance().globalScheme
+        val area = JBTextArea(text).apply {
+            isEditable = false
+            lineWrap = true
+            wrapStyleWord = true
+            font = Font(scheme.editorFontName, Font.PLAIN, scheme.editorFontSize)
+            background = UIUtil.getTextFieldBackground()
+            border = JBUI.Borders.empty(8)
+        }
+        return JBScrollPane(area).apply {
+            border = JBUI.Borders.customLine(JBColor.border(), 1)
+            horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
+            preferredSize = Dimension(JBUI.scale(480), JBUI.scale(96))
+        }
     }
 }

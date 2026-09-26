@@ -53,11 +53,21 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
     }
 
     protected fun install(config: JComponent, response: JComponent) {
+        // The form can be wider than the detail pane. Scroll instead of clipping the right edge.
+        val formScroll = object : JBScrollPane(config) {
+            override fun getPreferredSize(): Dimension =
+                Dimension(JBUI.scale(280), super.getPreferredSize().height)
+            override fun getMinimumSize(): Dimension = Dimension(0, 0)
+        }.apply {
+            border = JBUI.Borders.empty()
+            horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED
+            verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER
+        }
         addToTop(
             panel {
                 group("Connection") {
                     row {
-                        cell(config).align(AlignX.FILL).resizableColumn()
+                        cell(formScroll).align(AlignX.FILL).resizableColumn()
                     }
                 }
             },
