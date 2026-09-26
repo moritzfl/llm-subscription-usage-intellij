@@ -71,7 +71,7 @@
     <rect x="70" y="596" width="360" height="112" rx="8" fill="#ECFDF5" stroke="#6EE7B7"/>
     <text x="86" y="618" font-family="IBM Plex Sans, Segoe UI, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="0.06em" fill="#047857">LIMITS · COST</text>
     <text x="86" y="640" font-family="IBM Plex Sans, Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#134E4A">Billed per page on an OCR API — typically cents</text>
-    <text x="86" y="656" font-family="IBM Plex Sans, Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#134E4A">per thousand pages (e.g. Mistral OCR). Cheap.</text>
+    <text x="86" y="656" font-family="IBM Plex Sans, Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#134E4A">per thousand pages (Mistral, Z.ai). Company OCR too.</text>
     <text x="86" y="676" font-family="IBM Plex Sans, Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#134E4A">Labeled shapes often become text, not images.</text>
     <text x="86" y="692" font-family="IBM Plex Sans, Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#134E4A">Provider page caps, not chat context.</text>
   </g>
@@ -133,5 +133,5 @@
 
   <rect x="280" y="856" width="560" height="44" rx="9" fill="#EEF2FF"/>
   <text x="560" y="874" text-anchor="middle" font-family="IBM Plex Sans, Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#3730A3">includeImages=false  →  markdown only (vision path uses **Figure.** captions, not dangling image links)</text>
-  <text x="560" y="890" text-anchor="middle" font-family="IBM Plex Sans, Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#6366F1">Prefer OCR when you have an API key (cheaper, more reliable figures). Vision+crop when you only have Codex/Grok.</text>
+  <text x="560" y="890" text-anchor="middle" font-family="IBM Plex Sans, Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#6366F1">Prefer a document or OCR model (Mistral, Z.ai, or company OCR such as Azure). Vision if you only have Codex/Grok.</text>
 </svg>

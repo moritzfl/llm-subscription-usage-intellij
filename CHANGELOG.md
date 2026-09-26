@@ -4,7 +4,7 @@
 
 - PDF-to-Markdown can use local Apache PDFBox text extraction from the MCP tool (`PDFBOX`) and the PDF right-click action. It needs no subscription. It does not OCR scans, rebuild tables, or export figures, and the dialog warns about that.
 - Mistral quota refresh no longer fails when the admin billing page returns HTTP 500. Monthly usage still comes from the console usage report.
-- OpenAI and SuperGrok document conversion can use a vision model chosen in settings. Defaults are `gpt-6-sol` and `grok-4.7`, so a cheaper model can be selected instead. Settings and the PDF dialog warn that a general vision model is less precise and usually costs more than Mistral or Z.ai OCR.
+- OpenAI and SuperGrok document conversion can use a vision model chosen in settings. Defaults are `gpt-6-sol` and `grok-4.7`, so a cheaper model can be selected instead. A warning icon next to that list, and next to the PDF dialog provider list, explains that a document or OCR model is the better choice (Mistral, Z.ai, or a company model such as Azure).
 - Mistral and Z.ai document conversion use an OCR model chosen in settings. The choices come from each provider's model list, filtered by OCR prefix, not a pinned version catalog.
 - Azure document conversion accepts an optional model. Blank still uses the settings selection. A passed value can be a deployment name, `cohere:<deployment>`, or `prebuilt-layout`.
 - Azure document conversion picks the newest Mistral OCR deployment from the first model list. If that list has no document model, conversion stays off (`-`). A saved choice is kept until the resource changes.

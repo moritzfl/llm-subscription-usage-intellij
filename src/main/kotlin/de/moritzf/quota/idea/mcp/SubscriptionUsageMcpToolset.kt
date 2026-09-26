@@ -263,9 +263,9 @@ class SubscriptionUsageMcpToolset(
     }
 
     @McpTool(name = "subscription_document_to_markdown")
-    @McpDescription(description = "Converts a PDF or image to markdown. Prefer MISTRAL, then AZURE or ZAI OCR; use OPEN_AI/Codex or SUPERGROK vision when OCR is unavailable or explicitly requested. PDFBOX is local Apache PDFBox text extraction: free, no login, no OCR, no figures, and often the wrong reading order. Z.ai and Cohere split long local PDFs automatically. For large PDFs on Codex/SuperGrok/PDFBOX, use pageFrom/pageTo. With localFile, markdown defaults to <name>.md beside it. Images are never returned as base64.")
+    @McpDescription(description = "Converts a PDF or image to markdown. Prefer a document or OCR provider (MISTRAL, ZAI, or a company model such as AZURE). Use OPEN_AI/Codex or SUPERGROK vision only when no OCR provider is available or explicitly requested. PDFBOX is local Apache PDFBox text extraction: free, no login, no OCR, no figures, and often the wrong reading order. Z.ai and Cohere split long local PDFs automatically. For large PDFs on Codex/SuperGrok/PDFBOX, use pageFrom/pageTo. With localFile, markdown defaults to <name>.md beside it. Images are never returned as base64.")
     suspend fun subscription_document_to_markdown(
-        @McpDescription(description = "Prefer MISTRAL, then AZURE or ZAI OCR, then OPEN_AI or SUPERGROK vision. PDFBOX extracts embedded text locally and needs no subscription; it is not OCR. Honor explicit provider requests.") provider: DocumentToMarkdownProvider = DocumentToMarkdownProvider.MISTRAL,
+        @McpDescription(description = "Prefer a document or OCR provider (MISTRAL, ZAI, or a company model such as AZURE), then OPEN_AI or SUPERGROK vision. PDFBOX extracts embedded text locally and needs no subscription; it is not OCR. Honor explicit provider requests.") provider: DocumentToMarkdownProvider = DocumentToMarkdownProvider.MISTRAL,
         @McpDescription(description = "Public document URL. Leave blank when localFile is set.") documentUrl: String? = null,
         @McpDescription(description = "Optional project-relative or absolute local file path.") localFile: String? = null,
         @McpDescription(description = "Optional markdown output path. Defaults to <localFile>.md beside the source.") outputFile: String? = null,
