@@ -56,8 +56,10 @@ class DocumentModelChoicesTest {
         try {
             HelloPdf.write(path)
             Loader.loadPDF(path.toFile()).use { document ->
-                val box = document.getPage(0).mediaBox
-                assertTrue(box.width > box.height)
+                val page = document.getPage(0)
+                assertTrue(page.mediaBox.width > page.mediaBox.height)
+                val fontName = page.resources.fontNames.joinToString { page.resources.getFont(it).name }
+                assertTrue(fontName.contains("LiberationSans"), fontName)
                 val text = PDFTextStripper().getText(document)
                 assertTrue(text.contains(HelloPdf.TEXT))
                 assertTrue(text.split(HelloPdf.TEXT).size > 3)

@@ -8,19 +8,19 @@ import org.apache.pdfbox.rendering.PDFRenderer
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
 import org.apache.pdfbox.pdmodel.common.PDRectangle
-import org.apache.pdfbox.pdmodel.font.PDType1Font
-import org.apache.pdfbox.pdmodel.font.Standard14Fonts
+import org.apache.pdfbox.pdmodel.font.PDType0Font
 
 /** One-page sample used by the settings document test. Created on the fly, never checked in. */
 internal object HelloPdf {
     const val TEXT = "Hello from LLM Subscription Usage"
+    private const val LIBERATION = "/org/apache/pdfbox/resources/ttf/LiberationSans-Regular.ttf"
 
     fun write(path: Path) {
         val media = PDRectangle(PDRectangle.LETTER.height, PDRectangle.LETTER.width)
         PDDocument().use { document ->
             val page = PDPage(media)
             document.addPage(page)
-            val font = PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD)
+            val font = liberation(document)
             val margin = 36f
             val fontSize = ((media.width - margin * 2) / (font.getStringWidth(TEXT) / 1000f)).coerceAtMost(48f)
             val textWidth = font.getStringWidth(TEXT) / 1000f * fontSize
@@ -40,6 +40,12 @@ internal object HelloPdf {
             }
             document.save(path.toFile())
         }
+    }
+
+    private fun liberation(document: PDDocument): PDType0Font {
+        val stream = PDType0Font::class.java.getResourceAsStream(LIBERATION)
+            ?: error("PDFBox Liberation Sans is missing")
+        return stream.use { PDType0Font.load(document, it, true) }
     }
 
     fun renderPage(path: Path, dpi: Float = 110f): BufferedImage {
