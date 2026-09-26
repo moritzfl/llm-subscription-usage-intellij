@@ -1,12 +1,10 @@
 package de.moritzf.quota.idea.settings
 
 import com.intellij.icons.AllIcons
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.ui.DialogWrapper
-import com.intellij.openapi.ui.Messages
+import com.intellij.ui.AnimatedIcon
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
@@ -19,16 +17,22 @@ import de.moritzf.quota.idea.action.PdfDocumentConversion
 import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.shared.HelloPdf
+import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.Font
 import java.awt.Image
+import java.awt.event.ActionEvent
 import java.awt.image.BufferedImage
 import java.nio.file.Files
+import java.util.concurrent.CancellationException
+import java.util.concurrent.atomic.AtomicInteger
 import javax.swing.Action
 import javax.swing.ImageIcon
 import javax.swing.JButton
 import javax.swing.JComponent
+import javax.swing.JPanel
 import javax.swing.ScrollPaneConstants
+import javax.swing.SwingUtilities
 
 /** Runs the selected document model against a one-page PDF created by PDFBox. */
 internal class DocumentTestButton(
@@ -42,111 +46,208 @@ internal class DocumentTestButton(
     }
 
     private fun runTest() {
-        isEnabled = false
-        val selected = selectedModel()
-        ApplicationManager.getApplication().executeOnPooledThread {
-            val pdf = Files.createTempFile("quota-hello-", ".pdf")
-            val output = Files.createTempFile("quota-hello-", ".md")
-            val result = try {
-                HelloPdf.write(pdf)
-                val page = HelloPdf.renderPage(pdf)
-                val warnings = PdfDocumentConversion.convert(
-                    provider, pdf, output, includeImages = false, model = selected,
-                )
-                val markdown = Files.readString(output)
-                DocumentTestResult(
-                    true,
-                    "Converted",
-                    selected,
-                    page,
-                    markdown,
-                    warnings.joinToString("\n").ifBlank { null },
-                )
-            } catch (exception: ProcessCanceledException) {
-                throw exception
-            } catch (exception: Exception) {
-                DocumentTestResult(
-                    false,
-                    exception.message ?: "Document test failed",
-                    selected,
-                    runCatching { HelloPdf.renderPage(pdf) }.getOrNull(),
-                    null,
-                    null,
-                )
-            } finally {
-                Files.deleteIfExists(pdf)
-                Files.deleteIfExists(output)
-            }
-            ApplicationManager.getApplication().invokeLater({
-                isEnabled = true
-                val parent = modality()
-                if (parent == null) {
-                    Messages.showInfoMessage(result.status, "Test document")
-                } else {
-                    DocumentTestResultDialog(parent, result).show()
-                }
-            }, ModalityState.stateForComponent(modality() ?: this))
-        }
+        DocumentTestDialog(modality() ?: this, provider, selectedModel).show()
     }
 }
 
-internal data class DocumentTestResult(
-    val ok: Boolean,
-    val status: String,
-    val model: String,
-    val page: BufferedImage?,
-    val markdown: String?,
-    val detail: String?,
-)
-
-private class DocumentTestResultDialog(
+private class DocumentTestDialog(
     parent: JComponent,
-    private val result: DocumentTestResult,
+    private val provider: DocumentToMarkdownProvider,
+    private val selectedModel: () -> String,
 ) : DialogWrapper(parent, true) {
+    private val generation = AtomicInteger()
+    private var worker: Thread? = null
+    private val statusIcon = JBLabel()
+    private val statusLabel = JBLabel().apply { font = font.deriveFont(Font.BOLD) }
+    private val modelLabel = JBLabel().apply { foreground = UIUtil.getContextHelpForeground() }
+    private val inputSlot = slot()
+    private val outputSlot = slot()
+    private val detailSlot = slot()
+    private val abortAction = object : DialogWrapperAction("Abort") {
+        override fun doAction(event: ActionEvent) {
+            abort()
+        }
+    }
+    private val retryAction = object : DialogWrapperAction("Retry") {
+        override fun doAction(event: ActionEvent) {
+            start()
+        }
+    }
+
     init {
         title = "Test document"
+        setOKButtonText("Close")
         init()
+        start()
     }
 
     override fun createCenterPanel(): JComponent {
-        val icon = if (result.ok) AllIcons.General.InspectionsOK else AllIcons.General.Error
         return panel {
             row {
-                icon(icon)
-                label(result.status).bold()
-                if (result.model.isNotBlank()) comment(result.model)
+                cell(statusIcon)
+                cell(statusLabel)
+                cell(modelLabel)
             }
-            result.page?.let { page ->
-                group("Input") {
-                    row {
-                        cell(pagePreview(page))
-                            .resizableColumn()
-                            .align(AlignX.FILL)
-                    }
-                }
-            }
-            result.markdown?.let { markdown ->
-                group("Output") {
-                    row {
-                        cell(codeBlock(markdown))
-                            .resizableColumn()
-                            .align(AlignX.FILL)
-                    }
-                }
-            }
-            result.detail?.let { detail ->
+            group("Input") {
                 row {
-                    text(QuotaUiUtil.escapeHtml(detail).replace("\n", "<br>"))
+                    cell(inputSlot)
                         .resizableColumn()
                         .align(AlignX.FILL)
                 }
+            }
+            group("Output") {
+                row {
+                    cell(outputSlot)
+                        .resizableColumn()
+                        .align(AlignX.FILL)
+                }
+            }
+            row {
+                cell(detailSlot)
+                    .resizableColumn()
+                    .align(AlignX.FILL)
             }
         }.apply {
             preferredSize = Dimension(JBUI.scale(520), JBUI.scale(360))
         }
     }
 
-    override fun createActions(): Array<Action> = arrayOf(okAction)
+    override fun createActions(): Array<Action> = arrayOf(abortAction, retryAction, okAction)
+
+    override fun dispose() {
+        generation.incrementAndGet()
+        worker?.interrupt()
+        worker = null
+        super.dispose()
+    }
+
+    private fun start() {
+        val model = selectedModel()
+        val gen = generation.incrementAndGet()
+        worker?.interrupt()
+        showRunning(model)
+        val thread = Thread({ runGeneration(gen, model) }, "document-test")
+        thread.isDaemon = true
+        worker = thread
+        thread.start()
+    }
+
+    private fun abort() {
+        generation.incrementAndGet()
+        worker?.interrupt()
+        worker = null
+        showAborted()
+    }
+
+    private fun runGeneration(gen: Int, model: String) {
+        val pdf = Files.createTempFile("quota-hello-", ".pdf")
+        val output = Files.createTempFile("quota-hello-", ".md")
+        var page: BufferedImage? = null
+        try {
+            checkActive(gen)
+            HelloPdf.write(pdf)
+            page = HelloPdf.renderPage(pdf)
+            val rendered = page
+            onEdt(gen) { showPage(rendered) }
+            checkActive(gen)
+            val warnings = PdfDocumentConversion.convert(
+                provider, pdf, output, includeImages = false,
+                progress = { _, _, _ -> checkActive(gen) },
+                model = model,
+            )
+            checkActive(gen)
+            val markdown = Files.readString(output)
+            onEdt(gen) {
+                showSuccess(rendered, markdown, warnings.joinToString("\n").ifBlank { null })
+            }
+        } catch (exception: ProcessCanceledException) {
+            if (isActive(gen)) throw exception
+        } catch (exception: Exception) {
+            if (!isActive(gen) || isCancellation(exception)) return
+            val rendered = page
+            onEdt(gen) { showFailure(exception.message ?: "Document test failed", rendered) }
+        } finally {
+            Files.deleteIfExists(pdf)
+            Files.deleteIfExists(output)
+        }
+    }
+
+    private fun showRunning(model: String) {
+        statusIcon.icon = AnimatedIcon.Default.INSTANCE
+        statusLabel.text = "Testing…"
+        modelLabel.text = model
+        modelLabel.isVisible = model.isNotBlank()
+        replace(inputSlot, note("Preparing the sample page…"))
+        replace(outputSlot, note("Waiting for the model."))
+        clear(detailSlot)
+        abortAction.isEnabled = true
+        retryAction.isEnabled = true
+    }
+
+    private fun showPage(image: BufferedImage) {
+        replace(inputSlot, pagePreview(image))
+    }
+
+    private fun showSuccess(page: BufferedImage, markdown: String, detail: String?) {
+        statusIcon.icon = AllIcons.General.InspectionsOK
+        statusLabel.text = "Converted"
+        showPage(page)
+        replace(outputSlot, codeBlock(markdown))
+        showDetail(detail)
+        abortAction.isEnabled = false
+        retryAction.isEnabled = true
+    }
+
+    private fun showFailure(message: String, page: BufferedImage?) {
+        statusIcon.icon = AllIcons.General.Error
+        statusLabel.text = "Failed"
+        if (page != null) showPage(page)
+        replace(outputSlot, codeBlock(message))
+        clear(detailSlot)
+        abortAction.isEnabled = false
+        retryAction.isEnabled = true
+    }
+
+    private fun showAborted() {
+        statusIcon.icon = AllIcons.Actions.Cancel
+        statusLabel.text = "Aborted"
+        replace(outputSlot, note("Test aborted."))
+        abortAction.isEnabled = false
+        retryAction.isEnabled = true
+    }
+
+    private fun showDetail(detail: String?) {
+        if (detail.isNullOrBlank()) {
+            clear(detailSlot)
+            return
+        }
+        val html = QuotaUiUtil.escapeHtml(detail).replace("\n", "<br>")
+        replace(detailSlot, JBLabel("<html><body style='width: 460px'>$html</body></html>"))
+    }
+
+    private fun checkActive(gen: Int) {
+        if (!isActive(gen) || Thread.currentThread().isInterrupted) throw CancellationException("Aborted")
+    }
+
+    private fun isActive(gen: Int) = generation.get() == gen && !isDisposed
+
+    private fun isCancellation(exception: Throwable): Boolean {
+        var current: Throwable? = exception
+        while (current != null) {
+            if (current is CancellationException || current is InterruptedException || current is ProcessCanceledException) {
+                return true
+            }
+            current = current.cause
+        }
+        return false
+    }
+
+    private fun onEdt(gen: Int, update: () -> Unit) {
+        SwingUtilities.invokeLater {
+            if (!isActive(gen)) return@invokeLater
+            update()
+        }
+    }
 
     private fun pagePreview(image: BufferedImage): JComponent {
         val maxWidth = JBUI.scale(480)
@@ -175,4 +276,21 @@ private class DocumentTestResultDialog(
             preferredSize = Dimension(JBUI.scale(480), JBUI.scale(96))
         }
     }
+
+    private fun note(text: String) = JBLabel(text).apply { foreground = UIUtil.getContextHelpForeground() }
+
+    private fun replace(slot: JPanel, component: JComponent) {
+        slot.removeAll()
+        slot.add(component, BorderLayout.NORTH)
+        slot.revalidate()
+        slot.repaint()
+    }
+
+    private fun clear(slot: JPanel) {
+        slot.removeAll()
+        slot.revalidate()
+        slot.repaint()
+    }
+
+    private fun slot() = JPanel(BorderLayout()).apply { isOpaque = false }
 }
