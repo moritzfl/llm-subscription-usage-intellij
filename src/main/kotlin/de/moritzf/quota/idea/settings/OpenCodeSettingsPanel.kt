@@ -12,11 +12,17 @@ import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.idea.auth.OAuthCredentials
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
+import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
 import de.moritzf.quota.idea.opencode.OpenCodeAuthService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
+import de.moritzf.proxy.logging.RequestLogger
+import de.moritzf.quota.opencode.proxy.OpenCodeConsoleProxy
+import de.moritzf.quota.opencode.proxy.OpenCodeConsoleSession
 import de.moritzf.quota.opencode.OpenCodeWorkspace
 import de.moritzf.quota.opencode.OpenCodeQuota
 import java.awt.Color
+import java.net.http.HttpClient
+import java.nio.file.Path
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import javax.swing.JButton
@@ -34,7 +40,14 @@ internal class OpenCodeSettingsPanel(
     private val userCodeLabel = JBLabel().apply { isVisible = false }
     private val workspaceComboBox = ComboBox<OpenCodeWorkspace>()
     private val workspaceStatus = JBLabel()
+    private val documentModelCombo = DocumentModelCombo("Select a model", vision = true)
+    private val testDocumentButton = DocumentTestButton(
+        DocumentToMarkdownProvider.OPEN_CODE,
+        { documentModelCombo.storedValue().orEmpty() },
+        modalityComponentProvider,
+    )
     private val responseViewer = createResponseViewer()
+    private var modelRefreshGeneration = 0
     private var verificationUrl: String? = null
     private var authMessage: AuthStatusMessage? = null
     private var shownAccountId: String? = null
@@ -121,8 +134,17 @@ internal class OpenCodeSettingsPanel(
             row("Organization:") { cell(workspaceComboBox).resizableColumn().align(AlignX.FILL) }
             row { cell(workspaceStatus) }
             row { text("To change a browser-scoped organization, sign in again.") }
+            row("Document model:") {
+                cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn()
+                    .comment("Models whose live catalog lists pdf. If the catalog does not say, every model is listed.")
+                cell(documentModelCombo.warning).align(com.intellij.ui.dsl.builder.AlignY.TOP)
+                cell(testDocumentButton)
+            }
         }, createResponseSection(responseViewer))
     }
+
+    fun documentModelForStorage(): String? = documentModelCombo.storedValue()
+    fun documentModelDiffers(saved: String?): Boolean = documentModelCombo.differs(saved)
 
     override fun updateFields() {
         val id = accountId()
@@ -147,6 +169,28 @@ internal class OpenCodeSettingsPanel(
             workspaceStatus.text = ""
         }
         updateStatus()
+        refreshDocumentModels()
+    }
+
+    private fun refreshDocumentModels() {
+        val generation = ++modelRefreshGeneration
+        val id = accountId()
+        val saved = boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val discovered = runCatching {
+                val auth = auth()
+                val credentials = auth.credentials(id) ?: return@runCatching emptyList()
+                val token = credentials.accessToken ?: return@runCatching emptyList()
+                val organization = credentials.accountId ?: QuotaSettingsState.getInstance().openCodeWorkspaceIdFor(id)
+                val session = OpenCodeConsoleSession(id, token, organization) { auth.credentials(id, it)?.accessToken }
+                val models = OpenCodeConsoleProxy(HttpClient.newHttpClient(), RequestLogger(false, Path.of("logs"))).models(session)
+                de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel.documentModelIds(models)
+            }.getOrDefault(emptyList())
+            ApplicationManager.getApplication().invokeLater({
+                if (generation != modelRefreshGeneration) return@invokeLater
+                documentModelCombo.show(saved, (discovered + listOfNotNull(saved)).distinct())
+            }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
+        }
     }
 
     override fun updateStatus() {

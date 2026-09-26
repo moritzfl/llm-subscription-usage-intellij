@@ -51,6 +51,7 @@ internal class ZaiSettingsPanel(
             row("Document model:") {
                 cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn()
                     .comment("Loaded from the Z.ai model list. Only glm-ocr models.")
+                cell(DocumentTestButton(de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.ZAI, { documentModelCombo.selected().orEmpty() }, modalityComponentProvider))
             }
             row {
                 button("Save") {

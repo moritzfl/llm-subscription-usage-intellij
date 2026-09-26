@@ -9,7 +9,9 @@ import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
+import de.moritzf.quota.idea.common.IdeProxyFactories
 import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
 import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.idea.auth.AuthService
 import de.moritzf.quota.idea.common.QuotaUsageService
@@ -17,6 +19,8 @@ import de.moritzf.quota.idea.github.GitHubAuthService
 import de.moritzf.quota.idea.github.GitHubCredentialsStore
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.github.GitHubQuotaClient
+import de.moritzf.quota.github.proxy.fetchGitHubListedModels
+import de.moritzf.quota.github.proxy.githubDocumentModelIds
 import java.awt.Color
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
@@ -46,7 +50,10 @@ internal class GitHubSettingsPanel(
         toolTipText = "Copy the GitHub device code to clipboard"
     }
     private val userCodeLabel = JBLabel().apply { isVisible = false }
+    private val documentModelCombo = DocumentModelCombo("Select a model", vision = true)
+    private val testDocumentButton = DocumentTestButton(DocumentToMarkdownProvider.GITHUB, { documentModelCombo.storedValue().orEmpty() }, modalityComponentProvider)
     private val responseViewer = createResponseViewer()
+    private var modelRefreshGeneration = 0
     private var verificationUrl: String? = null
     private var userCode: String? = null
     private var authStatusMessage: AuthStatusMessage? = null
@@ -134,8 +141,17 @@ internal class GitHubSettingsPanel(
                 cell(cancelLoginButton).gap(RightGap.SMALL)
                 cell(logoutButton)
             }
+            row("Document model:") {
+                cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn()
+                    .comment("Copilot models that advertise application/pdf. If Copilot does not say, every model is listed.")
+                cell(documentModelCombo.warning).align(com.intellij.ui.dsl.builder.AlignY.TOP)
+                cell(testDocumentButton)
+            }
         }, createResponseSection(responseViewer))
     }
+
+    fun documentModelForStorage(): String? = documentModelCombo.storedValue()
+    fun documentModelDiffers(saved: String?): Boolean = documentModelCombo.differs(saved)
 
     override fun updateFields() {
         rememberAccount()
@@ -145,6 +161,24 @@ internal class GitHubSettingsPanel(
         enterpriseHostField.text = boundAccount?.extra(ProviderAccount.EXTRA_GITHUB_HOST)
             ?: settings.githubHostFor(accountId)
         updateStatus()
+        refreshDocumentModels()
+    }
+
+    private fun refreshDocumentModels() {
+        val generation = ++modelRefreshGeneration
+        val accountId = accountKey(QuotaProviderType.GITHUB)
+        val saved = boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val token = GitHubCredentialsStore.forAccount(accountId).loadBlocking()?.accessToken
+            val discovered = if (token.isNullOrBlank()) emptyList() else runCatching {
+                val base = IdeProxyFactories.githubCopilotBaseUri(QuotaSettingsState.getInstance().githubHostFor(accountId))
+                githubDocumentModelIds(fetchGitHubListedModels(base, token))
+            }.getOrDefault(emptyList())
+            ApplicationManager.getApplication().invokeLater({
+                if (generation != modelRefreshGeneration) return@invokeLater
+                documentModelCombo.show(saved, (discovered + listOfNotNull(saved)).distinct())
+            }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
+        }
     }
 
     override fun updateStatus() {

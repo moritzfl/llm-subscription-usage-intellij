@@ -782,17 +782,21 @@ class QuotaSettingsConfigurable : Configurable {
                 account.setExtra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS, panel.deploymentNames())
                 account.setExtra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT, panel.ocrDeploymentForStorage())
             }
-            QuotaProviderType.GITHUB ->
+            QuotaProviderType.GITHUB -> {
                 account.setExtra(
                     ProviderAccount.EXTRA_GITHUB_HOST,
                     gitHubPanel().normalizedEnterpriseHostForStorage().ifEmpty { null },
                 )
+                account.setExtra(ProviderAccount.EXTRA_DOCUMENT_MODEL, gitHubPanel().documentModelForStorage())
+            }
             QuotaProviderType.MINIMAX ->
                 (miniMaxPanel().regionComboBox.selectedItem as? MiniMaxRegionPreference)?.let {
                     account.setExtra(ProviderAccount.EXTRA_MINIMAX_REGION, it.name)
                 }
-            QuotaProviderType.OPEN_CODE ->
+            QuotaProviderType.OPEN_CODE -> {
                 account.setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, openCodePanel().selectedWorkspaceId())
+                account.setExtra(ProviderAccount.EXTRA_DOCUMENT_MODEL, openCodePanel().documentModelForStorage())
+            }
             QuotaProviderType.OLLAMA ->
                 account.setExtra(
                     ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET,
@@ -820,11 +824,13 @@ class QuotaSettingsConfigurable : Configurable {
                 antigravityPanel().executableField.text.trim() != persisted?.extra(ProviderAccount.EXTRA_AGY_EXECUTABLE).orEmpty()
             QuotaProviderType.AZURE -> azurePanel().differsFrom(persisted ?: selected)
             QuotaProviderType.GITHUB ->
-                gitHubPanel().normalizedEnterpriseHostForStorage() != state.githubHostFor(selected.id)
+                gitHubPanel().normalizedEnterpriseHostForStorage() != state.githubHostFor(selected.id) ||
+                    gitHubPanel().documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
             QuotaProviderType.MINIMAX ->
                 miniMaxPanel().regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionFor(selected.id)
             QuotaProviderType.OPEN_CODE ->
-                openCodePanel().selectedWorkspaceId() != state.openCodeWorkspaceIdFor(selected.id)
+                openCodePanel().selectedWorkspaceId() != state.openCodeWorkspaceIdFor(selected.id) ||
+                    openCodePanel().documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
             QuotaProviderType.OLLAMA ->
                 ollamaPanel().monthlyResetField.text.trim() !=
                     (persisted?.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET) ?: selected.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET)).orEmpty()

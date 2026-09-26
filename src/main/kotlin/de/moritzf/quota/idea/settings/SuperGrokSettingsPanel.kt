@@ -125,6 +125,7 @@ internal class SuperGrokSettingsPanel(
                 cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn().gap(RightGap.SMALL)
                     .comment("Loaded from the xAI model list. Image models are left out.")
                 cell(documentModelCombo.warning).align(AlignY.TOP)
+                cell(DocumentTestButton(de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.SUPERGROK, { documentModelCombo.selected().orEmpty() }, modalityComponentProvider))
             }
         }
 

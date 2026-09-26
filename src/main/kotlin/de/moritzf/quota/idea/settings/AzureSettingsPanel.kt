@@ -17,6 +17,9 @@ import de.moritzf.quota.azure.AZURE_DOCUMENT_INTELLIGENCE_LAYOUT
 import de.moritzf.quota.azure.azureOcrDeployments
 import de.moritzf.quota.azure.preferredAzureOcrSelection
 import de.moritzf.quota.azure.azureOcrDeploymentId
+import de.moritzf.quota.azure.azureNativePdfChoices
+import de.moritzf.quota.azure.azureNativePdfDeploymentId
+import de.moritzf.quota.azure.isAzureNativePdfSelection
 import de.moritzf.quota.azure.isAzureCohereSelection
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
@@ -56,6 +59,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                 val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
                 if (value == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT) text = "Document Intelligence · prebuilt-layout"
                 else if (value is String && isAzureCohereSelection(value)) text = "Cohere Parse · ${azureOcrDeploymentId(value)}"
+                else if (value is String && isAzureNativePdfSelection(value)) text = "Native PDF · ${azureNativePdfDeploymentId(value)}"
                 return component
             }
         }
@@ -129,8 +133,10 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
             }
             row("Document model:") {
                 cell(ocrDeploymentCombo).align(AlignX.FILL).resizableColumn()
+                cell(DocumentTestButton(de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.AZURE, { (ocrDeploymentCombo.selectedItem as? String).orEmpty() }, { this@AzureSettingsPanel }))
                     .comment("Filled from the first model list: newest Mistral OCR deployment, otherwise '-'. " +
                         "'-' turns conversion off. Change the resource to choose again. " +
+                        "Native PDF lists every other deployment because Azure does not say which chat models accept PDF. " +
                         "Cohere Parse is image-only. Document Intelligence is optional and not chosen automatically.")
             }
             row {
@@ -280,10 +286,12 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
         val sameTarget = resourceName() == boundAccount?.extra(ProviderAccount.EXTRA_AZURE_RESOURCE) &&
             endpoint() == boundAccount?.extra(ProviderAccount.EXTRA_AZURE_ENDPOINT)
         val quotaForTarget = quota.takeIf { sameTarget }
+        val native = azureNativePdfChoices(quotaForTarget, resourceName())
+        val keptNative = selection?.takeIf { isAzureNativePdfSelection(it) && it !in native }
         val choices = listOf(NO_OCR) + azureOcrDeployments(
-            quotaForTarget, deploymentNames(), selection?.takeIf { it != NO_OCR }, resourceName(),
+            quotaForTarget, deploymentNames(), selection?.takeIf { it != NO_OCR && !isAzureNativePdfSelection(it) }, resourceName(),
             documentIntelligenceAvailable = resourceName() != null || endpoint() != null,
-        )
+        ) + native + listOfNotNull(keptNative)
         val preferred = preferredAzureOcrSelection(quotaForTarget, deploymentNames(), resourceName())
         val catalogRead = quotaForTarget?.modelCatalogRead == true
         applyingFields = true

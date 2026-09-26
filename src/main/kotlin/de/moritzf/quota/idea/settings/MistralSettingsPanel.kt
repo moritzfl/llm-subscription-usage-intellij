@@ -60,6 +60,7 @@ internal class MistralSettingsPanel(
             row("Document model:") {
                 cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn()
                     .comment("Loaded from the Mistral model list. Only mistral-ocr- and mistral-document-ai- models.")
+                cell(DocumentTestButton(de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.MISTRAL, { documentModelCombo.selected().orEmpty() }, modalityComponentProvider))
             }
             row {
                 button("Save") { saveNow() }
