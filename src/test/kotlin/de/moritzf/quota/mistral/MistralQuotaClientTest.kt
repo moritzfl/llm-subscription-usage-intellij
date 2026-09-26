@@ -138,4 +138,26 @@ class MistralQuotaClientTest {
         assertEquals(Instant.parse("2026-09-01T00:00:00Z"), window.resetsAt)
         assertEquals(true, (window.periodDurationMs ?: 0L) > 0L)
     }
+
+    @Test
+    fun monthlyWindowUsesVibeWhenBillingIsMissing() {
+        val vibe = MistralVibeUsage(0.0, Instant.parse("2026-10-01T00:00:00Z"))
+        val window = assertNotNull(MistralQuotaClient.monthlyWindow(vibe, MistralBillingDto()))
+        assertEquals(0.0, window.usagePercent)
+        assertEquals(Instant.parse("2026-10-01T00:00:00Z"), window.resetsAt)
+    }
+
+    @Test
+    fun rawResponseKeepsBillingErrorWhenAdminUsageFails() {
+        val raw = MistralQuotaClient.buildRawResponse(
+            billingBody = null,
+            vibeBody = """[{"result":{"data":{"json":{"usage_percentage":0,"reset_at":"2026-10-01T00:00:00Z"}}}}]""",
+            identityBody = null,
+            rateLimits = null,
+            billingError = "Request failed (HTTP 500). Try again later.",
+        )
+        assertTrue(raw.contains("billing_error"))
+        assertTrue(raw.contains("HTTP 500"))
+        assertTrue(raw.contains("\"vibe\""))
+    }
 }

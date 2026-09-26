@@ -32,14 +32,20 @@ open class MistralQuotaClient(
         val billingUrl = URI.create(
             "https://admin.mistral.ai/api/billing/v2/usage?month=${month.monthValue}&year=${month.year}",
         )
-        val billingBody = getAdminJson(
-            url = billingUrl,
-            cookieHeader = session.cookieHeader,
-            csrfToken = session.csrfToken,
-            origin = "https://admin.mistral.ai",
-            referer = "https://admin.mistral.ai/organization/usage",
-        )
-        val billing = parseBilling(billingBody)
+        // admin billing currently returns HTTP 500 for a valid session. Console vibe usage still works.
+        val billingAttempt = runCatching {
+            getAdminJson(
+                url = billingUrl,
+                cookieHeader = session.cookieHeader,
+                csrfToken = session.csrfToken,
+                origin = "https://admin.mistral.ai",
+                referer = "https://admin.mistral.ai/organization/usage",
+            )
+        }
+        val billingBody = billingAttempt.getOrNull()
+        val billingError = billingAttempt.exceptionOrNull() as? MistralQuotaException
+            ?: billingAttempt.exceptionOrNull()?.let { MistralQuotaException(it.message ?: "Request failed.", 0, null, it) }
+        val billing = billingBody?.let(::parseBilling) ?: MistralBillingDto()
         val vibeBody = session.csrfToken?.let { csrf ->
             runCatching {
                 getAdminJson(
@@ -53,6 +59,7 @@ open class MistralQuotaClient(
             }.getOrNull()
         }
         val vibe = vibeBody?.let(::parseVibeUsage)
+        if (billingError != null && vibe == null) throw billingError
         val monthly = monthlyWindow(vibe, billing)
         val identityBody = apiKey?.takeIf { it.isNotBlank() }?.let { key ->
             runCatching { getJson(key, IDENTITY_URI) }.getOrNull()
@@ -73,7 +80,13 @@ open class MistralQuotaClient(
             requestUsage = requestUsage,
             fetchedAt = now,
         )
-        quota.rawJson = buildRawResponse(billingBody, vibeBody, identityBody, probe?.let(::rateLimitHeaders))
+        quota.rawJson = buildRawResponse(
+            billingBody,
+            vibeBody,
+            identityBody,
+            probe?.let(::rateLimitHeaders),
+            billingError?.message,
+        )
         return quota
     }
 
@@ -181,10 +194,12 @@ open class MistralQuotaClient(
             vibeBody: String?,
             identityBody: String?,
             rateLimits: Map<String, String>?,
+            billingError: String? = null,
         ): String {
             val session = buildJsonObject {
                 jsonOrRaw(billingBody)?.let { put("billing", it) }
                 jsonOrRaw(vibeBody)?.let { put("vibe", it) }
+                billingError?.takeIf { it.isNotBlank() }?.let { put("billing_error", it) }
             }
             val apiKey = buildJsonObject {
                 jsonOrRaw(identityBody)?.let { put("identity", it) }
