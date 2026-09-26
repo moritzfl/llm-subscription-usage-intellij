@@ -19,6 +19,7 @@ import de.moritzf.quota.idea.settings.DocumentModelSelection
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 import de.moritzf.quota.mistral.MistralOcrClient
+import de.moritzf.quota.openai.proxy.pdf.PdfBoxMarkdown
 import de.moritzf.quota.openai.proxy.pdf.PdfPages
 import de.moritzf.quota.shared.DocumentConversionProgress
 import de.moritzf.quota.shared.DocumentImageOptions
@@ -38,8 +39,9 @@ internal object PdfDocumentConversion {
     fun availableProviders(): List<DocumentToMarkdownProvider> {
         val settings = QuotaSettingsState.getInstance()
         return DocumentToMarkdownProvider.entries.filter { choice ->
-            val descriptor = ProviderCatalog.get(choice.providerType)
-            settings.accountsOf(choice.providerType).any { descriptor.isDocumentConfiguredForAccount(it.id) }
+            val type = choice.providerType ?: return@filter true
+            val descriptor = ProviderCatalog.get(type)
+            settings.accountsOf(type).any { descriptor.isDocumentConfiguredForAccount(it.id) }
         }
     }
 
@@ -50,7 +52,13 @@ internal object PdfDocumentConversion {
     ): List<String> {
         progress.update(0, 0, "Preparing document conversion")
         require(PdfPages.isPdf(source)) { "Select a readable PDF file." }
-        val type = provider.providerType
+        if (provider == DocumentToMarkdownProvider.PDFBOX) {
+            return checkConversionResult(
+                PdfBoxMarkdown.convert(source, output, includeImages, progress = progress),
+                output,
+            )
+        }
+        val type = checkNotNull(provider.providerType)
         val account = AccountResolver.resolve(type, capability = AccountCapability.DOCUMENT_TO_MARKDOWN)
         val response = when (provider) {
             DocumentToMarkdownProvider.MISTRAL -> {

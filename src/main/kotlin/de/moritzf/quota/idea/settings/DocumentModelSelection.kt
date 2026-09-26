@@ -28,9 +28,10 @@ internal object DocumentModelSelection {
 
     fun visionHint(provider: DocumentToMarkdownProvider): String? {
         if (provider != DocumentToMarkdownProvider.OPEN_AI && provider != DocumentToMarkdownProvider.SUPERGROK) return null
+        val type = provider.providerType ?: return null
         val model = runCatching {
-            val account = AccountResolver.resolve(provider.providerType, capability = AccountCapability.DOCUMENT_TO_MARKDOWN)
-            forAccount(provider.providerType, account.id)
+            val account = AccountResolver.resolve(type, capability = AccountCapability.DOCUMENT_TO_MARKDOWN)
+            forAccount(type, account.id)
         }.getOrNull()
         return if (model.isNullOrBlank()) DocumentModels.VISION_WARNING else "Uses $model. ${DocumentModels.VISION_WARNING}"
     }

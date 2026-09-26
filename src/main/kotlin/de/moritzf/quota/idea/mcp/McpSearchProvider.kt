@@ -54,10 +54,15 @@ enum class WebFetchProvider(val providerType: QuotaProviderType) {
     ZAI(QuotaProviderType.ZAI),
 }
 
-enum class DocumentToMarkdownProvider(val providerType: QuotaProviderType) {
+/**
+ * Subscription document converters, plus [PDFBOX].
+ * [PDFBOX] is local Apache PDFBox text extraction and has no catalog account.
+ */
+enum class DocumentToMarkdownProvider(val providerType: QuotaProviderType?) {
     MISTRAL(QuotaProviderType.MISTRAL),
     AZURE(QuotaProviderType.AZURE),
     ZAI(QuotaProviderType.ZAI),
     OPEN_AI(QuotaProviderType.OPEN_AI),
     SUPERGROK(QuotaProviderType.SUPERGROK),
+    PDFBOX(null),
 }

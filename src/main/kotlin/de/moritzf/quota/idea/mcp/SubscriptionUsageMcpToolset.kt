@@ -263,17 +263,17 @@ class SubscriptionUsageMcpToolset(
     }
 
     @McpTool(name = "subscription_document_to_markdown")
-    @McpDescription(description = "Converts a PDF or image to markdown. Prefer MISTRAL, then AZURE or ZAI OCR; use OPEN_AI/Codex or SUPERGROK vision when OCR is unavailable or explicitly requested. Z.ai and Cohere split long local PDFs automatically. For large PDFs on Codex/SuperGrok, use pageFrom/pageTo. With localFile, markdown defaults to <name>.md beside it. Images are never returned as base64.")
+    @McpDescription(description = "Converts a PDF or image to markdown. Prefer MISTRAL, then AZURE or ZAI OCR; use OPEN_AI/Codex or SUPERGROK vision when OCR is unavailable or explicitly requested. PDFBOX is local Apache PDFBox text extraction: free, no login, no OCR, no figures, and often the wrong reading order. Z.ai and Cohere split long local PDFs automatically. For large PDFs on Codex/SuperGrok/PDFBOX, use pageFrom/pageTo. With localFile, markdown defaults to <name>.md beside it. Images are never returned as base64.")
     suspend fun subscription_document_to_markdown(
-        @McpDescription(description = "Prefer MISTRAL, then AZURE or ZAI OCR, then OPEN_AI or SUPERGROK vision. Honor explicit provider requests.") provider: DocumentToMarkdownProvider = DocumentToMarkdownProvider.MISTRAL,
+        @McpDescription(description = "Prefer MISTRAL, then AZURE or ZAI OCR, then OPEN_AI or SUPERGROK vision. PDFBOX extracts embedded text locally and needs no subscription; it is not OCR. Honor explicit provider requests.") provider: DocumentToMarkdownProvider = DocumentToMarkdownProvider.MISTRAL,
         @McpDescription(description = "Public document URL. Leave blank when localFile is set.") documentUrl: String? = null,
         @McpDescription(description = "Optional project-relative or absolute local file path.") localFile: String? = null,
         @McpDescription(description = "Optional markdown output path. Defaults to <localFile>.md beside the source.") outputFile: String? = null,
         @McpDescription(description = "Keep extracted images when the provider returns them.") includeImages: Boolean = true,
         @McpDescription(description = "OCR or vision model id. Leave blank to use the document model selected in settings. For Azure, pass a deployment name, cohere:<deployment>, or prebuilt-layout.") model: String = "",
-        @McpDescription(description = "Optional 1-based first page for Codex/SuperGrok/Cohere PDFs. Leave 0 for the start of the document.") pageFrom: Int = 0,
-        @McpDescription(description = "Optional 1-based last page for Codex/SuperGrok/Cohere PDFs. Leave 0 for the end of the document.") pageTo: Int = 0,
-        @McpDescription(description = "Figure export for MISTRAL/AZURE/ZAI PDFs: SVG prefers local vector export with PNG fallback; PNG renders the original PDF; PROVIDER keeps provider images. Other providers keep their existing image export. Fallbacks are returned in warnings.") imageFormat: DocumentImageFormat = DocumentImageFormat.SVG,
+        @McpDescription(description = "Optional 1-based first page for Codex/SuperGrok/Cohere/PDFBOX PDFs. Leave 0 for the start of the document.") pageFrom: Int = 0,
+        @McpDescription(description = "Optional 1-based last page for Codex/SuperGrok/Cohere/PDFBOX PDFs. Leave 0 for the end of the document.") pageTo: Int = 0,
+        @McpDescription(description = "Figure export for MISTRAL/AZURE/ZAI PDFs: SVG prefers local vector export with PNG fallback; PNG renders the original PDF; PROVIDER keeps provider images. Other providers keep their existing image export. PDFBOX ignores figure options. Fallbacks are returned in warnings.") imageFormat: DocumentImageFormat = DocumentImageFormat.SVG,
         @McpDescription(description = "Local PNG export resolution, also for SVG fallback (72-600 DPI, default 300). This is not an OCR API request resolution.") imageDpi: Int = 300,
         @McpDescription(description = "Extra figure margin in PDF points (0-72, default 2; 72 points = 1 inch). Applies to local SVG/PNG export.") imagePaddingPoints: Double = 2.0,
     ): String {
@@ -323,6 +323,16 @@ class SubscriptionUsageMcpToolset(
                     outputFile,
                     includeImages,
                     model.ifBlank { documentModel(DocumentToMarkdownProvider.SUPERGROK) },
+                    pageFrom.takeIf { it > 0 },
+                    pageTo.takeIf { it > 0 },
+                )
+
+            DocumentToMarkdownProvider.PDFBOX ->
+                pdfBoxDocumentToMarkdown(
+                    documentUrl,
+                    localFile,
+                    outputFile,
+                    includeImages,
                     pageFrom.takeIf { it > 0 },
                     pageTo.takeIf { it > 0 },
                 )
@@ -1191,14 +1201,43 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
+    private suspend fun pdfBoxDocumentToMarkdown(
+        documentUrl: String?,
+        localFile: String?,
+        outputFile: String?,
+        includeImages: Boolean,
+        pageFrom: Int?,
+        pageTo: Int?,
+    ): String {
+        if (!documentUrl.isNullOrBlank()) {
+            return errorResult("PDFBox only reads a local PDF. Pass localFile, or use an OCR provider for a URL.")
+        }
+        val source = resolveOptionalPath(localFile)
+            ?: return errorResult("PDFBox needs a local PDF path in localFile.")
+        return try {
+            de.moritzf.quota.openai.proxy.pdf.PdfBoxMarkdown.convert(
+                source,
+                resolveOptionalPath(outputFile),
+                includeImages,
+                pageFrom,
+                pageTo,
+            )
+        } catch (exception: kotlinx.coroutines.CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
+            errorResult(exception.message ?: "PDFBox text extraction failed.")
+        }
+    }
+
     private fun documentModel(provider: DocumentToMarkdownProvider): String {
+        val type = provider.providerType ?: return ""
         val accountId = runCatching {
             de.moritzf.quota.idea.settings.AccountResolver.resolve(
-                provider.providerType,
+                type,
                 capability = de.moritzf.quota.idea.settings.AccountCapability.DOCUMENT_TO_MARKDOWN,
             ).id
         }.getOrNull() ?: return ""
-        return de.moritzf.quota.idea.settings.DocumentModelSelection.forAccount(provider.providerType, accountId)
+        return de.moritzf.quota.idea.settings.DocumentModelSelection.forAccount(type, accountId)
     }
 
     private fun resolvedApiKey(

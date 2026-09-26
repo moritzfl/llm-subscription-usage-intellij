@@ -28,7 +28,9 @@ import com.intellij.util.ui.JBUI
 import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
 import de.moritzf.quota.idea.settings.DocumentModelCombo
 import de.moritzf.quota.idea.settings.DocumentModelSelection
+import de.moritzf.quota.openai.proxy.pdf.PdfBoxMarkdown
 import de.moritzf.quota.shared.DocumentMarkdown
+import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.shared.DocumentImageFormat
 import de.moritzf.quota.shared.DocumentImageOptions
 import java.awt.Dimension
@@ -98,10 +100,13 @@ class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
                             Messages.showErrorDialog(project, "Markdown file was not found after conversion.", "PDF to Markdown")
                         } else {
                             FileEditorManager.getInstance(project).openFile(result, true)
-                            if (warnings.isNotEmpty()) Messages.showWarningDialog(project,
-                                warnings.take(8).joinToString("\n") +
-                                    if (warnings.size > 8) "\n… and ${warnings.size - 8} more image-export warnings." else "",
-                                "PDF image export fallbacks")
+                            val notable = warnings.filter { warning ->
+                                warning != DocumentModels.PDFBOX_WARNING && warning != PdfBoxMarkdown.IMAGES_IGNORED
+                            }
+                            if (notable.isNotEmpty()) Messages.showWarningDialog(project,
+                                notable.take(8).joinToString("\n") +
+                                    if (notable.size > 8) "\n… and ${notable.size - 8} more warnings." else "",
+                                if (provider == DocumentToMarkdownProvider.PDFBOX) "PDF to Markdown" else "PDF image export fallbacks")
                         }
                     }
 
@@ -139,6 +144,7 @@ private class ConvertPdfToMarkdownDialog(
                     DocumentToMarkdownProvider.ZAI -> "Z.ai GLM-OCR"
                     DocumentToMarkdownProvider.OPEN_AI -> "OpenAI/Codex vision"
                     DocumentToMarkdownProvider.SUPERGROK -> "SuperGrok vision"
+                    DocumentToMarkdownProvider.PDFBOX -> "PDFBox text extraction (local)"
                     else -> ""
                 }
                 return this
@@ -147,6 +153,7 @@ private class ConvertPdfToMarkdownDialog(
     }
     private val visionWarning = JBLabel().apply { foreground = DocumentModelCombo.WARNING_COLOR }
     private val imagesCheckBox = JBCheckBox("Save detected figures", true)
+    private var restoreImages = true
     private val formatCombo = ComboBox(DocumentImageFormat.entries.toTypedArray()).apply {
         renderer = object : DefaultListCellRenderer() {
             override fun getListCellRendererComponent(
@@ -241,7 +248,16 @@ private class ConvertPdfToMarkdownDialog(
     fun outputFile(): Path = resolveMarkdownOutput(source, outputField.text)
 
     private fun updateImageControls() {
-        val hint = DocumentModelSelection.visionHint(provider())
+        val pdfBox = provider() == DocumentToMarkdownProvider.PDFBOX
+        if (pdfBox) {
+            if (imagesCheckBox.isEnabled) restoreImages = imagesCheckBox.isSelected
+            imagesCheckBox.isSelected = false
+            imagesCheckBox.isEnabled = false
+        } else if (!imagesCheckBox.isEnabled) {
+            imagesCheckBox.isEnabled = true
+            imagesCheckBox.isSelected = restoreImages
+        }
+        val hint = if (pdfBox) DocumentModels.PDFBOX_WARNING else DocumentModelSelection.visionHint(provider())
         visionWarning.isVisible = hint != null
         visionWarning.text = hint?.let(DocumentModelCombo::warningHtml).orEmpty()
         val enabled = imagesCheckBox.isSelected && provider() in listOf(

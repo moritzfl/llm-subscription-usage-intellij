@@ -15,6 +15,7 @@ import de.moritzf.quota.idea.ui.indicator.ProviderUiRegistry
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ProviderCatalogTest {
@@ -91,8 +92,9 @@ class ProviderCatalogTest {
         )
         assertEquals(
             ProviderCatalog.all.filter { it.capabilities.documentToMarkdown }.map { it.type }.toSet(),
-            DocumentToMarkdownProvider.entries.map { it.providerType }.toSet(),
+            DocumentToMarkdownProvider.entries.mapNotNull { it.providerType }.toSet(),
         )
+        assertNull(DocumentToMarkdownProvider.PDFBOX.providerType)
         assertEquals(
             ProviderCatalog.all.filter { it.capabilities.webSearch == WebSearchCapability.ANSWER }.map { it.type }.toSet(),
             setOf(QuotaProviderType.OPEN_AI, QuotaProviderType.SUPERGROK, QuotaProviderType.MISTRAL),
