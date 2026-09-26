@@ -195,6 +195,7 @@ internal class AzureQuotaClient(
             windows = windows.distinctBy { it.key },
             models = distinctModels,
             warnings = warnings.distinct(),
+            modelCatalogRead = modelsRead,
             fetchedAt = clock.now(),
         ).also { quota ->
             quota.rawJson = buildAzureRawResponse(

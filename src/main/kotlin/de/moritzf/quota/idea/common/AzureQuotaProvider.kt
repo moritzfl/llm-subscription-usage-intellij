@@ -12,6 +12,7 @@ import de.moritzf.quota.azure.azureCohereParseUri
 import de.moritzf.quota.azure.azureDocumentIntelligenceUri
 import de.moritzf.quota.azure.azureOcrUri
 import de.moritzf.quota.azure.isAzureCohereSelection
+import de.moritzf.quota.azure.preferredAzureOcrSelection
 import de.moritzf.quota.idea.settings.ProviderAccount
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import java.nio.file.Path
@@ -35,7 +36,10 @@ class AzureQuotaProvider(
         fun update(action: () -> Unit) = synchronized(lock) { if (generation == started) action() }
         try {
             val quota = fetchQuota()
-            update { storeQuota(quota, quota.rawJson) }
+            update {
+                storeQuota(quota, quota.rawJson)
+                autofillOcrDeployment(accountId, quota)
+            }
         } catch (_: InterruptedException) {
             update { clearData("Azure quota refresh cancelled.") }
             Thread.currentThread().interrupt()
@@ -73,10 +77,23 @@ class AzureQuotaProvider(
             )
         }
 
-        internal fun ocrDeploymentForAccount(accountId: String): String? =
-            runCatching {
+        internal fun ocrDeploymentForAccount(accountId: String): String? {
+            val stored = runCatching {
                 QuotaSettingsState.getInstance().account(accountId)?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT)
             }.getOrNull()
+            if (stored == "-") return null
+            return stored
+        }
+
+        /** First catalog read only. A stored model or "-" is left alone. */
+        internal fun autofillOcrDeployment(accountId: String, quota: AzureQuota) {
+            if (!quota.modelCatalogRead) return
+            val account = runCatching { QuotaSettingsState.getInstance().account(accountId) }.getOrNull() ?: return
+            if (!account.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT).isNullOrBlank()) return
+            val config = configForAccount(accountId)
+            val preferred = preferredAzureOcrSelection(quota, config.deploymentNames.joinToString(","), config.resourceName)
+            account.setExtra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT, preferred ?: "-")
+        }
 
         internal fun isDocumentConfiguredForAccount(accountId: String): Boolean {
             val selection = ocrDeploymentForAccount(accountId) ?: return false

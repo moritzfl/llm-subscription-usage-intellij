@@ -4,6 +4,8 @@
 
 - OpenAI and SuperGrok document conversion can use a vision model chosen in settings. Defaults are `gpt-6-sol` and `grok-4.7`, so a cheaper model can be selected instead. Settings and the PDF dialog warn that a general vision model is less precise and usually costs more than Mistral or Z.ai OCR.
 - Mistral and Z.ai document conversion use an OCR model chosen in settings. The choices come from each provider's model list, filtered by OCR prefix, not a pinned version catalog.
+- Azure document conversion accepts an optional model. Blank still uses the settings selection. A passed value can be a deployment name, `cohere:<deployment>`, or `prebuilt-layout`.
+- Azure document conversion picks the newest Mistral OCR deployment from the first model list. If that list has no document model, conversion stays off (`-`). A saved choice is kept until the resource changes.
 
 ## [1.15.11] - 2026-09-25
 

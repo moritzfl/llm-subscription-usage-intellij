@@ -37,6 +37,7 @@ import de.moritzf.quota.azure.AzureOcrClient
 import de.moritzf.quota.azure.AzureOcrException
 import de.moritzf.quota.azure.AzureCohereParseClient
 import de.moritzf.quota.azure.AzureDocumentIntelligenceClient
+import de.moritzf.quota.azure.azureDocumentSelection
 import de.moritzf.quota.azure.AZURE_DOCUMENT_INTELLIGENCE_LAYOUT
 import de.moritzf.quota.azure.azureOcrDeploymentId
 import de.moritzf.quota.azure.isAzureCohereSelection
@@ -269,7 +270,7 @@ class SubscriptionUsageMcpToolset(
         @McpDescription(description = "Optional project-relative or absolute local file path.") localFile: String? = null,
         @McpDescription(description = "Optional markdown output path. Defaults to <localFile>.md beside the source.") outputFile: String? = null,
         @McpDescription(description = "Keep extracted images when the provider returns them.") includeImages: Boolean = true,
-        @McpDescription(description = "OCR or vision model id. Leave blank to use the document model selected in settings. Azure uses the deployment selected in settings.") model: String = "",
+        @McpDescription(description = "OCR or vision model id. Leave blank to use the document model selected in settings. For Azure, pass a deployment name, cohere:<deployment>, or prebuilt-layout.") model: String = "",
         @McpDescription(description = "Optional 1-based first page for Codex/SuperGrok/Cohere PDFs. Leave 0 for the start of the document.") pageFrom: Int = 0,
         @McpDescription(description = "Optional 1-based last page for Codex/SuperGrok/Cohere PDFs. Leave 0 for the end of the document.") pageTo: Int = 0,
         @McpDescription(description = "Figure export for MISTRAL/AZURE/ZAI PDFs: SVG prefers local vector export with PNG fallback; PNG renders the original PDF; PROVIDER keeps provider images. Other providers keep their existing image export. Fallbacks are returned in warnings.") imageFormat: DocumentImageFormat = DocumentImageFormat.SVG,
@@ -998,13 +999,9 @@ class SubscriptionUsageMcpToolset(
         } catch (_: de.moritzf.quota.idea.settings.AccountResolveException) {
             return errorResult("Add an Azure account in settings to use OCR.")
         }
-        val deployment = AzureQuotaProvider.ocrDeploymentForAccount(accountId)
-            ?: return errorResult("Select an Azure document model in settings. '-' disables conversion.")
+        val deployment = azureDocumentSelection(model, AzureQuotaProvider.ocrDeploymentForAccount(accountId))
+            ?: return errorResult("Select an Azure document model in settings, or pass model. '-' disables the settings default.")
         val deploymentId = azureOcrDeploymentId(deployment)
-        if (model.isNotBlank() && model.trim() != deployment && model.trim() != deploymentId &&
-            !(deployment == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT && model.trim() == "prebuilt-layout")) {
-            return errorResult("Azure document conversion uses the model selected in settings: $deploymentId.")
-        }
         if (deployment != AZURE_DOCUMENT_INTELLIGENCE_LAYOUT && !isAzureCohereSelection(deployment) &&
             (pageFrom > 0 || pageTo > 0)) return errorResult("pageFrom/pageTo are not supported for Azure Mistral OCR.")
         if (deployment == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT && (pageFrom > 0 || pageTo > 0)) {

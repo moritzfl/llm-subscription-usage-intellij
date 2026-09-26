@@ -15,6 +15,7 @@ import de.moritzf.quota.azure.AzureCliAccount
 import de.moritzf.quota.azure.AzureQuota
 import de.moritzf.quota.azure.AZURE_DOCUMENT_INTELLIGENCE_LAYOUT
 import de.moritzf.quota.azure.azureOcrDeployments
+import de.moritzf.quota.azure.preferredAzureOcrSelection
 import de.moritzf.quota.azure.azureOcrDeploymentId
 import de.moritzf.quota.azure.isAzureCohereSelection
 import de.moritzf.quota.idea.common.QuotaProviderType
@@ -42,6 +43,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
     private val viewer = createResponseViewer()
     private var applyingFields = false
     private var suppressSelection = false
+    private var ocrOffExplicit = false
     private var refreshGeneration = 0
     private val refreshTimer = Timer(400) { refreshAccounts(interactive = false) }.apply { isRepeats = false }
 
@@ -69,14 +71,21 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                 if (!applyingFields) refreshTimer.restart()
             }
         })
+        ocrDeploymentCombo.addItemListener { event ->
+            if (applyingFields || event.stateChange != ItemEvent.SELECTED) return@addItemListener
+            ocrOffExplicit = event.item == NO_OCR
+        }
         deploymentsField.document.addDocumentListener(object : DocumentAdapter() {
             override fun textChanged(event: DocumentEvent) {
-                if (!applyingFields) refreshOcrDeployments(ocrDeployment())
+                if (!applyingFields) refreshOcrDeployments(ocrComboValue())
             }
         })
         val targetChanged = object : DocumentAdapter() {
             override fun textChanged(event: DocumentEvent) {
-                if (!applyingFields) refreshOcrDeployments(null)
+                if (!applyingFields) {
+                    ocrOffExplicit = false
+                    refreshOcrDeployments(null)
+                }
             }
         }
         resourceField.document.addDocumentListener(targetChanged)
@@ -120,9 +129,9 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
             }
             row("Document model:") {
                 cell(ocrDeploymentCombo).align(AlignX.FILL).resizableColumn()
-                    .comment("- disables conversion. Mistral OCR/Document AI support PDFs and images; " +
-                        "Cohere Parse supports images (PDFs are rendered page by page); " +
-                        "Document Intelligence uses its prebuilt-layout service, not a deployment.")
+                    .comment("Filled from the first model list: newest Mistral OCR deployment, otherwise '-'. " +
+                        "'-' turns conversion off. Change the resource to choose again. " +
+                        "Cohere Parse is image-only. Document Intelligence is optional and not chosen automatically.")
             }
             row {
                 browserLink(
@@ -147,6 +156,17 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
     fun deploymentNames(): String? = deploymentsField.text.trim().takeIf { it.isNotEmpty() }
     fun ocrDeployment(): String? = (ocrDeploymentCombo.selectedItem as? String)?.takeIf { it != NO_OCR }
 
+    /** "-" is stored so a later model list does not turn conversion back on. A new resource clears it. */
+    fun ocrDeploymentForStorage(): String? {
+        val targetChanged = resourceName().orEmpty() != boundAccount?.extra(ProviderAccount.EXTRA_AZURE_RESOURCE).orEmpty() ||
+            endpoint().orEmpty() != boundAccount?.extra(ProviderAccount.EXTRA_AZURE_ENDPOINT).orEmpty()
+        if (targetChanged) return null
+        val selected = ocrDeploymentCombo.selectedItem as? String ?: return null
+        if (selected != NO_OCR) return selected
+        val stored = boundAccount?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT)
+        return if (ocrOffExplicit || stored == NO_OCR) NO_OCR else null
+    }
+
     fun differsFrom(account: ProviderAccount?): Boolean {
         return normalizedExecutablePath().orEmpty() != account?.extra(ProviderAccount.EXTRA_AZURE_EXECUTABLE).orEmpty() ||
             subscriptionId().orEmpty() != account?.extra(ProviderAccount.EXTRA_AZURE_SUBSCRIPTION).orEmpty() ||
@@ -154,7 +174,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
             endpoint().orEmpty() != account?.extra(ProviderAccount.EXTRA_AZURE_ENDPOINT).orEmpty() ||
             locationId().orEmpty() != account?.extra(ProviderAccount.EXTRA_AZURE_LOCATION).orEmpty() ||
             deploymentNames().orEmpty() != account?.extra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS).orEmpty() ||
-            ocrDeployment().orEmpty() != account?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT).orEmpty()
+            ocrDeploymentForStorage().orEmpty() != account?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT).orEmpty()
     }
 
     private fun refreshAccounts(interactive: Boolean) {
@@ -209,6 +229,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
             endpointField.text = account?.extra(ProviderAccount.EXTRA_AZURE_ENDPOINT).orEmpty()
             locationField.text = account?.extra(ProviderAccount.EXTRA_AZURE_LOCATION).orEmpty()
             deploymentsField.text = account?.extra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS).orEmpty()
+            ocrOffExplicit = account?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT) == NO_OCR
             refreshOcrDeployments(account?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT))
         } finally {
             applyingFields = false
@@ -221,7 +242,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
         val service = QuotaUsageService.getInstance()
         val id = accountKey(QuotaProviderType.AZURE)
         val quota = service.getLastQuota(id) as? AzureQuota
-        refreshOcrDeployments(ocrDeployment())
+        refreshOcrDeployments(ocrComboValue() ?: boundAccount?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT))
         val error = service.getLastError(id)
         val identity = quota?.account
         val message = when {
@@ -252,19 +273,39 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
         viewer.caretPosition = 0
     }
 
+    private fun ocrComboValue(): String? = ocrDeploymentCombo.selectedItem as? String
+
     private fun refreshOcrDeployments(selection: String?) {
         val quota = runCatching { QuotaUsageService.getInstance().getLastQuota(accountKey(QuotaProviderType.AZURE)) as? AzureQuota }.getOrNull()
         val sameTarget = resourceName() == boundAccount?.extra(ProviderAccount.EXTRA_AZURE_RESOURCE) &&
             endpoint() == boundAccount?.extra(ProviderAccount.EXTRA_AZURE_ENDPOINT)
+        val quotaForTarget = quota.takeIf { sameTarget }
         val choices = listOf(NO_OCR) + azureOcrDeployments(
-            quota.takeIf { sameTarget }, deploymentNames(), selection, resourceName(),
+            quotaForTarget, deploymentNames(), selection?.takeIf { it != NO_OCR }, resourceName(),
             documentIntelligenceAvailable = resourceName() != null || endpoint() != null,
         )
-        if ((0 until ocrDeploymentCombo.itemCount).map(ocrDeploymentCombo::getItemAt) != choices) {
-            ocrDeploymentCombo.model = DefaultComboBoxModel(choices.toTypedArray())
+        val preferred = preferredAzureOcrSelection(quotaForTarget, deploymentNames(), resourceName())
+        val catalogRead = quotaForTarget?.modelCatalogRead == true
+        applyingFields = true
+        try {
+            if ((0 until ocrDeploymentCombo.itemCount).map(ocrDeploymentCombo::getItemAt) != choices) {
+                ocrDeploymentCombo.model = DefaultComboBoxModel(choices.toTypedArray())
+            }
+            val selected = when {
+                selection == NO_OCR -> NO_OCR
+                selection != null && selection in choices -> selection
+                preferred != null -> preferred
+                catalogRead -> NO_OCR
+                else -> null
+            }
+            if (selected == null) {
+                if (ocrDeploymentCombo.selectedIndex != -1) ocrDeploymentCombo.selectedIndex = -1
+            } else if (ocrDeploymentCombo.selectedItem != selected) {
+                ocrDeploymentCombo.selectedItem = selected
+            }
+        } finally {
+            applyingFields = false
         }
-        val selected = selection?.takeIf { it in choices } ?: NO_OCR
-        if (ocrDeploymentCombo.selectedItem != selected) ocrDeploymentCombo.selectedItem = selected
     }
 
     companion object {

@@ -50,9 +50,10 @@ class AzureOcrClientTest {
             ),
         )
         assertEquals(
-            listOf("custom-ocr", "mistral-document-ai-2512", "mistral-ocr-4-0"),
+            listOf("custom-ocr", "mistral-ocr-4-0", "mistral-document-ai-2512"),
             azureOcrDeployments(quota, null, null, "my-resource"),
         )
+        assertEquals("custom-ocr", preferredAzureOcrSelection(quota, null, "my-resource"))
         assertEquals(emptyList(), azureOcrDeployments(null, null, null, "my-resource"))
         assertEquals(
             listOf("mistral-ocr-4-0"),
@@ -72,6 +73,13 @@ class AzureOcrClientTest {
             )
         )
         assertFalse(isAzureOcrModel("Mistral-Large-3"))
+        assertEquals("custom-ocr", azureDocumentSelection(null, "custom-ocr"))
+        assertEquals("custom-ocr", azureDocumentSelection("  ", "custom-ocr"))
+        assertEquals("other-ocr", azureDocumentSelection("other-ocr", "custom-ocr"))
+        assertEquals(AZURE_DOCUMENT_INTELLIGENCE_LAYOUT, azureDocumentSelection("prebuilt-layout", "custom-ocr"))
+        assertEquals("cohere:Cohere-parse-v5", azureDocumentSelection("Cohere-parse-v5", null))
+        assertEquals("cohere:receipt-parser", azureDocumentSelection("cohere:receipt-parser", "custom-ocr"))
+        assertEquals(null, azureDocumentSelection(null, null))
         val cohere = AzureQuota(windows = listOf(
             AzureUsageWindow("receipt-parser", "", AzureUsageWindow.DEPLOYMENT,
                 resourceName = "my-resource", modelName = "Cohere-parse-v5"),
@@ -80,6 +88,21 @@ class AzureOcrClientTest {
             listOf("cohere:receipt-parser", AZURE_DOCUMENT_INTELLIGENCE_LAYOUT),
             azureOcrDeployments(cohere, null, null, "my-resource", documentIntelligenceAvailable = true),
         )
+        assertEquals("cohere:receipt-parser", preferredAzureOcrSelection(cohere, null, "my-resource"))
+        assertEquals(null, preferredAzureOcrSelection(
+            AzureQuota(models = listOf("gpt-4o"), modelCatalogRead = true),
+            null,
+            "my-resource",
+        ))
+        assertEquals("mistral-ocr-4-1", preferredAzureOcrSelection(
+            null,
+            "mistral-ocr-2505, mistral-ocr-4-0, mistral-ocr-4-1, cohere-parse-v5",
+            "my-resource",
+        ))
+        assertTrue(azureDocumentModelRank("mistral-ocr-latest") > azureDocumentModelRank("mistral-ocr-4-1"))
+        assertTrue(azureDocumentModelRank("mistral-ocr-4-1") > azureDocumentModelRank("mistral-ocr-4-0"))
+        assertTrue(azureDocumentModelRank("mistral-ocr-4-0") > azureDocumentModelRank("mistral-ocr-2505"))
+        assertTrue(azureDocumentModelRank("mistral-ocr-2505") > azureDocumentModelRank("mistral-document-ai-2512"))
         assertEquals("receipt-parser", azureOcrDeploymentId("cohere:receipt-parser"))
         assertTrue(isAzureCohereSelection("cohere:receipt-parser"))
     }

@@ -23,6 +23,8 @@ data class AzureQuota(
     val windows: List<AzureUsageWindow> = emptyList(),
     val models: List<String> = emptyList(),
     val warnings: List<String> = emptyList(),
+    /** True when this fetch read the resource deployment or model catalog. Not stored in the quota cache. */
+    @Transient val modelCatalogRead: Boolean = false,
     override var fetchedAt: Instant? = null,
     @Transient override var rawJson: String? = null,
 ) : ProviderQuota {
