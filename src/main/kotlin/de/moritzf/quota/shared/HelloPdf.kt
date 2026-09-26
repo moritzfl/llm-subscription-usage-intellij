@@ -1,9 +1,13 @@
 package de.moritzf.quota.shared
 
+import java.awt.image.BufferedImage
 import java.nio.file.Path
+import org.apache.pdfbox.Loader
 import org.apache.pdfbox.pdmodel.PDDocument
+import org.apache.pdfbox.rendering.PDFRenderer
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
+import org.apache.pdfbox.pdmodel.common.PDRectangle
 import org.apache.pdfbox.pdmodel.font.PDType1Font
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts
 
@@ -12,17 +16,33 @@ internal object HelloPdf {
     const val TEXT = "Hello from LLM Subscription Usage"
 
     fun write(path: Path) {
+        val media = PDRectangle(PDRectangle.LETTER.height, PDRectangle.LETTER.width)
         PDDocument().use { document ->
-            val page = PDPage()
+            val page = PDPage(media)
             document.addPage(page)
+            val font = PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD)
+            val margin = 36f
+            val fontSize = ((media.width - margin * 2) / (font.getStringWidth(TEXT) / 1000f)).coerceAtMost(48f)
+            val textWidth = font.getStringWidth(TEXT) / 1000f * fontSize
+            val lineHeight = fontSize * 1.35f
+            val lines = ((media.height - margin * 2) / lineHeight).toInt().coerceAtLeast(1)
+            var y = (media.height + lines * lineHeight) / 2f - fontSize
+            val x = (media.width - textWidth) / 2f
             PDPageContentStream(document, page).use { content ->
-                content.beginText()
-                content.setFont(PDType1Font(Standard14Fonts.FontName.HELVETICA), 18f)
-                content.newLineAtOffset(72f, 720f)
-                content.showText(TEXT)
-                content.endText()
+                content.setFont(font, fontSize)
+                repeat(lines) {
+                    content.beginText()
+                    content.newLineAtOffset(x, y)
+                    content.showText(TEXT)
+                    content.endText()
+                    y -= lineHeight
+                }
             }
             document.save(path.toFile())
         }
+    }
+
+    fun renderPage(path: Path, dpi: Float = 110f): BufferedImage {
+        return Loader.loadPDF(path.toFile()).use { PDFRenderer(it).renderImageWithDPI(0, dpi) }
     }
 }

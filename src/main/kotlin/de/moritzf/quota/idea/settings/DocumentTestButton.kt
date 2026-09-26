@@ -8,6 +8,7 @@ import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.JBColor
+import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.dsl.builder.AlignX
@@ -20,8 +21,11 @@ import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.shared.HelloPdf
 import java.awt.Dimension
 import java.awt.Font
+import java.awt.Image
+import java.awt.image.BufferedImage
 import java.nio.file.Files
 import javax.swing.Action
+import javax.swing.ImageIcon
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.ScrollPaneConstants
@@ -45,6 +49,7 @@ internal class DocumentTestButton(
             val output = Files.createTempFile("quota-hello-", ".md")
             val result = try {
                 HelloPdf.write(pdf)
+                val page = HelloPdf.renderPage(pdf)
                 val warnings = PdfDocumentConversion.convert(
                     provider, pdf, output, includeImages = false, model = selected,
                 )
@@ -53,7 +58,7 @@ internal class DocumentTestButton(
                     true,
                     "Converted",
                     selected,
-                    HelloPdf.TEXT,
+                    page,
                     markdown,
                     warnings.joinToString("\n").ifBlank { null },
                 )
@@ -64,7 +69,7 @@ internal class DocumentTestButton(
                     false,
                     exception.message ?: "Document test failed",
                     selected,
-                    HelloPdf.TEXT,
+                    runCatching { HelloPdf.renderPage(pdf) }.getOrNull(),
                     null,
                     null,
                 )
@@ -89,7 +94,7 @@ internal data class DocumentTestResult(
     val ok: Boolean,
     val status: String,
     val model: String,
-    val pdfText: String,
+    val page: BufferedImage?,
     val markdown: String?,
     val detail: String?,
 )
@@ -111,15 +116,17 @@ private class DocumentTestResultDialog(
                 label(result.status).bold()
                 if (result.model.isNotBlank()) comment(result.model)
             }
-            group("PDF text") {
-                row {
-                    cell(codeBlock(result.pdfText))
-                        .resizableColumn()
-                        .align(AlignX.FILL)
+            result.page?.let { page ->
+                group("Input") {
+                    row {
+                        cell(pagePreview(page))
+                            .resizableColumn()
+                            .align(AlignX.FILL)
+                    }
                 }
             }
             result.markdown?.let { markdown ->
-                group("Markdown") {
+                group("Output") {
                     row {
                         cell(codeBlock(markdown))
                             .resizableColumn()
@@ -140,6 +147,17 @@ private class DocumentTestResultDialog(
     }
 
     override fun createActions(): Array<Action> = arrayOf(okAction)
+
+    private fun pagePreview(image: BufferedImage): JComponent {
+        val maxWidth = JBUI.scale(480)
+        val scale = minOf(1.0, maxWidth.toDouble() / image.width)
+        val icon = ImageIcon(image.getScaledInstance((image.width * scale).toInt(), (image.height * scale).toInt(), Image.SCALE_SMOOTH))
+        return JBScrollPane(JBLabel(icon)).apply {
+            border = JBUI.Borders.customLine(JBColor.border(), 1)
+            horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
+            preferredSize = Dimension(maxWidth, icon.iconHeight.coerceAtMost(JBUI.scale(280)) + JBUI.scale(4))
+        }
+    }
 
     private fun codeBlock(text: String): JComponent {
         val scheme = EditorColorsManager.getInstance().globalScheme

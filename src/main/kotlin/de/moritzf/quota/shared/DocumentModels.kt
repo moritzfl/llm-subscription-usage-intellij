@@ -33,6 +33,10 @@ internal object DocumentModels {
             "and a long PDF costs more.\n\n" +
             "A document or OCR model deployed on this Azure resource, such as Mistral, usually does better."
 
+    const val OFF_COMMENT =
+        "- turns this provider off. You can still convert locally, without an LLM. " +
+            "That option is called PDFBox and only reads text already in the file."
+
     const val PDFBOX_WARNING =
         "PDFBox only extracts embedded text. It does not OCR scans, rebuild tables, or export figures. " +
             "Reading order and layout are often wrong. It is free and needs no subscription.\n\n$OCR_RECOMMENDATION"

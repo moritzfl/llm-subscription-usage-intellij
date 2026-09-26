@@ -55,8 +55,13 @@ class DocumentModelChoicesTest {
         val path = Files.createTempFile("hello", ".pdf")
         try {
             HelloPdf.write(path)
-            val text = Loader.loadPDF(path.toFile()).use { PDFTextStripper().getText(it) }
-            assertTrue(text.contains(HelloPdf.TEXT))
+            Loader.loadPDF(path.toFile()).use { document ->
+                val box = document.getPage(0).mediaBox
+                assertTrue(box.width > box.height)
+                val text = PDFTextStripper().getText(document)
+                assertTrue(text.contains(HelloPdf.TEXT))
+                assertTrue(text.split(HelloPdf.TEXT).size > 3)
+            }
         } finally {
             Files.deleteIfExists(path)
         }

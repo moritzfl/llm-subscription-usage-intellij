@@ -137,7 +137,7 @@ internal class OpenCodeSettingsPanel(
             row { text("To change a browser-scoped organization, sign in again.") }
             row("Document model:") {
                 cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn()
-                    .comment("- turns conversion off. PDFBox stays available.")
+                    .comment(DocumentModels.OFF_COMMENT)
                 cell(documentModelCombo.warning).align(com.intellij.ui.dsl.builder.AlignY.TOP)
                 cell(testDocumentButton)
             }
