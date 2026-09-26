@@ -11,6 +11,7 @@ import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject
 import org.apache.pdfbox.text.PDFTextStripper
 import org.apache.pdfbox.Loader
 
@@ -61,8 +62,9 @@ class DocumentModelChoicesTest {
                 val fontName = page.resources.fontNames.joinToString { page.resources.getFont(it).name }
                 assertTrue(fontName.contains("LiberationSans"), fontName)
                 val text = PDFTextStripper().getText(document)
-                assertTrue(text.contains(HelloPdf.TEXT))
-                assertTrue(text.split(HelloPdf.TEXT).size > 3)
+                assertEquals(2, text.split(HelloPdf.TEXT).size)
+                val images = page.resources.xObjectNames.map { page.resources.getXObject(it) }
+                assertTrue(images.any { it is PDImageXObject })
             }
         } finally {
             Files.deleteIfExists(path)
