@@ -9,23 +9,33 @@ import com.intellij.ui.DocumentAdapter
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.AlignY
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.azure.AzureCli
 import de.moritzf.quota.azure.AzureCliAccount
 import de.moritzf.quota.azure.AzureQuota
+import de.moritzf.quota.azure.AZURE_DOCUMENT_GROUP_DIVIDER
 import de.moritzf.quota.azure.AZURE_DOCUMENT_INTELLIGENCE_LAYOUT
+import de.moritzf.quota.azure.azureDocumentComboChoices
 import de.moritzf.quota.azure.azureOcrDeployments
 import de.moritzf.quota.azure.preferredAzureOcrSelection
 import de.moritzf.quota.azure.azureOcrDeploymentId
 import de.moritzf.quota.azure.azureNativePdfChoices
 import de.moritzf.quota.azure.azureNativePdfDeploymentId
+import de.moritzf.quota.azure.azureDocumentSelectionUsesVision
 import de.moritzf.quota.azure.isAzureNativePdfSelection
 import de.moritzf.quota.azure.isAzureCohereSelection
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
+import de.moritzf.quota.shared.DocumentModels
+import java.awt.BorderLayout
+import java.awt.Dimension
 import java.awt.event.ItemEvent
+import javax.swing.JPanel
+import javax.swing.JSeparator
 import javax.swing.DefaultComboBoxModel
+import com.intellij.util.ui.JBUI
 import javax.swing.Timer
 import javax.swing.event.DocumentEvent
 
@@ -41,6 +51,8 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
     val locationField = JBTextField().apply { columns = 16 }
     val deploymentsField = JBTextField().apply { columns = 28 }
     val ocrDeploymentCombo = ComboBox<String>().apply { prototypeDisplayValue = "mistral-document-ai-2512" }
+    private val documentWarning = DocumentWarningIcon()
+    private var lastDocumentSelection: String? = null
     private val accountCombo = ComboBox<AzureCliAccount>()
     private val status = JBLabel()
     private val viewer = createResponseViewer()
@@ -56,6 +68,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
             override fun getListCellRendererComponent(
                 list: javax.swing.JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean,
             ): java.awt.Component {
+                if (value == AZURE_DOCUMENT_GROUP_DIVIDER) return documentGroupDivider()
                 val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
                 if (value == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT) text = "Document Intelligence · prebuilt-layout"
                 else if (value is String && isAzureCohereSelection(value)) text = "Cohere Parse · ${azureOcrDeploymentId(value)}"
@@ -77,7 +90,13 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
         })
         ocrDeploymentCombo.addItemListener { event ->
             if (applyingFields || event.stateChange != ItemEvent.SELECTED) return@addItemListener
+            if (event.item == AZURE_DOCUMENT_GROUP_DIVIDER) {
+                ocrDeploymentCombo.selectedItem = lastDocumentSelection
+                return@addItemListener
+            }
+            lastDocumentSelection = event.item as? String
             ocrOffExplicit = event.item == NO_OCR
+            updateDocumentWarning()
         }
         deploymentsField.document.addDocumentListener(object : DocumentAdapter() {
             override fun textChanged(event: DocumentEvent) {
@@ -133,6 +152,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
             }
             row("Document model:") {
                 cell(ocrDeploymentCombo).align(AlignX.FILL).resizableColumn()
+                cell(documentWarning).align(AlignY.TOP)
                 cell(DocumentTestButton(de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.AZURE, { (ocrDeploymentCombo.selectedItem as? String).orEmpty() }, { this@AzureSettingsPanel }))
                     .comment("Filled from the first model list: newest Mistral OCR deployment, otherwise '-'. " +
                         "'-' turns conversion off. Change the resource to choose again. " +
@@ -160,7 +180,8 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
     fun endpoint(): String? = endpointField.text.trim().takeIf { it.isNotEmpty() }
     fun locationId(): String? = locationField.text.trim().takeIf { it.isNotEmpty() }
     fun deploymentNames(): String? = deploymentsField.text.trim().takeIf { it.isNotEmpty() }
-    fun ocrDeployment(): String? = (ocrDeploymentCombo.selectedItem as? String)?.takeIf { it != NO_OCR }
+    fun ocrDeployment(): String? = (ocrDeploymentCombo.selectedItem as? String)
+        ?.takeIf { it != NO_OCR && it != AZURE_DOCUMENT_GROUP_DIVIDER }
 
     /** "-" is stored so a later model list does not turn conversion back on. A new resource clears it. */
     fun ocrDeploymentForStorage(): String? {
@@ -168,6 +189,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
             endpoint().orEmpty() != boundAccount?.extra(ProviderAccount.EXTRA_AZURE_ENDPOINT).orEmpty()
         if (targetChanged) return null
         val selected = ocrDeploymentCombo.selectedItem as? String ?: return null
+        if (selected == AZURE_DOCUMENT_GROUP_DIVIDER) return boundAccount?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT)
         if (selected != NO_OCR) return selected
         val stored = boundAccount?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT)
         return if (ocrOffExplicit || stored == NO_OCR) NO_OCR else null
@@ -288,10 +310,15 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
         val quotaForTarget = quota.takeIf { sameTarget }
         val native = azureNativePdfChoices(quotaForTarget, resourceName())
         val keptNative = selection?.takeIf { isAzureNativePdfSelection(it) && it !in native }
-        val choices = listOf(NO_OCR) + azureOcrDeployments(
+        val listed = azureOcrDeployments(
             quotaForTarget, deploymentNames(), selection?.takeIf { it != NO_OCR && !isAzureNativePdfSelection(it) }, resourceName(),
             documentIntelligenceAvailable = resourceName() != null || endpoint() != null,
-        ) + native + listOfNotNull(keptNative)
+        )
+        val choices = azureDocumentComboChoices(
+            NO_OCR,
+            native + listOfNotNull(keptNative) + listed.filter { azureDocumentSelectionUsesVision(it) },
+            listed.filter { !azureDocumentSelectionUsesVision(it) },
+        )
         val preferred = preferredAzureOcrSelection(quotaForTarget, deploymentNames(), resourceName())
         val catalogRead = quotaForTarget?.modelCatalogRead == true
         applyingFields = true
@@ -311,9 +338,24 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
             } else if (ocrDeploymentCombo.selectedItem != selected) {
                 ocrDeploymentCombo.selectedItem = selected
             }
+            lastDocumentSelection = ocrDeploymentCombo.selectedItem as? String
         } finally {
             applyingFields = false
         }
+        updateDocumentWarning()
+    }
+
+    private fun documentGroupDivider(): JPanel = JPanel(BorderLayout()).apply {
+        isEnabled = false
+        border = JBUI.Borders.empty(2, 8)
+        add(JSeparator(), BorderLayout.CENTER)
+        preferredSize = Dimension(10, JBUI.scale(9))
+    }
+
+    private fun updateDocumentWarning() {
+        val selected = ocrDeploymentCombo.selectedItem as? String
+        val text = if (azureDocumentSelectionUsesVision(selected)) DocumentModels.AZURE_VISION_WARNING else null
+        documentWarning.setExplainer("Not a document or OCR model", text)
     }
 
     companion object {

@@ -275,6 +275,7 @@ private class ConvertPdfToMarkdownDialog(
             pdfBox -> "Text extraction only"
             provider() == DocumentToMarkdownProvider.GITHUB || provider() == DocumentToMarkdownProvider.OPEN_CODE ->
                 "Native PDF, not OCR"
+            provider() == DocumentToMarkdownProvider.AZURE -> "Not a document or OCR model"
             else -> "Not a document or OCR model"
         }
         warningIcon.setExplainer(title, hint)

@@ -1,5 +1,7 @@
 package de.moritzf.quota.idea.settings
 
+import de.moritzf.quota.azure.azureDocumentSelectionUsesVision
+import de.moritzf.quota.idea.common.AzureQuotaProvider
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
 import de.moritzf.quota.openai.proxy.OpenAiProxyServer
@@ -31,10 +33,14 @@ internal object DocumentModelSelection {
         DocumentToMarkdownProvider.OPEN_AI, DocumentToMarkdownProvider.SUPERGROK,
         DocumentToMarkdownProvider.GITHUB, DocumentToMarkdownProvider.OPEN_CODE,
         DocumentToMarkdownProvider.PDFBOX -> true
+        DocumentToMarkdownProvider.AZURE -> azureVisionSelected()
         else -> false
     }
 
     fun visionHint(provider: DocumentToMarkdownProvider): String? {
+        if (provider == DocumentToMarkdownProvider.AZURE) {
+            return if (azureVisionSelected()) DocumentModels.AZURE_VISION_WARNING else null
+        }
         if (provider == DocumentToMarkdownProvider.GITHUB || provider == DocumentToMarkdownProvider.OPEN_CODE) {
             return DocumentModels.VISION_WARNING
         }
@@ -45,5 +51,13 @@ internal object DocumentModelSelection {
             forAccount(type, account.id)
         }.getOrNull()
         return if (model.isNullOrBlank()) DocumentModels.VISION_WARNING else "Uses $model.\n\n${DocumentModels.VISION_WARNING}"
+    }
+
+    private fun azureVisionSelected(): Boolean {
+        val selection = runCatching {
+            val account = AccountResolver.resolve(QuotaProviderType.AZURE, capability = AccountCapability.DOCUMENT_TO_MARKDOWN)
+            AzureQuotaProvider.ocrDeploymentForAccount(account.id)
+        }.getOrNull()
+        return azureDocumentSelectionUsesVision(selection)
     }
 }

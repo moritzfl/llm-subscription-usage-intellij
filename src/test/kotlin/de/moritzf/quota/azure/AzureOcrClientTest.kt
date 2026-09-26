@@ -105,6 +105,15 @@ class AzureOcrClientTest {
         assertTrue(azureDocumentModelRank("mistral-ocr-2505") > azureDocumentModelRank("mistral-document-ai-2512"))
         assertEquals("receipt-parser", azureOcrDeploymentId("cohere:receipt-parser"))
         assertTrue(isAzureCohereSelection("cohere:receipt-parser"))
+        assertTrue(azureDocumentSelectionUsesVision("native:gpt"))
+        assertTrue(azureDocumentSelectionUsesVision("cohere:receipt-parser"))
+        assertFalse(azureDocumentSelectionUsesVision("mistral-ocr-4"))
+        assertFalse(azureDocumentSelectionUsesVision(AZURE_DOCUMENT_INTELLIGENCE_LAYOUT))
+        assertFalse(azureDocumentSelectionUsesVision("-"))
+        assertEquals(
+            listOf("-", "cohere:parse", "native:gpt", AZURE_DOCUMENT_GROUP_DIVIDER, "mistral-ocr-4", AZURE_DOCUMENT_INTELLIGENCE_LAYOUT),
+            azureDocumentComboChoices("-", listOf("native:gpt", "cohere:parse"), listOf("mistral-ocr-4", AZURE_DOCUMENT_INTELLIGENCE_LAYOUT)),
+        )
     }
 
     @Test

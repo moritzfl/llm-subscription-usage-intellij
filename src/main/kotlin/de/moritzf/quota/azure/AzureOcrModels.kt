@@ -10,11 +10,22 @@ internal fun isAzureOcrModel(name: String): Boolean {
 
 internal const val AZURE_DOCUMENT_INTELLIGENCE_LAYOUT = "doc-intelligence/prebuilt-layout"
 internal const val AZURE_NATIVE_PDF_PREFIX = "native:"
+/** Non-selectable row between vision deployments and document or OCR deployments. */
+internal const val AZURE_DOCUMENT_GROUP_DIVIDER = "\u0001"
 private const val COHERE_SELECTION_PREFIX = "cohere:"
 
 internal fun isAzureCohereParseModel(name: String): Boolean = name.startsWith("cohere-parse-", ignoreCase = true)
 internal fun isAzureCohereSelection(selection: String): Boolean = selection.startsWith(COHERE_SELECTION_PREFIX)
 internal fun isAzureNativePdfSelection(selection: String): Boolean = selection.startsWith(AZURE_NATIVE_PDF_PREFIX)
+
+/** Chat and image-only deployments. Mistral OCR and Document Intelligence are document models. */
+internal fun azureDocumentSelectionUsesVision(selection: String?): Boolean {
+    val value = selection?.trim().orEmpty()
+    if (value.isEmpty() || value == "-") return false
+    if (value == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT) return false
+    if (isAzureOcrModel(value) || isAzureOcrModel(azureOcrDeploymentId(value))) return false
+    return isAzureNativePdfSelection(value) || isAzureCohereSelection(value)
+}
 internal fun azureNativePdfDeploymentId(selection: String): String = selection.removePrefix(AZURE_NATIVE_PDF_PREFIX)
 internal fun azureOcrDeploymentId(selection: String): String = selection.removePrefix(COHERE_SELECTION_PREFIX)
 
@@ -96,6 +107,21 @@ internal fun azureNativePdfChoices(quota: AzureQuota?, resourceName: String?): L
         .distinct()
         .sorted()
         .map { "$AZURE_NATIVE_PDF_PREFIX$it" }
+}
+
+/**
+ * Off, then vision, then a divider, then document or OCR models.
+ * The divider is omitted when either group is empty. Autofill is not decided here.
+ */
+internal fun azureDocumentComboChoices(off: String, vision: List<String>, document: List<String>): List<String> {
+    val visionRows = vision.map { it.trim() }.filter { it.isNotEmpty() && it != off }.distinct().sorted()
+    val documentRows = document.map { it.trim() }.filter { it.isNotEmpty() && it != off && it !in visionRows }.distinct()
+    return buildList {
+        add(off)
+        addAll(visionRows)
+        if (visionRows.isNotEmpty() && documentRows.isNotEmpty()) add(AZURE_DOCUMENT_GROUP_DIVIDER)
+        addAll(documentRows)
+    }
 }
 
 /**

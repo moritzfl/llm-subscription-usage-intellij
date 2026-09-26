@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Azure document conversion warns when the selected deployment only reads the PDF as vision. Vision deployments are listed first, above a divider, and an already chosen vision deployment stays selected. Mistral OCR and Document Intelligence do not show that warning and remain the autofill.
 - GitHub Copilot and OpenCode can convert a local PDF when signed in. The model list uses live PDF support when the provider reports it, and every discovered model when it does not. Azure document conversion can also use any other deployment as native PDF; those are not auto-selected.
 - Settings document rows have a Test document button. It builds a one-page PDF with PDFBox and converts it with the selected model.
 - Settings quota responses wrap to the panel width. Compact provider JSON is shown indented, so a long line no longer adds a horizontal scrollbar.
