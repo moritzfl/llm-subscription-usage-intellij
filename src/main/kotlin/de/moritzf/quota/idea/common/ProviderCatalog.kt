@@ -190,7 +190,7 @@ internal object ProviderCatalog {
         ),
         descriptor(
             type = QuotaProviderType.GITHUB,
-            capabilities = ProviderCapabilities(subscriptionProxy = true),
+            capabilities = ProviderCapabilities(documentToMarkdown = true, subscriptionProxy = true),
             quotaFactory = { GitHubQuotaProvider(accountId = it.id) },
             snapshotCodec = EnvelopeQuotaCodec(GitHubQuota.serializer()),
             mcpEmpty = "No GitHub usage response available",
@@ -380,7 +380,7 @@ internal object ProviderCatalog {
         ),
         descriptor(
             type = QuotaProviderType.OPEN_CODE,
-            capabilities = ProviderCapabilities(subscriptionProxy = true),
+            capabilities = ProviderCapabilities(documentToMarkdown = true, subscriptionProxy = true),
             quotaFactory = { OpenCodeQuotaProvider(accountId = it.id) },
             snapshotCodec = EnvelopeQuotaCodec(OpenCodeQuota.serializer()),
             mcpQuota = UsageQuotaMcpRegistration(

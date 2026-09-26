@@ -64,5 +64,7 @@ enum class DocumentToMarkdownProvider(val providerType: QuotaProviderType?) {
     ZAI(QuotaProviderType.ZAI),
     OPEN_AI(QuotaProviderType.OPEN_AI),
     SUPERGROK(QuotaProviderType.SUPERGROK),
+    GITHUB(QuotaProviderType.GITHUB),
+    OPEN_CODE(QuotaProviderType.OPEN_CODE),
     PDFBOX(null),
 }

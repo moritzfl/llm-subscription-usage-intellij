@@ -84,13 +84,13 @@ class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
 
                     override fun run(indicator: ProgressIndicator) {
                         indicator.isIndeterminate = true
-                        warnings = PdfDocumentConversion.convert(provider, source, destination, includeImages, imageOptions) { completed, total, detail ->
+                        warnings = PdfDocumentConversion.convert(provider, source, destination, includeImages, imageOptions, progress = { completed, total, detail ->
                             indicator.checkCanceled()
                             indicator.text = source.fileName.toString()
                             indicator.text2 = "$detail (cancellation takes effect between requests)"
                             indicator.isIndeterminate = total <= 0
                             if (total > 0) indicator.fraction = (completed.toDouble() / total).coerceAtMost(0.99)
-                        }
+                        })
                         indicator.fraction = 1.0
                         indicator.text2 = "Markdown saved"
                     }
@@ -147,6 +147,8 @@ private class ConvertPdfToMarkdownDialog(
                     DocumentToMarkdownProvider.ZAI -> "Z.ai GLM-OCR"
                     DocumentToMarkdownProvider.OPEN_AI -> "OpenAI/Codex vision"
                     DocumentToMarkdownProvider.SUPERGROK -> "SuperGrok vision"
+                    DocumentToMarkdownProvider.GITHUB -> "GitHub Copilot"
+                    DocumentToMarkdownProvider.OPEN_CODE -> "OpenCode"
                     DocumentToMarkdownProvider.PDFBOX -> "PDFBox text extraction (local)"
                     else -> ""
                 }
@@ -269,7 +271,12 @@ private class ConvertPdfToMarkdownDialog(
             imagesCheckBox.isSelected = restoreImages
         }
         val hint = if (pdfBox) DocumentModels.PDFBOX_WARNING else DocumentModelSelection.visionHint(provider())
-        val title = if (pdfBox) "Text extraction only" else "Not a document or OCR model"
+        val title = when {
+            pdfBox -> "Text extraction only"
+            provider() == DocumentToMarkdownProvider.GITHUB || provider() == DocumentToMarkdownProvider.OPEN_CODE ->
+                "Native PDF, not OCR"
+            else -> "Not a document or OCR model"
+        }
         warningIcon.setExplainer(title, hint)
         val enabled = imagesCheckBox.isSelected && provider() in listOf(
             DocumentToMarkdownProvider.MISTRAL, DocumentToMarkdownProvider.AZURE, DocumentToMarkdownProvider.ZAI,

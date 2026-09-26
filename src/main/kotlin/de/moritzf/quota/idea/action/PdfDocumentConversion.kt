@@ -7,6 +7,7 @@ import de.moritzf.quota.azure.AzureDocumentIntelligenceClient
 import de.moritzf.quota.azure.AzureOcrClient
 import de.moritzf.quota.azure.azureOcrDeploymentId
 import de.moritzf.quota.azure.isAzureCohereSelection
+import de.moritzf.quota.azure.isAzureNativePdfSelection
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.AzureQuotaProvider
 import de.moritzf.quota.idea.common.ProviderCatalog
@@ -49,6 +50,7 @@ internal object PdfDocumentConversion {
         provider: DocumentToMarkdownProvider, source: Path, output: Path, includeImages: Boolean,
         imageOptions: DocumentImageOptions = DocumentImageOptions(),
         progress: DocumentConversionProgress = DocumentConversionProgress.NONE,
+        model: String = "",
     ): List<String> {
         progress.update(0, 0, "Preparing document conversion")
         require(PdfPages.isPdf(source)) { "Select a readable PDF file." }
@@ -60,22 +62,26 @@ internal object PdfDocumentConversion {
         }
         val type = checkNotNull(provider.providerType)
         val account = AccountResolver.resolve(type, capability = AccountCapability.DOCUMENT_TO_MARKDOWN)
+        fun selectedModel() = DocumentModelSelection.forAccount(type, account.id, model)
         val response = when (provider) {
             DocumentToMarkdownProvider.MISTRAL -> {
                 val key = MistralApiKeyStore.forAccount(account.id).loadBlocking()
                     ?: error("Mistral API key missing.")
                 MistralOcrClient.createDefault().convertDocument(key, localFile = source, outputFile = output,
-                    includeImages = includeImages, model = DocumentModelSelection.forAccount(type, account.id),
+                    includeImages = includeImages, model = selectedModel(),
                     imageOptions = imageOptions)
             }
             DocumentToMarkdownProvider.AZURE -> {
-                val selection = AzureQuotaProvider.ocrDeploymentForAccount(account.id)
+                val selection = model.trim().ifBlank { AzureQuotaProvider.ocrDeploymentForAccount(account.id) }
                     ?: error("Select an Azure document model in settings.")
+                if (selection == "-") error("Azure document conversion is off. Pick a model in settings.")
                 val executable = AzureQuotaProvider.executableForAccount(account.id)
                     ?: error("Azure CLI not found.")
                 val cli = AzureCli(executable)
                 val config = AzureQuotaProvider.configForAccount(account.id)
                 when {
+                    isAzureNativePdfSelection(selection) ->
+                        NativeDocumentConversion.azure(account.id, selection, source, output)
                     selection == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT ->
                         AzureDocumentIntelligenceClient().convertDocument(cli, config,
                             localFile = source, outputFile = output, includeImages = includeImages, imageOptions = imageOptions)
@@ -92,7 +98,7 @@ internal object PdfDocumentConversion {
                 val key = ZaiApiKeyStore.forAccount(account.id).loadBlocking()
                     ?: error("Z.ai API key missing.")
                 ZaiOcrClient.createDefault().convertDocument(key, localFile = source, outputFile = output,
-                    includeImages = includeImages, model = DocumentModelSelection.forAccount(type, account.id),
+                    includeImages = includeImages, model = selectedModel(),
                     imageOptions = imageOptions, progress = progress)
             }
             DocumentToMarkdownProvider.OPEN_AI -> {
@@ -103,7 +109,7 @@ internal object PdfDocumentConversion {
                     tokenRefresher = { auth.forceRefreshBlocking(account.id, type, it) },
                 )
                 client.documentToMarkdown(localFile = source, outputFile = output,
-                    includeImages = includeImages, model = DocumentModelSelection.forAccount(type, account.id)).body
+                    includeImages = includeImages, model = selectedModel()).body
             }
             DocumentToMarkdownProvider.SUPERGROK -> {
                 val auth = QuotaAuthService.getInstance()
@@ -111,14 +117,19 @@ internal object PdfDocumentConversion {
                 val client = SuperGrokDocumentClient()
                 try {
                     client.convertDocument(token, localFile = source, outputFile = output,
-                        includeImages = includeImages, model = DocumentModelSelection.forAccount(type, account.id))
+                        includeImages = includeImages, model = selectedModel())
                 } catch (exception: SuperGrokQuotaException) {
                     if (exception.statusCode != 401 && exception.statusCode != 403) throw exception
                     val refreshed = auth.forceRefreshBlocking(account.id, type, token) ?: throw exception
                     client.convertDocument(refreshed, localFile = source, outputFile = output,
-                        includeImages = includeImages, model = DocumentModelSelection.forAccount(type, account.id))
+                        includeImages = includeImages, model = selectedModel())
                 }
             }
+            DocumentToMarkdownProvider.GITHUB ->
+                NativeDocumentConversion.github(account.id, selectedModel(), source, output)
+            DocumentToMarkdownProvider.OPEN_CODE ->
+                NativeDocumentConversion.openCode(account.id, selectedModel(), source, output)
+            DocumentToMarkdownProvider.PDFBOX -> error("PDFBox is handled before account lookup.")
         }
         return checkConversionResult(response, output)
     }

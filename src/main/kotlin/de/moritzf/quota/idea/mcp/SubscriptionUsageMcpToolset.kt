@@ -265,7 +265,7 @@ class SubscriptionUsageMcpToolset(
     @McpTool(name = "subscription_document_to_markdown")
     @McpDescription(description = "Converts a PDF or image to markdown. Prefer a document or OCR provider (MISTRAL, ZAI, or a company model such as AZURE). Use OPEN_AI/Codex or SUPERGROK vision only when no OCR provider is available or explicitly requested. PDFBOX is local Apache PDFBox text extraction: free, no login, no OCR, no figures, and often the wrong reading order. Z.ai and Cohere split long local PDFs automatically. For large PDFs on Codex/SuperGrok/PDFBOX, use pageFrom/pageTo. With localFile, markdown defaults to <name>.md beside it. Images are never returned as base64.")
     suspend fun subscription_document_to_markdown(
-        @McpDescription(description = "Prefer a document or OCR provider (MISTRAL, ZAI, or a company model such as AZURE), then OPEN_AI or SUPERGROK vision. PDFBOX extracts embedded text locally and needs no subscription; it is not OCR. Honor explicit provider requests.") provider: DocumentToMarkdownProvider = DocumentToMarkdownProvider.MISTRAL,
+        @McpDescription(description = "Prefer a document or OCR provider (MISTRAL, ZAI, or a company model such as AZURE), then OPEN_AI, SUPERGROK, GITHUB, or OPEN_CODE native PDF. PDFBOX extracts embedded text locally and needs no subscription; it is not OCR. Honor explicit provider requests.") provider: DocumentToMarkdownProvider = DocumentToMarkdownProvider.MISTRAL,
         @McpDescription(description = "Public document URL. Leave blank when localFile is set.") documentUrl: String? = null,
         @McpDescription(description = "Optional project-relative or absolute local file path.") localFile: String? = null,
         @McpDescription(description = "Optional markdown output path. Defaults to <localFile>.md beside the source.") outputFile: String? = null,
@@ -326,6 +326,12 @@ class SubscriptionUsageMcpToolset(
                     pageFrom.takeIf { it > 0 },
                     pageTo.takeIf { it > 0 },
                 )
+
+            DocumentToMarkdownProvider.GITHUB ->
+                nativePdfDocument(DocumentToMarkdownProvider.GITHUB, documentUrl, localFile, outputFile, model, pageFrom, pageTo)
+
+            DocumentToMarkdownProvider.OPEN_CODE ->
+                nativePdfDocument(DocumentToMarkdownProvider.OPEN_CODE, documentUrl, localFile, outputFile, model, pageFrom, pageTo)
 
             DocumentToMarkdownProvider.PDFBOX ->
                 pdfBoxDocumentToMarkdown(
@@ -1012,7 +1018,11 @@ class SubscriptionUsageMcpToolset(
         val deployment = azureDocumentSelection(model, AzureQuotaProvider.ocrDeploymentForAccount(accountId))
             ?: return errorResult("Select an Azure document model in settings, or pass model. '-' disables the settings default.")
         val deploymentId = azureOcrDeploymentId(deployment)
+        if (de.moritzf.quota.azure.isAzureNativePdfSelection(deployment) && (pageFrom > 0 || pageTo > 0)) {
+            return errorResult("pageFrom/pageTo are not supported for Azure native PDF.")
+        }
         if (deployment != AZURE_DOCUMENT_INTELLIGENCE_LAYOUT && !isAzureCohereSelection(deployment) &&
+            !de.moritzf.quota.azure.isAzureNativePdfSelection(deployment) &&
             (pageFrom > 0 || pageTo > 0)) return errorResult("pageFrom/pageTo are not supported for Azure Mistral OCR.")
         if (deployment == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT && (pageFrom > 0 || pageTo > 0)) {
             return errorResult("pageFrom/pageTo are not supported for Azure Document Intelligence.")
@@ -1025,6 +1035,12 @@ class SubscriptionUsageMcpToolset(
             val sourceFile = resolveOptionalPath(localFile)
             val destination = resolveOptionalPath(outputFile)
             when {
+                de.moritzf.quota.azure.isAzureNativePdfSelection(deployment) -> {
+                    val source = sourceFile ?: return errorResult("Azure native PDF conversion needs a local PDF.")
+                    val nativeOutput = destination ?: de.moritzf.quota.shared.DocumentMarkdown.defaultOutput(source)
+                        ?: return errorResult("Azure native PDF conversion needs an output path.")
+                    de.moritzf.quota.idea.action.NativeDocumentConversion.azure(accountId, deployment, source, nativeOutput)
+                }
                 deployment == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT -> azureDocumentIntelligenceClient.convertDocument(
                     cli, config, documentUrl, sourceFile, destination, includeImages, imageOptions,
                 )
@@ -1198,6 +1214,42 @@ class SubscriptionUsageMcpToolset(
     private fun noteSpendRateLimit(accountId: String, statusCode: Int?) {
         if (statusCode == 429) {
             de.moritzf.quota.idea.settings.AccountResolver.markRateLimited(accountId)
+        }
+    }
+
+    private suspend fun nativePdfDocument(
+        provider: DocumentToMarkdownProvider,
+        documentUrl: String?,
+        localFile: String?,
+        outputFile: String?,
+        model: String,
+        pageFrom: Int,
+        pageTo: Int,
+    ): String {
+        if (pageFrom > 0 || pageTo > 0) return errorResult("pageFrom/pageTo are not supported for native PDF.")
+        if (!documentUrl.isNullOrBlank()) return errorResult("This provider needs a local PDF in localFile.")
+        val source = resolveOptionalPath(localFile) ?: return errorResult("Pass a local PDF path in localFile.")
+        val output = resolveOptionalPath(outputFile) ?: de.moritzf.quota.shared.DocumentMarkdown.defaultOutput(source)
+            ?: return errorResult("Could not choose an output path.")
+        val type = provider.providerType ?: return errorResult("Unknown document provider.")
+        val account = try {
+            de.moritzf.quota.idea.settings.AccountResolver.resolve(type, capability = AccountCapability.DOCUMENT_TO_MARKDOWN).id
+        } catch (_: de.moritzf.quota.idea.settings.AccountResolveException) {
+            return errorResult("Sign in to ${type.displayName} in settings.")
+        }
+        val selected = model.ifBlank { documentModel(provider) }
+        return try {
+            when (provider) {
+                DocumentToMarkdownProvider.GITHUB ->
+                    de.moritzf.quota.idea.action.NativeDocumentConversion.github(account, selected, source, output)
+                DocumentToMarkdownProvider.OPEN_CODE ->
+                    de.moritzf.quota.idea.action.NativeDocumentConversion.openCode(account, selected, source, output)
+                else -> errorResult("Unsupported native PDF provider.")
+            }
+        } catch (exception: kotlinx.coroutines.CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
+            errorResult(exception.message ?: "Document conversion failed.")
         }
     }
 
