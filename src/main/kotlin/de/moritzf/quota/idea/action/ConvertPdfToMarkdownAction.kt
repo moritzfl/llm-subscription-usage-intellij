@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea.action
 
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -139,7 +140,8 @@ private class ConvertPdfToMarkdownDialog(
                 list: javax.swing.JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean,
             ): java.awt.Component {
                 super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
-                text = when (value) {
+                val provider = value as? DocumentToMarkdownProvider
+                text = when (provider) {
                     DocumentToMarkdownProvider.MISTRAL -> "Mistral OCR"
                     DocumentToMarkdownProvider.AZURE -> "Azure document model"
                     DocumentToMarkdownProvider.ZAI -> "Z.ai GLM-OCR"
@@ -147,6 +149,12 @@ private class ConvertPdfToMarkdownDialog(
                     DocumentToMarkdownProvider.SUPERGROK -> "SuperGrok vision"
                     DocumentToMarkdownProvider.PDFBOX -> "PDFBox text extraction (local)"
                     else -> ""
+                }
+                // Popup rows only. The closed field keeps the separate icon, which owns the explainer.
+                icon = if (index >= 0 && provider != null && DocumentModelSelection.showsConversionWarning(provider)) {
+                    AllIcons.General.Warning
+                } else {
+                    null
                 }
                 return this
             }

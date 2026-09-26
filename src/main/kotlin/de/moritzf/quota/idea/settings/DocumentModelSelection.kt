@@ -26,6 +26,12 @@ internal object DocumentModelSelection {
         }
     }
 
+    /** Vision and local PDFBox are usable, but worse than a document or OCR model. */
+    fun showsConversionWarning(provider: DocumentToMarkdownProvider): Boolean = when (provider) {
+        DocumentToMarkdownProvider.OPEN_AI, DocumentToMarkdownProvider.SUPERGROK, DocumentToMarkdownProvider.PDFBOX -> true
+        else -> false
+    }
+
     fun visionHint(provider: DocumentToMarkdownProvider): String? {
         if (provider != DocumentToMarkdownProvider.OPEN_AI && provider != DocumentToMarkdownProvider.SUPERGROK) return null
         val type = provider.providerType ?: return null
