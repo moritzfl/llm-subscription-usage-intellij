@@ -66,6 +66,11 @@ class DocumentModelsTest {
     fun defaultSelectionIsNotStored() {
         assertEquals(null, DocumentModels.storedSelection(DocumentModels.OPEN_AI_DEFAULT, DocumentModels.OPEN_AI_DEFAULT))
         assertEquals("gpt-5.6-luna", DocumentModels.storedSelection("gpt-5.6-luna", DocumentModels.OPEN_AI_DEFAULT))
+        assertEquals("-", DocumentModels.storedSelection("-", DocumentModels.MISTRAL_DEFAULT))
+        assertEquals(null, DocumentModels.storedSelection("-", "-"))
+        assertFalse(DocumentModels.differs("-", null, "-"))
+        assertTrue(DocumentModels.differs("-", null, DocumentModels.MISTRAL_DEFAULT))
+        assertEquals(listOf("-", "gpt-6-sol"), DocumentModels.withOff(listOf("gpt-6-sol", "-")))
         assertFalse(DocumentModels.differs(DocumentModels.OPEN_AI_DEFAULT, null, DocumentModels.OPEN_AI_DEFAULT))
         assertTrue(DocumentModels.differs("gpt-6-luna", null, DocumentModels.OPEN_AI_DEFAULT))
     }

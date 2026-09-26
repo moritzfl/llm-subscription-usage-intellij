@@ -18,6 +18,7 @@ import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.github.GitHubAuthService
 import de.moritzf.quota.idea.github.GitHubCredentialsStore
 import de.moritzf.quota.idea.ui.QuotaUiUtil
+import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.github.GitHubQuotaClient
 import de.moritzf.quota.github.proxy.fetchGitHubListedModels
 import de.moritzf.quota.github.proxy.githubDocumentModelIds
@@ -50,7 +51,7 @@ internal class GitHubSettingsPanel(
         toolTipText = "Copy the GitHub device code to clipboard"
     }
     private val userCodeLabel = JBLabel().apply { isVisible = false }
-    private val documentModelCombo = DocumentModelCombo("Select a model", vision = true)
+    private val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
     private val testDocumentButton = DocumentTestButton(DocumentToMarkdownProvider.GITHUB, { documentModelCombo.storedValue().orEmpty() }, modalityComponentProvider)
     private val responseViewer = createResponseViewer()
     private var modelRefreshGeneration = 0
@@ -143,7 +144,7 @@ internal class GitHubSettingsPanel(
             }
             row("Document model:") {
                 cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn()
-                    .comment("Copilot models that advertise application/pdf. If Copilot does not say, every model is listed.")
+                    .comment("Copilot models that advertise application/pdf. If Copilot does not say, every model is listed. - turns conversion off. PDFBox stays available.")
                 cell(documentModelCombo.warning).align(com.intellij.ui.dsl.builder.AlignY.TOP)
                 cell(testDocumentButton)
             }

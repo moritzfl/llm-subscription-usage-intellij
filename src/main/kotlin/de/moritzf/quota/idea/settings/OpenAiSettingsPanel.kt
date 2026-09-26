@@ -36,7 +36,7 @@ internal class OpenAiSettingsPanel(
         isVisible = false
         toolTipText = "Copy login URL to clipboard"
     }
-    private val documentModelCombo = DocumentModelCombo(DocumentModels.OPEN_AI_DEFAULT, vision = true)
+    private val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
     private val accountIdField = JBTextField().apply { isEditable = false }
     private val emailField = JBTextField().apply { isEditable = false }
     private val codexResponseViewer = createResponseViewer()
@@ -139,7 +139,7 @@ internal class OpenAiSettingsPanel(
             }
             row("Document model:") {
                 cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn().gap(RightGap.SMALL)
-                    .comment("Same models as the local proxy. Codex has no usable live model list.")
+                    .comment("Same models as the local proxy. Codex has no usable live model list. - turns conversion off. PDFBox stays available.")
                 cell(documentModelCombo.warning).align(AlignY.TOP)
                 cell(DocumentTestButton(de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.OPEN_AI, { documentModelCombo.selected().orEmpty() }, modalityComponentProvider))
             }

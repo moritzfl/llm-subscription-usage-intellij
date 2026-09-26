@@ -24,6 +24,7 @@ import de.moritzf.quota.openai.proxy.pdf.PdfBoxMarkdown
 import de.moritzf.quota.openai.proxy.pdf.PdfPages
 import de.moritzf.quota.shared.DocumentConversionProgress
 import de.moritzf.quota.shared.DocumentImageOptions
+import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.supergrok.SuperGrokDocumentClient
 import de.moritzf.quota.supergrok.SuperGrokQuotaException
@@ -63,6 +64,9 @@ internal object PdfDocumentConversion {
         val type = checkNotNull(provider.providerType)
         val account = AccountResolver.resolve(type, capability = AccountCapability.DOCUMENT_TO_MARKDOWN)
         fun selectedModel() = DocumentModelSelection.forAccount(type, account.id, model)
+        if (provider != DocumentToMarkdownProvider.AZURE && selectedModel() == DocumentModels.OFF) {
+            error("Document conversion is off. Pick a model in settings.")
+        }
         val response = when (provider) {
             DocumentToMarkdownProvider.MISTRAL -> {
                 val key = MistralApiKeyStore.forAccount(account.id).loadBlocking()

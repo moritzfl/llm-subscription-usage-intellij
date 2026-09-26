@@ -33,7 +33,7 @@ internal class SuperGrokSettingsPanel(
     private val modalityComponentProvider: () -> JComponent?,
     private val statusLabelDefaultForeground: Color? = null,
 ) : ProviderSettingsPanel() {
-    private val documentModelCombo = DocumentModelCombo(DocumentModels.SUPERGROK_DEFAULT, vision = true)
+    private val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
     private val statusLabel = JBLabel().apply { isVisible = false }
     private var modelRefreshGeneration = 0
     private val loginButton = createActionLink("Log In with xAI/Grok")
@@ -123,7 +123,7 @@ internal class SuperGrokSettingsPanel(
             }
             row("Document model:") {
                 cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn().gap(RightGap.SMALL)
-                    .comment("Loaded from the xAI model list. Image models are left out.")
+                    .comment("Loaded from the xAI model list. Image models are left out. - turns conversion off. PDFBox stays available.")
                 cell(documentModelCombo.warning).align(AlignY.TOP)
                 cell(DocumentTestButton(de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.SUPERGROK, { documentModelCombo.selected().orEmpty() }, modalityComponentProvider))
             }

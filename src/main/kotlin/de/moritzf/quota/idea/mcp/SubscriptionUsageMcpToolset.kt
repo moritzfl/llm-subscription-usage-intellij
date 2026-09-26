@@ -279,6 +279,12 @@ class SubscriptionUsageMcpToolset(
     ): String {
         val imageOptions = try { DocumentImageOptions(imageFormat, imageDpi, imagePaddingPoints) }
         catch (exception: IllegalArgumentException) { return errorResult(exception.message ?: "Invalid image export options.") }
+        if (provider != DocumentToMarkdownProvider.PDFBOX && provider != DocumentToMarkdownProvider.AZURE) {
+            val chosen = model.ifBlank { documentModel(provider) }
+            if (chosen == "-" || chosen.isBlank()) {
+                return errorResult("Document conversion is off. Pick a model in settings.")
+            }
+        }
         return when (provider) {
             DocumentToMarkdownProvider.AZURE ->
                 azureDocumentToMarkdown(documentUrl, localFile, outputFile, includeImages, model, pageFrom, pageTo, imageOptions)

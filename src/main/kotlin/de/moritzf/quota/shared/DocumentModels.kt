@@ -15,6 +15,7 @@ import kotlinx.serialization.json.contentOrNull
  * Version catalogs are not maintained here.
  */
 internal object DocumentModels {
+    const val OFF = "-"
     const val OPEN_AI_DEFAULT = "gpt-6-sol"
     const val SUPERGROK_DEFAULT = "grok-4.7"
     const val MISTRAL_DEFAULT = "mistral-ocr-latest"
@@ -68,12 +69,17 @@ internal object DocumentModels {
         return if (trimmed.isNotEmpty() && trimmed in choices) trimmed else defaultModel
     }
 
-    fun storedSelection(selected: String?, defaultModel: String): String? =
-        selected?.trim()?.takeIf { it.isNotEmpty() && it != defaultModel }
+    fun storedSelection(selected: String?, defaultModel: String): String? {
+        val trimmed = selected?.trim().orEmpty()
+        if (trimmed.isEmpty() || trimmed == defaultModel) return null
+        return trimmed
+    }
+
+    fun withOff(choices: List<String>): List<String> =
+        listOf(OFF) + choices.map { it.trim() }.filter { it.isNotEmpty() && it != OFF }.distinct()
 
     fun differs(selected: String?, saved: String?, defaultModel: String): Boolean =
-        storedSelection(selected, defaultModel).orEmpty() !=
-            saved?.trim()?.takeIf { it.isNotEmpty() && it != defaultModel }.orEmpty()
+        storedSelection(selected, defaultModel).orEmpty() != storedSelection(saved, defaultModel).orEmpty()
 
     /** Discovered text models. grok-4.7 is only the fallback when discovery is empty. */
     fun superGrokChoices(discovered: List<String>, saved: String?): List<String> =

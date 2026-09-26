@@ -575,6 +575,26 @@ internal object ProviderCatalog {
     private fun anyAccount(type: QuotaProviderType, probe: (String) -> Boolean): Boolean =
         accountIds(type).any(probe)
 
+    /**
+     * "-" turns conversion off. Vision and native PDF providers are off until a model is chosen,
+     * so PDFBox stays the free default.
+     */
+    private fun documentConversionOff(type: QuotaProviderType, accountId: String): Boolean {
+        val saved = runCatching {
+            de.moritzf.quota.idea.settings.QuotaSettingsState.getInstance().account(accountId)
+                ?.extra(de.moritzf.quota.idea.settings.ProviderAccount.EXTRA_DOCUMENT_MODEL)
+        }.getOrNull()
+        if (saved == "-") return true
+        return saved.isNullOrBlank() && type in VISION_DOCUMENT_TYPES
+    }
+
+    private val VISION_DOCUMENT_TYPES = setOf(
+        QuotaProviderType.OPEN_AI,
+        QuotaProviderType.SUPERGROK,
+        QuotaProviderType.GITHUB,
+        QuotaProviderType.OPEN_CODE,
+    )
+
     private fun descriptor(
         type: QuotaProviderType,
         capabilities: ProviderCapabilities = ProviderCapabilities(),
@@ -623,8 +643,11 @@ internal object ProviderCatalog {
                 ?: { accountId ->
                     (capabilities.speechToText || capabilities.textToSpeech) && quotaForAccount(accountId)
                 },
-            isDocumentConfiguredForAccount = isDocumentConfiguredForAccount
-                ?: { accountId -> capabilities.documentToMarkdown && quotaForAccount(accountId) },
+            isDocumentConfiguredForAccount = { accountId ->
+                val configured = isDocumentConfiguredForAccount?.invoke(accountId)
+                    ?: (capabilities.documentToMarkdown && quotaForAccount(accountId))
+                configured && !documentConversionOff(type, accountId)
+            },
             isProxyConfigured = isProxyConfigured,
             webSearchMissingReason = webSearchMissingReason,
             ideProxyFactory = ideProxyFactory,

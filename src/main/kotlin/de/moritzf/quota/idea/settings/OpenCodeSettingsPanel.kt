@@ -19,6 +19,7 @@ import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.quota.opencode.proxy.OpenCodeConsoleProxy
 import de.moritzf.quota.opencode.proxy.OpenCodeConsoleSession
 import de.moritzf.quota.opencode.OpenCodeWorkspace
+import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.opencode.OpenCodeQuota
 import java.awt.Color
 import java.net.http.HttpClient
@@ -40,7 +41,7 @@ internal class OpenCodeSettingsPanel(
     private val userCodeLabel = JBLabel().apply { isVisible = false }
     private val workspaceComboBox = ComboBox<OpenCodeWorkspace>()
     private val workspaceStatus = JBLabel()
-    private val documentModelCombo = DocumentModelCombo("Select a model", vision = true)
+    private val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
     private val testDocumentButton = DocumentTestButton(
         DocumentToMarkdownProvider.OPEN_CODE,
         { documentModelCombo.storedValue().orEmpty() },
@@ -136,7 +137,7 @@ internal class OpenCodeSettingsPanel(
             row { text("To change a browser-scoped organization, sign in again.") }
             row("Document model:") {
                 cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn()
-                    .comment("Models whose live catalog lists pdf. If the catalog does not say, every model is listed.")
+                    .comment("Models whose live catalog lists pdf. If the catalog does not say, every model is listed. - turns conversion off. PDFBox stays available.")
                 cell(documentModelCombo.warning).align(com.intellij.ui.dsl.builder.AlignY.TOP)
                 cell(testDocumentButton)
             }

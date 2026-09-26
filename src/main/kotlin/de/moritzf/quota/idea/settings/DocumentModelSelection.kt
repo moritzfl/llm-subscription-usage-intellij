@@ -11,19 +11,27 @@ import de.moritzf.quota.zai.ZaiOcrClient
 internal object DocumentModelSelection {
     fun forAccount(type: QuotaProviderType, accountId: String, explicit: String = ""): String {
         val requested = explicit.trim()
+        if (requested == DocumentModels.OFF) return DocumentModels.OFF
         if (requested.isNotEmpty()) return requested
         val saved = runCatching {
             QuotaSettingsState.getInstance().account(accountId)?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)
         }.getOrNull()
+        if (saved == DocumentModels.OFF) return DocumentModels.OFF
         return when (type) {
             QuotaProviderType.MISTRAL ->
                 DocumentModels.resolveDetected(saved, DocumentModels.MISTRAL_DEFAULT, DocumentModels::isMistralOcrModel)
             QuotaProviderType.ZAI ->
                 DocumentModels.resolveDetected(saved, ZaiOcrClient.DEFAULT_MODEL, DocumentModels::isZaiOcrModel)
             QuotaProviderType.OPEN_AI ->
-                DocumentModels.resolve(saved, DocumentModels.openAiVisionModels(OpenAiProxyServer.advertisedModels()), DocumentModels.OPEN_AI_DEFAULT)
+                saved?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                    DocumentModels.resolve(it, DocumentModels.openAiVisionModels(OpenAiProxyServer.advertisedModels()), DocumentModels.OPEN_AI_DEFAULT)
+                } ?: DocumentModels.OFF
             QuotaProviderType.SUPERGROK ->
-                DocumentModels.resolveDetected(saved, DocumentModels.SUPERGROK_DEFAULT, DocumentModels::isSuperGrokDocumentModel)
+                saved?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                    DocumentModels.resolveDetected(it, DocumentModels.SUPERGROK_DEFAULT, DocumentModels::isSuperGrokDocumentModel)
+                } ?: DocumentModels.OFF
+            QuotaProviderType.GITHUB, QuotaProviderType.OPEN_CODE ->
+                saved?.trim()?.takeIf { it.isNotEmpty() } ?: DocumentModels.OFF
             else -> saved?.trim().orEmpty()
         }
     }
