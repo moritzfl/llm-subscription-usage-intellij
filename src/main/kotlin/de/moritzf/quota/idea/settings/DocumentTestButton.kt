@@ -60,6 +60,7 @@ private class DocumentTestDialog(
     private val statusIcon = JBLabel()
     private val statusLabel = JBLabel().apply { font = font.deriveFont(Font.BOLD) }
     private val modelLabel = JBLabel().apply { foreground = UIUtil.getContextHelpForeground() }
+    private val latencyLabel = JBLabel().apply { foreground = UIUtil.getContextHelpForeground() }
     private val inputSlot = slot()
     private val outputSlot = slot()
     private val detailSlot = slot()
@@ -87,6 +88,7 @@ private class DocumentTestDialog(
                 cell(statusIcon)
                 cell(statusLabel)
                 cell(modelLabel)
+                cell(latencyLabel)
             }
             group("Input") {
                 row {
@@ -150,22 +152,31 @@ private class DocumentTestDialog(
             val rendered = page
             onEdt(gen) { showPage(rendered) }
             checkActive(gen)
-            val warnings = PdfDocumentConversion.convert(
-                provider, pdf, output, includeImages = false,
-                progress = { _, _, _ -> checkActive(gen) },
-                model = model,
-            )
+            val started = System.nanoTime()
+            val warnings = try {
+                PdfDocumentConversion.convert(
+                    provider, pdf, output, includeImages = false,
+                    progress = { _, _, _ -> checkActive(gen) },
+                    model = model,
+                )
+            } catch (exception: Exception) {
+                if (!isActive(gen) || isCancellation(exception)) throw exception
+                val elapsedMs = (System.nanoTime() - started) / 1_000_000L
+                onEdt(gen) { showFailure(exception.message ?: "Document test failed", page, elapsedMs) }
+                return@runGeneration
+            }
             checkActive(gen)
+            val elapsedMs = (System.nanoTime() - started) / 1_000_000L
             val markdown = Files.readString(output)
             onEdt(gen) {
-                showSuccess(rendered, markdown, warnings.joinToString("\n").ifBlank { null })
+                showSuccess(rendered, markdown, warnings.joinToString("\n").ifBlank { null }, elapsedMs)
             }
         } catch (exception: ProcessCanceledException) {
             if (isActive(gen)) throw exception
         } catch (exception: Exception) {
             if (!isActive(gen) || isCancellation(exception)) return
             val rendered = page
-            onEdt(gen) { showFailure(exception.message ?: "Document test failed", rendered) }
+            onEdt(gen) { showFailure(exception.message ?: "Document test failed", rendered, null) }
         } finally {
             Files.deleteIfExists(pdf)
             Files.deleteIfExists(output)
@@ -177,6 +188,7 @@ private class DocumentTestDialog(
         statusLabel.text = "Testing…"
         modelLabel.text = model
         modelLabel.isVisible = model.isNotBlank()
+        showLatency(null)
         replace(inputSlot, note("Preparing the sample page…"))
         replace(outputSlot, note("Waiting for the model."))
         clear(detailSlot)
@@ -188,9 +200,10 @@ private class DocumentTestDialog(
         replace(inputSlot, pagePreview(image))
     }
 
-    private fun showSuccess(page: BufferedImage, markdown: String, detail: String?) {
+    private fun showSuccess(page: BufferedImage, markdown: String, detail: String?, elapsedMs: Long) {
         statusIcon.icon = AllIcons.General.InspectionsOK
         statusLabel.text = "Converted"
+        showLatency(elapsedMs)
         showPage(page)
         replace(outputSlot, codeBlock(markdown))
         showDetail(detail)
@@ -198,9 +211,10 @@ private class DocumentTestDialog(
         retryAction.isEnabled = true
     }
 
-    private fun showFailure(message: String, page: BufferedImage?) {
+    private fun showFailure(message: String, page: BufferedImage?, elapsedMs: Long?) {
         statusIcon.icon = AllIcons.General.Error
         statusLabel.text = "Failed"
+        showLatency(elapsedMs)
         if (page != null) showPage(page)
         replace(outputSlot, codeBlock(message))
         clear(detailSlot)
@@ -211,9 +225,15 @@ private class DocumentTestDialog(
     private fun showAborted() {
         statusIcon.icon = AllIcons.Actions.Cancel
         statusLabel.text = "Aborted"
+        showLatency(null)
         replace(outputSlot, note("Test aborted."))
         abortAction.isEnabled = false
         retryAction.isEnabled = true
+    }
+
+    private fun showLatency(elapsedMs: Long?) {
+        latencyLabel.text = elapsedMs?.let { "$it ms" }.orEmpty()
+        latencyLabel.isVisible = elapsedMs != null
     }
 
     private fun showDetail(detail: String?) {
