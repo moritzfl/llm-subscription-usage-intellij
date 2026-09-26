@@ -1,17 +1,16 @@
 # LLM Subscription Usage Changelog
 
-## [Unreleased]
+## [1.16.0] - 2026-09-26
 
-- Azure document conversion warns when the selected deployment only reads the PDF as vision. Vision deployments are listed first, above a divider, and an already chosen vision deployment stays selected. Mistral OCR and Document Intelligence do not show that warning and remain the autofill.
-- GitHub Copilot and OpenCode can convert a local PDF when signed in. The model list uses live PDF support when the provider reports it, and every discovered model when it does not. Azure document conversion can also use any other deployment as native PDF; those are not auto-selected.
-- Settings document rows have a Test document button. It builds a one-page PDF with PDFBox and converts it with the selected model.
-- Settings quota responses wrap to the panel width. Compact provider JSON is shown indented, so a long line no longer adds a horizontal scrollbar.
-- PDF-to-Markdown can use local Apache PDFBox text extraction from the MCP tool (`PDFBOX`) and the PDF right-click action. It needs no subscription. It does not OCR scans, rebuild tables, or export figures, and the dialog warns about that.
+- Settings quota responses wrap to the panel width. Compact provider JSON is shown indented, so a long line no longer adds a horizontal scrollbar. A provider form that is wider than the pane scrolls sideways instead of clipping the right edge.
 - Mistral quota refresh no longer fails when the admin billing page returns HTTP 500. Monthly usage still comes from the console usage report.
-- OpenAI and SuperGrok document conversion can use a vision model chosen in settings. Defaults are `gpt-6-sol` and `grok-4.7`, so a cheaper model can be selected instead. A warning icon next to that list, and on the weaker rows of the PDF dialog provider menu, explains that a document or OCR model is the better choice (Mistral, Z.ai, or a company model such as Azure).
-- Mistral and Z.ai document conversion use an OCR model chosen in settings. The choices come from each provider's model list, filtered by OCR prefix, not a pinned version catalog.
-- Azure document conversion accepts an optional model. Blank still uses the settings selection. A passed value can be a deployment name, `cohere:<deployment>`, or `prebuilt-layout`.
-- Azure document conversion picks the newest Mistral OCR deployment from the first model list. If that list has no document model, conversion stays off (`-`). A saved choice is kept until the resource changes.
+- PDF-to-Markdown can use local Apache PDFBox text extraction from the MCP tool (`PDFBOX`) and the PDF right-click action. It needs no subscription. It does not OCR scans, rebuild tables, or export figures, and the dialog warns about that.
+- Document conversion can use a model chosen in settings. Mistral and Z.ai list OCR models from the provider, filtered by prefix, not a pinned version catalog. OpenAI, SuperGrok, GitHub Copilot, and OpenCode list vision or native PDF models from the live provider when it reports PDF support, otherwise every discovered model. A warning icon explains that a document or OCR model is the better choice (Mistral, Z.ai, or a company model such as Azure).
+- Each document-model list includes `-` to turn conversion off for that provider. OpenAI, SuperGrok, GitHub Copilot, and OpenCode start on `-`, so local conversion without an LLM stays available until a model is chosen. That local option is PDFBox, which only reads text already in the file. Mistral and Z.ai still default to an OCR model. A saved choice is kept.
+- Azure document conversion picks the newest Mistral OCR deployment from the first model list. If that list has no document model, conversion stays off (`-`). A saved choice is kept until the resource changes. Other deployments can be chosen as native PDF and are not auto-selected. Those vision rows, including Cohere Parse, are listed first, above a divider, with a warning that a deployed document or OCR model such as Mistral usually does better. Document Intelligence does not show that warning. A passed model can be a deployment name, `cohere:<deployment>`, `native:<deployment>`, or `prebuilt-layout`.
+- Settings document rows have a Test document button. The result window opens immediately, shows that the test is running, and can be aborted or retried. Retry stays off while that request is running. When the request finishes, the window shows how long it took. It builds a landscape page with the plugin logo, one hello line, and a small table, and shows that page as the input next to the returned markdown.
+- Proxy tab Test AI Completion opens the result window immediately, shows that the test is running, and can be aborted or retried. Retry stays off while that request is running.
+- MCP tool `subscription_svg_to_png` rasterizes a local SVG to PNG. It needs no subscription.
 
 ## [1.15.11] - 2026-09-25
 
@@ -594,7 +593,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.11...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.16.0...HEAD
+[1.16.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.11...1.16.0
 [1.15.11]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.10...1.15.11
 [1.15.10]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.9...1.15.10
 [1.15.9]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.8...1.15.9
