@@ -352,11 +352,11 @@ class SubscriptionUsageMcpToolset(
     }
 
     @McpTool(name = "subscription_svg_to_png")
-    @McpDescription(description = "Rasterizes a local SVG to PNG with Apache Batik. No subscription. Use this when a vision model cannot read an SVG figure exported beside a Markdown document. Width and height in the SVG are treated as PDF points. Output defaults to <name>.png beside the SVG.")
+    @McpDescription(description = "Rasterizes a local SVG to PNG.")
     suspend fun subscription_svg_to_png(
-        @McpDescription(description = "Project-relative or absolute local SVG path.") localFile: String,
-        @McpDescription(description = "Optional PNG output path. Defaults to <localFile>.png beside the SVG.") outputFile: String? = null,
-        @McpDescription(description = "Raster resolution, 72-600. Default 300. SVG user units are PDF points, so pixels are points × dpi / 72.") dpi: Int = 300,
+        @McpDescription(description = "Local SVG path.") localFile: String,
+        @McpDescription(description = "Optional PNG path. Defaults to <name>.png beside the SVG.") outputFile: String? = null,
+        @McpDescription(description = "72-600. Default 300.") dpi: Int = 300,
     ): String {
         val source = resolveOptionalPath(localFile) ?: return errorResult("Pass a local SVG path in localFile.")
         return try {
