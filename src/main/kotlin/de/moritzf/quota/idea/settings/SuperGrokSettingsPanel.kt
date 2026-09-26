@@ -6,6 +6,7 @@ import com.intellij.openapi.application.ModalityState
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.AlignY
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.idea.auth.QuotaAuthService
@@ -121,10 +122,10 @@ internal class SuperGrokSettingsPanel(
                 text("Uses plugin-managed xAI OAuth with the Grok CLI billing API. No local Grok CLI auth file is required.")
             }
             row("Document model:") {
-                cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn()
+                cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn().gap(RightGap.SMALL)
                     .comment("Loaded from the xAI model list. Image models are left out.")
+                cell(documentModelCombo.warning).align(AlignY.TOP)
             }
-            row { cell(documentModelCombo.warning).align(AlignX.FILL) }
         }
 
         install(configPanel, createResponseSection(jsonViewer))

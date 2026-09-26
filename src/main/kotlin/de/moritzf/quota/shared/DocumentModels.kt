@@ -20,13 +20,16 @@ internal object DocumentModels {
     const val MISTRAL_DEFAULT = "mistral-ocr-latest"
     const val ZAI_DEFAULT = "glm-ocr"
 
+    const val OCR_RECOMMENDATION =
+        "Use a document or OCR model (Mistral, Z.ai). A company OCR model, such as Azure, is also a good choice when you have one."
+
     const val VISION_WARNING =
-        "This uses a general vision model, not a dedicated OCR model. Results are usually less precise, " +
-            "and a long PDF costs more than Mistral or Z.ai OCR. Those plans are available to individual subscribers."
+        "This is a general vision model, not a dedicated document or OCR model. Results are usually less precise, " +
+            "and a long PDF costs more.\n\n$OCR_RECOMMENDATION"
 
     const val PDFBOX_WARNING =
         "PDFBox only extracts embedded text. It does not OCR scans, rebuild tables, or export figures. " +
-            "Reading order and layout are often wrong. It is free and needs no subscription; use Mistral or Z.ai OCR when the document matters."
+            "Reading order and layout are often wrong. It is free and needs no subscription.\n\n$OCR_RECOMMENDATION"
 
     fun isMistralOcrModel(id: String): Boolean {
         val model = id.trim()

@@ -33,6 +33,6 @@ internal object DocumentModelSelection {
             val account = AccountResolver.resolve(type, capability = AccountCapability.DOCUMENT_TO_MARKDOWN)
             forAccount(type, account.id)
         }.getOrNull()
-        return if (model.isNullOrBlank()) DocumentModels.VISION_WARNING else "Uses $model. ${DocumentModels.VISION_WARNING}"
+        return if (model.isNullOrBlank()) DocumentModels.VISION_WARNING else "Uses $model.\n\n${DocumentModels.VISION_WARNING}"
     }
 }

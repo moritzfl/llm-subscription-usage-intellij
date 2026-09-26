@@ -7,6 +7,7 @@ import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.AlignY
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.idea.auth.QuotaAuthService
@@ -137,10 +138,10 @@ internal class OpenAiSettingsPanel(
                     .align(AlignX.FILL)
             }
             row("Document model:") {
-                cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn()
+                cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn().gap(RightGap.SMALL)
                     .comment("Same models as the local proxy. Codex has no usable live model list.")
+                cell(documentModelCombo.warning).align(AlignY.TOP)
             }
-            row { cell(documentModelCombo.warning).align(AlignX.FILL) }
         }
 
         install(usageTrackingConfigPanel, createResponseSection(codexResponseViewer))

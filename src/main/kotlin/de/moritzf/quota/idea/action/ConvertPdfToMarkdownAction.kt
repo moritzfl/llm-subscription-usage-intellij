@@ -23,11 +23,12 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.AlignY
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
-import de.moritzf.quota.idea.settings.DocumentModelCombo
 import de.moritzf.quota.idea.settings.DocumentModelSelection
+import de.moritzf.quota.idea.settings.DocumentWarningIcon
 import de.moritzf.quota.openai.proxy.pdf.PdfBoxMarkdown
 import de.moritzf.quota.shared.DocumentMarkdown
 import de.moritzf.quota.shared.DocumentModels
@@ -151,7 +152,7 @@ private class ConvertPdfToMarkdownDialog(
             }
         }
     }
-    private val visionWarning = JBLabel().apply { foreground = DocumentModelCombo.WARNING_COLOR }
+    private val warningIcon = DocumentWarningIcon()
     private val imagesCheckBox = JBCheckBox("Save detected figures", true)
     private var restoreImages = true
     private val formatCombo = ComboBox(DocumentImageFormat.entries.toTypedArray()).apply {
@@ -207,8 +208,10 @@ private class ConvertPdfToMarkdownDialog(
             })
                 .align(AlignX.FILL).resizableColumn()
         }
-        row("Provider:") { cell(providerCombo).align(AlignX.FILL).resizableColumn() }
-        row { cell(visionWarning).align(AlignX.FILL).resizableColumn() }
+        row("Provider:") {
+            cell(providerCombo).align(AlignX.FILL).resizableColumn()
+            cell(warningIcon).align(AlignY.CENTER)
+        }
         row("Images:") { cell(imagesCheckBox) }
         row("Figure format:") {
             cell(formatCombo).align(AlignX.FILL).resizableColumn()
@@ -258,8 +261,8 @@ private class ConvertPdfToMarkdownDialog(
             imagesCheckBox.isSelected = restoreImages
         }
         val hint = if (pdfBox) DocumentModels.PDFBOX_WARNING else DocumentModelSelection.visionHint(provider())
-        visionWarning.isVisible = hint != null
-        visionWarning.text = hint?.let(DocumentModelCombo::warningHtml).orEmpty()
+        val title = if (pdfBox) "Text extraction only" else "Not a document or OCR model"
+        warningIcon.setExplainer(title, hint)
         val enabled = imagesCheckBox.isSelected && provider() in listOf(
             DocumentToMarkdownProvider.MISTRAL, DocumentToMarkdownProvider.AZURE, DocumentToMarkdownProvider.ZAI,
         )
