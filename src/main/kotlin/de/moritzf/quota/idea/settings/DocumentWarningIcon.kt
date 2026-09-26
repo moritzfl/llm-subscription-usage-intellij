@@ -31,8 +31,9 @@ internal class DocumentWarningIcon : JBLabel(AllIcons.General.Warning) {
         isVisible = body.isNotEmpty()
         parent?.revalidate()
         parent?.repaint()
-        accessibleContext.accessibleName = title
-        accessibleContext.accessibleDescription = body
+        // The protected field is still null until the getter creates the context.
+        getAccessibleContext().accessibleName = title
+        getAccessibleContext().accessibleDescription = body
         if (body.isEmpty()) {
             HelpTooltip.hide(this)
             clickPopup?.cancel()
