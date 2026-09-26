@@ -139,7 +139,7 @@ internal class OpenAiSettingsPanel(
             }
             row("Document model:") {
                 cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn().gap(RightGap.SMALL)
-                    .comment("Same models as the local proxy. Codex has no usable live model list. - turns conversion off. PDFBox stays available.")
+                    .comment("- turns conversion off. PDFBox stays available.")
                 cell(documentModelCombo.warning).align(AlignY.TOP)
                 cell(DocumentTestButton(de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.OPEN_AI, { documentModelCombo.selected().orEmpty() }, modalityComponentProvider))
             }

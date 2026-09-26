@@ -50,7 +50,7 @@ internal class ZaiSettingsPanel(
             }
             row("Document model:") {
                 cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn()
-                    .comment("Loaded from the Z.ai model list. Only glm-ocr models. - turns conversion off.")
+                    .comment("- turns conversion off.")
                 cell(DocumentTestButton(de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.ZAI, { documentModelCombo.selected().orEmpty() }, modalityComponentProvider))
             }
             row {

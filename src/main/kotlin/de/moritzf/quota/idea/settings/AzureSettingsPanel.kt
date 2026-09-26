@@ -154,10 +154,8 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                 cell(ocrDeploymentCombo).align(AlignX.FILL).resizableColumn()
                 cell(documentWarning).align(AlignY.TOP)
                 cell(DocumentTestButton(de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.AZURE, { (ocrDeploymentCombo.selectedItem as? String).orEmpty() }, { this@AzureSettingsPanel }))
-                    .comment("Filled from the first model list: newest Mistral OCR deployment, otherwise '-'. " +
-                        "'-' turns conversion off. Change the resource to choose again. " +
-                        "Native PDF lists every other deployment because Azure does not say which chat models accept PDF. " +
-                        "Cohere Parse is image-only. Document Intelligence is optional and not chosen automatically.")
+                    .comment("Newest Mistral OCR deployment is selected automatically, otherwise '-'. " +
+                        "'-' turns conversion off. Change the resource to choose again.")
             }
             row {
                 browserLink(

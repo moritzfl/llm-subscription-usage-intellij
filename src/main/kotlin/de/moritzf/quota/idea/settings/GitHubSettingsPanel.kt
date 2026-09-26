@@ -144,7 +144,7 @@ internal class GitHubSettingsPanel(
             }
             row("Document model:") {
                 cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn()
-                    .comment("Copilot models that advertise application/pdf. If Copilot does not say, every model is listed. - turns conversion off. PDFBox stays available.")
+                    .comment("- turns conversion off. PDFBox stays available.")
                 cell(documentModelCombo.warning).align(com.intellij.ui.dsl.builder.AlignY.TOP)
                 cell(testDocumentButton)
             }

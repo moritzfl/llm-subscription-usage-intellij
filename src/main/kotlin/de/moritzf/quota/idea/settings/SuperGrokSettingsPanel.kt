@@ -123,7 +123,7 @@ internal class SuperGrokSettingsPanel(
             }
             row("Document model:") {
                 cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn().gap(RightGap.SMALL)
-                    .comment("Loaded from the xAI model list. Image models are left out. - turns conversion off. PDFBox stays available.")
+                    .comment("- turns conversion off. PDFBox stays available.")
                 cell(documentModelCombo.warning).align(AlignY.TOP)
                 cell(DocumentTestButton(de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.SUPERGROK, { documentModelCombo.selected().orEmpty() }, modalityComponentProvider))
             }
