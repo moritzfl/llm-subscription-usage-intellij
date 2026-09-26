@@ -23,6 +23,7 @@ snakeyaml-engine = { group = "org.snakeyaml", name = "snakeyaml-engine", version
 picocli = { group = "info.picocli", name = "picocli", version.ref = "picocli" }
 pdfbox = { group = "org.apache.pdfbox", name = "pdfbox", version.ref = "pdfbox" }
 pdfbox-io = { group = "org.apache.pdfbox", name = "pdfbox-io", version.ref = "pdfbox" }
+pdfbox-tools = { group = "org.apache.pdfbox", name = "pdfbox-tools", version.ref = "pdfbox" }
 batik-svggen = { group = "org.apache.xmlgraphics", name = "batik-svggen", version.ref = "batik" }
 batik-dom = { group = "org.apache.xmlgraphics", name = "batik-dom", version.ref = "batik" }
 batik-transcoder = { group = "org.apache.xmlgraphics", name = "batik-transcoder", version.ref = "batik" }

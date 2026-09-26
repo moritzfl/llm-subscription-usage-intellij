@@ -24,6 +24,10 @@ internal object DocumentModels {
         "This uses a general vision model, not a dedicated OCR model. Results are usually less precise, " +
             "and a long PDF costs more than Mistral or Z.ai OCR. Those plans are available to individual subscribers."
 
+    const val PDFBOX_WARNING =
+        "PDFBox only extracts embedded text. It does not OCR scans, rebuild tables, or export figures. " +
+            "Reading order and layout are often wrong. It is free and needs no subscription; use Mistral or Z.ai OCR when the document matters."
+
     fun isMistralOcrModel(id: String): Boolean {
         val model = id.trim()
         return model.startsWith("mistral-ocr-", ignoreCase = true) ||

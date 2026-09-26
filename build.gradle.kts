@@ -63,6 +63,10 @@ dependencies {
     implementation(libs.picocli)
     implementation(libs.pdfbox)
     implementation(libs.pdfbox.io)
+    // Markdown export lives in pdfbox-tools (PDFText2Markdown, since 3.0.4). The debugger is a Swing app we never call.
+    implementation(libs.pdfbox.tools) {
+        exclude(group = "org.apache.pdfbox", module = "pdfbox-debugger")
+    }
     implementation(libs.batik.svggen) { exclude(group = "xml-apis", module = "xml-apis") }
     implementation(libs.batik.dom) { exclude(group = "xml-apis", module = "xml-apis") }
     implementation(libs.jai.imageio.jpeg2000)
