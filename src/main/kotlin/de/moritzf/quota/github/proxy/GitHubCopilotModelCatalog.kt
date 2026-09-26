@@ -24,6 +24,8 @@ internal data class GitHubCopilotRemoteModel(
     val supportedRoutes: Set<SubscriptionProxyRoute>,
     val supportsFunctionCalling: Boolean,
     val supportsVision: Boolean,
+    val supportsPdf: Boolean = false,
+    val pdfCapabilityKnown: Boolean = false,
     val maxInputTokens: Int?,
     val maxOutputTokens: Int?,
     val isDefault: Boolean,
@@ -123,6 +125,8 @@ internal class GitHubCopilotModelCatalog(
                         put("supportedRoutes", JsonArray(model.supportedRoutes.map { JsonPrimitive(it.normalizedPath) }))
                         put("supportsFunctionCalling", model.supportsFunctionCalling)
                         put("supportsVision", model.supportsVision)
+                        put("supportsPdf", model.supportsPdf)
+                        put("pdfCapabilityKnown", model.pdfCapabilityKnown)
                         model.maxInputTokens?.let { put("maxInputTokens", it) }
                         model.maxOutputTokens?.let { put("maxOutputTokens", it) }
                         put("isDefault", model.isDefault)
@@ -151,6 +155,8 @@ internal class GitHubCopilotModelCatalog(
             supportedRoutes = routes,
             supportsFunctionCalling = boolField(item, "supportsFunctionCalling") ?: true,
             supportsVision = boolField(item, "supportsVision") ?: false,
+            supportsPdf = boolField(item, "supportsPdf") ?: false,
+            pdfCapabilityKnown = boolField(item, "pdfCapabilityKnown") ?: false,
             maxInputTokens = intField(item, "maxInputTokens"),
             maxOutputTokens = intField(item, "maxOutputTokens"),
             isDefault = boolField(item, "isDefault") ?: false,
@@ -280,6 +286,8 @@ internal class GitHubCopilotModelCatalog(
             supportedRoutes = supportedRoutes(id, modelType(item), item["supported_endpoints"] as? JsonArray),
             supportsFunctionCalling = toolCalls,
             supportsVision = supportsVision(capabilities, supports),
+            supportsPdf = supportsPdf(capabilities),
+            pdfCapabilityKnown = pdfMediaTypesKnown(capabilities),
             maxInputTokens = intField(limits, "max_context_window_tokens") ?: intField(limits, "max_prompt_tokens"),
             maxOutputTokens = intField(limits, "max_output_tokens"),
             isDefault = boolField(item, "is_default") ?: boolField(item, "default") ?: false,

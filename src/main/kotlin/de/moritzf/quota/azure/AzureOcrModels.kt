@@ -9,10 +9,13 @@ internal fun isAzureOcrModel(name: String): Boolean {
 }
 
 internal const val AZURE_DOCUMENT_INTELLIGENCE_LAYOUT = "doc-intelligence/prebuilt-layout"
+internal const val AZURE_NATIVE_PDF_PREFIX = "native:"
 private const val COHERE_SELECTION_PREFIX = "cohere:"
 
 internal fun isAzureCohereParseModel(name: String): Boolean = name.startsWith("cohere-parse-", ignoreCase = true)
 internal fun isAzureCohereSelection(selection: String): Boolean = selection.startsWith(COHERE_SELECTION_PREFIX)
+internal fun isAzureNativePdfSelection(selection: String): Boolean = selection.startsWith(AZURE_NATIVE_PDF_PREFIX)
+internal fun azureNativePdfDeploymentId(selection: String): String = selection.removePrefix(AZURE_NATIVE_PDF_PREFIX)
 internal fun azureOcrDeploymentId(selection: String): String = selection.removePrefix(COHERE_SELECTION_PREFIX)
 
 /**
@@ -25,6 +28,7 @@ internal fun azureDocumentSelection(explicit: String?, settingsSelection: String
     return when {
         requested == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT || requested.equals("prebuilt-layout", ignoreCase = true) ->
             AZURE_DOCUMENT_INTELLIGENCE_LAYOUT
+        isAzureNativePdfSelection(requested) -> requested
         isAzureCohereSelection(requested) -> requested
         isAzureCohereParseModel(requested) -> "$COHERE_SELECTION_PREFIX$requested"
         else -> requested
@@ -74,6 +78,24 @@ internal fun azureOcrDeployments(
     return available.filter { AZURE_DEPLOYMENT_NAME.matches(azureOcrDeploymentId(it)) }.distinct()
         .sortedWith(compareByDescending<String> { azureDocumentModelRank(modelNameForSelection(it, quota)) }.thenBy { it }) +
             listOfNotNull(AZURE_DOCUMENT_INTELLIGENCE_LAYOUT.takeIf { documentIntelligenceAvailable })
+}
+
+/**
+ * Every other deployment on the resource. Azure does not say which chat models accept PDF,
+ * so the user picks. These are never auto-selected.
+ */
+internal fun azureNativePdfChoices(quota: AzureQuota?, resourceName: String?): List<String> {
+    return quota?.windows.orEmpty()
+        .filter {
+            it.kind == AzureUsageWindow.DEPLOYMENT &&
+                (resourceName == null || it.resourceName.equals(resourceName, ignoreCase = true)) &&
+                it.modelName?.let(::isAzureOcrModel) != true
+        }
+        .map { it.id }
+        .filter { AZURE_DEPLOYMENT_NAME.matches(it) }
+        .distinct()
+        .sorted()
+        .map { "$AZURE_NATIVE_PDF_PREFIX$it" }
 }
 
 /**

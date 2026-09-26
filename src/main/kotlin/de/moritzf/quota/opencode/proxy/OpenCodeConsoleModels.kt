@@ -65,10 +65,19 @@ internal data class OpenCodeConsoleModel(
     val baseUri: URI,
     val headers: Map<String, String>,
     val body: JsonObject,
+    val supportsPdf: Boolean = false,
+    val pdfCapabilityKnown: Boolean = false,
 ) {
     val targetUri: URI get() = URI.create(baseUri.toString().trimEnd('/') + nativeRoute.normalizedPath)
 
     companion object {
+        fun documentModelIds(models: List<OpenCodeConsoleModel>): List<String> =
+            de.moritzf.quota.shared.DocumentModelChoices.pdfOrAll(
+                models.map { it.model.upstreamId },
+                models.filter { it.supportsPdf }.map { it.model.upstreamId }.toSet(),
+                models.filter { it.pdfCapabilityKnown }.map { it.model.upstreamId }.toSet(),
+            )
+
         const val GO_MODELS_URL = "https://opencode.ai/zen/go/v1/models"
         const val ZEN_MODELS_URL = "https://opencode.ai/zen/v1/models"
 
@@ -193,6 +202,8 @@ internal data class OpenCodeConsoleModel(
                 baseUri = uri,
                 headers = provider.headers + model.headers,
                 body = JsonObject(provider.body + model.body),
+                supportsPdf = model.capabilities?.input?.contains("pdf") == true,
+                pdfCapabilityKnown = model.capabilities?.input?.isNotEmpty() == true,
             )
         }
 

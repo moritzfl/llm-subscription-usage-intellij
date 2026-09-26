@@ -1,6 +1,12 @@
 package de.moritzf.quota.github.proxy
 
 import de.moritzf.proxy.subscription.SubscriptionProxyRoute
+import de.moritzf.proxy.transport.UrlResolver
+import de.moritzf.quota.shared.DocumentModelChoices
+import de.moritzf.quota.shared.JsonSupport
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
 import java.net.URI
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicLong
@@ -81,9 +87,94 @@ internal fun fallbackUpstreamId(localId: String): String? {
 
 internal fun supportsVision(capabilities: JsonObject?, supports: JsonObject?): Boolean {
     if (boolField(supports, "vision") == true) return true
-    val vision = capabilities?.jsonObject("limits")?.jsonObject("vision") ?: return false
-    val mediaTypes = vision["supported_media_types"] as? JsonArray ?: return false
-    return mediaTypes.any { (it as? JsonPrimitive)?.contentOrNull?.startsWith("image/") == true }
+    return mediaTypes(capabilities).any { it.startsWith("image/") }
+}
+
+/** True only when Copilot lists `application/pdf`. Missing media types are unknown, not a no. */
+internal fun supportsPdf(capabilities: JsonObject?): Boolean =
+    mediaTypes(capabilities).any { it == "application/pdf" }
+
+internal fun pdfMediaTypesKnown(capabilities: JsonObject?): Boolean = mediaTypes(capabilities).isNotEmpty()
+
+internal data class GitHubListedModel(
+    val id: String,
+    val supportsPdf: Boolean,
+    val pdfCapabilityKnown: Boolean,
+    val endpoints: List<String>,
+)
+
+internal fun githubDocumentModelIds(models: List<GitHubListedModel>): List<String> =
+    DocumentModelChoices.pdfOrAll(
+        models.map { it.id },
+        models.filter { it.supportsPdf }.map { it.id }.toSet(),
+        models.filter { it.pdfCapabilityKnown }.map { it.id }.toSet(),
+    )
+
+/** Copilot `/models` body. PDF models when that model says so; every other model when it does not. */
+internal fun githubDocumentModelIds(body: String): List<String> = githubDocumentModelIds(parseGitHubListedModels(body))
+
+internal fun parseGitHubListedModels(body: String): List<GitHubListedModel> {
+    val root = runCatching { JsonSupport.json.parseToJsonElement(body) }.getOrNull() ?: return emptyList()
+    val data = when (root) {
+        is JsonObject -> root["data"] as? JsonArray ?: root["models"] as? JsonArray
+        is JsonArray -> root
+        else -> null
+    } ?: return emptyList()
+    return data.mapNotNull { element ->
+        val item = element as? JsonObject ?: return@mapNotNull null
+        if (boolField(item, "model_picker_enabled") == false) return@mapNotNull null
+        if (stringField(item.jsonObject("policy"), "state") == "disabled") return@mapNotNull null
+        if (modelType(item) == "embeddings") return@mapNotNull null
+        val id = remoteModelId(stringField(item, "id") ?: return@mapNotNull null) ?: return@mapNotNull null
+        val capabilities = item["capabilities"] as? JsonObject
+        val endpoints = (item["supported_endpoints"] as? JsonArray)
+            ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+            .orEmpty()
+        GitHubListedModel(id, supportsPdf(capabilities), pdfMediaTypesKnown(capabilities), endpoints)
+    }.distinctBy { it.id }
+}
+
+/**
+ * Live `supported_endpoints` wins. A model id is only a fallback when Copilot did not list routes,
+ * so a new id the user picked still has a request path.
+ */
+internal fun githubDocumentRoute(modelId: String, endpoints: List<String> = emptyList()): de.moritzf.quota.shared.NativePdfRoute {
+    if (endpoints.any { it == "/v1/messages" || it == "/messages" }) return de.moritzf.quota.shared.NativePdfRoute.ANTHROPIC
+    if (endpoints.any { it.endsWith("/responses") || it == "/responses" }) return de.moritzf.quota.shared.NativePdfRoute.RESPONSES
+    if (endpoints.any { it.endsWith("/chat/completions") || it == "/chat/completions" }) return de.moritzf.quota.shared.NativePdfRoute.CHAT
+    return when {
+        isClaudeModel(modelId) -> de.moritzf.quota.shared.NativePdfRoute.ANTHROPIC
+        shouldUseResponsesApi(modelId) -> de.moritzf.quota.shared.NativePdfRoute.RESPONSES
+        else -> de.moritzf.quota.shared.NativePdfRoute.CHAT
+    }
+}
+
+internal fun githubCopilotHeaders(token: String): Map<String, String> = mapOf(
+    "Authorization" to "Bearer $token",
+    "Accept" to "application/json",
+    "User-Agent" to GitHubCopilotProxyIds.USER_AGENT,
+    "Copilot-Integration-Id" to GitHubCopilotProxyIds.COPILOT_INTEGRATION_ID,
+    "Editor-Version" to GitHubCopilotProxyIds.EDITOR_VERSION,
+    "Editor-Plugin-Version" to GitHubCopilotProxyIds.EDITOR_PLUGIN_VERSION,
+    "X-GitHub-Api-Version" to GitHubCopilotProxyIds.API_VERSION,
+    "Openai-Intent" to "conversation-edits",
+    "x-initiator" to "user",
+)
+
+internal fun fetchGitHubListedModels(base: java.net.URI, token: String, httpClient: HttpClient = HttpClient.newHttpClient()): List<GitHubListedModel> {
+    val request = HttpRequest.newBuilder(java.net.URI.create(UrlResolver.resolveTargetUrl("/models", base.toString())))
+        .timeout(Duration.ofSeconds(30))
+        .GET()
+    githubCopilotHeaders(token).forEach { (name, value) -> request.header(name, value) }
+    val response = httpClient.send(request.build(), HttpResponse.BodyHandlers.ofString())
+    if (response.statusCode() !in 200..299) return emptyList()
+    return parseGitHubListedModels(response.body())
+}
+
+private fun mediaTypes(capabilities: JsonObject?): List<String> {
+    val vision = capabilities?.jsonObject("limits")?.jsonObject("vision") ?: return emptyList()
+    val types = vision["supported_media_types"] as? JsonArray ?: return emptyList()
+    return types.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
 }
 
 internal fun routeForStorageValue(value: String?): SubscriptionProxyRoute? {
