@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- GitHub Copilot and OpenCode can convert a local PDF when signed in. The model list uses live PDF support when the provider reports it, and every discovered model when it does not. Azure document conversion can also use any other deployment as native PDF; those are not auto-selected.
+- Settings document rows have a Test document button. It builds a one-page PDF with PDFBox and converts it with the selected model.
 - Settings quota responses wrap to the panel width. Compact provider JSON is shown indented, so a long line no longer adds a horizontal scrollbar.
 - PDF-to-Markdown can use local Apache PDFBox text extraction from the MCP tool (`PDFBOX`) and the PDF right-click action. It needs no subscription. It does not OCR scans, rebuild tables, or export figures, and the dialog warns about that.
 - Mistral quota refresh no longer fails when the admin billing page returns HTTP 500. Monthly usage still comes from the console usage report.
