@@ -63,6 +63,7 @@ class DocumentModelChoicesTest {
                 assertTrue(fontName.contains("LiberationSans"), fontName)
                 val text = PDFTextStripper().getText(document)
                 assertEquals(2, text.split(HelloPdf.TEXT).size)
+                HelloPdf.TABLE.flatten().forEach { cell -> assertTrue(text.contains(cell), cell) }
                 val images = page.resources.xObjectNames.map { page.resources.getXObject(it) }
                 assertTrue(images.any { it is PDImageXObject })
             }
