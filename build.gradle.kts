@@ -69,6 +69,8 @@ dependencies {
     }
     implementation(libs.batik.svggen) { exclude(group = "xml-apis", module = "xml-apis") }
     implementation(libs.batik.dom) { exclude(group = "xml-apis", module = "xml-apis") }
+    implementation(libs.batik.transcoder) { exclude(group = "xml-apis", module = "xml-apis") }
+    implementation(libs.batik.codec) { exclude(group = "xml-apis", module = "xml-apis") }
     implementation(libs.jai.imageio.jpeg2000)
     implementation(libs.jbig2.imageio)
     implementation(libs.kotlinx.serialization.json) {
@@ -77,8 +79,6 @@ dependencies {
     }
 
     testImplementation(libs.kotlin.test.junit5)
-    testImplementation(libs.batik.transcoder) { exclude(group = "xml-apis", module = "xml-apis") }
-    testImplementation(libs.batik.codec) { exclude(group = "xml-apis", module = "xml-apis") }
     testRuntimeOnly(libs.junit4)
     testRuntimeOnly(libs.junit.platform.launcher)
 

@@ -351,6 +351,23 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
+    @McpTool(name = "subscription_svg_to_png")
+    @McpDescription(description = "Rasterizes a local SVG to PNG with Apache Batik. No subscription. Use this when a vision model cannot read an SVG figure exported beside a Markdown document. Width and height in the SVG are treated as PDF points. Output defaults to <name>.png beside the SVG.")
+    suspend fun subscription_svg_to_png(
+        @McpDescription(description = "Project-relative or absolute local SVG path.") localFile: String,
+        @McpDescription(description = "Optional PNG output path. Defaults to <localFile>.png beside the SVG.") outputFile: String? = null,
+        @McpDescription(description = "Raster resolution, 72-600. Default 300. SVG user units are PDF points, so pixels are points × dpi / 72.") dpi: Int = 300,
+    ): String {
+        val source = resolveOptionalPath(localFile) ?: return errorResult("Pass a local SVG path in localFile.")
+        return try {
+            de.moritzf.quota.shared.SvgRasterizer.toPng(source, resolveOptionalPath(outputFile), dpi)
+        } catch (exception: kotlinx.coroutines.CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
+            errorResult(exception.message ?: "SVG rasterization failed.")
+        }
+    }
+
     @McpTool(name = "subscription_speech_to_text")
     @McpDescription(description = "Transcribes audio with a subscription-backed provider. Pass a public audioUrl or a localFile path. Returns the provider transcription JSON.")
     suspend fun subscription_speech_to_text(
