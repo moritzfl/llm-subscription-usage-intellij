@@ -307,7 +307,7 @@ internal fun mistralBarDisplayText(quota: MistralQuota?, error: String?): String
     val usage = mistralDisplayWindow(quota)
         ?: return quota.apiUsage?.let(::mistralApiUsageBarText) ?: "no data"
     val percent = clampPercent(usage.usagePercent.roundToInt())
-    if (percent == 0) {
+    if (percent == 0 && quota.includedApiUsage == null) {
         quota.apiUsage?.takeIf { it.hasAnyUsage() }?.let { return mistralApiUsageBarText(it) }
     }
     val reset = if (isMistralPerMinuteWindow(usage)) null else QuotaUiUtil.formatResetCompact(usage.resetsAt)
@@ -315,7 +315,7 @@ internal fun mistralBarDisplayText(quota: MistralQuota?, error: String?): String
     return if (reset != null) "$text • $reset" else text
 }
 
-/** Pay-per-use API accounts have no percentage; the spend is the meaningful number. */
+/** Fallback when the subscription allowance is unavailable. */
 internal fun mistralApiUsageBarText(usage: de.moritzf.quota.mistral.MistralApiUsage): String {
     val spend = usage.spendEur
     if (spend != null) return String.format(java.util.Locale.ROOT, "€%.2f", spend)
@@ -328,8 +328,7 @@ internal fun isMistralPerMinuteWindow(window: de.moritzf.quota.mistral.MistralUs
 }
 
 internal fun mistralDisplayWindow(quota: MistralQuota): de.moritzf.quota.mistral.MistralUsageWindow? {
-    return quota.monthlyUsage
-        ?: listOfNotNull(quota.tokenUsage, quota.requestUsage).maxByOrNull { it.usagePercent }
+    return quota.displayWindow()
 }
 
 internal fun kimiBarDisplayText(quota: KimiQuota?, error: String?): String {

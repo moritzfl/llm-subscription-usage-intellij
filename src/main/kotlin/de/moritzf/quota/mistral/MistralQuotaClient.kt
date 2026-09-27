@@ -30,11 +30,11 @@ open class MistralQuotaClient(
     open fun fetchQuota(cookieHeader: String, apiKey: String? = null): MistralQuota {
         val session = parseSessionCookies(cookieHeader)
         val now = clock()
-        val month = YearMonth.now(ZoneOffset.UTC)
+        val month = YearMonth.from(java.time.Instant.ofEpochMilli(now.toEpochMilliseconds()).atZone(ZoneOffset.UTC))
         val billingUrl = URI.create(
             "https://admin.mistral.ai/api/billing/v2/usage?month=${month.monthValue}&year=${month.year}",
         )
-        // admin billing currently returns HTTP 500 for a valid session. Console vibe usage still works.
+        // Each source can be temporarily unavailable; preserve the other usable readings.
         val billingAttempt = runCatching {
             getAdminJson(
                 url = billingUrl,
@@ -61,8 +61,22 @@ open class MistralQuotaClient(
             }.getOrNull()
         }
         val vibe = vibeBody?.let(::parseVibeUsage)
-        if (billingError != null && vibe == null) throw billingError
-        val monthly = monthlyWindow(vibe, billing)
+        val subscriptionAttempt = runCatching {
+            val html = getAdminJson(
+                url = SUBSCRIPTION_URI,
+                cookieHeader = session.cookieHeader,
+                csrfToken = session.csrfToken,
+                origin = "https://admin.mistral.ai",
+                referer = SUBSCRIPTION_URI.toString(),
+                accept = "text/html",
+            )
+            MistralSubscriptionBudgets.parse(html)
+                ?: throw MistralQuotaException("Included usage allowances were not found on the Mistral subscription page.")
+        }
+        val budgets = subscriptionAttempt.getOrNull()
+        val includedApi = MistralSubscriptionBudgets.window(budgets?.get("api_budget"))
+        val monthly = MistralSubscriptionBudgets.window(budgets?.get("vibe_budget")) ?: monthlyWindow(vibe, billing)
+        if (billingError != null && monthly == null && includedApi == null) throw billingError
         val apiUsage = billingBody?.let { body -> runCatching { parseApiUsage(body) }.getOrNull() }
         val identityBody = apiKey?.takeIf { it.isNotBlank() }?.let { key ->
             runCatching { getJson(key, IDENTITY_URI) }.getOrNull()
@@ -79,6 +93,7 @@ open class MistralQuotaClient(
             workspace = identity?.workspace?.name.orEmpty(),
             apiKeyName = identity?.apiKey?.name.orEmpty(),
             monthlyUsage = monthly,
+            includedApiUsage = includedApi,
             tokenUsage = tokenUsage,
             requestUsage = requestUsage,
             apiUsage = apiUsage,
@@ -90,6 +105,8 @@ open class MistralQuotaClient(
             identityBody,
             probe?.let(::rateLimitHeaders),
             billingError?.message,
+            budgets,
+            subscriptionAttempt.exceptionOrNull()?.message,
         )
         return quota
     }
@@ -121,11 +138,12 @@ open class MistralQuotaClient(
         origin: String,
         referer: String,
         csrfHeaderName: String = "X-CSRFTOKEN",
+        accept: String = "*/*",
     ): String {
         val builder = HttpRequest.newBuilder()
             .uri(url)
             .timeout(Duration.ofSeconds(30))
-            .header("Accept", "*/*")
+            .header("Accept", accept)
             .header("Cookie", cookieHeader)
             .header("Origin", origin)
             .header("Referer", referer)
@@ -180,6 +198,7 @@ open class MistralQuotaClient(
     companion object {
         private val IDENTITY_URI: URI = URI.create("https://api.mistral.ai/v1/users/me")
         private val CHAT_URI: URI = URI.create("https://api.mistral.ai/v1/chat/completions")
+        private val SUBSCRIPTION_URI: URI = URI.create("https://admin.mistral.ai/subscription")
         private val VIBE_USAGE_URI: URI = URI.create(
             "https://console.mistral.ai/api-ui/trpc/billing.vibeUsage?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D",
         )
@@ -199,11 +218,15 @@ open class MistralQuotaClient(
             identityBody: String?,
             rateLimits: Map<String, String>?,
             billingError: String? = null,
+            subscriptionBudgets: JsonObject? = null,
+            subscriptionError: String? = null,
         ): String {
             val session = buildJsonObject {
                 jsonOrRaw(billingBody)?.let { put("billing", it) }
                 jsonOrRaw(vibeBody)?.let { put("vibe", it) }
                 billingError?.takeIf { it.isNotBlank() }?.let { put("billing_error", it) }
+                subscriptionBudgets?.let { put("subscription", it) }
+                subscriptionError?.takeIf { it.isNotBlank() }?.let { put("subscription_error", it) }
             }
             val apiKey = buildJsonObject {
                 jsonOrRaw(identityBody)?.let { put("identity", it) }

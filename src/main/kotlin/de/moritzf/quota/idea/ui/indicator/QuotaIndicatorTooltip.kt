@@ -140,12 +140,13 @@ private fun indicatorTooltipUsage(quota: ProviderQuota?): IndicatorTooltipUsage 
         is MistralQuota -> {
             val window = mistralDisplayWindow(quota)
             val apiUsage = quota.apiUsage?.takeIf { it.hasAnyUsage() }
-            if (apiUsage != null && (window == null || clampPercent(window.usagePercent.roundToInt()) == 0)) {
+            if (quota.includedApiUsage == null && apiUsage != null && (window == null || clampPercent(window.usagePercent.roundToInt()) == 0)) {
                 return IndicatorTooltipUsage(null, null, "API usage")
             }
             val resolved = window ?: return IndicatorTooltipUsage(null, null)
             val kind = when {
-                resolved === quota.monthlyUsage -> "Monthly"
+                resolved === quota.includedApiUsage -> "Included API usage"
+                resolved === quota.monthlyUsage -> "Vibe Code"
                 resolved === quota.tokenUsage -> "Tokens / min"
                 resolved === quota.requestUsage -> "Requests / min"
                 else -> null

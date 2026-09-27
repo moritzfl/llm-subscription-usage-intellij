@@ -13,23 +13,27 @@ data class MistralQuota(
     val workspace: String = "",
     val apiKeyName: String = "",
     val monthlyUsage: MistralUsageWindow? = null,
+    val includedApiUsage: MistralUsageWindow? = null,
     val tokenUsage: MistralUsageWindow? = null,
     val requestUsage: MistralUsageWindow? = null,
-    /** La Plateforme pay-per-use API billing of the current month. Not the Vibe subscription. */
+    /** API activity for the current month, including usage covered by the subscription allowance. */
     val apiUsage: MistralApiUsage? = null,
     override var fetchedAt: Instant? = null,
     @Transient override var rawJson: String? = null,
 ) : ProviderQuota {
     override fun hasUsageState(): Boolean =
-        monthlyUsage != null || organization.isNotBlank() || email.isNotBlank() ||
+        monthlyUsage != null || includedApiUsage != null || organization.isNotBlank() || email.isNotBlank() ||
             tokenUsage != null || requestUsage != null || apiUsage != null
 
-    override fun usageFraction(): Double? =
-        monthlyUsage?.usagePercent?.let { it / 100.0 }
-            ?: listOfNotNull(tokenUsage?.usagePercent, requestUsage?.usagePercent).maxOrNull()?.let { it / 100.0 }
+    fun displayWindow(): MistralUsageWindow? =
+        listOfNotNull(includedApiUsage, monthlyUsage).maxByOrNull { it.usagePercent }
+            ?: listOfNotNull(tokenUsage, requestUsage).maxByOrNull { it.usagePercent }
+
+    override fun usageFraction(): Double? = displayWindow()?.usagePercent?.let { it / 100.0 }
 
     override fun activityWindows(): Map<String, Double> = buildMap {
         monthlyUsage?.usagePercent?.let { put("monthly", it / 100.0) }
+        includedApiUsage?.usagePercent?.let { put("includedApi", it / 100.0) }
         tokenUsage?.usagePercent?.let { put("tokensMinute", it / 100.0) }
         requestUsage?.usagePercent?.let { put("requestsMinute", it / 100.0) }
     }
@@ -60,6 +64,9 @@ data class MistralUsageWindow(
     val usagePercent: Double = 0.0,
     val resetsAt: Instant? = null,
     val periodDurationMs: Long? = null,
+    val usedAmount: Double? = null,
+    val limitAmount: Double? = null,
+    val currency: String? = null,
 ) {
     @Transient
     val periodDuration: Duration? = periodDurationMs?.let(Duration::ofMillis)

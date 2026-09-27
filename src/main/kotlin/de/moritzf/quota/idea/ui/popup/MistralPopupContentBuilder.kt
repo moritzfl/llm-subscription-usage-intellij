@@ -17,6 +17,7 @@ internal class MistralPopupSection : ProviderPopupSection() {
     private val errorLabel = createWarningLabel("").apply { border = JBUI.Borders.emptyTop(1) }
     private val titleLabel = createSectionTitleLabel(MISTRAL_LABEL, QuotaIcons.MISTRAL).apply { border = JBUI.Borders.emptyTop(0) }
     private val monthlyBlock = WindowBlockPanel(3)
+    private val includedApiBlock = WindowBlockPanel(3)
     private val tokenBlock = WindowBlockPanel(3)
     private val requestBlock = WindowBlockPanel(3)
     private val apiUsageBlock = WindowBlockPanel(3)
@@ -26,6 +27,7 @@ internal class MistralPopupSection : ProviderPopupSection() {
         add(separator)
         add(errorLabel)
         add(titleLabel)
+        add(includedApiBlock)
         add(monthlyBlock)
         add(tokenBlock)
         add(requestBlock)
@@ -51,13 +53,15 @@ internal class MistralPopupSection : ProviderPopupSection() {
                 hideAll()
                 titleLabel.isVisible = true
                 titleLabel.text = sectionTitle(MISTRAL_LABEL)
-                monthlyBlock.showLoading("Monthly")
+                includedApiBlock.showLoading("Included API usage")
+                monthlyBlock.showLoading("Included Vibe Code usage")
                 tokenBlock.showLoading("Tokens / min")
                 requestBlock.showLoading("Requests / min")
                 apiUsageBlock.showLoading("API usage")
             }
             else -> {
                 val limitReached = (quota.monthlyUsage?.usagePercent ?: 0.0) >= 100.0 ||
+                    (quota.includedApiUsage?.usagePercent ?: 0.0) >= 100.0 ||
                     (quota.tokenUsage?.usagePercent ?: 0.0) >= 100.0 ||
                     (quota.requestUsage?.usagePercent ?: 0.0) >= 100.0
                 errorLabel.isVisible = limitReached
@@ -66,7 +70,8 @@ internal class MistralPopupSection : ProviderPopupSection() {
                 }
                 titleLabel.isVisible = true
                 titleLabel.text = sectionTitle(MISTRAL_LABEL)
-                quota.monthlyUsage?.let { monthlyBlock.updateMistral(it, "Monthly") } ?: monthlyBlock.clear()
+                quota.includedApiUsage?.let { includedApiBlock.updateMistral(it, "Included API usage") } ?: includedApiBlock.clear()
+                quota.monthlyUsage?.let { monthlyBlock.updateMistral(it, "Included Vibe Code usage") } ?: monthlyBlock.clear()
                 quota.tokenUsage?.let { tokenBlock.updateMistral(it, "Tokens / min") } ?: tokenBlock.clear()
                 quota.requestUsage?.let { requestBlock.updateMistral(it, "Requests / min") } ?: requestBlock.clear()
                 quota.apiUsage?.let {
@@ -84,6 +89,7 @@ internal class MistralPopupSection : ProviderPopupSection() {
     private fun hideContent() {
         titleLabel.isVisible = false
         monthlyBlock.isVisible = false
+        includedApiBlock.isVisible = false
         tokenBlock.isVisible = false
         requestBlock.isVisible = false
         apiUsageBlock.isVisible = false
@@ -93,11 +99,17 @@ internal class MistralPopupSection : ProviderPopupSection() {
         val percent = clampPercent(window.usagePercent.roundToInt())
         val resetText = if (isMistralPerMinuteWindow(window)) null else QuotaUiUtil.formatReset(window.resetsAt)
         var info = "$percent% used"
+        if (window.usedAmount != null && window.limitAmount != null && window.currency != null) {
+            val money = java.text.NumberFormat.getCurrencyInstance(java.util.Locale.getDefault()).apply {
+                currency = java.util.Currency.getInstance(window.currency)
+            }
+            info += " • ${money.format(window.usedAmount)} / ${money.format(window.limitAmount)}"
+        }
         if (resetText != null) info += " - $resetText"
         update(label, info, percent)
     }
 
-    /** La Plateforme billing has no limit, so this block shows totals instead of a percentage bar. */
+    /** Activity totals complement the separate included-allowance bars. */
     private fun apiUsageInfo(usage: de.moritzf.quota.mistral.MistralApiUsage): String {
         val parts = mutableListOf<String>()
         usage.spendEur?.let { parts += String.format(java.util.Locale.ROOT, "€%.2f", it) }
