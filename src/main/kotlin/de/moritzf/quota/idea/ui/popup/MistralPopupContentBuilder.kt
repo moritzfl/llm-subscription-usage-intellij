@@ -102,7 +102,6 @@ internal class MistralPopupSection : ProviderPopupSection() {
         usage.spendEur?.let { parts += String.format(java.util.Locale.ROOT, "€%.2f", it) }
         if (usage.tokens > 0) parts += "${QuotaUiUtil.formatCompactCount(usage.tokens)} tokens"
         if (usage.ocrPages > 0) parts += "${QuotaUiUtil.formatCompactCount(usage.ocrPages)} OCR pages"
-        if (usage.connectorCalls > 0) parts += "${usage.connectorCalls} calls"
         if (usage.audioSeconds > 0) parts += "${QuotaUiUtil.formatCompactCount(usage.audioSeconds)} audio sec"
         if (parts.isEmpty()) parts += if (usage.hasAnyUsage()) "API usage recorded" else "No API usage this month"
         return parts.joinToString(" • ")
