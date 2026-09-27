@@ -15,8 +15,11 @@ import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.ollama.OllamaQuotaClient
 import de.moritzf.quota.ollama.OllamaResetSchedule
+import de.moritzf.quota.ollama.proxy.OllamaSubscriptionProxyProvider
+import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.shared.JsonSupport
 import java.awt.Color
+import java.net.URI
 import java.awt.event.FocusAdapter
 import java.awt.event.FocusEvent
 import java.util.concurrent.atomic.AtomicLong
@@ -43,8 +46,10 @@ internal class OllamaSettingsPanel(
         toolTipText = "Ollama API key from ollama.com/settings/keys"
     }
     private val ollamaStatusLabel = JBLabel().apply { isVisible = false }
+    private val visionModelCombo = VisionModelCombo()
     private val ollamaJsonViewer = createResponseViewer()
     private val validationGeneration = AtomicLong(0)
+    private var modelRefreshGeneration = 0
 
     init {
         val ollamaConfigPanel = panel {
@@ -68,6 +73,11 @@ internal class OllamaSettingsPanel(
                             "The Monthly usage Resets data-time is kept; other timestamps are ignored. " +
                             "Used only on monthly credit plans. Same day and clock each calendar month.",
                     )
+            }
+            row("Vision model:") {
+                cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
+                    .comment("Ollama Cloud chat models with image input, for example qwen2.5vl. Used by subscription_vision; '-' keeps vision off.")
+                cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.OLLAMA, { visionModelCombo.selected().orEmpty() }, modalityComponentProvider))
             }
             row {
                 button("Save API Key") {
@@ -107,7 +117,37 @@ internal class OllamaSettingsPanel(
         val apiKey = apiKeyStore.load(onLoaded = { if (accountKey(QuotaProviderType.OLLAMA) == id) refreshAfterCredentialLoad() })
         apiKeyField.text = if (apiKey.isNullOrBlank()) "" else API_KEY_PLACEHOLDER
         monthlyResetField.text = boundAccount?.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET).orEmpty()
+        showVisionModels(emptyList())
         updateStatus()
+        refreshVisionModels()
+    }
+
+    fun visionModelForStorage(): String? = visionModelCombo.storedValue()
+
+    fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
+
+    private fun showVisionModels(discovered: List<String>, selection: String? = boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL)) {
+        visionModelCombo.show(selection, (discovered + listOfNotNull(selection)).distinct())
+    }
+
+    private fun refreshVisionModels() {
+        val accountId = accountKey(QuotaProviderType.OLLAMA)
+        val generation = ++modelRefreshGeneration
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val key = OllamaApiKeyStore.forAccount(accountId).loadBlocking()
+            val discovered = if (key.isNullOrBlank()) {
+                emptyList()
+            } else {
+                DocumentModels.fetchModelIds(
+                    URI.create("${OllamaSubscriptionProxyProvider.DEFAULT_UPSTREAM_BASE_URI}/models"),
+                    key,
+                )
+            }
+            ApplicationManager.getApplication().invokeLater({
+                if (generation != modelRefreshGeneration || accountKey(QuotaProviderType.OLLAMA) != accountId) return@invokeLater
+                showVisionModels(discovered, visionModelCombo.selected() ?: boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL))
+            }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
+        }
     }
 
     override fun updateStatus() {

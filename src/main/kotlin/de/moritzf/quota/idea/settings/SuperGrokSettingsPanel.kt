@@ -34,6 +34,7 @@ internal class SuperGrokSettingsPanel(
     private val statusLabelDefaultForeground: Color? = null,
 ) : ProviderSettingsPanel() {
     private val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
+    private val visionModelCombo = VisionModelCombo()
     private val statusLabel = JBLabel().apply { isVisible = false }
     private var modelRefreshGeneration = 0
     private val loginButton = createActionLink("Log In with xAI/Grok")
@@ -127,6 +128,11 @@ internal class SuperGrokSettingsPanel(
                 cell(documentModelCombo.warning).align(AlignY.TOP)
                 cell(DocumentTestButton(de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.SUPERGROK, { documentModelCombo.selected().orEmpty() }, modalityComponentProvider))
             }
+            row("Vision model:") {
+                cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
+                    .comment("Used by subscription_vision. '-' keeps vision off.")
+                cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.SUPERGROK, { visionModelCombo.selected().orEmpty() }, modalityComponentProvider))
+            }
         }
 
         install(configPanel, createResponseSection(jsonViewer))
@@ -135,6 +141,7 @@ internal class SuperGrokSettingsPanel(
     override fun updateFields() {
         rememberAccount()
         showDocumentModels(emptyList())
+        showVisionModels(emptyList())
         updateAuthUi()
         updateResponseArea()
         refreshDocumentModels()
@@ -144,8 +151,16 @@ internal class SuperGrokSettingsPanel(
 
     fun documentModelDiffers(saved: String?): Boolean = documentModelCombo.differs(saved)
 
+    fun visionModelForStorage(): String? = visionModelCombo.storedValue()
+
+    fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
+
     private fun showDocumentModels(discovered: List<String>, selection: String? = boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)) {
         documentModelCombo.show(selection, DocumentModels.superGrokChoices(discovered, selection))
+    }
+
+    private fun showVisionModels(discovered: List<String>, selection: String? = boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL)) {
+        visionModelCombo.show(selection, DocumentModels.superGrokChoices(discovered, selection))
     }
 
     private fun refreshDocumentModels() {
@@ -157,6 +172,7 @@ internal class SuperGrokSettingsPanel(
             ApplicationManager.getApplication().invokeLater({
                 if (generation != modelRefreshGeneration || accountId() != accountId) return@invokeLater
                 showDocumentModels(discovered, documentModelCombo.selected() ?: boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
+                showVisionModels(discovered, visionModelCombo.selected() ?: boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL))
             }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
         }
     }

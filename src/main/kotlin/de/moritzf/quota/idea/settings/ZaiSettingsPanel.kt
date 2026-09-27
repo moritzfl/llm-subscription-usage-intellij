@@ -28,6 +28,7 @@ internal class ZaiSettingsPanel(
     private val statusLabelDefaultForeground: Color? = null,
 ) : ProviderSettingsPanel() {
     private val documentModelCombo = DocumentModelCombo(ZaiOcrClient.DEFAULT_MODEL, vision = false)
+    private val visionModelCombo = VisionModelCombo()
     private var modelRefreshGeneration = 0
     private val apiKeyField = JBPasswordField().apply {
         columns = 40
@@ -53,6 +54,11 @@ internal class ZaiSettingsPanel(
                     .comment("- turns conversion off.")
                 cell(DocumentTestButton(de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.ZAI, { documentModelCombo.selected().orEmpty() }, modalityComponentProvider))
             }
+            row("Vision model:") {
+                cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
+                    .comment("GLM vision chat models. Used by subscription_vision; '-' keeps vision off.")
+                cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.ZAI, { visionModelCombo.selected().orEmpty() }, modalityComponentProvider))
+            }
             row {
                 button("Save") {
                     val apiKey = String(apiKeyField.password)
@@ -76,6 +82,7 @@ internal class ZaiSettingsPanel(
         val apiKey = ZaiApiKeyStore.forAccount(accountKey(QuotaProviderType.ZAI)).load(onLoaded = ::refreshAfterApiKeyLoad)
         apiKeyField.text = if (apiKey.isNullOrBlank()) "" else API_KEY_PLACEHOLDER
         showDocumentModels(emptyList())
+        showVisionModels(emptyList())
         updateStatus()
         refreshDocumentModels()
     }
@@ -84,11 +91,19 @@ internal class ZaiSettingsPanel(
 
     fun documentModelDiffers(saved: String?): Boolean = documentModelCombo.differs(saved)
 
+    fun visionModelForStorage(): String? = visionModelCombo.storedValue()
+
+    fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
+
     private fun showDocumentModels(discovered: List<String>, selection: String? = boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)) {
         documentModelCombo.show(
             selection,
             DocumentModels.prefixedChoices(discovered, selection, ZaiOcrClient.DEFAULT_MODEL, DocumentModels::isZaiOcrModel),
         )
+    }
+
+    private fun showVisionModels(discovered: List<String>, selection: String? = boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL)) {
+        visionModelCombo.show(selection, discovered)
     }
 
     private fun refreshDocumentModels() {
@@ -104,6 +119,7 @@ internal class ZaiSettingsPanel(
             ApplicationManager.getApplication().invokeLater({
                 if (generation != modelRefreshGeneration || accountKey(QuotaProviderType.ZAI) != accountId) return@invokeLater
                 showDocumentModels(discovered, documentModelCombo.selected() ?: boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
+                showVisionModels(discovered, visionModelCombo.selected() ?: boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL))
             }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
         }
     }

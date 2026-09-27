@@ -14,17 +14,29 @@ import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.kimi.KimiAuthService
 import de.moritzf.quota.idea.kimi.KimiCredentialsStore
 import de.moritzf.quota.idea.ui.QuotaUiUtil
+import de.moritzf.quota.shared.JsonSupport
 import java.awt.Color
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.time.Duration
 import javax.swing.JButton
 import javax.swing.JComponent
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 internal class KimiSettingsPanel(
     private val modalityComponentProvider: () -> JComponent?,
     private val statusLabelDefaultForeground: Color? = null,
 ) : ProviderSettingsPanel() {
     private val statusLabel = JBLabel().apply { isVisible = false }
+    private val visionModelCombo = VisionModelCombo()
+    private var modelRefreshGeneration = 0
     private val loginButton = createActionLink("Log In")
     private val cancelLoginButton = createActionLink("Cancel Login")
     private val logoutButton = createActionLink("Log Out")
@@ -110,13 +122,43 @@ internal class KimiSettingsPanel(
                 cell(cancelLoginButton).gap(RightGap.SMALL)
                 cell(logoutButton)
             }
+            row("Vision model:") {
+                cell(visionModelCombo.combo).align(com.intellij.ui.dsl.builder.AlignX.FILL).resizableColumn()
+                    .comment("Kimi coding models with image input. Used by subscription_vision; '-' keeps vision off.")
+                cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.KIMI, { visionModelCombo.selected().orEmpty() }, modalityComponentProvider))
+            }
         }, createResponseSection(responseViewer))
     }
 
     override fun updateFields() {
         rememberAccount()
         KimiCredentialsStore.forAccount(accountKey(QuotaProviderType.KIMI)).load(onLoaded = ::refreshAfterCredentialsLoad)
+        showVisionModels(emptyList())
         updateStatus()
+        refreshVisionModels()
+    }
+
+    fun visionModelForStorage(): String? = visionModelCombo.storedValue()
+
+    fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
+
+    private fun showVisionModels(discovered: List<String>, selection: String? = boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL)) {
+        visionModelCombo.show(selection, (discovered + listOfNotNull(selection)).distinct())
+    }
+
+    private fun refreshVisionModels() {
+        val accountId = accountKey(QuotaProviderType.KIMI)
+        val generation = ++modelRefreshGeneration
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val token = KimiCredentialsStore.forAccount(accountId).loadBlocking()?.accessToken
+            val discovered = if (token.isNullOrBlank()) emptyList() else runCatching {
+                fetchKimiVisionModelIds(token)
+            }.getOrDefault(emptyList())
+            ApplicationManager.getApplication().invokeLater({
+                if (generation != modelRefreshGeneration || accountKey(QuotaProviderType.KIMI) != accountId) return@invokeLater
+                showVisionModels(discovered, visionModelCombo.selected() ?: boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL))
+            }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
+        }
     }
 
     override fun updateStatus() {
@@ -196,4 +238,29 @@ internal class KimiSettingsPanel(
         }
         return "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
     }
+}
+
+private fun fetchKimiVisionModelIds(token: String): List<String> {
+    val request = HttpRequest.newBuilder(URI.create("https://api.kimi.com/coding/v1/models"))
+        .timeout(Duration.ofSeconds(30))
+        .header("Authorization", "Bearer $token")
+        .header("Accept", "application/json")
+        .header("User-Agent", "KimiCLI/1.40.0")
+        .GET()
+        .build()
+    val response = runCatching {
+        HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build()
+            .send(request, HttpResponse.BodyHandlers.ofString())
+    }.getOrNull() ?: return emptyList()
+    if (response.statusCode() !in 200..299) return emptyList()
+    val root = runCatching {
+        JsonSupport.json.parseToJsonElement(response.body()) as? JsonObject
+    }.getOrNull() ?: return emptyList()
+    val data = root["data"] as? JsonArray ?: return emptyList()
+    return data.mapNotNull { element ->
+        val item = element as? JsonObject ?: return@mapNotNull null
+        val vision = (item["supports_image_in"] as? JsonPrimitive)?.contentOrNull?.toBooleanStrictOrNull() == true
+        if (!vision) return@mapNotNull null
+        (item["id"] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+    }.distinct()
 }

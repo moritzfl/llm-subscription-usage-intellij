@@ -37,6 +37,7 @@ internal class OpenAiSettingsPanel(
         toolTipText = "Copy login URL to clipboard"
     }
     private val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
+    private val visionModelCombo = VisionModelCombo()
     private val accountIdField = JBTextField().apply { isEditable = false }
     private val emailField = JBTextField().apply { isEditable = false }
     private val codexResponseViewer = createResponseViewer()
@@ -143,6 +144,11 @@ internal class OpenAiSettingsPanel(
                 cell(documentModelCombo.warning).align(AlignY.TOP)
                 cell(DocumentTestButton(de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.OPEN_AI, { documentModelCombo.selected().orEmpty() }, modalityComponentProvider))
             }
+            row("Vision model:") {
+                cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
+                    .comment("Used by subscription_vision. '-' keeps vision off.")
+                cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.OPEN_AI, { visionModelCombo.selected().orEmpty() }, modalityComponentProvider))
+            }
         }
 
         install(usageTrackingConfigPanel, createResponseSection(codexResponseViewer))
@@ -154,6 +160,10 @@ internal class OpenAiSettingsPanel(
             boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL),
             DocumentModels.openAiVisionModels(OpenAiProxyServer.advertisedModels()),
         )
+        visionModelCombo.show(
+            boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL),
+            DocumentModels.openAiVisionModels(OpenAiProxyServer.advertisedModels()),
+        )
         updateAuthUi()
         updateAccountFields()
     }
@@ -161,6 +171,10 @@ internal class OpenAiSettingsPanel(
     fun documentModelForStorage(): String? = documentModelCombo.storedValue()
 
     fun documentModelDiffers(saved: String?): Boolean = documentModelCombo.differs(saved)
+
+    fun visionModelForStorage(): String? = visionModelCombo.storedValue()
+
+    fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
 
     override fun updateStatus() {
         updateAuthUi()

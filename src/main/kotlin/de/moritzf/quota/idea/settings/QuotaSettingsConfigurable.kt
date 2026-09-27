@@ -788,6 +788,7 @@ class QuotaSettingsConfigurable : Configurable {
                     gitHubPanel().normalizedEnterpriseHostForStorage().ifEmpty { null },
                 )
                 account.setExtra(ProviderAccount.EXTRA_DOCUMENT_MODEL, gitHubPanel().documentModelForStorage())
+                account.setExtra(ProviderAccount.EXTRA_VISION_MODEL, gitHubPanel().visionModelForStorage())
             }
             QuotaProviderType.MINIMAX ->
                 (miniMaxPanel().regionComboBox.selectedItem as? MiniMaxRegionPreference)?.let {
@@ -796,20 +797,33 @@ class QuotaSettingsConfigurable : Configurable {
             QuotaProviderType.OPEN_CODE -> {
                 account.setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, openCodePanel().selectedWorkspaceId())
                 account.setExtra(ProviderAccount.EXTRA_DOCUMENT_MODEL, openCodePanel().documentModelForStorage())
+                account.setExtra(ProviderAccount.EXTRA_VISION_MODEL, openCodePanel().visionModelForStorage())
             }
-            QuotaProviderType.OLLAMA ->
+            QuotaProviderType.OLLAMA -> {
                 account.setExtra(
                     ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET,
                     ollamaPanel().normalizedMonthlyResetForStorage(),
                 )
-            QuotaProviderType.MISTRAL ->
+                account.setExtra(ProviderAccount.EXTRA_VISION_MODEL, ollamaPanel().visionModelForStorage())
+            }
+            QuotaProviderType.MISTRAL -> {
                 account.setExtra(ProviderAccount.EXTRA_DOCUMENT_MODEL, mistralPanel().documentModelForStorage())
-            QuotaProviderType.ZAI ->
+                account.setExtra(ProviderAccount.EXTRA_VISION_MODEL, mistralPanel().visionModelForStorage())
+            }
+            QuotaProviderType.ZAI -> {
                 account.setExtra(ProviderAccount.EXTRA_DOCUMENT_MODEL, zaiPanel().documentModelForStorage())
-            QuotaProviderType.OPEN_AI ->
+                account.setExtra(ProviderAccount.EXTRA_VISION_MODEL, zaiPanel().visionModelForStorage())
+            }
+            QuotaProviderType.OPEN_AI -> {
                 account.setExtra(ProviderAccount.EXTRA_DOCUMENT_MODEL, openAiPanel().documentModelForStorage())
-            QuotaProviderType.SUPERGROK ->
+                account.setExtra(ProviderAccount.EXTRA_VISION_MODEL, openAiPanel().visionModelForStorage())
+            }
+            QuotaProviderType.SUPERGROK -> {
                 account.setExtra(ProviderAccount.EXTRA_DOCUMENT_MODEL, superGrokPanel().documentModelForStorage())
+                account.setExtra(ProviderAccount.EXTRA_VISION_MODEL, superGrokPanel().visionModelForStorage())
+            }
+            QuotaProviderType.KIMI ->
+                account.setExtra(ProviderAccount.EXTRA_VISION_MODEL, kimiPanel().visionModelForStorage())
             else -> Unit
         }
     }
@@ -825,23 +839,32 @@ class QuotaSettingsConfigurable : Configurable {
             QuotaProviderType.AZURE -> azurePanel().differsFrom(persisted ?: selected)
             QuotaProviderType.GITHUB ->
                 gitHubPanel().normalizedEnterpriseHostForStorage() != state.githubHostFor(selected.id) ||
-                    gitHubPanel().documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
+                    gitHubPanel().documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)) ||
+                    gitHubPanel().visionModelDiffers(persisted?.extra(ProviderAccount.EXTRA_VISION_MODEL))
             QuotaProviderType.MINIMAX ->
                 miniMaxPanel().regionComboBox.selectedItem as? MiniMaxRegionPreference != state.miniMaxRegionFor(selected.id)
             QuotaProviderType.OPEN_CODE ->
                 openCodePanel().selectedWorkspaceId() != state.openCodeWorkspaceIdFor(selected.id) ||
-                    openCodePanel().documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
+                    openCodePanel().documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)) ||
+                    openCodePanel().visionModelDiffers(persisted?.extra(ProviderAccount.EXTRA_VISION_MODEL))
             QuotaProviderType.OLLAMA ->
                 ollamaPanel().monthlyResetField.text.trim() !=
-                    (persisted?.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET) ?: selected.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET)).orEmpty()
+                    (persisted?.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET) ?: selected.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET)).orEmpty() ||
+                    ollamaPanel().visionModelDiffers(persisted?.extra(ProviderAccount.EXTRA_VISION_MODEL))
             QuotaProviderType.MISTRAL ->
-                mistralPanel().documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
+                mistralPanel().documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)) ||
+                    mistralPanel().visionModelDiffers(persisted?.extra(ProviderAccount.EXTRA_VISION_MODEL))
             QuotaProviderType.ZAI ->
-                zaiPanel().documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
+                zaiPanel().documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)) ||
+                    zaiPanel().visionModelDiffers(persisted?.extra(ProviderAccount.EXTRA_VISION_MODEL))
             QuotaProviderType.OPEN_AI ->
-                openAiPanel().documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
+                openAiPanel().documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)) ||
+                    openAiPanel().visionModelDiffers(persisted?.extra(ProviderAccount.EXTRA_VISION_MODEL))
             QuotaProviderType.SUPERGROK ->
-                superGrokPanel().documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
+                superGrokPanel().documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)) ||
+                    superGrokPanel().visionModelDiffers(persisted?.extra(ProviderAccount.EXTRA_VISION_MODEL))
+            QuotaProviderType.KIMI ->
+                kimiPanel().visionModelDiffers(persisted?.extra(ProviderAccount.EXTRA_VISION_MODEL))
             else -> false
         }
     }
@@ -873,6 +896,9 @@ class QuotaSettingsConfigurable : Configurable {
 
     private fun superGrokPanel(): SuperGrokSettingsPanel =
         providerPanelsByType.getValue(QuotaProviderType.SUPERGROK) as SuperGrokSettingsPanel
+
+    private fun kimiPanel(): KimiSettingsPanel =
+        providerPanelsByType.getValue(QuotaProviderType.KIMI) as KimiSettingsPanel
 
     private fun normalizeTargets(targets: List<McpServerSyncTarget>): List<McpServerSyncTarget> {
         return targets.map { it.normalized() }

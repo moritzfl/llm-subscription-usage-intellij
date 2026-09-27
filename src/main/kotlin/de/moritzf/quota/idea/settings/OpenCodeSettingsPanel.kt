@@ -42,9 +42,15 @@ internal class OpenCodeSettingsPanel(
     private val workspaceComboBox = ComboBox<OpenCodeWorkspace>()
     private val workspaceStatus = JBLabel()
     private val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
+    private val visionModelCombo = VisionModelCombo()
     private val testDocumentButton = DocumentTestButton(
         DocumentToMarkdownProvider.OPEN_CODE,
         { documentModelCombo.storedValue().orEmpty() },
+        modalityComponentProvider,
+    )
+    private val testVisionButton = VisionTestButton(
+        de.moritzf.quota.idea.mcp.VisionProvider.OPEN_CODE,
+        { visionModelCombo.storedValue().orEmpty() },
         modalityComponentProvider,
     )
     private val responseViewer = createResponseViewer()
@@ -141,11 +147,18 @@ internal class OpenCodeSettingsPanel(
                 cell(documentModelCombo.warning).align(com.intellij.ui.dsl.builder.AlignY.TOP)
                 cell(testDocumentButton)
             }
+            row("Vision model:") {
+                cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
+                    .comment("Models the console lists with image input. Used by subscription_vision; '-' keeps vision off.")
+                cell(testVisionButton)
+            }
         }, createResponseSection(responseViewer))
     }
 
     fun documentModelForStorage(): String? = documentModelCombo.storedValue()
     fun documentModelDiffers(saved: String?): Boolean = documentModelCombo.differs(saved)
+    fun visionModelForStorage(): String? = visionModelCombo.storedValue()
+    fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
 
     override fun updateFields() {
         val id = accountId()
@@ -177,19 +190,26 @@ internal class OpenCodeSettingsPanel(
         val generation = ++modelRefreshGeneration
         val id = accountId()
         val saved = boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)
+        val savedVision = boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL)
         ApplicationManager.getApplication().executeOnPooledThread {
-            val discovered = runCatching {
+            val models = runCatching {
                 val auth = auth()
                 val credentials = auth.credentials(id) ?: return@runCatching emptyList()
                 val token = credentials.accessToken ?: return@runCatching emptyList()
                 val organization = credentials.accountId ?: QuotaSettingsState.getInstance().openCodeWorkspaceIdFor(id)
                 val session = OpenCodeConsoleSession(id, token, organization) { auth.credentials(id, it)?.accessToken }
-                val models = OpenCodeConsoleProxy(HttpClient.newHttpClient(), RequestLogger(false, Path.of("logs"))).models(session)
-                de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel.documentModelIds(models)
+                OpenCodeConsoleProxy(HttpClient.newHttpClient(), RequestLogger(false, Path.of("logs"))).models(session)
             }.getOrDefault(emptyList())
             ApplicationManager.getApplication().invokeLater({
                 if (generation != modelRefreshGeneration) return@invokeLater
-                documentModelCombo.show(saved, (discovered + listOfNotNull(saved)).distinct())
+                documentModelCombo.show(
+                    saved,
+                    (de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel.documentModelIds(models) + listOfNotNull(saved)).distinct(),
+                )
+                visionModelCombo.show(
+                    savedVision,
+                    (de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel.visionModelIds(models) + listOfNotNull(savedVision)).distinct(),
+                )
             }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
         }
     }

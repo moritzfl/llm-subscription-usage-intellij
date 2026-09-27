@@ -43,6 +43,7 @@ internal class MistralSettingsPanel(
         toolTipText = "Mistral API key for MCP search, images, and OCR"
     }
     private val documentModelCombo = DocumentModelCombo(MistralOcrClient.DEFAULT_MODEL, vision = false)
+    private val visionModelCombo = VisionModelCombo()
     private var modelRefreshGeneration = 0
     private val statusLabel = JBLabel().apply { isVisible = false }
     private val responseViewer = createResponseViewer()
@@ -62,6 +63,11 @@ internal class MistralSettingsPanel(
                     .comment("- turns conversion off.")
                 cell(DocumentTestButton(de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.MISTRAL, { documentModelCombo.selected().orEmpty() }, modalityComponentProvider))
             }
+            row("Vision model:") {
+                cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
+                    .comment("Pixtral chat models. Used by subscription_vision; '-' keeps vision off.")
+                cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.MISTRAL, { visionModelCombo.selected().orEmpty() }, modalityComponentProvider))
+            }
             row {
                 button("Save") { saveNow() }
                 button("Clear") { clearNow() }
@@ -79,6 +85,7 @@ internal class MistralSettingsPanel(
         csrfField.text = if (stored?.csrfToken.isNullOrBlank()) "" else PLACEHOLDER
         apiKeyField.text = if (apiKey.isNullOrBlank()) "" else PLACEHOLDER
         showDocumentModels(emptyList())
+        showVisionModels(emptyList())
         updateStatus()
         refreshDocumentModels()
     }
@@ -88,6 +95,10 @@ internal class MistralSettingsPanel(
             selection,
             DocumentModels.prefixedChoices(discovered, selection, MistralOcrClient.DEFAULT_MODEL, DocumentModels::isMistralOcrModel),
         )
+    }
+
+    private fun showVisionModels(discovered: List<String>, selection: String? = boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL)) {
+        visionModelCombo.show(selection, discovered)
     }
 
     private fun refreshDocumentModels() {
@@ -103,6 +114,7 @@ internal class MistralSettingsPanel(
             ApplicationManager.getApplication().invokeLater({
                 if (generation != modelRefreshGeneration || accountKey(QuotaProviderType.MISTRAL) != accountId) return@invokeLater
                 showDocumentModels(discovered, documentModelCombo.selected() ?: boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
+                showVisionModels(discovered, visionModelCombo.selected() ?: boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL))
             }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
         }
     }
@@ -110,6 +122,10 @@ internal class MistralSettingsPanel(
     fun documentModelForStorage(): String? = documentModelCombo.storedValue()
 
     fun documentModelDiffers(saved: String?): Boolean = documentModelCombo.differs(saved)
+
+    fun visionModelForStorage(): String? = visionModelCombo.storedValue()
+
+    fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
 
     override fun updateStatus() {
         val cookieStore = MistralSessionCookieStore.forAccount(accountKey(QuotaProviderType.MISTRAL))

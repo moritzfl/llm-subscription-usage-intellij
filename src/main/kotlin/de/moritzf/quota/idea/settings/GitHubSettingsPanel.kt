@@ -22,6 +22,7 @@ import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.github.GitHubQuotaClient
 import de.moritzf.quota.github.proxy.fetchGitHubListedModels
 import de.moritzf.quota.github.proxy.githubDocumentModelIds
+import de.moritzf.quota.github.proxy.githubVisionModelIds
 import java.awt.Color
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
@@ -52,7 +53,9 @@ internal class GitHubSettingsPanel(
     }
     private val userCodeLabel = JBLabel().apply { isVisible = false }
     private val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
+    private val visionModelCombo = VisionModelCombo()
     private val testDocumentButton = DocumentTestButton(DocumentToMarkdownProvider.GITHUB, { documentModelCombo.storedValue().orEmpty() }, modalityComponentProvider)
+    private val testVisionButton = VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.GITHUB, { visionModelCombo.storedValue().orEmpty() }, modalityComponentProvider)
     private val responseViewer = createResponseViewer()
     private var modelRefreshGeneration = 0
     private var verificationUrl: String? = null
@@ -148,11 +151,18 @@ internal class GitHubSettingsPanel(
                 cell(documentModelCombo.warning).align(com.intellij.ui.dsl.builder.AlignY.TOP)
                 cell(testDocumentButton)
             }
+            row("Vision model:") {
+                cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
+                    .comment("Models Copilot flags as vision-capable. Used by subscription_vision; '-' keeps vision off.")
+                cell(testVisionButton)
+            }
         }, createResponseSection(responseViewer))
     }
 
     fun documentModelForStorage(): String? = documentModelCombo.storedValue()
     fun documentModelDiffers(saved: String?): Boolean = documentModelCombo.differs(saved)
+    fun visionModelForStorage(): String? = visionModelCombo.storedValue()
+    fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
 
     override fun updateFields() {
         rememberAccount()
@@ -169,15 +179,17 @@ internal class GitHubSettingsPanel(
         val generation = ++modelRefreshGeneration
         val accountId = accountKey(QuotaProviderType.GITHUB)
         val saved = boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)
+        val savedVision = boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL)
         ApplicationManager.getApplication().executeOnPooledThread {
             val token = GitHubCredentialsStore.forAccount(accountId).loadBlocking()?.accessToken
-            val discovered = if (token.isNullOrBlank()) emptyList() else runCatching {
+            val listed = if (token.isNullOrBlank()) emptyList() else runCatching {
                 val base = IdeProxyFactories.githubCopilotBaseUri(QuotaSettingsState.getInstance().githubHostFor(accountId))
-                githubDocumentModelIds(fetchGitHubListedModels(base, token))
+                fetchGitHubListedModels(base, token)
             }.getOrDefault(emptyList())
             ApplicationManager.getApplication().invokeLater({
                 if (generation != modelRefreshGeneration) return@invokeLater
-                documentModelCombo.show(saved, (discovered + listOfNotNull(saved)).distinct())
+                documentModelCombo.show(saved, (githubDocumentModelIds(listed) + listOfNotNull(saved)).distinct())
+                visionModelCombo.show(savedVision, (githubVisionModelIds(listed) + listOfNotNull(savedVision)).distinct())
             }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
         }
     }
