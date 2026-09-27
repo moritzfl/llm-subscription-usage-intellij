@@ -117,8 +117,7 @@ internal class MistralPopupSection : ProviderPopupSection() {
         if (usage.ocrPages > 0) parts += "${QuotaUiUtil.formatCompactCount(usage.ocrPages)} OCR pages"
         if (usage.connectorCalls > 0) parts += "${usage.connectorCalls} calls"
         if (usage.audioSeconds > 0) parts += "${QuotaUiUtil.formatCompactCount(usage.audioSeconds)} audio sec"
-        if (usage.ttsCharacters > 0) parts += "${QuotaUiUtil.formatCompactCount(usage.ttsCharacters)} chars"
-        if (parts.isEmpty()) parts += "No API usage this month"
+        if (parts.isEmpty()) parts += if (usage.hasAnyUsage()) "API usage recorded" else "No API usage this month"
         return parts.joinToString(" • ")
     }
 }
