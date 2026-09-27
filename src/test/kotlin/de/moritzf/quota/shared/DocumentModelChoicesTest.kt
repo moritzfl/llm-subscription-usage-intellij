@@ -43,10 +43,13 @@ class DocumentModelChoicesTest {
     }
 
     @Test
-    fun azureListsOtherDeploymentsAsNativePdfAndDoesNotAutoSelectThem() {
+    fun azureListsGeneralPurposeDeploymentsButExcludesOcrAndEmbeddings() {
         val quota = AzureQuota(windows = listOf(
             AzureUsageWindow("mistral-ocr", "", AzureUsageWindow.DEPLOYMENT, resourceName = "res", modelName = "mistral-ocr-4"),
             AzureUsageWindow("gpt", "", AzureUsageWindow.DEPLOYMENT, resourceName = "res", modelName = "gpt-5.5"),
+            AzureUsageWindow("search-index", "", AzureUsageWindow.DEPLOYMENT, resourceName = "res", modelName = "text-embedding-3-large"),
+            AzureUsageWindow("text-embedding-3-small", "", AzureUsageWindow.DEPLOYMENT, resourceName = "res"),
+            AzureUsageWindow("other-gpt", "", AzureUsageWindow.DEPLOYMENT, resourceName = "other", modelName = "gpt-5.5"),
         ))
         assertEquals(listOf("native:gpt"), azureNativePdfChoices(quota, "res"))
     }

@@ -10,8 +10,6 @@ internal fun isAzureOcrModel(name: String): Boolean {
 
 internal const val AZURE_DOCUMENT_INTELLIGENCE_LAYOUT = "doc-intelligence/prebuilt-layout"
 internal const val AZURE_NATIVE_PDF_PREFIX = "native:"
-/** Non-selectable row between vision deployments and document or OCR deployments. */
-internal const val AZURE_DOCUMENT_GROUP_DIVIDER = "\u0001"
 private const val COHERE_SELECTION_PREFIX = "cohere:"
 
 internal fun isAzureCohereParseModel(name: String): Boolean = name.startsWith("cohere-parse-", ignoreCase = true)
@@ -92,7 +90,7 @@ internal fun azureOcrDeployments(
 }
 
 /**
- * Every other deployment on the resource. Azure does not say which chat models accept PDF,
+ * Other deployments except known embedding models. Azure does not say which chat models accept PDF,
  * so the user picks. These are never auto-selected.
  */
 internal fun azureNativePdfChoices(quota: AzureQuota?, resourceName: String?): List<String> {
@@ -100,7 +98,8 @@ internal fun azureNativePdfChoices(quota: AzureQuota?, resourceName: String?): L
         .filter {
             it.kind == AzureUsageWindow.DEPLOYMENT &&
                 (resourceName == null || it.resourceName.equals(resourceName, ignoreCase = true)) &&
-                it.modelName?.let(::isAzureOcrModel) != true
+                it.modelName?.let(::isAzureOcrModel) != true &&
+                !(it.modelName ?: it.id).startsWith("text-embedding-", ignoreCase = true)
         }
         .map { it.id }
         .filter { AZURE_DEPLOYMENT_NAME.matches(it) }
@@ -110,18 +109,14 @@ internal fun azureNativePdfChoices(quota: AzureQuota?, resourceName: String?): L
 }
 
 /**
- * Off, then vision, then a divider, then document or OCR models.
- * The divider is omitted when either group is empty. Autofill is not decided here.
+ * Document or OCR models first, then general-purpose models, then off.
+ * Group headings belong to the renderer, not the selectable model list.
  */
-internal fun azureDocumentComboChoices(off: String, vision: List<String>, document: List<String>): List<String> {
-    val visionRows = vision.map { it.trim() }.filter { it.isNotEmpty() && it != off }.distinct().sorted()
-    val documentRows = document.map { it.trim() }.filter { it.isNotEmpty() && it != off && it !in visionRows }.distinct()
-    return buildList {
-        add(off)
-        addAll(visionRows)
-        if (visionRows.isNotEmpty() && documentRows.isNotEmpty()) add(AZURE_DOCUMENT_GROUP_DIVIDER)
-        addAll(documentRows)
-    }
+internal fun azureDocumentComboChoices(off: String, general: List<String>, document: List<String>): List<String> {
+    val documentRows = document.map { it.trim() }.filter { it.isNotEmpty() && it != off }.distinct()
+    val generalRows = general.map { it.trim() }
+        .filter { it.isNotEmpty() && it != off && it !in documentRows }.distinct().sorted()
+    return documentRows + generalRows + off
 }
 
 /**
