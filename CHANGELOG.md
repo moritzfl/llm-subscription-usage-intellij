@@ -1,5 +1,12 @@
 # LLM Subscription Usage Changelog
 
+## [Unreleased]
+
+- New MCP tool `subscription_vision`: hands an image plus a prompt to a vision-capable subscription model and returns `{provider, model, content}`, so non-vision models (for example GLM on Mistral) can still extract information from images. Providers: OpenAI/Codex, SuperGrok/xAI, Mistral (Pixtral chat), Z.ai GLM chat, GitHub Copilot, OpenCode Zen/Go, Ollama Cloud, and Kimi. Images come from `imageUrl` or a local file (Copilot and OpenCode need a local file); answers are never base64.
+- Vision is opt-in and separate from the document model. Every provider's new **Vision model** settings row starts on `-` (off), and the tool reports that vision is off until a model is chosen. A vision model does not need PDF support, and the document model keeps its existing PDF/OCR-first behavior; the two selections never feed each other. GitHub and OpenCode list only models their catalogs flag as image-capable; Mistral, Z.ai, Ollama, and Kimi list their discovered models; OpenAI uses the curated Codex list and SuperGrok its live model list.
+- The **Vision model** rows have a **Test vision** button, mirroring Test document: it renders the sample settings page as a PNG, asks the selected model to describe it, and shows the answer with request latency; the run can be aborted and retried.
+- `subscription_tools_status` reports `vision_available` per account, which is false while vision is off for that account.
+
 ## [1.16.0] - 2026-09-26
 
 - Settings quota responses wrap to the panel width. Compact provider JSON is shown indented, so a long line no longer adds a horizontal scrollbar. A provider form that is wider than the pane scrolls sideways instead of clipping the right edge.

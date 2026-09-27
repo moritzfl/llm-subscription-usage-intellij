@@ -26,7 +26,7 @@
 Track and use your LLM subscriptions directly in IntelliJ IDEA.
 
 - **See your quota** for ChatGPT, Claude, Grok, Copilot & more in the status bar and a detail popup.
-- **Use your subscriptions from IDE chat** via MCP tools: quota lookup, web search, image and video generation, voice, and document-to-markdown.
+- **Use your subscriptions from IDE chat** via MCP tools: quota lookup, web search, image and video generation, voice, document-to-markdown, and image analysis for non-vision models.
 - **Reuse your subscriptions in other tools** through a local OpenAI-compatible proxy (for example as a custom LLM provider for JetBrains Junie).
 - **Keep AI client configs in sync** with IntelliJ's MCP server URL, which changes port between restarts.
 
@@ -34,27 +34,28 @@ Track and use your LLM subscriptions directly in IntelliJ IDEA.
 
 ## Supported providers
 
-| Provider | Sign-in | Quota | Web search | Images | Video | Voice | Docs | Proxy |
-|---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| OpenAI (ChatGPT / Codex) | Browser login | ✓ | ✓ | ✓ | — | ✓ | (✓) | ✓ |
-| Claude (Anthropic) | Browser login | ✓ | — | — | — | — | — | — |
-| SuperGrok / xAI | Browser login | ✓ | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ |
-| GitHub Copilot | Device code | ✓ | — | — | — | — | — | ✓ |
-| Cursor | Session cookie | ✓ | — | — | — | — | — | — |
-| OpenCode (Go / Zen) | Browser login | ✓ | — | — | — | — | — | ✓ |
-| Ollama Cloud | API key | ✓ | ✓ | — | — | — | — | ✓ |
-| Z.ai | API key | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ | ✓ |
-| MiniMax | Subscription key | ✓ | ✓ | ✓ | — | ✓ | — | ✓ |
-| Mistral | Session cookie + API key | ✓ | ✓ | ✓ | — | ✓ | ✓ | ✓ |
-| Kimi | Device code | ✓ | ✓ | — | — | — | — | ✓ |
-| Antigravity (Gemini / Claude / GPT) | AGY CLI login | ✓ | — | — | — | — | — | — |
-| Azure OpenAI / Foundry | Azure CLI login | ✓ | — | — | — | — | ✓* | ✓ |
+| Provider | Sign-in | Quota | Web search | Images | Video | Voice | Docs | Vision | Proxy |
+|---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| OpenAI (ChatGPT / Codex) | Browser login | ✓ | ✓ | ✓ | — | ✓ | (✓) | ✓ | ✓ |
+| Claude (Anthropic) | Browser login | ✓ | — | — | — | — | — | — | — |
+| SuperGrok / xAI | Browser login | ✓ | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ | ✓ |
+| GitHub Copilot | Device code | ✓ | — | — | — | — | — | ✓ | ✓ |
+| Cursor | Session cookie | ✓ | — | — | — | — | — | — | — |
+| OpenCode (Go / Zen) | Browser login | ✓ | — | — | — | — | — | ✓ | ✓ |
+| Ollama Cloud | API key | ✓ | ✓ | — | — | — | — | ✓ | ✓ |
+| Z.ai | API key | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ | ✓ | ✓ |
+| MiniMax | Subscription key | ✓ | ✓ | ✓ | — | ✓ | — | — | ✓ |
+| Mistral | Session cookie + API key | ✓ | ✓ | ✓ | — | ✓ | ✓ | ✓ | ✓ |
+| Kimi | Device code | ✓ | ✓ | — | — | — | — | ✓ | ✓ |
+| Antigravity (Gemini / Claude / GPT) | AGY CLI login | ✓ | — | — | — | — | — | — | — |
+| Azure OpenAI / Foundry | Azure CLI login | ✓ | — | — | — | — | ✓* | — | ✓ |
 
 - **Quota** — usage in the status bar and detail popup.
 - **Web search** — MCP tool that searches the web with your subscription. Copilot Chat can Bing-search in GitHub's own UI, but Copilot has no callable search API we can wrap.
 - **Images** / **Video** — MCP tools that generate images or video with your subscription.
 - **Voice** — MCP tools for speech-to-text and text-to-speech. (✓) means only one of the two.
 - **Docs** — MCP tool that converts a PDF or image to markdown. ✓ uses a dedicated OCR API that returns figures. ✓* requires an explicitly selected Azure document model. (✓) uses a chat/vision API and reconstructs figure images locally from estimated page boxes. OpenAI and SuperGrok use the vision model selected in that provider's settings. A general vision model is less precise and usually costs more than a document or OCR model (Mistral, Z.ai, or a company model such as Azure).
+- **Vision** — MCP tool `subscription_vision` that answers questions about an image with a vision-capable chat model, so non-vision models can extract information from images. Every provider starts off (`-`); select a vision model in that provider's settings first. Vision is a separate setting from the document model: a vision model does not need PDF support, and the document model keeps requiring PDF or OCR support.
 - **Proxy** — available through the local OpenAI-compatible proxy (for use of subscriptions in tools like Jetbrains AI Chat and other tools that require authentication by endpoint and API key).
 
 Claude is quota-only. Anthropic does not allow using a Claude subscription outside their own apps, so this plugin only shows usage and does not wrap Claude search, media, documents, or a proxy.
@@ -108,6 +109,7 @@ The plugin registers subscription-backed tools with IntelliJ's built-in MCP serv
 | `subscription_document_to_markdown` | Convert a PDF/image to markdown. Prefer a document or OCR model (Mistral, Z.ai, or a company model such as Azure) before OpenAI/Codex, SuperGrok, GitHub Copilot, or OpenCode native PDF. Those lists come from the live provider when it reports PDF support, otherwise every discovered model. `PDFBOX` is local text extraction and needs no subscription, but it is not OCR. Azure supports Mistral OCR/Document AI, Cohere Parse, and Document Intelligence layout. Image-only Cohere Parse renders PDF pages locally; Document Intelligence retrieves detected figures; Codex/SuperGrok crop figures from vision-estimated boxes |
 | `subscription_image_generation` | Image generation via OpenAI/Codex, SuperGrok/xAI Imagine, Mistral, Z.ai GLM-Image, or MiniMax. Returns a download URL or writes a file; never base64 |
 | `subscription_image_edit` | SuperGrok/xAI JSON image edits from a source URL or local file. Masks are not supported |
+| `subscription_vision` | Ask a vision-capable model about an image and get `{provider, model, content}` back, so non-vision models can extract information from images. Providers: OpenAI/Codex, SuperGrok/xAI, Mistral (Pixtral), Z.ai GLM, GitHub Copilot, OpenCode Zen/Go, Ollama Cloud, Kimi. Off by default everywhere (`-`); select a vision model in settings or pass `model=`. Image comes from `imageUrl` or a local `localFile` (Copilot and OpenCode need a local file) |
 | `subscription_speech_to_text` | Transcribe audio via OpenAI/Codex, SuperGrok/xAI, Mistral, Z.ai, or MiniMax |
 | `subscription_text_to_speech` | Generate speech audio via OpenAI/Codex, SuperGrok/xAI, Mistral, or MiniMax and write it to a file |
 | `subscription_list_voices` | List OpenAI/Codex, SuperGrok/xAI, Mistral, or MiniMax voices |
