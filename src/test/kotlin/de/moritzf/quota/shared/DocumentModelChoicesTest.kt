@@ -76,6 +76,13 @@ class DocumentModelChoicesTest {
     }
 
     @Test
+    fun visionTestUsesTheSquarePluginIconOnly() {
+        val icon = HelloPdf.iconImage(256)
+        assertEquals(256, icon.width)
+        assertEquals(256, icon.height)
+    }
+
+    @Test
     fun nativePdfResponseTextIsReadFromChatAndResponses() {
         assertTrue(NativePdfDocument.requestJson(NativePdfRoute.RESPONSES, "m", "a.pdf", "data:", "QQ==").contains("input_file"))
         assertEquals(NativePdfRoute.ANTHROPIC, githubDocumentRoute("claude-sonnet", listOf("/v1/messages", "/chat/completions")))

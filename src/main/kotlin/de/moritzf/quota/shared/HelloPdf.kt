@@ -1,9 +1,11 @@
 package de.moritzf.quota.shared
 
 import java.awt.image.BufferedImage
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.Path
+import javax.imageio.ImageIO
 import org.apache.batik.transcoder.SVGAbstractTranscoder
 import org.apache.batik.transcoder.TranscoderInput
 import org.apache.batik.transcoder.TranscoderOutput
@@ -70,20 +72,30 @@ internal object HelloPdf {
     }
 
     private fun logo(document: PDDocument): PDImageXObject {
+        return PDImageXObject.createFromByteArray(document, iconPng(1024), "logo")
+    }
+
+    /** The plugin icon alone, for the vision test. No document text or table. */
+    fun iconImage(size: Int = 512): BufferedImage {
+        return ImageIO.read(ByteArrayInputStream(iconPng(size)))
+            ?: error("Plugin icon could not be rendered")
+    }
+
+    private fun iconPng(size: Int): ByteArray {
         val raw = HelloPdf::class.java.getResourceAsStream(ICON) ?: error("Plugin icon is missing")
         val xml = String(raw.use { it.readBytes() }, StandardCharsets.UTF_8)
             .replace(Regex("""<!DOCTYPE[^>]*>"""), "")
-            .replace("""width="100%" height="100%"""", """width="1024" height="1024"""")
+            .replace("""width="100%" height="100%"""", """width="$size" height="$size"""")
         val png = ByteArrayOutputStream()
         val transcoder = PNGTranscoder()
-        transcoder.addTranscodingHint(SVGAbstractTranscoder.KEY_WIDTH, 1024f)
-        transcoder.addTranscodingHint(SVGAbstractTranscoder.KEY_HEIGHT, 1024f)
+        transcoder.addTranscodingHint(SVGAbstractTranscoder.KEY_WIDTH, size.toFloat())
+        transcoder.addTranscodingHint(SVGAbstractTranscoder.KEY_HEIGHT, size.toFloat())
         transcoder.addTranscodingHint(SVGAbstractTranscoder.KEY_ALLOW_EXTERNAL_RESOURCES, false)
         transcoder.transcode(
             TranscoderInput(xml.byteInputStream(StandardCharsets.UTF_8)),
             TranscoderOutput(png),
         )
-        return PDImageXObject.createFromByteArray(document, png.toByteArray(), "logo")
+        return png.toByteArray()
     }
 
     private fun drawTable(content: PDPageContentStream, font: PDType0Font, x: Float, bottom: Float, width: Float) {

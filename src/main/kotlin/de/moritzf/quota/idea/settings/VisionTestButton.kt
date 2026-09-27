@@ -35,14 +35,14 @@ import javax.swing.JPanel
 import javax.swing.ScrollPaneConstants
 import javax.swing.SwingUtilities
 
-/** Runs the selected vision model against the settings sample page rendered as a PNG. */
+/** Runs the selected vision model against the plugin icon rendered as a PNG. */
 internal class VisionTestButton(
     private val provider: VisionProvider,
     private val selectedModel: () -> String,
     private val modality: () -> JComponent?,
 ) : JButton("Test vision") {
     init {
-        toolTipText = "Ask the selected vision model to describe the sample page"
+        toolTipText = "Ask the selected vision model to describe the plugin icon"
         addActionListener { VisionTestDialog(modality() ?: this, provider, selectedModel).show() }
     }
 }
@@ -133,16 +133,14 @@ private class VisionTestDialog(
     }
 
     private fun runGeneration(gen: Int, model: String) {
-        val pdf = Files.createTempFile("quota-hello-", ".pdf")
-        val image = Files.createTempFile("quota-hello-", ".png")
-        var page: BufferedImage? = null
+        val image = Files.createTempFile("quota-vision-", ".png")
+        var preview: BufferedImage? = null
         try {
             checkActive(gen)
-            HelloPdf.write(pdf)
-            page = HelloPdf.renderPage(pdf)
-            val rendered = page
-            ImageIO.write(rendered, "png", image.toFile())
-            onEdt(gen) { showPage(rendered) }
+            val icon = HelloPdf.iconImage()
+            preview = icon
+            ImageIO.write(icon, "png", image.toFile())
+            onEdt(gen) { showPage(icon) }
             checkActive(gen)
             val started = System.nanoTime()
             val answer = try {
@@ -150,20 +148,18 @@ private class VisionTestDialog(
             } catch (exception: Exception) {
                 if (!isActive(gen) || isCancellation(exception)) throw exception
                 val elapsedMs = (System.nanoTime() - started) / 1_000_000L
-                onEdt(gen) { showFailure(exception.message ?: "Vision test failed", page, elapsedMs) }
+                onEdt(gen) { showFailure(exception.message ?: "Vision test failed", preview, elapsedMs) }
                 return@runGeneration
             }
             checkActive(gen)
             val elapsedMs = (System.nanoTime() - started) / 1_000_000L
-            onEdt(gen) { showSuccess(rendered, answer, elapsedMs) }
+            onEdt(gen) { showSuccess(icon, answer, elapsedMs) }
         } catch (exception: ProcessCanceledException) {
             if (isActive(gen)) throw exception
         } catch (exception: Exception) {
             if (!isActive(gen) || isCancellation(exception)) return
-            val rendered = page
-            onEdt(gen) { showFailure(exception.message ?: "Vision test failed", rendered, null) }
+            onEdt(gen) { showFailure(exception.message ?: "Vision test failed", preview, null) }
         } finally {
-            Files.deleteIfExists(pdf)
             Files.deleteIfExists(image)
         }
     }
@@ -174,7 +170,7 @@ private class VisionTestDialog(
         modelLabel.text = model
         modelLabel.isVisible = model.isNotBlank()
         showLatency(null)
-        replace(inputSlot, note("Rendering the sample page…"))
+        replace(inputSlot, note("Rendering the plugin icon…"))
         replace(outputSlot, note("Waiting for the model."))
         abortAction.isEnabled = true
         retryAction.isEnabled = false
@@ -282,6 +278,6 @@ private class VisionTestDialog(
     }
 
     private companion object {
-        const val TEST_PROMPT = "Describe this image. List the title and the table rows."
+        const val TEST_PROMPT = "Describe this image."
     }
 }
