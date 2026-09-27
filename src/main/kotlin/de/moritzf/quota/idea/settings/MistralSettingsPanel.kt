@@ -65,7 +65,7 @@ internal class MistralSettingsPanel(
             }
             row("Vision model:") {
                 cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
-                    .comment("Pixtral chat models. Used by subscription_vision; '-' keeps vision off.")
+                    .comment("Mistral chat models that accept images. Used by subscription_vision; '-' keeps vision off.")
                 cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.MISTRAL, { visionModelCombo.selected().orEmpty() }, modalityComponentProvider))
             }
             row {
@@ -106,15 +106,17 @@ internal class MistralSettingsPanel(
         val generation = ++modelRefreshGeneration
         ApplicationManager.getApplication().executeOnPooledThread {
             val key = MistralApiKeyStore.forAccount(accountId).loadBlocking()
-            val discovered = if (key.isNullOrBlank()) {
-                emptyList()
+            val body = if (key.isNullOrBlank()) {
+                null
             } else {
-                DocumentModels.fetchModelIds(URI.create("${MistralSubscriptionProxyProvider.DEFAULT_UPSTREAM_BASE_URI}/models"), key)
+                DocumentModels.fetchModelBody(URI.create("${MistralSubscriptionProxyProvider.DEFAULT_UPSTREAM_BASE_URI}/models"), key)
             }
+            val documentModels = body?.let(DocumentModels::parseModelIds).orEmpty()
+            val visionModels = body?.let(DocumentModels::parseVisionModelIds).orEmpty()
             ApplicationManager.getApplication().invokeLater({
                 if (generation != modelRefreshGeneration || accountKey(QuotaProviderType.MISTRAL) != accountId) return@invokeLater
-                showDocumentModels(discovered, documentModelCombo.selected() ?: boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
-                showVisionModels(discovered, visionModelCombo.selected() ?: boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL))
+                showDocumentModels(documentModels, documentModelCombo.selected() ?: boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
+                showVisionModels(visionModels, visionModelCombo.selected() ?: boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL))
             }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
         }
     }

@@ -100,4 +100,21 @@ class DocumentModelsTest {
         assertEquals(listOf("mistral-ocr-4-1", "mistral-small"), DocumentModels.parseModelIds("""{"data":[{"id":"mistral-ocr-4-1"},{"id":"mistral-small"}]}"""))
         assertEquals(listOf("glm-ocr"), DocumentModels.parseModelIds("""{"models":[{"id":"glm-ocr"}]}"""))
     }
+
+    @Test
+    fun parseVisionModelIdsKeepsImageChatModelsAndFallsBackWithoutCapabilities() {
+        val body = """
+            {"data":[
+              {"id":"mistral-large-latest","capabilities":{"vision":true,"completion_chat":true}},
+              {"id":"mistral-ocr-latest","capabilities":{"vision":true,"completion_chat":false}},
+              {"id":"codestral-latest","capabilities":{"vision":false,"completion_chat":true}},
+              {"id":"voxtral-mini-latest","capabilities":{"vision":false,"completion_chat":false}}
+            ]}
+        """.trimIndent()
+        assertEquals(listOf("mistral-large-latest"), DocumentModels.parseVisionModelIds(body))
+        assertEquals(
+            listOf("legacy-a", "legacy-b"),
+            DocumentModels.parseVisionModelIds("""{"data":[{"id":"legacy-a"},{"id":"legacy-b"}]}"""),
+        )
+    }
 }

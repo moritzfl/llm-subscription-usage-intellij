@@ -96,6 +96,20 @@ internal object DocumentModels {
 
     fun parseModelIds(body: String): List<String> = parseModelEntries(body).map { it.id }
 
+    /**
+     * Chat models whose capability flags report image input (`vision` + `completion_chat`).
+     * Falls back to every discovered id when the provider sends no capability flags, so a
+     * capabilities change cannot empty the vision picker.
+     */
+    fun parseVisionModelIds(body: String): List<String> {
+        val entries = parseModelEntries(body)
+        if (entries.none { it.item["capabilities"] is JsonObject }) return entries.map { it.id }
+        return entries.mapNotNull { entry ->
+            val capabilities = entry.item["capabilities"] as? JsonObject ?: return@mapNotNull null
+            if (capabilities.booleanValue("vision") && capabilities.booleanValue("completion_chat")) entry.id else null
+        }
+    }
+
     fun parseSuperGrokDocumentModelIds(body: String): List<String> {
         return parseModelEntries(body).mapNotNull { entry ->
             if (!isSuperGrokTextModel(entry.id, entry.item)) return@mapNotNull null
@@ -104,8 +118,13 @@ internal object DocumentModels {
     }
 
     fun fetchModelIds(uri: URI, bearer: String): List<String> {
+        return fetchModelBody(uri, bearer)?.let(::parseModelIds).orEmpty()
+    }
+
+    /** Raw `models` response body so one fetch can feed several parsers. Null when unavailable. */
+    fun fetchModelBody(uri: URI, bearer: String): String? {
         val token = bearer.trim()
-        if (token.isEmpty()) return emptyList()
+        if (token.isEmpty()) return null
         val request = HttpRequest.newBuilder(uri)
             .timeout(Duration.ofSeconds(30))
             .header("Authorization", "Bearer $token")
@@ -116,9 +135,9 @@ internal object DocumentModels {
         val response = runCatching {
             HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build()
                 .send(request, HttpResponse.BodyHandlers.ofString())
-        }.getOrNull() ?: return emptyList()
-        if (response.statusCode() !in 200..299) return emptyList()
-        return parseModelIds(response.body())
+        }.getOrNull() ?: return null
+        if (response.statusCode() !in 200..299) return null
+        return response.body()
     }
 
     private data class ModelEntry(val id: String, val item: JsonObject)
@@ -138,5 +157,9 @@ internal object DocumentModels {
         if (item["prompt_text_token_price"] != null || item["completion_text_token_price"] != null) return true
         if (item["image_price"] != null || id.contains("imagine", ignoreCase = true)) return false
         return true
+    }
+
+    private fun JsonObject.booleanValue(name: String): Boolean {
+        return (this[name] as? JsonPrimitive)?.contentOrNull?.toBooleanStrictOrNull() == true
     }
 }
