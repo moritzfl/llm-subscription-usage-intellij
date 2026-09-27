@@ -14,6 +14,7 @@ enum class AccountCapability {
     TEXT_TO_SPEECH,
     LIST_VOICES,
     DOCUMENT_TO_MARKDOWN,
+    VISION,
     PROXY,
 }
 

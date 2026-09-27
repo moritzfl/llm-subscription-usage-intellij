@@ -23,25 +23,49 @@ internal class NativePdfPoster(
         extraBody: JsonObject = JsonObject(emptyMap()),
     ): String {
         return NativePdfDocument.convert(route, model, source, output) { payload ->
-            val merged = if (extraBody.isEmpty()) payload else JsonObject(extraBody + JsonSupport.json.parseToJsonElement(payload).jsonObject).toString()
-            val builder = HttpRequest.newBuilder(url)
-                .timeout(Duration.ofSeconds(180))
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(merged))
-            headers.forEach { (name, value) -> builder.header(name, value) }
-            val response = try {
-                httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString())
-            } catch (exception: IOException) {
-                error("Document request failed. Check your connection.")
-            } catch (exception: InterruptedException) {
-                Thread.currentThread().interrupt()
-                error("Document request failed. Check your connection.")
-            }
-            if (response.statusCode() !in 200..299) {
-                error("Document request failed (HTTP ${response.statusCode()}).")
-            }
-            response.body()
+            post(url, headers, payload, extraBody)
         }
+    }
+
+    /** Posts one image plus a question and returns the model's answer text (no markdown output file). */
+    fun askImage(
+        url: URI,
+        headers: Map<String, String>,
+        route: NativePdfRoute,
+        model: String,
+        prompt: String,
+        source: Path,
+        extraBody: JsonObject = JsonObject(emptyMap()),
+    ): String {
+        return NativePdfDocument.answer(route, model, prompt, source) { payload ->
+            post(url, headers, payload, extraBody)
+        }
+    }
+
+    private fun post(
+        url: URI,
+        headers: Map<String, String>,
+        payload: String,
+        extraBody: JsonObject,
+    ): String {
+        val merged = if (extraBody.isEmpty()) payload else JsonObject(extraBody + JsonSupport.json.parseToJsonElement(payload).jsonObject).toString()
+        val builder = HttpRequest.newBuilder(url)
+            .timeout(Duration.ofSeconds(180))
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(merged))
+        headers.forEach { (name, value) -> builder.header(name, value) }
+        val response = try {
+            httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString())
+        } catch (exception: IOException) {
+            error("Document request failed. Check your connection.")
+        } catch (exception: InterruptedException) {
+            Thread.currentThread().interrupt()
+            error("Document request failed. Check your connection.")
+        }
+        if (response.statusCode() !in 200..299) {
+            error("Document request failed (HTTP ${response.statusCode()}).")
+        }
+        return response.body()
     }
 }

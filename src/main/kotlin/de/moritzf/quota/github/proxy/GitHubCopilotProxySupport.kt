@@ -100,6 +100,7 @@ internal data class GitHubListedModel(
     val id: String,
     val supportsPdf: Boolean,
     val pdfCapabilityKnown: Boolean,
+    val supportsVision: Boolean,
     val endpoints: List<String>,
 )
 
@@ -109,6 +110,10 @@ internal fun githubDocumentModelIds(models: List<GitHubListedModel>): List<Strin
         models.filter { it.supportsPdf }.map { it.id }.toSet(),
         models.filter { it.pdfCapabilityKnown }.map { it.id }.toSet(),
     )
+
+/** Only models Copilot explicitly flags as vision-capable; unknown stays out, vision is opt-in. */
+internal fun githubVisionModelIds(models: List<GitHubListedModel>): List<String> =
+    models.filter { it.supportsVision }.map { it.id }
 
 /** Copilot `/models` body. PDF models when that model says so; every other model when it does not. */
 internal fun githubDocumentModelIds(body: String): List<String> = githubDocumentModelIds(parseGitHubListedModels(body))
@@ -127,10 +132,11 @@ internal fun parseGitHubListedModels(body: String): List<GitHubListedModel> {
         if (modelType(item) == "embeddings") return@mapNotNull null
         val id = remoteModelId(stringField(item, "id") ?: return@mapNotNull null) ?: return@mapNotNull null
         val capabilities = item["capabilities"] as? JsonObject
+        val supports = item["supports"] as? JsonObject
         val endpoints = (item["supported_endpoints"] as? JsonArray)
             ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
             .orEmpty()
-        GitHubListedModel(id, supportsPdf(capabilities), pdfMediaTypesKnown(capabilities), endpoints)
+        GitHubListedModel(id, supportsPdf(capabilities), pdfMediaTypesKnown(capabilities), supportsVision(capabilities, supports), endpoints)
     }.distinctBy { it.id }
 }
 

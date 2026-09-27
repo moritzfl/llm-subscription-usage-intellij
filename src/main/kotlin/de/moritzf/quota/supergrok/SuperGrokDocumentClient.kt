@@ -108,6 +108,55 @@ open class SuperGrokDocumentClient(
         }
     }
 
+    /** Asks a vision model about one image. Returns the model's answer text. */
+    open fun analyzeImage(
+        accessToken: String,
+        imageUrl: String? = null,
+        localFile: Path? = null,
+        prompt: String,
+        model: String = DEFAULT_MODEL,
+    ): String {
+        val token = accessToken.trim().ifBlank {
+            throw SuperGrokQuotaException("Grok login required. Log in from SuperGrok settings.")
+        }
+        val trimmedPrompt = prompt.trim().ifBlank {
+            throw SuperGrokQuotaException("Image prompt is required.")
+        }
+        val url = imageUrl?.trim().orEmpty()
+        val imageContent = if (url.isNotEmpty()) {
+            buildJsonObject {
+                put("type", "input_image")
+                put("image_url", url)
+            }
+        } else {
+            val path = localFile ?: throw SuperGrokQuotaException("Provide imageUrl or a local image file.")
+            if (!Files.isRegularFile(path)) {
+                throw SuperGrokQuotaException("Local image was not found.")
+            }
+            DocumentLimits.inlineOverflowMessage(path)?.let { throw SuperGrokQuotaException(it) }
+            val bytes = Files.readAllBytes(path)
+            val mime = mimeType(path, bytes)
+            if (!mime.startsWith("image/")) {
+                throw SuperGrokQuotaException("Provide an image file. Use subscription_document_to_markdown for documents.")
+            }
+            buildJsonObject {
+                put("type", "input_image")
+                put("image_url", "data:$mime;base64,${Base64.getEncoder().encodeToString(bytes)}")
+            }
+        }
+        val selectedModel = model.trim().ifBlank { DEFAULT_MODEL }
+        val response = send(postJson(token, visionRequestJson(selectedModel, imageContent, trimmedPrompt)))
+        val status = response.statusCode()
+        val body = response.body()
+        if (status == 401 || status == 403) {
+            throw SuperGrokQuotaException("Grok auth expired. Log in to SuperGrok again from settings.", status, body)
+        }
+        if (status !in 200..299) {
+            throw SuperGrokQuotaException("Grok image analysis failed (HTTP $status). Try again later.", status, body)
+        }
+        return parseAnswer(body)
+    }
+
     private fun uploadFile(token: String, path: Path): String {
         if (!Files.isRegularFile(path)) {
             throw SuperGrokQuotaException("Local document was not found.")
@@ -251,9 +300,45 @@ open class SuperGrokDocumentClient(
             }.toString()
         }
 
+        internal fun visionRequestJson(model: String, imageContent: JsonObject, prompt: String): String {
+            return buildJsonObject {
+                put("model", model)
+                putJsonArray("input") {
+                    add(buildJsonObject {
+                        put("role", "user")
+                        putJsonArray("content") {
+                            add(imageContent)
+                            add(buildJsonObject {
+                                put("type", "input_text")
+                                put("text", prompt)
+                            })
+                        }
+                    })
+                }
+            }.toString()
+        }
+
         internal fun parseMarkdown(responseBody: String): String {
             val root = runCatching { JsonSupport.json.parseToJsonElement(responseBody) }.getOrNull() as? JsonObject
                 ?: throw SuperGrokQuotaException("Grok document response changed.", 200, responseBody)
+            val markdown = collectOutputTexts(root["output"] ?: root)
+            if (markdown.isEmpty()) {
+                throw SuperGrokQuotaException("Grok document conversion returned no output.", 200, responseBody)
+            }
+            return markdown
+        }
+
+        internal fun parseAnswer(responseBody: String): String {
+            val root = runCatching { JsonSupport.json.parseToJsonElement(responseBody) }.getOrNull() as? JsonObject
+                ?: throw SuperGrokQuotaException("Grok response changed.", 200, responseBody)
+            val answer = collectOutputTexts(root["output"] ?: root)
+            if (answer.isEmpty()) {
+                throw SuperGrokQuotaException("Grok image analysis returned no output.", 200, responseBody)
+            }
+            return answer
+        }
+
+        private fun collectOutputTexts(element: JsonElement?): String {
             val texts = mutableListOf<String>()
             fun walk(element: JsonElement?) {
                 when (element) {
@@ -269,12 +354,8 @@ open class SuperGrokDocumentClient(
                     else -> Unit
                 }
             }
-            walk(root["output"] ?: root)
-            val markdown = texts.joinToString("").trim()
-            if (markdown.isEmpty()) {
-                throw SuperGrokQuotaException("Grok document conversion returned no output.", 200, responseBody)
-            }
-            return markdown
+            walk(element)
+            return texts.joinToString("").trim()
         }
 
         private fun isImageName(value: String): Boolean {

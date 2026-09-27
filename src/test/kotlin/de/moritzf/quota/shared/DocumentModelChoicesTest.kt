@@ -82,6 +82,36 @@ class DocumentModelChoicesTest {
         assertEquals("Hi", NativePdfDocument.extractText("data: {\"type\":\"response.output_text.delta\",\"delta\":\"Hi\"}\n\n"))
     }
 
+    @Test
+    fun visionRoutesUseImagePartsInsteadOfFiles() {
+        assertTrue(
+            NativePdfDocument.visionRequestJson(NativePdfRoute.RESPONSES, "m", "?", "data:image/png;base64,QQ==", "QQ==", "image/png")
+                .contains("\"input_image\""),
+        )
+        val chat = NativePdfDocument.visionRequestJson(NativePdfRoute.CHAT, "m", "?", "data:image/png;base64,QQ==", "QQ==", "image/png")
+        assertTrue(chat.contains("\"image_url\""))
+        assertTrue(chat.contains("\"text\":\"?\""))
+        val anthropic = NativePdfDocument.visionRequestJson(NativePdfRoute.ANTHROPIC, "m", "?", "data:image/png;base64,QQ==", "QQ==", "image/png")
+        assertTrue(anthropic.contains("\"type\":\"image\""))
+        assertTrue(anthropic.contains("\"media_type\":\"image/png\""))
+        assertTrue(anthropic.contains("\"data\":\"QQ==\""))
+    }
+
+    @Test
+    fun visionAnswerExtractsChatContent() {
+        val dir = java.nio.file.Files.createTempDirectory("vision-answer")
+        val png = dir.resolve("pic.png")
+        java.nio.file.Files.write(png, byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1))
+        val answer = NativePdfDocument.answer(NativePdfRoute.CHAT, "m", "?", png) { _ ->
+            """{"choices":[{"message":{"content":"A dog."}}]}"""
+        }
+        assertEquals("A dog.", answer)
+        val failed = kotlin.test.assertFailsWith<IllegalStateException> {
+            NativePdfDocument.answer(NativePdfRoute.CHAT, "m", "?", png) { _ -> "" }
+        }
+        assertTrue(failed.message!!.contains("answer"))
+    }
+
     private fun model(id: String, pdf: Boolean, known: Boolean) = OpenCodeConsoleModel(
         model = de.moritzf.proxy.subscription.SubscriptionProxyModel(
             localId = id, upstreamId = id, providerId = "opencode", providerName = "OpenCode",

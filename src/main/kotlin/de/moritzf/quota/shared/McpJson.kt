@@ -44,6 +44,11 @@ internal object McpJson {
         )
     }
 
+    /** Wrapper for a vision model's answer; provider answers are plain text, not provider JSON. */
+    fun visionResult(provider: String, model: String, content: String): String {
+        return JsonSupport.json.encodeToString(McpVisionResultResponse(provider, model, content))
+    }
+
 }
 
 @Serializable
@@ -72,6 +77,7 @@ internal data class McpAccountToolStatus(
     @SerialName("speech_to_text_available") val speechToTextAvailable: Boolean = false,
     @SerialName("text_to_speech_available") val textToSpeechAvailable: Boolean = false,
     @SerialName("document_to_markdown_available") val documentToMarkdownAvailable: Boolean = false,
+    @SerialName("vision_available") val visionAvailable: Boolean = false,
     val reason: String? = null,
     @SerialName("snapshot_age_ms") val snapshotAgeMs: Long? = null,
     @SerialName("fetched_at") val fetchedAt: String? = null,
@@ -93,12 +99,20 @@ internal data class McpProviderToolStatus(
     @SerialName("speech_to_text_available") val speechToTextAvailable: Boolean = false,
     @SerialName("text_to_speech_available") val textToSpeechAvailable: Boolean = false,
     @SerialName("document_to_markdown_available") val documentToMarkdownAvailable: Boolean = false,
+    @SerialName("vision_available") val visionAvailable: Boolean = false,
     val reason: String? = null,
 )
 
 @Serializable
 private data class McpErrorResponse(
     val error: String,
+)
+
+@Serializable
+internal data class McpVisionResultResponse(
+    val provider: String,
+    val model: String,
+    val content: String,
 )
 
 @Serializable

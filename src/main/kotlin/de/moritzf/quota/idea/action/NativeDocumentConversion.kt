@@ -41,13 +41,33 @@ internal object NativeDocumentConversion {
     }
 
     fun openCode(accountId: String, model: String, source: Path, output: Path): String {
+        val (route, headers, targetUri, upstreamId, extraBody) = openCodeTarget(accountId, model)
+        return poster.convert(targetUri, headers, route, upstreamId, source, output, extraBody)
+    }
+
+    fun githubVision(accountId: String, model: String, source: Path, prompt: String): String {
+        val token = GitHubCredentialsStore.forAccount(accountId).loadBlocking()?.accessToken
+            ?: error("GitHub Copilot login required.")
+        val selected = model.trim().ifBlank { error("Select a GitHub Copilot vision model in settings.") }
+        val base = IdeProxyFactories.githubCopilotBaseUri(QuotaSettingsState.getInstance().githubHostFor(accountId))
+        val listed = runCatching { fetchGitHubListedModels(base, token, httpClient) }.getOrDefault(emptyList())
+        val route = githubDocumentRoute(selected, listed.firstOrNull { it.id == selected }?.endpoints.orEmpty())
+        return poster.askImage(uri(base, route), githubHeaders(token), route, selected, prompt, source)
+    }
+
+    fun openCodeVision(accountId: String, model: String, source: Path, prompt: String): String {
+        val (route, headers, targetUri, upstreamId, extraBody) = openCodeTarget(accountId, model)
+        return poster.askImage(targetUri, headers, route, upstreamId, prompt, source, extraBody)
+    }
+
+    private fun openCodeTarget(accountId: String, model: String): OpenCodeTarget {
         val auth = OpenCodeAuthService.getInstance()
         val credentials = auth.credentials(accountId) ?: error("OpenCode login required.")
         val token = credentials.accessToken ?: error("OpenCode login required.")
         val organization = credentials.accountId ?: QuotaSettingsState.getInstance().openCodeWorkspaceIdFor(accountId)
         val session = OpenCodeConsoleSession(accountId, token, organization) { auth.credentials(accountId, it)?.accessToken }
         val models = OpenCodeConsoleProxy(httpClient, RequestLogger(false, Path.of("logs"))).models(session)
-        val selected = model.trim().ifBlank { error("Select an OpenCode document model in settings.") }
+        val selected = model.trim().ifBlank { error("Select an OpenCode vision model in settings.") }
         val match = models.firstOrNull { it.model.upstreamId == selected || it.model.localId == selected }
             ?: error("OpenCode did not list '$selected'. Refresh settings and pick a model from the list.")
         val route = when (match.nativeRoute) {
@@ -57,10 +77,18 @@ internal object NativeDocumentConversion {
         }
         val headers = match.headers +
             (if (route == NativePdfRoute.ANTHROPIC) mapOf("anthropic-version" to "2023-06-01") else emptyMap()) +
-            OpenCodeRequestHeaders.forRequest("lsu-document", JsonObject(emptyMap())) +
+            OpenCodeRequestHeaders.forRequest("lsu-vision", JsonObject(emptyMap())) +
             mapOf("Authorization" to "Bearer ${session.accessToken}")
-        return poster.convert(match.targetUri, headers, route, match.model.upstreamId, source, output, match.body)
+        return OpenCodeTarget(route, headers, match.targetUri, match.model.upstreamId, match.body)
     }
+
+    private data class OpenCodeTarget(
+        val route: NativePdfRoute,
+        val headers: Map<String, String>,
+        val targetUri: URI,
+        val upstreamId: String,
+        val extraBody: JsonObject,
+    )
 
     fun azure(accountId: String, selection: String, source: Path, output: Path): String {
         val deployment = azureNativePdfDeploymentId(selection)

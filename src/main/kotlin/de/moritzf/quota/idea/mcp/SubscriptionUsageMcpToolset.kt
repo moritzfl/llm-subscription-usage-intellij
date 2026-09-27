@@ -24,6 +24,7 @@ import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.shared.McpAccountToolStatus
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 import de.moritzf.quota.kimi.KimiQuotaException
+import de.moritzf.quota.kimi.KimiVisionClient
 import de.moritzf.quota.kimi.KimiWebSearchClient
 import de.moritzf.quota.minimax.MiniMaxAudioClient
 import de.moritzf.quota.minimax.MiniMaxImageClient
@@ -44,8 +45,10 @@ import de.moritzf.quota.azure.isAzureCohereSelection
 import de.moritzf.quota.mistral.MistralImageClient
 import de.moritzf.quota.mistral.MistralOcrClient
 import de.moritzf.quota.mistral.MistralQuotaException
+import de.moritzf.quota.mistral.MistralVisionClient
 import de.moritzf.quota.mistral.MistralWebSearchClient
 import de.moritzf.quota.ollama.OllamaQuotaException
+import de.moritzf.quota.ollama.OllamaVisionClient
 import de.moritzf.quota.ollama.OllamaWebSearchClient
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
@@ -59,6 +62,7 @@ import de.moritzf.quota.zai.ZaiImageClient
 import de.moritzf.quota.zai.ZaiOcrClient
 import de.moritzf.quota.zai.ZaiQuotaException
 import de.moritzf.quota.zai.ZaiVideoClient
+import de.moritzf.quota.zai.ZaiVisionClient
 import de.moritzf.quota.zai.ZaiWebSearchClient
 import java.nio.file.Path
 import kotlinx.serialization.json.JsonObject
@@ -82,10 +86,14 @@ class SubscriptionUsageMcpToolset(
     private val mistralImageClient: MistralImageClient = MistralImageClient.createDefault(),
     private val mistralOcrClient: MistralOcrClient = MistralOcrClient.createDefault(),
     private val mistralAudioClient: MistralAudioClient = MistralAudioClient.createDefault(),
+    private val mistralVisionClient: MistralVisionClient = MistralVisionClient.createDefault(),
     private val zaiOcrClient: ZaiOcrClient = ZaiOcrClient.createDefault(),
     private val zaiImageClient: ZaiImageClient = ZaiImageClient.createDefault(),
     private val zaiAudioClient: ZaiAudioClient = ZaiAudioClient.createDefault(),
     private val zaiVideoClient: ZaiVideoClient = ZaiVideoClient.createDefault(),
+    private val zaiVisionClient: ZaiVisionClient = ZaiVisionClient.createDefault(),
+    private val ollamaVisionClient: OllamaVisionClient = OllamaVisionClient.createDefault(),
+    private val kimiVisionClient: KimiVisionClient = KimiVisionClient.createDefault(),
 ) : McpToolset {
     private val azureOcrClient = AzureOcrClient()
     private val azureCohereParseClient = AzureCohereParseClient()
@@ -351,6 +359,54 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
+    @McpTool(name = "subscription_vision")
+    @McpDescription(description = "Asks a vision-capable subscription model about one image and returns {provider, model, content} with the answer. Use it when the current model cannot see images: pass the image plus what to extract or ask. Vision is off by default for every provider; select a vision model in settings (or pass model=) first. Images are accepted as a public URL or a local file, never returned as base64.")
+    suspend fun subscription_vision(
+        @McpDescription(description = "What to extract from or ask about the image, for example 'List the visible text', 'Describe the error', or 'Which element is selected?'") prompt: String,
+        @McpDescription(description = "Provider to use. Supported providers are derived from the VisionProvider enum. Honor explicit provider requests.") provider: VisionProvider = VisionProvider.OPEN_AI,
+        @McpDescription(description = "Public image URL. Leave blank when localFile is set. GitHub Copilot and OpenCode need a local file.") imageUrl: String? = null,
+        @McpDescription(description = "Optional project-relative or absolute local image path.") localFile: String? = null,
+        @McpDescription(description = "Vision model id. Leave blank to use the vision model selected in settings.") model: String = "",
+    ): String {
+        val chosen = model.trim().ifBlank { visionModel(provider) }
+        if (chosen == "-" || chosen.isBlank()) {
+            return errorResult(
+                "Vision is off for ${provider.providerType.displayName}. Pick a vision model in settings, or pass model=",
+            )
+        }
+        val trimmedPrompt = prompt.trim()
+        if (trimmedPrompt.isBlank()) {
+            return errorResult("Image prompt is required.")
+        }
+        return when (provider) {
+            VisionProvider.OPEN_AI -> {
+                val response = codexClient.analyzeImage(imageUrl, resolveOptionalPath(localFile), trimmedPrompt, chosen)
+                if (response.isError) response.body else McpJson.visionResult(provider.name, chosen, response.body)
+            }
+
+            VisionProvider.SUPERGROK ->
+                withSuperGrokAuth("Grok image analysis failed.", error = ::errorResult) { accessToken ->
+                    McpJson.visionResult(
+                        provider.name,
+                        chosen,
+                        superGrokDocumentClient.analyzeImage(accessToken, imageUrl, resolveOptionalPath(localFile), trimmedPrompt, chosen),
+                    )
+                }
+
+            VisionProvider.MISTRAL -> mistralVision(trimmedPrompt, imageUrl, localFile, chosen)
+
+            VisionProvider.ZAI -> zaiVision(trimmedPrompt, imageUrl, localFile, chosen)
+
+            VisionProvider.OLLAMA -> ollamaVision(trimmedPrompt, imageUrl, localFile, chosen)
+
+            VisionProvider.GITHUB -> githubVision(trimmedPrompt, localFile, chosen)
+
+            VisionProvider.OPEN_CODE -> openCodeVision(trimmedPrompt, localFile, chosen)
+
+            VisionProvider.KIMI -> kimiVision(trimmedPrompt, imageUrl, localFile, chosen)
+        }
+    }
+
     @McpTool(name = "subscription_svg_to_png")
     @McpDescription(description = "Rasterizes a local SVG to PNG.")
     suspend fun subscription_svg_to_png(
@@ -590,6 +646,7 @@ class SubscriptionUsageMcpToolset(
             speechToTextAvailable = caps.speechToText && descriptor.isVoiceConfiguredForAccount(id),
             textToSpeechAvailable = caps.textToSpeech && descriptor.isVoiceConfiguredForAccount(id),
             documentToMarkdownAvailable = caps.documentToMarkdown && descriptor.isDocumentConfiguredForAccount(id),
+            visionAvailable = caps.vision && descriptor.isVisionConfiguredForAccount(id),
             reason = reason,
             snapshotAgeMs = snapshotAgeMs,
             fetchedAt = op.fetchedAt?.toString(),
@@ -732,7 +789,11 @@ class SubscriptionUsageMcpToolset(
         }
     }
 
-    private suspend fun withSuperGrokAuth(failureLabel: String, block: suspend (String) -> String): String {
+    private suspend fun withSuperGrokAuth(
+        failureLabel: String,
+        error: (String) -> String = ::searchError,
+        block: suspend (String) -> String,
+    ): String {
         val authService = QuotaAuthService.getInstance()
         val account = try {
             de.moritzf.quota.idea.settings.AccountResolver.resolve(
@@ -740,11 +801,11 @@ class SubscriptionUsageMcpToolset(
                 capability = de.moritzf.quota.idea.settings.AccountCapability.WEB_SEARCH,
             )
         } catch (exception: de.moritzf.quota.idea.settings.AccountResolveException) {
-            return searchError(exception.message ?: "Grok login required. Log in from SuperGrok settings.")
+            return error(exception.message ?: "Grok login required. Log in from SuperGrok settings.")
         }
         val token = authService.getAccessTokenBlocking(account.id, QuotaProviderType.SUPERGROK)
         if (token.isNullOrBlank()) {
-            return searchError("Grok login required. Log in from SuperGrok settings.")
+            return error("Grok login required. Log in from SuperGrok settings.")
         }
         return try {
             block(token)
@@ -757,15 +818,15 @@ class SubscriptionUsageMcpToolset(
                         block(refreshed)
                     } catch (retryException: SuperGrokQuotaException) {
                         noteSpendRateLimit(account.id, retryException.statusCode)
-                        searchError(retryException.message ?: failureLabel)
+                        error(retryException.message ?: failureLabel)
                     } catch (retryException: Exception) {
-                        searchError(retryException.message ?: failureLabel)
+                        error(retryException.message ?: failureLabel)
                     }
                 }
             }
-            searchError(exception.message ?: failureLabel)
+            error(exception.message ?: failureLabel)
         } catch (exception: Exception) {
-            searchError(exception.message ?: failureLabel)
+            error(exception.message ?: failureLabel)
         }
     }
 
@@ -1313,6 +1374,131 @@ class SubscriptionUsageMcpToolset(
             ).id
         }.getOrNull() ?: return ""
         return de.moritzf.quota.idea.settings.DocumentModelSelection.forAccount(type, accountId)
+    }
+
+    private fun visionModel(provider: VisionProvider): String {
+        val accountId = runCatching {
+            de.moritzf.quota.idea.settings.AccountResolver.resolve(
+                provider.providerType,
+                capability = AccountCapability.VISION,
+            ).id
+        }.getOrNull() ?: return ""
+        return de.moritzf.quota.idea.settings.VisionModelSelection.forAccount(provider.providerType, accountId)
+    }
+
+    private suspend fun mistralVision(prompt: String, imageUrl: String?, localFile: String?, model: String): String {
+        val apiKey = resolvedApiKey(QuotaProviderType.MISTRAL, AccountCapability.VISION) { MistralApiKeyStore.forAccount(it).loadBlocking() }
+        if (apiKey.isNullOrBlank()) {
+            return errorResult("Mistral API key missing. Add a Mistral API key in settings.")
+        }
+        return try {
+            val answer = mistralVisionClient.ask(apiKey, imageUrl, resolveOptionalPath(localFile), prompt, model)
+            McpJson.visionResult(VisionProvider.MISTRAL.name, model, answer)
+        } catch (exception: MistralQuotaException) {
+            errorResult(exception.message ?: "Mistral image analysis failed.")
+        } catch (exception: Exception) {
+            errorResult(exception.message ?: "Mistral image analysis failed.")
+        }
+    }
+
+    private suspend fun zaiVision(prompt: String, imageUrl: String?, localFile: String?, model: String): String {
+        val apiKey = resolvedApiKey(QuotaProviderType.ZAI, AccountCapability.VISION) { ZaiApiKeyStore.forAccount(it).loadBlocking() }
+        if (apiKey.isNullOrBlank()) {
+            return errorResult("Z.ai API key missing. Add a Z.ai API key in settings.")
+        }
+        return try {
+            val answer = zaiVisionClient.ask(apiKey, imageUrl, resolveOptionalPath(localFile), prompt, model)
+            McpJson.visionResult(VisionProvider.ZAI.name, model, answer)
+        } catch (exception: ZaiQuotaException) {
+            errorResult(exception.message ?: "Z.ai image analysis failed.")
+        } catch (exception: Exception) {
+            errorResult(exception.message ?: "Z.ai image analysis failed.")
+        }
+    }
+
+    private suspend fun ollamaVision(prompt: String, imageUrl: String?, localFile: String?, model: String): String {
+        val apiKey = resolvedApiKey(QuotaProviderType.OLLAMA, AccountCapability.VISION) { OllamaApiKeyStore.forAccount(it).loadBlocking() }
+        if (apiKey.isNullOrBlank()) {
+            return errorResult("Ollama API key missing. Add an Ollama API key in settings.")
+        }
+        return try {
+            val answer = ollamaVisionClient.ask(apiKey, imageUrl, resolveOptionalPath(localFile), prompt, model)
+            McpJson.visionResult(VisionProvider.OLLAMA.name, model, answer)
+        } catch (exception: OllamaQuotaException) {
+            errorResult(exception.message ?: "Ollama image analysis failed.")
+        } catch (exception: Exception) {
+            errorResult(exception.message ?: "Ollama image analysis failed.")
+        }
+    }
+
+    private suspend fun kimiVision(prompt: String, imageUrl: String?, localFile: String?, model: String): String {
+        val account = try {
+            de.moritzf.quota.idea.settings.AccountResolver.resolve(
+                QuotaProviderType.KIMI,
+                capability = AccountCapability.VISION,
+            )
+        } catch (exception: de.moritzf.quota.idea.settings.AccountResolveException) {
+            return errorResult(exception.message ?: "Kimi login required. Log in from settings.")
+        }
+        val store = KimiCredentialsStore.forAccount(account.id)
+        val credentials = store.loadBlocking()
+        if (credentials?.isUsable() != true) {
+            return errorResult("Kimi login required. Log in from settings.")
+        }
+        return try {
+            val result = kimiVisionClient.ask(credentials, imageUrl, resolveOptionalPath(localFile), prompt, model)
+            if (result.credentials != credentials) {
+                store.save(result.credentials)
+            }
+            McpJson.visionResult(VisionProvider.KIMI.name, model, result.answer)
+        } catch (exception: KimiQuotaException) {
+            noteSpendRateLimit(account.id, exception.statusCode)
+            errorResult(exception.message ?: "Kimi image analysis failed.")
+        } catch (exception: Exception) {
+            errorResult(exception.message ?: "Kimi image analysis failed.")
+        }
+    }
+
+    private suspend fun githubVision(prompt: String, localFile: String?, model: String): String {
+        val source = resolveOptionalPath(localFile)
+            ?: return errorResult("GitHub Copilot vision needs a local image file in localFile.")
+        val account = try {
+            de.moritzf.quota.idea.settings.AccountResolver.resolve(
+                QuotaProviderType.GITHUB,
+                capability = AccountCapability.VISION,
+            ).id
+        } catch (_: de.moritzf.quota.idea.settings.AccountResolveException) {
+            return errorResult("Sign in to GitHub Copilot in settings.")
+        }
+        return try {
+            val answer = de.moritzf.quota.idea.action.NativeDocumentConversion.githubVision(account, model, source, prompt)
+            McpJson.visionResult(VisionProvider.GITHUB.name, model, answer)
+        } catch (exception: kotlinx.coroutines.CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
+            errorResult(exception.message ?: "GitHub Copilot image analysis failed.")
+        }
+    }
+
+    private suspend fun openCodeVision(prompt: String, localFile: String?, model: String): String {
+        val source = resolveOptionalPath(localFile)
+            ?: return errorResult("OpenCode vision needs a local image file in localFile.")
+        val account = try {
+            de.moritzf.quota.idea.settings.AccountResolver.resolve(
+                QuotaProviderType.OPEN_CODE,
+                capability = AccountCapability.VISION,
+            ).id
+        } catch (_: de.moritzf.quota.idea.settings.AccountResolveException) {
+            return errorResult("Sign in to OpenCode in settings.")
+        }
+        return try {
+            val answer = de.moritzf.quota.idea.action.NativeDocumentConversion.openCodeVision(account, model, source, prompt)
+            McpJson.visionResult(VisionProvider.OPEN_CODE.name, model, answer)
+        } catch (exception: kotlinx.coroutines.CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
+            errorResult(exception.message ?: "OpenCode image analysis failed.")
+        }
     }
 
     private fun resolvedApiKey(

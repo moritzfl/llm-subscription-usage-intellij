@@ -55,6 +55,21 @@ enum class WebFetchProvider(val providerType: QuotaProviderType) {
 }
 
 /**
+ * Providers that can answer questions about an image with a vision-capable subscription model.
+ * Schema generation for the MCP tool parameter derives valid values from this enum.
+ */
+enum class VisionProvider(val providerType: QuotaProviderType) {
+    OPEN_AI(QuotaProviderType.OPEN_AI),
+    SUPERGROK(QuotaProviderType.SUPERGROK),
+    MISTRAL(QuotaProviderType.MISTRAL),
+    ZAI(QuotaProviderType.ZAI),
+    GITHUB(QuotaProviderType.GITHUB),
+    OPEN_CODE(QuotaProviderType.OPEN_CODE),
+    OLLAMA(QuotaProviderType.OLLAMA),
+    KIMI(QuotaProviderType.KIMI),
+}
+
+/**
  * Subscription document converters, plus [PDFBOX].
  * [PDFBOX] is local Apache PDFBox text extraction and has no catalog account.
  */

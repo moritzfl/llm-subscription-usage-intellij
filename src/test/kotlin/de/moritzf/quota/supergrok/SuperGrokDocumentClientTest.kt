@@ -53,6 +53,44 @@ class SuperGrokDocumentClientTest {
     }
 
     @Test
+    fun analyzeImagePostsImageAndPromptAndReturnsAnswer() {
+        TestUpstream(
+            uploadBody = "",
+            responseBody = """{"output":[{"content":[{"type":"output_text","text":"A red box on white."}]}]}""",
+        ).use { upstream ->
+            val client = SuperGrokDocumentClient(baseUri = upstream.baseUri)
+
+            val answer = client.analyzeImage(
+                "grok-token",
+                imageUrl = "https://example.com/a.png",
+                prompt = "What is shown?",
+                model = "grok-4.7",
+            )
+
+            assertEquals("A red box on white.", answer)
+            val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+            assertEquals("/v1/responses", request.path)
+            val body = JsonSupport.json.parseToJsonElement(request.body).jsonObject
+            assertEquals("grok-4.7", body["model"]!!.jsonPrimitive.content)
+            val content = body["input"]!!.jsonArray[0].jsonObject["content"]!!.jsonArray
+            assertEquals("input_image", content[0].jsonObject["type"]!!.jsonPrimitive.content)
+            assertEquals("https://example.com/a.png", content[0].jsonObject["image_url"]!!.jsonPrimitive.content)
+            assertEquals("What is shown?", content[1].jsonObject["text"]!!.jsonPrimitive.content)
+        }
+    }
+
+    @Test
+    fun analyzeImageRejectsNonImageLocalFile() {
+        val dir = Files.createTempDirectory("grok-vision")
+        val pdf = dir.resolve("doc.pdf")
+        Files.write(pdf, "%PDF-1.4".toByteArray())
+        val exception = assertFailsWith<SuperGrokQuotaException> {
+            SuperGrokDocumentClient().analyzeImage("token", localFile = pdf, prompt = "?", model = "grok-4.7")
+        }
+        assertTrue(exception.message!!.contains("image"))
+    }
+
+    @Test
     fun postsDocumentAndWritesMarkdown() {
         TestUpstream(
             uploadBody = """{"id":"file-1"}""",

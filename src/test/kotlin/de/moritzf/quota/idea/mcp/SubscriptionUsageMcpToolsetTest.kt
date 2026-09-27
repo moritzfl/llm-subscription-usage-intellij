@@ -201,6 +201,17 @@ class SubscriptionUsageMcpToolsetTest {
         )
     }
 
+    @Test
+    fun subscriptionVisionUsesSingleToolWithProviderEnumParameter() {
+        val tools = mcpTools("subscription_vision")
+
+        assertEquals(listOf("subscription_vision"), tools.map { it.mcpName() })
+        assertEquals(
+            listOf(String::class, VisionProvider::class, String::class, String::class, String::class),
+            tools.single().mcpParamClassifiers(),
+        )
+    }
+
     private fun mcpTools(name: String? = null): List<KFunction<*>> {
         return SubscriptionUsageMcpToolset::class.functions
             .filter { it.findAnnotation<McpTool>() != null }

@@ -30,10 +30,36 @@ internal object NativePdfDocument {
         }
     }
 
+    /** Same routes, but with an image part and a caller-supplied question instead of the markdown prompt. */
+    fun visionRequestJson(route: NativePdfRoute, model: String, prompt: String, imageDataUrl: String, base64: String, mediaType: String): String {
+        return when (route) {
+            NativePdfRoute.RESPONSES -> responsesVisionBody(model, prompt, imageDataUrl)
+            NativePdfRoute.CHAT -> chatVisionBody(model, prompt, imageDataUrl)
+            NativePdfRoute.ANTHROPIC -> anthropicVisionBody(model, prompt, base64, mediaType)
+        }
+    }
+
     fun dataUrl(path: Path): Pair<String, String> {
         val bytes = Files.readAllBytes(path)
         val encoded = Base64.getEncoder().encodeToString(bytes)
         return "data:application/pdf;base64,$encoded" to encoded
+    }
+
+    /** Image data URL plus raw base64, or null when the file is not a recognized image. */
+    fun imageDataUrl(path: Path): Triple<String, String, String>? {
+        if (!Files.isRegularFile(path)) return null
+        val bytes = Files.readAllBytes(path)
+        val mime = imageMimeType(path, bytes) ?: return null
+        val encoded = Base64.getEncoder().encodeToString(bytes)
+        return Triple("data:$mime;base64,$encoded", encoded, mime)
+    }
+
+    fun answer(route: NativePdfRoute, model: String, prompt: String, source: Path, post: (String) -> String): String {
+        val (dataUrl, base64, mediaType) = imageDataUrl(source) ?: error("Select a readable image file.")
+        val body = post(visionRequestJson(route, model, prompt, dataUrl, base64, mediaType))
+        val answer = extractText(body).trim()
+        if (answer.isBlank()) error("Provider returned no answer.")
+        return answer
     }
 
     fun convert(
@@ -108,7 +134,75 @@ internal object NativePdfDocument {
         }
     }.toString()
 
-    private fun anthropicBody(model: String, base64: String): String = buildJsonObject {
+    private fun anthropicBody(model: String, base64: String): String {
+        return buildJsonObject {
+            put("model", model)
+            put("max_tokens", 4096)
+            put("stream", false)
+            putJsonArray("messages") {
+                add(buildJsonObject {
+                    put("role", "user")
+                    putJsonArray("content") {
+                        add(buildJsonObject {
+                            put("type", "document")
+                            putJsonObject("source") {
+                                put("type", "base64")
+                                put("media_type", "application/pdf")
+                                put("data", base64)
+                            }
+                        })
+                        add(buildJsonObject {
+                            put("type", "text")
+                            put("text", PROMPT)
+                        })
+                    }
+                })
+            }
+        }.toString()
+    }
+
+    private fun responsesVisionBody(model: String, prompt: String, imageDataUrl: String): String = buildJsonObject {
+        put("model", model)
+        put("stream", false)
+        putJsonArray("input") {
+            add(buildJsonObject {
+                put("type", "message")
+                put("role", "user")
+                putJsonArray("content") {
+                    add(buildJsonObject {
+                        put("type", "input_image")
+                        put("image_url", imageDataUrl)
+                    })
+                    add(buildJsonObject {
+                        put("type", "input_text")
+                        put("text", prompt)
+                    })
+                }
+            })
+        }
+    }.toString()
+
+    private fun chatVisionBody(model: String, prompt: String, imageDataUrl: String): String = buildJsonObject {
+        put("model", model)
+        put("stream", false)
+        putJsonArray("messages") {
+            add(buildJsonObject {
+                put("role", "user")
+                putJsonArray("content") {
+                    add(buildJsonObject {
+                        put("type", "image_url")
+                        put("image_url", buildJsonObject { put("url", imageDataUrl) })
+                    })
+                    add(buildJsonObject {
+                        put("type", "text")
+                        put("text", prompt)
+                    })
+                }
+            })
+        }
+    }.toString()
+
+    private fun anthropicVisionBody(model: String, prompt: String, base64: String, mediaType: String): String = buildJsonObject {
         put("model", model)
         put("max_tokens", 4096)
         put("stream", false)
@@ -117,21 +211,39 @@ internal object NativePdfDocument {
                 put("role", "user")
                 putJsonArray("content") {
                     add(buildJsonObject {
-                        put("type", "document")
+                        put("type", "image")
                         putJsonObject("source") {
                             put("type", "base64")
-                            put("media_type", "application/pdf")
+                            put("media_type", mediaType)
                             put("data", base64)
                         }
                     })
                     add(buildJsonObject {
                         put("type", "text")
-                        put("text", PROMPT)
+                        put("text", prompt)
                     })
                 }
             })
         }
     }.toString()
+
+    private fun imageMimeType(path: Path, bytes: ByteArray): String? {
+        if (bytes.size >= 8 && bytes[0] == 0x89.toByte()) return "image/png"
+        if (bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte()) return "image/jpeg"
+        if (bytes.size >= 12 && bytes.decodeToString(0, 4) == "RIFF" &&
+            bytes.decodeToString(8, 12) == "WEBP"
+        ) {
+            return "image/webp"
+        }
+        if (bytes.size >= 6 && bytes.decodeToString(0, 3) == "GIF") return "image/gif"
+        return when (path.fileName.toString().substringAfterLast('.', "").lowercase()) {
+            "png" -> "image/png"
+            "jpg", "jpeg" -> "image/jpeg"
+            "gif" -> "image/gif"
+            "webp" -> "image/webp"
+            else -> null
+        }
+    }
 
     private fun extractSse(body: String): String {
         val text = StringBuilder()

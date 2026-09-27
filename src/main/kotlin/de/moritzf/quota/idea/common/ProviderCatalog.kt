@@ -73,6 +73,7 @@ internal data class ProviderCapabilities(
     val speechToText: Boolean = false,
     val textToSpeech: Boolean = false,
     val documentToMarkdown: Boolean = false,
+    val vision: Boolean = false,
     val webFetch: Boolean = false,
     val subscriptionProxy: Boolean = false,
     val oauth: Boolean = false,
@@ -97,12 +98,14 @@ internal data class ProviderDescriptor(
     val isImageGenerationConfigured: () -> Boolean = { false },
     val isVoiceConfigured: () -> Boolean = { false },
     val isDocumentConfigured: () -> Boolean = { false },
+    val isVisionConfigured: () -> Boolean = { false },
     /** Per-account blocking credential checks; default delegates to the type-level (first-account) probe. */
     val isQuotaConfiguredForAccount: (accountId: String) -> Boolean = { isQuotaConfigured() },
     val isWebSearchConfiguredForAccount: (accountId: String) -> Boolean = { isWebSearchConfigured() },
     val isImageGenerationConfiguredForAccount: (accountId: String) -> Boolean = { isImageGenerationConfigured() },
     val isVoiceConfiguredForAccount: (accountId: String) -> Boolean = { isVoiceConfigured() },
     val isDocumentConfiguredForAccount: (accountId: String) -> Boolean = { isDocumentConfigured() },
+    val isVisionConfiguredForAccount: (accountId: String) -> Boolean = { isVisionConfigured() },
     /**
      * Proxy-credential check. The optional callback is invoked when PasswordSafe finishes an async load
      * (settings UI refresh). Null for blocking-only callers.
@@ -190,7 +193,7 @@ internal object ProviderCatalog {
         ),
         descriptor(
             type = QuotaProviderType.GITHUB,
-            capabilities = ProviderCapabilities(documentToMarkdown = true, subscriptionProxy = true),
+            capabilities = ProviderCapabilities(documentToMarkdown = true, vision = true, subscriptionProxy = true),
             quotaFactory = { GitHubQuotaProvider(accountId = it.id) },
             snapshotCodec = EnvelopeQuotaCodec(GitHubQuota.serializer()),
             mcpEmpty = "No GitHub usage response available",
@@ -213,6 +216,7 @@ internal object ProviderCatalog {
             type = QuotaProviderType.KIMI,
             capabilities = ProviderCapabilities(
                 webSearch = WebSearchCapability.LIST,
+                vision = true,
                 subscriptionProxy = true,
             ),
             quotaFactory = { KimiQuotaProvider(accountId = it.id) },
@@ -278,6 +282,7 @@ internal object ProviderCatalog {
                 speechToText = true,
                 textToSpeech = true,
                 documentToMarkdown = true,
+                vision = true,
                 subscriptionProxy = true,
             ),
             quotaFactory = { MistralQuotaProvider(accountId = it.id) },
@@ -318,6 +323,7 @@ internal object ProviderCatalog {
             capabilities = ProviderCapabilities(
                 webSearch = WebSearchCapability.LIST,
                 webFetch = true,
+                vision = true,
                 subscriptionProxy = true,
             ),
             quotaFactory = { account ->
@@ -360,6 +366,7 @@ internal object ProviderCatalog {
                 speechToText = true,
                 textToSpeech = true,
                 documentToMarkdown = true,
+                vision = true,
                 subscriptionProxy = true,
                 oauth = true,
             ),
@@ -380,7 +387,7 @@ internal object ProviderCatalog {
         ),
         descriptor(
             type = QuotaProviderType.OPEN_CODE,
-            capabilities = ProviderCapabilities(documentToMarkdown = true, subscriptionProxy = true),
+            capabilities = ProviderCapabilities(documentToMarkdown = true, vision = true, subscriptionProxy = true),
             quotaFactory = { OpenCodeQuotaProvider(accountId = it.id) },
             snapshotCodec = EnvelopeQuotaCodec(OpenCodeQuota.serializer()),
             mcpQuota = UsageQuotaMcpRegistration(
@@ -418,6 +425,7 @@ internal object ProviderCatalog {
                 speechToText = true,
                 textToSpeech = true,
                 documentToMarkdown = true,
+                vision = true,
                 subscriptionProxy = true,
                 oauth = true,
             ),
@@ -444,6 +452,7 @@ internal object ProviderCatalog {
                 videoGeneration = true,
                 speechToText = true,
                 documentToMarkdown = true,
+                vision = true,
                 webFetch = true,
                 subscriptionProxy = true,
             ),
@@ -595,6 +604,15 @@ internal object ProviderCatalog {
         QuotaProviderType.OPEN_CODE,
     )
 
+    /** Vision is opt-in: "-" (the default for every provider) keeps it off until a model is chosen. */
+    private fun visionModelOff(accountId: String): Boolean {
+        val saved = runCatching {
+            de.moritzf.quota.idea.settings.QuotaSettingsState.getInstance().account(accountId)
+                ?.extra(de.moritzf.quota.idea.settings.ProviderAccount.EXTRA_VISION_MODEL)
+        }.getOrNull()
+        return saved.isNullOrBlank() || saved == "-"
+    }
+
     private fun descriptor(
         type: QuotaProviderType,
         capabilities: ProviderCapabilities = ProviderCapabilities(),
@@ -609,6 +627,7 @@ internal object ProviderCatalog {
         isImageGenerationConfigured: (() -> Boolean)? = null,
         isVoiceConfigured: (() -> Boolean)? = null,
         isDocumentConfigured: (() -> Boolean)? = null,
+        isVisionConfigured: (() -> Boolean)? = null,
         isProxyConfigured: (onCredentialsLoaded: (() -> Unit)?) -> Boolean = { _ -> false },
         webSearchMissingReason: String? = null,
         ideProxyFactory: ((IdeProxyBuildContext) -> SubscriptionProxyProvider)? = null,
@@ -617,6 +636,7 @@ internal object ProviderCatalog {
         isImageGenerationConfiguredForAccount: ((accountId: String) -> Boolean)? = null,
         isVoiceConfiguredForAccount: ((accountId: String) -> Boolean)? = null,
         isDocumentConfiguredForAccount: ((accountId: String) -> Boolean)? = null,
+        isVisionConfiguredForAccount: ((accountId: String) -> Boolean)? = null,
     ): ProviderDescriptor {
         val quotaForAccount = isQuotaConfiguredForAccount ?: { isQuotaConfigured() }
         return ProviderDescriptor(
@@ -635,6 +655,8 @@ internal object ProviderCatalog {
                 ?: { (capabilities.speechToText || capabilities.textToSpeech) && isQuotaConfigured() },
             isDocumentConfigured = isDocumentConfigured
                 ?: { capabilities.documentToMarkdown && isQuotaConfigured() },
+            isVisionConfigured = isVisionConfigured
+                ?: { capabilities.vision && isQuotaConfigured() },
             isQuotaConfiguredForAccount = quotaForAccount,
             isWebSearchConfiguredForAccount = isWebSearchConfiguredForAccount ?: { isWebSearchConfigured() },
             isImageGenerationConfiguredForAccount = isImageGenerationConfiguredForAccount
@@ -647,6 +669,11 @@ internal object ProviderCatalog {
                 val configured = isDocumentConfiguredForAccount?.invoke(accountId)
                     ?: (capabilities.documentToMarkdown && quotaForAccount(accountId))
                 configured && !documentConversionOff(type, accountId)
+            },
+            isVisionConfiguredForAccount = { accountId ->
+                val configured = isVisionConfiguredForAccount?.invoke(accountId)
+                    ?: (capabilities.vision && quotaForAccount(accountId))
+                configured && !visionModelOff(accountId)
             },
             isProxyConfigured = isProxyConfigured,
             webSearchMissingReason = webSearchMissingReason,

@@ -151,6 +151,50 @@ class CodexMcpClient(
         }
     }
 
+    /** Asks a vision model about one image. Returns the model's answer text, or an error body. */
+    fun analyzeImage(
+        imageUrl: String? = null,
+        localFile: Path? = null,
+        prompt: String,
+        model: String = DEFAULT_CHAT_MODEL,
+    ): CodexMcpResponse {
+        val trimmedPrompt = prompt.trim()
+        if (trimmedPrompt.isBlank()) {
+            return CodexMcpResponse(errorJson("Image prompt is required."), true)
+        }
+        val url = imageUrl?.trim().orEmpty()
+        val imageContent = when {
+            url.isNotEmpty() -> buildJsonObject {
+                put("type", "input_image")
+                put("image_url", url)
+            }
+
+            localFile != null && Files.isRegularFile(localFile) -> {
+                val bytes = Files.readAllBytes(localFile)
+                val mime = mimeType(localFile, bytes)
+                if (!mime.startsWith("image/")) {
+                    return CodexMcpResponse(
+                        errorJson("Provide an image file. Use subscription_document_to_markdown for documents."),
+                        true,
+                    )
+                }
+                DocumentLimits.inlineOverflowMessage(localFile)?.let {
+                    return CodexMcpResponse(errorJson(it), true)
+                }
+                buildJsonObject {
+                    put("type", "input_image")
+                    put("image_url", "data:$mime;base64,${Base64.getEncoder().encodeToString(bytes)}")
+                }
+            }
+
+            else -> return CodexMcpResponse(errorJson("Provide imageUrl or a local image file path."), true)
+        }
+        val selectedModel = model.trim().ifBlank { DEFAULT_CHAT_MODEL }
+        return postResponses(visionRequest(imageContent, selectedModel, trimmedPrompt)) { body ->
+            parseVisionResponse(body)
+        }
+    }
+
     fun transcribe(
         audioUrl: String? = null,
         localFile: Path? = null,
@@ -381,6 +425,44 @@ class CodexMcpClient(
             put("store", false)
             put("stream", true)
         }
+    }
+
+    private fun visionRequest(imageContent: JsonObject, model: String, prompt: String): JsonObject {
+        return buildJsonObject {
+            put("model", model)
+            putJsonArray("input") {
+                add(buildJsonObject {
+                    put("type", "message")
+                    put("role", "user")
+                    putJsonArray("content") {
+                        add(imageContent)
+                        add(buildJsonObject {
+                            put("type", "input_text")
+                            put("text", prompt)
+                        })
+                    }
+                })
+            }
+            put("store", false)
+            put("stream", true)
+        }
+    }
+
+    private fun parseVisionResponse(body: String): CodexMcpResponse {
+        val output = StringBuilder()
+        var outputTextDone: String? = null
+        for (event in responsesDataEvents(body)) {
+            failedMessage(event)?.let { return CodexMcpResponse(errorJson(it), true) }
+            when (event.string("type")) {
+                "response.output_text.delta" -> output.append(event.string("delta").orEmpty())
+                "response.output_text.done" -> outputTextDone = event.string("text")
+            }
+        }
+        val answer = outputTextDone?.takeIf { it.isNotBlank() } ?: output.toString().trim()
+        if (answer.isBlank()) {
+            return CodexMcpResponse(errorJson("Codex image analysis returned no output."), true)
+        }
+        return CodexMcpResponse(answer, false)
     }
 
     private fun documentInput(documentUrl: String?, localFile: Path?): JsonObject? {

@@ -37,6 +37,7 @@ data class ProviderAccount(
         const val EXTRA_MINIMAX_REGION = "minimaxRegionPreference"
         const val EXTRA_OLLAMA_MONTHLY_RESET = "ollamaMonthlyResetAt"
         const val EXTRA_DOCUMENT_MODEL = "documentModel"
+        const val EXTRA_VISION_MODEL = "visionModel"
 
         fun newId(): String = UUID.randomUUID().toString()
 

@@ -551,6 +551,49 @@ class CodexMcpClientTest {
         }
     }
 
+    @Test
+    fun postsImageAnalysisToCodexResponsesAndReturnsAnswer() {
+        TestUpstream(
+            responseBody = sse(
+                """{"type":"response.output_text.delta","delta":"A red "}""",
+                """{"type":"response.output_text.delta","delta":"box."}""",
+                """{"type":"response.completed","response":{"id":"resp_vision"}}""",
+            ),
+        ).use { upstream ->
+            val client = newClient(upstream.baseUri)
+
+            val response = client.analyzeImage(
+                imageUrl = "https://example.com/a.png",
+                prompt = "What is shown?",
+                model = "gpt-6-sol",
+            )
+
+            assertFalse(response.isError)
+            assertEquals("A red box.", response.body)
+            val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+            assertEquals("/backend-api/codex/responses", request.path)
+            val body = parseObject(request.body)
+            assertEquals("gpt-6-sol", body["model"]!!.jsonPrimitive.content)
+            val content = body["input"]!!.jsonArray[0].jsonObject["content"]!!.jsonArray
+            assertEquals("input_image", content[0].jsonObject["type"]!!.jsonPrimitive.content)
+            assertEquals("https://example.com/a.png", content[0].jsonObject["image_url"]!!.jsonPrimitive.content)
+            assertEquals("What is shown?", content[1].jsonObject["text"]!!.jsonPrimitive.content)
+        }
+    }
+
+    @Test
+    fun imageAnalysisRejectsNonImageLocalFile() {
+        val dir = Files.createTempDirectory("codex-vision")
+        val pdf = dir.resolve("doc.pdf")
+        Files.write(pdf, "%PDF-1.4".toByteArray())
+        val response = newClient(URI.create("https://invalid.example")).analyzeImage(
+            localFile = pdf,
+            prompt = "What is shown?",
+        )
+        assertTrue(response.isError)
+        assertTrue(parseObject(response.body)["error"]!!.jsonPrimitive.content.contains("image"))
+    }
+
     private fun newClient(upstreamBaseUri: URI): CodexMcpClient {
         return CodexMcpClient(
             accessTokenProvider = { "codex-token" },

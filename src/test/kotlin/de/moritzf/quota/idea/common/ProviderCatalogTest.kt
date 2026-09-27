@@ -6,6 +6,7 @@ import de.moritzf.quota.idea.mcp.ListSearchProvider
 import de.moritzf.quota.idea.mcp.SpeechToTextProvider
 import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
 import de.moritzf.quota.idea.mcp.TextToSpeechProvider
+import de.moritzf.quota.idea.mcp.VisionProvider
 import de.moritzf.quota.idea.mcp.VideoGenerationProvider
 import de.moritzf.quota.idea.mcp.WebFetchProvider
 import de.moritzf.quota.idea.mcp.UsageQuotaMcpRegistry
@@ -93,6 +94,10 @@ class ProviderCatalogTest {
         assertEquals(
             ProviderCatalog.all.filter { it.capabilities.documentToMarkdown }.map { it.type }.toSet(),
             DocumentToMarkdownProvider.entries.mapNotNull { it.providerType }.toSet(),
+        )
+        assertEquals(
+            ProviderCatalog.all.filter { it.capabilities.vision }.map { it.type }.toSet(),
+            VisionProvider.entries.map { it.providerType }.toSet(),
         )
         assertNull(DocumentToMarkdownProvider.PDFBOX.providerType)
         assertEquals(
