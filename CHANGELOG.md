@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - Mistral reads the separate included API/Studio and Vibe Code allowances from the subscription page. Both show percentage, used amount, allowance and monthly reset; the status bar uses the higher percentage instead of showing Vibe's 0% while API credits are nearly exhausted.
+- Mistral's quota popup names the two included allowances **Monthly API limit** and **Monthly Mistral Vibe limit**, so the reset period is explicit. The transient per-minute token and request rate-limit rows are no longer listed.
 - Mistral's API activity summary no longer shows the ambiguous text-to-speech character count.
 - Azure's document-model dropdown lists specialized models first under **Documents & text recognition**, followed by **General-purpose AI models**, using native labeled group separators. Model names no longer carry the misleading **Native PDF** prefix. A contextual hint explains PDF support, discovered embedding models are excluded, and **Off** appears at the end.
 - Mistral shows La Plateforme API activity in the quota popup: an **API usage (month)** block with usage cost (each billing event joined against the price list Mistral returns) plus token, OCR-page, connector-call, and audio totals. Included subscription allowances have separate percentage bars. When allowance data is unavailable and Vibe usage is 0%, the status bar falls back to API usage cost. The admin billing endpoint recovered from its earlier HTTP 500; the popup reads it directly.
