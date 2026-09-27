@@ -153,6 +153,23 @@ object QuotaUiUtil {
         return BigDecimal.valueOf(balance).movePointLeft(8).setScale(2, RoundingMode.HALF_UP).toPlainString()
     }
 
+    /** 1234 -> "1.2k", 46100000 -> "46.1M"; small values stay as-is. */
+    @JvmStatic
+    fun formatCompactCount(value: Long): String {
+        val abs = kotlin.math.abs(value)
+        return when {
+            abs >= 1_000_000_000L -> trimFraction(value / 1_000_000_000.0) + "B"
+            abs >= 1_000_000L -> trimFraction(value / 1_000_000.0) + "M"
+            abs >= 1_000L -> trimFraction(value / 1_000.0) + "k"
+            else -> value.toString()
+        }
+    }
+
+    private fun trimFraction(value: Double): String {
+        val rounded = kotlin.math.round(value * 10.0) / 10.0
+        return if (rounded == rounded.toLong().toDouble()) rounded.toLong().toString() else rounded.toString()
+    }
+
     @JvmStatic
     fun escapeHtml(text: String): String {
         return buildString(text.length) {

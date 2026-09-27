@@ -304,11 +304,22 @@ internal fun miniMaxIndicatorState(quota: MiniMaxQuota): MiniMaxIndicatorState? 
 internal fun mistralBarDisplayText(quota: MistralQuota?, error: String?): String {
     if (error != null) return "error"
     if (quota == null) return "loading..."
-    val usage = mistralDisplayWindow(quota) ?: return "no data"
+    val usage = mistralDisplayWindow(quota)
+        ?: return quota.apiUsage?.let(::mistralApiUsageBarText) ?: "no data"
     val percent = clampPercent(usage.usagePercent.roundToInt())
+    if (percent == 0) {
+        quota.apiUsage?.takeIf { it.hasAnyUsage() }?.let { return mistralApiUsageBarText(it) }
+    }
     val reset = if (isMistralPerMinuteWindow(usage)) null else QuotaUiUtil.formatResetCompact(usage.resetsAt)
     val text = "$percent%"
     return if (reset != null) "$text • $reset" else text
+}
+
+/** Pay-per-use API accounts have no percentage; the spend is the meaningful number. */
+internal fun mistralApiUsageBarText(usage: de.moritzf.quota.mistral.MistralApiUsage): String {
+    val spend = usage.spendEur
+    if (spend != null) return String.format(java.util.Locale.ROOT, "€%.2f", spend)
+    return QuotaUiUtil.formatCompactCount(usage.tokens) + " tok"
 }
 
 internal fun isMistralPerMinuteWindow(window: de.moritzf.quota.mistral.MistralUsageWindow): Boolean {

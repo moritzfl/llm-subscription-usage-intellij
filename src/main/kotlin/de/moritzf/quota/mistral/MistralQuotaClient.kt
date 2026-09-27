@@ -6,9 +6,11 @@ import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.io.IOException
@@ -61,6 +63,7 @@ open class MistralQuotaClient(
         val vibe = vibeBody?.let(::parseVibeUsage)
         if (billingError != null && vibe == null) throw billingError
         val monthly = monthlyWindow(vibe, billing)
+        val apiUsage = billingBody?.let { body -> runCatching { parseApiUsage(body) }.getOrNull() }
         val identityBody = apiKey?.takeIf { it.isNotBlank() }?.let { key ->
             runCatching { getJson(key, IDENTITY_URI) }.getOrNull()
         }
@@ -78,6 +81,7 @@ open class MistralQuotaClient(
             monthlyUsage = monthly,
             tokenUsage = tokenUsage,
             requestUsage = requestUsage,
+            apiUsage = apiUsage,
             fetchedAt = now,
         )
         quota.rawJson = buildRawResponse(
@@ -316,6 +320,76 @@ open class MistralQuotaClient(
             val percent = json.usagePercentage ?: return null
             if (!percent.isFinite() || percent !in 0.0..100.0) return null
             return MistralVibeUsage(percent, parseInstant(json.resetAt))
+        }
+
+        /**
+         * Sums the pay-per-use La Plateforme billing of the current month: token totals per section
+         * and the exact spend as value_paid x price. `chat` and `vibe_code` belong to the
+         * subscriptions, not API billing, and stay out.
+         */
+        internal fun parseApiUsage(body: String): MistralApiUsage? {
+            val root = runCatching { JsonSupport.json.parseToJsonElement(body) }.getOrNull() as? JsonObject ?: return null
+            val prices = (root["prices"] as? JsonArray)?.mapNotNull { entry -> priceEntry(entry) }?.toMap()
+            var spend = 0.0
+            var tokens = 0L
+            var ocrPages = 0L
+            var connectorCalls = 0L
+            var audioSeconds = 0L
+            var ttsCharacters = 0L
+            for (section in API_BILLING_SECTIONS) {
+                val node = root[section] ?: continue
+                collectBillingEvents(node) { event ->
+                    val eventType = event.string("event_type") ?: return@collectBillingEvents
+                    if (!eventType.startsWith("api_")) return@collectBillingEvents
+                    val value = event.string("value_paid")?.toLongOrNull() ?: return@collectBillingEvents
+                    prices?.get(priceKey(event))?.let { spend += value * it }
+                    when (eventType) {
+                        "api_tokens", "api_libraries_tokens" -> tokens += value
+                        "api_pages", "api_libraries_pages" -> ocrPages += value
+                        "api_connectors" -> connectorCalls += value
+                        "api_audio_seconds", "api_libraries_audio" -> audioSeconds += value
+                        "api_audio_characters" -> ttsCharacters += value
+                    }
+                }
+            }
+            return MistralApiUsage(
+                spendEur = prices?.let { spend },
+                tokens = tokens,
+                ocrPages = ocrPages,
+                connectorCalls = connectorCalls,
+                audioSeconds = audioSeconds,
+                ttsCharacters = ttsCharacters,
+            )
+        }
+
+        private val API_BILLING_SECTIONS = listOf(
+            "completion", "ocr", "connectors", "audio", "audio_characters", "libraries_api",
+        )
+
+        private fun collectBillingEvents(element: JsonElement, visit: (JsonObject) -> Unit) {
+            when (element) {
+                is JsonObject -> {
+                    visit(element)
+                    element.values.forEach { collectBillingEvents(it, visit) }
+                }
+                is JsonArray -> element.forEach { collectBillingEvents(it, visit) }
+                else -> Unit
+            }
+        }
+
+        private fun priceEntry(entry: JsonElement): Pair<String, Double>? {
+            val item = entry as? JsonObject ?: return null
+            val price = item.string("price")?.toDoubleOrNull() ?: return null
+            return priceKey(item) to price
+        }
+
+        private fun priceKey(item: JsonObject): String {
+            return listOf("event_type", "billing_metric", "billing_group", "api_zone", "service_tier")
+                .joinToString("|") { name -> item.string(name).orEmpty() }
+        }
+
+        private fun JsonObject.string(name: String): String? {
+            return (this[name] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotEmpty() }
         }
 
         internal fun parseBilling(body: String): MistralBillingDto {

@@ -1,5 +1,6 @@
 package de.moritzf.quota.mistral
 
+import de.moritzf.quota.shared.JsonSupport
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -7,6 +8,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
+import kotlinx.serialization.encodeToString
 
 class MistralQuotaClientTest {
     @Test
@@ -68,6 +70,85 @@ class MistralQuotaClientTest {
         assertFailsWith<MistralQuotaException> {
             MistralQuotaClient.parseIdentity("not-json")
         }
+    }
+
+    @Test
+    fun parseApiUsageSumsTokensPagesCallsAndExactSpend() {
+        val body = """
+            {
+              "completion": {"models": {
+                "zai-glm-5-3::zai-glm-5-3": {
+                  "input": [{"event_type":"api_tokens","billing_metric":"zai-glm-5-3","billing_group":"input","api_zone":"global","service_tier":"standard","value_paid":1000,"timestamp":"2026-09-28"}],
+                  "output": [{"event_type":"api_tokens","billing_metric":"zai-glm-5-3","billing_group":"output","api_zone":"global","service_tier":"standard","value_paid":200,"timestamp":"2026-09-28"}],
+                  "cached": [{"event_type":"api_tokens","billing_metric":"zai-glm-5-3","billing_group":"cached","api_zone":"global","service_tier":"standard","value_paid":5000,"timestamp":"2026-09-28"}]
+                }
+              }},
+              "ocr": {"models": {"mistral-ocr-latest::mistral-ocr-4": {"pages": [
+                {"event_type":"api_pages","billing_metric":"mistral-ocr-4","billing_group":"pages","api_zone":"global","service_tier":"standard","value_paid":3}
+              ]}}},
+              "connectors": {"models": {"image_generation::image_generation": {"calls": [
+                {"event_type":"api_connectors","billing_metric":"image_generation","billing_group":"calls","api_zone":"global","service_tier":"standard","value_paid":1}
+              ]}}},
+              "audio": {"models": {"voxtral::voxtral-mini": {"input": [
+                {"event_type":"api_audio_seconds","billing_metric":"voxtral-mini","billing_group":"input","api_zone":"global","service_tier":"standard","value_paid":7}
+              ]}}},
+              "audio_characters": {"models": {"tts::voxtral-tts": {"input": [
+                {"event_type":"api_audio_characters","billing_metric":"voxtral-tts","billing_group":"input","api_zone":"global","service_tier":"standard","value_paid":22}
+              ]}}},
+              "chat": {"models": {"le-chat": {"input": [
+                {"event_type":"chat_tokens","billing_metric":"le-chat","billing_group":"input","api_zone":"global","service_tier":"standard","value_paid":999999}
+              ]}}},
+              "vibe_code": {"completion": {"models": {"vibe": {"input": [
+                {"event_type":"vibe_tokens","billing_metric":"vibe","billing_group":"input","api_zone":"global","service_tier":"standard","value_paid":888888}
+              ]}}}},
+              "prices": [
+                {"event_type":"api_tokens","billing_metric":"zai-glm-5-3","billing_group":"input","api_zone":"global","service_tier":"standard","price":"0.0000011900"},
+                {"event_type":"api_tokens","billing_metric":"zai-glm-5-3","billing_group":"output","api_zone":"global","service_tier":"standard","price":"0.0000037400"},
+                {"event_type":"api_tokens","billing_metric":"zai-glm-5-3","billing_group":"cached","api_zone":"global","service_tier":"standard","price":"1.190E-7"},
+                {"event_type":"api_pages","billing_metric":"mistral-ocr-4","billing_group":"pages","api_zone":"global","service_tier":"standard","price":"0.0034000000"},
+                {"event_type":"api_connectors","billing_metric":"image_generation","billing_group":"calls","api_zone":"global","service_tier":"standard","price":"0.0850000000"}
+              ]
+            }
+        """.trimIndent()
+
+        val usage = assertNotNull(MistralQuotaClient.parseApiUsage(body))
+
+        assertEquals(6_200L, usage.tokens)
+        assertEquals(3L, usage.ocrPages)
+        assertEquals(1L, usage.connectorCalls)
+        assertEquals(7L, usage.audioSeconds)
+        assertEquals(22L, usage.ttsCharacters)
+        val expectedSpend = 1000 * 1.19e-6 + 200 * 3.74e-6 + 5000 * 1.19e-7 + 3 * 0.0034 + 1 * 0.085
+        assertEquals(expectedSpend, usage.spendEur!!, 1e-12)
+        assertTrue(usage.hasAnyUsage())
+    }
+
+    @Test
+    fun parseApiUsageWithoutPricesKeepsTotalsButNullSpend() {
+        val body = """
+            {"completion":{"models":{"m":{"input":[
+              {"event_type":"api_tokens","billing_metric":"m","billing_group":"input","api_zone":"global","service_tier":"standard","value_paid":10}
+            ]}}}}
+        """.trimIndent()
+
+        val usage = assertNotNull(MistralQuotaClient.parseApiUsage(body))
+
+        assertEquals(10L, usage.tokens)
+        assertNull(usage.spendEur)
+        assertTrue(usage.hasAnyUsage())
+    }
+
+    @Test
+    fun parseApiUsageReturnsNullForUnreadableBody() {
+        assertNull(MistralQuotaClient.parseApiUsage("not-json"))
+    }
+
+    @Test
+    fun mistralQuotaSerializesApiUsage() {
+        val quota = MistralQuota(apiUsage = MistralApiUsage(spendEur = 9.42, tokens = 44_000_000, ocrPages = 442))
+        val json = de.moritzf.quota.shared.JsonSupport.json.encodeToString(MistralQuota.serializer(), quota)
+        val decoded = de.moritzf.quota.shared.JsonSupport.json.decodeFromString(MistralQuota.serializer(), json)
+        assertEquals(quota.apiUsage, decoded.apiUsage)
     }
 
     @Test

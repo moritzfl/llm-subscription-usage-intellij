@@ -138,16 +138,21 @@ private fun indicatorTooltipUsage(quota: ProviderQuota?): IndicatorTooltipUsage 
             IndicatorTooltipUsage(state.percent, compactReset(state.resetsAt), miniMaxWindowKind(quota))
         }
         is MistralQuota -> {
-            val window = mistralDisplayWindow(quota) ?: return IndicatorTooltipUsage(null, null)
+            val window = mistralDisplayWindow(quota)
+            val apiUsage = quota.apiUsage?.takeIf { it.hasAnyUsage() }
+            if (apiUsage != null && (window == null || clampPercent(window.usagePercent.roundToInt()) == 0)) {
+                return IndicatorTooltipUsage(null, null, "API usage")
+            }
+            val resolved = window ?: return IndicatorTooltipUsage(null, null)
             val kind = when {
-                window === quota.monthlyUsage -> "Monthly"
-                window === quota.tokenUsage -> "Tokens / min"
-                window === quota.requestUsage -> "Requests / min"
+                resolved === quota.monthlyUsage -> "Monthly"
+                resolved === quota.tokenUsage -> "Tokens / min"
+                resolved === quota.requestUsage -> "Requests / min"
                 else -> null
             }
             IndicatorTooltipUsage(
-                clampPercent(window.usagePercent.roundToInt()),
-                if (isMistralPerMinuteWindow(window)) null else compactReset(window.resetsAt),
+                clampPercent(resolved.usagePercent.roundToInt()),
+                if (isMistralPerMinuteWindow(resolved)) null else compactReset(resolved.resetsAt),
                 kind,
             )
         }

@@ -46,6 +46,16 @@ class QuotaUiUtilTest {
     }
 
     @Test
+    fun formatCompactCountAbbreviatesLargeValues() {
+        assertEquals("442", QuotaUiUtil.formatCompactCount(442))
+        assertEquals("1.2k", QuotaUiUtil.formatCompactCount(1_234))
+        assertEquals("46.1M", QuotaUiUtil.formatCompactCount(46_100_000))
+        assertEquals("42.2M", QuotaUiUtil.formatCompactCount(42_164_544))
+        assertEquals("1.2B", QuotaUiUtil.formatCompactCount(1_234_000_000))
+        assertEquals("2M", QuotaUiUtil.formatCompactCount(2_000_000))
+    }
+
+    @Test
     fun escapeHtmlEscapesSpecialCharacters() {
         assertEquals(
             "&lt;script&gt;&amp;&quot;&#39;&lt;/script&gt;",
