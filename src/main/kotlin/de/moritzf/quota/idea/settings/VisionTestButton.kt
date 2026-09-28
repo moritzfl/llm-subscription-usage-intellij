@@ -137,7 +137,7 @@ private class VisionTestDialog(
         var preview: BufferedImage? = null
         try {
             checkActive(gen)
-            val icon = HelloPdf.iconImage()
+            val icon = HelloPdf.iconImage(VISION_ICON_SIZE)
             preview = icon
             ImageIO.write(icon, "png", image.toFile())
             onEdt(gen) { showPage(icon) }
@@ -240,12 +240,15 @@ private class VisionTestDialog(
 
     private fun pagePreview(image: BufferedImage): JComponent {
         val maxWidth = JBUI.scale(480)
-        val scale = minOf(1.0, maxWidth.toDouble() / image.width)
-        val icon = ImageIcon(image.getScaledInstance((image.width * scale).toInt(), (image.height * scale).toInt(), Image.SCALE_SMOOTH))
+        val maxHeight = JBUI.scale(280)
+        val scale = minOf(1.0, maxWidth.toDouble() / image.width, maxHeight.toDouble() / image.height)
+        val scaledWidth = (image.width * scale).toInt().coerceAtLeast(1)
+        val scaledHeight = (image.height * scale).toInt().coerceAtLeast(1)
+        val icon = ImageIcon(image.getScaledInstance(scaledWidth, scaledHeight, Image.SCALE_SMOOTH))
         return JBScrollPane(JBLabel(icon)).apply {
             border = JBUI.Borders.customLine(JBColor.border(), 1)
             horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
-            preferredSize = Dimension(maxWidth, icon.iconHeight.coerceAtMost(JBUI.scale(280)) + JBUI.scale(4))
+            preferredSize = Dimension(maxWidth, icon.iconHeight.coerceAtMost(maxHeight) + JBUI.scale(4))
         }
     }
 
@@ -279,5 +282,6 @@ private class VisionTestDialog(
 
     private companion object {
         const val TEST_PROMPT = "Describe this image."
+        const val VISION_ICON_SIZE = 160
     }
 }
