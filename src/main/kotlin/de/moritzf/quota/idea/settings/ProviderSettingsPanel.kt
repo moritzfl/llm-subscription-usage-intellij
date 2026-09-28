@@ -55,11 +55,14 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
     protected fun install(config: JComponent, response: JComponent) {
         // The form can be wider than the detail pane. Scroll instead of clipping the right edge.
         val formScroll = object : JBScrollPane(config) {
+            // The parent fixes our height before layout discovers horizontal overflow. Reserve
+            // scrollbar space up front so it cannot take height away from the final help row.
             override fun getPreferredSize(): Dimension =
-                Dimension(JBUI.scale(280), super.getPreferredSize().height)
+                Dimension(JBUI.scale(280), super.getPreferredSize().height + horizontalScrollBar.preferredSize.height)
             override fun getMinimumSize(): Dimension = Dimension(0, 0)
         }.apply {
             border = JBUI.Borders.empty()
+            isOverlappingScrollBar = false
             horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED
             verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER
         }

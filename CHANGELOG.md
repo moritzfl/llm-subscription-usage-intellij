@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Provider connection forms reserve space for horizontal scrollbars so the bottom help text stays fully visible in narrow settings panes.
+
 - Mistral reads the separate included API/Studio and Vibe Code allowances from the subscription page. Both show percentage, used amount, allowance and monthly reset; the status bar uses the higher percentage instead of showing Vibe's 0% while API credits are nearly exhausted.
 - Mistral's quota popup names the two included allowances **Monthly API limit** and **Monthly Mistral Vibe limit**, so the reset period is explicit. The transient per-minute token and request rate-limit rows are no longer listed.
 - Mistral's API activity summary no longer shows the ambiguous text-to-speech character count or the minor connector-call count.
