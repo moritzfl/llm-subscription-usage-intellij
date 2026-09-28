@@ -16,6 +16,7 @@ import com.intellij.util.ui.UIUtil
 import de.moritzf.quota.idea.action.VisionImageAnalysis
 import de.moritzf.quota.idea.mcp.VisionProvider
 import de.moritzf.quota.idea.ui.QuotaUiUtil
+import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.shared.HelloPdf
 import java.awt.BorderLayout
 import java.awt.Dimension
@@ -38,12 +39,21 @@ import javax.swing.SwingUtilities
 /** Runs the selected vision model against the plugin icon rendered as a PNG. */
 internal class VisionTestButton(
     private val provider: VisionProvider,
-    private val selectedModel: () -> String,
+    private val combo: VisionModelCombo,
     private val modality: () -> JComponent?,
 ) : JButton("Test vision") {
     init {
         toolTipText = "Ask the selected vision model to describe the plugin icon"
-        addActionListener { VisionTestDialog(modality() ?: this, provider, selectedModel).show() }
+        combo.combo.addItemListener { updateEnabled() }
+        updateEnabled()
+        addActionListener {
+            VisionTestDialog(modality() ?: this, provider) { combo.selected().orEmpty() }.show()
+        }
+    }
+
+    /** The picker starts on "-", so there is nothing to run until a model is chosen. */
+    private fun updateEnabled() {
+        isEnabled = combo.selected().orEmpty().let { it.isNotBlank() && it != DocumentModels.OFF }
     }
 }
 

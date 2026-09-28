@@ -131,7 +131,7 @@ internal class SuperGrokSettingsPanel(
             row("Vision model:") {
                 cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
                     .comment("Used by subscription_vision. '-' keeps vision off.")
-                cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.SUPERGROK, { visionModelCombo.selected().orEmpty() }, modalityComponentProvider))
+                cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.SUPERGROK, visionModelCombo, modalityComponentProvider))
             }
         }
 

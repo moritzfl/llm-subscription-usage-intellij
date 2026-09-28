@@ -57,7 +57,7 @@ internal class ZaiSettingsPanel(
             row("Vision model:") {
                 cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
                     .comment("GLM vision chat models. Used by subscription_vision; '-' keeps vision off.")
-                cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.ZAI, { visionModelCombo.selected().orEmpty() }, modalityComponentProvider))
+                cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.ZAI, visionModelCombo, modalityComponentProvider))
             }
             row {
                 button("Save") {

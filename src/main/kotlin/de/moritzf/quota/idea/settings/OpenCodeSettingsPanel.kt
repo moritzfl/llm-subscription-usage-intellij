@@ -50,7 +50,7 @@ internal class OpenCodeSettingsPanel(
     )
     private val testVisionButton = VisionTestButton(
         de.moritzf.quota.idea.mcp.VisionProvider.OPEN_CODE,
-        { visionModelCombo.storedValue().orEmpty() },
+        visionModelCombo,
         modalityComponentProvider,
     )
     private val responseViewer = createResponseViewer()

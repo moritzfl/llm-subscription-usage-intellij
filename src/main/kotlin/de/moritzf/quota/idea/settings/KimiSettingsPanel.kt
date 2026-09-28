@@ -125,7 +125,7 @@ internal class KimiSettingsPanel(
             row("Vision model:") {
                 cell(visionModelCombo.combo).align(com.intellij.ui.dsl.builder.AlignX.FILL).resizableColumn()
                     .comment("Kimi coding models with image input. Used by subscription_vision; '-' keeps vision off.")
-                cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.KIMI, { visionModelCombo.selected().orEmpty() }, modalityComponentProvider))
+                cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.KIMI, visionModelCombo, modalityComponentProvider))
             }
         }, createResponseSection(responseViewer))
     }

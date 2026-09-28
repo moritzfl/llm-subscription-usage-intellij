@@ -77,7 +77,7 @@ internal class OllamaSettingsPanel(
             row("Vision model:") {
                 cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
                     .comment("Ollama Cloud chat models with image input, for example qwen2.5vl. Used by subscription_vision; '-' keeps vision off.")
-                cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.OLLAMA, { visionModelCombo.selected().orEmpty() }, modalityComponentProvider))
+                cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.OLLAMA, visionModelCombo, modalityComponentProvider))
             }
             row {
                 button("Save API Key") {

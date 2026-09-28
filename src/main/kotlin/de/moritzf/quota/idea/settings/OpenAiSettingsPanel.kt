@@ -147,7 +147,7 @@ internal class OpenAiSettingsPanel(
             row("Vision model:") {
                 cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
                     .comment("Used by subscription_vision. '-' keeps vision off.")
-                cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.OPEN_AI, { visionModelCombo.selected().orEmpty() }, modalityComponentProvider))
+                cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.OPEN_AI, visionModelCombo, modalityComponentProvider))
             }
         }
 

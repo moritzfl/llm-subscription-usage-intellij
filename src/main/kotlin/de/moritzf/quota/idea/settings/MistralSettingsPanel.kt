@@ -66,7 +66,7 @@ internal class MistralSettingsPanel(
             row("Vision model:") {
                 cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
                     .comment("Mistral chat models that accept images. Used by subscription_vision; '-' keeps vision off.")
-                cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.MISTRAL, { visionModelCombo.selected().orEmpty() }, modalityComponentProvider))
+                cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.MISTRAL, visionModelCombo, modalityComponentProvider))
             }
             row {
                 button("Save") { saveNow() }

@@ -55,7 +55,7 @@ internal class GitHubSettingsPanel(
     private val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
     private val visionModelCombo = VisionModelCombo()
     private val testDocumentButton = DocumentTestButton(DocumentToMarkdownProvider.GITHUB, { documentModelCombo.storedValue().orEmpty() }, modalityComponentProvider)
-    private val testVisionButton = VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.GITHUB, { visionModelCombo.storedValue().orEmpty() }, modalityComponentProvider)
+    private val testVisionButton = VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.GITHUB, visionModelCombo, modalityComponentProvider)
     private val responseViewer = createResponseViewer()
     private var modelRefreshGeneration = 0
     private var verificationUrl: String? = null
