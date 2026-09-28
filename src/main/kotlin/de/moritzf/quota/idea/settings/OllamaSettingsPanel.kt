@@ -15,11 +15,9 @@ import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.ollama.OllamaQuotaClient
 import de.moritzf.quota.ollama.OllamaResetSchedule
-import de.moritzf.quota.ollama.proxy.OllamaSubscriptionProxyProvider
-import de.moritzf.quota.shared.DocumentModels
+import de.moritzf.quota.ollama.OllamaVisionModels
 import de.moritzf.quota.shared.JsonSupport
 import java.awt.Color
-import java.net.URI
 import java.awt.event.FocusAdapter
 import java.awt.event.FocusEvent
 import java.util.concurrent.atomic.AtomicLong
@@ -76,7 +74,7 @@ internal class OllamaSettingsPanel(
             }
             row("Vision model:") {
                 cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
-                    .comment("Ollama Cloud chat models with image input, for example qwen2.5vl. Used by subscription_vision; '-' keeps vision off.")
+                    .comment("Cloud models that report vision support. Used by subscription_vision; '-' keeps vision off.")
                 cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.OLLAMA, visionModelCombo, modalityComponentProvider))
             }
             row {
@@ -117,7 +115,7 @@ internal class OllamaSettingsPanel(
         val apiKey = apiKeyStore.load(onLoaded = { if (accountKey(QuotaProviderType.OLLAMA) == id) refreshAfterCredentialLoad() })
         apiKeyField.text = if (apiKey.isNullOrBlank()) "" else API_KEY_PLACEHOLDER
         monthlyResetField.text = boundAccount?.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET).orEmpty()
-        showVisionModels(emptyList())
+        showVisionModels(emptyMap())
         updateStatus()
         refreshVisionModels()
     }
@@ -126,8 +124,8 @@ internal class OllamaSettingsPanel(
 
     fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
 
-    private fun showVisionModels(discovered: List<String>, selection: String? = boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL)) {
-        visionModelCombo.show(selection, (discovered + listOfNotNull(selection)).distinct())
+    private fun showVisionModels(discovered: Map<String, Boolean?>, selection: String? = boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL)) {
+        visionModelCombo.show(selection, OllamaVisionModels.choices(discovered, selection))
     }
 
     private fun refreshVisionModels() {
@@ -136,12 +134,9 @@ internal class OllamaSettingsPanel(
         ApplicationManager.getApplication().executeOnPooledThread {
             val key = OllamaApiKeyStore.forAccount(accountId).loadBlocking()
             val discovered = if (key.isNullOrBlank()) {
-                emptyList()
+                emptyMap()
             } else {
-                DocumentModels.fetchModelIds(
-                    URI.create("${OllamaSubscriptionProxyProvider.DEFAULT_UPSTREAM_BASE_URI}/models"),
-                    key,
-                )
+                runCatching { OllamaVisionModels().discover(key) }.getOrDefault(emptyMap())
             }
             ApplicationManager.getApplication().invokeLater({
                 if (generation != modelRefreshGeneration || accountKey(QuotaProviderType.OLLAMA) != accountId) return@invokeLater

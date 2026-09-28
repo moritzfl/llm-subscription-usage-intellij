@@ -42,7 +42,7 @@ internal class OpenCodeSettingsPanel(
     private val workspaceComboBox = ComboBox<OpenCodeWorkspace>()
     private val workspaceStatus = JBLabel()
     private val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
-    private val visionModelCombo = VisionModelCombo()
+    private val visionModelCombo = VisionModelCombo(groupUnverified = true)
     private val testDocumentButton = DocumentTestButton(
         DocumentToMarkdownProvider.OPEN_CODE,
         { documentModelCombo.storedValue().orEmpty() },
@@ -150,7 +150,7 @@ internal class OpenCodeSettingsPanel(
             }
             row("Vision model:") {
                 cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
-                    .comment("Models the console lists with image input. Used by subscription_vision; '-' keeps vision off.")
+                    .comment("Declared vision models first; unverified models may also work. Use Test vision to check. '-' keeps vision off.")
                 cell(testVisionButton)
             }
         }, createResponseSection(responseViewer))
@@ -209,7 +209,8 @@ internal class OpenCodeSettingsPanel(
                 )
                 visionModelCombo.show(
                     savedVision,
-                    (de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel.visionModelIds(models) + listOfNotNull(savedVision)).distinct(),
+                    de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel.visionModelIds(models),
+                    (models.map { it.model.upstreamId } + listOfNotNull(savedVision)).distinct(),
                 )
             }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
         }
