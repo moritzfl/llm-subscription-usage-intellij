@@ -8,6 +8,8 @@ import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.ui.popup.ListSeparator
+import com.intellij.ui.GroupedComboBoxRenderer
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
@@ -42,13 +44,12 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
-import javax.swing.DefaultListCellRenderer
 import javax.swing.Action
+import javax.swing.DefaultComboBoxModel
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
-import javax.swing.JList
 import javax.swing.JScrollPane
 import javax.swing.ScrollPaneConstants
 import javax.swing.Timer
@@ -103,25 +104,10 @@ internal class SubscriptionProxySettingsPanel(
     private val providerStatusLabel = JBLabel().apply { isVisible = false }
     private val logsStatusLabel = JBLabel().apply { isVisible = false }
     private val completionsModelCombo = ComboBox<String>().apply {
-        renderer = object : DefaultListCellRenderer() {
-            override fun getListCellRendererComponent(
-                list: JList<*>?,
-                value: Any?,
-                index: Int,
-                isSelected: Boolean,
-                cellHasFocus: Boolean,
-            ): java.awt.Component {
-                val label = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
-                text = when {
-                    value == CompletionsConfig.FIM_ALIAS_ID -> CompletionsConfig.FIM_ALIAS_ID
-                    value is String && value.isNotBlank() -> value
-                    else -> "Select a model"
-                }
-                return label
-            }
-        }
         prototypeDisplayValue = "sg-grok-4.6"
     }
+    private var completionsGroupHeaders: Map<String, ListSeparator> = emptyMap()
+    private var syncingCompletionsModel = false
     private val completionsMaxTokensField = JBTextField().apply {
         columns = 6
         toolTipText = "Maximum length of an editor suggestion"
@@ -187,6 +173,11 @@ internal class SubscriptionProxySettingsPanel(
     private var proxyApiKeyLoadError: String? = null
 
     init {
+        completionsModelCombo.renderer = object : GroupedComboBoxRenderer<String>(completionsModelCombo) {
+            override fun getText(item: String): String = item
+
+            override fun separatorFor(value: String): ListSeparator? = completionsGroupHeaders[value]
+        }
         copyProxyBaseUrlButton.addActionListener {
             val status = OpenAiProxyService.getInstance().status()
             val baseUrl = if (status.running) status.baseUrl else OpenAiProxyService.localBaseUrl(proxyPort())
@@ -218,7 +209,13 @@ internal class SubscriptionProxySettingsPanel(
         }
         completionsUseChatAdapterCheckBox.addItemListener { updateProxyStatus() }
         completionsPriorityCheckBox.addItemListener { updateProxyStatus() }
-        completionsModelCombo.addActionListener { updateProxyStatus() }
+        completionsModelCombo.addActionListener {
+            if (!syncingCompletionsModel && selectedCompletionsModelId().isBlank()) {
+                // "-" is the explicit off entry, mirroring the document and vision pickers.
+                completionsEnabledCheckBox.isSelected = false
+            }
+            updateProxyStatus()
+        }
         onDocumentChange(completionsMaxTokensField) { updateProxyStatus() }
         onDocumentChange(completionsRpmField) { updateProxyStatus() }
         onDocumentChange(completionsTimeoutField) { updateProxyStatus() }
@@ -326,7 +323,7 @@ internal class SubscriptionProxySettingsPanel(
                         cell(completionsModelCombo)
                             .resizableColumn()
                             .align(AlignX.FILL)
-                            .comment("Where the proxy sends those incoming FIM calls.")
+                            .comment("Where the proxy sends those incoming FIM calls. ${COMPLETIONS_OFF} turns FIM off.")
                     }
                     row {
                         cell(completionsUseChatAdapterCheckBox)
@@ -532,7 +529,7 @@ internal class SubscriptionProxySettingsPanel(
         completionsPriorityCheckBox.isEnabled =
             completionsEnabled && FimModels.supportsPriorityTier(selectedCompletionsModelId())
         copyCompletionsModelButton.isEnabled = completionsEnabled
-        testFimButton.isEnabled = completionsEnabled
+        testFimButton.isEnabled = completionsEnabled && selectedCompletionsModelId().isNotBlank()
         updateFimSetupStatus()
     }
 
@@ -685,7 +682,8 @@ internal class SubscriptionProxySettingsPanel(
     }
 
     private fun selectedCompletionsModelId(): String {
-        return (completionsModelCombo.selectedItem as? String)?.trim().orEmpty()
+        val item = (completionsModelCombo.selectedItem as? String)?.trim().orEmpty()
+        return if (item == COMPLETIONS_OFF) "" else item
     }
 
     private fun completionsMaxOutputTokens(): Int {
@@ -707,17 +705,27 @@ internal class SubscriptionProxySettingsPanel(
     }
 
     private fun refreshCompletionsModelCombo(models: List<SubscriptionProxyModel>) {
-        val eligible = models.filter(FimModels::isEligible).map { it.localId }.distinct()
+        val eligible = models.filter(FimModels::isEligible).distinctBy { it.localId }
+        val native = eligible.filter(FimModels::isNativeFimId).map { it.localId }.distinct()
+        val generic = eligible.filterNot(FimModels::isNativeFimId).map { it.localId }.distinct()
         val selected = selectedCompletionsModelId().ifBlank { pendingCompletionsModelId }
-        completionsModelCombo.removeAllItems()
-        eligible.forEach { completionsModelCombo.addItem(it) }
-        when {
-            selected.isNotBlank() && eligible.contains(selected) -> completionsModelCombo.selectedItem = selected
-            selected.isNotBlank() -> {
-                completionsModelCombo.addItem(selected)
-                completionsModelCombo.selectedItem = selected
+        val kept = selected.takeIf { it.isNotBlank() && it !in native && it !in generic }
+        val choices = native + generic + listOfNotNull(kept) + COMPLETIONS_OFF
+        completionsGroupHeaders = buildMap {
+            // A group that has no models keeps its heading out of the list.
+            native.firstOrNull()?.let { put(it, ListSeparator("FIM models")) }
+            generic.firstOrNull()?.let { put(it, ListSeparator("AI models")) }
+            if (choices.size > 1) put(COMPLETIONS_OFF, ListSeparator())
+        }
+        syncingCompletionsModel = true
+        try {
+            if ((0 until completionsModelCombo.itemCount).map(completionsModelCombo::getItemAt) != choices) {
+                completionsModelCombo.model = DefaultComboBoxModel(choices.toTypedArray())
             }
-            else -> completionsModelCombo.selectedItem = null
+            val target = selected.takeIf { it.isNotBlank() && it in choices } ?: COMPLETIONS_OFF
+            completionsModelCombo.selectedItem = target
+        } finally {
+            syncingCompletionsModel = false
         }
         pendingCompletionsModelId = selectedCompletionsModelId()
     }
@@ -838,6 +846,7 @@ internal class SubscriptionProxySettingsPanel(
         private const val PROXY_STATUS_REFRESH_MILLIS = 2_000
         private const val COPY_FEEDBACK_MILLIS = 1_500
         private const val COPY_FEEDBACK_ORIGINAL_TEXT = "SubscriptionProxySettingsPanel.copyFeedbackOriginalText"
+        private const val COMPLETIONS_OFF = "-"
     }
 }
 
