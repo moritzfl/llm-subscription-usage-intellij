@@ -8,9 +8,7 @@ import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogPanel
-import com.intellij.openapi.ui.Splitter
 import com.intellij.ui.JBColor
-import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.dsl.builder.Align
@@ -35,6 +33,7 @@ import de.moritzf.quota.idea.openai.OpenAiProxyService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.*
 import de.moritzf.quota.idea.ui.settings.AccountListPanel
+import de.moritzf.quota.idea.ui.settings.AccountDetailsSplitter
 import de.moritzf.quota.idea.ui.settings.ProviderListStatus
 import de.moritzf.quota.idea.ui.settings.ProviderReorderPanel
 import de.moritzf.quota.minimax.MiniMaxRegionPreference
@@ -633,15 +632,7 @@ class QuotaSettingsConfigurable : Configurable {
             addToTop(createDetailHeader())
             addToCenter(serviceCards!!)
         }
-        val splitter = OnePixelSplitter(false).apply {
-            firstComponent = accountListPanel!!.apply {
-                // KEEP_FIRST_SIZE uses the current width, including on the first layout.
-                size = preferredSize
-            }
-            secondComponent = detail
-            dividerPositionStrategy = Splitter.DividerPositionStrategy.KEEP_FIRST_SIZE
-            setHonorComponentsMinimumSize(false)
-        }
+        val splitter = AccountDetailsSplitter(accountListPanel!!, detail)
         return BorderLayoutPanel().apply {
             background = UIUtil.getPanelBackground()
             isOpaque = true
