@@ -63,7 +63,6 @@ internal class SubscriptionProxySettingsPanel(
 ) : BorderLayoutPanel() {
     val proxyEnabledCheckBox = JBCheckBox("Enable local subscription proxy")
     val proxyLogRequestsCheckBox = JBCheckBox("Log requests and responses to disk")
-    val completionsEnabledCheckBox = JBCheckBox("Enable FIM (fill in middle) for code completions in the editor")
     val completionsUseChatAdapterCheckBox = JBCheckBox("Adapt model for FIM").apply {
         isSelected = true
     }
@@ -107,7 +106,6 @@ internal class SubscriptionProxySettingsPanel(
         prototypeDisplayValue = "sg-grok-4.6"
     }
     private var completionsGroupHeaders: Map<String, ListSeparator> = emptyMap()
-    private var syncingCompletionsModel = false
     private val completionsMaxTokensField = JBTextField().apply {
         columns = 6
         toolTipText = "Maximum length of an editor suggestion"
@@ -203,19 +201,9 @@ internal class SubscriptionProxySettingsPanel(
             showCopiedFeedback(copyCompletionsModelButton)
         }
         testFimButton.addActionListener { testFim() }
-        completionsEnabledCheckBox.addItemListener {
-            updateProxyControlsEnabled()
-            updateProxyStatus()
-        }
         completionsUseChatAdapterCheckBox.addItemListener { updateProxyStatus() }
         completionsPriorityCheckBox.addItemListener { updateProxyStatus() }
-        completionsModelCombo.addActionListener {
-            if (!syncingCompletionsModel && selectedCompletionsModelId().isBlank()) {
-                // "-" is the explicit off entry, mirroring the document and vision pickers.
-                completionsEnabledCheckBox.isSelected = false
-            }
-            updateProxyStatus()
-        }
+        completionsModelCombo.addActionListener { updateProxyStatus() }
         onDocumentChange(completionsMaxTokensField) { updateProxyStatus() }
         onDocumentChange(completionsRpmField) { updateProxyStatus() }
         onDocumentChange(completionsTimeoutField) { updateProxyStatus() }
@@ -299,8 +287,19 @@ internal class SubscriptionProxySettingsPanel(
                 }
                 separator()
                 row {
-                    cell(completionsEnabledCheckBox)
-                        .comment("Gray suggestions while you type, billed to your subscription. Nothing happens until AI Completion is pointed at this proxy.")
+                    cell(
+                        JBLabel("FIM (fill in middle) for code completions").apply {
+                            font = font.deriveFont(Font.BOLD)
+                        },
+                    )
+                }
+                row {
+                    cell(
+                        JBLabel(
+                            "<html><body width='520'>Gray suggestions while you type, billed to your subscription. " +
+                                "Set <b>Subscription model</b> to ${COMPLETIONS_OFF} to turn FIM off.</body></html>",
+                        ).apply { foreground = JBColor.GRAY },
+                    ).resizableColumn().align(AlignX.FILL)
                 }
                 indent {
                     row {
@@ -381,13 +380,13 @@ internal class SubscriptionProxySettingsPanel(
         val settings = QuotaSettingsState.getInstance()
         proxyEnabledCheckBox.isSelected = settings.openAiProxyEnabled
         proxyLogRequestsCheckBox.isSelected = settings.openAiProxyLogRequests
-        completionsEnabledCheckBox.isSelected = settings.proxyCompletionsEnabled
         completionsUseChatAdapterCheckBox.isSelected = settings.proxyCompletionsUseChatAdapter
         completionsPriorityCheckBox.isSelected = settings.proxyCompletionsPriorityTier
         completionsMaxTokensField.text = CompletionsConfig.clampMaxOutputTokens(settings.proxyCompletionsMaxOutputTokens).toString()
         completionsRpmField.text = CompletionsConfig.clampMaxRequestsPerMinute(settings.proxyCompletionsMaxRequestsPerMinute).toString()
         completionsTimeoutField.text = CompletionsConfig.clampTimeoutSeconds(settings.proxyCompletionsTimeoutSeconds).toString()
-        pendingCompletionsModelId = settings.proxyCompletionsModelId.trim()
+        // The model picker's "-" entry is the FIM on/off switch, so a stored model is only shown while FIM is on.
+        pendingCompletionsModelId = if (settings.proxyCompletionsEnabled) settings.proxyCompletionsModelId.trim() else ""
         proxyPortField.text = OpenAiProxyService.sanitizePort(settings.openAiProxyPort).toString()
         loadProxyApiKeyField()
         updateProviderControls()
@@ -434,7 +433,7 @@ internal class SubscriptionProxySettingsPanel(
 
     fun isCompletionsModified(): Boolean {
         val state = QuotaSettingsState.getInstance()
-        return completionsEnabledCheckBox.isSelected != state.proxyCompletionsEnabled ||
+        return selectedCompletionsModelId().isNotBlank() != state.proxyCompletionsEnabled ||
             completionsUseChatAdapterCheckBox.isSelected != state.proxyCompletionsUseChatAdapter ||
             selectedCompletionsModelId() != state.proxyCompletionsModelId.trim() ||
             completionsMaxOutputTokens() != CompletionsConfig.clampMaxOutputTokens(state.proxyCompletionsMaxOutputTokens) ||
@@ -444,9 +443,10 @@ internal class SubscriptionProxySettingsPanel(
     }
 
     fun applyCompletionsSettings(state: QuotaSettingsState) {
-        state.proxyCompletionsEnabled = completionsEnabledCheckBox.isSelected
+        val modelId = selectedCompletionsModelId()
+        state.proxyCompletionsEnabled = modelId.isNotBlank()
         state.proxyCompletionsUseChatAdapter = completionsUseChatAdapterCheckBox.isSelected
-        state.proxyCompletionsModelId = selectedCompletionsModelId()
+        state.proxyCompletionsModelId = modelId
         state.proxyCompletionsMaxOutputTokens = completionsMaxOutputTokens()
         state.proxyCompletionsMaxRequestsPerMinute = completionsMaxRequestsPerMinute()
         state.proxyCompletionsTimeoutSeconds = completionsTimeoutSeconds()
@@ -518,9 +518,8 @@ internal class SubscriptionProxySettingsPanel(
         copyProxyApiKeyButton.isEnabled = enabled && proxyApiKey() != null
         proxyLogRequestsCheckBox.isEnabled = enabled
         showLogsButton.isEnabled = enabled || Files.isDirectory(OpenAiProxyService.getInstance().requestLogDir())
-        val completionsEnabled = enabled && completionsEnabledCheckBox.isSelected
-        completionsEnabledCheckBox.isEnabled = enabled
-        completionsModelCombo.isEnabled = completionsEnabled
+        val completionsEnabled = enabled && selectedCompletionsModelId().isNotBlank()
+        completionsModelCombo.isEnabled = enabled
         fimIdeModelIdField.isEnabled = completionsEnabled
         completionsUseChatAdapterCheckBox.isEnabled = completionsEnabled
         completionsMaxTokensField.isEnabled = completionsEnabled
@@ -717,16 +716,11 @@ internal class SubscriptionProxySettingsPanel(
             generic.firstOrNull()?.let { put(it, ListSeparator("AI models")) }
             if (choices.size > 1) put(COMPLETIONS_OFF, ListSeparator())
         }
-        syncingCompletionsModel = true
-        try {
-            if ((0 until completionsModelCombo.itemCount).map(completionsModelCombo::getItemAt) != choices) {
-                completionsModelCombo.model = DefaultComboBoxModel(choices.toTypedArray())
-            }
-            val target = selected.takeIf { it.isNotBlank() && it in choices } ?: COMPLETIONS_OFF
-            completionsModelCombo.selectedItem = target
-        } finally {
-            syncingCompletionsModel = false
+        if ((0 until completionsModelCombo.itemCount).map(completionsModelCombo::getItemAt) != choices) {
+            completionsModelCombo.model = DefaultComboBoxModel(choices.toTypedArray())
         }
+        val target = selected.takeIf { it.isNotBlank() && it in choices } ?: COMPLETIONS_OFF
+        completionsModelCombo.selectedItem = target
         pendingCompletionsModelId = selectedCompletionsModelId()
     }
 
@@ -757,7 +751,7 @@ internal class SubscriptionProxySettingsPanel(
     }
 
     private fun updateFimSetupStatus() {
-        if (!proxyEnabledCheckBox.isSelected || !completionsEnabledCheckBox.isSelected) {
+        if (!proxyEnabledCheckBox.isSelected || selectedCompletionsModelId().isBlank()) {
             fimSetupStatusLabel.isVisible = false
             return
         }
