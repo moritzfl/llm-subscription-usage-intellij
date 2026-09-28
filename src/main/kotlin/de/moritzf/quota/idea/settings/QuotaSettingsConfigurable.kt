@@ -8,6 +8,7 @@ import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogPanel
+import com.intellij.openapi.ui.Splitter
 import com.intellij.ui.JBColor
 import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.components.JBLabel
@@ -632,9 +633,13 @@ class QuotaSettingsConfigurable : Configurable {
             addToTop(createDetailHeader())
             addToCenter(serviceCards!!)
         }
-        val splitter = OnePixelSplitter(false, 0.32f, 0.22f, 0.5f).apply {
-            firstComponent = accountListPanel
+        val splitter = OnePixelSplitter(false).apply {
+            firstComponent = accountListPanel!!.apply {
+                // KEEP_FIRST_SIZE uses the current width, including on the first layout.
+                size = preferredSize
+            }
             secondComponent = detail
+            dividerPositionStrategy = Splitter.DividerPositionStrategy.KEEP_FIRST_SIZE
             setHonorComponentsMinimumSize(false)
         }
         return BorderLayoutPanel().apply {

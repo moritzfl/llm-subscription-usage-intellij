@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- The accounts pane keeps its width when settings are resized, giving extra space to configuration. The divider remains draggable.
 - Provider connection forms reserve space for horizontal scrollbars so the bottom help text stays fully visible in narrow settings panes.
 
 - Mistral reads the separate included API/Studio and Vibe Code allowances from the subscription page. Both show percentage, used amount, allowance and monthly reset; the status bar uses the higher percentage instead of showing Vibe's 0% while API credits are nearly exhausted.
