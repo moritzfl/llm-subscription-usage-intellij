@@ -102,7 +102,14 @@ internal object VisionImageAnalysis {
 
     private fun responseErrorMessage(body: String): String {
         val json = runCatching { JsonSupport.json.parseToJsonElement(body) as? JsonObject }.getOrNull()
-        return (json?.get("error") as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
-            ?: "Codex image analysis failed."
+        val error = json?.get("error")
+        val message = when (error) {
+            is JsonPrimitive -> error.contentOrNull
+            is JsonObject -> (error["message"] as? JsonPrimitive)?.contentOrNull
+            else -> null
+        }?.takeIf { it.isNotBlank() }
+        if (message != null) return message
+        (json?.get("detail") as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }?.let { return it }
+        return body.trim().takeIf { it.isNotBlank() && !it.startsWith("{") } ?: "Codex image analysis failed."
     }
 }
