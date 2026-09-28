@@ -44,7 +44,11 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
     val endpointField = JBTextField().apply { columns = 28 }
     val locationField = JBTextField().apply { columns = 16 }
     val deploymentsField = JBTextField().apply { columns = 28 }
-    val ocrDeploymentCombo = ComboBox<String>().apply { prototypeDisplayValue = "mistral-document-ai-2512" }
+    val ocrDeploymentCombo = ComboBox<String>().apply {
+        prototypeDisplayValue = "mistral-document-ai-2512"
+        // GroupedComboBoxRenderer reads headings from IntelliJ's popup model.
+        setSwingPopup(false)
+    }
     private lateinit var documentHintRow: Row
     private var documentGroupHeaders: Map<String, ListSeparator> = emptyMap()
     private val accountCombo = ComboBox<AzureCliAccount>()
