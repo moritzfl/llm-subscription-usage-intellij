@@ -709,12 +709,11 @@ internal class SubscriptionProxySettingsPanel(
         val generic = eligible.filterNot(FimModels::isNativeFimId).map { it.localId }.distinct()
         val selected = selectedCompletionsModelId().ifBlank { pendingCompletionsModelId }
         val kept = selected.takeIf { it.isNotBlank() && it !in native && it !in generic }
-        val choices = native + generic + listOfNotNull(kept) + COMPLETIONS_OFF
+        val choices = listOf(COMPLETIONS_OFF) + native + generic + listOfNotNull(kept)
         completionsGroupHeaders = buildMap {
             // A group that has no models keeps its heading out of the list.
             native.firstOrNull()?.let { put(it, ListSeparator("FIM models")) }
             generic.firstOrNull()?.let { put(it, ListSeparator("AI models")) }
-            if (choices.size > 1) put(COMPLETIONS_OFF, ListSeparator())
         }
         if ((0 until completionsModelCombo.itemCount).map(completionsModelCombo::getItemAt) != choices) {
             completionsModelCombo.model = DefaultComboBoxModel(choices.toTypedArray())
