@@ -136,7 +136,7 @@ class QuotaSettingsConfigurable : Configurable {
         accountNameField = com.intellij.ui.components.JBTextField()
         primaryAccountCombo = ComboBox<ProviderAccount>().apply {
             renderer = AccountNameRenderer()
-            prototypeDisplayValue = ProviderAccount(name = "OpenAI 2")
+            prototypeDisplayValue = ProviderAccount(name = "firstname.lastname@example.com")
             toolTipText = "Used first for MCP tools when no account is specified, and for the local proxy."
         }
         standbyCheckBox = JBCheckBox().apply {
@@ -432,7 +432,7 @@ class QuotaSettingsConfigurable : Configurable {
         routingPanel = panel {
             group("MCP tools & local proxy") {
                 row {
-                    cell(combo)
+                    cell(combo).align(AlignX.FILL).resizableColumn()
                 }
                 row {
                     cell(standbyCheckBox!!)
