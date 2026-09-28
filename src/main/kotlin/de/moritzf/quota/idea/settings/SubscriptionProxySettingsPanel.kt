@@ -104,6 +104,8 @@ internal class SubscriptionProxySettingsPanel(
     private val logsStatusLabel = JBLabel().apply { isVisible = false }
     private val completionsModelCombo = ComboBox<String>().apply {
         prototypeDisplayValue = "sg-grok-4.6"
+        // GroupedComboBoxRenderer reads headings from IntelliJ's popup model.
+        setSwingPopup(false)
     }
     private var completionsGroupHeaders: Map<String, ListSeparator> = emptyMap()
     private val completionsMaxTokensField = JBTextField().apply {
@@ -713,7 +715,7 @@ internal class SubscriptionProxySettingsPanel(
         completionsGroupHeaders = buildMap {
             // A group that has no models keeps its heading out of the list.
             native.firstOrNull()?.let { put(it, ListSeparator("FIM models")) }
-            generic.firstOrNull()?.let { put(it, ListSeparator("AI models")) }
+            generic.firstOrNull()?.let { put(it, ListSeparator("General-purpose AI models")) }
         }
         if ((0 until completionsModelCombo.itemCount).map(completionsModelCombo::getItemAt) != choices) {
             completionsModelCombo.model = DefaultComboBoxModel(choices.toTypedArray())
