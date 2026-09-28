@@ -65,6 +65,10 @@ class SubscriptionProxyServer(
     val isRunning: Boolean
         get() = running.get()
 
+    /** Actual listening port after startup, including OS-assigned ports when configured with 0. */
+    internal suspend fun boundPort(): Int = checkNotNull(app) { "Subscription proxy is not running" }
+        .engine.resolvedConnectors().single().port
+
     fun start() {
         check(running.compareAndSet(false, true)) { "Subscription proxy is already running" }
         val localApiKey = localApiKeyProvider()?.takeIf { it.isNotBlank() }

@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Copilot proxy tests bind OS-assigned ports directly, avoiding collisions between port discovery and server startup.
 - Ollama's vision picker checks each cloud model's declared capabilities and excludes text-only models. Saved selections survive discovery outages.
 - OpenCode's vision picker groups models under **Declared vision support** and **Unverified vision support**, so models with incomplete capability metadata can be selected and checked with **Test vision**.
 - The accounts pane starts at its compact preferred width and keeps its width when settings are resized, giving extra space to configuration. The divider remains draggable; initial layout no longer falls back to a 50/50 split.

@@ -5,7 +5,6 @@ import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.subscription.SubscriptionProxyServer
 import java.net.InetAddress
 import java.net.InetSocketAddress
-import java.net.ServerSocket
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -25,6 +24,7 @@ import kotlin.test.assertTrue
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.coroutines.runBlocking
 
 class GitHubCopilotSubscriptionProxyProviderTest {
     @Test
@@ -898,7 +898,6 @@ class GitHubCopilotSubscriptionProxyProviderTest {
         missingModelRetryDelays: List<Duration> = emptyList(),
         modelCacheTtl: kotlin.time.Duration = 5.minutes,
     ): TestProxy {
-        val port = freePort()
         val provider = GitHubCopilotSubscriptionProxyProvider(
             accessTokenProvider = { "github-token" },
             upstreamBaseUri = upstreamBaseUri,
@@ -909,9 +908,8 @@ class GitHubCopilotSubscriptionProxyProviderTest {
             requestLogDir = Files.createTempDirectory("github-subscription-proxy-test-logs").toString(),
         )
         return TestProxy(
-            port,
             SubscriptionProxyServer(
-                port = port,
+                port = 0,
                 localApiKeyProvider = { "local-key" },
                 providers = { listOf(provider) },
                 requestLogDir = Files.createTempDirectory("subscription-proxy-test-logs").toString(),
@@ -991,8 +989,13 @@ class GitHubCopilotSubscriptionProxyProviderTest {
         )
     }
 
-    private data class TestProxy(val port: Int, val server: SubscriptionProxyServer) {
-        fun start() = server.start()
+    private class TestProxy(val server: SubscriptionProxyServer) {
+        var port: Int = 0
+            private set
+        fun start() {
+            server.start()
+            port = runBlocking { server.boundPort() }
+        }
         fun stop() = server.stop()
     }
 
@@ -1063,13 +1066,6 @@ class GitHubCopilotSubscriptionProxyProviderTest {
             return headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }
                 ?.value
                 ?.firstOrNull()
-        }
-    }
-
-    private fun freePort(): Int {
-        ServerSocket(0).use { socket ->
-            socket.reuseAddress = true
-            return socket.localPort
         }
     }
 
