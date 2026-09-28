@@ -54,7 +54,7 @@ internal class GitHubSettingsPanel(
     private val userCodeLabel = JBLabel().apply { isVisible = false }
     private val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
     private val visionModelCombo = VisionModelCombo()
-    private val testDocumentButton = DocumentTestButton(DocumentToMarkdownProvider.GITHUB, { documentModelCombo.storedValue().orEmpty() }, modalityComponentProvider)
+    private val testDocumentButton = DocumentTestButton(DocumentToMarkdownProvider.GITHUB, { documentModelCombo.storedValue().orEmpty() }, modalityComponentProvider, documentModelCombo.combo)
     private val testVisionButton = VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.GITHUB, visionModelCombo, modalityComponentProvider)
     private val responseViewer = createResponseViewer()
     private var modelRefreshGeneration = 0

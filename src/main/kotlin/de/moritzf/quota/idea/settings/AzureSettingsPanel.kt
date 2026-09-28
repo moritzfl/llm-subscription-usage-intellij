@@ -140,7 +140,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
             }
             row("Document model:") {
                 cell(ocrDeploymentCombo).align(AlignX.FILL).resizableColumn()
-                cell(DocumentTestButton(de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.AZURE, { (ocrDeploymentCombo.selectedItem as? String).orEmpty() }, { this@AzureSettingsPanel }))
+                cell(DocumentTestButton(de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.AZURE, { (ocrDeploymentCombo.selectedItem as? String).orEmpty() }, { this@AzureSettingsPanel }, ocrDeploymentCombo))
             }
             documentHintRow = row {
                 comment("PDF support depends on the selected model and deployment. " +

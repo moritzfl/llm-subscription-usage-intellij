@@ -16,6 +16,7 @@ import com.intellij.util.ui.UIUtil
 import de.moritzf.quota.idea.action.PdfDocumentConversion
 import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
 import de.moritzf.quota.idea.ui.QuotaUiUtil
+import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.shared.HelloPdf
 import java.awt.BorderLayout
 import java.awt.Dimension
@@ -29,6 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import javax.swing.Action
 import javax.swing.ImageIcon
 import javax.swing.JButton
+import javax.swing.JComboBox
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.ScrollPaneConstants
@@ -39,10 +41,18 @@ internal class DocumentTestButton(
     private val provider: DocumentToMarkdownProvider,
     private val selectedModel: () -> String,
     private val modality: () -> JComponent?,
+    watch: JComboBox<*>? = null,
 ) : JButton("Test document") {
     init {
         toolTipText = "Convert a one-page hello PDF with the selected model"
+        watch?.addItemListener { updateEnabled() }
+        updateEnabled()
         addActionListener { runTest() }
+    }
+
+    /** "-" turns conversion off, so there is nothing to run. */
+    private fun updateEnabled() {
+        isEnabled = selectedModel().trim().let { it.isNotEmpty() && it != DocumentModels.OFF }
     }
 
     private fun runTest() {

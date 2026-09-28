@@ -52,7 +52,7 @@ internal class ZaiSettingsPanel(
             row("Document model:") {
                 cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn()
                     .comment("- turns conversion off.")
-                cell(DocumentTestButton(de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.ZAI, { documentModelCombo.selected().orEmpty() }, modalityComponentProvider))
+                cell(DocumentTestButton(de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.ZAI, { documentModelCombo.selected().orEmpty() }, modalityComponentProvider, documentModelCombo.combo))
             }
             row("Vision model:") {
                 cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()

@@ -47,6 +47,7 @@ internal class OpenCodeSettingsPanel(
         DocumentToMarkdownProvider.OPEN_CODE,
         { documentModelCombo.storedValue().orEmpty() },
         modalityComponentProvider,
+        documentModelCombo.combo,
     )
     private val testVisionButton = VisionTestButton(
         de.moritzf.quota.idea.mcp.VisionProvider.OPEN_CODE,
