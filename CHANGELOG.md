@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-09-28
+
 - Copilot proxy tests bind OS-assigned ports directly, avoiding collisions between port discovery and server startup.
 - Ollama's vision picker checks each cloud model's declared capabilities and excludes text-only models. Saved selections survive discovery outages.
 - OpenCode's vision picker groups models under **Declared vision support** and **Unverified vision support**, so models with incomplete capability metadata can be selected and checked with **Test vision**.
@@ -614,7 +616,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.16.0...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.0...HEAD
+[1.17.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.16.0...1.17.0
 [1.16.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.11...1.16.0
 [1.15.11]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.10...1.15.11
 [1.15.10]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.9...1.15.10
