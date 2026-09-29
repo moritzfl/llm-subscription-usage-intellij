@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.17.1] - 2026-09-29
+
 - OpenAI/Codex proxy advertises `gpt-6.1-sol`
 
 ## [1.17.0] - 2026-09-28
