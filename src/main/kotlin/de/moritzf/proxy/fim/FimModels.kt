@@ -62,7 +62,8 @@ object FimModels {
     private fun acceptsNoReasoning(blob: String): Boolean {
         return blob.split(Regex("\\s+")).any { id ->
             val bare = id.substringAfterLast('/').substringBefore('(').trim().removePrefix("oa-")
-            bare == "gpt-6-sol" || bare.startsWith("gpt-6-sol-") ||
+            bare == "gpt-6.1-sol" || bare.startsWith("gpt-6.1-sol-") ||
+                bare == "gpt-6-sol" || bare.startsWith("gpt-6-sol-") ||
                 bare == "gpt-6-luna" || bare.startsWith("gpt-6-luna-")
         }
     }

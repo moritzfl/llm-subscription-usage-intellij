@@ -202,6 +202,7 @@ class OpenAiProxyServer(
         // Those are not advertised and are not forwarded. Other unlisted oa- slugs still
         // forward via fallbackModel. Advertise base ids only; harnesses send reasoning_effort.
         private val ADVERTISED_BASE_MODELS = listOf(
+            "gpt-6.1-sol",
             "gpt-6-astra",
             "gpt-6-sol",
             "gpt-6-luna",

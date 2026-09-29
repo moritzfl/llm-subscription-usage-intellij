@@ -1373,6 +1373,7 @@ class OpenAiProxyServerTest {
                 val models = root["data"]!!.jsonArray.map { it.jsonObject["id"]!!.jsonPrimitive.content }
                 assertEquals(
                     listOf(
+                        "gpt-6.1-sol",
                         "gpt-6-astra",
                         "gpt-6-sol",
                         "gpt-6-luna",
@@ -1410,9 +1411,9 @@ class OpenAiProxyServerTest {
                 assertEquals(200, response.statusCode())
                 val root = parseObject(response.body())
                 val firstModel = root["data"]!!.jsonArray[0].jsonObject
-                assertEquals("gpt-6-astra", firstModel["id"]!!.jsonPrimitive.content)
-                assertEquals("gpt-6-astra", firstModel["model_name"]!!.jsonPrimitive.content)
-                assertEquals("gpt-6-astra", firstModel["litellm_params"]!!.jsonObject["model"]!!.jsonPrimitive.content)
+                assertEquals("gpt-6.1-sol", firstModel["id"]!!.jsonPrimitive.content)
+                assertEquals("gpt-6.1-sol", firstModel["model_name"]!!.jsonPrimitive.content)
+                assertEquals("gpt-6.1-sol", firstModel["litellm_params"]!!.jsonObject["model"]!!.jsonPrimitive.content)
                 assertEquals("chat", firstModel["model_info"]!!.jsonObject["mode"]!!.jsonPrimitive.content)
                 assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
             } finally {

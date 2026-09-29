@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- OpenAI/Codex proxy advertises `gpt-6.1-sol`
+
 ## [1.17.0] - 2026-09-28
 
 - Copilot proxy tests bind OS-assigned ports directly, avoiding collisions between port discovery and server startup.
