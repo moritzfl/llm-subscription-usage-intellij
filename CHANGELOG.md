@@ -620,7 +620,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.0...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.1...HEAD
+[1.17.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.0...1.17.1
 [1.17.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.16.0...1.17.0
 [1.16.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.11...1.16.0
 [1.15.11]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.10...1.15.11
