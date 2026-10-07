@@ -22,8 +22,8 @@ import java.time.Duration
 /**
  * HTTP client for Ollama Cloud subscription usage via the official API key endpoint.
  *
- * `GET https://ollama.com/api/usage` with `Authorization: Bearer <api-key>`.
- * See https://github.com/ollama/ollama/issues/12532 and https://docs.ollama.com/api/authentication
+ * `GET https://ollama.com/api/balance` with `Authorization: Bearer <api-key>`.
+ * See https://docs.ollama.com/api/balance. `/api/usage` now reports activity history, not quota.
  */
 open class OllamaQuotaClient(
     private val httpClient: HttpClient = HttpClient.newHttpClient(),
@@ -33,25 +33,20 @@ open class OllamaQuotaClient(
         val token = apiKey.trim().takeIf { it.isNotBlank() }
             ?: throw OllamaQuotaException("Ollama API key missing. Add an Ollama API key in settings.")
 
-        val body = getUsageJson(token)
+        val body = getBalanceJson(token)
         val quota = try {
             parseQuota(body)
         } catch (exception: OllamaQuotaException) {
             throw exception
         } catch (exception: Exception) {
-            throw OllamaQuotaException("Ollama usage response changed.", 200, body, exception)
+            throw OllamaQuotaException("Ollama balance response changed.", 200, body, exception)
         }
         quota.fetchedAt = Clock.System.now()
-        quota.rawJson = buildRawResponse(
-            body,
-            quota.sessionUsage?.resetsAt,
-            quota.weeklyUsage?.resetsAt,
-            quota.monthlyUsage?.resetsAt,
-        )
+        quota.rawJson = body
         return quota
     }
 
-    private fun getUsageJson(apiKey: String): String {
+    private fun getBalanceJson(apiKey: String): String {
         val request = HttpRequest.newBuilder()
             .uri(endpoint)
             .timeout(Duration.ofSeconds(30))
@@ -71,11 +66,11 @@ open class OllamaQuotaClient(
             )
         }
         if (status == 429) {
-            throw OllamaQuotaException("Ollama usage API rate limited. Try again later.", status, body)
+            throw OllamaQuotaException("Ollama balance API rate limited. Try again later.", status, body)
         }
         if (status !in 200..299) {
             throw OllamaQuotaException(
-                "Ollama usage request failed (HTTP $status). Try again later.",
+                "Ollama balance request failed (HTTP $status). Try again later.",
                 status,
                 body,
             )
@@ -87,18 +82,18 @@ open class OllamaQuotaClient(
         return try {
             httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         } catch (exception: HttpTimeoutException) {
-            throw OllamaQuotaException("Ollama usage request timed out. Try again later.", 0, null, exception)
+            throw OllamaQuotaException("Ollama balance request timed out. Try again later.", 0, null, exception)
         } catch (exception: IOException) {
-            throw OllamaQuotaException("Ollama usage request failed. Check your connection.", 0, null, exception)
+            throw OllamaQuotaException("Ollama balance request failed. Check your connection.", 0, null, exception)
         } catch (exception: InterruptedException) {
             Thread.currentThread().interrupt()
-            throw OllamaQuotaException("Ollama usage request failed. Check your connection.", 0, null, exception)
+            throw OllamaQuotaException("Ollama balance request failed. Check your connection.", 0, null, exception)
         }
     }
 
     companion object {
         @JvmField
-        val DEFAULT_ENDPOINT: URI = URI.create("https://ollama.com/api/usage")
+        val DEFAULT_ENDPOINT: URI = URI.create("https://ollama.com/api/balance")
 
         internal fun buildRawResponse(
             usageBody: String,
@@ -156,8 +151,13 @@ open class OllamaQuotaClient(
             // example a changed session entry, per-model details, activity/cost extras, or unknown
             // attributes) only drops that block instead of hiding the whole quota.
             val root = runCatching { JsonSupport.json.parseToJsonElement(usageJson) }.getOrNull() as? JsonObject
-                ?: throw OllamaQuotaException("Ollama usage response changed.", 200, usageJson)
+                ?: throw OllamaQuotaException("Ollama balance response changed.", 200, usageJson)
 
+            if (root["included"] is JsonObject) {
+                return parseBalance(root["included"] as JsonObject, usageJson)
+            }
+
+            // Retain support for the former /api/usage limit format.
             val limits = root["limits"] as? JsonObject
 
             fun window(key: String): OllamaUsageWindow? =
@@ -171,7 +171,7 @@ open class OllamaQuotaClient(
             )
             val monthlyUsage = window("monthly")?.withMonthlyPeriod(activityPeriod, now)
             if (sessionUsage == null && weeklyUsage == null && monthlyUsage == null) {
-                throw OllamaQuotaException("Ollama usage response changed.", 200, usageJson)
+                throw OllamaQuotaException("Ollama balance response changed.", 200, usageJson)
             }
 
             return OllamaQuota(
@@ -179,6 +179,42 @@ open class OllamaQuotaClient(
                 weeklyUsage = weeklyUsage,
                 monthlyUsage = monthlyUsage,
             )
+        }
+
+        private fun parseBalance(included: JsonObject, body: String): OllamaQuota {
+            fun window(key: String): OllamaUsageWindow? {
+                val limit = JsonSupport.decodeSectionOrNull(included[key], OllamaBalanceLimitDto.serializer())
+                    ?: return null
+                val remaining = limit.remainingPercent?.takeIf { it.isFinite() } ?: return null
+                return OllamaUsageWindow(
+                    usagePercent = (100.0 - remaining).coerceIn(0.0, 100.0),
+                    resetsAt = parseInstant(limit.resetsAt),
+                )
+            }
+
+            val credits = JsonSupport.decodeSectionOrNull(included, OllamaIncludedCreditsDto.serializer())
+            val allowance = credits?.allowanceUsd?.takeIf { it.isFinite() && it > 0.0 }
+            val balance = credits?.balanceUsd?.takeIf { it.isFinite() }
+            val monthlyUsage = if (allowance != null && balance != null) {
+                val period = JsonSupport.decodeSectionOrNull(included["period"], OllamaBalancePeriodDto.serializer())
+                val used = (allowance - balance).coerceAtLeast(0.0)
+                OllamaUsageWindow(
+                    usagePercent = (used / allowance * 100.0).coerceIn(0.0, 100.0),
+                    resetsAt = parseInstant(period?.until),
+                    periodStartedAt = parseInstant(period?.from),
+                    usedAmountUsd = used,
+                    allowanceUsd = allowance,
+                )
+            } else null
+            val quota = OllamaQuota(
+                sessionUsage = window("session"),
+                weeklyUsage = window("weekly"),
+                monthlyUsage = monthlyUsage,
+            )
+            if (!quota.hasUsageState()) {
+                throw OllamaQuotaException("Ollama balance response changed.", 200, body)
+            }
+            return quota
         }
 
         private fun OllamaUsageWindow.withDefaultReset(defaultReset: Instant): OllamaUsageWindow =
@@ -231,4 +267,25 @@ private data class OllamaActivityPeriodDto(
     val type: String? = null,
     @SerialName("starting_at") val startingAt: String? = null,
     @SerialName("ending_at") val endingAt: String? = null,
+)
+
+@Serializable
+private data class OllamaIncludedCreditsDto(
+    @Serializable(with = LenientDoubleOrNullSerializer::class)
+    @SerialName("balance_usd") val balanceUsd: Double? = null,
+    @Serializable(with = LenientDoubleOrNullSerializer::class)
+    @SerialName("allowance_usd") val allowanceUsd: Double? = null,
+)
+
+@Serializable
+private data class OllamaBalancePeriodDto(
+    val from: String? = null,
+    val until: String? = null,
+)
+
+@Serializable
+private data class OllamaBalanceLimitDto(
+    @Serializable(with = LenientDoubleOrNullSerializer::class)
+    @SerialName("remaining_percent") val remainingPercent: Double? = null,
+    @SerialName("resets_at") val resetsAt: String? = null,
 )

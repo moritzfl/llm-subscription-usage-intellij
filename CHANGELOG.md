@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Ollama quota uses the new balance API: monthly included usage shows used dollars, allowance, and the exact billing reset, matching the website. Legacy session/weekly plans use the returned remaining percentages and reset times; usage-history totals are not mistaken for subscription quota.
+
 ## [1.17.2] - 2026-10-07
 
 - PDF figure export no longer falls back to PNG merely because a page declares a transparency group. Unsupported blend modes, soft masks, and nested form groups still use raster fallback.

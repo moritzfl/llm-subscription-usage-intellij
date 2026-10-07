@@ -97,6 +97,9 @@ internal class OllamaPopupSection : ProviderPopupSection() {
         val percent = clampPercent(window.usagePercent.roundToInt())
         val resetText = QuotaUiUtil.formatReset(window.resetsAt)
         var info = "$percent% used"
+        if (window.usedAmountUsd != null && window.allowanceUsd != null) {
+            info += String.format(java.util.Locale.ROOT, " • $%.2f / $%.2f", window.usedAmountUsd, window.allowanceUsd)
+        }
         if (resetText != null) {
             info += " - $resetText"
         } else {

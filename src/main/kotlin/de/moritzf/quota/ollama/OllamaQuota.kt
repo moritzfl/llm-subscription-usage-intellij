@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
 /**
- * Ollama Cloud subscription usage from `GET https://ollama.com/api/usage`.
+ * Ollama Cloud subscription usage from `GET https://ollama.com/api/balance`.
  */
 @Serializable
 data class OllamaQuota(
@@ -44,4 +44,6 @@ data class OllamaUsageWindow(
     val usagePercent: Double = 0.0,
     val resetsAt: Instant? = null,
     val periodStartedAt: Instant? = null,
+    val usedAmountUsd: Double? = null,
+    val allowanceUsd: Double? = null,
 )

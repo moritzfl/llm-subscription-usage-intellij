@@ -69,7 +69,7 @@ internal class OllamaSettingsPanel(
                     .comment(
                         "Optional. Paste an ISO-8601 UTC time, or the ollama.com/settings page HTML. " +
                             "The Monthly usage Resets data-time is kept; other timestamps are ignored. " +
-                            "Used only on monthly credit plans. Same day and clock each calendar month.",
+                            "Fallback only when the API omits the monthly reset. Same day and clock each calendar month.",
                     )
             }
             row("Vision model:") {
