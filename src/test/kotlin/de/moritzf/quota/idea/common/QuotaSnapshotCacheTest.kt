@@ -6,17 +6,43 @@ import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.mistral.MistralQuota
 import de.moritzf.quota.ollama.OllamaQuota
+import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.OpenAiUsageResponseFixtures.proliteWithAdditionalRateLimits
+import de.moritzf.quota.openai.RateLimitResetCredit
 import de.moritzf.quota.shared.ProviderQuota
 import de.moritzf.quota.supergrok.SuperGrokQuota
+import de.moritzf.quota.supergrok.SuperGrokResetToken
 import de.moritzf.quota.zai.ZaiQuota
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 class QuotaSnapshotCacheTest {
+    @Test
+    fun preservesResetTokenExpirations() {
+        val expiresAt = Instant.parse("2026-10-31T12:34:56Z")
+        val codex = OpenAiCodexQuota(
+            resetCreditsAvailableCount = 2,
+            resetCredits = listOf(
+                RateLimitResetCredit("credit-1", "available", expiresAt),
+                RateLimitResetCredit("credit-2", "available"),
+            ),
+        )
+        val grok = SuperGrokQuota(
+            resetTokens = listOf(SuperGrokResetToken("restok_1", expiresAt), SuperGrokResetToken("restok_2")),
+        )
+
+        val cachedCodex = roundTrip(QuotaProviderType.OPEN_AI, codex, "{}") as OpenAiCodexQuota
+        val cachedGrok = roundTrip(QuotaProviderType.SUPERGROK, grok, "{}") as SuperGrokQuota
+
+        assertEquals(codex.resetCreditsAvailableCount, cachedCodex.resetCreditsAvailableCount)
+        assertEquals(codex.resetCredits, cachedCodex.resetCredits)
+        assertEquals(grok.resetTokens, cachedGrok.resetTokens)
+    }
+
     @Test
     fun preservesRawResponsesForTransientRawQuotaTypes() {
         assertEquals("ollama raw", roundTrip(QuotaProviderType.OLLAMA, OllamaQuota(), "ollama raw").rawJson)

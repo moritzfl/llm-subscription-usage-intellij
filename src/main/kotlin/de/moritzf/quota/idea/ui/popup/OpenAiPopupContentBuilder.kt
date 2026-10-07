@@ -194,12 +194,10 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
             return
         }
 
-        val nextExpiry = resetCredits.mapNotNull { it.expiresAt }.minOrNull()
-        val expiryText = nextExpiry?.let { QuotaUiUtil.formatExpiry(it) }
         resetCreditsPanel.add(JLabel("Resets available: $availableCount"))
         resetCreditsPanel.add(ActionLink("Reset") { confirmAndReset(resetCredits.firstOrNull()?.creditId) }.apply {
             icon = AllIcons.Actions.Restart
-            toolTipText = expiryText?.let { "Redeem one Codex reset. $it" } ?: "Redeem one Codex reset"
+            toolTipText = resetTokenTooltip("Redeem one Codex reset", resetCredits.map { it.expiresAt }, availableCount)
             cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
         })
         resetCreditsPanel.isVisible = true

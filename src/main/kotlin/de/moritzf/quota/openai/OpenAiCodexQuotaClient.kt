@@ -57,7 +57,7 @@ class OpenAiCodexQuotaClient(
         val resetCredits = fetchResetCredits(accessToken, accountId)
         if (resetCredits != null) {
             quota.resetCreditsAvailableCount = resetCredits.effectiveAvailableCount()
-            quota.resetCredits = resetCredits.credits
+            quota.resetCredits = resetCredits.availableCredits()
         }
         return quota
     }

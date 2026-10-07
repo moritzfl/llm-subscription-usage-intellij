@@ -97,13 +97,10 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
             resetTokensPanel.isVisible = false
             return
         }
-        val nextExpiry = resetTokens.mapNotNull { it.expiresAt }.minOrNull()
-        val expiryText = nextExpiry?.let { QuotaUiUtil.formatExpiry(it) }
         resetTokensPanel.add(JLabel("Resets available: ${resetTokens.size}"))
         resetTokensPanel.add(ActionLink("Reset") { confirmAndReset(resetTokens.first().tokenId) }.apply {
             icon = AllIcons.Actions.Restart
-            toolTipText = expiryText?.let { "Redeem one SuperGrok weekly reset. $it" }
-                ?: "Redeem one SuperGrok weekly reset"
+            toolTipText = resetTokenTooltip("Redeem one SuperGrok weekly reset", resetTokens.map { it.expiresAt })
             cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
         })
         resetTokensPanel.isVisible = true

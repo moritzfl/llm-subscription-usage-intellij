@@ -560,9 +560,25 @@ class OpenAiCodexQuotaClientTest {
         @Language("JSON")
         val resetsJson = """
             {
-              "available_count": 1,
+              "available_count": 2,
+              "total_earned_count": 5,
               "credits": [
-                { "credit_id": "credit-1" }
+                {
+                  "id": "credit-redeemed",
+                  "status": "redeemed",
+                  "expires_at": "2026-10-01T00:00:00Z"
+                },
+                {
+                  "id": "credit-1",
+                  "reset_type": "codex_rate_limits",
+                  "status": "available",
+                  "granted_at": "2026-10-01T00:00:00Z",
+                  "expires_at": "2026-10-31T12:34:56Z",
+                  "title": "Full reset (Weekly + 5 hr)"
+                },
+                { "id": "credit-2", "status": "available", "expires_at": null },
+                { "id": "credit-redeeming", "status": "redeeming" },
+                { "id": "credit-unknown", "status": "future_status" }
               ]
             }
         """.trimIndent()
@@ -577,9 +593,32 @@ class OpenAiCodexQuotaClientTest {
         )
         val quota = client.fetchQuota("token", "account-1")
 
+        assertEquals(2, quota.resetCreditsAvailableCount)
+        assertEquals(listOf("credit-1", "credit-2"), quota.resetCredits.map { it.creditId })
+        assertEquals(Instant.parse("2026-10-31T12:34:56Z"), quota.resetCredits[0].expiresAt)
+        assertNull(quota.resetCredits[1].expiresAt)
+    }
+
+    @Test
+    fun customDeserializationMapsEmbeddedAvailableResetExpirations() {
+        @Language("JSON")
+        val json = """
+            {
+              "rate_limit": { "primary_window": { "used_percent": 12.3 } },
+              "rate_limit_reset_credits": {
+                "credits": [
+                  { "id": "credit-old", "status": "redeemed" },
+                  { "id": "credit-1", "status": "available", "expires_at": "2026-10-31T00:00:00Z" }
+                ]
+              }
+            }
+        """.trimIndent()
+
+        val quota = deserializeQuota(json)
+
         assertEquals(1, quota.resetCreditsAvailableCount)
-        assertEquals(1, quota.resetCredits.size)
         assertEquals("credit-1", quota.resetCredits.single().creditId)
+        assertEquals(Instant.parse("2026-10-31T00:00:00Z"), quota.resetCredits.single().expiresAt)
     }
 
     @Test

@@ -44,6 +44,19 @@ import javax.swing.JProgressBar
 import javax.swing.SwingUtilities
 import kotlin.math.roundToInt
 import java.time.Duration
+import kotlin.time.Instant
+
+internal fun resetTokenTooltip(action: String, expirations: List<Instant?>, availableCount: Int = expirations.size): String {
+    return buildString {
+        append("<html>")
+        append(QuotaUiUtil.escapeHtml(action))
+        repeat(maxOf(availableCount, expirations.size)) { index ->
+            append("<br>Token ${index + 1}: ")
+            append(QuotaUiUtil.escapeHtml(QuotaUiUtil.formatExpiry(expirations.getOrNull(index)) ?: "Expiration unknown"))
+        }
+        append("</html>")
+    }
+}
 
 internal fun createOpenSettingsButton(onOpenSettings: () -> Unit): ActionLink {
     return ActionLink("") { onOpenSettings() }.apply {

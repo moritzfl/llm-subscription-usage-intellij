@@ -43,7 +43,7 @@ data class UsageResponseDto(
             spendControl = spendControl?.toSpendControl(),
             rateLimitReachedType = rateLimitReachedType?.type?.takeUnless { it.isEmpty() },
             resetCreditsAvailableCount = rateLimitResetCredits?.effectiveAvailableCount() ?: 0,
-            resetCredits = rateLimitResetCredits?.credits.orEmpty(),
+            resetCredits = rateLimitResetCredits?.availableCredits().orEmpty(),
             extraRateLimits = additionalRateLimits.orEmpty().toExtraRateLimits(),
         )
     }

@@ -9,7 +9,9 @@ data class RateLimitResetCreditsResponse(
     @SerialName("available_count") val availableCount: Int = 0,
     val credits: List<RateLimitResetCredit> = emptyList(),
 ) {
-    fun effectiveAvailableCount(): Int = maxOf(availableCount, credits.size)
+    fun availableCredits(): List<RateLimitResetCredit> = credits.filter { it.status == "available" }
+
+    fun effectiveAvailableCount(): Int = maxOf(availableCount, availableCredits().size)
 }
 
 @Serializable
@@ -17,12 +19,15 @@ data class RateLimitResetCredits(
     @SerialName("available_count") val availableCount: Int = 0,
     val credits: List<RateLimitResetCredit> = emptyList(),
 ) {
-    fun effectiveAvailableCount(): Int = maxOf(availableCount, credits.size)
+    fun availableCredits(): List<RateLimitResetCredit> = credits.filter { it.status == "available" }
+
+    fun effectiveAvailableCount(): Int = maxOf(availableCount, availableCredits().size)
 }
 
 @Serializable
 data class RateLimitResetCredit(
-    @SerialName("credit_id") val creditId: String,
+    @SerialName("id") val creditId: String,
+    val status: String,
     @SerialName("expires_at") val expiresAt: Instant? = null,
 )
 

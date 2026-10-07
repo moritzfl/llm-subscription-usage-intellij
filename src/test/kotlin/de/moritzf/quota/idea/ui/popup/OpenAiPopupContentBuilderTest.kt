@@ -1,17 +1,44 @@
 package de.moritzf.quota.idea.ui.popup
 
+import com.intellij.ui.components.ActionLink
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.OpenAiExtraRateLimit
 import de.moritzf.quota.openai.OpenAiUsageResponseFixtures
+import de.moritzf.quota.openai.RateLimitResetCredit
 import de.moritzf.quota.openai.UsageWindow
 import java.awt.Container
 import java.time.Duration
 import javax.swing.JLabel
 import javax.swing.JPanel
 import kotlin.test.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
 
 class OpenAiPopupContentBuilderTest {
+    @Test
+    fun resetLinkListsEveryTokenExpirationIncludingMissingDetails() {
+        val section = OpenAiPopupSection()
+        val now = Clock.System.now()
+        val quota = OpenAiCodexQuota(
+            resetCreditsAvailableCount = 3,
+            resetCredits = listOf(
+                RateLimitResetCredit("credit-1", "available", now + 3.days),
+                RateLimitResetCredit("credit-2", "available", now + 10.days),
+            ),
+        )
+
+        section.update(quota, error = null, visible = true)
+
+        val tooltip = section.components.filterIsInstance<JPanel>()
+            .flatMap { it.components.filterIsInstance<ActionLink>() }.single().toolTipText
+        assertTrue(tooltip.contains("Token 1: Expires in "))
+        assertTrue(tooltip.contains("Token 2: Expires in "))
+        assertTrue(tooltip.contains("Token 3: Expiration unknown"))
+        assertFalse(tooltip.contains("credit-"))
+    }
+
     @Test
     fun showsAllExtraRateLimitTitles() {
         val section = OpenAiPopupSection()
