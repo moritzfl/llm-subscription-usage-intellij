@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.17.4] - 2026-10-08
+
 - Codex and SuperGrok Reset links list every available token's expiration on hover, with relative time remaining or an explicit unknown date. Codex reset details now decode the provider's `id` field and exclude non-available credits.
 - OpenAI/Codex speech recognition uses ChatGPT's `/backend-api/transcribe` endpoint for MCP and proxy uploads, fixing HTTP 404 from the incorrect `/codex/audio/transcriptions` route. Text-to-speech remains a separate upstream capability.
 - Add opt-in experimental Codex realtime speech with `gpt-live-1-codex`, WAV output and marin/cedar voices through MCP and the media proxy. The conversational renderer may paraphrase and requires voice-session access; denial is reported without creating an audio file or switching accounts. Legacy speech-route 404 errors now explain the experimental option.
@@ -633,7 +635,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.3...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.4...HEAD
+[1.17.4]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.3...1.17.4
 [1.17.3]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.2...1.17.3
 [1.17.2]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.1...1.17.2
 [1.17.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.0...1.17.1
