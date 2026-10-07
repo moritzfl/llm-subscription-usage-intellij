@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- PDF figure export no longer falls back to PNG merely because a page declares a transparency group. Unsupported blend modes, soft masks, and nested form groups still use raster fallback.
+- PDF-to-Markdown refreshes the output directory recursively before opening the result, so generated figures appear in IntelliJ's Project view immediately.
+
 ## [1.17.1] - 2026-09-29
 
 - OpenAI/Codex proxy advertises `gpt-6.1-sol`

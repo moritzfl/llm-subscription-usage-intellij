@@ -91,6 +91,9 @@ class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
                             indicator.isIndeterminate = total <= 0
                             if (total > 0) indicator.fraction = (completed.toDouble() / total).coerceAtMost(0.99)
                         })
+                        // NIO writes bypass the VFS. Refresh images too, before opening Markdown on the EDT.
+                        LocalFileSystem.getInstance().refreshAndFindFileByNioFile(destination.toAbsolutePath().parent)
+                            ?.refresh(false, true)
                         indicator.fraction = 1.0
                         indicator.text2 = "Markdown saved"
                     }

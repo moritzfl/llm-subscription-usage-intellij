@@ -45,7 +45,14 @@ class PdfFigureRendererTest {
     @Test
     fun svgAndPngCropsMatchOriginalForRotationsAndOffsetCropBoxes() {
         for (rotation in listOf(0, 90, 180, 270)) {
-            val document = quadrantPdf(rotation)
+            val document = quadrantPdf(rotation).apply {
+                // Common PDF generators declare a page group even for opaque vector artwork.
+                getPage(0).cosObject.setItem(COSName.GROUP, COSDictionary().apply {
+                    setItem(COSName.TYPE, COSName.GROUP)
+                    setItem(COSName.S, COSName.TRANSPARENCY)
+                    setItem(COSName.CS, COSName.DEVICERGB)
+                })
+            }
             val reference = PDFRenderer(document).renderImageWithDPI(0, 72f)
             val region = PdfFigureRegion(1, 0.0, 0.0, 0.75, 0.75,
                 reference.width.toDouble(), reference.height.toDouble())

@@ -65,7 +65,9 @@ internal class PdfFigureRenderer(private val document: PDDocument) : AutoCloseab
     fun renderSvg(region: PdfFigureRegion, target: Path, paddingPoints: Double) {
         val crop = crop(region, paddingPoints)
         val page = document.getPage(region.page - 1)
-        if (page.cosObject.containsKey(COSName.GROUP) || hasComplexTransparency(page.resources, mutableSetOf())) {
+        // A page transparency group declares the compositing context, not an unsupported paint operation.
+        // Keep raster fallback for actual soft masks, blend modes, and nested form groups.
+        if (hasComplexTransparency(page.resources, mutableSetOf())) {
             throw IOException("PDF transparency requires raster rendering")
         }
         val dom = GenericDOMImplementation.getDOMImplementation()
