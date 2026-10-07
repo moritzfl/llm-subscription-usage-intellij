@@ -257,6 +257,27 @@ class CodexMcpClient(
             return CodexMcpResponse(errorJson("Speech text is required."), true)
         }
         val format = responseFormat.trim().ifBlank { DEFAULT_SPEECH_FORMAT }
+        if (model.trim() == de.moritzf.quota.shared.RealtimeSpeechSession.MODEL) {
+            if (format != "wav" || !targetFile.isNullOrBlank() && !targetFile.endsWith(".wav", ignoreCase = true))
+                return CodexMcpResponse(errorJson("Experimental realtime speech requires responseFormat=wav and a .wav targetFile."), true)
+            val output = resolveSpeechOutput(targetFile, baseDirectory, "wav")
+                ?: return CodexMcpResponse(errorJson("Provide a valid audio output path."), true)
+            return try {
+                val bytes = CodexRealtimeSpeech(client).synthesize(input, voiceId?.trim()?.ifBlank { null } ?: "marin")
+                output.parent?.let { Files.createDirectories(it) }
+                Files.write(output, bytes)
+                CodexMcpResponse(buildJsonObject {
+                    put("output_file", output.toString()); put("bytes", bytes.size)
+                    put("content_type", "audio/wav"); put("experimental", true); put("mode", "conversational-best-effort")
+                }.toString(), false)
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                CodexMcpResponse(errorJson("Experimental realtime speech cancelled."), true)
+            } catch (e: Exception) {
+                val detail = e.message?.takeIf { it.startsWith("ChatGPT denied access") || it.startsWith("ChatGPT realtime call failed") }
+                CodexMcpResponse(errorJson(detail ?: "Experimental realtime speech failed. Check voice access, select marin or cedar, and retry."), true)
+            }
+        }
         val output = resolveSpeechOutput(targetFile, baseDirectory, format)
             ?: return CodexMcpResponse(errorJson("Provide targetFile so the audio is written to disk."), true)
         val body = speechRequestJson(
@@ -276,6 +297,9 @@ class CodexMcpClient(
                 ),
             )
             if (response.statusCode() !in 200..299) {
+                if (response.statusCode() == 404) return CodexMcpResponse(errorJson(
+                    "ChatGPT's /audio/speech endpoint is unavailable. Experimental realtime voice uses model=gpt-live-1-codex, responseFormat=wav and voiceId=marin or cedar; it requires voice access and may paraphrase.",
+                ), true)
                 val mapped = upstreamErrorMapper.map(response.statusCode(), String(response.body(), Charsets.UTF_8))
                 return CodexMcpResponse(mapped.body, true)
             }

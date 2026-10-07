@@ -489,7 +489,7 @@ class CodexMcpClientTest {
     }
 
     @Test
-    fun postsTranscriptionToCodexAudioEndpoint() {
+    fun postsTranscriptionToChatGptDictationEndpoint() {
         TestUpstream(responseBody = """{"text":"hello"}""").use { upstream ->
             val dir = Files.createTempDirectory("codex-stt")
             val audio = dir.resolve("clip.wav")
@@ -502,7 +502,7 @@ class CodexMcpClientTest {
             assertEquals("hello", parseObject(response.body)["text"]!!.jsonPrimitive.content)
             val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
             assertEquals("POST", request.method)
-            assertEquals("/backend-api/codex/audio/transcriptions", request.path)
+            assertEquals("/backend-api/transcribe", request.path)
             assertTrue(request.body.contains("gpt-transcribe"))
             assertTrue(request.body.contains("clip.wav"))
             assertTrue(request.body.contains("en"))

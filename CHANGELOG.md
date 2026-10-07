@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- OpenAI/Codex speech recognition uses ChatGPT's `/backend-api/transcribe` endpoint for MCP and proxy uploads, fixing HTTP 404 from the incorrect `/codex/audio/transcriptions` route. Text-to-speech remains a separate upstream capability.
+- Add opt-in experimental Codex realtime speech with `gpt-live-1-codex`, WAV output and marin/cedar voices through MCP and the media proxy. The conversational renderer may paraphrase and requires voice-session access; denial is reported without creating an audio file or switching accounts. Legacy speech-route 404 errors now explain the experimental option.
+
 ## [1.17.3] - 2026-10-07
 
 - Ollama quota uses the new balance API: monthly included usage shows used dollars, allowance, and the exact billing reset, matching the website. Legacy session/weekly plans use the returned remaining percentages and reset times; usage-history totals are not mistaken for subscription quota.

@@ -111,7 +111,7 @@ The plugin registers subscription-backed tools with IntelliJ's built-in MCP serv
 | `subscription_image_edit` | SuperGrok/xAI JSON image edits from a source URL or local file. Masks are not supported |
 | `subscription_vision` | Ask a vision-capable model about an image and get `{provider, model, content}` back, so non-vision models can extract information from images. Providers: OpenAI/Codex, SuperGrok/xAI, Mistral chat, Z.ai GLM, GitHub Copilot, OpenCode Zen/Go, Ollama Cloud, Kimi. Off by default everywhere (`-`); select a vision model in settings or pass `model=`. Image comes from `imageUrl` or a local `localFile` (Copilot and OpenCode need a local file) |
 | `subscription_speech_to_text` | Transcribe audio via OpenAI/Codex, SuperGrok/xAI, Mistral, Z.ai, or MiniMax |
-| `subscription_text_to_speech` | Generate speech audio via OpenAI/Codex, SuperGrok/xAI, Mistral, or MiniMax and write it to a file |
+| `subscription_text_to_speech` | Generate speech audio via OpenAI/Codex (experimental realtime), SuperGrok/xAI, Mistral, or MiniMax and write it to a file |
 | `subscription_list_voices` | List OpenAI/Codex, SuperGrok/xAI, Mistral, or MiniMax voices |
 | `subscription_video_generation` | Video generation via SuperGrok/xAI Imagine or Z.ai CogVideoX |
 | `supergrok_video_generation` | SuperGrok/xAI Imagine video (same as `subscription_video_generation` with SUPERGROK) |
@@ -173,7 +173,9 @@ Use **Test FIM** on the Proxy tab to send a sample completion and inspect the in
 
 - Configure clients with the base URL **without** a `/v1` suffix (for example `http://127.0.0.1:14621`) — clients append `/v1/...` themselves, and all routes also answer unprefixed.
 - For JetBrains Junie, add the proxy as a LiteLLM provider with that base URL and the copied API key; available models are discovered automatically. Do not pick `qwen2.5-coder` for Junie chat.
-- Image, speech, and transcription OpenAI routes are on the same base URL (`/v1/images/generations`, `/v1/audio/speech`, `/v1/audio/transcriptions`). Use a prefixed model id (`sg-`, `mm-`, `za-`). Images return a URL, not base64.
+- Image, speech, and transcription OpenAI routes are on the same base URL (`/v1/images/generations`, `/v1/audio/speech`, `/v1/audio/transcriptions`). Use a prefixed model id (`sg-`, `mm-`, `za-`, `mi-`, `oa-`). Images return a URL, not base64.
+- OpenAI subscription STT uses ChatGPT's dictation endpoint. Experimental subscription TTS uses `gpt-live-1-codex` in MCP (`oa-gpt-live-1-codex` in the proxy), `responseFormat=wav` (`response_format` in the proxy), and voice `marin` or `cedar`. It renders text through a finite Codex WebRTC voice session and may paraphrase. Existing API-style speech defaults are retained; `/codex/audio/speech` currently returns 404. The tested account established a voice connection but received **Voice session access denied**, so live synthesis remains entitlement-blocked on that login. No fallback to another account or a billable API occurs.
+- Realtime speech includes headless webrtc-java native binaries for macOS, Windows and Linux. On minimal Linux installations, install its [native prerequisites](https://jrtc.dev/guide/get-started). It does not open the computer's microphone or speakers. The MCP/proxy result is a completed WAV file; direct assistant playback streaming is implemented in Voice Bridge.
 - The API key is generated locally and stored in IntelliJ Password Safe. Provider credentials never leave the plugin's regular secure storage.
 - `Log requests and responses to disk` writes full request/response bodies to a temp folder for debugging. Off by default; logs are pruned automatically (7 days / 2000 files).
 

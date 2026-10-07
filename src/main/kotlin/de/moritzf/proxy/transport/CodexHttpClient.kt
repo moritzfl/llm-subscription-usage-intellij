@@ -39,6 +39,25 @@ open class CodexHttpClient {
         requestLogger = RequestLogger(config.fullRequestLogging, Path.of(config.requestLogDir))
     }
     open fun getHttpClient(): HttpClient = httpClient
+    fun realtimeSocket(callId: String, listener: java.net.http.WebSocket.Listener): java.util.concurrent.CompletableFuture<java.net.http.WebSocket> {
+        require(callId.matches(Regex("(?:rtc_[A-Za-z0-9_-]{1,200}|[a-fA-F0-9-]{36})")))
+        val base = URI.create(baseUrl)
+        val origin = if (base.host == "chatgpt.com") "wss://api.openai.com" else
+            "${if (base.scheme == "https") "wss" else "ws"}://${base.rawAuthority}"
+        fun connect(headers: Map<String, String>): java.util.concurrent.CompletableFuture<java.net.http.WebSocket> {
+            val builder = httpClient.newWebSocketBuilder().connectTimeout(Duration.ofSeconds(15))
+            headers.forEach(builder::header)
+            builder.header("originator", "codex_cli_rs").header("openai-alpha", "quicksilver=v2")
+            return builder.buildAsync(URI.create("$origin/v1/live/$callId"), listener)
+        }
+        val sent = credentialsProvider.getAuthHeaders()
+        return connect(sent).exceptionallyCompose { error ->
+            val cause = if (error is java.util.concurrent.CompletionException) error.cause else error
+            if (cause is java.net.http.WebSocketHandshakeException && cause.response.statusCode() == 401 && refreshAfterUnauthorized(sent))
+                connect(credentialsProvider.getAuthHeaders())
+            else java.util.concurrent.CompletableFuture.failedFuture(error)
+        }
+    }
     open fun request(
         path: String,
         method: String?,
@@ -300,10 +319,17 @@ open class CodexHttpClient {
         authHeaders: Map<String, String>,
         bodyPublisher: HttpRequest.BodyPublisher?,
     ): HttpRequest {
-        val targetUrl = UrlResolver.resolveTargetUrl(path, baseUrl)
+        val resolved = URI.create(UrlResolver.resolveTargetUrl(path, baseUrl))
+        // ChatGPT dictation is a sibling of /codex, not the Platform Audio API route.
+        // Resolve against the configured origin so fixtures/custom upstreams retain their host.
+        val targetUrl = if (resolved.path == "/backend-api/codex/audio/transcriptions") {
+            resolved.resolve("/backend-api/transcribe" + resolved.rawQuery?.let { "?$it" }.orEmpty())
+        } else {
+            resolved
+        }
         val loggedHeaders = LinkedHashMap<String, String>()
         val builder = HttpRequest.newBuilder()
-            .uri(URI.create(targetUrl))
+            .uri(targetUrl)
             .timeout(REQUEST_TIMEOUT)
         authHeaders.forEach { (name, value) ->
             builder.header(name, value)

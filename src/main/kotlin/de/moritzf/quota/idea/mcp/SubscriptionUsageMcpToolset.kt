@@ -458,7 +458,7 @@ class SubscriptionUsageMcpToolset(
     }
 
     @McpTool(name = "subscription_text_to_speech")
-    @McpDescription(description = "Generates speech audio with a subscription-backed provider and writes it to disk. Pass targetFile or a unique speech-<uuid>.mp3 is written in the project. Optional voiceId or refAudioFile selects the voice.")
+    @McpDescription(description = "Generates speech audio with a subscription-backed provider and writes it to disk. OpenAI experimental realtime voice: model=gpt-live-1-codex, responseFormat=wav, voiceId=marin or cedar. Requires voice-session access and may paraphrase. Pass targetFile or a unique speech file is written in the project. Optional voiceId or refAudioFile selects the voice.")
     suspend fun subscription_text_to_speech(
         @McpDescription(description = "Text to speak.") text: String,
         @McpDescription(description = "Provider to use. Supported providers are derived from the TextToSpeechProvider enum.") provider: TextToSpeechProvider = TextToSpeechProvider.OPEN_AI,

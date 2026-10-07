@@ -40,6 +40,7 @@ internal object OpenAiMedia {
             }
             if ("openai" in providerIds) {
                 add(AdvertisedMediaModel("oa-gpt-4o-mini-tts", "openai", "audio"))
+                add(AdvertisedMediaModel("oa-gpt-live-1-codex", "openai", "audio"))
                 add(AdvertisedMediaModel("oa-gpt-transcribe", "openai", "audio"))
             }
         }
@@ -118,6 +119,7 @@ internal object OpenAiMedia {
     private val NON_CHAT_MARKERS = listOf(
         "embed",
         "tts",
+        "gpt-live",
         "transcribe",
         "voxtral",
         "ocr",
