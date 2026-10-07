@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.17.2] - 2026-10-07
+
 - PDF figure export no longer falls back to PNG merely because a page declares a transparency group. Unsupported blend modes, soft masks, and nested form groups still use raster fallback.
 - PDF-to-Markdown refreshes the output directory recursively before opening the result, so generated figures appear in IntelliJ's Project view immediately.
 
@@ -623,7 +625,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.1...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.2...HEAD
+[1.17.2]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.1...1.17.2
 [1.17.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.0...1.17.1
 [1.17.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.16.0...1.17.0
 [1.16.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.15.11...1.16.0
