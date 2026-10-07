@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.17.3] - 2026-10-07
+
 - Ollama quota uses the new balance API: monthly included usage shows used dollars, allowance, and the exact billing reset, matching the website. Legacy session/weekly plans use the returned remaining percentages and reset times; usage-history totals are not mistaken for subscription quota.
 
 ## [1.17.2] - 2026-10-07
@@ -627,7 +629,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.2...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.3...HEAD
+[1.17.3]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.2...1.17.3
 [1.17.2]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.1...1.17.2
 [1.17.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.0...1.17.1
 [1.17.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.16.0...1.17.0
