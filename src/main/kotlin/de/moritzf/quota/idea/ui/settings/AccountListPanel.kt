@@ -11,7 +11,6 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import de.moritzf.quota.idea.common.ProviderCatalog
 import de.moritzf.quota.idea.common.QuotaProviderType
-import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.settings.ProviderAccount
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.ui.indicator.ProviderUiRegistry
@@ -130,22 +129,12 @@ internal class AccountListPanel(
         }
     }
 
-    fun applyPendingChanges(state: QuotaSettingsState) {
-        val keptIds = model.items.map { it.id }.toSet()
-        pendingRemovals
-            .filter { it.id !in keptIds }
-            .forEach { account ->
-                runCatching { de.moritzf.quota.idea.settings.AccountSecrets.clear(account) }
-                state.dropAccountData(account.id)
-                runCatching { QuotaUsageService.getInstance().clearUsageData(account.id) }
-            }
+    fun removedAccounts(): List<ProviderAccount> = pendingRemovals.map { it.snapshot() }
+
+    fun acceptPendingChanges() {
         pendingRemovals.clear()
         pendingAdds.clear()
-        state.accounts =
-            QuotaSettingsState.sanitizeAccounts(model.items.map { it.snapshot() }).toMutableList()
-        state.syncLegacyAccountFields()
-        state.pruneOrphanAccountData()
-        runCatching { QuotaUsageService.getInstance().syncAccounts() }
+        persistedIds = model.items.map { it.id }.toSet()
     }
 
     fun discardPending() {

@@ -31,6 +31,11 @@
         <statusBarWidgetFactory implementation="de.moritzf.quota.idea.ui.toolbar.QuotaStatusBarWidgetFactory" id="openai.usage.quota.widget"/>
     </extensions>
 
+    <applicationListeners>
+        <listener class="de.moritzf.quota.idea.settings.SettingsServicesListener"
+                  topic="de.moritzf.quota.idea.settings.QuotaSettingsListener"/>
+    </applicationListeners>
+
     <actions>
         <action id="openai.usage.quota.convertPdfToMarkdown"
                 class="de.moritzf.quota.idea.action.ConvertPdfToMarkdownAction"

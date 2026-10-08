@@ -1,7 +1,6 @@
 package de.moritzf.quota.idea.settings
 
 import com.intellij.icons.AllIcons
-import com.intellij.ide.ActivityTracker
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.options.Configurable
@@ -24,11 +23,9 @@ import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.common.CredentialStorage
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageListener
-import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.mcp.McpServerStatusState
 import de.moritzf.quota.idea.mcp.McpServerSyncTarget
 import de.moritzf.quota.idea.mcp.McpServerUrlResolver
-import de.moritzf.quota.idea.mcp.McpServerUrlSyncService
 import de.moritzf.quota.idea.openai.OpenAiProxyService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.*
@@ -202,6 +199,7 @@ class QuotaSettingsConfigurable : Configurable {
     }
 
     override fun apply() {
+        persistAccountRouting()
         mcpSyncTargetsPanel?.validationError()?.let { error -> throw ConfigurationException(error) }
         if (
             accountListPanel?.hasDuplicateNames()
@@ -522,140 +520,39 @@ class QuotaSettingsConfigurable : Configurable {
                 val sanitizedDisplayMode =
                     QuotaDisplayMode.sanitizeFor(selectedLocation, selectedDisplayMode)
                 val state = QuotaSettingsState.getInstance()
-                val locationChanged = selectedLocation != state.location()
-                val displayModeChanged = sanitizedDisplayMode != state.displayMode()
-                val sourceChanged = selectedSource != state.source()
-                val selectedAccount = accountListPanel?.selectedAccount()
-                val popupVisibilityChanged =
-                    selectedAccount != null &&
-                        providerPanelsByType[selectedAccount.providerType()]
-                            ?.popupVisibilityToggle
-                            ?.isHidden != selectedAccount.hiddenFromPopup
-                val miniMaxRegionChanged =
-                    selectedAccount?.providerType() == QuotaProviderType.MINIMAX &&
-                        miniMaxPanel().regionComboBox.selectedItem as? MiniMaxRegionPreference !=
-                            state.miniMaxRegionFor(selectedAccount.id)
-                val accountsChanged = accountListPanel?.isModifiedVs(state) == true
+                val draft = state.getState()
                 val normalizedMcpTargets =
                     normalizeTargets(mcpSyncTargetsPanel?.targets().orEmpty())
-                val mcpSyncChanged = mcpSyncCheckBox?.isSelected != state.syncIntellijMcpServerUrl
-                val mcpTargetsChanged =
-                    normalizedMcpTargets != normalizeTargets(state.mcpServerSyncTargets)
                 val proxyPanel = proxySettingsPanel ?: return@onApply
-                val proxyEnabledChanged =
-                    proxyPanel.proxyEnabledCheckBox.isSelected != state.openAiProxyEnabled
-                val proxyPortChanged = proxyPanel.isProxyPortModified()
                 val proxyApiKeyChanged = proxyPanel.isProxyApiKeyModified()
-                val proxyLogRequestsChanged = proxyPanel.isProxyLogRequestsModified()
-                val proxyProviderSelectionChanged = proxyPanel.isProviderSelectionModified()
-                val proxyCompletionsChanged = proxyPanel.isCompletionsModified()
-                val gitHubPanel = gitHubPanel()
-                val gitHubEnterpriseHostChanged =
-                    selectedAccount?.providerType() == QuotaProviderType.GITHUB &&
-                        gitHubPanel.normalizedEnterpriseHostForStorage() !=
-                            state.githubHostFor(selectedAccount.id)
-                val ollamaMonthlyResetChanged =
-                    selectedAccount?.providerType() == QuotaProviderType.OLLAMA &&
-                        ollamaPanel().normalizedMonthlyResetForStorage() !=
-                            selectedAccount.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET)
-                if (locationChanged) {
-                    state.setLocation(selectedLocation)
-                }
-                if (displayModeChanged) {
-                    state.setDisplayMode(sanitizedDisplayMode)
-                }
-                if (sourceChanged) {
-                    state.setSource(selectedSource)
-                }
+                draft.setLocation(selectedLocation)
+                draft.setDisplayMode(sanitizedDisplayMode)
+                draft.setSource(selectedSource)
                 persistAccountRouting()
-                val agyExecutableChanges =
-                    accountListPanel
-                        ?.accounts()
-                        .orEmpty()
-                        .filter { account ->
-                            account.providerType() == QuotaProviderType.ANTIGRAVITY &&
-                                state.account(account.id)?.let { previous ->
-                                    account.extra(ProviderAccount.EXTRA_AGY_EXECUTABLE) !=
-                                        previous.extra(ProviderAccount.EXTRA_AGY_EXECUTABLE)
-                                } == true
-                        }
-                        .map { it.id }
-                val azureFieldChanges =
-                    accountListPanel
-                        ?.accounts()
-                        .orEmpty()
-                        .filter { account ->
-                            account.providerType() == QuotaProviderType.AZURE &&
-                                state.account(account.id)?.let { previous ->
-                                    listOf(
-                                            ProviderAccount.EXTRA_AZURE_EXECUTABLE,
-                                            ProviderAccount.EXTRA_AZURE_SUBSCRIPTION,
-                                            ProviderAccount.EXTRA_AZURE_RESOURCE,
-                                            ProviderAccount.EXTRA_AZURE_ENDPOINT,
-                                            ProviderAccount.EXTRA_AZURE_LOCATION,
-                                            ProviderAccount.EXTRA_AZURE_DEPLOYMENTS,
-                                            ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT,
-                                        )
-                                        .any { key -> account.extra(key) != previous.extra(key) }
-                                } == true
-                        }
-                        .map { it.id }
-                accountListPanel?.applyPendingChanges(state)
-                state.syncIntellijMcpServerUrl = mcpSyncCheckBox?.isSelected == true
-                state.mcpServerSyncTargets = normalizedMcpTargets.toMutableList()
-                state.openAiProxyEnabled = proxyPanel.proxyEnabledCheckBox.isSelected
-                state.openAiProxyPort = OpenAiProxyService.sanitizePort(proxyPanel.proxyPort())
-                state.openAiProxyLogRequests = proxyPanel.proxyLogRequestsCheckBox.isSelected
-                proxyPanel.applyProviderSelections(state)
-                proxyPanel.applyCompletionsSettings(state)
-                if (proxyApiKeyChanged) {
-                    proxyPanel.saveProxyApiKeyBlocking()
+                draft.accounts =
+                    accountListPanel?.accounts().orEmpty().map { it.snapshot() }.toMutableList()
+                draft.syncIntellijMcpServerUrl = mcpSyncCheckBox?.isSelected == true
+                draft.mcpServerSyncTargets = normalizedMcpTargets.toMutableList()
+                draft.openAiProxyEnabled = proxyPanel.proxyEnabledCheckBox.isSelected
+                draft.openAiProxyPort = OpenAiProxyService.sanitizePort(proxyPanel.proxyPort())
+                draft.openAiProxyLogRequests = proxyPanel.proxyLogRequestsCheckBox.isSelected
+                proxyPanel.applyProviderSelections(draft)
+                proxyPanel.applyCompletionsSettings(draft)
+                try {
+                    SettingsApplyCoordinator(state)
+                        .apply(
+                            QuotaSettingsDraft.from(draft),
+                            removed = accountListPanel?.removedAccounts().orEmpty(),
+                            credentialsChanged = proxyApiKeyChanged,
+                            saveCredentials = proxyPanel::saveProxyApiKeyBlocking,
+                        )
+                } catch (failure: IllegalArgumentException) {
+                    throw ConfigurationException(failure.message ?: "Invalid settings")
                 }
-                if (
-                    locationChanged ||
-                        displayModeChanged ||
-                        sourceChanged ||
-                        popupVisibilityChanged ||
-                        miniMaxRegionChanged ||
-                        accountsChanged ||
-                        mcpSyncChanged ||
-                        mcpTargetsChanged ||
-                        proxyEnabledChanged ||
-                        proxyPortChanged ||
-                        proxyApiKeyChanged ||
-                        proxyLogRequestsChanged ||
-                        proxyProviderSelectionChanged ||
-                        proxyCompletionsChanged ||
-                        gitHubEnterpriseHostChanged ||
-                        ollamaMonthlyResetChanged ||
-                        agyExecutableChanges.isNotEmpty() ||
-                        azureFieldChanges.isNotEmpty()
-                ) {
-                    ApplicationManager.getApplication()
-                        .messageBus
-                        .syncPublisher(QuotaSettingsListener.TOPIC)
-                        .onSettingsChanged()
-                    McpServerUrlSyncService.getInstance().reloadFromSettings()
-                    OpenAiProxyService.getInstance().reloadFromSettings()
-                    proxyPanel.refreshAfterApply()
-                    gitHubPanel.updateFields()
-                    ollamaPanel().updateFields()
-                    if (ollamaMonthlyResetChanged) {
-                        QuotaUsageService.getInstance().refreshAsync(selectedAccount.id)
-                    }
-                    for (id in agyExecutableChanges) {
-                        QuotaUsageService.getInstance().clearUsageData(id, "Reading AGY quota...")
-                        QuotaUsageService.getInstance().refreshAsync(id, forceUpdate = true)
-                    }
-                    for (id in azureFieldChanges) {
-                        QuotaUsageService.getInstance().clearUsageData(id, "Reading Azure quota...")
-                        QuotaUsageService.getInstance().refreshAsync(id, forceUpdate = true)
-                    }
-                    if (state.syncIntellijMcpServerUrl) {
-                        McpServerUrlSyncService.getInstance().syncNowAsync()
-                    }
-                    ActivityTracker.getInstance().inc()
-                }
+                accountListPanel?.acceptPendingChanges()
+                proxyPanel.refreshAfterApply()
+                gitHubPanel().updateFields()
+                ollamaPanel().updateFields()
             }
 
             onReset {

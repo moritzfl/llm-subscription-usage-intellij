@@ -15,7 +15,6 @@ import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.IdeProxyBuildContext
 import de.moritzf.quota.idea.common.ProviderCatalog
 import de.moritzf.quota.idea.opencode.OpenCodeAuthService
-import de.moritzf.quota.idea.settings.QuotaSettingsListener
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import java.nio.file.Path
 import java.util.concurrent.Executor
@@ -31,7 +30,6 @@ class OpenAiProxyService(
         OpenCodeAuthService.getInstance()
     },
     private val executor: Executor = AppExecutorUtil.getAppExecutorService(),
-    subscribeToSettings: Boolean = true,
 ) : Disposable {
     private val lock = Any()
     @Volatile private var server: SubscriptionProxyServer? = null
@@ -41,19 +39,6 @@ class OpenAiProxyService(
     @Volatile private var runningProviderIds: Set<String> = emptySet()
     @Volatile private var lastError: String? = null
     @Volatile private var disposed = false
-
-    init {
-        if (subscribeToSettings) {
-            ApplicationManager.getApplication()
-                .messageBus
-                .connect(this)
-                .subscribe(
-                    QuotaSettingsListener.TOPIC,
-                    QuotaSettingsListener { reloadFromSettings() },
-                )
-            reloadFromSettings()
-        }
-    }
 
     fun reloadFromSettings() {
         executor.execute(::applySettings)

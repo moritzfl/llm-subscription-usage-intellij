@@ -5,7 +5,6 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.util.concurrency.AppExecutorUtil
-import de.moritzf.quota.idea.settings.QuotaSettingsListener
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
@@ -22,32 +21,21 @@ class McpServerUrlSyncService(
     private val updater: McpJsonTargetUpdater = McpJsonTargetUpdater(),
     private val scheduler: ScheduledExecutorService =
         AppExecutorUtil.getAppScheduledExecutorService(),
-    subscribeToSettings: Boolean = true,
 ) : Disposable {
     private val logger = Logger.getInstance(McpServerUrlSyncService::class.java)
     private val syncing = AtomicBoolean(false)
     private var scheduled: ScheduledFuture<*>? = null
 
-    init {
-        if (subscribeToSettings) {
-            ApplicationManager.getApplication()
-                .messageBus
-                .connect(this)
-                .subscribe(
-                    QuotaSettingsListener.TOPIC,
-                    QuotaSettingsListener { reloadFromSettings() },
-                )
-            reloadFromSettings()
-        }
-    }
-
+    @Synchronized
     fun reloadFromSettings() {
         val settings = settingsProvider()
         if (
             settings?.syncIntellijMcpServerUrl == true &&
                 settings.mcpServerSyncTargets.any { it.isConfigured() }
         ) {
+            val alreadyRunning = scheduled?.isCancelled == false
             startSyncing()
+            if (alreadyRunning) syncNowAsync()
         } else {
             stopSyncing()
         }
@@ -113,6 +101,7 @@ class McpServerUrlSyncService(
         }
     }
 
+    @Synchronized
     override fun dispose() {
         stopSyncing()
     }
