@@ -46,8 +46,7 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
 
     override fun persistToCache(settings: QuotaSettingsState) {
         val quota = lastQuotaRef.get() ?: return
-        QuotaSnapshotCache.encode(type, quota)?.let { settings.setCachedQuotaJson(accountId, it) }
-        settings.updateTimestamp(accountId)
+        QuotaSnapshotCache.encode(type, quota)?.let { settings.storeQuotaSnapshot(accountId, it) }
     }
 
     override fun clearData(error: String?) {

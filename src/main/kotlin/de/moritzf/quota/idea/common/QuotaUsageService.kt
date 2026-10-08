@@ -48,8 +48,20 @@ class QuotaUsageService(
 ) : Disposable {
     private class ProviderState(val provider: QuotaProvider) {
         @Volatile var inFlight: CompletableFuture<ProviderSnapshot>? = null
-        val lock = Any()
+        var generation = 0L
+        var worker: Thread? = null
+        var clearError: String? = null
+
+        fun invalidate(error: String? = null) {
+            generation++
+            clearError = error
+            worker?.interrupt()
+            provider.clearData(error)
+        }
     }
+
+    private val lifecycleLock = Any()
+    @Volatile private var disposed = false
 
     private val states =
         ConcurrentHashMap<String, ProviderState>().apply {
@@ -207,48 +219,52 @@ class QuotaUsageService(
         ids.forEach { clearUsageData(it, error) }
     }
 
-    fun clearUsageData(accountId: String, error: String? = null) {
-        val provider = providerForAccount(accountId) ?: return
-        provider.clearData(error ?: provider.notConfiguredMessage)
-        activityBaselines.remove(accountId)
-        settingsProvider()?.setCachedQuotaJson(accountId, null)
-        publishUpdate()
-    }
-
-    fun syncAccounts() {
-        val settings = settingsProvider() ?: return
-        val accounts = settings.accounts
-        if (accounts.isEmpty() && settings.settingsVersion >= 3) {
-            states.clear()
-            activityBaselines.clear()
-            settings.pruneOrphanAccountData()
+    fun clearUsageData(accountId: String, error: String? = null) =
+        synchronized(lifecycleLock) {
+            val state = states[accountId] ?: return@synchronized
+            state.invalidate(error ?: state.provider.notConfiguredMessage)
+            activityBaselines.remove(accountId)
+            settingsProvider()?.setCachedQuotaJson(accountId, null)
             publishUpdate()
-            return
         }
-        if (accounts.isEmpty()) {
-            return
-        }
-        val desired = accounts.map { it.id }.toSet()
-        val added = mutableListOf<String>()
-        accounts.forEach { account ->
-            if (states.containsKey(account.id)) {
-                return@forEach
+
+    fun syncAccounts() =
+        synchronized(lifecycleLock) {
+            if (disposed) return@synchronized
+            val settings = settingsProvider() ?: return@synchronized
+            val accounts = settings.accounts
+            if (accounts.isEmpty() && settings.settingsVersion >= 3) {
+                states.values.forEach { it.invalidate() }
+                states.clear()
+                activityBaselines.clear()
+                settings.pruneOrphanAccountData()
+                publishUpdate()
+                return@synchronized
             }
-            val type = account.providerType() ?: return@forEach
-            val provider = ProviderCatalog.get(type).quotaFactory(account)
-            provider.hydrateFromCache(settings)
-            states[account.id] = ProviderState(provider)
-            added += account.id
-        }
-        states.keys
-            .filter { it !in desired }
-            .forEach { id ->
-                states.remove(id)
-                activityBaselines.remove(id)
+            if (accounts.isEmpty()) {
+                return@synchronized
             }
-        publishUpdate()
-        added.forEach(::refreshAsync)
-    }
+            val desired = accounts.map { it.id }.toSet()
+            val added = mutableListOf<String>()
+            accounts.forEach { account ->
+                if (states.containsKey(account.id)) {
+                    return@forEach
+                }
+                val type = account.providerType() ?: return@forEach
+                val provider = ProviderCatalog.get(type).quotaFactory(account)
+                provider.hydrateFromCache(settings)
+                states[account.id] = ProviderState(provider)
+                added += account.id
+            }
+            states.keys
+                .filter { it !in desired }
+                .forEach { id ->
+                    states.remove(id)?.invalidate()
+                    activityBaselines.remove(id)
+                }
+            publishUpdate()
+            added.forEach(::refreshAsync)
+        }
 
     fun resetOpenCodeWorkspaceCache(accountId: String = QuotaProviderType.OPEN_CODE.id) {
         (providerForAccount(accountId) as? OpenCodeQuotaProvider)?.resetWorkspaceCache()
@@ -300,7 +316,10 @@ class QuotaUsageService(
             val state = states[accountId] ?: return null
             val ownedFuture: CompletableFuture<ProviderSnapshot>?
             val waitFuture: CompletableFuture<ProviderSnapshot>?
-            synchronized(state.lock) {
+            val generation: Long
+            synchronized(lifecycleLock) {
+                if (disposed || states[accountId] !== state) return null
+                generation = state.generation
                 val existing = state.inFlight
                 if (existing != null) {
                     ownedFuture = null
@@ -308,6 +327,7 @@ class QuotaUsageService(
                 } else {
                     val created = CompletableFuture<ProviderSnapshot>()
                     state.inFlight = created
+                    state.worker = Thread.currentThread()
                     ownedFuture = created
                     waitFuture = null
                 }
@@ -331,26 +351,34 @@ class QuotaUsageService(
                 } else {
                     provider.refresh()
                 }
-                noteActivity(accountId, provider, settings)
-                val quota = provider.getLastQuota()
-                if (quota != null) {
-                    settings?.let(provider::persistToCache)
-                    if (!AccountResolver.isHardStop(quota)) {
-                        AccountResolver.clearRateLimited(accountId)
+                synchronized(lifecycleLock) {
+                    if (disposed || states[accountId] !== state || state.generation != generation) {
+                        provider.clearData(state.clearError)
+                        future.complete(ProviderSnapshot(null, state.clearError))
+                        return null
                     }
+                    noteActivity(accountId, provider, settings)
+                    val quota = provider.getLastQuota()
+                    if (quota != null) {
+                        settings?.let(provider::persistToCache)
+                        if (!AccountResolver.isHardStop(quota)) {
+                            AccountResolver.clearRateLimited(accountId)
+                        }
+                    }
+                    // Keep the actual refresh error even when the popup retains a stale reading.
+                    val result = ProviderSnapshot(quota, provider.getLastError())
+                    publishUpdate()
+                    future.complete(result)
+                    return result
                 }
-                // Keep the actual refresh error even when the popup retains a stale reading.
-                val result = ProviderSnapshot(quota, provider.getLastError())
-                publishUpdate()
-                future.complete(result)
-                return result
             } catch (exception: Exception) {
                 future.completeExceptionally(exception)
                 throw exception
             } finally {
-                synchronized(state.lock) {
+                synchronized(lifecycleLock) {
                     if (state.inFlight === future) {
                         state.inFlight = null
+                        state.worker = null
                     }
                 }
             }
@@ -418,10 +446,13 @@ class QuotaUsageService(
         updatePublisher(currentSnapshot())
     }
 
-    override fun dispose() {
-        scheduled?.cancel(true)
-        scheduled = null
-    }
+    override fun dispose() =
+        synchronized(lifecycleLock) {
+            disposed = true
+            states.values.forEach { it.invalidate() }
+            scheduled?.cancel(true)
+            scheduled = null
+        }
 
     companion object {
         private val LOG = Logger.getInstance(QuotaUsageService::class.java)

@@ -5,6 +5,7 @@ import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
+import com.intellij.util.xmlb.XmlSerializerUtil
 import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.quota.idea.common.ProviderCatalog
 import de.moritzf.quota.idea.common.QuotaProviderRegistry
@@ -59,8 +60,23 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     /** Shape of the persisted data; raised by [QuotaSettingsMigrations] as migrations run. */
     var settingsVersion: Int = 0
 
-    override fun getState(): QuotaSettingsState = this
+    /** The serializer must never iterate maps still being changed by quota workers. */
+    @Synchronized
+    override fun getState(): QuotaSettingsState =
+        QuotaSettingsState().also { snapshot ->
+            XmlSerializerUtil.copyBean(this, snapshot)
+            snapshot.lastProviderUpdates = lastProviderUpdates.toMutableMap()
+            snapshot.cachedQuotaJsons = cachedQuotaJsons.toMutableMap()
+            snapshot.subscriptionProxyModelCatalogJsons =
+                subscriptionProxyModelCatalogJsons.toMutableMap()
+            snapshot.accounts = accounts.map { it.snapshot() }.toMutableList()
+            snapshot.hiddenFromQuotaPopup = hiddenFromQuotaPopup.toMutableList()
+            snapshot.subscriptionProxyEnabledProviders =
+                subscriptionProxyEnabledProviders.toMutableList()
+            snapshot.mcpServerSyncTargets = mcpServerSyncTargets.map { it.copy() }.toMutableList()
+        }
 
+    @Synchronized
     override fun loadState(state: QuotaSettingsState) {
         settingsVersion = state.settingsVersion
         refreshMinutes = state.refreshMinutes
@@ -150,6 +166,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         lastActiveSource = defaultAccount(type)?.id ?: type.id
     }
 
+    @Synchronized
     fun setLastActiveAccount(accountId: String) {
         lastActiveSource = accountId
     }
@@ -193,12 +210,13 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
 
     fun cachedQuotaJson(provider: QuotaProviderType): String? = cachedQuotaJson(provider.id)
 
-    fun cachedQuotaJson(accountId: String): String? = cachedQuotaJsons[accountId]
+    @Synchronized fun cachedQuotaJson(accountId: String): String? = cachedQuotaJsons[accountId]
 
     fun setCachedQuotaJson(provider: QuotaProviderType, json: String?) {
         setCachedQuotaJson(provider.id, json)
     }
 
+    @Synchronized
     fun setCachedQuotaJson(accountId: String, json: String?) {
         if (json == null) {
             cachedQuotaJsons.remove(accountId)
@@ -207,12 +225,20 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         }
     }
 
-    fun lastUpdate(accountId: String): Long = lastProviderUpdates[accountId] ?: 0L
+    @Synchronized fun lastUpdate(accountId: String): Long = lastProviderUpdates[accountId] ?: 0L
 
+    @Synchronized
     fun updateTimestamp(accountId: String) {
         lastProviderUpdates[accountId] = System.currentTimeMillis()
     }
 
+    @Synchronized
+    fun storeQuotaSnapshot(accountId: String, json: String) {
+        setCachedQuotaJson(accountId, json)
+        updateTimestamp(accountId)
+    }
+
+    @Synchronized
     fun dropAccountData(accountId: String) {
         setCachedQuotaJson(accountId, null)
         lastProviderUpdates.remove(accountId)
@@ -221,6 +247,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         }
     }
 
+    @Synchronized
     fun pruneOrphanAccountData() {
         val ids = accounts.map { it.id }.toSet()
         cachedQuotaJsons.keys.filter { it !in ids }.forEach { cachedQuotaJsons.remove(it) }
@@ -276,9 +303,11 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
             .toSet()
     }
 
+    @Synchronized
     fun subscriptionProxyModelCatalogJson(providerId: String): String? =
         subscriptionProxyModelCatalogJsons[providerId]
 
+    @Synchronized
     fun setSubscriptionProxyModelCatalogJson(providerId: String, json: String?) {
         if (json.isNullOrBlank()) {
             subscriptionProxyModelCatalogJsons.remove(providerId)
