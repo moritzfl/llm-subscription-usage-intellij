@@ -5,6 +5,9 @@
 - Add device-code login for OpenAI/Codex and SuperGrok, with copyable URL/code, cancellation and expiration handling, without a local browser or callback port.
 - Accept Codex personal access tokens (`at-…`) for ChatGPT Business/Enterprise workspaces, validate them before Password Safe storage, and request replacement instead of trying to refresh rejected tokens.
 - Keep GitHub, Kimi and OpenCode device authorization running when opening the browser fails, so the displayed URL/code can be used on another device.
+- Fix PDF-to-SVG figure export with embedded images in IntelliJ by avoiding Batik's cross-classloader image-writer registry.
+- Preserve original raster resolution inside exported SVG figures instead of embedding downscaled 72 DPI images, keeping diagrams and QR codes sharp when zoomed.
+- PDF conversion warnings summarize saved and failed images and the PNG/provider fallbacks actually used. Expand Details for per-image diagnostics and stack traces. Malformed provider images are omitted with a warning without discarding the converted text.
 
 ## [1.17.4] - 2026-10-08
 
