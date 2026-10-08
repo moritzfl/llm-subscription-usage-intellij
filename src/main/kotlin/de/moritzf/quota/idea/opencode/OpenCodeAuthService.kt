@@ -4,6 +4,7 @@ import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
+import com.intellij.openapi.diagnostic.Logger
 import de.moritzf.quota.idea.auth.LoginResult
 import de.moritzf.quota.idea.auth.OAuthCredentialStore
 import de.moritzf.quota.idea.auth.OAuthCredentials
@@ -136,7 +137,14 @@ class OpenCodeAuthService(
                     synchronized(state.lock) {
                         if (state.generation != generation) return@launch
                         onVerificationUrl(url, authorization.userCode)
-                        browserOpener(url)
+                        try {
+                            browserOpener(url)
+                        } catch (exception: CancellationException) {
+                            throw exception
+                        } catch (_: Exception) {
+                            Logger.getInstance(OpenCodeAuthService::class.java)
+                                .info("Could not open OpenCode login browser; use the verification URL and code in settings")
+                        }
                     }
                     var interval = authorization.intervalSeconds.coerceAtLeast(1) * 1000
                     val started = System.nanoTime()

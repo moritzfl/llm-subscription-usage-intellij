@@ -25,6 +25,26 @@ import kotlin.test.assertTrue
 
 class OpenCodeAuthServiceTest {
     @Test
+    fun browserLaunchFailureKeepsDeviceAuthorizationRunning() {
+        val store = Store(null)
+        val prompt = AtomicReference<Pair<String, String>>()
+        val completed = java.util.concurrent.CompletableFuture<LoginResult>()
+        val service = OpenCodeAuthService(oauthClient = object : OpenCodeOAuthClient() {
+            override fun requestDeviceAuthorization() = OpenCodeDeviceAuthorization("device", "CODE", "/console/device", 30, 1)
+            override fun pollDeviceToken(deviceCode: String) = OpenCodeDeviceTokenResult.Authorized(valid())
+        }, credentialStoreFactory = { store }, browserOpener = { throw IllegalStateException("No desktop browser") })
+        try {
+            service.startLoginFlow("a", { completed.complete(it) }, { url, code -> prompt.set(url to code) })
+            assertTrue(completed.get(5, TimeUnit.SECONDS).success)
+            assertEquals("CODE", prompt.get().second)
+            assertTrue(prompt.get().first.contains("/console/device"))
+            assertEquals("access", store.value?.accessToken)
+        } finally {
+            service.dispose()
+        }
+    }
+
+    @Test
     fun concurrentExpiryAndRejectedTokenRefreshesAreSingleFlight() {
         for (expired in listOf(false, true)) {
             val store = Store(valid().apply { if (expired) expiresAt = 0 })

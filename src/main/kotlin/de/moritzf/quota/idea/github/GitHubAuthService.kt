@@ -12,6 +12,7 @@ import de.moritzf.quota.idea.auth.LoginResult
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -90,7 +91,14 @@ class GitHubAuthService(
             return LoginResult.error("GitHub did not return a usable device code")
         }
         onVerificationUrl?.invoke(authorization.verificationUri, authorization.userCode)
-        browserOpener(authorization.verificationUri)
+        try {
+            browserOpener(authorization.verificationUri)
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
+            if (onVerificationUrl == null) throw exception
+            LOG.info("Could not open GitHub login browser; use the verification URL and code in settings")
+        }
 
         var intervalSeconds = authorization.intervalSeconds.coerceAtLeast(1)
         val startedAt = System.currentTimeMillis()

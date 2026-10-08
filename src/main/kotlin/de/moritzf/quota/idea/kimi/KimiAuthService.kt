@@ -10,6 +10,7 @@ import de.moritzf.quota.kimi.KimiOAuthClient
 import de.moritzf.quota.idea.auth.AuthService
 import de.moritzf.quota.idea.auth.LoginResult
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -66,7 +67,14 @@ class KimiAuthService(
             return LoginResult.error("Kimi did not return a usable verification URL")
         }
         onVerificationUrl?.invoke(authorization.verificationUriComplete, authorization.userCode)
-        browserOpener(authorization.verificationUriComplete)
+        try {
+            browserOpener(authorization.verificationUriComplete)
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
+            if (onVerificationUrl == null) throw exception
+            LOG.info("Could not open Kimi login browser; use the verification URL and code in settings")
+        }
 
         var intervalSeconds = authorization.intervalSeconds.coerceAtLeast(1)
         val startedAt = System.currentTimeMillis()
