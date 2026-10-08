@@ -1,6 +1,5 @@
 package de.moritzf.quota.supergrok
 
-import com.intellij.openapi.diagnostic.Logger
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.lenientDoubleOrNull
 import java.io.IOException
@@ -21,6 +20,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
+import org.slf4j.LoggerFactory
 
 open class SuperGrokQuotaClient(
     private val httpClient: HttpClient = HttpClient.newHttpClient(),
@@ -28,7 +28,7 @@ open class SuperGrokQuotaClient(
     private val resetListUri: URI = DEFAULT_RESET_LIST_URI,
     private val resetRedeemUri: URI = DEFAULT_RESET_REDEEM_URI,
 ) {
-    private val logger = Logger.getInstance(SuperGrokQuotaClient::class.java)
+    private val logger = LoggerFactory.getLogger(SuperGrokQuotaClient::class.java)
 
     open fun fetchQuota(accessToken: String?): SuperGrokQuota {
         val token =

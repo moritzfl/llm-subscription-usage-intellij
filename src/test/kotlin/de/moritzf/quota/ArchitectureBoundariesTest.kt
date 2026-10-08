@@ -3,7 +3,6 @@ package de.moritzf.quota
 import com.intellij.concurrency.virtualThreads.IntelliJVirtualThreads
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.mcpserver.McpToolset
-import com.intellij.openapi.diagnostic.Logger
 import com.tngtech.archunit.base.DescribedPredicate
 import com.tngtech.archunit.core.domain.Dependency
 import com.tngtech.archunit.core.domain.JavaClass.Predicates.belongToAnyOf
@@ -23,7 +22,6 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.mcp.SubscriptionUsageMcpToolset
 import de.moritzf.quota.kimi.KimiDeviceHeaders
 import de.moritzf.quota.shared.RealtimeSpeechSession
-import de.moritzf.quota.supergrok.SuperGrokQuotaClient
 import java.net.URI
 
 @AnalyzeClasses(locations = [ArchitectureBoundariesTest.ProductionClasses::class])
@@ -57,7 +55,6 @@ class ArchitectureBoundariesTest {
             listOf(
                     ApiKeyStore::class.java to IntelliJVirtualThreads::class.java,
                     RequestLogger::class.java to IntelliJVirtualThreads::class.java,
-                    SuperGrokQuotaClient::class.java to Logger::class.java,
                     KimiDeviceHeaders::class.java to PropertiesComponent::class.java,
                 )
                 .map { (origin, target) ->
