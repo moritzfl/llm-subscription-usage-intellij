@@ -1,10 +1,10 @@
 package de.moritzf.quota.mistral
 
-import de.moritzf.quota.openai.proxy.pdf.PdfFigureRegion
-import de.moritzf.quota.openai.proxy.pdf.PdfFigureRenderer
 import de.moritzf.quota.shared.DocumentImageOptions
 import de.moritzf.quota.shared.DocumentImageWriter
 import de.moritzf.quota.shared.ProviderDocumentImage
+import de.moritzf.quota.shared.document.PdfFigureRegion
+import de.moritzf.quota.shared.document.PdfFigureRenderer
 import de.moritzf.quota.shared.rewriteMarkdownImageLinks
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files

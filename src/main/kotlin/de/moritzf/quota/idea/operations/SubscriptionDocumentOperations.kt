@@ -442,7 +442,7 @@ internal suspend fun SubscriptionOperations.pdfBoxDocumentToMarkdown(
         resolveOptionalPath(localFile)
             ?: return errorResult("PDFBox needs a local PDF path in localFile.")
     return try {
-        de.moritzf.quota.openai.proxy.pdf.PdfBoxMarkdown.convert(
+        de.moritzf.quota.shared.document.PdfBoxMarkdown.convert(
             source,
             resolveOptionalPath(outputFile),
             includeImages,

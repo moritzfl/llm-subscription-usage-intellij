@@ -1,7 +1,7 @@
 package de.moritzf.quota.shared
 
-import de.moritzf.quota.openai.proxy.pdf.PdfFigureRegion
-import de.moritzf.quota.openai.proxy.pdf.PdfFigureRenderer
+import de.moritzf.quota.shared.document.PdfFigureRegion
+import de.moritzf.quota.shared.document.PdfFigureRenderer
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path

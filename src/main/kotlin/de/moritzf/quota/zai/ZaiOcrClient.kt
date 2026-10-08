@@ -1,8 +1,5 @@
 package de.moritzf.quota.zai
 
-import de.moritzf.quota.openai.proxy.pdf.PdfFigureRegion
-import de.moritzf.quota.openai.proxy.pdf.PdfFigureRenderer
-import de.moritzf.quota.openai.proxy.pdf.PdfPages
 import de.moritzf.quota.shared.DocumentConversionProgress
 import de.moritzf.quota.shared.DocumentImageExportReport
 import de.moritzf.quota.shared.DocumentImageOptions
@@ -13,6 +10,9 @@ import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
 import de.moritzf.quota.shared.OriginalPdf
 import de.moritzf.quota.shared.ProviderDocumentImage
+import de.moritzf.quota.shared.document.PdfFigureRegion
+import de.moritzf.quota.shared.document.PdfFigureRenderer
+import de.moritzf.quota.shared.document.PdfPages
 import de.moritzf.quota.shared.rewriteMarkdownImageLinks
 import java.io.ByteArrayOutputStream
 import java.io.IOException

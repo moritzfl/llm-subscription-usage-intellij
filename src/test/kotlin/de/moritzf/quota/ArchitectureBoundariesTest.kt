@@ -26,16 +26,14 @@ import java.net.URI
 class ArchitectureBoundariesTest {
     /** Use the production artifact, including in IntelliJ's instrumented Gradle test sandbox. */
     class ProductionClasses : LocationProvider {
-        override fun get(testClass: Class<*>): Set<Location> =
-            setOf(QuotaProviderType::class.java)
-                .map { anchor ->
-                    // IntelliJ's PathClassLoader supplies resource URLs but no CodeSource location.
-                    val classFile = anchor.name.replace('.', '/') + ".class"
-                    val resource = checkNotNull(anchor.getResource("/$classFile")).toExternalForm()
-                    check(resource.endsWith(classFile))
-                    Location.of(URI.create(resource.removeSuffix(classFile)))
-                }
-                .toSet()
+        override fun get(testClass: Class<*>): Set<Location> {
+            // IntelliJ's PathClassLoader supplies resource URLs but no CodeSource location.
+            val anchor = QuotaProviderType::class.java
+            val classFile = anchor.name.replace('.', '/') + ".class"
+            val resource = checkNotNull(anchor.getResource("/$classFile")).toExternalForm()
+            check(resource.endsWith(classFile))
+            return setOf(Location.of(URI.create(resource.removeSuffix(classFile))))
+        }
     }
 
     @ArchTest
@@ -47,6 +45,27 @@ class ArchitectureBoundariesTest {
     }
 
     companion object {
+        @ArchTest
+        @JvmField
+        val sharedBoundaries =
+            classes()
+                .that()
+                .resideInAPackage("de.moritzf.quota.shared..")
+                .should(
+                    onlyHaveDependenciesWhere(
+                        DescribedPredicate.describe<Dependency>(
+                            "use only shared code or external libraries"
+                        ) { dependency ->
+                            !resideInAnyPackage("de.moritzf..").test(dependency.targetClass) ||
+                                resideInAnyPackage("de.moritzf.quota.shared..")
+                                    .test(dependency.targetClass)
+                        }
+                    )
+                )
+                .because(
+                    "shared helpers must not depend on provider, proxy, or IDE implementations"
+                )
+
         // Exact runtime bindings. Including
         // nested classes covers Kotlin companions without exempting whole provider/IDE packages.
         private val allowedIdeDependencies =

@@ -9,7 +9,6 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.rethrowIfCancellation
 import de.moritzf.quota.openai.proxy.OpenAiProxyServer
 import de.moritzf.quota.openai.proxy.QuotaCodexCredentialsProvider
-import de.moritzf.quota.openai.proxy.pdf.PdfPages
 import de.moritzf.quota.shared.DefaultOutputFiles
 import de.moritzf.quota.shared.DocumentLimits
 import de.moritzf.quota.shared.DocumentMarkdown
@@ -17,6 +16,7 @@ import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
 import de.moritzf.quota.shared.MultipartFilePublisher
 import de.moritzf.quota.shared.document.DocumentImageGrounding
+import de.moritzf.quota.shared.document.PdfPages
 import java.io.ByteArrayInputStream
 import java.net.URI
 import java.net.http.HttpClient

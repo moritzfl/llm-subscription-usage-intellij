@@ -2,11 +2,34 @@ package de.moritzf.quota
 
 import com.tngtech.archunit.core.importer.ClassFileImporter
 import de.moritzf.quota.idea.operations.ArchitectureOperationFixtures
+import de.moritzf.quota.shared.ArchitectureSharedFixtures
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ArchitectureRulesTest {
+    @Test
+    fun sharedCodeCannotDependOnProviderOrProxyImplementations() {
+        for (type in
+            listOf(
+                ArchitectureSharedFixtures.Provider::class.java,
+                ArchitectureSharedFixtures.Proxy::class.java,
+            )) {
+            val classes = ClassFileImporter().importClasses(type)
+            assertTrue(
+                ArchitectureBoundariesTest.sharedBoundaries.evaluate(classes).hasViolation(),
+                type.name,
+            )
+        }
+    }
+
+    @Test
+    fun sharedCodeCanUseSharedTypesAndExternalLibraries() {
+        val classes =
+            ClassFileImporter().importClasses(ArchitectureSharedFixtures.Valid::class.java)
+        assertFalse(ArchitectureBoundariesTest.sharedBoundaries.evaluate(classes).hasViolation())
+    }
+
     @Test
     fun fullyQualifiedProviderDependencyCannotBypassBoundary() {
         val classes = ClassFileImporter().importClasses(FullyQualifiedProvider::class.java)

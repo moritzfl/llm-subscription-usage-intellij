@@ -1,4 +1,4 @@
-package de.moritzf.quota.openai.proxy.pdf
+package de.moritzf.quota.shared.document
 
 import de.moritzf.quota.shared.DocumentConversionProgress
 import de.moritzf.quota.shared.DocumentModels

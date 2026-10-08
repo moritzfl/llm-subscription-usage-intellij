@@ -1,7 +1,7 @@
 package de.moritzf.quota.shared
 
-import de.moritzf.quota.openai.proxy.pdf.PdfFigureRenderer
-import de.moritzf.quota.openai.proxy.pdf.PdfPages
+import de.moritzf.quota.shared.document.PdfFigureRenderer
+import de.moritzf.quota.shared.document.PdfPages
 import java.io.IOException
 import java.net.InetAddress
 import java.net.URI

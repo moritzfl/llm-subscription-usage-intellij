@@ -30,11 +30,11 @@ import com.intellij.util.ui.JBUI
 import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
 import de.moritzf.quota.idea.settings.DocumentModelSelection
 import de.moritzf.quota.idea.settings.DocumentWarningIcon
-import de.moritzf.quota.openai.proxy.pdf.PdfBoxMarkdown
 import de.moritzf.quota.shared.DocumentImageFormat
 import de.moritzf.quota.shared.DocumentImageOptions
 import de.moritzf.quota.shared.DocumentMarkdown
 import de.moritzf.quota.shared.DocumentModels
+import de.moritzf.quota.shared.document.PdfBoxMarkdown
 import java.awt.Dimension
 import java.nio.file.Files
 import java.nio.file.InvalidPathException

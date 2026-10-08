@@ -1,10 +1,10 @@
 package de.moritzf.quota.supergrok
 
-import de.moritzf.quota.openai.proxy.pdf.PdfPages
 import de.moritzf.quota.shared.DocumentLimits
 import de.moritzf.quota.shared.DocumentMarkdown
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.MultipartFilePublisher
+import de.moritzf.quota.shared.document.PdfPages
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient

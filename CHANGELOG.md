@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Move remaining provider-independent PDF helpers into shared document code and enforce shared-only project dependencies with ArchUnit.
 - Release all realtime speech resources after partial initialization or teardown failures, preserving cancellation and the original error.
 - Port the realtime speech transport to Kotlin, making all project source code Kotlin-only.
 - Move shared OAuth data/codecs and document image extraction out of IDE/provider-specific packages, removing five architecture exceptions.

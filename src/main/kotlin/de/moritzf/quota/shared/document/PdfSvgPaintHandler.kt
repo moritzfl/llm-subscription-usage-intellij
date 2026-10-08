@@ -1,4 +1,4 @@
-package de.moritzf.quota.openai.proxy.pdf
+package de.moritzf.quota.shared.document
 
 import java.awt.Color
 import java.awt.GradientPaint

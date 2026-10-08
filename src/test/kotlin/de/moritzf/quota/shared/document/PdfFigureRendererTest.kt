@@ -1,7 +1,5 @@
-package de.moritzf.quota.openai.proxy
+package de.moritzf.quota.shared.document
 
-import de.moritzf.quota.openai.proxy.pdf.PdfFigureRegion
-import de.moritzf.quota.openai.proxy.pdf.PdfFigureRenderer
 import de.moritzf.quota.shared.DocumentImageFormat
 import de.moritzf.quota.shared.DocumentImageOptions
 import de.moritzf.quota.shared.DocumentImageWriter
@@ -72,7 +70,7 @@ class PdfFigureRendererTest {
                 override fun loadClass(name: String, resolve: Boolean): Class<*> {
                     if (
                         !name.startsWith("org.apache.batik.") &&
-                            !name.startsWith("de.moritzf.quota.openai.proxy.pdf.")
+                            !name.startsWith("de.moritzf.quota.shared.document.")
                     ) {
                         return super.loadClass(name, resolve)
                     }

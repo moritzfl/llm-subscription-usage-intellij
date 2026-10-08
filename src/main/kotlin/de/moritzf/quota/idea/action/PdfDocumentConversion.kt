@@ -20,13 +20,13 @@ import de.moritzf.quota.idea.settings.DocumentModelSelection
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 import de.moritzf.quota.mistral.MistralOcrClient
-import de.moritzf.quota.openai.proxy.pdf.PdfBoxMarkdown
-import de.moritzf.quota.openai.proxy.pdf.PdfPages
 import de.moritzf.quota.shared.DocumentConversionProgress
 import de.moritzf.quota.shared.DocumentImageExportReport
 import de.moritzf.quota.shared.DocumentImageOptions
 import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.shared.document.PdfBoxMarkdown
+import de.moritzf.quota.shared.document.PdfPages
 import de.moritzf.quota.supergrok.SuperGrokDocumentClient
 import de.moritzf.quota.supergrok.SuperGrokQuotaException
 import de.moritzf.quota.zai.ZaiOcrClient
