@@ -7,11 +7,14 @@ import de.moritzf.quota.shared.DocumentImageOptions
 import de.moritzf.quota.shared.DocumentImageWriter
 import de.moritzf.quota.shared.ProviderDocumentImage
 import java.awt.Color
+import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.Base64
 import javax.imageio.ImageIO
+import javax.xml.parsers.DocumentBuilderFactory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -27,6 +30,7 @@ import org.apache.pdfbox.pdmodel.PDResources
 import org.apache.pdfbox.pdmodel.common.PDRectangle
 import org.apache.pdfbox.pdmodel.graphics.blend.BlendMode
 import org.apache.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState
+import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory
 import org.apache.pdfbox.rendering.PDFRenderer
 import org.apache.pdfbox.cos.COSArray
 import org.apache.pdfbox.cos.COSDictionary
@@ -41,6 +45,97 @@ import org.junit.jupiter.api.io.TempDir
 
 class PdfFigureRendererTest {
     @TempDir lateinit var directory: Path
+
+    @Test
+    fun rasterImagesExportAsSvgWithAnIsolatedPluginClassLoader() {
+        val document = PDDocument()
+        document.addPage(PDPage(PDRectangle(200f, 100f)))
+        val image = BufferedImage(20, 10, BufferedImage.TYPE_INT_ARGB).apply {
+            createGraphics().let { graphics ->
+                try {
+                    graphics.color = Color.RED
+                    graphics.fillRect(0, 0, 10, 10)
+                    graphics.color = Color.BLUE
+                    graphics.fillRect(10, 0, 10, 10)
+                } finally {
+                    graphics.dispose()
+                }
+            }
+            setRGB(19, 0, Color(0, 255, 0, 80).rgb)
+        }
+        PDPageContentStream(document, document.getPage(0)).use {
+            it.drawImage(LosslessFactory.createFromImage(document, image), 0f, 0f, 200f, 100f)
+        }
+        val loader = object : ClassLoader(javaClass.classLoader) {
+            override fun loadClass(name: String, resolve: Boolean): Class<*> {
+                if (!name.startsWith("org.apache.batik.") && !name.startsWith("de.moritzf.quota.openai.proxy.pdf.")) {
+                    return super.loadClass(name, resolve)
+                }
+                synchronized(getClassLoadingLock(name)) {
+                    val loaded = findLoadedClass(name) ?: parent.getResourceAsStream(name.replace('.', '/') + ".class")!!.use {
+                        val bytes = it.readBytes()
+                        defineClass(name, bytes, 0, bytes.size)
+                    }
+                    if (resolve) resolveClass(loaded)
+                    return loaded
+                }
+            }
+        }
+        val rendererClass = loader.loadClass(PdfFigureRenderer::class.java.name)
+        val regionClass = loader.loadClass(PdfFigureRegion::class.java.name)
+        val region = regionClass.constructors.single { it.parameterCount == 7 }
+            .newInstance(1, 0.0, 0.0, 1.0, 1.0, null, null)
+        val target = directory.resolve("raster.svg")
+        val renderer = rendererClass.getConstructor(PDDocument::class.java).newInstance(document) as AutoCloseable
+        renderer.use {
+            rendererClass.getMethod("renderSvg", regionClass, Path::class.java, Double::class.javaPrimitiveType)
+                .invoke(renderer, region, target, 0.0)
+        }
+        assertTrue(Files.readString(target).contains("data:image/png;base64,"))
+        val embedded = embeddedPng(target)
+        assertEquals(Color.RED.rgb, embedded.getRGB(2, 2))
+        assertEquals(Color.BLUE.rgb, embedded.getRGB(12, 2))
+        assertEquals(image.getRGB(19, 0), embedded.getRGB(19, 0), "Embedded PNG must preserve alpha")
+    }
+
+    @Test
+    fun svgKeepsEmbeddedRasterPixelsAtOriginalResolution() {
+        val image = BufferedImage(600, 300, BufferedImage.TYPE_INT_RGB).apply {
+            for (y in 0 until height) for (x in 0 until width) {
+                setRGB(x, y, if ((x / 2 + y / 2) % 2 == 0) Color.BLACK.rgb else Color.WHITE.rgb)
+            }
+        }
+        val document = PDDocument().apply { addPage(PDPage(PDRectangle(200f, 100f))) }
+        PDPageContentStream(document, document.getPage(0)).use {
+            it.drawImage(LosslessFactory.createFromImage(document, image), 0f, 0f, 200f, 100f)
+        }
+        val target = directory.resolve("high-resolution.svg")
+        val png = directory.resolve("after-svg.png")
+        val reference = PDFRenderer(document).renderImageWithDPI(0, 72f)
+        PdfFigureRenderer(document).use {
+            val region = PdfFigureRegion(1, 0.0, 0.0, 1.0, 1.0)
+            it.renderSvg(region, target, 0.0)
+            it.renderPng(region, png, 72, 0.0)
+        }
+        val embedded = embeddedPng(target)
+        assertEquals(image.width, embedded.width, "SVG must not bake in the 72 DPI render scale")
+        assertEquals(image.height, embedded.height)
+        for (y in 0 until image.height) for (x in 0 until image.width) {
+            assertEquals(image.getRGB(x, y), embedded.getRGB(x, y))
+        }
+        val rendered = ImageIO.read(png.toFile())
+        for (y in 0 until rendered.height) for (x in 0 until rendered.width) {
+            assertEquals(reference.getRGB(x, y), rendered.getRGB(x, y), "SVG settings must not affect later PNG rendering")
+        }
+    }
+
+    private fun embeddedPng(target: Path): BufferedImage {
+        val svg = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+            .newDocumentBuilder().parse(target.toFile())
+        val element = svg.getElementsByTagNameNS("http://www.w3.org/2000/svg", "image").item(0) as org.w3c.dom.Element
+        val encoded = element.getAttributeNS("http://www.w3.org/1999/xlink", "href").substringAfter("base64,")
+        return ImageIO.read(Base64.getMimeDecoder().decode(encoded).inputStream())
+    }
 
     @Test
     fun svgAndPngCropsMatchOriginalForRotationsAndOffsetCropBoxes() {

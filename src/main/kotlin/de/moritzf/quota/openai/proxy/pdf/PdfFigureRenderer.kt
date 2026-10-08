@@ -3,7 +3,9 @@ package de.moritzf.quota.openai.proxy.pdf
 import java.awt.Color
 import java.awt.Dimension
 import java.awt.geom.Rectangle2D
+import java.awt.image.RenderedImage
 import java.io.IOException
+import java.io.OutputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import javax.imageio.ImageIO
@@ -15,6 +17,7 @@ import kotlin.math.ceil
 import kotlin.math.abs
 import kotlin.math.floor
 import org.apache.batik.dom.GenericDOMImplementation
+import org.apache.batik.svggen.ImageHandlerBase64Encoder
 import org.apache.batik.svggen.SVGGeneratorContext
 import org.apache.batik.svggen.SVGGraphics2D
 import org.apache.pdfbox.cos.COSName
@@ -75,13 +78,24 @@ internal class PdfFigureRenderer(private val document: PDDocument) : AutoCloseab
         val context = SVGGeneratorContext.createDefault(dom).apply {
             comment = "PDF figure exported from the original document; text is stored as outlines."
             extensionHandler = PdfSvgPaintHandler()
+            // Batik's SPI can discover the IDE's writer, whose Batik types belong to another loader.
+            // Keep Batik's image/alpha handling but encode PNGs through the JDK's shared ImageIO API.
+            imageHandler = object : ImageHandlerBase64Encoder() {
+                override fun encodeImage(image: RenderedImage, output: OutputStream) {
+                    if (!ImageIO.write(image, "png", output)) throw IOException("PNG encoder unavailable")
+                }
+            }
         }
         val graphics = SVGGraphics2D(context, true)
+        val downscalingThreshold = renderer.imageDownscalingOptimizationThreshold
         try {
             graphics.background = Color.WHITE
             graphics.svgCanvasSize = Dimension(ceil(crop.width).toInt(), ceil(crop.height).toInt())
             graphics.clip(Rectangle2D.Double(0.0, 0.0, crop.width, crop.height))
             graphics.translate(-crop.x, -crop.y)
+            // SVG has no fixed output DPI. PDFBox's raster optimization would otherwise bake
+            // 72 DPI thumbnails into the SVG, permanently losing source image detail.
+            renderer.imageDownscalingOptimizationThreshold = 0f
             renderer.renderPageToGraphics(region.page - 1, graphics, 1f, 1f, RenderDestination.VIEW)
             val root = graphics.root
             root.setAttribute("viewBox", "0 0 ${crop.width} ${crop.height}")
@@ -94,6 +108,7 @@ internal class PdfFigureRenderer(private val document: PDDocument) : AutoCloseab
             }
             Files.newBufferedWriter(target).use { transformer.transform(DOMSource(root), StreamResult(it)) }
         } finally {
+            renderer.imageDownscalingOptimizationThreshold = downscalingThreshold
             graphics.dispose()
         }
     }
