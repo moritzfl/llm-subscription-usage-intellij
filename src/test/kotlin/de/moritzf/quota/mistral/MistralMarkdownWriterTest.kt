@@ -8,6 +8,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import org.junit.jupiter.api.io.TempDir
 
@@ -63,13 +64,36 @@ class MistralMarkdownWriterTest {
     }
 
     @Test
-    fun badImageDoesNotReplaceExistingMarkdownOrLeaveArtifacts() {
+    fun malformedProviderImageIsOmittedWithoutLosingTextOrOtherImages() {
+        val output = directory.resolve("recovered.md")
+        val result = MistralMarkdownWriter(output, true).use { writer ->
+            writer.append(listOf(MistralOcrPageDto("First ![ok](ok.png)", listOf(MistralOcrImageDto("ok.png", "AQID")))))
+            writer.append(listOf(MistralOcrPageDto("Second ![bad](bad.png)", listOf(MistralOcrImageDto("bad.png", "%%%")))))
+            writer.commit()
+        }
+        val report = assertNotNull(result.imageExport)
+        assertEquals(1, report.succeeded)
+        assertEquals(1, report.provider)
+        assertEquals(1, report.failed)
+        assertTrue(report.diagnostics.any { it.contains("IllegalArgumentException") })
+        assertTrue(result.warnings.none { it.contains("IllegalArgumentException") })
+        val markdown = Files.readString(output)
+        assertTrue(markdown.contains("First"))
+        assertTrue(markdown.contains("Second"))
+        assertFalse(markdown.contains("(bad.png)"))
+        assertEquals(1, result.imageFiles.size)
+    }
+
+    @Test
+    fun duplicateImageIdsDoNotReplaceExistingMarkdownOrLeaveArtifacts() {
         val output = directory.resolve("existing.md")
         Files.writeString(output, "Existing")
-        assertFailsWith<IllegalArgumentException> {
+        assertFailsWith<IllegalStateException> {
             MistralMarkdownWriter(output, true).use { writer ->
                 writer.append(listOf(MistralOcrPageDto("partial", listOf(MistralOcrImageDto("ok.png", "AQID")))))
-                writer.append(listOf(MistralOcrPageDto("broken", listOf(MistralOcrImageDto("bad.png", "%%%")))))
+                writer.append(listOf(MistralOcrPageDto("broken", listOf(
+                    MistralOcrImageDto("duplicate.png", "AQID"), MistralOcrImageDto("duplicate.png", "AQID"),
+                ))))
                 writer.commit()
             }
         }

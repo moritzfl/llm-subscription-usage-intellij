@@ -65,7 +65,8 @@ internal class MistralMarkdownWriter(
         }
         committed = true
         images.commit()
-        return MistralOcrWriteResult(outputFile.toString(), images.imageFiles, pageCount, images.warnings)
+        return MistralOcrWriteResult(outputFile.toString(), images.imageFiles, pageCount, images.warnings,
+            images.report.takeIf { includeImages })
     }
 
     override fun close() {

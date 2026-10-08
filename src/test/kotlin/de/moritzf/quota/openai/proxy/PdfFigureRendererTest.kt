@@ -259,7 +259,11 @@ class PdfFigureRendererTest {
         DocumentImageWriter(directory.resolve("doc.md"), DocumentImageOptions(), { PdfFigureRenderer(document) }).use { writer ->
             val result = writer.write(1, 1, PdfFigureRegion(1, 0.0, 0.0, 1.0, 1.0)) { error("Provider image not needed") }
             assertTrue(result!!.endsWith(".png"))
-            assertTrue(writer.warnings.single().contains("transparency"))
+            assertTrue(writer.warnings.single().contains("trying PNG"))
+            assertTrue(writer.report.diagnostics.any { it.contains("java.io.IOException: PDF transparency") })
+            assertEquals(1, writer.report.succeeded)
+            assertEquals(1, writer.report.png)
+            assertEquals(0, writer.report.failed)
             assertTrue(Files.isRegularFile(Path.of(writer.imageFiles.single())))
         }
         Files.list(directory).use { assertEquals(0L, it.count(), "Uncommitted images must be cleaned") }
@@ -275,6 +279,45 @@ class PdfFigureRendererTest {
                 assertTrue(writer.write(7, 2, null) { ProviderDocumentImage(byteArrayOf(1, 2, 3), "jpeg") }!!.endsWith(".jpeg"))
                 assertEquals(format == DocumentImageFormat.SVG, writer.warnings.isNotEmpty())
             }
+        }
+    }
+
+    @Test
+    fun reportCountsFinalOutcomesOnceEvenWhenSeveralAttemptsFail() {
+        val document = quadrantPdf(0)
+        document.addPage(PDPage(PDRectangle(200f, 100f)).apply {
+            resources = PDResources().apply {
+                add(PDExtendedGraphicsState().apply { blendMode = BlendMode.MULTIPLY })
+            }
+        })
+        DocumentImageWriter(directory.resolve("mixed.md"), DocumentImageOptions(), { PdfFigureRenderer(document) }).use { writer ->
+            writer.write(1, 1, PdfFigureRegion(1, 0.0, 0.0, 1.0, 1.0)) { error("Not needed") }
+            writer.write(2, 1, PdfFigureRegion(2, 0.0, 0.0, 1.0, 1.0)) { error("Not needed") }
+            writer.write(2, 2, PdfFigureRegion(2, 0.0, 0.0, -1.0, 1.0)) { ProviderDocumentImage(byteArrayOf(1), "png") }
+            writer.write(2, 3, null) { null }
+            writer.write(2, 4, null) { throw IOException("Provider download failed") }
+            writer.write(1, 2, PdfFigureRegion(1, 0.0, 0.0, 1.0, 1.0)) { error("Not needed") }
+            val report = writer.report
+            assertEquals(6, report.total)
+            assertEquals(4, report.succeeded)
+            assertEquals(2, report.svg)
+            assertEquals(1, report.png)
+            assertEquals(1, report.provider)
+            assertEquals(2, report.failed)
+            assertEquals(4, writer.imageFiles.size)
+            assertTrue(report.diagnostics.any { it.contains("Provider download failed") })
+            assertTrue(report.diagnostics.any { it.contains("Invalid figure coordinates") })
+        }
+    }
+
+    @Test
+    fun providerCancellationIsNotReportedAsAnImageFailure() {
+        DocumentImageWriter(directory.resolve("cancelled.md"), DocumentImageOptions(DocumentImageFormat.PROVIDER)).use { writer ->
+            assertFailsWith<java.util.concurrent.CancellationException> {
+                writer.write(1, 1, null) { throw java.util.concurrent.CancellationException("Stop") }
+            }
+            assertEquals(0, writer.report.total)
+            assertTrue(writer.warnings.isEmpty())
         }
     }
 

@@ -80,11 +80,11 @@ class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
                         project, "Overwrite ${destination.fileName}?", "PDF to Markdown", Messages.getQuestionIcon(),
                     ) != Messages.YES) return@invokeLater
                 ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Converting PDF to Markdown", true) {
-                    private var warnings: List<String> = emptyList()
+                    private var conversion = DocumentConversionResult()
 
                     override fun run(indicator: ProgressIndicator) {
                         indicator.isIndeterminate = true
-                        warnings = PdfDocumentConversion.convert(provider, source, destination, includeImages, imageOptions, progress = { completed, total, detail ->
+                        conversion = PdfDocumentConversion.convert(provider, source, destination, includeImages, imageOptions, progress = { completed, total, detail ->
                             indicator.checkCanceled()
                             indicator.text = source.fileName.toString()
                             indicator.text2 = "$detail (cancellation takes effect between requests)"
@@ -105,20 +105,20 @@ class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
                             Messages.showErrorDialog(project, "Markdown file was not found after conversion.", "PDF to Markdown")
                         } else {
                             FileEditorManager.getInstance(project).openFile(result, true)
-                            val notable = warnings.filter { warning ->
+                            val notable = conversion.warnings.filter { warning ->
                                 warning != DocumentModels.PDFBOX_WARNING && warning != PdfBoxMarkdown.IMAGES_IGNORED
                             }
-                            if (notable.isNotEmpty()) Messages.showWarningDialog(project,
-                                notable.take(8).joinToString("\n") +
-                                    if (notable.size > 8) "\n… and ${notable.size - 8} more warnings." else "",
-                                if (provider == DocumentToMarkdownProvider.PDFBOX) "PDF to Markdown" else "PDF image export fallbacks")
+                            if (notable.isNotEmpty()) DocumentConversionResultDialog(
+                                project, documentConversionSummary(conversion), documentConversionDetails(conversion),
+                            ).show()
                         }
                     }
 
                     override fun onThrowable(error: Throwable) {
-                        if (!project.isDisposed) Messages.showErrorDialog(
-                            project, error.message ?: "Document conversion failed.", "PDF to Markdown",
-                        )
+                        if (!project.isDisposed) DocumentConversionResultDialog(
+                            project, "Could not convert the PDF to Markdown.\nExpand Details for the error and stack trace.",
+                            error.stackTraceToString(),
+                        ).show()
                     }
                 })
             }

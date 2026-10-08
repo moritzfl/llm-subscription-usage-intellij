@@ -137,7 +137,8 @@ internal class AzureDocumentIntelligenceClient(
             var content = rewriteMarkdownImageLinks(markdown, links)
             content = Regex("!\\[([^]]*)]\\(figures/[^)]+\\)").replace(content) { it.groupValues[1] }
             val json = DocumentMarkdown.resultJson(content, markdownOutput, images.imageFiles,
-                pageCount = (result["pages"] as? JsonArray)?.size, warnings = images.warnings)
+                pageCount = (result["pages"] as? JsonArray)?.size, warnings = images.warnings,
+                imageExport = images.report.takeIf { writeImages })
             images.commit()
             return json
         }

@@ -1,12 +1,16 @@
 package de.moritzf.quota.idea.action
 
 import de.moritzf.quota.shared.DocumentMarkdownWriteResult
+import de.moritzf.quota.shared.DocumentImageExportReport
+import de.moritzf.quota.shared.DocumentImageFormat
 import de.moritzf.quota.shared.JsonSupport
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class PdfDocumentConversionTest {
     @Test
@@ -46,7 +50,27 @@ class PdfDocumentConversionTest {
         try {
             val warnings = listOf("Page 3: SVG unavailable; used PNG at 300 DPI.")
             val response = JsonSupport.json.encodeToString(DocumentMarkdownWriteResult(output.toString(), warnings = warnings))
-            assertEquals(warnings, checkConversionResult(response, output))
+            assertEquals(warnings, checkConversionResult(response, output).warnings)
+        } finally { Files.deleteIfExists(output) }
+    }
+
+    @Test
+    fun imageOutcomesReachTheSummaryWhileStackTracesStayInDetails() {
+        val output = Files.createTempFile("pdf-context-report", ".md")
+        try {
+            val trace = IllegalStateException("Encoder failed").stackTraceToString()
+            val report = DocumentImageExportReport(DocumentImageFormat.SVG, 300,
+                svg = 8, png = 5, provider = 3, failed = 1, diagnostics = listOf(trace))
+            val response = JsonSupport.json.encodeToString(DocumentMarkdownWriteResult(output.toString(),
+                warnings = listOf("Image fallback used"), imageExport = report))
+            val result = checkConversionResult(response, output)
+            val summary = documentConversionSummary(result)
+            assertTrue(summary.contains("16 of 17 saved; 1 failed"))
+            assertTrue(summary.contains("Requested SVG: 8 saved"))
+            assertTrue(summary.contains("5 PNG at 300 DPI; 3 provider images"))
+            assertFalse(summary.contains("IllegalStateException"))
+            assertTrue(documentConversionDetails(result).contains(trace.trim()))
+            assertEquals(report, result.imageExport)
         } finally { Files.deleteIfExists(output) }
     }
 

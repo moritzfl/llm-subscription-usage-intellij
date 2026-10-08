@@ -23,6 +23,14 @@ internal class DocumentImageWriter(
     private val files = mutableListOf<Path>()
     val imageFiles: List<String> get() = files.map(Path::toString)
     val warnings = mutableListOf<String>()
+    private val diagnostics = mutableListOf<String>()
+    private var svgCount = 0
+    private var pngCount = 0
+    private var providerCount = 0
+    private var failedCount = 0
+    val report: DocumentImageExportReport get() = DocumentImageExportReport(
+        options.format, options.dpi, svgCount, pngCount, providerCount, failedCount, diagnostics.toList(),
+    )
 
     fun write(page: Int, ordinal: Int, region: PdfFigureRegion?, provider: () -> ProviderDocumentImage?): String? {
         val label = "Page $page, figure $ordinal"
@@ -38,33 +46,52 @@ internal class DocumentImageWriter(
                     val svg = target(page, ordinal, "svg")
                     try {
                         source.renderSvg(region, svg, options.paddingPoints)
+                        svgCount++
+                        diagnostics += "$label: saved SVG from original PDF."
                         return retain(svg)
                     } catch (exception: Exception) {
                         rethrowCancellation(exception)
                         Files.deleteIfExists(svg)
-                        warnings += "$label: SVG export unavailable (${exception.message}); trying PNG at ${options.dpi} DPI."
+                        warn("$label: SVG export unavailable; trying PNG at ${options.dpi} DPI.", exception)
                     }
                 }
                 val png = target(page, ordinal, "png")
                 try {
                     source.renderPng(region, png, options.dpi, options.paddingPoints)
+                    pngCount++
+                    diagnostics += "$label: saved PNG from original PDF at ${options.dpi} DPI."
                     return retain(png)
                 } catch (exception: Exception) {
                     rethrowCancellation(exception)
                     Files.deleteIfExists(png)
-                    warnings += "$label: PDF image export failed (${exception.message}); using provider image."
+                    warn("$label: PDF image export failed; trying provider image.", exception)
                 }
-            } else warnings += "$label: $reason; using provider image."
+            } else warn("$label: $reason; trying provider image.")
         }
-        val image = provider()
+        val image = try {
+            provider()
+        } catch (exception: Exception) {
+            rethrowCancellation(exception)
+            warn("$label: provider image could not be loaded; image omitted.", exception)
+            failedCount++
+            return null
+        }
         if (image == null || image.bytes.isEmpty()) {
-            warnings += "$label: provider supplied no image; image omitted."
+            warn("$label: provider supplied no image; image omitted.")
+            failedCount++
             return null
         }
         val extension = image.extension.lowercase().takeIf { it.matches(Regex("[a-z0-9]{1,10}")) } ?: "png"
         val target = target(page, ordinal, extension)
         Files.write(target, image.bytes, CREATE_NEW)
+        providerCount++
+        diagnostics += "$label: saved provider image ($extension)."
         return retain(target)
+    }
+
+    private fun warn(message: String, exception: Exception? = null) {
+        warnings += message
+        diagnostics += if (exception == null) message else "$message\n${exception.stackTraceToString()}"
     }
 
     private fun renderer(): PdfFigureRenderer? {
@@ -74,7 +101,8 @@ internal class DocumentImageWriter(
                 renderer = originalPdf()
             } catch (exception: Exception) {
                 rethrowCancellation(exception)
-                sourceError = "original PDF could not be opened (${exception.message})"
+                sourceError = "original PDF could not be opened"
+                diagnostics += "$sourceError\n${exception.stackTraceToString()}"
             }
         }
         return renderer

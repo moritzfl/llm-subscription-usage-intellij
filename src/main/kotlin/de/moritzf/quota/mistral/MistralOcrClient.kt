@@ -4,6 +4,7 @@ import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
 import de.moritzf.quota.shared.MultipartFilePublisher
 import de.moritzf.quota.shared.DocumentImageOptions
+import de.moritzf.quota.shared.DocumentImageExportReport
 import de.moritzf.quota.shared.OriginalPdf
 import de.moritzf.quota.openai.proxy.pdf.PdfFigureRenderer
 import kotlinx.serialization.SerialName
@@ -258,4 +259,5 @@ internal data class MistralOcrWriteResult(
     @SerialName("image_files") val imageFiles: List<String>,
     val pages: Int,
     val warnings: List<String> = emptyList(),
+    @SerialName("image_export") val imageExport: DocumentImageExportReport? = null,
 )

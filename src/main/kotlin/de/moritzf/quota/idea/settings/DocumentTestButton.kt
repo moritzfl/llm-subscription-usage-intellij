@@ -168,7 +168,7 @@ private class DocumentTestDialog(
                     provider, pdf, output, includeImages = false,
                     progress = { _, _, _ -> checkActive(gen) },
                     model = model,
-                )
+                ).warnings
             } catch (exception: Exception) {
                 if (!isActive(gen) || isCancellation(exception)) throw exception
                 val elapsedMs = (System.nanoTime() - started) / 1_000_000L

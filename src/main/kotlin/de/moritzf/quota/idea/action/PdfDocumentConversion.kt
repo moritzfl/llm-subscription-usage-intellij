@@ -24,6 +24,7 @@ import de.moritzf.quota.openai.proxy.pdf.PdfBoxMarkdown
 import de.moritzf.quota.openai.proxy.pdf.PdfPages
 import de.moritzf.quota.shared.DocumentConversionProgress
 import de.moritzf.quota.shared.DocumentImageOptions
+import de.moritzf.quota.shared.DocumentImageExportReport
 import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.supergrok.SuperGrokDocumentClient
@@ -35,6 +36,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
 
 /** IDE-side entry point; no dependency on the optional IntelliJ MCP server. */
 internal object PdfDocumentConversion {
@@ -52,7 +54,7 @@ internal object PdfDocumentConversion {
         imageOptions: DocumentImageOptions = DocumentImageOptions(),
         progress: DocumentConversionProgress = DocumentConversionProgress.NONE,
         model: String = "",
-    ): List<String> {
+    ): DocumentConversionResult {
         progress.update(0, 0, "Preparing document conversion")
         require(PdfPages.isPdf(source)) { "Select a readable PDF file." }
         if (provider == DocumentToMarkdownProvider.PDFBOX) {
@@ -139,7 +141,12 @@ internal object PdfDocumentConversion {
     }
 }
 
-internal fun checkConversionResult(response: String, output: Path): List<String> {
+internal data class DocumentConversionResult(
+    val warnings: List<String> = emptyList(),
+    val imageExport: DocumentImageExportReport? = null,
+)
+
+internal fun checkConversionResult(response: String, output: Path): DocumentConversionResult {
     val json = runCatching { JsonSupport.json.parseToJsonElement(response) as? JsonObject }.getOrNull()
     val error = (json?.get("error") as? JsonPrimitive)?.contentOrNull
     if (!error.isNullOrBlank()) throw IllegalStateException(error)
@@ -149,5 +156,8 @@ internal fun checkConversionResult(response: String, output: Path): List<String>
         throw IllegalStateException("Provider wrote Markdown to an unexpected output path.")
     }
     if (!Files.isRegularFile(output)) throw IllegalStateException("Provider returned no Markdown output file.")
-    return (json["warnings"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+    return DocumentConversionResult(
+        (json["warnings"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull },
+        (json["image_export"] as? JsonObject)?.let { JsonSupport.json.decodeFromJsonElement<DocumentImageExportReport>(it) },
+    )
 }

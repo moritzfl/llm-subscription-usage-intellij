@@ -32,6 +32,7 @@ internal object DocumentMarkdown {
         pageFrom: Int? = null,
         pageTo: Int? = null,
         warnings: List<String> = emptyList(),
+        imageExport: DocumentImageExportReport? = null,
     ): String {
         val cleaned = unwrap(markdown)
         if (outputFile != null) {
@@ -41,7 +42,7 @@ internal object DocumentMarkdown {
             }
             writeAtomically(outputFile, cleaned)
             return JsonSupport.json.encodeToString(
-                DocumentMarkdownWriteResult(outputFile.toString(), imageFiles, pageCount, pageFrom, pageTo, warnings),
+                DocumentMarkdownWriteResult(outputFile.toString(), imageFiles, pageCount, pageFrom, pageTo, warnings, imageExport),
             )
         }
         return JsonSupport.json.encodeToString(DocumentMarkdownTextResult(cleaned, pageCount, pageFrom, pageTo))
@@ -67,6 +68,7 @@ internal data class DocumentMarkdownWriteResult(
     @SerialName("page_from") val pageFrom: Int? = null,
     @SerialName("page_to") val pageTo: Int? = null,
     val warnings: List<String> = emptyList(),
+    @SerialName("image_export") val imageExport: DocumentImageExportReport? = null,
 )
 
 @Serializable
