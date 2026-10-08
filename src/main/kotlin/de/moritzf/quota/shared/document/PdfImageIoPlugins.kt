@@ -1,4 +1,4 @@
-package de.moritzf.quota.openai.proxy.pdf
+package de.moritzf.quota.shared.document
 
 import javax.imageio.ImageIO
 import javax.imageio.spi.IIORegistry

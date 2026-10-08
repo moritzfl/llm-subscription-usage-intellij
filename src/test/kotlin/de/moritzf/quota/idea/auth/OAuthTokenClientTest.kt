@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea.auth
 
+import de.moritzf.quota.shared.auth.OAuthCredentials
 import java.net.Authenticator
 import java.net.CookieHandler
 import java.net.ProxySelector

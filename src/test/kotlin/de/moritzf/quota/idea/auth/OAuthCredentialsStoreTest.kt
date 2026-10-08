@@ -4,6 +4,7 @@ import com.intellij.credentialStore.CredentialAttributes
 import com.intellij.credentialStore.Credentials
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.shared.auth.OAuthCredentials
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith

@@ -10,7 +10,6 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.proxy.logging.RequestLogger
-import de.moritzf.quota.idea.auth.OAuthCredentials
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
@@ -21,6 +20,7 @@ import de.moritzf.quota.opencode.OpenCodeWorkspace
 import de.moritzf.quota.opencode.proxy.OpenCodeConsoleProxy
 import de.moritzf.quota.opencode.proxy.OpenCodeConsoleSession
 import de.moritzf.quota.shared.DocumentModels
+import de.moritzf.quota.shared.auth.OAuthCredentials
 import java.awt.Color
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection

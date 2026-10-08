@@ -1,5 +1,7 @@
 package de.moritzf.quota.idea.auth
 
+import de.moritzf.quota.shared.auth.OAuthCredentials
+
 interface OAuthCredentialStore {
     val coordinator: OAuthCredentialCoordinator
 

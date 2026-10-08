@@ -1,4 +1,4 @@
-package de.moritzf.quota.idea.auth
+package de.moritzf.quota.shared.auth
 
 import java.net.URI
 import java.net.URLDecoder

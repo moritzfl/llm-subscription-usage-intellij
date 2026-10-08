@@ -7,6 +7,7 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import de.moritzf.quota.idea.common.CredentialStorage
 import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.shared.auth.OAuthCredentials
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest

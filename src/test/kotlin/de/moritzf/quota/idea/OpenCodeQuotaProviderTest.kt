@@ -1,11 +1,11 @@
 package de.moritzf.quota.idea
 
-import de.moritzf.quota.idea.auth.OAuthCredentials
 import de.moritzf.quota.idea.common.OpenCodeQuotaProvider
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.opencode.OpenCodeQuotaClient
 import de.moritzf.quota.opencode.OpenCodeQuotaException
+import de.moritzf.quota.shared.auth.OAuthCredentials
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit

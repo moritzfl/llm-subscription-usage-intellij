@@ -2,6 +2,8 @@ package de.moritzf.quota.idea.auth
 
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.shared.auth.OAuthCredentials
+import de.moritzf.quota.shared.auth.OAuthUrlCodec
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient

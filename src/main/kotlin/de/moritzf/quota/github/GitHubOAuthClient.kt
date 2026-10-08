@@ -1,7 +1,7 @@
 package de.moritzf.quota.github
 
-import de.moritzf.quota.idea.auth.OAuthUrlCodec
 import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.shared.auth.OAuthUrlCodec
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient

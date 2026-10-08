@@ -8,6 +8,7 @@ import com.intellij.openapi.diagnostic.Logger
 import de.moritzf.quota.idea.common.CredentialStorage
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.shared.auth.OAuthCredentials
 
 /** Handles loading, saving, and clearing OAuth credentials in PasswordSafe. */
 class OAuthCredentialsStore(

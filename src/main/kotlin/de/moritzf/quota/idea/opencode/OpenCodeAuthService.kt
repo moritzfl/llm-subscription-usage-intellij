@@ -7,7 +7,6 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import de.moritzf.quota.idea.auth.LoginResult
 import de.moritzf.quota.idea.auth.OAuthCredentialStore
-import de.moritzf.quota.idea.auth.OAuthCredentials
 import de.moritzf.quota.idea.auth.OAuthCredentialsStore
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.opencode.OpenCodeDeviceTokenResult
@@ -15,6 +14,7 @@ import de.moritzf.quota.opencode.OpenCodeOAuthClient
 import de.moritzf.quota.opencode.OpenCodeQuotaClient
 import de.moritzf.quota.opencode.OpenCodeQuotaException
 import de.moritzf.quota.opencode.OpenCodeWorkspace
+import de.moritzf.quota.shared.auth.OAuthCredentials
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope

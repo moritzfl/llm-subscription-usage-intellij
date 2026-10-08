@@ -1,5 +1,6 @@
 package de.moritzf.quota.openai.proxy.pdf
 
+import de.moritzf.quota.shared.document.PdfImageIoPlugins
 import java.awt.Color
 import java.awt.Dimension
 import java.awt.geom.Rectangle2D

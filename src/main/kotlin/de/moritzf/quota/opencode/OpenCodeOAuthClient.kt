@@ -1,7 +1,7 @@
 package de.moritzf.quota.opencode
 
-import de.moritzf.quota.idea.auth.OAuthCredentials
 import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.shared.auth.OAuthCredentials
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest

@@ -16,6 +16,7 @@ import de.moritzf.quota.shared.DocumentMarkdown
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
 import de.moritzf.quota.shared.MultipartFilePublisher
+import de.moritzf.quota.shared.document.DocumentImageGrounding
 import java.io.ByteArrayInputStream
 import java.net.URI
 import java.net.http.HttpClient

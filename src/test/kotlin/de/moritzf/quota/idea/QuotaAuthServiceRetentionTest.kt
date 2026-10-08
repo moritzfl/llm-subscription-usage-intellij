@@ -4,13 +4,13 @@ import com.intellij.credentialStore.Credentials
 import de.moritzf.quota.idea.auth.OAuthConnectionState
 import de.moritzf.quota.idea.auth.OAuthCredentialCoordinator
 import de.moritzf.quota.idea.auth.OAuthCredentialStore
-import de.moritzf.quota.idea.auth.OAuthCredentials
 import de.moritzf.quota.idea.auth.OAuthCredentialsStore
 import de.moritzf.quota.idea.auth.OAuthTokenOperations
 import de.moritzf.quota.idea.auth.OAuthTokenRequestException
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.shared.auth.OAuthCredentials
 import java.io.IOException
 import java.nio.file.Path
 import java.util.concurrent.CountDownLatch

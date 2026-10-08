@@ -3,6 +3,8 @@ package de.moritzf.quota.idea.auth
 import com.intellij.openapi.diagnostic.Logger
 import de.moritzf.quota.openai.dto.OAuthTokenResponseDto
 import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.shared.auth.OAuthCredentials
+import de.moritzf.quota.shared.auth.OAuthUrlCodec
 import java.io.IOException
 import java.net.ConnectException
 import java.net.URI

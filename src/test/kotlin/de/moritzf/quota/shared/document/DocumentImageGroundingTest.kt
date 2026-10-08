@@ -1,4 +1,4 @@
-package de.moritzf.quota.idea.mcp
+package de.moritzf.quota.shared.document
 
 import java.nio.file.Files
 import kotlin.test.Test
@@ -84,7 +84,7 @@ class DocumentImageGroundingTest {
             doc.save(pdf.toFile())
         }
         val region =
-            de.moritzf.quota.openai.proxy.pdf.PdfRegionImageExtractor.PageRegion(
+            de.moritzf.quota.shared.document.PdfRegionImageExtractor.PageRegion(
                 page = 1,
                 x0 = -0.5f,
                 y0 = 0.1f,
@@ -98,7 +98,7 @@ class DocumentImageGroundingTest {
         assertEquals(0.4f, box.bottom, 1e-4f)
 
         val target = dir.resolve("crop.png")
-        de.moritzf.quota.openai.proxy.pdf.PdfRegionImageExtractor.open(pdf).use { ex ->
+        de.moritzf.quota.shared.document.PdfRegionImageExtractor.open(pdf).use { ex ->
             assertTrue(ex!!.renderRegion(region, target))
         }
         assertTrue(Files.isRegularFile(target))
@@ -112,7 +112,7 @@ class DocumentImageGroundingTest {
     @Test
     fun rejectsDegenerateBoxes() {
         val tiny =
-            de.moritzf.quota.openai.proxy.pdf.PdfRegionImageExtractor.PageRegion(
+            de.moritzf.quota.shared.document.PdfRegionImageExtractor.PageRegion(
                 page = 1,
                 x0 = 0.5f,
                 y0 = 0.5f,
@@ -120,7 +120,7 @@ class DocumentImageGroundingTest {
                 y1 = 0.501f,
             )
         val outside =
-            de.moritzf.quota.openai.proxy.pdf.PdfRegionImageExtractor.PageRegion(
+            de.moritzf.quota.shared.document.PdfRegionImageExtractor.PageRegion(
                 page = 1,
                 x0 = 2.0f,
                 y0 = 2.0f,
@@ -136,7 +136,7 @@ class DocumentImageGroundingTest {
         val dir = Files.createTempDirectory("grounding-nopdf")
         val notPdf = dir.resolve("x.bin")
         Files.write(notPdf, byteArrayOf(1, 2, 3))
-        val ex = de.moritzf.quota.openai.proxy.pdf.PdfRegionImageExtractor.open(notPdf)
+        val ex = de.moritzf.quota.shared.document.PdfRegionImageExtractor.open(notPdf)
         assertEquals(null, ex)
     }
 }

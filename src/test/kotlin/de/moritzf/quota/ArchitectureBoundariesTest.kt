@@ -19,18 +19,10 @@ import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.proxy.server.ApiKeyStore
-import de.moritzf.quota.github.GitHubOAuthClient
-import de.moritzf.quota.idea.auth.OAuthCredentials
-import de.moritzf.quota.idea.auth.OAuthUrlCodec
 import de.moritzf.quota.idea.common.QuotaProviderType
-import de.moritzf.quota.idea.mcp.DocumentImageGrounding
 import de.moritzf.quota.idea.mcp.SubscriptionUsageMcpToolset
-import de.moritzf.quota.kimi.KimiCredentialRefresher
 import de.moritzf.quota.kimi.KimiDeviceHeaders
-import de.moritzf.quota.opencode.OpenCodeDeviceTokenResult
-import de.moritzf.quota.opencode.OpenCodeOAuthClient
 import de.moritzf.quota.shared.RealtimeSpeechSession
-import de.moritzf.quota.supergrok.SuperGrokDocumentClient
 import de.moritzf.quota.supergrok.SuperGrokQuotaClient
 import java.net.URI
 
@@ -59,7 +51,7 @@ class ArchitectureBoundariesTest {
     }
 
     companion object {
-        // Exact runtime bindings and existing shared auth value/codec dependencies. Including
+        // Exact runtime bindings. Including
         // nested classes covers Kotlin companions without exempting whole provider/IDE packages.
         private val allowedIdeDependencies =
             listOf(
@@ -67,13 +59,6 @@ class ArchitectureBoundariesTest {
                     RequestLogger::class.java to IntelliJVirtualThreads::class.java,
                     SuperGrokQuotaClient::class.java to Logger::class.java,
                     KimiDeviceHeaders::class.java to PropertiesComponent::class.java,
-                    GitHubOAuthClient::class.java to OAuthUrlCodec::class.java,
-                    KimiCredentialRefresher::class.java to OAuthUrlCodec::class.java,
-                    OpenCodeOAuthClient::class.java to OAuthCredentials::class.java,
-                    OpenCodeDeviceTokenResult.Authorized::class.java to
-                        OAuthCredentials::class.java,
-                    // Existing document image grounding helper is still located in the MCP package.
-                    SuperGrokDocumentClient::class.java to DocumentImageGrounding::class.java,
                 )
                 .map { (origin, target) ->
                     Dependency.Predicates.dependencyOrigin(belongToAnyOf(origin))

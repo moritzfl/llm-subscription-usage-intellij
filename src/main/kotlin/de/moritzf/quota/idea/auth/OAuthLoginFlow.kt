@@ -3,6 +3,7 @@ package de.moritzf.quota.idea.auth
 import com.intellij.openapi.diagnostic.Logger
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import de.moritzf.quota.shared.auth.OAuthUrlCodec
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.URI

@@ -114,7 +114,7 @@ open class SuperGrokDocumentClient(
                 )
             }
             val applied =
-                de.moritzf.quota.idea.mcp.DocumentImageGrounding.apply(
+                de.moritzf.quota.shared.document.DocumentImageGrounding.apply(
                     parseMarkdown(body),
                     if (includeImages) localFile else null,
                     markdownOutput?.parent ?: localFile?.parent,
@@ -301,7 +301,8 @@ open class SuperGrokDocumentClient(
         private const val USER_AGENT = "openai-usage-quota-intellij"
         private val DEFAULT_BASE_URI = URI.create("https://api.x.ai/v1/")
         private val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "gif", "webp")
-        private const val DOCUMENT_PROMPT = de.moritzf.quota.idea.mcp.DocumentImageGrounding.PROMPT
+        private const val DOCUMENT_PROMPT =
+            de.moritzf.quota.shared.document.DocumentImageGrounding.PROMPT
 
         fun createDefault(): SuperGrokDocumentClient = SuperGrokDocumentClient()
 

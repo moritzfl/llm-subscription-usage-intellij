@@ -1,6 +1,5 @@
 package de.moritzf.quota.idea
 
-import de.moritzf.quota.idea.auth.OAuthCredentials
 import de.moritzf.quota.idea.common.*
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorSource
@@ -11,6 +10,7 @@ import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.opencode.OpenCodeQuotaClient
 import de.moritzf.quota.opencode.OpenCodeQuotaException
 import de.moritzf.quota.opencode.OpenCodeUsageWindow
+import de.moritzf.quota.shared.auth.OAuthCredentials
 import de.moritzf.quota.supergrok.SuperGrokQuota
 import de.moritzf.quota.supergrok.SuperGrokQuotaClient
 import de.moritzf.quota.supergrok.SuperGrokResetToken

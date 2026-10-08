@@ -3,7 +3,6 @@ package de.moritzf.quota.azure
 import de.moritzf.quota.mistral.MistralOcrClient
 import de.moritzf.quota.mistral.MistralOcrWriteResult
 import de.moritzf.quota.openai.proxy.pdf.PdfFigureRegion
-import de.moritzf.quota.openai.proxy.pdf.PdfImageIoPlugins
 import de.moritzf.quota.shared.DocumentConversionProgress
 import de.moritzf.quota.shared.DocumentImageOptions
 import de.moritzf.quota.shared.DocumentImageWriter
@@ -12,6 +11,7 @@ import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
 import de.moritzf.quota.shared.OriginalPdf
 import de.moritzf.quota.shared.ProviderDocumentImage
+import de.moritzf.quota.shared.document.PdfImageIoPlugins
 import de.moritzf.quota.shared.rewriteMarkdownImageLinks
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream

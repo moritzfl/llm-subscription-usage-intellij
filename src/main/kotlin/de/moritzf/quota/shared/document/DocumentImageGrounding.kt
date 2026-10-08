@@ -1,4 +1,4 @@
-package de.moritzf.quota.idea.mcp
+package de.moritzf.quota.shared.document
 
 import java.nio.file.Path
 
@@ -162,8 +162,8 @@ internal object DocumentImageGrounding {
         pdfFile: Path,
         regions: List<Region>,
         outputDir: Path,
-        extractor: de.moritzf.quota.openai.proxy.pdf.PdfRegionImageExtractor? =
-            de.moritzf.quota.openai.proxy.pdf.PdfRegionImageExtractor.open(pdfFile),
+        extractor: de.moritzf.quota.shared.document.PdfRegionImageExtractor? =
+            de.moritzf.quota.shared.document.PdfRegionImageExtractor.open(pdfFile),
     ): List<Path> {
         if (regions.isEmpty()) return emptyList()
         val ex = extractor ?: return emptyList()
@@ -172,7 +172,7 @@ internal object DocumentImageGrounding {
                 runCatching {
                     val target = outputDir.resolve(region.fallbackFileName)
                     val pageRegion =
-                        de.moritzf.quota.openai.proxy.pdf.PdfRegionImageExtractor.PageRegion(
+                        de.moritzf.quota.shared.document.PdfRegionImageExtractor.PageRegion(
                             region.page,
                             region.x0,
                             region.y0,

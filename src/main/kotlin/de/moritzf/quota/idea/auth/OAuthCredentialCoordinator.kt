@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.auth
 
 import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.shared.auth.OAuthCredentials
 import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.Path

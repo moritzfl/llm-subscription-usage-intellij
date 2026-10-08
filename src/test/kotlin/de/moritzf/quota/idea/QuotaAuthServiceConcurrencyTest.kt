@@ -3,11 +3,11 @@ package de.moritzf.quota.idea
 import de.moritzf.quota.idea.auth.LoginResult
 import de.moritzf.quota.idea.auth.OAuthCredentialCoordinator
 import de.moritzf.quota.idea.auth.OAuthCredentialStore
-import de.moritzf.quota.idea.auth.OAuthCredentials
 import de.moritzf.quota.idea.auth.OAuthTokenOperations
 import de.moritzf.quota.idea.auth.OAuthTokenRequestException
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.shared.auth.OAuthCredentials
 import java.net.URI
 import java.net.http.HttpClient
 import java.util.concurrent.CountDownLatch
