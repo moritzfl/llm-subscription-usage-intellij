@@ -12,11 +12,17 @@ import kotlin.time.Duration.Companion.seconds
 class AzureLiveUsageTest {
     @Test
     fun refreshingDoesNotPostponeTheObservedReset() {
-        val snapshot = assertNotNull(parseRateLimitHeaders(mapOf(
-            "x-ratelimit-limit-tokens" to listOf("1000"),
-            "x-ratelimit-remaining-tokens" to listOf("250"),
-            "x-ratelimit-reset-tokens" to listOf("30"),
-        ), "chat"))
+        val snapshot =
+            assertNotNull(
+                parseRateLimitHeaders(
+                    mapOf(
+                        "x-ratelimit-limit-tokens" to listOf("1000"),
+                        "x-ratelimit-remaining-tokens" to listOf("250"),
+                        "x-ratelimit-reset-tokens" to listOf("30"),
+                    ),
+                    "chat",
+                )
+            )
         val now = Clock.System.now()
         val first = assertNotNull(liveWindow(snapshot, now))
         val later = assertNotNull(liveWindow(snapshot, now + 10.seconds))
@@ -45,12 +51,18 @@ class AzureLiveUsageTest {
     @Test
     fun usableRequestCountersSurviveIncompleteTokenCounters() {
         val now = Clock.System.now()
-        val snapshot = assertNotNull(parseRateLimitHeaders(mapOf(
-            "x-ratelimit-limit-tokens" to listOf("1000"),
-            "x-ratelimit-limit-requests" to listOf("10"),
-            "x-ratelimit-remaining-requests" to listOf("1"),
-            "x-ratelimit-reset-requests" to listOf("10"),
-        ), "chat"))
+        val snapshot =
+            assertNotNull(
+                parseRateLimitHeaders(
+                    mapOf(
+                        "x-ratelimit-limit-tokens" to listOf("1000"),
+                        "x-ratelimit-limit-requests" to listOf("10"),
+                        "x-ratelimit-remaining-requests" to listOf("1"),
+                        "x-ratelimit-reset-requests" to listOf("10"),
+                    ),
+                    "chat",
+                )
+            )
         val window = assertNotNull(liveWindow(snapshot, now))
         assertEquals("requests", window.unit)
         assertEquals(90.0, window.usagePercent)
@@ -60,10 +72,15 @@ class AzureLiveUsageTest {
 
     @Test
     fun deploymentCapacityIsNotInventedAsTokensPerMinute() {
-        val windows = assertNotNull(parseAzureDeployments("""{"value":[
+        val windows =
+            assertNotNull(
+                parseAzureDeployments(
+                    """{"value":[
             {"name":"reasoning","sku":{"name":"Standard","capacity":10},"properties":{"model":{"name":"o1"}}},
             {"name":"reserved","sku":{"name":"GlobalProvisionedManaged","capacity":50}}
-        ]}"""))
+        ]}"""
+                )
+            )
         assertEquals(null, windows[0].used)
         assertEquals(null, windows[0].usagePercent)
         assertEquals(10.0, windows[0].capacity)
@@ -76,11 +93,25 @@ class AzureLiveUsageTest {
 
     @Test
     fun rawResponseKeepsAzureBodies() {
-        val json = assertNotNull(buildAzureRawResponse(
-            account = JsonSupport.json.parseToJsonElement("""{"id":"sub","name":"Personal","user":{"name":"me@contoso.com"}}"""),
-            deployments = mapOf("resource" to """{"value":[{"name":"gpt","sku":{"name":"Standard","capacity":3333}}]}"""),
-            usages = mapOf("westeurope" to """{"value":[{"currentValue":1,"limit":2,"unit":"Count"}]}"""),
-        ))
+        val json =
+            assertNotNull(
+                buildAzureRawResponse(
+                    account =
+                        JsonSupport.json.parseToJsonElement(
+                            """{"id":"sub","name":"Personal","user":{"name":"me@contoso.com"}}"""
+                        ),
+                    deployments =
+                        mapOf(
+                            "resource" to
+                                """{"value":[{"name":"gpt","sku":{"name":"Standard","capacity":3333}}]}"""
+                        ),
+                    usages =
+                        mapOf(
+                            "westeurope" to
+                                """{"value":[{"currentValue":1,"limit":2,"unit":"Count"}]}"""
+                        ),
+                )
+            )
         assertTrue(json.contains("\"capacity\": 3333"))
         assertTrue(json.contains("\"currentValue\": 1"))
         assertTrue(!json.contains("\"used\""))

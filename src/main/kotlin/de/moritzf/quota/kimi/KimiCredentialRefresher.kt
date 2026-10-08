@@ -2,9 +2,6 @@ package de.moritzf.quota.kimi
 
 import de.moritzf.quota.idea.auth.OAuthUrlCodec
 import de.moritzf.quota.shared.JsonSupport
-import kotlin.time.Clock
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
@@ -14,6 +11,9 @@ import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutionException
+import kotlin.time.Clock
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
 internal class KimiCredentialRefresher(
     private val httpClient: HttpClient,
@@ -21,14 +21,21 @@ internal class KimiCredentialRefresher(
 ) {
     fun refreshIfNeeded(credentials: KimiCredentials): KimiCredentials {
         val expiresAt = credentials.expiresAtEpochSeconds
-        if (credentials.accessToken.isNotBlank() && (expiresAt == null || expiresAt - Clock.System.now().epochSeconds > REFRESH_BUFFER_SECONDS)) {
+        if (
+            credentials.accessToken.isNotBlank() &&
+                (expiresAt == null ||
+                    expiresAt - Clock.System.now().epochSeconds > REFRESH_BUFFER_SECONDS)
+        ) {
             return credentials
         }
         return refresh(credentials) ?: credentials
     }
 
     fun refresh(credentials: KimiCredentials): KimiCredentials? {
-        val refreshToken = credentials.refreshToken.ifBlank { return null }
+        val refreshToken =
+            credentials.refreshToken.ifBlank {
+                return null
+            }
         val existing = inFlight[refreshToken]
         if (existing != null) {
             return awaitRefresh(existing)
@@ -51,38 +58,60 @@ internal class KimiCredentialRefresher(
     }
 
     private fun refreshCredentials(refreshToken: String): KimiCredentials {
-        val form = OAuthUrlCodec.formEncode(
-            "client_id" to CLIENT_ID,
-            "grant_type" to "refresh_token",
-            "refresh_token" to refreshToken,
-        )
-        val builder = HttpRequest.newBuilder()
-            .uri(tokenEndpoint)
-            .timeout(Duration.ofSeconds(30))
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .header("Accept", "application/json")
+        val form =
+            OAuthUrlCodec.formEncode(
+                "client_id" to CLIENT_ID,
+                "grant_type" to "refresh_token",
+                "refresh_token" to refreshToken,
+            )
+        val builder =
+            HttpRequest.newBuilder()
+                .uri(tokenEndpoint)
+                .timeout(Duration.ofSeconds(30))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .header("Accept", "application/json")
         KimiDeviceHeaders.all().forEach { (key, value) -> builder.header(key, value) }
         val request = builder.POST(HttpRequest.BodyPublishers.ofString(form)).build()
         val response = send(request)
         val status = response.statusCode()
         val body = response.body()
         if (status == 401 || status == 403) {
-            throw KimiQuotaException("Session expired. Log in to Kimi again from settings.", status, body)
+            throw KimiQuotaException(
+                "Session expired. Log in to Kimi again from settings.",
+                status,
+                body,
+            )
         }
         if (status !in 200..299) {
-            throw KimiQuotaException("Token refresh failed (HTTP $status). Log in to Kimi again.", status, body)
+            throw KimiQuotaException(
+                "Token refresh failed (HTTP $status). Log in to Kimi again.",
+                status,
+                body,
+            )
         }
-        val dto = try {
-            JsonSupport.json.decodeFromString<KimiTokenResponseDto>(body)
-        } catch (exception: Exception) {
-            throw KimiQuotaException("Could not parse Kimi token response.", status, body, exception)
-        }
-        val accessToken = dto.accessToken?.takeIf { it.isNotBlank() }
-            ?: throw KimiQuotaException("Kimi token refresh did not return an access token.", status, body)
+        val dto =
+            try {
+                JsonSupport.json.decodeFromString<KimiTokenResponseDto>(body)
+            } catch (exception: Exception) {
+                throw KimiQuotaException(
+                    "Could not parse Kimi token response.",
+                    status,
+                    body,
+                    exception,
+                )
+            }
+        val accessToken =
+            dto.accessToken?.takeIf { it.isNotBlank() }
+                ?: throw KimiQuotaException(
+                    "Kimi token refresh did not return an access token.",
+                    status,
+                    body,
+                )
         return KimiCredentials(
             accessToken = accessToken,
             refreshToken = dto.refreshToken ?: refreshToken,
-            expiresAtEpochSeconds = dto.expiresIn?.let { Clock.System.now().epochSeconds + it.toDouble() },
+            expiresAtEpochSeconds =
+                dto.expiresIn?.let { Clock.System.now().epochSeconds + it.toDouble() },
             scope = dto.scope,
             tokenType = dto.tokenType ?: "Bearer",
         )

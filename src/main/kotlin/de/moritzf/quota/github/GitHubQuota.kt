@@ -1,17 +1,17 @@
 package de.moritzf.quota.github
 
 import de.moritzf.quota.shared.ProviderQuota
+import java.time.Duration
 import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
-import java.time.Duration
 
 /**
  * GitHub Copilot subscription quota as reported by `copilot_internal/user`.
  *
- * Paid plans report percentage-based snapshots for premium interactions and chat;
- * the free tier reports absolute chat/completions counters. Windows that the API
- * marks as unlimited are kept for snapshots/API output, but display helpers hide them.
+ * Paid plans report percentage-based snapshots for premium interactions and chat; the free tier
+ * reports absolute chat/completions counters. Windows that the API marks as unlimited are kept for
+ * snapshots/API output, but display helpers hide them.
  */
 @Serializable
 data class GitHubQuota(
@@ -24,16 +24,25 @@ data class GitHubQuota(
     @Transient override var rawJson: String? = null,
 ) : ProviderQuota {
     override fun hasUsageState(): Boolean =
-        subscriptionState != GitHubSubscriptionState.ACTIVE || premiumInteractions != null || chat != null || completions != null
+        subscriptionState != GitHubSubscriptionState.ACTIVE ||
+            premiumInteractions != null ||
+            chat != null ||
+            completions != null
 
     override fun usageFraction(): Double? {
         return limitedWindows().maxOfOrNull { it.usagePercent }?.let { it / 100.0 }
     }
 
     override fun activityWindows(): Map<String, Double> = buildMap {
-        premiumInteractions?.takeUnless { it.unlimited }?.usagePercent?.let { put("premium", it / 100.0) }
+        premiumInteractions
+            ?.takeUnless { it.unlimited }
+            ?.usagePercent
+            ?.let { put("premium", it / 100.0) }
         chat?.takeUnless { it.unlimited }?.usagePercent?.let { put("chat", it / 100.0) }
-        completions?.takeUnless { it.unlimited }?.usagePercent?.let { put("completions", it / 100.0) }
+        completions
+            ?.takeUnless { it.unlimited }
+            ?.usagePercent
+            ?.let { put("completions", it / 100.0) }
     }
 
     /** Windows in display priority order, limited ones first. */
@@ -58,8 +67,7 @@ data class GitHubUsageWindow(
     val resetsAt: Instant? = null,
     val periodDurationMs: Long? = null,
 ) {
-    @Transient
-    val periodDuration: Duration? = periodDurationMs?.let(Duration::ofMillis)
+    @Transient val periodDuration: Duration? = periodDurationMs?.let(Duration::ofMillis)
 }
 
 @Serializable

@@ -4,18 +4,21 @@ object CompletionSanitizer {
     private val FENCE_OPEN = Regex("^```[A-Za-z0-9_+-]*\\s*\\n")
     private val FENCE_CLOSE = Regex("\\n```\\s*$")
     private val WRAPPED_QUOTES = Regex("^([\"'])(.*)\\1$", RegexOption.DOT_MATCHES_ALL)
-    private val LEFTOVER_TOKENS = Regex(
-        "<\\|fim_[a-z]+\\|>|<fim_[a-z]+>|<｜fim▁[^｜]*｜>|\\[PREFIX]|\\[SUFFIX]|\\[MIDDLE]|<PRE>|<SUF>|<MID>|<CURSOR>|</code_before_cursor>|</code_after_cursor>|<code_before_cursor>|<code_after_cursor>",
-    )
-    private val APOLOGY_START = Regex("^(sure|here is|here's|i will|the code)\\b", RegexOption.IGNORE_CASE)
-    internal val INTERNAL_STOPS = listOf(
-        "\n\n\n",
-        "<|fim_",
-        "<fim_",
-        "<CURSOR",
-        "</code_before_cursor>",
-        "</code_after_cursor>",
-    )
+    private val LEFTOVER_TOKENS =
+        Regex(
+            "<\\|fim_[a-z]+\\|>|<fim_[a-z]+>|<｜fim▁[^｜]*｜>|\\[PREFIX]|\\[SUFFIX]|\\[MIDDLE]|<PRE>|<SUF>|<MID>|<CURSOR>|</code_before_cursor>|</code_after_cursor>|<code_before_cursor>|<code_after_cursor>"
+        )
+    private val APOLOGY_START =
+        Regex("^(sure|here is|here's|i will|the code)\\b", RegexOption.IGNORE_CASE)
+    internal val INTERNAL_STOPS =
+        listOf(
+            "\n\n\n",
+            "<|fim_",
+            "<fim_",
+            "<CURSOR",
+            "</code_before_cursor>",
+            "</code_after_cursor>",
+        )
 
     fun sanitize(
         raw: String,
@@ -44,7 +47,11 @@ object CompletionSanitizer {
         return text
     }
 
-    fun looksLikeExplanation(text: String, prefix: String = "", languageHint: String? = null): Boolean {
+    fun looksLikeExplanation(
+        text: String,
+        prefix: String = "",
+        languageHint: String? = null,
+    ): Boolean {
         val trimmed = text.trimStart()
         if (trimmed.isEmpty()) return false
         if (APOLOGY_START.containsMatchIn(trimmed)) return true
@@ -79,7 +86,11 @@ object CompletionSanitizer {
             trimmed.startsWith("<!--")
     }
 
-    fun effectiveStops(prefix: String, clientStops: List<String>, languageHint: String? = null): List<String> {
+    fun effectiveStops(
+        prefix: String,
+        clientStops: List<String>,
+        languageHint: String? = null,
+    ): List<String> {
         val stops = (clientStops + INTERNAL_STOPS).distinct()
         return if (isCommentHole(prefix, languageHint)) {
             stops.filter { it != "\n\n" && it != "\n\n\n" }
@@ -139,7 +150,8 @@ object CompletionSanitizer {
         }
         if (value.startsWith("```") && value.endsWith("```") && value.length > 6) {
             val firstNewline = value.indexOf('\n')
-            val withoutOpen = if (firstNewline > 0) value.substring(firstNewline + 1) else value.drop(3)
+            val withoutOpen =
+                if (firstNewline > 0) value.substring(firstNewline + 1) else value.drop(3)
             return withoutOpen.removeSuffix("```").trimEnd()
         }
         return text
@@ -157,7 +169,13 @@ object CompletionSanitizer {
         val trimmed = prefix.trimEnd()
         if (trimmed.isEmpty()) return false
         val last = trimmed.last()
-        return last == '=' || last == '(' || last == '+' || last == ':' || last == '"' || last == '\'' || last == '`'
+        return last == '=' ||
+            last == '(' ||
+            last == '+' ||
+            last == ':' ||
+            last == '"' ||
+            last == '\'' ||
+            last == '`'
     }
 
     internal fun stripRedundantCommentMarker(
@@ -199,7 +217,8 @@ object CompletionSanitizer {
     internal fun dropCurrentLineOverlap(output: String, prefix: String): String {
         val lastLine = prefix.substringAfterLast('\n')
         val trimmedStart = lastLine.trimStart()
-        if (trimmedStart.length >= 2 && output.startsWith(trimmedStart)) return output.drop(trimmedStart.length)
+        if (trimmedStart.length >= 2 && output.startsWith(trimmedStart))
+            return output.drop(trimmedStart.length)
         val trimmed = lastLine.trim()
         if (trimmed.length >= 2 && output == trimmed) return ""
         return output
@@ -252,7 +271,7 @@ class StreamingCompletionSanitizer(
     private val prefix: String,
     private val suffix: String,
     private val stop: List<String>,
-    private val     holdChars: Int = 64,
+    private val holdChars: Int = 64,
     private val languageHint: String? = null,
 ) {
     private val raw = StringBuilder()
@@ -272,12 +291,17 @@ class StreamingCompletionSanitizer(
     }
 
     private fun flushDelta(): String {
-        val sanitized = CompletionSanitizer.sanitize(raw.toString(), prefix, suffix, stop, languageHint)
-        val stable = if (finished) {
-            sanitized
-        } else {
-            CompletionSanitizer.dropUnstableTail(sanitized, stop + CompletionSanitizer.INTERNAL_STOPS)
-        }
+        val sanitized =
+            CompletionSanitizer.sanitize(raw.toString(), prefix, suffix, stop, languageHint)
+        val stable =
+            if (finished) {
+                sanitized
+            } else {
+                CompletionSanitizer.dropUnstableTail(
+                    sanitized,
+                    stop + CompletionSanitizer.INTERNAL_STOPS,
+                )
+            }
         val already = emitted.toString()
         if (stable.length < already.length || !stable.startsWith(already)) return ""
         val extra = stable.substring(already.length)

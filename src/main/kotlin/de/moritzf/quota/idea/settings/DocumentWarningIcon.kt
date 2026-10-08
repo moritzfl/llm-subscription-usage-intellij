@@ -17,9 +17,8 @@ import javax.swing.JPanel
 
 /** Warning mark beside a document control. Hover or click shows a plain formatted explainer. */
 internal class DocumentWarningIcon : JBLabel(AllIcons.General.Warning) {
-    private val tooltip = HelpTooltip()
-        .setNeverHideOnTimeout(true)
-        .setLocation(HelpTooltip.Alignment.HELP_BUTTON)
+    private val tooltip =
+        HelpTooltip().setNeverHideOnTimeout(true).setLocation(HelpTooltip.Alignment.HELP_BUTTON)
     private var clickPopup: JBPopup? = null
     private var title = ""
     private var body = ""
@@ -27,12 +26,14 @@ internal class DocumentWarningIcon : JBLabel(AllIcons.General.Warning) {
     init {
         isVisible = false
         cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-        addMouseListener(object : MouseAdapter() {
-            override fun mousePressed(event: MouseEvent) {
-                if (!isVisible || event.button != MouseEvent.BUTTON1) return
-                showNow()
+        addMouseListener(
+            object : MouseAdapter() {
+                override fun mousePressed(event: MouseEvent) {
+                    if (!isVisible || event.button != MouseEvent.BUTTON1) return
+                    showNow()
+                }
             }
-        })
+        )
     }
 
     fun setExplainer(title: String, text: String?) {
@@ -75,25 +76,37 @@ internal class DocumentWarningIcon : JBLabel(AllIcons.General.Warning) {
         HelpTooltip.hide(this)
         clickPopup?.cancel()
         val panel = explainerPanel(title, body)
-        clickPopup = JBPopupFactory.getInstance()
-            .createComponentPopupBuilder(panel, panel)
-            .setRequestFocus(false)
-            .setCancelOnClickOutside(true)
-            .createPopup()
-            .also { it.showUnderneathOf(this) }
+        clickPopup =
+            JBPopupFactory.getInstance()
+                .createComponentPopupBuilder(panel, panel)
+                .setRequestFocus(false)
+                .setCancelOnClickOutside(true)
+                .createPopup()
+                .also { it.showUnderneathOf(this) }
     }
 
     private fun description(text: String): HtmlChunk {
-        val paragraphs = text.split("\n\n").filter { it.isNotBlank() }.map { HtmlChunk.text(it).wrapWith(HtmlChunk.p()) }
+        val paragraphs =
+            text
+                .split("\n\n")
+                .filter { it.isNotBlank() }
+                .map { HtmlChunk.text(it).wrapWith(HtmlChunk.p()) }
         return HtmlChunk.fragment(*paragraphs.toTypedArray())
     }
 
     private fun explainerPanel(title: String, body: String): JComponent {
-        val paragraphs = body.split("\n\n").filter { it.isNotBlank() }
-            .joinToString("") { "<p>${QuotaUiUtil.escapeHtml(it)}</p>" }
+        val paragraphs =
+            body
+                .split("\n\n")
+                .filter { it.isNotBlank() }
+                .joinToString("") { "<p>${QuotaUiUtil.escapeHtml(it)}</p>" }
         return JPanel(BorderLayout()).apply {
             border = JBUI.Borders.empty(8, 10)
-            add(JBLabel("<html><body style='width: 420px'><b>${QuotaUiUtil.escapeHtml(title)}</b>$paragraphs</body></html>"))
+            add(
+                JBLabel(
+                    "<html><body style='width: 420px'><b>${QuotaUiUtil.escapeHtml(title)}</b>$paragraphs</body></html>"
+                )
+            )
         }
     }
 }

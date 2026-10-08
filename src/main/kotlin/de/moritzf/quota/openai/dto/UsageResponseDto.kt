@@ -4,14 +4,12 @@ import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.OpenAiExtraRateLimit
 import de.moritzf.quota.openai.RateLimitResetCredits
 import de.moritzf.quota.openai.UsageWindow
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import java.time.Duration
 import java.util.Locale
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
-/**
- * DTO for the top-level usage response payload.
- */
+/** DTO for the top-level usage response payload. */
 @Serializable
 data class UsageResponseDto(
     @SerialName("user_id") val userId: String? = null,
@@ -22,9 +20,12 @@ data class UsageResponseDto(
     @SerialName("plan_type") val planType: String? = null,
     val credits: CreditsDto? = null,
     @SerialName("spend_control") val spendControl: SpendControlDto? = null,
-    @SerialName("rate_limit_reached_type") val rateLimitReachedType: RateLimitReachedTypeDto? = null,
-    @SerialName("rate_limit_reset_credits") val rateLimitResetCredits: RateLimitResetCredits? = null,
-    @SerialName("additional_rate_limits") val additionalRateLimits: List<AdditionalRateLimitDto>? = null,
+    @SerialName("rate_limit_reached_type")
+    val rateLimitReachedType: RateLimitReachedTypeDto? = null,
+    @SerialName("rate_limit_reset_credits")
+    val rateLimitResetCredits: RateLimitResetCredits? = null,
+    @SerialName("additional_rate_limits")
+    val additionalRateLimits: List<AdditionalRateLimitDto>? = null,
 ) {
     fun toQuota(): OpenAiCodexQuota {
         return OpenAiCodexQuota(
@@ -65,10 +66,17 @@ data class AdditionalRateLimitDto(
     fun toExtraRateLimits(usedIds: MutableSet<String>): List<OpenAiExtraRateLimit> {
         val source = firstNonEmpty(limitName, meteredFeature) ?: return emptyList()
         val baseTitle = displayTitle(source)
-        val baseId = slug(baseTitle).takeIf { it.isNotEmpty() } ?: slug(source).takeIf { it.isNotEmpty() } ?: return emptyList()
+        val baseId =
+            slug(baseTitle).takeIf { it.isNotEmpty() }
+                ?: slug(source).takeIf { it.isNotEmpty() }
+                ?: return emptyList()
         return listOfNotNull(
-            rateLimit?.primaryUsageWindow()?.toExtraRateLimit(baseId, baseTitle, "primary", usedIds),
-            rateLimit?.secondaryUsageWindow()?.toExtraRateLimit(baseId, baseTitle, "secondary", usedIds),
+            rateLimit
+                ?.primaryUsageWindow()
+                ?.toExtraRateLimit(baseId, baseTitle, "primary", usedIds),
+            rateLimit
+                ?.secondaryUsageWindow()
+                ?.toExtraRateLimit(baseId, baseTitle, "secondary", usedIds),
         )
     }
 
@@ -89,13 +97,12 @@ data class AdditionalRateLimitDto(
     }
 
     private fun slug(value: String): String {
-        return value.lowercase(Locale.US)
-            .replace(Regex("[^a-z0-9]+"), "-")
-            .trim('-')
+        return value.lowercase(Locale.US).replace(Regex("[^a-z0-9]+"), "-").trim('-')
     }
 
     private fun displayTitle(source: String): String {
-        return source.trim()
+        return source
+            .trim()
             .replace(Regex("(?i)^gpt-[0-9.]+-"), "")
             .replace(Regex("[_-]+"), " ")
             .replace(Regex("\\s+"), " ")
@@ -103,8 +110,7 @@ data class AdditionalRateLimitDto(
             .split(' ')
             .filter { it.isNotBlank() }
             .joinToString(" ") { word -> titleWord(word) }
-            .takeIf { it.isNotBlank() }
-            ?: source
+            .takeIf { it.isNotBlank() } ?: source
     }
 
     private fun titleWord(word: String): String {
@@ -123,18 +129,21 @@ data class AdditionalRateLimitDto(
             duration.isNear(Duration.ofHours(5)) -> "5-hour"
             duration.isNear(Duration.ofDays(7)) -> "Weekly"
             duration.isNear(Duration.ofDays(30)) -> "Monthly"
-            minutes >= 10080L && minutes % 10080L == 0L -> minutes.let { value ->
-                val weeks = value / 10080L
-                if (weeks == 1L) "Weekly" else "$weeks-week"
-            }
-            minutes >= 1440L && minutes % 1440L == 0L -> minutes.let { value ->
-                val days = value / 1440L
-                if (days == 1L) "Daily" else "$days-day"
-            }
-            minutes >= 60L && minutes % 60L == 0L -> minutes.let { value ->
-                val hours = value / 60L
-                if (hours == 1L) "Hourly" else "$hours-hour"
-            }
+            minutes >= 10080L && minutes % 10080L == 0L ->
+                minutes.let { value ->
+                    val weeks = value / 10080L
+                    if (weeks == 1L) "Weekly" else "$weeks-week"
+                }
+            minutes >= 1440L && minutes % 1440L == 0L ->
+                minutes.let { value ->
+                    val days = value / 1440L
+                    if (days == 1L) "Daily" else "$days-day"
+                }
+            minutes >= 60L && minutes % 60L == 0L ->
+                minutes.let { value ->
+                    val hours = value / 60L
+                    if (hours == 1L) "Hourly" else "$hours-hour"
+                }
             minutes > 0L -> if (minutes == 1L) "Minute" else "$minutes-minute"
             else -> titleWord(fallbackWindowName)
         }

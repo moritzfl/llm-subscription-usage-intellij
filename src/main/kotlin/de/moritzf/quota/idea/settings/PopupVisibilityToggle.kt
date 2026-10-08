@@ -27,11 +27,13 @@ internal class PopupVisibilityToggle : JBLabel() {
     init {
         cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
         iconTextGap = JBUI.scale(6)
-        addMouseListener(object : MouseAdapter() {
-            override fun mouseClicked(e: MouseEvent) {
-                isHidden = !isHidden
+        addMouseListener(
+            object : MouseAdapter() {
+                override fun mouseClicked(e: MouseEvent) {
+                    isHidden = !isHidden
+                }
             }
-        })
+        )
         refresh()
     }
 
@@ -66,7 +68,8 @@ private class CrossedOutIcon(private val base: Icon) : Icon {
         try {
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
             g2.color = JBColor.GRAY
-            g2.stroke = BasicStroke(JBUI.scale(2).toFloat(), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+            g2.stroke =
+                BasicStroke(JBUI.scale(2).toFloat(), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
             val inset = JBUI.scale(2)
             g2.drawLine(x + inset, y + iconHeight - inset, x + iconWidth - inset, y + inset)
         } finally {

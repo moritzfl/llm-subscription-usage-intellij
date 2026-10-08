@@ -41,9 +41,15 @@ class RequestLoggerRetentionTest {
             // MAX_LOG_FILES is 2000; create a few over the cap. Index 0 is the oldest and
             // index N-1 the newest, so the lowest indices must be the ones pruned.
             val total = 2003
-            val files = (0 until total).map { index ->
-                writeLog(dir, "entry-$index", daysAgo = 0, ageOffsetMillis = (total - index).toLong())
-            }
+            val files =
+                (0 until total).map { index ->
+                    writeLog(
+                        dir,
+                        "entry-$index",
+                        daysAgo = 0,
+                        ageOffsetMillis = (total - index).toLong(),
+                    )
+                }
 
             RequestLogger(true, dir).pruneOldLogs()
 
@@ -65,27 +71,37 @@ class RequestLoggerRetentionTest {
         val dir = Files.createTempDirectory("request-logger-concurrent")
         try {
             val total = 2003
-            val files = (0 until total).map { index ->
-                writeLog(dir, "entry-$index", daysAgo = 0, ageOffsetMillis = (total - index).toLong())
-            }
+            val files =
+                (0 until total).map { index ->
+                    writeLog(
+                        dir,
+                        "entry-$index",
+                        daysAgo = 0,
+                        ageOffsetMillis = (total - index).toLong(),
+                    )
+                }
             // Start all explicit pruning calls together, in addition to startup pruning.
             val logger = RequestLogger(true, dir)
             Executors.newFixedThreadPool(8).use { executor ->
                 val ready = CountDownLatch(8)
                 val start = CountDownLatch(1)
-                val runs = (0 until 8).map {
-                    executor.submit {
-                        ready.countDown()
-                        check(start.await(30, TimeUnit.SECONDS))
-                        repeat(3) { logger.pruneOldLogs() }
+                val runs =
+                    (0 until 8).map {
+                        executor.submit {
+                            ready.countDown()
+                            check(start.await(30, TimeUnit.SECONDS))
+                            repeat(3) { logger.pruneOldLogs() }
+                        }
                     }
-                }
                 assertTrue(ready.await(30, TimeUnit.SECONDS))
                 start.countDown()
                 runs.forEach { it.get(60, TimeUnit.SECONDS) }
             }
             val survivors = Files.list(dir).use { it.count() }
-            assertTrue(survivors <= 2000L, "concurrent cleanup should trim to the cap, was $survivors")
+            assertTrue(
+                survivors <= 2000L,
+                "concurrent cleanup should trim to the cap, was $survivors",
+            )
             assertTrue(Files.exists(files.last()), "newest log should be retained")
         } finally {
             deleteRecursively(dir)
@@ -108,7 +124,10 @@ class RequestLoggerRetentionTest {
             Files.walkFileTree(
                 dir,
                 object : SimpleFileVisitor<Path>() {
-                    override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                    override fun visitFile(
+                        file: Path,
+                        attrs: BasicFileAttributes,
+                    ): FileVisitResult {
                         Files.deleteIfExists(file)
                         return FileVisitResult.CONTINUE
                     }
@@ -118,7 +137,10 @@ class RequestLoggerRetentionTest {
                         throw exc
                     }
 
-                    override fun postVisitDirectory(directory: Path, exc: IOException?): FileVisitResult {
+                    override fun postVisitDirectory(
+                        directory: Path,
+                        exc: IOException?,
+                    ): FileVisitResult {
                         if (exc is NoSuchFileException) return FileVisitResult.CONTINUE
                         if (exc != null) throw exc
                         Files.deleteIfExists(directory)
@@ -126,7 +148,6 @@ class RequestLoggerRetentionTest {
                     }
                 },
             )
-        } catch (_: NoSuchFileException) {
-        }
+        } catch (_: NoSuchFileException) {}
     }
 }

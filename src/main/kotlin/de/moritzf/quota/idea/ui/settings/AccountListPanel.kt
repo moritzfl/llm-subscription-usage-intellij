@@ -9,8 +9,8 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
-import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.ProviderCatalog
+import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.settings.ProviderAccount
 import de.moritzf.quota.idea.settings.QuotaSettingsState
@@ -34,27 +34,30 @@ internal class AccountListPanel(
     private val pendingAdds = mutableListOf<ProviderAccount>()
     private var persistedIds = emptySet<String>()
     private val model = CollectionListModel<ProviderAccount>()
-    private val list = JBList(model).apply {
-        selectionMode = ListSelectionModel.SINGLE_SELECTION
-        cellRenderer = AccountCellRenderer()
-        emptyText.text = "Add a provider"
-        accessibleContext.accessibleName = "Accounts"
-    }
+    private val list =
+        JBList(model).apply {
+            selectionMode = ListSelectionModel.SINGLE_SELECTION
+            cellRenderer = AccountCellRenderer()
+            emptyText.text = "Add a provider"
+            accessibleContext.accessibleName = "Accounts"
+        }
 
     init {
         isOpaque = false
         preferredSize = Dimension(JBUI.scale(260), JBUI.scale(200))
         minimumSize = Dimension(JBUI.scale(200), JBUI.scale(80))
-        val header = JBLabel("Accounts").apply {
-            foreground = UIUtil.getContextHelpForeground()
-            border = JBUI.Borders.emptyBottom(6)
-        }
-        val decorator = ToolbarDecorator.createDecorator(list)
-            .setAddAction { button -> showTypeChooser(button) }
-            .setRemoveAction { removeSelected() }
-            .setMoveUpAction { moveSelected(-1) }
-            .setMoveDownAction { moveSelected(1) }
-            .createPanel()
+        val header =
+            JBLabel("Accounts").apply {
+                foreground = UIUtil.getContextHelpForeground()
+                border = JBUI.Borders.emptyBottom(6)
+            }
+        val decorator =
+            ToolbarDecorator.createDecorator(list)
+                .setAddAction { button -> showTypeChooser(button) }
+                .setRemoveAction { removeSelected() }
+                .setMoveUpAction { moveSelected(-1) }
+                .setMoveDownAction { moveSelected(1) }
+                .createPanel()
         add(header, BorderLayout.NORTH)
         add(decorator, BorderLayout.CENTER)
         list.addListSelectionListener {
@@ -129,14 +132,17 @@ internal class AccountListPanel(
 
     fun applyPendingChanges(state: QuotaSettingsState) {
         val keptIds = model.items.map { it.id }.toSet()
-        pendingRemovals.filter { it.id !in keptIds }.forEach { account ->
-            runCatching { de.moritzf.quota.idea.settings.AccountSecrets.clear(account) }
-            state.dropAccountData(account.id)
-            runCatching { QuotaUsageService.getInstance().clearUsageData(account.id) }
-        }
+        pendingRemovals
+            .filter { it.id !in keptIds }
+            .forEach { account ->
+                runCatching { de.moritzf.quota.idea.settings.AccountSecrets.clear(account) }
+                state.dropAccountData(account.id)
+                runCatching { QuotaUsageService.getInstance().clearUsageData(account.id) }
+            }
         pendingRemovals.clear()
         pendingAdds.clear()
-        state.accounts = QuotaSettingsState.sanitizeAccounts(model.items.map { it.snapshot() }).toMutableList()
+        state.accounts =
+            QuotaSettingsState.sanitizeAccounts(model.items.map { it.snapshot() }).toMutableList()
         state.syncLegacyAccountFields()
         state.pruneOrphanAccountData()
         runCatching { QuotaUsageService.getInstance().syncAccounts() }
@@ -155,13 +161,16 @@ internal class AccountListPanel(
 
     private fun addAccount(type: QuotaProviderType) {
         val siblings = model.items.filter { it.typeId == type.id }
-        if (!ProviderCatalog.get(type).capabilities.multipleAccounts && siblings.isNotEmpty()) return
+        if (!ProviderCatalog.get(type).capabilities.multipleAccounts && siblings.isNotEmpty())
+            return
         val reuseTypeId = siblings.isEmpty() && pendingRemovals.none { it.id == type.id }
-        val created = ProviderAccount.create(
-            type,
-            QuotaSettingsState.getInstance().suggestedAccountName(type, siblings.map { it.name }),
-            isFirstOfType = reuseTypeId,
-        )
+        val created =
+            ProviderAccount.create(
+                type,
+                QuotaSettingsState.getInstance()
+                    .suggestedAccountName(type, siblings.map { it.name }),
+                isFirstOfType = reuseTypeId,
+            )
         pendingAdds += created
         model.add(created)
         list.setSelectedValue(created, true)
@@ -171,18 +180,19 @@ internal class AccountListPanel(
     private fun removeSelected() {
         val account = list.selectedValue ?: return
         val label = listLabel(account)
-        val confirmed = Messages.showYesNoDialog(
-            this,
-            when (account.providerType()) {
-                QuotaProviderType.ANTIGRAVITY ->
-                    "Remove $label quota tracking? Your AGY CLI login will remain available."
-                QuotaProviderType.AZURE ->
-                    "Remove $label? Your Azure CLI login will remain available."
-                else -> "Remove $label and delete its stored login?"
-            },
-            "Remove account",
-            Messages.getQuestionIcon(),
-        ) == Messages.YES
+        val confirmed =
+            Messages.showYesNoDialog(
+                this,
+                when (account.providerType()) {
+                    QuotaProviderType.ANTIGRAVITY ->
+                        "Remove $label quota tracking? Your AGY CLI login will remain available."
+                    QuotaProviderType.AZURE ->
+                        "Remove $label? Your Azure CLI login will remain available."
+                    else -> "Remove $label and delete its stored login?"
+                },
+                "Remove account",
+                Messages.getQuestionIcon(),
+            ) == Messages.YES
         if (!confirmed) return
         onBeforeRemove()
         pendingRemovals += account
@@ -208,19 +218,22 @@ internal class AccountListPanel(
     }
 
     private fun showTypeChooser(button: AnActionButton) {
-        val types = QuotaProviderType.defaultProviderOrder().filter { type ->
-            ProviderCatalog.get(type).capabilities.multipleAccounts || model.items.none { it.typeId == type.id }
-        }
-        val popup = JBPopupFactory.getInstance()
-            .createPopupChooserBuilder(types)
-            .setTitle("Add provider")
-            .setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
-            .setRenderer(ProviderTypeCellRenderer())
-            .setNamerForFiltering { it.displayName }
-            .setItemChosenCallback { type -> addAccount(type) }
-            .setMovable(false)
-            .setRequestFocus(true)
-            .createPopup()
+        val types =
+            QuotaProviderType.defaultProviderOrder().filter { type ->
+                ProviderCatalog.get(type).capabilities.multipleAccounts ||
+                    model.items.none { it.typeId == type.id }
+            }
+        val popup =
+            JBPopupFactory.getInstance()
+                .createPopupChooserBuilder(types)
+                .setTitle("Add provider")
+                .setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
+                .setRenderer(ProviderTypeCellRenderer())
+                .setNamerForFiltering { it.displayName }
+                .setItemChosenCallback { type -> addAccount(type) }
+                .setMovable(false)
+                .setRequestFocus(true)
+                .createPopup()
         popup.show(button.preferredPopupPoint)
     }
 
@@ -232,7 +245,8 @@ internal class AccountListPanel(
             isSelected: Boolean,
             cellHasFocus: Boolean,
         ): Component {
-            val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+            val component =
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
             val type = value as? QuotaProviderType ?: return component
             text = type.displayName
             icon = scaledListIcon(type, this)
@@ -249,15 +263,19 @@ internal class AccountListPanel(
             isSelected: Boolean,
             cellHasFocus: Boolean,
         ): Component {
-            val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+            val component =
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
             val account = value as? ProviderAccount ?: return component
             val items = (list.model as? CollectionListModel<*>)?.items.orEmpty()
             val type = account.providerType()
-            text = if (type != null && items.count { (it as? ProviderAccount)?.typeId == type.id } > 1) {
-                "${type.displayName} (${account.name})"
-            } else {
-                type?.displayName ?: account.name
-            }
+            text =
+                if (
+                    type != null && items.count { (it as? ProviderAccount)?.typeId == type.id } > 1
+                ) {
+                    "${type.displayName} (${account.name})"
+                } else {
+                    type?.displayName ?: account.name
+                }
             if (type != null) {
                 icon = scaledListIcon(type, this)
             }

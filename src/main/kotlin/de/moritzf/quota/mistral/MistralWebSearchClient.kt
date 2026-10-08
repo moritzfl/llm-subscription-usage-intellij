@@ -2,13 +2,13 @@ package de.moritzf.quota.mistral
 
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
-import kotlinx.serialization.Serializable
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
+import kotlinx.serialization.Serializable
 
 open class MistralWebSearchClient(
     private val httpClient: HttpClient = defaultHttpClient(),
@@ -24,24 +24,41 @@ open class MistralWebSearchClient(
         if (trimmedQuery.isBlank()) {
             throw MistralQuotaException("Search query is required.")
         }
-        val token = apiKey.trim().ifBlank {
-            throw MistralQuotaException("Mistral API key missing. Add a Mistral API key in settings.")
-        }
-        val body = JsonSupport.json.encodeToString(
-            MistralConversationRequestDto(
-                model = model.trim().ifBlank { DEFAULT_MODEL },
-                inputs = trimmedQuery,
-                tools = listOf(MistralBuiltInToolDto(if (premium) "web_search_premium" else "web_search")),
-            ),
-        )
+        val token =
+            apiKey.trim().ifBlank {
+                throw MistralQuotaException(
+                    "Mistral API key missing. Add a Mistral API key in settings."
+                )
+            }
+        val body =
+            JsonSupport.json.encodeToString(
+                MistralConversationRequestDto(
+                    model = model.trim().ifBlank { DEFAULT_MODEL },
+                    inputs = trimmedQuery,
+                    tools =
+                        listOf(
+                            MistralBuiltInToolDto(
+                                if (premium) "web_search_premium" else "web_search"
+                            )
+                        ),
+                )
+            )
         val response = send(postJson(token, conversationsUri, body))
         val status = response.statusCode()
         val responseBody = response.body()
         if (status == 401 || status == 403) {
-            throw MistralQuotaException("Session expired. Check your Mistral API key.", status, responseBody)
+            throw MistralQuotaException(
+                "Session expired. Check your Mistral API key.",
+                status,
+                responseBody,
+            )
         }
         if (status !in 200..299) {
-            throw MistralQuotaException("Mistral web search failed (HTTP $status). Try again later.", status, responseBody)
+            throw MistralQuotaException(
+                "Mistral web search failed (HTTP $status). Try again later.",
+                status,
+                responseBody,
+            )
         }
         return McpJson.providerJsonOrRaw(responseBody)
     }
@@ -50,10 +67,20 @@ open class MistralWebSearchClient(
         return try {
             httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         } catch (exception: IOException) {
-            throw MistralQuotaException("Request failed. Check your connection.", 0, null, exception)
+            throw MistralQuotaException(
+                "Request failed. Check your connection.",
+                0,
+                null,
+                exception,
+            )
         } catch (exception: InterruptedException) {
             Thread.currentThread().interrupt()
-            throw MistralQuotaException("Request failed. Check your connection.", 0, null, exception)
+            throw MistralQuotaException(
+                "Request failed. Check your connection.",
+                0,
+                null,
+                exception,
+            )
         }
     }
 
@@ -63,13 +90,22 @@ open class MistralWebSearchClient(
 
         fun createDefault(): MistralWebSearchClient = MistralWebSearchClient()
 
-        internal fun conversationRequestJson(query: String, model: String, premium: Boolean): String {
+        internal fun conversationRequestJson(
+            query: String,
+            model: String,
+            premium: Boolean,
+        ): String {
             return JsonSupport.json.encodeToString(
                 MistralConversationRequestDto(
                     model = model,
                     inputs = query,
-                    tools = listOf(MistralBuiltInToolDto(if (premium) "web_search_premium" else "web_search")),
-                ),
+                    tools =
+                        listOf(
+                            MistralBuiltInToolDto(
+                                if (premium) "web_search_premium" else "web_search"
+                            )
+                        ),
+                )
             )
         }
 
@@ -96,7 +132,4 @@ internal data class MistralConversationRequestDto(
     val tools: List<MistralBuiltInToolDto>,
 )
 
-@Serializable
-internal data class MistralBuiltInToolDto(
-    val type: String,
-)
+@Serializable internal data class MistralBuiltInToolDto(val type: String)

@@ -76,16 +76,18 @@ private class DocumentTestDialog(
     private val inputSlot = slot()
     private val outputSlot = slot()
     private val detailSlot = slot()
-    private val abortAction = object : DialogWrapperAction("Abort") {
-        override fun doAction(event: ActionEvent) {
-            abort()
+    private val abortAction =
+        object : DialogWrapperAction("Abort") {
+            override fun doAction(event: ActionEvent) {
+                abort()
+            }
         }
-    }
-    private val retryAction = object : DialogWrapperAction("Retry") {
-        override fun doAction(event: ActionEvent) {
-            start()
+    private val retryAction =
+        object : DialogWrapperAction("Retry") {
+            override fun doAction(event: ActionEvent) {
+                start()
+            }
         }
-    }
 
     init {
         title = "Test document"
@@ -102,28 +104,11 @@ private class DocumentTestDialog(
                 cell(modelLabel)
                 cell(latencyLabel)
             }
-            group("Input") {
-                row {
-                    cell(inputSlot)
-                        .resizableColumn()
-                        .align(AlignX.FILL)
-                }
-            }
-            group("Output") {
-                row {
-                    cell(outputSlot)
-                        .resizableColumn()
-                        .align(AlignX.FILL)
-                }
-            }
-            row {
-                cell(detailSlot)
-                    .resizableColumn()
-                    .align(AlignX.FILL)
-            }
-        }.apply {
-            preferredSize = Dimension(JBUI.scale(520), JBUI.scale(360))
+            group("Input") { row { cell(inputSlot).resizableColumn().align(AlignX.FILL) } }
+            group("Output") { row { cell(outputSlot).resizableColumn().align(AlignX.FILL) } }
+            row { cell(detailSlot).resizableColumn().align(AlignX.FILL) }
         }
+            .apply { preferredSize = Dimension(JBUI.scale(520), JBUI.scale(360)) }
     }
 
     override fun createActions(): Array<Action> = arrayOf(abortAction, retryAction, okAction)
@@ -165,23 +150,35 @@ private class DocumentTestDialog(
             onEdt(gen) { showPage(rendered) }
             checkActive(gen)
             val started = System.nanoTime()
-            val warnings = try {
-                PdfDocumentConversion.convert(
-                    provider, pdf, output, includeImages = false,
-                    progress = { _, _, _ -> checkActive(gen) },
-                    model = model,
-                ).warnings
-            } catch (exception: Exception) {
-                if (!isActive(gen) || isCancellation(exception)) throw exception
-                val elapsedMs = (System.nanoTime() - started) / 1_000_000L
-                onEdt(gen) { showFailure(exception.message ?: "Document test failed", page, elapsedMs) }
-                return@runGeneration
-            }
+            val warnings =
+                try {
+                    PdfDocumentConversion.convert(
+                            provider,
+                            pdf,
+                            output,
+                            includeImages = false,
+                            progress = { _, _, _ -> checkActive(gen) },
+                            model = model,
+                        )
+                        .warnings
+                } catch (exception: Exception) {
+                    if (!isActive(gen) || isCancellation(exception)) throw exception
+                    val elapsedMs = (System.nanoTime() - started) / 1_000_000L
+                    onEdt(gen) {
+                        showFailure(exception.message ?: "Document test failed", page, elapsedMs)
+                    }
+                    return@runGeneration
+                }
             checkActive(gen)
             val elapsedMs = (System.nanoTime() - started) / 1_000_000L
             val markdown = Files.readString(output)
             onEdt(gen) {
-                showSuccess(rendered, markdown, warnings.joinToString("\n").ifBlank { null }, elapsedMs)
+                showSuccess(
+                    rendered,
+                    markdown,
+                    warnings.joinToString("\n").ifBlank { null },
+                    elapsedMs,
+                )
             }
         } catch (exception: ProcessCanceledException) {
             if (isActive(gen)) throw exception
@@ -212,7 +209,12 @@ private class DocumentTestDialog(
         replace(inputSlot, pagePreview(image))
     }
 
-    private fun showSuccess(page: BufferedImage, markdown: String, detail: String?, elapsedMs: Long) {
+    private fun showSuccess(
+        page: BufferedImage,
+        markdown: String,
+        detail: String?,
+        elapsedMs: Long,
+    ) {
         statusIcon.icon = AllIcons.General.InspectionsOK
         statusLabel.text = "Converted"
         showLatency(elapsedMs)
@@ -258,7 +260,8 @@ private class DocumentTestDialog(
     }
 
     private fun checkActive(gen: Int) {
-        if (!isActive(gen) || Thread.currentThread().isInterrupted) throw CancellationException("Aborted")
+        if (!isActive(gen) || Thread.currentThread().isInterrupted)
+            throw CancellationException("Aborted")
     }
 
     private fun isActive(gen: Int) = generation.get() == gen && !isDisposed
@@ -266,7 +269,11 @@ private class DocumentTestDialog(
     private fun isCancellation(exception: Throwable): Boolean {
         var current: Throwable? = exception
         while (current != null) {
-            if (current is CancellationException || current is InterruptedException || current is ProcessCanceledException) {
+            if (
+                current is CancellationException ||
+                    current is InterruptedException ||
+                    current is ProcessCanceledException
+            ) {
                 return true
             }
             current = current.cause
@@ -284,24 +291,33 @@ private class DocumentTestDialog(
     private fun pagePreview(image: BufferedImage): JComponent {
         val maxWidth = JBUI.scale(480)
         val scale = minOf(1.0, maxWidth.toDouble() / image.width)
-        val icon = ImageIcon(image.getScaledInstance((image.width * scale).toInt(), (image.height * scale).toInt(), Image.SCALE_SMOOTH))
+        val icon =
+            ImageIcon(
+                image.getScaledInstance(
+                    (image.width * scale).toInt(),
+                    (image.height * scale).toInt(),
+                    Image.SCALE_SMOOTH,
+                )
+            )
         return JBScrollPane(JBLabel(icon)).apply {
             border = JBUI.Borders.customLine(JBColor.border(), 1)
             horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
-            preferredSize = Dimension(maxWidth, icon.iconHeight.coerceAtMost(JBUI.scale(280)) + JBUI.scale(4))
+            preferredSize =
+                Dimension(maxWidth, icon.iconHeight.coerceAtMost(JBUI.scale(280)) + JBUI.scale(4))
         }
     }
 
     private fun codeBlock(text: String): JComponent {
         val scheme = EditorColorsManager.getInstance().globalScheme
-        val area = JBTextArea(text).apply {
-            isEditable = false
-            lineWrap = true
-            wrapStyleWord = true
-            font = Font(scheme.editorFontName, Font.PLAIN, scheme.editorFontSize)
-            background = UIUtil.getTextFieldBackground()
-            border = JBUI.Borders.empty(8)
-        }
+        val area =
+            JBTextArea(text).apply {
+                isEditable = false
+                lineWrap = true
+                wrapStyleWord = true
+                font = Font(scheme.editorFontName, Font.PLAIN, scheme.editorFontSize)
+                background = UIUtil.getTextFieldBackground()
+                border = JBUI.Borders.empty(8)
+            }
         return JBScrollPane(area).apply {
             border = JBUI.Borders.customLine(JBColor.border(), 1)
             horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
@@ -309,7 +325,8 @@ private class DocumentTestDialog(
         }
     }
 
-    private fun note(text: String) = JBLabel(text).apply { foreground = UIUtil.getContextHelpForeground() }
+    private fun note(text: String) =
+        JBLabel(text).apply { foreground = UIUtil.getContextHelpForeground() }
 
     private fun replace(slot: JPanel, component: JComponent) {
         slot.removeAll()

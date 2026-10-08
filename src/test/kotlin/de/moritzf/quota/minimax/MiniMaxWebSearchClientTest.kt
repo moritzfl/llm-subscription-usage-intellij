@@ -21,65 +21,88 @@ class MiniMaxWebSearchClientTest {
     @Test
     fun postsWebSearchRequestWithApiKeyAndOptions() {
         TestMiniMaxServer(
-            responseBody = """
-                {
-                  "organic": [
+                responseBody =
+                    """
                     {
-                      "title": "First",
-                      "link": "https://example.test/first",
-                      "snippet": "First result",
-                      "date": "2026-06-13"
-                    },
-                    {
-                      "title": "Second",
-                      "link": "https://example.test/second",
-                      "snippet": "Second result"
+                      "organic": [
+                        {
+                          "title": "First",
+                          "link": "https://example.test/first",
+                          "snippet": "First result",
+                          "date": "2026-06-13"
+                        },
+                        {
+                          "title": "Second",
+                          "link": "https://example.test/second",
+                          "snippet": "Second result"
+                        }
+                      ],
+                      "related_searches": [{"query":"Kimi docs"}],
+                      "base_resp": {"status_code": 0, "status_msg": ""}
                     }
-                  ],
-                  "related_searches": [{"query":"Kimi docs"}],
-                  "base_resp": {"status_code": 0, "status_msg": ""}
-                }
-            """.trimIndent(),
-        ).use { server ->
-            val client = newClient(server)
+                    """
+                        .trimIndent()
+            )
+            .use { server ->
+                val client = newClient(server)
 
-            val result = client.webSearch("minimax-key", MiniMaxRegion.GLOBAL, "  Kimi Code docs  ", limit = 1)
+                val result =
+                    client.webSearch(
+                        "minimax-key",
+                        MiniMaxRegion.GLOBAL,
+                        "  Kimi Code docs  ",
+                        limit = 1,
+                    )
 
-            val response = parseObject(result)
-            val results = response["organic"]!!.jsonArray
-            assertEquals(2, results.size)
-            val item = results[0].jsonObject
-            assertEquals("First", item["title"]!!.jsonPrimitive.content)
-            assertEquals("https://example.test/first", item["link"]!!.jsonPrimitive.content)
-            assertEquals("First result", item["snippet"]!!.jsonPrimitive.content)
-            assertEquals("2026-06-13", item["date"]!!.jsonPrimitive.content)
-            assertEquals("Kimi docs", response["related_searches"]!!.jsonArray[0].jsonObject["query"]!!.jsonPrimitive.content)
+                val response = parseObject(result)
+                val results = response["organic"]!!.jsonArray
+                assertEquals(2, results.size)
+                val item = results[0].jsonObject
+                assertEquals("First", item["title"]!!.jsonPrimitive.content)
+                assertEquals("https://example.test/first", item["link"]!!.jsonPrimitive.content)
+                assertEquals("First result", item["snippet"]!!.jsonPrimitive.content)
+                assertEquals("2026-06-13", item["date"]!!.jsonPrimitive.content)
+                assertEquals(
+                    "Kimi docs",
+                    response["related_searches"]!!
+                        .jsonArray[0]
+                        .jsonObject["query"]!!
+                        .jsonPrimitive
+                        .content,
+                )
 
-            val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
-            assertEquals("POST", request.method)
-            assertEquals("/v1/coding_plan/search", request.path)
-            assertEquals("Bearer minimax-key", request.firstHeader("Authorization"))
-            assertEquals("Minimax-MCP", request.firstHeader("MM-API-Source"))
-            assertEquals("Kimi Code docs", parseObject(request.body)["q"]!!.jsonPrimitive.content)
-        }
+                val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("POST", request.method)
+                assertEquals("/v1/coding_plan/search", request.path)
+                assertEquals("Bearer minimax-key", request.firstHeader("Authorization"))
+                assertEquals("Minimax-MCP", request.firstHeader("MM-API-Source"))
+                assertEquals(
+                    "Kimi Code docs",
+                    parseObject(request.body)["q"]!!.jsonPrimitive.content,
+                )
+            }
     }
 
     @Test
     fun reportsApiErrorsFromBaseResponse() {
         TestMiniMaxServer(
-            responseBody = """
-                {"base_resp":{"status_code":1004,"status_msg":"invalid api key"}}
-            """.trimIndent(),
-        ).use { server ->
-            val client = newClient(server)
+                responseBody =
+                    """
+                    {"base_resp":{"status_code":1004,"status_msg":"invalid api key"}}
+                    """
+                        .trimIndent()
+            )
+            .use { server ->
+                val client = newClient(server)
 
-            val exception = assertFailsWith<MiniMaxQuotaException> {
-                client.webSearch("minimax-key", MiniMaxRegion.GLOBAL, "Kimi Code docs")
+                val exception =
+                    assertFailsWith<MiniMaxQuotaException> {
+                        client.webSearch("minimax-key", MiniMaxRegion.GLOBAL, "Kimi Code docs")
+                    }
+
+                assertEquals("MiniMax web search failed: invalid api key", exception.message)
+                assertEquals(1004, exception.statusCode)
             }
-
-            assertEquals("MiniMax web search failed: invalid api key", exception.message)
-            assertEquals(1004, exception.statusCode)
-        }
     }
 
     @Test
@@ -87,9 +110,10 @@ class MiniMaxWebSearchClientTest {
         TestMiniMaxServer().use { server ->
             val client = newClient(server)
 
-            val exception = assertFailsWith<MiniMaxQuotaException> {
-                client.webSearch("minimax-key", MiniMaxRegion.GLOBAL, "   ")
-            }
+            val exception =
+                assertFailsWith<MiniMaxQuotaException> {
+                    client.webSearch("minimax-key", MiniMaxRegion.GLOBAL, "   ")
+                }
 
             assertEquals("Search query is required.", exception.message)
             assertNull(server.requests.poll(500, TimeUnit.MILLISECONDS))
@@ -109,18 +133,20 @@ class MiniMaxWebSearchClientTest {
         private val responseStatus: Int = 200,
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
 
         init {
             server.createContext("/") { exchange ->
                 val body = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
-                requests += CapturedRequest(
-                    method = exchange.requestMethod,
-                    path = exchange.requestURI.rawPath,
-                    headers = exchange.requestHeaders.mapValues { it.value.toList() },
-                    body = body,
-                )
+                requests +=
+                    CapturedRequest(
+                        method = exchange.requestMethod,
+                        path = exchange.requestURI.rawPath,
+                        headers = exchange.requestHeaders.mapValues { it.value.toList() },
+                        body = body,
+                    )
                 val response = responseBody.toByteArray(Charsets.UTF_8)
                 exchange.responseHeaders.set("Content-Type", "application/json")
                 exchange.sendResponseHeaders(responseStatus, response.size.toLong())
@@ -142,7 +168,10 @@ class MiniMaxWebSearchClientTest {
         val body: String,
     ) {
         fun firstHeader(name: String): String? {
-            return headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }?.value?.firstOrNull()
+            return headers.entries
+                .firstOrNull { it.key.equals(name, ignoreCase = true) }
+                ?.value
+                ?.firstOrNull()
         }
     }
 

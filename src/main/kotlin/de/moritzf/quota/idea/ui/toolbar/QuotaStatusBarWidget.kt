@@ -1,6 +1,9 @@
 package de.moritzf.quota.idea.ui.toolbar
 
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.wm.StatusBar
+import com.intellij.util.messages.MessageBusConnection
 import de.moritzf.quota.idea.common.QuotaUsageListener
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.settings.QuotaSettingsListener
@@ -9,28 +12,31 @@ import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorComponent
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorLocation
 import de.moritzf.quota.idea.ui.popup.QuotaPopupLocation
 import de.moritzf.quota.idea.ui.popup.QuotaPopupSupport
-import com.intellij.openapi.project.Project
-import com.intellij.openapi.wm.StatusBar
-import com.intellij.util.messages.MessageBusConnection
 import javax.swing.JComponent
 
-/**
- * Status bar widget that displays the current quota state and shows a detailed popup.
- */
+/** Status bar widget that displays the current quota state and shows a detailed popup. */
 class QuotaStatusBarWidget(private val project: Project) : CustomComponentStatusBarWidget() {
     private val connection: MessageBusConnection
-    private val widgetComponent = QuotaIndicatorComponent(horizontalPadding = 4) { component, _ ->
-        QuotaPopupSupport.showPopup(project, component, QuotaPopupLocation.ABOVE)
-    }
+    private val widgetComponent =
+        QuotaIndicatorComponent(horizontalPadding = 4) { component, _ ->
+            QuotaPopupSupport.showPopup(project, component, QuotaPopupLocation.ABOVE)
+        }
     private var statusBar: StatusBar? = null
 
     init {
         connection = ApplicationManager.getApplication().messageBus.connect(this)
-        connection.subscribe(QuotaUsageListener.TOPIC, object : QuotaUsageListener {
-            override fun onQuotaUpdated(type: de.moritzf.quota.idea.common.QuotaProviderType, quota: de.moritzf.quota.shared.ProviderQuota?, error: String?) {
-                updateWidget()
-            }
-        })
+        connection.subscribe(
+            QuotaUsageListener.TOPIC,
+            object : QuotaUsageListener {
+                override fun onQuotaUpdated(
+                    type: de.moritzf.quota.idea.common.QuotaProviderType,
+                    quota: de.moritzf.quota.shared.ProviderQuota?,
+                    error: String?,
+                ) {
+                    updateWidget()
+                }
+            },
+        )
         connection.subscribe(QuotaSettingsListener.TOPIC, QuotaSettingsListener { updateWidget() })
         updateWidget()
     }
@@ -49,7 +55,8 @@ class QuotaStatusBarWidget(private val project: Project) : CustomComponentStatus
     }
 
     private fun updateWidget() {
-        val inStatusBar = QuotaSettingsState.getInstance().location() == QuotaIndicatorLocation.STATUS_BAR
+        val inStatusBar =
+            QuotaSettingsState.getInstance().location() == QuotaIndicatorLocation.STATUS_BAR
         widgetComponent.isVisible = inStatusBar
         if (inStatusBar) {
             widgetComponent.updateUsage(

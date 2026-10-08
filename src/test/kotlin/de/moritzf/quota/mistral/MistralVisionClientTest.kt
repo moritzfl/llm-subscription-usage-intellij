@@ -23,12 +23,13 @@ class MistralVisionClientTest {
         TestUpstream("""{"choices":[{"message":{"content":"A red square."}}]}""").use { upstream ->
             val client = MistralVisionClient(chatCompletionsUri = upstream.baseUri)
 
-            val answer = client.ask(
-                "mistral-key",
-                imageUrl = "https://example.com/a.png",
-                prompt = "What is shown?",
-                model = "pixtral-large-latest",
-            )
+            val answer =
+                client.ask(
+                    "mistral-key",
+                    imageUrl = "https://example.com/a.png",
+                    prompt = "What is shown?",
+                    model = "pixtral-large-latest",
+                )
 
             assertEquals("A red square.", answer)
             val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
@@ -50,19 +51,29 @@ class MistralVisionClientTest {
     fun rejectsBadApiKeyWithTypedException() {
         TestUpstream("""{"error":"bad key"}""", status = 401).use { upstream ->
             val client = MistralVisionClient(chatCompletionsUri = upstream.baseUri)
-            val exception = assertFailsWith<MistralQuotaException> {
-                client.ask("bad", imageUrl = "https://example.com/a.png", prompt = "?", model = "pixtral-large-latest")
-            }
+            val exception =
+                assertFailsWith<MistralQuotaException> {
+                    client.ask(
+                        "bad",
+                        imageUrl = "https://example.com/a.png",
+                        prompt = "?",
+                        model = "pixtral-large-latest",
+                    )
+                }
             assertTrue(exception.message!!.contains("API key"))
         }
     }
 
     @Test
     fun missingImageFailsBeforeRequest() {
-        val client = MistralVisionClient(chatCompletionsUri = URI.create("http://127.0.0.1:1/v1/chat/completions"))
-        val exception = assertFailsWith<MistralQuotaException> {
-            client.ask("key", prompt = "?", model = "pixtral-large-latest")
-        }
+        val client =
+            MistralVisionClient(
+                chatCompletionsUri = URI.create("http://127.0.0.1:1/v1/chat/completions")
+            )
+        val exception =
+            assertFailsWith<MistralQuotaException> {
+                client.ask("key", prompt = "?", model = "pixtral-large-latest")
+            }
         assertTrue(exception.message!!.contains("image"))
     }
 
@@ -71,17 +82,19 @@ class MistralVisionClientTest {
         private val status: Int = 200,
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
 
         init {
             server.createContext("/") { exchange ->
                 val body = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
-                requests += CapturedRequest(
-                    exchange.requestURI.rawPath,
-                    body,
-                    exchange.requestHeaders.getFirst("Authorization").orEmpty(),
-                )
+                requests +=
+                    CapturedRequest(
+                        exchange.requestURI.rawPath,
+                        body,
+                        exchange.requestHeaders.getFirst("Authorization").orEmpty(),
+                    )
                 val payload = responseBody.toByteArray()
                 exchange.sendResponseHeaders(status, payload.size.toLong())
                 exchange.responseBody.use { it.write(payload) }
@@ -95,5 +108,9 @@ class MistralVisionClientTest {
         }
     }
 
-    private data class CapturedRequest(val path: String, val body: String, val authorization: String)
+    private data class CapturedRequest(
+        val path: String,
+        val body: String,
+        val authorization: String,
+    )
 }

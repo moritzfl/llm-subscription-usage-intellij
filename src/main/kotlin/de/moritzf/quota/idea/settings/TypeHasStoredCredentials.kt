@@ -21,8 +21,7 @@ internal object TypeHasStoredCredentials {
             QuotaProviderType.AZURE -> false // Opt-in only; Azure CLI owns its credentials.
             QuotaProviderType.CLAUDE,
             QuotaProviderType.OPEN_AI,
-            QuotaProviderType.SUPERGROK,
-            -> hasOAuth(type)
+            QuotaProviderType.SUPERGROK -> hasOAuth(type)
             QuotaProviderType.CURSOR ->
                 !CursorCredentialsStore.getInstance().loadBlocking()?.accessToken.isNullOrBlank()
             QuotaProviderType.GITHUB ->
@@ -38,8 +37,7 @@ internal object TypeHasStoredCredentials {
                 !OllamaApiKeyStore.getInstance().loadBlocking().isNullOrBlank()
             QuotaProviderType.OPEN_CODE ->
                 OpenCodeAuthService.getInstance().loadBlocking(type.id) != null
-            QuotaProviderType.ZAI ->
-                !ZaiApiKeyStore.getInstance().loadBlocking().isNullOrBlank()
+            QuotaProviderType.ZAI -> !ZaiApiKeyStore.getInstance().loadBlocking().isNullOrBlank()
         }
     }
 

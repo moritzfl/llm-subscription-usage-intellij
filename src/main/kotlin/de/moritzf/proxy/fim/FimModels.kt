@@ -5,7 +5,8 @@ import de.moritzf.proxy.subscription.SubscriptionProxyRoute
 
 object FimModels {
     fun isEligible(model: SubscriptionProxyModel): Boolean {
-        if (model.supportedRoutes.all { it == SubscriptionProxyRoute.ANTHROPIC_MESSAGES }) return false
+        if (model.supportedRoutes.all { it == SubscriptionProxyRoute.ANTHROPIC_MESSAGES })
+            return false
         val blob = "${model.localId} ${model.upstreamId} ${model.providerId}"
         if (blob.contains("claude", ignoreCase = true)) return false
         if (blob.contains("cursor", ignoreCase = true)) return false
@@ -43,7 +44,11 @@ object FimModels {
         return fimReasoningEffort(model.localId, model.upstreamId, model.providerId)
     }
 
-    fun fimReasoningEffort(localId: String, upstreamId: String = "", providerId: String = ""): String? {
+    fun fimReasoningEffort(
+        localId: String,
+        upstreamId: String = "",
+        providerId: String = "",
+    ): String? {
         val blob = "$localId $upstreamId".lowercase()
         if ("non-reasoning" in blob || "nonreasoning" in blob) return null
         // DeepSeek V4 thinks by default and spends the FIM token cap before any insert.
@@ -62,19 +67,23 @@ object FimModels {
     private fun acceptsNoReasoning(blob: String): Boolean {
         return blob.split(Regex("\\s+")).any { id ->
             val bare = id.substringAfterLast('/').substringBefore('(').trim().removePrefix("oa-")
-            bare == "gpt-6.1-sol" || bare.startsWith("gpt-6.1-sol-") ||
-                bare == "gpt-6-sol" || bare.startsWith("gpt-6-sol-") ||
-                bare == "gpt-6-luna" || bare.startsWith("gpt-6-luna-")
+            bare == "gpt-6.1-sol" ||
+                bare.startsWith("gpt-6.1-sol-") ||
+                bare == "gpt-6-sol" ||
+                bare.startsWith("gpt-6-sol-") ||
+                bare == "gpt-6-luna" ||
+                bare.startsWith("gpt-6-luna-")
         }
     }
 
-    private val NON_FIM_MARKERS = listOf(
-        "embed",
-        "ocr",
-        "moderation",
-        "tts",
-        "transcribe",
-        "voxtral",
-        "imagine",
-    )
+    private val NON_FIM_MARKERS =
+        listOf(
+            "embed",
+            "ocr",
+            "moderation",
+            "tts",
+            "transcribe",
+            "voxtral",
+            "imagine",
+        )
 }

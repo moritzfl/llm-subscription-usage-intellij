@@ -70,7 +70,8 @@ internal object OpenAiMedia {
 
     fun upstreamModel(model: String): String {
         val id = model.trim()
-        val prefix = listOf("sg-", "mm-", "za-", "mi-", "oa-").firstOrNull { id.startsWith(it) } ?: return id
+        val prefix =
+            listOf("sg-", "mm-", "za-", "mi-", "oa-").firstOrNull { id.startsWith(it) } ?: return id
         return id.removePrefix(prefix).ifBlank { id }
     }
 
@@ -87,18 +88,20 @@ internal object OpenAiMedia {
             put("created", JsonPrimitive(created))
             put(
                 "data",
-                buildJsonArray {
-                    add(buildJsonObject { put("url", JsonPrimitive(url)) })
-                },
+                buildJsonArray { add(buildJsonObject { put("url", JsonPrimitive(url)) }) },
             )
         }
     }
 
     fun imageUrlFromProviderJson(body: String): String? {
-        HttpJsonUrls.first(body)?.let { return it }
-        val root = runCatching {
-            de.moritzf.quota.shared.JsonSupport.json.parseToJsonElement(body)
-        }.getOrNull() as? JsonObject ?: return null
+        HttpJsonUrls.first(body)?.let {
+            return it
+        }
+        val root =
+            runCatching {
+                de.moritzf.quota.shared.JsonSupport.json.parseToJsonElement(body)
+            }
+                .getOrNull() as? JsonObject ?: return null
         return (root["url"] as? JsonPrimitive)?.contentOrNull
     }
 
@@ -116,15 +119,16 @@ internal object OpenAiMedia {
         return body["response_format"]?.jsonPrimitive?.contentOrNull
     }
 
-    private val NON_CHAT_MARKERS = listOf(
-        "embed",
-        "tts",
-        "gpt-live",
-        "transcribe",
-        "voxtral",
-        "ocr",
-        "moderation",
-        "imagine",
-        "asr",
-    )
+    private val NON_CHAT_MARKERS =
+        listOf(
+            "embed",
+            "tts",
+            "gpt-live",
+            "transcribe",
+            "voxtral",
+            "ocr",
+            "moderation",
+            "imagine",
+            "asr",
+        )
 }

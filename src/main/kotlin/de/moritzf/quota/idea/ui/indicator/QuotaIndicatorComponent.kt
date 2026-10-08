@@ -1,37 +1,37 @@
 package de.moritzf.quota.idea.ui.indicator
 
 import com.intellij.ui.components.JBLabel
-import de.moritzf.quota.idea.settings.QuotaDisplayMode
-import de.moritzf.quota.idea.ui.QuotaUiUtil
 import com.intellij.util.IconUtil
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
+import de.moritzf.quota.claude.ClaudeQuota
+import de.moritzf.quota.cursor.CursorQuota
+import de.moritzf.quota.github.GitHubQuota
+import de.moritzf.quota.github.GitHubSubscriptionState
+import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.idea.settings.QuotaDisplayMode
+import de.moritzf.quota.idea.ui.QuotaUiUtil
+import de.moritzf.quota.kimi.KimiQuota
+import de.moritzf.quota.minimax.MiniMaxQuota
+import de.moritzf.quota.mistral.MistralQuota
 import de.moritzf.quota.openai.OpenAiCodexQuota
+import de.moritzf.quota.openai.UsageWindow
 import de.moritzf.quota.openai.isAssignedCreditsQuota
 import de.moritzf.quota.openai.isCreditsDepleted
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.opencode.OpenCodeUsageWindow
-import de.moritzf.quota.openai.UsageWindow
-import de.moritzf.quota.zai.ZaiQuota
-import de.moritzf.quota.cursor.CursorQuota
-import de.moritzf.quota.minimax.MiniMaxQuota
-import de.moritzf.quota.mistral.MistralQuota
-import de.moritzf.quota.github.GitHubQuota
-import de.moritzf.quota.github.GitHubSubscriptionState
-import de.moritzf.quota.claude.ClaudeQuota
-import de.moritzf.quota.kimi.KimiQuota
-import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.supergrok.SuperGrokQuota
+import de.moritzf.quota.zai.ZaiQuota
 import java.awt.Component
 import java.awt.Cursor
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.util.Locale
-import kotlin.time.Instant
 import javax.swing.Icon
 import javax.swing.JComponent
 import javax.swing.SwingConstants
 import kotlin.math.roundToInt
+import kotlin.time.Instant
 
 internal enum class IndicatorQuotaKind {
     CODEX,
@@ -88,12 +88,14 @@ internal class QuotaIndicatorComponent(
     private val statusIconLabel = createStatusIconLabel()
     private val sourceIconLabel = createSourceIconLabel()
     private val percentageComponent = QuotaPercentageIndicator()
-    private var data: QuotaIndicatorData = QuotaIndicatorData(QuotaProviderType.OPEN_AI, quota = null, error = null)
-    private val clickListener = object : MouseAdapter() {
-        override fun mouseClicked(event: MouseEvent) {
-            onClick(this@QuotaIndicatorComponent, data)
+    private var data: QuotaIndicatorData =
+        QuotaIndicatorData(QuotaProviderType.OPEN_AI, quota = null, error = null)
+    private val clickListener =
+        object : MouseAdapter() {
+            override fun mouseClicked(event: MouseEvent) {
+                onClick(this@QuotaIndicatorComponent, data)
+            }
         }
-    }
 
     init {
         isOpaque = false
@@ -111,7 +113,8 @@ internal class QuotaIndicatorComponent(
 
     fun updateUsage(data: QuotaIndicatorData, displayMode: QuotaDisplayMode) {
         this.data = data
-        val tooltip = ProviderUiRegistry.forType(data.type).tooltip(data.quota, data.error, data.accountId)
+        val tooltip =
+            ProviderUiRegistry.forType(data.type).tooltip(data.quota, data.error, data.accountId)
         toolTipText = tooltip
         statusIconLabel.toolTipText = tooltip
         sourceIconLabel.toolTipText = tooltip
@@ -149,7 +152,10 @@ internal class QuotaIndicatorComponent(
         addToCenter(component)
     }
 
-    private fun showPercentageContent(iconLabel: JComponent, percentageComponent: QuotaPercentageIndicator) {
+    private fun showPercentageContent(
+        iconLabel: JComponent,
+        percentageComponent: QuotaPercentageIndicator,
+    ) {
         removeAll()
         val wrapper = BorderLayoutPanel().apply { isOpaque = false }
         wrapper.addToLeft(iconLabel)
@@ -181,7 +187,9 @@ internal class QuotaIndicatorComponent(
     }
 
     private fun cakeIcon(): Icon {
-        val percent = ProviderUiRegistry.forType(data.type).cakePercent(data.quota, data.error, data.accountId)
+        val percent =
+            ProviderUiRegistry.forType(data.type)
+                .cakePercent(data.quota, data.error, data.accountId)
         if (percent < 0) {
             return QuotaIcons.CAKE_UNKNOWN
         }
@@ -242,7 +250,8 @@ internal class QuotaIndicatorComponent(
     }
 
     private fun displayPercent(): Int {
-        return ProviderUiRegistry.forType(data.type).displayPercent(data.quota, data.error, data.accountId)
+        return ProviderUiRegistry.forType(data.type)
+            .displayPercent(data.quota, data.error, data.accountId)
     }
 
     private fun updatePercentageDisplay() {
@@ -267,7 +276,10 @@ internal class QuotaIndicatorComponent(
     }
 }
 
-internal fun ollamaBarDisplayText(quota: de.moritzf.quota.ollama.OllamaQuota?, error: String?): String {
+internal fun ollamaBarDisplayText(
+    quota: de.moritzf.quota.ollama.OllamaQuota?,
+    error: String?,
+): String {
     if (error != null) return "error"
     if (quota == null) return "loading..."
 
@@ -291,7 +303,10 @@ internal fun miniMaxIndicatorState(quota: MiniMaxQuota): MiniMaxIndicatorState? 
     if (exhausted.isNotEmpty()) {
         return MiniMaxIndicatorState(
             percent = 100,
-            resetsAt = exhausted.maxByOrNull { it.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE }?.resetsAt,
+            resetsAt =
+                exhausted
+                    .maxByOrNull { it.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE }
+                    ?.resetsAt,
         )
     }
     val window = windows.first()
@@ -304,13 +319,20 @@ internal fun miniMaxIndicatorState(quota: MiniMaxQuota): MiniMaxIndicatorState? 
 internal fun mistralBarDisplayText(quota: MistralQuota?, error: String?): String {
     if (error != null) return "error"
     if (quota == null) return "loading..."
-    val usage = mistralDisplayWindow(quota)
-        ?: return quota.apiUsage?.let(::mistralApiUsageBarText) ?: "no data"
+    val usage =
+        mistralDisplayWindow(quota)
+            ?: return quota.apiUsage?.let(::mistralApiUsageBarText) ?: "no data"
     val percent = clampPercent(usage.usagePercent.roundToInt())
     if (percent == 0 && quota.includedApiUsage == null) {
-        quota.apiUsage?.takeIf { it.hasAnyUsage() }?.let { return mistralApiUsageBarText(it) }
+        quota.apiUsage
+            ?.takeIf { it.hasAnyUsage() }
+            ?.let {
+                return mistralApiUsageBarText(it)
+            }
     }
-    val reset = if (isMistralPerMinuteWindow(usage)) null else QuotaUiUtil.formatResetCompact(usage.resetsAt)
+    val reset =
+        if (isMistralPerMinuteWindow(usage)) null
+        else QuotaUiUtil.formatResetCompact(usage.resetsAt)
     val text = "$percent%"
     return if (reset != null) "$text • $reset" else text
 }
@@ -322,12 +344,16 @@ internal fun mistralApiUsageBarText(usage: de.moritzf.quota.mistral.MistralApiUs
     return QuotaUiUtil.formatCompactCount(usage.tokens) + " tok"
 }
 
-internal fun isMistralPerMinuteWindow(window: de.moritzf.quota.mistral.MistralUsageWindow): Boolean {
+internal fun isMistralPerMinuteWindow(
+    window: de.moritzf.quota.mistral.MistralUsageWindow
+): Boolean {
     val durationMs = window.periodDurationMs ?: return false
     return durationMs in 1..60_000L
 }
 
-internal fun mistralDisplayWindow(quota: MistralQuota): de.moritzf.quota.mistral.MistralUsageWindow? {
+internal fun mistralDisplayWindow(
+    quota: MistralQuota
+): de.moritzf.quota.mistral.MistralUsageWindow? {
     return quota.displayWindow()
 }
 
@@ -360,7 +386,9 @@ internal fun kimiDisplayWindow(quota: KimiQuota): de.moritzf.quota.kimi.KimiUsag
 internal fun gitHubBarDisplayText(quota: GitHubQuota?, error: String?): String {
     if (error != null) return "error"
     if (quota == null) return "loading..."
-    githubInactiveBarText(quota.subscriptionState)?.let { return it }
+    githubInactiveBarText(quota.subscriptionState)?.let {
+        return it
+    }
     val usage = gitHubDisplayWindow(quota) ?: return "no data"
 
     val percent = clampPercent(usage.usagePercent.roundToInt())
@@ -414,9 +442,10 @@ internal fun openCodeBarDisplayText(quota: OpenCodeQuota?, error: String?): Stri
     if (error != null) return "error"
     if (quota == null) return "loading..."
 
-    val state = openCodeIndicatorState(quota) ?: return quota.availableBalance
-        ?.let { "$${QuotaUiUtil.formatOpenCodeBalance(it)}" }
-        ?: "no data"
+    val state =
+        openCodeIndicatorState(quota)
+            ?: return quota.availableBalance?.let { "$${QuotaUiUtil.formatOpenCodeBalance(it)}" }
+                ?: "no data"
 
     val reset = formatOpenCodeResetTime(state.resetInSec)
     val text = "${state.percent}%"
@@ -428,7 +457,11 @@ internal fun formatOpenCodeResetTime(resetInSec: Long): String? {
     return QuotaUiUtil.formatCompactDuration(java.time.Duration.ofSeconds(resetInSec))
 }
 
-internal fun indicatorBarDisplayText(quota: OpenAiCodexQuota?, error: String?, loggedIn: Boolean): String {
+internal fun indicatorBarDisplayText(
+    quota: OpenAiCodexQuota?,
+    error: String?,
+    loggedIn: Boolean,
+): String {
     if (!loggedIn) {
         return "not logged in"
     }
@@ -439,13 +472,19 @@ internal fun indicatorBarDisplayText(quota: OpenAiCodexQuota?, error: String?, l
     val state = indicatorQuotaState(quota) ?: return "loading..."
 
     val display = openAiIndicatorDisplayState(quota, state) ?: return "available"
-    display.creditsBalanceLabel?.let { return it }
+    display.creditsBalanceLabel?.let {
+        return it
+    }
     val reset = QuotaUiUtil.formatResetCompact(display.resetsAt)
     val text = "${display.percent}%"
     return if (reset != null) "$text \u2022 $reset" else text
 }
 
-internal fun indicatorDisplayPercent(quota: OpenAiCodexQuota?, error: String?, loggedIn: Boolean): Int {
+internal fun indicatorDisplayPercent(
+    quota: OpenAiCodexQuota?,
+    error: String?,
+    loggedIn: Boolean,
+): Int {
     if (!loggedIn || error != null) {
         return -1
     }
@@ -454,7 +493,10 @@ internal fun indicatorDisplayPercent(quota: OpenAiCodexQuota?, error: String?, l
     return openAiIndicatorDisplayState(quota, state)?.percent ?: -1
 }
 
-internal fun openAiIndicatorDisplayState(quota: OpenAiCodexQuota?, state: IndicatorQuotaState): IndicatorDisplayState? {
+internal fun openAiIndicatorDisplayState(
+    quota: OpenAiCodexQuota?,
+    state: IndicatorQuotaState,
+): IndicatorDisplayState? {
     if (state.limitReached) {
         return IndicatorDisplayState(
             percent = 100,
@@ -462,13 +504,18 @@ internal fun openAiIndicatorDisplayState(quota: OpenAiCodexQuota?, state: Indica
         )
     }
 
-    quota?.credits?.balance?.toDoubleOrNull()?.takeIf { quota.credits?.hasCredits == true }?.let { balance ->
-        return IndicatorDisplayState(
-            percent = 0,
-            resetsAt = null,
-            creditsBalanceLabel = formatCreditsBalanceLabel(balance),
-        )
-    }
+    quota
+        ?.credits
+        ?.balance
+        ?.toDoubleOrNull()
+        ?.takeIf { quota.credits?.hasCredits == true }
+        ?.let { balance ->
+            return IndicatorDisplayState(
+                percent = 0,
+                resetsAt = null,
+                creditsBalanceLabel = formatCreditsBalanceLabel(balance),
+            )
+        }
 
     val window = state.window ?: return null
     val percent = clampPercent(window.usedPercent.roundToInt())
@@ -526,19 +573,23 @@ internal fun cursorIndicatorState(quota: CursorQuota): CursorIndicatorState? {
     )
 }
 
-internal fun ollamaIndicatorState(quota: de.moritzf.quota.ollama.OllamaQuota): OllamaIndicatorState? {
-    val windows = listOfNotNull(
-        quota.sessionUsage?.let { it to QuotaPeriodDurations.ROLLING_5H },
-        quota.weeklyUsage?.let { it to QuotaPeriodDurations.WEEKLY },
-        quota.monthlyUsage?.let { it to QuotaPeriodDurations.MONTHLY },
-    )
+internal fun ollamaIndicatorState(
+    quota: de.moritzf.quota.ollama.OllamaQuota
+): OllamaIndicatorState? {
+    val windows =
+        listOfNotNull(
+            quota.sessionUsage?.let { it to QuotaPeriodDurations.ROLLING_5H },
+            quota.weeklyUsage?.let { it to QuotaPeriodDurations.WEEKLY },
+            quota.monthlyUsage?.let { it to QuotaPeriodDurations.MONTHLY },
+        )
     if (windows.isEmpty()) return null
 
     val exhausted = windows.filter { (window, _) -> window.usagePercent >= 100.0 }
     if (exhausted.isNotEmpty()) {
-        val (window, period) = exhausted.maxBy { (window, _) ->
-            window.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE
-        }
+        val (window, period) =
+            exhausted.maxBy { (window, _) ->
+                window.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE
+            }
         return OllamaIndicatorState(
             percent = 100,
             resetsAt = window.resetsAt,
@@ -555,8 +606,8 @@ internal fun ollamaIndicatorState(quota: de.moritzf.quota.ollama.OllamaQuota): O
 }
 
 /**
- * Formats `42% • 1h` when [resetsAt] is known. When the provider omits reset time, falls back to the
- * known window length as `42% (5h)` so the UI never shows a fake "unknown".
+ * Formats `42% • 1h` when [resetsAt] is known. When the provider omits reset time, falls back to
+ * the known window length as `42% (5h)` so the UI never shows a fake "unknown".
  */
 internal fun formatPercentWithOptionalTime(
     percent: Int,
@@ -585,7 +636,10 @@ internal fun zaiIndicatorState(quota: ZaiQuota): ZaiIndicatorState? {
     if (exhausted.isNotEmpty()) {
         return ZaiIndicatorState(
             percent = 100,
-            resetsAt = exhausted.maxByOrNull { it.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE }?.resetsAt,
+            resetsAt =
+                exhausted
+                    .maxByOrNull { it.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE }
+                    ?.resetsAt,
         )
     }
 
@@ -598,28 +652,30 @@ internal fun zaiIndicatorState(quota: ZaiQuota): ZaiIndicatorState? {
 
 internal fun superGrokIndicatorState(quota: SuperGrokQuota): SuperGrokIndicatorState? {
     val window = quota.creditUsage ?: return null
-    val percent = if (window.isExhausted()) {
-        100
-    } else {
-        clampPercent(window.usagePercent.roundToInt())
-    }
+    val percent =
+        if (window.isExhausted()) {
+            100
+        } else {
+            clampPercent(window.usagePercent.roundToInt())
+        }
     return SuperGrokIndicatorState(percent, window.resetsAt)
 }
 
 internal fun claudeIndicatorState(quota: ClaudeQuota): ClaudeIndicatorState? {
     val window = quota.primaryWindow()
     if (window != null) {
-        val percent = if (window.usagePercent >= 100.0) {
-            100
-        } else {
-            clampPercent(window.usagePercent.roundToInt())
-        }
+        val percent =
+            if (window.usagePercent >= 100.0) {
+                100
+            } else {
+                clampPercent(window.usagePercent.roundToInt())
+            }
         return ClaudeIndicatorState(percent, window.resetsAt)
     }
     val extra = quota.extraUsage?.takeIf { it.isEnabled } ?: return null
-    val percent = extra.usagePercent?.let {
-        if (it >= 100.0) 100 else clampPercent(it.roundToInt())
-    } ?: return null
+    val percent =
+        extra.usagePercent?.let { if (it >= 100.0) 100 else clampPercent(it.roundToInt()) }
+            ?: return null
     return ClaudeIndicatorState(percent, null)
 }
 
@@ -637,7 +693,8 @@ internal fun indicatorQuotaState(quota: OpenAiCodexQuota?): IndicatorQuotaState?
         )
     }
 
-    val reviewWindow = shortestUsageWindow(listOfNotNull(quota.reviewPrimary, quota.reviewSecondary))
+    val reviewWindow =
+        shortestUsageWindow(listOfNotNull(quota.reviewPrimary, quota.reviewSecondary))
     if (quota.limitReached == true) {
         return IndicatorQuotaState(
             kind = IndicatorQuotaKind.CODEX,
@@ -686,7 +743,10 @@ internal fun indicatorQuotaState(quota: OpenAiCodexQuota?): IndicatorQuotaState?
         )
     }
 
-    if (quota.isAssignedCreditsQuota() && (quota.credits?.hasCredits == true || quota.credits?.unlimited == true)) {
+    if (
+        quota.isAssignedCreditsQuota() &&
+            (quota.credits?.hasCredits == true || quota.credits?.unlimited == true)
+    ) {
         return IndicatorQuotaState(
             kind = IndicatorQuotaKind.CODEX,
             window = null,
@@ -714,17 +774,18 @@ private fun shortestUsageWindow(windows: List<UsageWindow>): UsageWindow? {
 }
 
 /**
- * Returns the window that is at 100% usage and has the latest reset time.
- * Falls back to whichever window resets latest if none are explicitly at 100%.
+ * Returns the window that is at 100% usage and has the latest reset time. Falls back to whichever
+ * window resets latest if none are explicitly at 100%.
  */
 internal fun limitingWindow(
     quota: OpenAiCodexQuota?,
     kind: IndicatorQuotaKind = IndicatorQuotaKind.CODEX,
 ): UsageWindow? {
-    val windows = when (kind) {
-        IndicatorQuotaKind.CODEX -> listOfNotNull(quota?.primary, quota?.secondary)
-        IndicatorQuotaKind.REVIEW -> listOfNotNull(quota?.reviewPrimary, quota?.reviewSecondary)
-    }
+    val windows =
+        when (kind) {
+            IndicatorQuotaKind.CODEX -> listOfNotNull(quota?.primary, quota?.secondary)
+            IndicatorQuotaKind.REVIEW -> listOfNotNull(quota?.reviewPrimary, quota?.reviewSecondary)
+        }
     if (windows.isEmpty()) return null
     return windows
         .filter { it.usedPercent >= 100.0 }

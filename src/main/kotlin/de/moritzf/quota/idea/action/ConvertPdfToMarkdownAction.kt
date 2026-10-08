@@ -31,10 +31,10 @@ import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
 import de.moritzf.quota.idea.settings.DocumentModelSelection
 import de.moritzf.quota.idea.settings.DocumentWarningIcon
 import de.moritzf.quota.openai.proxy.pdf.PdfBoxMarkdown
-import de.moritzf.quota.shared.DocumentMarkdown
-import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.shared.DocumentImageFormat
 import de.moritzf.quota.shared.DocumentImageOptions
+import de.moritzf.quota.shared.DocumentMarkdown
+import de.moritzf.quota.shared.DocumentModels
 import java.awt.Dimension
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
@@ -49,25 +49,32 @@ class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
     override fun update(event: AnActionEvent) {
-        event.presentation.isEnabledAndVisible = event.project != null && pdfFromSelection(
-            event.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY)?.toList(),
-            event.getData(CommonDataKeys.VIRTUAL_FILE),
-        ) != null
+        event.presentation.isEnabledAndVisible =
+            event.project != null &&
+                pdfFromSelection(
+                    event.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY)?.toList(),
+                    event.getData(CommonDataKeys.VIRTUAL_FILE),
+                ) != null
     }
 
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
-        val pdf = pdfFromSelection(
-            event.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY)?.toList(),
-            event.getData(CommonDataKeys.VIRTUAL_FILE),
-        ) ?: return
+        val pdf =
+            pdfFromSelection(
+                event.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY)?.toList(),
+                event.getData(CommonDataKeys.VIRTUAL_FILE),
+            ) ?: return
         val source = Path.of(pdf.path)
         ApplicationManager.getApplication().executeOnPooledThread {
             val providers = PdfDocumentConversion.availableProviders()
             ApplicationManager.getApplication().invokeLater {
                 if (project.isDisposed) return@invokeLater
                 if (providers.isEmpty()) {
-                    Messages.showInfoMessage(project, "Configure a document-conversion provider in LLM Subscription Usage settings.", "PDF to Markdown")
+                    Messages.showInfoMessage(
+                        project,
+                        "Configure a document-conversion provider in LLM Subscription Usage settings.",
+                        "PDF to Markdown",
+                    )
                     return@invokeLater
                 }
                 val dialog = ConvertPdfToMarkdownDialog(project, source, providers)
@@ -76,51 +83,93 @@ class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
                 val provider = dialog.provider()
                 val includeImages = dialog.includeImages()
                 val imageOptions = dialog.imageOptions()
-                if (Files.exists(destination) && Messages.showYesNoDialog(
-                        project, "Overwrite ${destination.fileName}?", "PDF to Markdown", Messages.getQuestionIcon(),
-                    ) != Messages.YES) return@invokeLater
-                ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Converting PDF to Markdown", true) {
-                    private var conversion = DocumentConversionResult()
+                if (
+                    Files.exists(destination) &&
+                        Messages.showYesNoDialog(
+                            project,
+                            "Overwrite ${destination.fileName}?",
+                            "PDF to Markdown",
+                            Messages.getQuestionIcon(),
+                        ) != Messages.YES
+                )
+                    return@invokeLater
+                ProgressManager.getInstance()
+                    .run(
+                        object : Task.Backgroundable(project, "Converting PDF to Markdown", true) {
+                            private var conversion = DocumentConversionResult()
 
-                    override fun run(indicator: ProgressIndicator) {
-                        indicator.isIndeterminate = true
-                        conversion = PdfDocumentConversion.convert(provider, source, destination, includeImages, imageOptions, progress = { completed, total, detail ->
-                            indicator.checkCanceled()
-                            indicator.text = source.fileName.toString()
-                            indicator.text2 = "$detail (cancellation takes effect between requests)"
-                            indicator.isIndeterminate = total <= 0
-                            if (total > 0) indicator.fraction = (completed.toDouble() / total).coerceAtMost(0.99)
-                        })
-                        // NIO writes bypass the VFS. Refresh images too, before opening Markdown on the EDT.
-                        LocalFileSystem.getInstance().refreshAndFindFileByNioFile(destination.toAbsolutePath().parent)
-                            ?.refresh(false, true)
-                        indicator.fraction = 1.0
-                        indicator.text2 = "Markdown saved"
-                    }
-
-                    override fun onSuccess() {
-                        if (project.isDisposed) return
-                        val result = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(destination)
-                        if (result == null) {
-                            Messages.showErrorDialog(project, "Markdown file was not found after conversion.", "PDF to Markdown")
-                        } else {
-                            FileEditorManager.getInstance(project).openFile(result, true)
-                            val notable = conversion.warnings.filter { warning ->
-                                warning != DocumentModels.PDFBOX_WARNING && warning != PdfBoxMarkdown.IMAGES_IGNORED
+                            override fun run(indicator: ProgressIndicator) {
+                                indicator.isIndeterminate = true
+                                conversion =
+                                    PdfDocumentConversion.convert(
+                                        provider,
+                                        source,
+                                        destination,
+                                        includeImages,
+                                        imageOptions,
+                                        progress = { completed, total, detail ->
+                                            indicator.checkCanceled()
+                                            indicator.text = source.fileName.toString()
+                                            indicator.text2 =
+                                                "$detail (cancellation takes effect between requests)"
+                                            indicator.isIndeterminate = total <= 0
+                                            if (total > 0)
+                                                indicator.fraction =
+                                                    (completed.toDouble() / total).coerceAtMost(
+                                                        0.99
+                                                    )
+                                        },
+                                    )
+                                // NIO writes bypass the VFS. Refresh images too, before opening
+                                // Markdown on the EDT.
+                                LocalFileSystem.getInstance()
+                                    .refreshAndFindFileByNioFile(
+                                        destination.toAbsolutePath().parent
+                                    )
+                                    ?.refresh(false, true)
+                                indicator.fraction = 1.0
+                                indicator.text2 = "Markdown saved"
                             }
-                            if (notable.isNotEmpty()) DocumentConversionResultDialog(
-                                project, documentConversionSummary(conversion), documentConversionDetails(conversion),
-                            ).show()
-                        }
-                    }
 
-                    override fun onThrowable(error: Throwable) {
-                        if (!project.isDisposed) DocumentConversionResultDialog(
-                            project, "Could not convert the PDF to Markdown.\nExpand Details for the error and stack trace.",
-                            error.stackTraceToString(),
-                        ).show()
-                    }
-                })
+                            override fun onSuccess() {
+                                if (project.isDisposed) return
+                                val result =
+                                    LocalFileSystem.getInstance()
+                                        .refreshAndFindFileByNioFile(destination)
+                                if (result == null) {
+                                    Messages.showErrorDialog(
+                                        project,
+                                        "Markdown file was not found after conversion.",
+                                        "PDF to Markdown",
+                                    )
+                                } else {
+                                    FileEditorManager.getInstance(project).openFile(result, true)
+                                    val notable =
+                                        conversion.warnings.filter { warning ->
+                                            warning != DocumentModels.PDFBOX_WARNING &&
+                                                warning != PdfBoxMarkdown.IMAGES_IGNORED
+                                        }
+                                    if (notable.isNotEmpty())
+                                        DocumentConversionResultDialog(
+                                                project,
+                                                documentConversionSummary(conversion),
+                                                documentConversionDetails(conversion),
+                                            )
+                                            .show()
+                                }
+                            }
+
+                            override fun onThrowable(error: Throwable) {
+                                if (!project.isDisposed)
+                                    DocumentConversionResultDialog(
+                                            project,
+                                            "Could not convert the PDF to Markdown.\nExpand Details for the error and stack trace.",
+                                            error.stackTraceToString(),
+                                        )
+                                        .show()
+                            }
+                        }
+                    )
             }
         }
     }
@@ -128,7 +177,9 @@ class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
 
 internal fun pdfFromSelection(files: List<VirtualFile>?, single: VirtualFile?): VirtualFile? {
     val file = if (files.isNullOrEmpty()) single else files.singleOrNull()
-    return file?.takeIf { !it.isDirectory && it.isInLocalFileSystem && it.extension.equals("pdf", ignoreCase = true) }
+    return file?.takeIf {
+        !it.isDirectory && it.isInLocalFileSystem && it.extension.equals("pdf", ignoreCase = true)
+    }
 }
 
 private class ConvertPdfToMarkdownDialog(
@@ -137,67 +188,110 @@ private class ConvertPdfToMarkdownDialog(
     providers: List<DocumentToMarkdownProvider>,
 ) : DialogWrapper(project) {
     private val defaultFileName = checkNotNull(DocumentMarkdown.defaultOutput(source)).fileName
-    private val providerCombo = ComboBox(providers.toTypedArray()).apply {
-        renderer = object : DefaultListCellRenderer() {
-            override fun getListCellRendererComponent(
-                list: javax.swing.JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean,
-            ): java.awt.Component {
-                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
-                val provider = value as? DocumentToMarkdownProvider
-                text = when (provider) {
-                    DocumentToMarkdownProvider.MISTRAL -> "Mistral OCR"
-                    DocumentToMarkdownProvider.AZURE -> "Azure document model"
-                    DocumentToMarkdownProvider.ZAI -> "Z.ai GLM-OCR"
-                    DocumentToMarkdownProvider.OPEN_AI -> "OpenAI/Codex vision"
-                    DocumentToMarkdownProvider.SUPERGROK -> "SuperGrok vision"
-                    DocumentToMarkdownProvider.GITHUB -> "GitHub Copilot"
-                    DocumentToMarkdownProvider.OPEN_CODE -> "OpenCode"
-                    DocumentToMarkdownProvider.PDFBOX -> "PDFBox text extraction (local)"
-                    else -> ""
+    private val providerCombo =
+        ComboBox(providers.toTypedArray()).apply {
+            renderer =
+                object : DefaultListCellRenderer() {
+                    override fun getListCellRendererComponent(
+                        list: javax.swing.JList<*>?,
+                        value: Any?,
+                        index: Int,
+                        isSelected: Boolean,
+                        cellHasFocus: Boolean,
+                    ): java.awt.Component {
+                        super.getListCellRendererComponent(
+                            list,
+                            value,
+                            index,
+                            isSelected,
+                            cellHasFocus,
+                        )
+                        val provider = value as? DocumentToMarkdownProvider
+                        text =
+                            when (provider) {
+                                DocumentToMarkdownProvider.MISTRAL -> "Mistral OCR"
+                                DocumentToMarkdownProvider.AZURE -> "Azure document model"
+                                DocumentToMarkdownProvider.ZAI -> "Z.ai GLM-OCR"
+                                DocumentToMarkdownProvider.OPEN_AI -> "OpenAI/Codex vision"
+                                DocumentToMarkdownProvider.SUPERGROK -> "SuperGrok vision"
+                                DocumentToMarkdownProvider.GITHUB -> "GitHub Copilot"
+                                DocumentToMarkdownProvider.OPEN_CODE -> "OpenCode"
+                                DocumentToMarkdownProvider.PDFBOX ->
+                                    "PDFBox text extraction (local)"
+                                else -> ""
+                            }
+                        // Popup rows only. The closed field keeps the separate icon, which owns the
+                        // explainer.
+                        icon =
+                            if (
+                                index >= 0 &&
+                                    provider != null &&
+                                    DocumentModelSelection.showsConversionWarning(provider)
+                            ) {
+                                AllIcons.General.Warning
+                            } else {
+                                null
+                            }
+                        return this
+                    }
                 }
-                // Popup rows only. The closed field keeps the separate icon, which owns the explainer.
-                icon = if (index >= 0 && provider != null && DocumentModelSelection.showsConversionWarning(provider)) {
-                    AllIcons.General.Warning
-                } else {
-                    null
-                }
-                return this
-            }
         }
-    }
     private val warningIcon = DocumentWarningIcon()
     private val imagesCheckBox = JBCheckBox("Save detected figures", true)
     private var restoreImages = true
-    private val formatCombo = ComboBox(DocumentImageFormat.entries.toTypedArray()).apply {
-        renderer = object : DefaultListCellRenderer() {
-            override fun getListCellRendererComponent(
-                list: javax.swing.JList<*>?, value: Any?, index: Int, isSelected: Boolean, cellHasFocus: Boolean,
-            ): java.awt.Component {
-                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
-                text = when (value) {
-                    DocumentImageFormat.SVG -> "Prefer SVG from original PDF (PNG fallback)"
-                    DocumentImageFormat.PNG -> "PNG from original PDF"
-                    else -> "Provider image"
+    private val formatCombo =
+        ComboBox(DocumentImageFormat.entries.toTypedArray()).apply {
+            renderer =
+                object : DefaultListCellRenderer() {
+                    override fun getListCellRendererComponent(
+                        list: javax.swing.JList<*>?,
+                        value: Any?,
+                        index: Int,
+                        isSelected: Boolean,
+                        cellHasFocus: Boolean,
+                    ): java.awt.Component {
+                        super.getListCellRendererComponent(
+                            list,
+                            value,
+                            index,
+                            isSelected,
+                            cellHasFocus,
+                        )
+                        text =
+                            when (value) {
+                                DocumentImageFormat.SVG ->
+                                    "Prefer SVG from original PDF (PNG fallback)"
+                                DocumentImageFormat.PNG -> "PNG from original PDF"
+                                else -> "Provider image"
+                            }
+                        return this
+                    }
                 }
-                return this
-            }
         }
-    }
     private val dpiCombo = ComboBox(arrayOf(150, 300, 600)).apply { selectedItem = 300 }
     private val paddingSpinner = JSpinner(SpinnerNumberModel(2.0, 0.0, 72.0, 1.0))
-    private val outputField = TextFieldWithBrowseButton().apply {
-        textField.columns = 40
-        text = defaultFileName.toString()
-        addActionListener {
-            val parent = LocalFileSystem.getInstance().findFileByNioFile(source.parent)
-            val folder = FileChooser.chooseFile(FileChooserDescriptorFactory.createSingleFolderDescriptor(), project, parent)
-            if (folder != null) {
-                val name = runCatching { Path.of(text.trim()).fileName }.getOrNull()
-                    ?.takeIf { it.toString().endsWith(".md", ignoreCase = true) } ?: defaultFileName
-                text = Path.of(folder.path).resolve(name).toString()
+    private val outputField =
+        TextFieldWithBrowseButton().apply {
+            textField.columns = 40
+            text = defaultFileName.toString()
+            addActionListener {
+                val parent = LocalFileSystem.getInstance().findFileByNioFile(source.parent)
+                val folder =
+                    FileChooser.chooseFile(
+                        FileChooserDescriptorFactory.createSingleFolderDescriptor(),
+                        project,
+                        parent,
+                    )
+                if (folder != null) {
+                    val name =
+                        runCatching { Path.of(text.trim()).fileName }
+                            .getOrNull()
+                            ?.takeIf { it.toString().endsWith(".md", ignoreCase = true) }
+                            ?: defaultFileName
+                    text = Path.of(folder.path).resolve(name).toString()
+                }
             }
         }
-    }
 
     init {
         title = "Convert PDF to Markdown"
@@ -213,13 +307,20 @@ private class ConvertPdfToMarkdownDialog(
 
     override fun createCenterPanel(): JComponent = panel {
         row("PDF:") {
-            cell(JBLabel(source.fileName.toString()).apply {
-                toolTipText = source.toString()
-                // Ellipsize long names instead of widening the shared controls column.
-                preferredSize = Dimension(minOf(preferredSize.width, JBUI.scale(520)), preferredSize.height)
-                minimumSize = Dimension(0, minimumSize.height)
-            })
-                .align(AlignX.FILL).resizableColumn()
+            cell(
+                    JBLabel(source.fileName.toString()).apply {
+                        toolTipText = source.toString()
+                        // Ellipsize long names instead of widening the shared controls column.
+                        preferredSize =
+                            Dimension(
+                                minOf(preferredSize.width, JBUI.scale(520)),
+                                preferredSize.height,
+                            )
+                        minimumSize = Dimension(0, minimumSize.height)
+                    }
+                )
+                .align(AlignX.FILL)
+                .resizableColumn()
         }
         row("Provider:") {
             cell(providerCombo).align(AlignX.FILL).resizableColumn()
@@ -227,8 +328,12 @@ private class ConvertPdfToMarkdownDialog(
         }
         row("Images:") { cell(imagesCheckBox) }
         row("Figure format:") {
-            cell(formatCombo).align(AlignX.FILL).resizableColumn()
-                .comment("Original-PDF export uses OCR figure coordinates (Mistral, Azure, Z.ai). Fallbacks are reported.")
+            cell(formatCombo)
+                .align(AlignX.FILL)
+                .resizableColumn()
+                .comment(
+                    "Original-PDF export uses OCR figure coordinates (Mistral, Azure, Z.ai). Fallbacks are reported."
+                )
         }
         row("PNG resolution:") {
             cell(dpiCombo)
@@ -239,28 +344,47 @@ private class ConvertPdfToMarkdownDialog(
             label("PDF points (72 points = 1 inch)")
         }
         row("Output file:") {
-            cell(outputField).align(AlignX.FILL).resizableColumn()
-                .comment("Relative paths are saved beside the PDF. Browse to choose another folder.")
+            cell(outputField)
+                .align(AlignX.FILL)
+                .resizableColumn()
+                .comment(
+                    "Relative paths are saved beside the PDF. Browse to choose another folder."
+                )
         }
-    }.apply {
-        // Never pack the dialog narrower than the layout needs (including arrow/browse buttons).
-        preferredSize = Dimension(maxOf(JBUI.scale(640), preferredSize.width, minimumSize.width), preferredSize.height)
     }
+        .apply {
+            // Never pack the dialog narrower than the layout needs (including arrow/browse
+            // buttons).
+            preferredSize =
+                Dimension(
+                    maxOf(JBUI.scale(640), preferredSize.width, minimumSize.width),
+                    preferredSize.height,
+                )
+        }
 
     override fun doValidate(): ValidationInfo? {
-        val path = try { outputFile() } catch (_: InvalidPathException) {
-            return ValidationInfo("Enter a valid Markdown output path.", outputField)
-        }
+        val path =
+            try {
+                outputFile()
+            } catch (_: InvalidPathException) {
+                return ValidationInfo("Enter a valid Markdown output path.", outputField)
+            }
         return if (path.fileName.toString().endsWith(".md", ignoreCase = true)) null
         else ValidationInfo("Output file must end in .md.", outputField)
     }
 
-    fun provider(): DocumentToMarkdownProvider = providerCombo.selectedItem as DocumentToMarkdownProvider
+    fun provider(): DocumentToMarkdownProvider =
+        providerCombo.selectedItem as DocumentToMarkdownProvider
+
     fun includeImages(): Boolean = imagesCheckBox.isSelected
-    fun imageOptions(): DocumentImageOptions = DocumentImageOptions(
-        formatCombo.selectedItem as DocumentImageFormat, dpiCombo.selectedItem as Int,
-        (paddingSpinner.value as Number).toDouble(),
-    )
+
+    fun imageOptions(): DocumentImageOptions =
+        DocumentImageOptions(
+            formatCombo.selectedItem as DocumentImageFormat,
+            dpiCombo.selectedItem as Int,
+            (paddingSpinner.value as Number).toDouble(),
+        )
+
     fun outputFile(): Path = resolveMarkdownOutput(source, outputField.text)
 
     private fun updateImageControls() {
@@ -273,18 +397,26 @@ private class ConvertPdfToMarkdownDialog(
             imagesCheckBox.isEnabled = true
             imagesCheckBox.isSelected = restoreImages
         }
-        val hint = if (pdfBox) DocumentModels.PDFBOX_WARNING else DocumentModelSelection.visionHint(provider())
-        val title = when {
-            pdfBox -> "Text extraction only"
-            provider() == DocumentToMarkdownProvider.GITHUB || provider() == DocumentToMarkdownProvider.OPEN_CODE ->
-                "Native PDF, not OCR"
-            provider() == DocumentToMarkdownProvider.AZURE -> "Not a document or OCR model"
-            else -> "Not a document or OCR model"
-        }
+        val hint =
+            if (pdfBox) DocumentModels.PDFBOX_WARNING
+            else DocumentModelSelection.visionHint(provider())
+        val title =
+            when {
+                pdfBox -> "Text extraction only"
+                provider() == DocumentToMarkdownProvider.GITHUB ||
+                    provider() == DocumentToMarkdownProvider.OPEN_CODE -> "Native PDF, not OCR"
+                provider() == DocumentToMarkdownProvider.AZURE -> "Not a document or OCR model"
+                else -> "Not a document or OCR model"
+            }
         warningIcon.setExplainer(title, hint)
-        val enabled = imagesCheckBox.isSelected && provider() in listOf(
-            DocumentToMarkdownProvider.MISTRAL, DocumentToMarkdownProvider.AZURE, DocumentToMarkdownProvider.ZAI,
-        )
+        val enabled =
+            imagesCheckBox.isSelected &&
+                provider() in
+                    listOf(
+                        DocumentToMarkdownProvider.MISTRAL,
+                        DocumentToMarkdownProvider.AZURE,
+                        DocumentToMarkdownProvider.ZAI,
+                    )
         formatCombo.isEnabled = enabled
         val localExport = enabled && formatCombo.selectedItem != DocumentImageFormat.PROVIDER
         dpiCombo.isEnabled = localExport
@@ -294,5 +426,6 @@ private class ConvertPdfToMarkdownDialog(
 
 internal fun resolveMarkdownOutput(source: Path, value: String): Path {
     val selected = Path.of(value.trim())
-    return (if (selected.isAbsolute) selected else source.toAbsolutePath().parent.resolve(selected)).normalize()
+    return (if (selected.isAbsolute) selected else source.toAbsolutePath().parent.resolve(selected))
+        .normalize()
 }

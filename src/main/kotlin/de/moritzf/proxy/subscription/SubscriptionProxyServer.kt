@@ -2,8 +2,8 @@ package de.moritzf.proxy.subscription
 
 import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.proxy.fim.FimModels
-import de.moritzf.proxy.media.OpenAiMedia
 import de.moritzf.proxy.logging.RequestLogger
+import de.moritzf.proxy.media.OpenAiMedia
 import de.moritzf.proxy.server.AccessLogFields
 import de.moritzf.proxy.server.ApiKeyStore
 import de.moritzf.proxy.server.CompletionsHandler
@@ -45,29 +45,37 @@ class SubscriptionProxyServer(
     fullRequestLogging: Boolean = false,
     requestLogDir: String = REQUEST_LOG_DIR,
     private val completionsConfig: () -> CompletionsConfig = { CompletionsConfig.DISABLED },
-    mediaOperations: de.moritzf.proxy.media.MediaOperations = de.moritzf.proxy.media.UnsupportedMediaOperations(),
+    mediaOperations: de.moritzf.proxy.media.MediaOperations =
+        de.moritzf.proxy.media.UnsupportedMediaOperations(),
 ) {
     private val running = AtomicBoolean(false)
     private val requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir))
-    private val mediaHandler = de.moritzf.proxy.media.MediaProxyHandler(mediaOperations, requestLogger)
+    private val mediaHandler =
+        de.moritzf.proxy.media.MediaProxyHandler(mediaOperations, requestLogger)
     private val usageTracker = UsageTracker()
-    private val completionsHandler = CompletionsHandler(
-        catalog = { catalog() },
-        config = completionsConfig,
-        requestLogger = requestLogger,
-        host = host,
-        port = port,
-        localApiKey = localApiKeyProvider,
-    )
-    private var app: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
+    private val completionsHandler =
+        CompletionsHandler(
+            catalog = { catalog() },
+            config = completionsConfig,
+            requestLogger = requestLogger,
+            host = host,
+            port = port,
+            localApiKey = localApiKeyProvider,
+        )
+    private var app: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? =
+        null
     @Volatile private var apiKeyStore: ApiKeyStore? = null
 
     val isRunning: Boolean
         get() = running.get()
 
     /** Actual listening port after startup, including OS-assigned ports when configured with 0. */
-    internal suspend fun boundPort(): Int = checkNotNull(app) { "Subscription proxy is not running" }
-        .engine.resolvedConnectors().single().port
+    internal suspend fun boundPort(): Int =
+        checkNotNull(app) { "Subscription proxy is not running" }
+            .engine
+            .resolvedConnectors()
+            .single()
+            .port
 
     fun start() {
         check(running.compareAndSet(false, true)) { "Subscription proxy is already running" }
@@ -78,36 +86,38 @@ class SubscriptionProxyServer(
         }
         try {
             apiKeyStore = ApiKeyStore(mapOf(localApiKey to LOCAL_KEY_NAME), null, null)
-            app = embeddedServer(CIO, host = host, port = port) {
-                routing {
-                    getProxy("/health", HealthHandler()::handle)
-                    getProxy("/health/liveliness", ::livenessProbe)
-                    getProxy("/health/liveness", ::livenessProbe)
-                    getProxy("/health/readiness", ::readinessProbe)
-                    getProxy("/v1/models", ::models)
-                    getProxy("/models", ::models)
-                    getProxy("/v1/model/info", ::modelInfo)
-                    getProxy("/model/info", ::modelInfo)
-                    getProxy("/v1/usage", UsageHandler(usageTracker)::handle)
-                    postProxy("/v1/images/generations", mediaHandler::images)
-                    postProxy("/images/generations", mediaHandler::images)
-                    postProxy("/v1/audio/speech", mediaHandler::speech)
-                    postProxy("/audio/speech", mediaHandler::speech)
-                    postProxy("/v1/audio/transcriptions", mediaHandler::transcriptions)
-                    postProxy("/audio/transcriptions", mediaHandler::transcriptions)
-                    postProxy("/v1/chat/completions", ::inference)
-                    postProxy("/chat/completions", ::inference)
-                    postProxy("/v1/responses", ::inference)
-                    postProxy("/responses", ::inference)
-                    postProxy("/v1/messages", ::inference)
-                    postProxy("/messages", ::inference)
-                    postProxy("/v1/completions", completionsHandler::handle)
-                    postProxy("/completions", completionsHandler::handle)
-                    optionsProxy("{...}", ::notFound)
-                    getProxy("{...}", ::notFound)
-                    postProxy("{...}", ::notFound)
-                }
-            }.also { it.start(wait = false) }
+            app =
+                embeddedServer(CIO, host = host, port = port) {
+                        routing {
+                            getProxy("/health", HealthHandler()::handle)
+                            getProxy("/health/liveliness", ::livenessProbe)
+                            getProxy("/health/liveness", ::livenessProbe)
+                            getProxy("/health/readiness", ::readinessProbe)
+                            getProxy("/v1/models", ::models)
+                            getProxy("/models", ::models)
+                            getProxy("/v1/model/info", ::modelInfo)
+                            getProxy("/model/info", ::modelInfo)
+                            getProxy("/v1/usage", UsageHandler(usageTracker)::handle)
+                            postProxy("/v1/images/generations", mediaHandler::images)
+                            postProxy("/images/generations", mediaHandler::images)
+                            postProxy("/v1/audio/speech", mediaHandler::speech)
+                            postProxy("/audio/speech", mediaHandler::speech)
+                            postProxy("/v1/audio/transcriptions", mediaHandler::transcriptions)
+                            postProxy("/audio/transcriptions", mediaHandler::transcriptions)
+                            postProxy("/v1/chat/completions", ::inference)
+                            postProxy("/chat/completions", ::inference)
+                            postProxy("/v1/responses", ::inference)
+                            postProxy("/responses", ::inference)
+                            postProxy("/v1/messages", ::inference)
+                            postProxy("/messages", ::inference)
+                            postProxy("/v1/completions", completionsHandler::handle)
+                            postProxy("/completions", completionsHandler::handle)
+                            optionsProxy("{...}", ::notFound)
+                            getProxy("{...}", ::notFound)
+                            postProxy("{...}", ::notFound)
+                        }
+                    }
+                    .also { it.start(wait = false) }
         } catch (exception: Exception) {
             running.set(false)
             apiKeyStore = null
@@ -159,14 +169,19 @@ class SubscriptionProxyServer(
                 LOG.debug("Client disconnected during {} {}", ctx.method(), ctx.path(), exception)
                 return
             }
-            LOG.error("Unhandled subscription proxy request failure for {} {}", ctx.method(), ctx.path(), exception)
+            LOG.error(
+                "Unhandled subscription proxy request failure for {} {}",
+                ctx.method(),
+                ctx.path(),
+                exception,
+            )
             if (!ctx.handled) respondServerError(ctx)
         }
     }
 
     /**
-     * Best effort: the response may already be committed (streaming), in which case there is no
-     * way left to tell the client about the failure.
+     * Best effort: the response may already be committed (streaming), in which case there is no way
+     * left to tell the client about the failure.
      */
     private suspend fun respondServerError(ctx: ProxyCall) {
         try {
@@ -174,20 +189,29 @@ class SubscriptionProxyServer(
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (failure: Exception) {
-            LOG.debug("Could not deliver error response for {} {}", ctx.method(), ctx.path(), failure)
+            LOG.debug(
+                "Could not deliver error response for {} {}",
+                ctx.method(),
+                ctx.path(),
+                failure,
+            )
         }
     }
 
     private suspend fun models(ctx: ProxyCall) {
         val catalog = catalog()
-        val data = catalog.models.filter(::isOpenAiCompatibleModel).map { model ->
-            linkedMapOf<String, Any>(
-                "id" to model.localId,
-                "object" to "model",
-                "created" to 0,
-                "owned_by" to model.providerId,
-            )
-        }.toMutableList()
+        val data =
+            catalog.models
+                .filter(::isOpenAiCompatibleModel)
+                .map { model ->
+                    linkedMapOf<String, Any>(
+                        "id" to model.localId,
+                        "object" to "model",
+                        "created" to 0,
+                        "owned_by" to model.providerId,
+                    )
+                }
+                .toMutableList()
         fimAliasModel()?.let { alias ->
             data.add(
                 0,
@@ -207,7 +231,7 @@ class SubscriptionProxyServer(
                         "object" to "model",
                         "created" to 0,
                         "owned_by" to media.providerId,
-                    ),
+                    )
                 )
             }
         }
@@ -226,34 +250,66 @@ class SubscriptionProxyServer(
     }
 
     private suspend fun inference(ctx: ProxyCall) {
-        val route = routeForPath(ctx.path()) ?: run {
-            JsonHelper.toErrorResponse(ctx, "Route not found.", 404, "not_found_error")
-            return
-        }
-        AccessLogFields.mode(ctx, if (ctx.header(HttpHeaders.Accept)?.contains("text/event-stream") == true) "stream" else "proxy")
-        val requestId = ctx.getAttribute(AccessLogFields.REQUEST_ID) ?: requestLogger.nextRequestId()
+        val route =
+            routeForPath(ctx.path())
+                ?: run {
+                    JsonHelper.toErrorResponse(ctx, "Route not found.", 404, "not_found_error")
+                    return
+                }
+        AccessLogFields.mode(
+            ctx,
+            if (ctx.header(HttpHeaders.Accept)?.contains("text/event-stream") == true) "stream"
+            else "proxy",
+        )
+        val requestId =
+            ctx.getAttribute(AccessLogFields.REQUEST_ID) ?: requestLogger.nextRequestId()
         val body = RequestValidator.parseLoggedJsonObject(ctx, requestLogger, requestId) ?: return
         val catalog = catalog()
         val requestedModel = body.stringPath("model").trim().takeIf { it.isNotBlank() }
-        val model = if (requestedModel == null) {
-            catalog.defaultModel(route) ?: run {
-                JsonHelper.toErrorResponse(ctx, "No proxy models are available for ${route.normalizedPath}.", 503, "configuration_error")
-                return
+        val model =
+            if (requestedModel == null) {
+                catalog.defaultModel(route)
+                    ?: run {
+                        JsonHelper.toErrorResponse(
+                            ctx,
+                            "No proxy models are available for ${route.normalizedPath}.",
+                            503,
+                            "configuration_error",
+                        )
+                        return
+                    }
+            } else {
+                catalog.resolve(requestedModel, route)
+                    ?: run {
+                        JsonHelper.toErrorResponse(
+                            ctx,
+                            "Unknown proxy model: $requestedModel",
+                            400,
+                            "invalid_request_error",
+                        )
+                        return
+                    }
             }
-        } else {
-            catalog.resolve(requestedModel, route) ?: run {
-                JsonHelper.toErrorResponse(ctx, "Unknown proxy model: $requestedModel", 400, "invalid_request_error")
-                return
-            }
-        }
         if (route !in model.supportedRoutes) {
-            JsonHelper.toErrorResponse(ctx, "Model ${model.localId} does not support ${route.normalizedPath}.", 400, "invalid_request_error")
+            JsonHelper.toErrorResponse(
+                ctx,
+                "Model ${model.localId} does not support ${route.normalizedPath}.",
+                400,
+                "invalid_request_error",
+            )
             return
         }
-        val provider = catalog.providerFor(model) ?: run {
-            JsonHelper.toErrorResponse(ctx, "Provider for ${model.localId} is not configured.", 503, "configuration_error")
-            return
-        }
+        val provider =
+            catalog.providerFor(model)
+                ?: run {
+                    JsonHelper.toErrorResponse(
+                        ctx,
+                        "Provider for ${model.localId} is not configured.",
+                        503,
+                        "configuration_error",
+                    )
+                    return
+                }
         provider.handle(ctx, SubscriptionProxyRequest(route, requestId, model, body))
     }
 
@@ -262,7 +318,10 @@ class SubscriptionProxyServer(
     private fun selectedFimModel(): SubscriptionProxyModel? {
         val cfg = completionsConfig()
         if (!cfg.enabled) return null
-        val selected = cfg.modelLocalId.trim().ifBlank { return null }
+        val selected =
+            cfg.modelLocalId.trim().ifBlank {
+                return null
+            }
         val model = CompletionsHandler.resolveSelectedModel(catalog(), selected) ?: return null
         if (!FimModels.isEligible(model)) return null
         return model
@@ -287,7 +346,7 @@ class SubscriptionProxyServer(
                 litellmProvider = "fim-adapter",
                 supportedRoutes = selected.supportedRoutes + SubscriptionProxyRoute.COMPLETIONS,
                 isDefault = false,
-            ),
+            )
         )
     }
 
@@ -305,36 +364,41 @@ class SubscriptionProxyServer(
         return linkedMapOf(
             "id" to model.localId,
             "model_name" to model.localId,
-            "litellm_params" to linkedMapOf(
-                "model" to model.localId,
-                "custom_llm_provider" to model.providerId,
-            ),
-            "model_info" to linkedMapOf<String, Any>(
-                "id" to model.localId,
-                "mode" to model.mode,
-                "litellm_provider" to model.providerId,
-                "fim_mode" to "none",
-                "supports_native_fim" to false,
-                "supports_fim_adapter" to false,
-            ),
+            "litellm_params" to
+                linkedMapOf(
+                    "model" to model.localId,
+                    "custom_llm_provider" to model.providerId,
+                ),
+            "model_info" to
+                linkedMapOf<String, Any>(
+                    "id" to model.localId,
+                    "mode" to model.mode,
+                    "litellm_provider" to model.providerId,
+                    "fim_mode" to "none",
+                    "supports_native_fim" to false,
+                    "supports_fim_adapter" to false,
+                ),
         )
     }
 
     private fun applyCorsHeaders(ctx: ProxyCall) {
         val origin = ctx.header(HttpHeaders.Origin)
-        val allowedOrigin = if (allowAnyCors) {
-            "*"
-        } else if (origin != null && ProxyServer.isAllowedCorsOrigin(origin, allowedCorsOrigins)) {
-            origin
-        } else {
-            null
-        } ?: return
+        val allowedOrigin =
+            if (allowAnyCors) {
+                "*"
+            } else
+                if (origin != null && ProxyServer.isAllowedCorsOrigin(origin, allowedCorsOrigins)) {
+                    origin
+                } else {
+                    null
+                } ?: return
         ctx.responseHeader(HttpHeaders.AccessControlAllowOrigin, allowedOrigin)
         ctx.responseHeader(HttpHeaders.Vary, HttpHeaders.Origin)
         ctx.responseHeader(HttpHeaders.AccessControlAllowMethods, "GET,POST,OPTIONS")
         ctx.responseHeader(
             HttpHeaders.AccessControlAllowHeaders,
-            ctx.header(HttpHeaders.AccessControlRequestHeaders) ?: "Authorization,Content-Type,X-LiteLLM-Num-Retries,x-api-key",
+            ctx.header(HttpHeaders.AccessControlRequestHeaders)
+                ?: "Authorization,Content-Type,X-LiteLLM-Num-Retries,x-api-key",
         )
     }
 
@@ -344,7 +408,10 @@ class SubscriptionProxyServer(
         val key = localApiKey(ctx)
         if (key != null && key == apiKeyStore.adminKey()) {
             ctx.setAttribute(de.moritzf.proxy.server.ProxyCallAttributes.IS_ADMIN, true)
-            ctx.setAttribute(de.moritzf.proxy.server.ProxyCallAttributes.ADMIN_KEY_FINGERPRINT, ApiKeyUtils.fingerprint(key))
+            ctx.setAttribute(
+                de.moritzf.proxy.server.ProxyCallAttributes.ADMIN_KEY_FINGERPRINT,
+                ApiKeyUtils.fingerprint(key),
+            )
             return
         }
         val name = if (key != null) apiKeyStore.lookup(key) else null
@@ -355,40 +422,48 @@ class SubscriptionProxyServer(
             return
         }
         ctx.setAttribute(de.moritzf.proxy.server.ProxyCallAttributes.KEY_NAME, name)
-        ctx.setAttribute(de.moritzf.proxy.server.ProxyCallAttributes.KEY_FINGERPRINT, ApiKeyUtils.fingerprint(key!!))
+        ctx.setAttribute(
+            de.moritzf.proxy.server.ProxyCallAttributes.KEY_FINGERPRINT,
+            ApiKeyUtils.fingerprint(key!!),
+        )
     }
 
     private fun localApiKey(ctx: ProxyCall): String? {
         val auth = ctx.header(HttpHeaders.Authorization)
-        val bearer = if (auth != null && auth.startsWith("Bearer ")) auth.substring(7).trim() else null
+        val bearer =
+            if (auth != null && auth.startsWith("Bearer ")) auth.substring(7).trim() else null
         return bearer?.takeIf { it.isNotBlank() }
             ?: ctx.header("x-api-key")?.trim()?.takeIf { it.isNotBlank() }
     }
 
     private fun liteLlmInfo(model: SubscriptionProxyModel): Map<String, Any> {
-        val litellmParams = linkedMapOf<String, Any>(
-            "model" to model.localId,
-            "custom_llm_provider" to model.litellmProvider,
-        )
-        val modelInfo = linkedMapOf<String, Any>(
-            "id" to model.localId,
-            "mode" to modelMode(model),
-            "litellm_provider" to model.litellmProvider,
-            "supported_endpoints" to supportedEndpoints(model),
-            "supported_routes" to model.supportedRoutes.map { it.normalizedPath },
-            "supports_anthropic_messages" to (SubscriptionProxyRoute.ANTHROPIC_MESSAGES in model.supportedRoutes),
-            "supports_function_calling" to model.supportsFunctionCalling,
-            "supports_parallel_function_calling" to model.supportsParallelFunctionCalling,
-            "supports_tool_choice" to model.supportsToolChoice,
-            "supports_vision" to model.supportsVision,
-            "supports_prompt_caching" to model.supportsPromptCaching,
-            "supports_native_fim" to (SubscriptionProxyRoute.FIM_COMPLETIONS in model.supportedRoutes),
-            "supports_fim_adapter" to fimAdapterEnabled(model),
-            "fim_mode" to fimMode(model),
-            "input_cost_per_token" to 0.0,
-            "output_cost_per_token" to 0.0,
-            "is_default" to model.isDefault,
-        )
+        val litellmParams =
+            linkedMapOf<String, Any>(
+                "model" to model.localId,
+                "custom_llm_provider" to model.litellmProvider,
+            )
+        val modelInfo =
+            linkedMapOf<String, Any>(
+                "id" to model.localId,
+                "mode" to modelMode(model),
+                "litellm_provider" to model.litellmProvider,
+                "supported_endpoints" to supportedEndpoints(model),
+                "supported_routes" to model.supportedRoutes.map { it.normalizedPath },
+                "supports_anthropic_messages" to
+                    (SubscriptionProxyRoute.ANTHROPIC_MESSAGES in model.supportedRoutes),
+                "supports_function_calling" to model.supportsFunctionCalling,
+                "supports_parallel_function_calling" to model.supportsParallelFunctionCalling,
+                "supports_tool_choice" to model.supportsToolChoice,
+                "supports_vision" to model.supportsVision,
+                "supports_prompt_caching" to model.supportsPromptCaching,
+                "supports_native_fim" to
+                    (SubscriptionProxyRoute.FIM_COMPLETIONS in model.supportedRoutes),
+                "supports_fim_adapter" to fimAdapterEnabled(model),
+                "fim_mode" to fimMode(model),
+                "input_cost_per_token" to 0.0,
+                "output_cost_per_token" to 0.0,
+                "is_default" to model.isDefault,
+            )
         model.maxInputTokens?.let { modelInfo["max_input_tokens"] = it }
         model.maxOutputTokens?.let {
             modelInfo["max_output_tokens"] = it
@@ -426,7 +501,10 @@ class SubscriptionProxyServer(
         if (isSelectedFimModel(model) && completionsConfig().enabled) {
             return if (completionsConfig().useChatAdapter) "adapter" else "native"
         }
-        if (SubscriptionProxyRoute.FIM_COMPLETIONS in model.supportedRoutes || FimModels.isNativeFimId(model)) {
+        if (
+            SubscriptionProxyRoute.FIM_COMPLETIONS in model.supportedRoutes ||
+                FimModels.isNativeFimId(model)
+        ) {
             return "native"
         }
         return "none"
@@ -434,17 +512,16 @@ class SubscriptionProxyServer(
 
     private fun isOpenAiCompatibleModel(model: SubscriptionProxyModel): Boolean {
         return model.supportedRoutes.any { route ->
-            route == SubscriptionProxyRoute.CHAT_COMPLETIONS || route == SubscriptionProxyRoute.RESPONSES
+            route == SubscriptionProxyRoute.CHAT_COMPLETIONS ||
+                route == SubscriptionProxyRoute.RESPONSES
         }
     }
 
     companion object {
         private const val HOST = "127.0.0.1"
         private const val LOCAL_KEY_NAME = "local"
-        val REQUEST_LOG_DIR: String = Path.of("logs", "subscription-proxy-requests")
-            .toAbsolutePath()
-            .normalize()
-            .toString()
+        val REQUEST_LOG_DIR: String =
+            Path.of("logs", "subscription-proxy-requests").toAbsolutePath().normalize().toString()
         private val LOG = LoggerFactory.getLogger(SubscriptionProxyServer::class.java)
 
         private suspend fun livenessProbe(ctx: ProxyCall) {

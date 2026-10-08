@@ -10,13 +10,17 @@ import kotlin.test.assertTrue
 class ProviderReorderPanelTest {
     @Test
     fun showsEveryProvider() {
-        val panel = ProviderReorderPanel(
-            initialOrder = QuotaProviderType.defaultProviderOrder(),
-            onOrderChanged = {},
-            onProviderSelected = {},
-        )
+        val panel =
+            ProviderReorderPanel(
+                initialOrder = QuotaProviderType.defaultProviderOrder(),
+                onOrderChanged = {},
+                onProviderSelected = {},
+            )
 
-        assertEquals(ProviderUiRegistry.all.keys.map { it.id }.toSet(), panel.getOrder().map { it.id }.toSet())
+        assertEquals(
+            ProviderUiRegistry.all.keys.map { it.id }.toSet(),
+            panel.getOrder().map { it.id }.toSet(),
+        )
         assertTrue(QuotaProviderType.SUPERGROK in panel.getOrder())
     }
 
@@ -29,11 +33,12 @@ class ProviderReorderPanelTest {
     @Test
     fun selectsFirstProviderFromCustomOrder() {
         val order = QuotaProviderType.defaultProviderOrder().withFirst(QuotaProviderType.SUPERGROK)
-        val panel = ProviderReorderPanel(
-            initialOrder = order,
-            onOrderChanged = {},
-            onProviderSelected = {},
-        )
+        val panel =
+            ProviderReorderPanel(
+                initialOrder = order,
+                onOrderChanged = {},
+                onProviderSelected = {},
+            )
 
         assertEquals(QuotaProviderType.SUPERGROK, panel.getSelectedProvider())
     }
@@ -41,11 +46,12 @@ class ProviderReorderPanelTest {
     @Test
     fun resetOrderSelectsFirstProviderFromNewOrder() {
         var selected: QuotaProviderType? = null
-        val panel = ProviderReorderPanel(
-            initialOrder = QuotaProviderType.defaultProviderOrder(),
-            onOrderChanged = {},
-            onProviderSelected = { selected = it },
-        )
+        val panel =
+            ProviderReorderPanel(
+                initialOrder = QuotaProviderType.defaultProviderOrder(),
+                onOrderChanged = {},
+                onProviderSelected = { selected = it },
+            )
 
         panel.setOrder(QuotaProviderType.defaultProviderOrder().withFirst(QuotaProviderType.KIMI))
 
@@ -55,11 +61,12 @@ class ProviderReorderPanelTest {
 
     @Test
     fun filterNarrowsVisibleProviders() {
-        val panel = ProviderReorderPanel(
-            initialOrder = QuotaProviderType.defaultProviderOrder(),
-            onOrderChanged = {},
-            onProviderSelected = {},
-        )
+        val panel =
+            ProviderReorderPanel(
+                initialOrder = QuotaProviderType.defaultProviderOrder(),
+                onOrderChanged = {},
+                onProviderSelected = {},
+            )
 
         panel.setFilterText("grok")
 
@@ -70,11 +77,12 @@ class ProviderReorderPanelTest {
     @Test
     fun filterHidesSelectionFromDetailCallback() {
         var selected: QuotaProviderType? = QuotaProviderType.CLAUDE
-        val panel = ProviderReorderPanel(
-            initialOrder = QuotaProviderType.defaultProviderOrder(),
-            onOrderChanged = {},
-            onProviderSelected = { selected = it },
-        )
+        val panel =
+            ProviderReorderPanel(
+                initialOrder = QuotaProviderType.defaultProviderOrder(),
+                onOrderChanged = {},
+                onProviderSelected = { selected = it },
+            )
 
         panel.setFilterText("kimi")
 
@@ -85,11 +93,12 @@ class ProviderReorderPanelTest {
     @Test
     fun moveSelectedReordersAndKeepsSelection() {
         val changes = mutableListOf<List<QuotaProviderType>>()
-        val panel = ProviderReorderPanel(
-            initialOrder = QuotaProviderType.defaultProviderOrder(),
-            onOrderChanged = { changes += it },
-            onProviderSelected = {},
-        )
+        val panel =
+            ProviderReorderPanel(
+                initialOrder = QuotaProviderType.defaultProviderOrder(),
+                onOrderChanged = { changes += it },
+                onProviderSelected = {},
+            )
         val first = panel.getSelectedProvider()
 
         panel.moveSelected(1)
@@ -103,11 +112,12 @@ class ProviderReorderPanelTest {
     fun moveSelectedIsNoOpWhileFiltered() {
         val changes = mutableListOf<List<QuotaProviderType>>()
         val original = QuotaProviderType.defaultProviderOrder()
-        val panel = ProviderReorderPanel(
-            initialOrder = original,
-            onOrderChanged = { changes += it },
-            onProviderSelected = {},
-        )
+        val panel =
+            ProviderReorderPanel(
+                initialOrder = original,
+                onOrderChanged = { changes += it },
+                onProviderSelected = {},
+            )
 
         panel.setFilterText("open")
         panel.moveSelected(1)
@@ -116,7 +126,9 @@ class ProviderReorderPanelTest {
         assertTrue(changes.isEmpty())
     }
 
-    private fun List<QuotaProviderType>.withFirst(type: QuotaProviderType): List<QuotaProviderType> {
+    private fun List<QuotaProviderType>.withFirst(
+        type: QuotaProviderType
+    ): List<QuotaProviderType> {
         return listOf(type) + filterNot { it == type }
     }
 }

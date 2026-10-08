@@ -2,15 +2,15 @@ package de.moritzf.quota.zai
 
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
 
 open class ZaiWebSearchClient(
     private val httpClient: HttpClient = defaultHttpClient(),
@@ -26,9 +26,10 @@ open class ZaiWebSearchClient(
         if (trimmedQuery.isBlank()) {
             throw ZaiQuotaException("Search query is required.")
         }
-        val token = apiKey.trim().ifBlank {
-            throw ZaiQuotaException("Z.ai API key missing. Add a Z.ai API key in settings.")
-        }
+        val token =
+            apiKey.trim().ifBlank {
+                throw ZaiQuotaException("Z.ai API key missing. Add a Z.ai API key in settings.")
+            }
         val resultLimit = limit.coerceIn(MIN_LIMIT, MAX_LIMIT)
         val response = send(searchRequest(token, trimmedQuery, resultLimit, includeContent))
         val status = response.statusCode()
@@ -37,16 +38,21 @@ open class ZaiWebSearchClient(
             throw ZaiQuotaException("API key invalid. Check your Z.ai API key.", status, body)
         }
         if (status !in 200..299) {
-            throw ZaiQuotaException("Z.ai web search failed (HTTP $status). Try again later.", status, body)
+            throw ZaiQuotaException(
+                "Z.ai web search failed (HTTP $status). Try again later.",
+                status,
+                body,
+            )
         }
         return McpJson.providerJsonOrRaw(body)
     }
 
     open fun webFetch(apiKey: String, url: String): String {
         val target = normalizeHttpUrl(url)
-        val token = apiKey.trim().ifBlank {
-            throw ZaiQuotaException("Z.ai API key missing. Add a Z.ai API key in settings.")
-        }
+        val token =
+            apiKey.trim().ifBlank {
+                throw ZaiQuotaException("Z.ai API key missing. Add a Z.ai API key in settings.")
+            }
         val response = send(fetchRequest(token, target))
         val status = response.statusCode()
         val body = response.body()
@@ -54,7 +60,11 @@ open class ZaiWebSearchClient(
             throw ZaiQuotaException("API key invalid. Check your Z.ai API key.", status, body)
         }
         if (status !in 200..299) {
-            throw ZaiQuotaException("Z.ai web fetch failed (HTTP $status). Try again later.", status, body)
+            throw ZaiQuotaException(
+                "Z.ai web fetch failed (HTTP $status). Try again later.",
+                status,
+                body,
+            )
         }
         return McpJson.providerJsonOrRaw(body)
     }
@@ -65,14 +75,15 @@ open class ZaiWebSearchClient(
         limit: Int,
         includeContent: Boolean,
     ): HttpRequest {
-        val body = JsonSupport.json.encodeToString(
-            ZaiSearchRequestDto(
-                searchQuery = query,
-                count = limit,
-                contentSize = if (includeContent) "high" else "low",
-                includeImage = false,
-            ),
-        )
+        val body =
+            JsonSupport.json.encodeToString(
+                ZaiSearchRequestDto(
+                    searchQuery = query,
+                    count = limit,
+                    contentSize = if (includeContent) "high" else "low",
+                    includeImage = false,
+                )
+            )
 
         return HttpRequest.newBuilder()
             .uri(baseUri.resolve(WEB_SEARCH_PATH))
@@ -85,15 +96,16 @@ open class ZaiWebSearchClient(
     }
 
     private fun fetchRequest(apiKey: String, url: String): HttpRequest {
-        val body = JsonSupport.json.encodeToString(
-            ZaiReaderRequestDto(
-                url = url,
-                returnFormat = "markdown",
-                retainImages = false,
-                keepImgDataUrl = false,
-                withLinksSummary = true,
-            ),
-        )
+        val body =
+            JsonSupport.json.encodeToString(
+                ZaiReaderRequestDto(
+                    url = url,
+                    returnFormat = "markdown",
+                    retainImages = false,
+                    keepImgDataUrl = false,
+                    withLinksSummary = true,
+                )
+            )
         return HttpRequest.newBuilder()
             .uri(endpoint(WEB_READER_PATH))
             .timeout(Duration.ofSeconds(60))
@@ -144,9 +156,7 @@ open class ZaiWebSearchClient(
         fun createDefault(): ZaiWebSearchClient = ZaiWebSearchClient()
 
         private fun defaultHttpClient(): HttpClient {
-            return HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(30))
-                .build()
+            return HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build()
         }
     }
 }

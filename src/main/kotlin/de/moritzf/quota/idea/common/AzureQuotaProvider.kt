@@ -1,12 +1,12 @@
 package de.moritzf.quota.idea.common
 
+import de.moritzf.quota.azure.AZURE_DOCUMENT_INTELLIGENCE_LAYOUT
 import de.moritzf.quota.azure.AzureAccountConfig
 import de.moritzf.quota.azure.AzureCli
 import de.moritzf.quota.azure.AzureCliException
 import de.moritzf.quota.azure.AzureLiveUsage
 import de.moritzf.quota.azure.AzureQuota
 import de.moritzf.quota.azure.AzureQuotaClient
-import de.moritzf.quota.azure.AZURE_DOCUMENT_INTELLIGENCE_LAYOUT
 import de.moritzf.quota.azure.azureAccountConfig
 import de.moritzf.quota.azure.azureCohereParseUri
 import de.moritzf.quota.azure.azureDocumentIntelligenceUri
@@ -20,10 +20,17 @@ import java.nio.file.Path
 class AzureQuotaProvider(
     override val accountId: String = QuotaProviderType.AZURE.id,
     private val fetchQuota: () -> AzureQuota = {
-        val executable = executableForAccount(accountId)
-            ?: throw AzureCliException("Azure CLI not found. Install az or set its path in settings.")
+        val executable =
+            executableForAccount(accountId)
+                ?: throw AzureCliException(
+                    "Azure CLI not found. Install az or set its path in settings."
+                )
         val config = configForAccount(accountId)
-        AzureQuotaClient(AzureCli(executable), liveUsage = { AzureLiveUsage.read(AzureLiveUsage.key(accountId, config)) }).fetch(config)
+        AzureQuotaClient(
+                AzureCli(executable),
+                liveUsage = { AzureLiveUsage.read(AzureLiveUsage.key(accountId, config)) },
+            )
+            .fetch(config)
     },
 ) : CachedQuotaProvider<AzureQuota>() {
     override val type = QuotaProviderType.AZURE
@@ -49,25 +56,37 @@ class AzureQuotaProvider(
                 else clearData(exception.message)
             }
         } catch (_: Exception) {
-            update { storeError("Could not read Azure usage. Check az login, then refresh.", transient = true) }
+            update {
+                storeError(
+                    "Could not read Azure usage. Check az login, then refresh.",
+                    transient = true,
+                )
+            }
         }
     }
 
-    override fun clearData(error: String?) = synchronized(lock) {
-        generation++
-        super.clearData(error)
-    }
+    override fun clearData(error: String?) =
+        synchronized(lock) {
+            generation++
+            super.clearData(error)
+        }
 
     companion object {
         fun executableForAccount(accountId: String): Path? {
             val configured = runCatching {
-                QuotaSettingsState.getInstance().account(accountId)?.extra(ProviderAccount.EXTRA_AZURE_EXECUTABLE)
-            }.getOrNull()
+                QuotaSettingsState.getInstance()
+                    .account(accountId)
+                    ?.extra(ProviderAccount.EXTRA_AZURE_EXECUTABLE)
+            }
+                .getOrNull()
             return AzureCli.findExecutable(configured)
         }
 
         internal fun configForAccount(accountId: String): AzureAccountConfig {
-            val account = runCatching { QuotaSettingsState.getInstance().account(accountId) }.getOrNull()
+            val account = runCatching {
+                QuotaSettingsState.getInstance().account(accountId)
+            }
+                .getOrNull()
             return azureAccountConfig(
                 subscriptionId = account?.extra(ProviderAccount.EXTRA_AZURE_SUBSCRIPTION),
                 resourceName = account?.extra(ProviderAccount.EXTRA_AZURE_RESOURCE),
@@ -79,8 +98,11 @@ class AzureQuotaProvider(
 
         internal fun ocrDeploymentForAccount(accountId: String): String? {
             val stored = runCatching {
-                QuotaSettingsState.getInstance().account(accountId)?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT)
-            }.getOrNull()
+                QuotaSettingsState.getInstance()
+                    .account(accountId)
+                    ?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT)
+            }
+                .getOrNull()
             if (stored == "-") return null
             return stored
         }
@@ -88,10 +110,17 @@ class AzureQuotaProvider(
         /** First catalog read only. A stored model or "-" is left alone. */
         internal fun autofillOcrDeployment(accountId: String, quota: AzureQuota) {
             if (!quota.modelCatalogRead) return
-            val account = runCatching { QuotaSettingsState.getInstance().account(accountId) }.getOrNull() ?: return
+            val account =
+                runCatching { QuotaSettingsState.getInstance().account(accountId) }.getOrNull()
+                    ?: return
             if (!account.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT).isNullOrBlank()) return
             val config = configForAccount(accountId)
-            val preferred = preferredAzureOcrSelection(quota, config.deploymentNames.joinToString(","), config.resourceName)
+            val preferred =
+                preferredAzureOcrSelection(
+                    quota,
+                    config.deploymentNames.joinToString(","),
+                    config.resourceName,
+                )
             account.setExtra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT, preferred ?: "-")
         }
 
@@ -100,7 +129,8 @@ class AzureQuotaProvider(
             if (executableForAccount(accountId) == null) return false
             val config = configForAccount(accountId)
             return when {
-                selection == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT -> azureDocumentIntelligenceUri(config) != null
+                selection == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT ->
+                    azureDocumentIntelligenceUri(config) != null
                 isAzureCohereSelection(selection) -> azureCohereParseUri(config) != null
                 else -> azureOcrUri(config) != null
             }

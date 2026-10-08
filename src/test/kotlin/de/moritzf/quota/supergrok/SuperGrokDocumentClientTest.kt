@@ -35,10 +35,13 @@ class SuperGrokDocumentClientTest {
     fun documentInputRejectsOversizedLocalFileWithoutFileId() {
         val dir = Files.createTempDirectory("grok-doc-big")
         val pdf = dir.resolve("big.pdf")
-        RandomAccessFile(pdf.toFile(), "rw").use { it.setLength(DocumentLimits.MAX_INLINE_BYTES + 1) }
-        val exception = assertFailsWith<SuperGrokQuotaException> {
-            SuperGrokDocumentClient.documentInput(null, pdf, null)
+        RandomAccessFile(pdf.toFile(), "rw").use {
+            it.setLength(DocumentLimits.MAX_INLINE_BYTES + 1)
         }
+        val exception =
+            assertFailsWith<SuperGrokQuotaException> {
+                SuperGrokDocumentClient.documentInput(null, pdf, null)
+            }
         assertTrue(exception.message!!.contains("too large"))
     }
 
@@ -47,7 +50,7 @@ class SuperGrokDocumentClientTest {
         assertEquals(
             "# Hello",
             SuperGrokDocumentClient.parseMarkdown(
-                """{"output":[{"type":"message","content":[{"type":"output_text","text":"# Hello"}]}]}""",
+                """{"output":[{"type":"message","content":[{"type":"output_text","text":"# Hello"}]}]}"""
             ),
         )
     }
@@ -55,28 +58,37 @@ class SuperGrokDocumentClientTest {
     @Test
     fun analyzeImagePostsImageAndPromptAndReturnsAnswer() {
         TestUpstream(
-            uploadBody = "",
-            responseBody = """{"output":[{"content":[{"type":"output_text","text":"A red box on white."}]}]}""",
-        ).use { upstream ->
-            val client = SuperGrokDocumentClient(baseUri = upstream.baseUri)
-
-            val answer = client.analyzeImage(
-                "grok-token",
-                imageUrl = "https://example.com/a.png",
-                prompt = "What is shown?",
-                model = "grok-4.7",
+                uploadBody = "",
+                responseBody =
+                    """{"output":[{"content":[{"type":"output_text","text":"A red box on white."}]}]}""",
             )
+            .use { upstream ->
+                val client = SuperGrokDocumentClient(baseUri = upstream.baseUri)
 
-            assertEquals("A red box on white.", answer)
-            val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-            assertEquals("/v1/responses", request.path)
-            val body = JsonSupport.json.parseToJsonElement(request.body).jsonObject
-            assertEquals("grok-4.7", body["model"]!!.jsonPrimitive.content)
-            val content = body["input"]!!.jsonArray[0].jsonObject["content"]!!.jsonArray
-            assertEquals("input_image", content[0].jsonObject["type"]!!.jsonPrimitive.content)
-            assertEquals("https://example.com/a.png", content[0].jsonObject["image_url"]!!.jsonPrimitive.content)
-            assertEquals("What is shown?", content[1].jsonObject["text"]!!.jsonPrimitive.content)
-        }
+                val answer =
+                    client.analyzeImage(
+                        "grok-token",
+                        imageUrl = "https://example.com/a.png",
+                        prompt = "What is shown?",
+                        model = "grok-4.7",
+                    )
+
+                assertEquals("A red box on white.", answer)
+                val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/responses", request.path)
+                val body = JsonSupport.json.parseToJsonElement(request.body).jsonObject
+                assertEquals("grok-4.7", body["model"]!!.jsonPrimitive.content)
+                val content = body["input"]!!.jsonArray[0].jsonObject["content"]!!.jsonArray
+                assertEquals("input_image", content[0].jsonObject["type"]!!.jsonPrimitive.content)
+                assertEquals(
+                    "https://example.com/a.png",
+                    content[0].jsonObject["image_url"]!!.jsonPrimitive.content,
+                )
+                assertEquals(
+                    "What is shown?",
+                    content[1].jsonObject["text"]!!.jsonPrimitive.content,
+                )
+            }
     }
 
     @Test
@@ -84,88 +96,99 @@ class SuperGrokDocumentClientTest {
         val dir = Files.createTempDirectory("grok-vision")
         val pdf = dir.resolve("doc.pdf")
         Files.write(pdf, "%PDF-1.4".toByteArray())
-        val exception = assertFailsWith<SuperGrokQuotaException> {
-            SuperGrokDocumentClient().analyzeImage("token", localFile = pdf, prompt = "?", model = "grok-4.7")
-        }
+        val exception =
+            assertFailsWith<SuperGrokQuotaException> {
+                SuperGrokDocumentClient()
+                    .analyzeImage("token", localFile = pdf, prompt = "?", model = "grok-4.7")
+            }
         assertTrue(exception.message!!.contains("image"))
     }
 
     @Test
     fun postsDocumentAndWritesMarkdown() {
         TestUpstream(
-            uploadBody = """{"id":"file-1"}""",
-            responseBody = """{"output":[{"content":[{"type":"output_text","text":"# Converted"}]}]}""",
-        ).use { upstream ->
-            val client = SuperGrokDocumentClient(baseUri = upstream.baseUri)
-            val dir = Files.createTempDirectory("grok-doc")
-            val pdf = dir.resolve("doc.pdf")
-            Files.write(pdf, "%PDF-1.4".toByteArray())
+                uploadBody = """{"id":"file-1"}""",
+                responseBody =
+                    """{"output":[{"content":[{"type":"output_text","text":"# Converted"}]}]}""",
+            )
+            .use { upstream ->
+                val client = SuperGrokDocumentClient(baseUri = upstream.baseUri)
+                val dir = Files.createTempDirectory("grok-doc")
+                val pdf = dir.resolve("doc.pdf")
+                Files.write(pdf, "%PDF-1.4".toByteArray())
 
-            val result = client.convertDocument("grok-token", localFile = pdf)
+                val result = client.convertDocument("grok-token", localFile = pdf)
 
-            val upload = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-            assertEquals("/v1/files", upload.path)
-            assertTrue(upload.body.contains("expires_after"))
-            val convert = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-            assertEquals("/v1/responses", convert.path)
-            val body = JsonSupport.json.parseToJsonElement(convert.body).jsonObject
-            assertEquals("grok-4.7", body["model"]!!.jsonPrimitive.content)
-            val content = body["input"]!!.jsonArray[0].jsonObject["content"]!!.jsonArray
-            assertEquals("input_file", content[0].jsonObject["type"]!!.jsonPrimitive.content)
-            assertEquals("file-1", content[0].jsonObject["file_id"]!!.jsonPrimitive.content)
-            assertTrue(result.contains("output_file"))
-            assertEquals("# Converted", Files.readString(dir.resolve("doc.md")))
-        }
+                val upload = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/files", upload.path)
+                assertTrue(upload.body.contains("expires_after"))
+                val convert = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/v1/responses", convert.path)
+                val body = JsonSupport.json.parseToJsonElement(convert.body).jsonObject
+                assertEquals("grok-4.7", body["model"]!!.jsonPrimitive.content)
+                val content = body["input"]!!.jsonArray[0].jsonObject["content"]!!.jsonArray
+                assertEquals("input_file", content[0].jsonObject["type"]!!.jsonPrimitive.content)
+                assertEquals("file-1", content[0].jsonObject["file_id"]!!.jsonPrimitive.content)
+                assertTrue(result.contains("output_file"))
+                assertEquals("# Converted", Files.readString(dir.resolve("doc.md")))
+            }
     }
 
     @Test
     fun extractsCroppedImageRegionFromLocalPdf() {
         TestUpstream(
-            uploadBody = """{"id":"file-1"}""",
-            responseBody = """{"output":[{"content":[{"type":"output_text","text":"![red box](image-p1-1.png)\n<!-- img page=1 0.0 0.0 0.5 0.5 -->"}]}]}""",
-        ).use { upstream ->
-            val client = SuperGrokDocumentClient(baseUri = upstream.baseUri)
-            val dir = Files.createTempDirectory("grok-doc-crop")
-            val pdf = dir.resolve("fig.pdf")
-            org.apache.pdfbox.pdmodel.PDDocument().use { doc ->
-                val page = org.apache.pdfbox.pdmodel.PDPage(org.apache.pdfbox.pdmodel.common.PDRectangle(612f, 792f))
-                doc.addPage(page)
-                doc.save(pdf.toFile())
+                uploadBody = """{"id":"file-1"}""",
+                responseBody =
+                    """{"output":[{"content":[{"type":"output_text","text":"![red box](image-p1-1.png)\n<!-- img page=1 0.0 0.0 0.5 0.5 -->"}]}]}""",
+            )
+            .use { upstream ->
+                val client = SuperGrokDocumentClient(baseUri = upstream.baseUri)
+                val dir = Files.createTempDirectory("grok-doc-crop")
+                val pdf = dir.resolve("fig.pdf")
+                org.apache.pdfbox.pdmodel.PDDocument().use { doc ->
+                    val page =
+                        org.apache.pdfbox.pdmodel.PDPage(
+                            org.apache.pdfbox.pdmodel.common.PDRectangle(612f, 792f)
+                        )
+                    doc.addPage(page)
+                    doc.save(pdf.toFile())
+                }
+
+                val result = client.convertDocument("grok-token", localFile = pdf)
+
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                val png = dir.resolve("image-p1-1.png")
+                assertTrue(Files.isRegularFile(png), "cropped region image should exist")
+                assertFalse(Files.readString(dir.resolve("fig.md")).contains("<!-- img"))
+                assertTrue(result.contains("image_files"))
             }
-
-            val result = client.convertDocument("grok-token", localFile = pdf)
-
-            assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-            assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-            val png = dir.resolve("image-p1-1.png")
-            assertTrue(Files.isRegularFile(png), "cropped region image should exist")
-            assertFalse(Files.readString(dir.resolve("fig.md")).contains("<!-- img"))
-            assertTrue(result.contains("image_files"))
-        }
     }
 
     @Test
     fun skipsImageExtractionWhenIncludeImagesFalse() {
         TestUpstream(
-            uploadBody = """{"id":"file-1"}""",
-            responseBody = """{"output":[{"content":[{"type":"output_text","text":"![fig](image-p1-1.png)\n<!-- img page=1 0.0 0.0 0.5 0.5 -->"}]}]}""",
-        ).use { upstream ->
-            val client = SuperGrokDocumentClient(baseUri = upstream.baseUri)
-            val dir = Files.createTempDirectory("grok-doc-nocrop")
-            val pdf = dir.resolve("fig.pdf")
-            org.apache.pdfbox.pdmodel.PDDocument().use { doc ->
-                doc.addPage(org.apache.pdfbox.pdmodel.PDPage())
-                doc.save(pdf.toFile())
+                uploadBody = """{"id":"file-1"}""",
+                responseBody =
+                    """{"output":[{"content":[{"type":"output_text","text":"![fig](image-p1-1.png)\n<!-- img page=1 0.0 0.0 0.5 0.5 -->"}]}]}""",
+            )
+            .use { upstream ->
+                val client = SuperGrokDocumentClient(baseUri = upstream.baseUri)
+                val dir = Files.createTempDirectory("grok-doc-nocrop")
+                val pdf = dir.resolve("fig.pdf")
+                org.apache.pdfbox.pdmodel.PDDocument().use { doc ->
+                    doc.addPage(org.apache.pdfbox.pdmodel.PDPage())
+                    doc.save(pdf.toFile())
+                }
+
+                client.convertDocument("grok-token", localFile = pdf, includeImages = false)
+
+                assertFalse(Files.isRegularFile(dir.resolve("image-p1-1.png")))
+                val markdown = Files.readString(dir.resolve("fig.md"))
+                assertFalse(markdown.contains("<!-- img"))
+                assertFalse(markdown.contains("](image-p1-1.png)"))
+                assertTrue(markdown.contains("**Figure.** fig"))
             }
-
-            client.convertDocument("grok-token", localFile = pdf, includeImages = false)
-
-            assertFalse(Files.isRegularFile(dir.resolve("image-p1-1.png")))
-            val markdown = Files.readString(dir.resolve("fig.md"))
-            assertFalse(markdown.contains("<!-- img"))
-            assertFalse(markdown.contains("](image-p1-1.png)"))
-            assertTrue(markdown.contains("**Figure.** fig"))
-        }
     }
 
     private class TestUpstream(
@@ -173,7 +196,8 @@ class SuperGrokDocumentClientTest {
         private val responseBody: String,
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
 
         init {
@@ -181,11 +205,13 @@ class SuperGrokDocumentClientTest {
                 val body = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
                 val path = exchange.requestURI.rawPath
                 requests += CapturedRequest(exchange.requestMethod, path, body)
-                val payload = when {
-                    path.endsWith("/files") && exchange.requestMethod == "POST" -> uploadBody
-                    path.contains("/files/") && exchange.requestMethod == "DELETE" -> """{"deleted":true}"""
-                    else -> responseBody
-                }.toByteArray()
+                val payload =
+                    when {
+                        path.endsWith("/files") && exchange.requestMethod == "POST" -> uploadBody
+                        path.contains("/files/") && exchange.requestMethod == "DELETE" ->
+                            """{"deleted":true}"""
+                        else -> responseBody
+                    }.toByteArray()
                 exchange.responseHeaders.set("Content-Type", "application/json")
                 exchange.sendResponseHeaders(200, payload.size.toLong())
                 exchange.responseBody.use { it.write(payload) }

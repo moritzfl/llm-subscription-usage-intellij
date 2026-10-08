@@ -15,13 +15,14 @@ class AiCompletionSetupInspectorTest {
             """<application><component name="Llm"><option name="url" value="http://127.0.0.1:14621"/><option name="model" value="${CompletionsConfig.FIM_ALIAS_ID}"/></component></application>""",
         )
 
-        val report = AiCompletionSetupInspector.inspect(
-            baseUrl = "http://127.0.0.1:14621/",
-            modelId = CompletionsConfig.FIM_ALIAS_ID,
-            pluginFound = true,
-            optionsDir = dir,
-            powerSaveEnabled = false,
-        )
+        val report =
+            AiCompletionSetupInspector.inspect(
+                baseUrl = "http://127.0.0.1:14621/",
+                modelId = CompletionsConfig.FIM_ALIAS_ID,
+                pluginFound = true,
+                optionsDir = dir,
+                powerSaveEnabled = false,
+            )
 
         assertTrue(report.baseUrlFound)
         assertTrue(report.modelFound)
@@ -40,12 +41,13 @@ class AiCompletionSetupInspectorTest {
             }]]></component></application>""",
         )
 
-        val report = AiCompletionSetupInspector.inspect(
-            baseUrl = "http://127.0.0.1:14621",
-            pluginFound = true,
-            optionsDir = dir,
-            powerSaveEnabled = false,
-        )
+        val report =
+            AiCompletionSetupInspector.inspect(
+                baseUrl = "http://127.0.0.1:14621",
+                pluginFound = true,
+                optionsDir = dir,
+                powerSaveEnabled = false,
+            )
 
         assertTrue(report.baseUrlFound)
         assertTrue(report.modelFound)
@@ -63,12 +65,13 @@ class AiCompletionSetupInspectorTest {
             }]]></component></application>""",
         )
 
-        val report = AiCompletionSetupInspector.inspect(
-            baseUrl = "http://127.0.0.1:14621",
-            pluginFound = true,
-            optionsDir = dir,
-            powerSaveEnabled = true,
-        )
+        val report =
+            AiCompletionSetupInspector.inspect(
+                baseUrl = "http://127.0.0.1:14621",
+                pluginFound = true,
+                optionsDir = dir,
+                powerSaveEnabled = true,
+            )
 
         assertTrue(report.baseUrlFound)
         assertTrue(report.modelFound)
@@ -80,12 +83,13 @@ class AiCompletionSetupInspectorTest {
     @Test
     fun reportsMissingConfiguration() {
         val dir = Files.createTempDirectory("fim-setup-empty")
-        val report = AiCompletionSetupInspector.inspect(
-            baseUrl = "http://127.0.0.1:14621",
-            pluginFound = true,
-            optionsDir = dir,
-            powerSaveEnabled = false,
-        )
+        val report =
+            AiCompletionSetupInspector.inspect(
+                baseUrl = "http://127.0.0.1:14621",
+                pluginFound = true,
+                optionsDir = dir,
+                powerSaveEnabled = false,
+            )
 
         assertFalse(report.baseUrlFound)
         assertFalse(report.modelFound)

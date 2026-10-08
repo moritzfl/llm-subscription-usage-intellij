@@ -4,20 +4,20 @@ import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.ActionLink
-import de.moritzf.quota.idea.ui.QuotaUiUtil
+import com.intellij.util.ui.JBUI
 import de.moritzf.quota.idea.common.QuotaUsageService
+import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.ui.indicator.clampPercent
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.OpenAiCredits
-import de.moritzf.quota.openai.RateLimitResetCredit
 import de.moritzf.quota.openai.OpenAiSpendControl
+import de.moritzf.quota.openai.RateLimitResetCredit
 import de.moritzf.quota.openai.UsageWindow
 import de.moritzf.quota.openai.formatApproxMessages
 import de.moritzf.quota.openai.hasDetail
 import de.moritzf.quota.openai.hasSpendControlDetail
 import de.moritzf.quota.openai.isAssignedCreditsQuota
-import com.intellij.util.ui.JBUI
 import de.moritzf.quota.shared.ProviderQuota
 import java.awt.Cursor
 import java.awt.FlowLayout
@@ -29,17 +29,24 @@ import kotlin.math.roundToInt
 internal class OpenAiPopupSection : ProviderPopupSection() {
     private val separator = createSeparatedBlock()
     private val warningLabel = createWarningLabel("").apply { border = JBUI.Borders.emptyTop(1) }
-    private val titleLabel = createSectionTitleLabel("Codex", QuotaIcons.OPENAI).apply { border = JBUI.Borders.emptyTop(0) }
+    private val titleLabel =
+        createSectionTitleLabel("Codex", QuotaIcons.OPENAI).apply {
+            border = JBUI.Borders.emptyTop(0)
+        }
     private val primaryBlock = WindowBlockPanel(3)
     private val secondaryBlock = WindowBlockPanel(5)
     private val creditsBlock = WindowBlockPanel(5)
-    private val resetCreditsPanel = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(3), 0)).apply {
-        isOpaque = false
-        border = JBUI.Borders.emptyTop(5)
-    }
+    private val resetCreditsPanel =
+        JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(3), 0)).apply {
+            isOpaque = false
+            border = JBUI.Borders.emptyTop(5)
+        }
     private val extraLimitBlocks = mutableListOf<WindowBlockPanel>()
     private val reviewSeparator = createSeparatedBlock()
-    private val reviewTitle = createSectionTitleLabel("Code Review", QuotaIcons.OPENAI).apply { border = JBUI.Borders.emptyTop(0) }
+    private val reviewTitle =
+        createSectionTitleLabel("Code Review", QuotaIcons.OPENAI).apply {
+            border = JBUI.Borders.emptyTop(0)
+        }
     private val reviewPrimaryBlock = WindowBlockPanel(3)
     private val reviewSecondaryBlock = WindowBlockPanel(5)
 
@@ -61,14 +68,21 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
 
     override fun update(quota: ProviderQuota?, error: String?, visible: Boolean) {
         val codexQuota = quota as? OpenAiCodexQuota
-        val hasReviewData = codexQuota != null && (
-            codexQuota.reviewPrimary != null || codexQuota.reviewSecondary != null ||
-                codexQuota.reviewAllowed != null || codexQuota.reviewLimitReached != null
-            )
+        val hasReviewData =
+            codexQuota != null &&
+                (codexQuota.reviewPrimary != null ||
+                    codexQuota.reviewSecondary != null ||
+                    codexQuota.reviewAllowed != null ||
+                    codexQuota.reviewLimitReached != null)
         updateContent(codexQuota, error, visible, hasReviewData)
     }
 
-    private fun updateContent(quota: OpenAiCodexQuota?, error: String?, visible: Boolean, hasReviewData: Boolean) {
+    private fun updateContent(
+        quota: OpenAiCodexQuota?,
+        error: String?,
+        visible: Boolean,
+        hasReviewData: Boolean,
+    ) {
         isVisible = visible
         if (!visible) return
 
@@ -91,20 +105,30 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
                 warningLabel.isVisible = limitWarning != null
                 if (limitWarning != null) warningLabel.text = limitWarning
 
-                val hasMainData = quota.primary != null ||
-                    quota.secondary != null ||
-                    quota.isAssignedCreditsQuota() ||
-                    quota.hasSpendControlDetail()
+                val hasMainData =
+                    quota.primary != null ||
+                        quota.secondary != null ||
+                        quota.isAssignedCreditsQuota() ||
+                        quota.hasSpendControlDetail()
                 titleLabel.isVisible = hasMainData
                 if (hasMainData) {
                     val planLabel = quota.planType?.toDisplayLabel()
                     titleLabel.text = sectionTitle("Codex", planLabel)
                 }
 
-                quota.primary?.let { primaryBlock.updateWindow(it, "Primary") } ?: primaryBlock.clear()
-                quota.secondary?.let { secondaryBlock.updateWindow(it, "Secondary") } ?: secondaryBlock.clear()
-                if (quota.credits != null && (quota.isAssignedCreditsQuota() || quota.hasSpendControlDetail())) {
-                    creditsBlock.updateAssignedCredits(quota.credits!!, quota.spendControl, quota.rateLimitReachedType)
+                quota.primary?.let { primaryBlock.updateWindow(it, "Primary") }
+                    ?: primaryBlock.clear()
+                quota.secondary?.let { secondaryBlock.updateWindow(it, "Secondary") }
+                    ?: secondaryBlock.clear()
+                if (
+                    quota.credits != null &&
+                        (quota.isAssignedCreditsQuota() || quota.hasSpendControlDetail())
+                ) {
+                    creditsBlock.updateAssignedCredits(
+                        quota.credits!!,
+                        quota.spendControl,
+                        quota.rateLimitReachedType,
+                    )
                 } else if (quota.hasSpendControlDetail()) {
                     creditsBlock.updateSpendControlOnly(quota.spendControl!!)
                 } else {
@@ -120,8 +144,10 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
 
                 reviewSeparator.isVisible = hasReviewData
                 reviewTitle.isVisible = hasReviewData
-                quota.reviewPrimary?.let { reviewPrimaryBlock.updateWindow(it, "Primary") } ?: reviewPrimaryBlock.clear()
-                quota.reviewSecondary?.let { reviewSecondaryBlock.updateWindow(it, "Secondary") } ?: reviewSecondaryBlock.clear()
+                quota.reviewPrimary?.let { reviewPrimaryBlock.updateWindow(it, "Primary") }
+                    ?: reviewPrimaryBlock.clear()
+                quota.reviewSecondary?.let { reviewSecondaryBlock.updateWindow(it, "Secondary") }
+                    ?: reviewSecondaryBlock.clear()
             }
         }
     }
@@ -155,7 +181,11 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
         updateWindowContent(window, title, percent)
     }
 
-    private fun WindowBlockPanel.updateWindowContent(window: UsageWindow, title: String, percent: Int) {
+    private fun WindowBlockPanel.updateWindowContent(
+        window: UsageWindow,
+        title: String,
+        percent: Int,
+    ) {
         val resetText = QuotaUiUtil.formatReset(window.resetsAt)
         var info = "$percent% used"
         if (resetText != null) info += " - $resetText"
@@ -167,7 +197,8 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
         repeat(count - extraLimitBlocks.size) {
             val block = WindowBlockPanel(5)
             extraLimitBlocks.add(block)
-            val resetIndex = getComponentZOrder(resetCreditsPanel).takeIf { it >= 0 } ?: componentCount
+            val resetIndex =
+                getComponentZOrder(resetCreditsPanel).takeIf { it >= 0 } ?: componentCount
             add(block, resetIndex)
         }
         revalidate()
@@ -195,22 +226,31 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
         }
 
         resetCreditsPanel.add(JLabel("Resets available: $availableCount"))
-        resetCreditsPanel.add(ActionLink("Reset") { confirmAndReset(resetCredits.firstOrNull()?.creditId) }.apply {
-            icon = AllIcons.Actions.Restart
-            toolTipText = resetTokenTooltip("Redeem one Codex reset", resetCredits.map { it.expiresAt }, availableCount)
-            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-        })
+        resetCreditsPanel.add(
+            ActionLink("Reset") { confirmAndReset(resetCredits.firstOrNull()?.creditId) }
+                .apply {
+                    icon = AllIcons.Actions.Restart
+                    toolTipText =
+                        resetTokenTooltip(
+                            "Redeem one Codex reset",
+                            resetCredits.map { it.expiresAt },
+                            availableCount,
+                        )
+                    cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                }
+        )
         resetCreditsPanel.isVisible = true
     }
 
     private fun confirmAndReset(creditId: String?) {
-        val result = Messages.showYesNoDialog(
-            "Redeem one Codex reset credit now?",
-            "Reset Codex Limits",
-            "Reset",
-            "Cancel",
-            AllIcons.Actions.Restart,
-        )
+        val result =
+            Messages.showYesNoDialog(
+                "Redeem one Codex reset credit now?",
+                "Reset Codex Limits",
+                "Reset",
+                "Cancel",
+                AllIcons.Actions.Restart,
+            )
         if (result != Messages.YES) {
             return
         }
@@ -218,13 +258,19 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
         resetCreditsPanel.components.filterIsInstance<ActionLink>().forEach { it.isEnabled = false }
         ApplicationManager.getApplication().executeOnPooledThread {
             runCatching {
-                val resolvedAccountId = accountId
-                    ?: runCatching {
-                        de.moritzf.quota.idea.settings.QuotaSettingsState.getInstance()
-                            .defaultAccount(de.moritzf.quota.idea.common.QuotaProviderType.OPEN_AI)?.id
-                    }.getOrNull()
-                    ?: return@runCatching
-                QuotaUsageService.getInstance().consumeOpenAiResetCredit(creditId, resolvedAccountId)
+                val resolvedAccountId =
+                    accountId
+                        ?: runCatching {
+                            de.moritzf.quota.idea.settings.QuotaSettingsState.getInstance()
+                                .defaultAccount(
+                                    de.moritzf.quota.idea.common.QuotaProviderType.OPEN_AI
+                                )
+                                ?.id
+                        }
+                            .getOrNull()
+                        ?: return@runCatching
+                QuotaUsageService.getInstance()
+                    .consumeOpenAiResetCredit(creditId, resolvedAccountId)
             }
                 .onFailure { exception ->
                     ApplicationManager.getApplication().invokeLater {
@@ -245,15 +291,20 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
     ): Pair<String, Int> {
         when {
             credits.unlimited == true -> return "Unlimited" to 0
-            rateLimitReachedType == "workspace_member_credits_depleted" -> return "Assigned credits depleted" to 100
+            rateLimitReachedType == "workspace_member_credits_depleted" ->
+                return "Assigned credits depleted" to 100
             credits.overageLimitReached == true -> return "Overage limit reached" to 100
             spendControl?.hasDetail() == true -> return describeSpendControl(spendControl)
             credits.hasCredits == false -> return "Depleted" to 100
             !credits.balance.isNullOrBlank() -> {
                 val balance = formatCreditsBalance(credits.balance)
                 val hints = buildList {
-                    formatApproxMessages(credits.approxLocalMessages)?.let { add("~$it local messages") }
-                    formatApproxMessages(credits.approxCloudMessages)?.let { add("~$it cloud messages") }
+                    formatApproxMessages(credits.approxLocalMessages)?.let {
+                        add("~$it local messages")
+                    }
+                    formatApproxMessages(credits.approxCloudMessages)?.let {
+                        add("~$it cloud messages")
+                    }
                 }
                 var info = "$$balance remaining"
                 if (hints.isNotEmpty()) {
@@ -263,29 +314,38 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
             }
             credits.hasCredits == true -> {
                 val hints = buildList {
-                    formatApproxMessages(credits.approxLocalMessages)?.let { add("~$it local messages") }
-                    formatApproxMessages(credits.approxCloudMessages)?.let { add("~$it cloud messages") }
+                    formatApproxMessages(credits.approxLocalMessages)?.let {
+                        add("~$it local messages")
+                    }
+                    formatApproxMessages(credits.approxCloudMessages)?.let {
+                        add("~$it cloud messages")
+                    }
                 }
-                val info = if (hints.isEmpty()) {
-                    "Available"
-                } else {
-                    "Available (${hints.joinToString(", ")})"
-                }
+                val info =
+                    if (hints.isEmpty()) {
+                        "Available"
+                    } else {
+                        "Available (${hints.joinToString(", ")})"
+                    }
                 return info to 0
             }
         }
 
-        spendControl?.let { return describeSpendControl(it) }
+        spendControl?.let {
+            return describeSpendControl(it)
+        }
 
         return "Unknown" to 0
     }
 
     private fun describeSpendControl(spendControl: OpenAiSpendControl): Pair<String, Int> {
-        val percent = when {
-            spendControl.reached == true -> 100
-            spendControl.usedPercent != null -> clampPercent(spendControl.usedPercent.roundToInt())
-            else -> 0
-        }
+        val percent =
+            when {
+                spendControl.reached == true -> 100
+                spendControl.usedPercent != null ->
+                    clampPercent(spendControl.usedPercent.roundToInt())
+                else -> 0
+            }
         // Team/business spend_control uses Codex credit units, not USD.
         val cap = spendControl.individualLimit?.takeIf { it > 0.0 }
         val used = spendControl.used
@@ -293,14 +353,11 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
             when {
                 spendControl.reached == true && cap != null ->
                     append("Cap reached (${formatCreditAmount(cap)} credits)")
-                spendControl.reached == true ->
-                    append("Credit cap reached")
+                spendControl.reached == true -> append("Credit cap reached")
                 cap != null && used != null ->
                     append("${formatCreditAmount(used)} / ${formatCreditAmount(cap)} credits")
-                cap != null ->
-                    append("Cap ${formatCreditAmount(cap)} credits")
-                else ->
-                    append("Credit limit")
+                cap != null -> append("Cap ${formatCreditAmount(cap)} credits")
+                else -> append("Credit limit")
             }
         }
         return info to percent

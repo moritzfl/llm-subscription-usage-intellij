@@ -20,18 +20,20 @@ class KimiVisionClientTest {
     fun postsImageQuestionAndReturnsAnswerWithCredentials() {
         TestUpstream("""{"choices":[{"message":{"content":"A sunset."}}]}""").use { upstream ->
             val client = KimiVisionClient(chatEndpoint = upstream.baseUri)
-            val credentials = KimiCredentials(
-                accessToken = "kimi-token",
-                refreshToken = "kimi-refresh",
-                expiresAtEpochSeconds = (System.currentTimeMillis() / 1000.0) + 3600,
-            )
+            val credentials =
+                KimiCredentials(
+                    accessToken = "kimi-token",
+                    refreshToken = "kimi-refresh",
+                    expiresAtEpochSeconds = (System.currentTimeMillis() / 1000.0) + 3600,
+                )
 
-            val result = client.ask(
-                credentials,
-                imageUrl = "https://example.com/a.png",
-                prompt = "Describe",
-                model = "kimi-vision",
-            )
+            val result =
+                client.ask(
+                    credentials,
+                    imageUrl = "https://example.com/a.png",
+                    prompt = "Describe",
+                    model = "kimi-vision",
+                )
 
             assertEquals("A sunset.", result.answer)
             assertEquals(credentials, result.credentials)
@@ -46,28 +48,31 @@ class KimiVisionClientTest {
         }
     }
 
-    private class TestUpstream(
-        private val responseBody: String,
-    ) : AutoCloseable {
+    private class TestUpstream(private val responseBody: String) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: java.net.URI
 
         init {
             server.createContext("/") { exchange ->
                 val body = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
-                requests += CapturedRequest(
-                    exchange.requestURI.rawPath,
-                    body,
-                    exchange.requestHeaders.getFirst("Authorization").orEmpty(),
-                    exchange.requestHeaders.getFirst("User-Agent").orEmpty(),
-                )
+                requests +=
+                    CapturedRequest(
+                        exchange.requestURI.rawPath,
+                        body,
+                        exchange.requestHeaders.getFirst("Authorization").orEmpty(),
+                        exchange.requestHeaders.getFirst("User-Agent").orEmpty(),
+                    )
                 val payload = responseBody.toByteArray()
                 exchange.sendResponseHeaders(200, payload.size.toLong())
                 exchange.responseBody.use { it.write(payload) }
             }
             server.start()
-            baseUri = java.net.URI.create("http://127.0.0.1:${server.address.port}/coding/v1/chat/completions")
+            baseUri =
+                java.net.URI.create(
+                    "http://127.0.0.1:${server.address.port}/coding/v1/chat/completions"
+                )
         }
 
         override fun close() {

@@ -2,18 +2,18 @@ package de.moritzf.quota.minimax
 
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.intOrNull
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 
 open class MiniMaxWebSearchClient(
     private val httpClient: HttpClient = defaultHttpClient(),
@@ -31,17 +31,28 @@ open class MiniMaxWebSearchClient(
         if (trimmedQuery.isBlank()) {
             throw MiniMaxQuotaException("Search query is required.")
         }
-        val token = apiKey.trim().ifBlank {
-            throw MiniMaxQuotaException("MiniMax API key missing. Add a MiniMax API key in settings.")
-        }
+        val token =
+            apiKey.trim().ifBlank {
+                throw MiniMaxQuotaException(
+                    "MiniMax API key missing. Add a MiniMax API key in settings."
+                )
+            }
         val response = send(searchRequest(token, region, trimmedQuery))
         val status = response.statusCode()
         val body = response.body()
         if (status == 401 || status == 403) {
-            throw MiniMaxQuotaException("Session expired. Check your MiniMax API key.", status, body)
+            throw MiniMaxQuotaException(
+                "Session expired. Check your MiniMax API key.",
+                status,
+                body,
+            )
         }
         if (status !in 200..299) {
-            throw MiniMaxQuotaException("MiniMax web search failed (HTTP $status). Try again later.", status, body)
+            throw MiniMaxQuotaException(
+                "MiniMax web search failed (HTTP $status). Try again later.",
+                status,
+                body,
+            )
         }
         return parseSearchResponse(body)
     }
@@ -63,32 +74,48 @@ open class MiniMaxWebSearchClient(
         return try {
             httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         } catch (exception: IOException) {
-            throw MiniMaxQuotaException("Request failed. Check your connection.", 0, null, exception)
+            throw MiniMaxQuotaException(
+                "Request failed. Check your connection.",
+                0,
+                null,
+                exception,
+            )
         } catch (exception: InterruptedException) {
             Thread.currentThread().interrupt()
-            throw MiniMaxQuotaException("Request failed. Check your connection.", 0, null, exception)
+            throw MiniMaxQuotaException(
+                "Request failed. Check your connection.",
+                0,
+                null,
+                exception,
+            )
         }
     }
 
-    private fun parseSearchResponse(
-        body: String,
-    ): String {
-        val root = runCatching {
-            JsonSupport.json.parseToJsonElement(body) as? JsonObject
-        }.getOrNull() ?: return McpJson.providerJsonOrRaw(body)
+    private fun parseSearchResponse(body: String): String {
+        val root =
+            runCatching {
+                JsonSupport.json.parseToJsonElement(body) as? JsonObject
+            }
+                .getOrNull() ?: return McpJson.providerJsonOrRaw(body)
 
         val baseResp = root.obj("base_resp")
         val statusCode = baseResp?.int("status_code") ?: 0
         if (statusCode != 0) {
-            val statusMessage = baseResp?.string("status_msg").orEmpty().ifBlank { statusCode.toString() }
-            throw MiniMaxQuotaException("MiniMax web search failed: $statusMessage", statusCode, body)
+            val statusMessage =
+                baseResp?.string("status_msg").orEmpty().ifBlank { statusCode.toString() }
+            throw MiniMaxQuotaException(
+                "MiniMax web search failed: $statusMessage",
+                statusCode,
+                body,
+            )
         }
         return body
     }
 
     private fun JsonObject.obj(name: String): JsonObject? = this[name] as? JsonObject
 
-    private fun JsonObject.string(name: String): String? = (this[name] as? JsonPrimitive)?.contentOrNull
+    private fun JsonObject.string(name: String): String? =
+        (this[name] as? JsonPrimitive)?.contentOrNull
 
     private fun JsonObject.int(name: String): Int? = (this[name] as? JsonPrimitive)?.intOrNull
 
@@ -110,14 +137,9 @@ open class MiniMaxWebSearchClient(
         fun createDefault(): MiniMaxWebSearchClient = MiniMaxWebSearchClient()
 
         private fun defaultHttpClient(): HttpClient {
-            return HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(30))
-                .build()
+            return HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build()
         }
     }
 }
 
-@Serializable
-private data class MiniMaxSearchRequestDto(
-    val q: String,
-)
+@Serializable private data class MiniMaxSearchRequestDto(val q: String)

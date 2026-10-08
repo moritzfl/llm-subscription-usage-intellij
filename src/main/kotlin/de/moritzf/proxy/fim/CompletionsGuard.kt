@@ -6,9 +6,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 
-class CompletionsGuard(
-    private val clock: () -> Long = { System.currentTimeMillis() },
-) {
+class CompletionsGuard(private val clock: () -> Long = { System.currentTimeMillis() }) {
     private val inFlight = ConcurrentHashMap<String, InFlight>()
     private val lastStartMillis = ConcurrentHashMap<String, Long>()
     private val requestTimes = ConcurrentHashMap<String, ArrayDeque<Long>>()
@@ -50,7 +48,8 @@ class CompletionsGuard(
             window.addLast(now)
         }
         if (job != null) {
-            val next = InFlight(fingerprint = fingerprint, job = job, result = CompletableDeferred())
+            val next =
+                InFlight(fingerprint = fingerprint, job = job, result = CompletableDeferred())
             val previous = inFlight.put(key, next)
             if (previous != null && previous.job.isActive && previous.job !== job) {
                 previous.job.cancel()
@@ -107,7 +106,8 @@ class CompletionsGuard(
         }
 
         fun budget(context: FimContext, maxChars: Int): FimContext {
-            if (maxChars <= 0) return context.copy(extraFiles = emptyList(), prefix = "", suffix = "")
+            if (maxChars <= 0)
+                return context.copy(extraFiles = emptyList(), prefix = "", suffix = "")
             var remaining = maxChars
             val extra = ArrayList<FimFileSlice>()
             for (slice in context.extraFiles) {
@@ -119,11 +119,12 @@ class CompletionsGuard(
             val suffixKeep = minOf(context.suffix.length, remaining / 3)
             val suffix = context.suffix.take(suffixKeep)
             remaining -= suffix.length
-            val prefix = if (context.prefix.length <= remaining) {
-                context.prefix
-            } else {
-                context.prefix.takeLast(remaining)
-            }
+            val prefix =
+                if (context.prefix.length <= remaining) {
+                    context.prefix
+                } else {
+                    context.prefix.takeLast(remaining)
+                }
             return context.copy(prefix = prefix, suffix = suffix, extraFiles = extra)
         }
     }
@@ -131,6 +132,8 @@ class CompletionsGuard(
 
 sealed class GuardDecision {
     data object Allow : GuardDecision()
+
     data class Skip(val reason: String) : GuardDecision()
+
     data class Join(val result: Deferred<String>) : GuardDecision()
 }

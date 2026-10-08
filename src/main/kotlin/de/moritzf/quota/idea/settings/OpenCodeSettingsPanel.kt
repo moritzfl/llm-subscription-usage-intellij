@@ -9,23 +9,23 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
+import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.quota.idea.auth.OAuthCredentials
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
 import de.moritzf.quota.idea.opencode.OpenCodeAuthService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
-import de.moritzf.proxy.logging.RequestLogger
+import de.moritzf.quota.opencode.OpenCodeQuota
+import de.moritzf.quota.opencode.OpenCodeWorkspace
 import de.moritzf.quota.opencode.proxy.OpenCodeConsoleProxy
 import de.moritzf.quota.opencode.proxy.OpenCodeConsoleSession
-import de.moritzf.quota.opencode.OpenCodeWorkspace
 import de.moritzf.quota.shared.DocumentModels
-import de.moritzf.quota.opencode.OpenCodeQuota
 import java.awt.Color
-import java.net.http.HttpClient
-import java.nio.file.Path
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
+import java.net.http.HttpClient
+import java.nio.file.Path
 import javax.swing.JButton
 import javax.swing.JComponent
 
@@ -37,23 +37,26 @@ internal class OpenCodeSettingsPanel(
     private val loginButton = ActionLink("Sign in to OpenCode").apply { autoHideOnDisable = false }
     private val cancelButton = ActionLink("Cancel Login").apply { autoHideOnDisable = false }
     private val logoutButton = ActionLink("Log Out").apply { autoHideOnDisable = false }
-    private val copyUrlButton = JButton("Copy URL", AllIcons.Actions.Copy).apply { isVisible = false }
+    private val copyUrlButton =
+        JButton("Copy URL", AllIcons.Actions.Copy).apply { isVisible = false }
     private val userCodeLabel = JBLabel().apply { isVisible = false }
     private val workspaceComboBox = ComboBox<OpenCodeWorkspace>()
     private val workspaceStatus = JBLabel()
     private val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
     private val visionModelCombo = VisionModelCombo(groupUnverified = true)
-    private val testDocumentButton = DocumentTestButton(
-        DocumentToMarkdownProvider.OPEN_CODE,
-        { documentModelCombo.storedValue().orEmpty() },
-        modalityComponentProvider,
-        documentModelCombo.combo,
-    )
-    private val testVisionButton = VisionTestButton(
-        de.moritzf.quota.idea.mcp.VisionProvider.OPEN_CODE,
-        visionModelCombo,
-        modalityComponentProvider,
-    )
+    private val testDocumentButton =
+        DocumentTestButton(
+            DocumentToMarkdownProvider.OPEN_CODE,
+            { documentModelCombo.storedValue().orEmpty() },
+            modalityComponentProvider,
+            documentModelCombo.combo,
+        )
+    private val testVisionButton =
+        VisionTestButton(
+            de.moritzf.quota.idea.mcp.VisionProvider.OPEN_CODE,
+            visionModelCombo,
+            modalityComponentProvider,
+        )
     private val responseViewer = createResponseViewer()
     private var modelRefreshGeneration = 0
     private var verificationUrl: String? = null
@@ -66,36 +69,55 @@ internal class OpenCodeSettingsPanel(
     private var uiGeneration = 0L
 
     private fun accountId() = accountKey(QuotaProviderType.OPEN_CODE)
+
     private fun auth() = OpenCodeAuthService.getInstance()
 
     init {
         copyUrlButton.addActionListener {
-            verificationUrl?.let { Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(it), null) }
+            verificationUrl?.let {
+                Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(it), null)
+            }
         }
         loginButton.addActionListener {
             val id = accountId()
             val generation = ++uiGeneration
             authMessage = AuthStatusMessage("Opening browser...", false, AuthStatusKind.PENDING)
-            auth().startLoginFlow(id, callback = { result ->
-                if (result.success) QuotaUsageService.getInstance().refreshAsync(id)
-                onUi(id) {
-                    if (uiGeneration != generation) return@onUi
-                    authMessage = if (result.success) null
-                    else AuthStatusMessage(result.message ?: "Login failed", true, AuthStatusKind.DISCONNECTED)
-                    workspaceCredentials = null
-                    updateFields()
-                }
-            }, onVerificationUrl = { url, code ->
-                onUi(id) {
-                    if (uiGeneration != generation) return@onUi
-                    verificationUrl = url
-                    copyUrlButton.isVisible = true
-                    userCodeLabel.text = "OpenCode code: ${QuotaUiUtil.escapeHtml(code)}"
-                    userCodeLabel.isVisible = code.isNotBlank()
-                    authMessage = AuthStatusMessage("Waiting for browser authorization...", false, AuthStatusKind.PENDING)
-                    updateStatus()
-                }
-            })
+            auth()
+                .startLoginFlow(
+                    id,
+                    callback = { result ->
+                        if (result.success) QuotaUsageService.getInstance().refreshAsync(id)
+                        onUi(id) {
+                            if (uiGeneration != generation) return@onUi
+                            authMessage =
+                                if (result.success) null
+                                else
+                                    AuthStatusMessage(
+                                        result.message ?: "Login failed",
+                                        true,
+                                        AuthStatusKind.DISCONNECTED,
+                                    )
+                            workspaceCredentials = null
+                            updateFields()
+                        }
+                    },
+                    onVerificationUrl = { url, code ->
+                        onUi(id) {
+                            if (uiGeneration != generation) return@onUi
+                            verificationUrl = url
+                            copyUrlButton.isVisible = true
+                            userCodeLabel.text = "OpenCode code: ${QuotaUiUtil.escapeHtml(code)}"
+                            userCodeLabel.isVisible = code.isNotBlank()
+                            authMessage =
+                                AuthStatusMessage(
+                                    "Waiting for browser authorization...",
+                                    false,
+                                    AuthStatusKind.PENDING,
+                                )
+                            updateStatus()
+                        }
+                    },
+                )
             updateStatus()
         }
         cancelButton.addActionListener {
@@ -112,13 +134,20 @@ internal class OpenCodeSettingsPanel(
             updateStatus()
             ApplicationManager.getApplication().executeOnPooledThread {
                 val result = runCatching { auth().clearCredentials(id) }
-                if (result.isSuccess) QuotaUsageService.getInstance().clearUsageData(id, "Not signed in to OpenCode")
+                if (result.isSuccess)
+                    QuotaUsageService.getInstance().clearUsageData(id, "Not signed in to OpenCode")
                 onUi(id) {
                     loggingOut = false
-                    authMessage = result.exceptionOrNull()?.let {
-                        AuthStatusMessage(it.message ?: "Could not log out", true, AuthStatusKind.DISCONNECTED)
-                    }
-                    if (result.isSuccess) boundAccount?.setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, null)
+                    authMessage =
+                        result.exceptionOrNull()?.let {
+                            AuthStatusMessage(
+                                it.message ?: "Could not log out",
+                                true,
+                                AuthStatusKind.DISCONNECTED,
+                            )
+                        }
+                    if (result.isSuccess)
+                        boundAccount?.setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, null)
                     workspaceCredentials = null
                     updateFields()
                 }
@@ -127,38 +156,60 @@ internal class OpenCodeSettingsPanel(
         workspaceComboBox.addActionListener {
             if (!updatingWorkspaces) {
                 val selected = workspaceComboBox.selectedItem as? OpenCodeWorkspace
-                if (selected != null) boundAccount?.setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, selected.id)
+                if (selected != null)
+                    boundAccount?.setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, selected.id)
             }
         }
-        install(panel {
-            row { cell(statusLabel).gap(RightGap.SMALL); cell(copyUrlButton) }
-            row { cell(userCodeLabel) }
-            row {
-                cell(loginButton).gap(RightGap.SMALL)
-                cell(cancelButton).gap(RightGap.SMALL)
-                cell(logoutButton)
-            }
-            row { text("Sign in through OpenCode Console for Go quotas, Zen balance, and the local Zen proxy. Select the organization in your browser.") }
-            row("Organization:") { cell(workspaceComboBox).resizableColumn().align(AlignX.FILL) }
-            row { cell(workspaceStatus) }
-            row { text("To change a browser-scoped organization, sign in again.") }
-            row("Document model:") {
-                cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn()
-                    .comment(DocumentModels.OFF_COMMENT)
-                cell(documentModelCombo.warning).align(com.intellij.ui.dsl.builder.AlignY.TOP)
-                cell(testDocumentButton)
-            }
-            row("Vision model:") {
-                cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
-                    .comment("Declared vision models first; unverified models may also work. Use Test vision to check. '-' keeps vision off.")
-                cell(testVisionButton)
-            }
-        }, createResponseSection(responseViewer))
+        install(
+            panel {
+                row {
+                    cell(statusLabel).gap(RightGap.SMALL)
+                    cell(copyUrlButton)
+                }
+                row { cell(userCodeLabel) }
+                row {
+                    cell(loginButton).gap(RightGap.SMALL)
+                    cell(cancelButton).gap(RightGap.SMALL)
+                    cell(logoutButton)
+                }
+                row {
+                    text(
+                        "Sign in through OpenCode Console for Go quotas, Zen balance, and the local Zen proxy. Select the organization in your browser."
+                    )
+                }
+                row("Organization:") {
+                    cell(workspaceComboBox).resizableColumn().align(AlignX.FILL)
+                }
+                row { cell(workspaceStatus) }
+                row { text("To change a browser-scoped organization, sign in again.") }
+                row("Document model:") {
+                    cell(documentModelCombo.combo)
+                        .align(AlignX.FILL)
+                        .resizableColumn()
+                        .comment(DocumentModels.OFF_COMMENT)
+                    cell(documentModelCombo.warning).align(com.intellij.ui.dsl.builder.AlignY.TOP)
+                    cell(testDocumentButton)
+                }
+                row("Vision model:") {
+                    cell(visionModelCombo.combo)
+                        .align(AlignX.FILL)
+                        .resizableColumn()
+                        .comment(
+                            "Declared vision models first; unverified models may also work. Use Test vision to check. '-' keeps vision off."
+                        )
+                    cell(testVisionButton)
+                }
+            },
+            createResponseSection(responseViewer),
+        )
     }
 
     fun documentModelForStorage(): String? = documentModelCombo.storedValue()
+
     fun documentModelDiffers(saved: String?): Boolean = documentModelCombo.differs(saved)
+
     fun visionModelForStorage(): String? = visionModelCombo.storedValue()
+
     fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
 
     override fun updateFields() {
@@ -197,22 +248,42 @@ internal class OpenCodeSettingsPanel(
                 val auth = auth()
                 val credentials = auth.credentials(id) ?: return@runCatching emptyList()
                 val token = credentials.accessToken ?: return@runCatching emptyList()
-                val organization = credentials.accountId ?: QuotaSettingsState.getInstance().openCodeWorkspaceIdFor(id)
-                val session = OpenCodeConsoleSession(id, token, organization) { auth.credentials(id, it)?.accessToken }
-                OpenCodeConsoleProxy(HttpClient.newHttpClient(), RequestLogger(false, Path.of("logs"))).models(session)
-            }.getOrDefault(emptyList())
-            ApplicationManager.getApplication().invokeLater({
-                if (generation != modelRefreshGeneration) return@invokeLater
-                documentModelCombo.show(
-                    saved,
-                    (de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel.documentModelIds(models) + listOfNotNull(saved)).distinct(),
+                val organization =
+                    credentials.accountId
+                        ?: QuotaSettingsState.getInstance().openCodeWorkspaceIdFor(id)
+                val session =
+                    OpenCodeConsoleSession(id, token, organization) {
+                        auth.credentials(id, it)?.accessToken
+                    }
+                OpenCodeConsoleProxy(
+                        HttpClient.newHttpClient(),
+                        RequestLogger(false, Path.of("logs")),
+                    )
+                    .models(session)
+            }
+                .getOrDefault(emptyList())
+            ApplicationManager.getApplication()
+                .invokeLater(
+                    {
+                        if (generation != modelRefreshGeneration) return@invokeLater
+                        documentModelCombo.show(
+                            saved,
+                            (de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel.documentModelIds(
+                                    models
+                                ) + listOfNotNull(saved))
+                                .distinct(),
+                        )
+                        visionModelCombo.show(
+                            savedVision,
+                            de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel.visionModelIds(
+                                models
+                            ),
+                            (models.map { it.model.upstreamId } + listOfNotNull(savedVision))
+                                .distinct(),
+                        )
+                    },
+                    ModalityState.stateForComponent(modalityComponentProvider() ?: this),
                 )
-                visionModelCombo.show(
-                    savedVision,
-                    de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel.visionModelIds(models),
-                    (models.map { it.model.upstreamId } + listOfNotNull(savedVision)).distinct(),
-                )
-            }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
         }
     }
 
@@ -225,23 +296,39 @@ internal class OpenCodeSettingsPanel(
             loadWorkspaces(id)
         }
         val error = QuotaUsageService.getInstance().getLastError(id)
-        val warnings = (QuotaUsageService.getInstance().getLastQuota(id) as? OpenCodeQuota)?.warnings.orEmpty()
-        val message = when {
-            loggingOut -> AuthStatusMessage("Logging out...", false, AuthStatusKind.PENDING)
-            authMessage != null -> authMessage!!
-            !auth().isLoaded(id) -> AuthStatusMessage("Loading credentials...", false, AuthStatusKind.PENDING)
-            auth().loadError(id) != null -> AuthStatusMessage(auth().loadError(id)!!, true, AuthStatusKind.DISCONNECTED)
-            credentials == null -> AuthStatusMessage("Not signed in to OpenCode", false, AuthStatusKind.DISCONNECTED)
-            error != null -> AuthStatusMessage(error, true, AuthStatusKind.DISCONNECTED)
-            warnings.isNotEmpty() -> AuthStatusMessage("Connected; ${warnings.joinToString("; ")}", false, AuthStatusKind.PENDING)
-            else -> AuthStatusMessage("Connected", false, AuthStatusKind.CONNECTED)
-        }
-        val color = when (message.kind) {
-            AuthStatusKind.CONNECTED -> "#4CAF50"
-            AuthStatusKind.DISCONNECTED -> "#F44336"
-            AuthStatusKind.PENDING -> "#FFC107"
-        }
-        statusLabel.text = "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(message.text)}</html>"
+        val warnings =
+            (QuotaUsageService.getInstance().getLastQuota(id) as? OpenCodeQuota)?.warnings.orEmpty()
+        val message =
+            when {
+                loggingOut -> AuthStatusMessage("Logging out...", false, AuthStatusKind.PENDING)
+                authMessage != null -> authMessage!!
+                !auth().isLoaded(id) ->
+                    AuthStatusMessage("Loading credentials...", false, AuthStatusKind.PENDING)
+                auth().loadError(id) != null ->
+                    AuthStatusMessage(auth().loadError(id)!!, true, AuthStatusKind.DISCONNECTED)
+                credentials == null ->
+                    AuthStatusMessage(
+                        "Not signed in to OpenCode",
+                        false,
+                        AuthStatusKind.DISCONNECTED,
+                    )
+                error != null -> AuthStatusMessage(error, true, AuthStatusKind.DISCONNECTED)
+                warnings.isNotEmpty() ->
+                    AuthStatusMessage(
+                        "Connected; ${warnings.joinToString("; ")}",
+                        false,
+                        AuthStatusKind.PENDING,
+                    )
+                else -> AuthStatusMessage("Connected", false, AuthStatusKind.CONNECTED)
+            }
+        val color =
+            when (message.kind) {
+                AuthStatusKind.CONNECTED -> "#4CAF50"
+                AuthStatusKind.DISCONNECTED -> "#F44336"
+                AuthStatusKind.PENDING -> "#FFC107"
+            }
+        statusLabel.text =
+            "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(message.text)}</html>"
         statusLabel.foreground = statusLabelDefaultForeground ?: statusLabel.foreground
         loginButton.isEnabled = !inProgress && !loggingOut
         cancelButton.isEnabled = inProgress && !loggingOut
@@ -263,19 +350,30 @@ internal class OpenCodeSettingsPanel(
             val result = runCatching { auth().workspaces(id) }
             onUi(id) {
                 if (request != workspaceRequest) return@onUi
-                result.fold(onSuccess = { workspaces ->
-                    val selected = workspaces.find { it.id == selectedWorkspaceId() } ?: workspaces.firstOrNull()
-                    replaceWorkspaces(workspaces, selected)
-                    selected?.let { boundAccount?.setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, it.id) }
-                    workspaceStatus.text = if (workspaces.isEmpty()) "No organizations found" else ""
-                }, onFailure = {
-                    workspaceStatus.text = "Could not load organizations: ${it.message}"
-                })
+                result.fold(
+                    onSuccess = { workspaces ->
+                        val selected =
+                            workspaces.find { it.id == selectedWorkspaceId() }
+                                ?: workspaces.firstOrNull()
+                        replaceWorkspaces(workspaces, selected)
+                        selected?.let {
+                            boundAccount?.setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, it.id)
+                        }
+                        workspaceStatus.text =
+                            if (workspaces.isEmpty()) "No organizations found" else ""
+                    },
+                    onFailure = {
+                        workspaceStatus.text = "Could not load organizations: ${it.message}"
+                    },
+                )
             }
         }
     }
 
-    private fun replaceWorkspaces(workspaces: List<OpenCodeWorkspace>, selected: OpenCodeWorkspace?) {
+    private fun replaceWorkspaces(
+        workspaces: List<OpenCodeWorkspace>,
+        selected: OpenCodeWorkspace?,
+    ) {
         updatingWorkspaces = true
         try {
             workspaceComboBox.removeAllItems()
@@ -287,26 +385,30 @@ internal class OpenCodeSettingsPanel(
         }
     }
 
-    fun selectedWorkspaceId(): String? = auth().load(accountId())?.accountId
-        ?: (workspaceComboBox.selectedItem as? OpenCodeWorkspace)?.id
-        ?: boundAccount?.extra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE)
+    fun selectedWorkspaceId(): String? =
+        auth().load(accountId())?.accountId
+            ?: (workspaceComboBox.selectedItem as? OpenCodeWorkspace)?.id
+            ?: boundAccount?.extra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE)
 
     override fun updateResponseArea() {
         val service = QuotaUsageService.getInstance()
         val raw = service.getLastResponseJson(accountId())
         val error = service.getLastError(accountId())
-        responseViewer.text = when {
-            error != null && !raw.isNullOrBlank() -> "Error: $error\n\n$raw"
-            error != null -> "Error: $error"
-            raw.isNullOrBlank() -> "No OpenCode response yet."
-            else -> raw
-        }
+        responseViewer.text =
+            when {
+                error != null && !raw.isNullOrBlank() -> "Error: $error\n\n$raw"
+                error != null -> "Error: $error"
+                raw.isNullOrBlank() -> "No OpenCode response yet."
+                else -> raw
+            }
         responseViewer.setCaretPosition(0)
     }
 
     private fun onUi(id: String, action: () -> Unit) {
-        ApplicationManager.getApplication().invokeLater({
-            if (accountId() == id) action()
-        }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
+        ApplicationManager.getApplication()
+            .invokeLater(
+                { if (accountId() == id) action() },
+                ModalityState.stateForComponent(modalityComponentProvider() ?: this),
+            )
     }
 }

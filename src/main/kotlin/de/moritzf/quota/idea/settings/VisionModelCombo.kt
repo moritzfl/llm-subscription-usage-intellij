@@ -8,8 +8,8 @@ import java.awt.event.ItemEvent
 import javax.swing.DefaultComboBoxModel
 
 /**
- * Settings combo for one account's vision model. "-" (the first entry) keeps vision off;
- * every provider starts there because image analysis is opt-in.
+ * Settings combo for one account's vision model. "-" (the first entry) keeps vision off; every
+ * provider starts there because image analysis is opt-in.
  */
 internal class VisionModelCombo(groupUnverified: Boolean = false) {
     val combo = ComboBox<String>().apply { prototypeDisplayValue = "mistral-ocr-latest" }
@@ -19,10 +19,12 @@ internal class VisionModelCombo(groupUnverified: Boolean = false) {
     init {
         if (groupUnverified) {
             combo.setSwingPopup(false)
-            combo.renderer = object : GroupedComboBoxRenderer<String>(combo) {
-                override fun getText(item: String): String = item
-                override fun separatorFor(value: String): ListSeparator? = groupHeaders[value]
-            }
+            combo.renderer =
+                object : GroupedComboBoxRenderer<String>(combo) {
+                    override fun getText(item: String): String = item
+
+                    override fun separatorFor(value: String): ListSeparator? = groupHeaders[value]
+                }
         }
         combo.addItemListener { event ->
             if (event.stateChange == ItemEvent.SELECTED) combo.toolTipText = tooltip()
@@ -33,14 +35,17 @@ internal class VisionModelCombo(groupUnverified: Boolean = false) {
 
     fun storedValue(): String? = DocumentModels.storedSelection(selected(), DocumentModels.OFF)
 
-    fun differs(saved: String?): Boolean = DocumentModels.differs(selected(), saved, DocumentModels.OFF)
+    fun differs(saved: String?): Boolean =
+        DocumentModels.differs(selected(), saved, DocumentModels.OFF)
 
     fun show(saved: String?, choices: List<String>, unverified: List<String> = emptyList()) {
         val declared = choices.filter { it != DocumentModels.OFF }.distinct()
         unverifiedModels = unverified.filter { it != DocumentModels.OFF && it !in declared }.toSet()
         groupHeaders = buildMap {
             declared.firstOrNull()?.let { put(it, ListSeparator("Declared vision support")) }
-            unverifiedModels.firstOrNull()?.let { put(it, ListSeparator("Unverified vision support")) }
+            unverifiedModels.firstOrNull()?.let {
+                put(it, ListSeparator("Unverified vision support"))
+            }
         }
         val models = DocumentModels.withOff(declared + unverifiedModels)
         if ((0 until combo.itemCount).map(combo::getItemAt) != models) {

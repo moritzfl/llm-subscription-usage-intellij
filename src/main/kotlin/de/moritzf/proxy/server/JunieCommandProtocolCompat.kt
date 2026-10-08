@@ -9,24 +9,25 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
 object JunieCommandProtocolCompat {
-    private val COMMAND_PATTERN: Pattern = Pattern.compile(
-        "<COMMAND(\\d{0,2})>.*?</COMMAND\\1>",
-        Pattern.DOTALL,
-    )
+    private val COMMAND_PATTERN: Pattern =
+        Pattern.compile(
+            "<COMMAND(\\d{0,2})>.*?</COMMAND\\1>",
+            Pattern.DOTALL,
+        )
     private val XML_TAG_PATTERN: Pattern = Pattern.compile("</?[A-Z_]+>")
-    private val UPDATE_MARKUP_PATTERN: Pattern = Pattern.compile(
-        "</?(UPDATE|PREVIOUS_STEP|PLAN|NEXT_STEP)>",
-        Pattern.CASE_INSENSITIVE,
-    )
+    private val UPDATE_MARKUP_PATTERN: Pattern =
+        Pattern.compile(
+            "</?(UPDATE|PREVIOUS_STEP|PLAN|NEXT_STEP)>",
+            Pattern.CASE_INSENSITIVE,
+        )
 
     /**
-     * Detects Junie's matterhorn command protocol via the "You are Junie" system
-     * prompt. The `stop: ["</COMMAND>"]` parameter is deliberately NOT a
-     * signal: Junie 1892.26 attaches it to every LLM call, including plain-text
-     * utility prompts (task-name summarizer, step summarizer, allowlist
-     * generator) whose output it displays verbatim; wrapping those in
-     * THOUGHT/COMMAND leaks raw tags into the UI. Scanning the whole body would
-     * likewise misfire on any conversation that merely mentions Junie.
+     * Detects Junie's matterhorn command protocol via the "You are Junie" system prompt. The `stop:
+     * ["</COMMAND>"]` parameter is deliberately NOT a signal: Junie 1892.26 attaches it to every
+     * LLM call, including plain-text utility prompts (task-name summarizer, step summarizer,
+     * allowlist generator) whose output it displays verbatim; wrapping those in THOUGHT/COMMAND
+     * leaks raw tags into the UI. Scanning the whole body would likewise misfire on any
+     * conversation that merely mentions Junie.
      */
     fun isJunieRequest(body: JsonObject?): Boolean {
         if (body == null) {
@@ -36,7 +37,9 @@ object JunieCommandProtocolCompat {
         return systemText.contains("you are junie")
     }
 
-    /** Collects instructions plus all system/developer message text from chat and responses bodies. */
+    /**
+     * Collects instructions plus all system/developer message text from chat and responses bodies.
+     */
     private fun systemText(body: JsonObject): String {
         val text = StringBuilder()
         val instructions = body["instructions"]
@@ -163,7 +166,8 @@ object JunieCommandProtocolCompat {
         if (body == null) {
             return false
         }
-        return hasToolDefinition(body["tools"], toolName) || hasToolDefinition(body["functions"], toolName)
+        return hasToolDefinition(body["tools"], toolName) ||
+            hasToolDefinition(body["functions"], toolName)
     }
 
     private fun hasToolDefinition(tools: JsonElement?, toolName: String): Boolean {
@@ -181,12 +185,12 @@ object JunieCommandProtocolCompat {
     }
 
     /**
-     * Junie's native tool-call protocol displays assistant text verbatim as the step
-     * thought; unlike the <THOUGHT>/<COMMAND> text protocol it never routes that text
-     * through its update_status tag parser, so <UPDATE>/<PLAN> plan markup would reach
-     * the UI raw. Reformat the markup into plain readable text. Every section's content
-     * is kept: Junie echoes this text back as assistant history, and the model relies
-     * on the previous plan to track progress across steps.
+     * Junie's native tool-call protocol displays assistant text verbatim as the step thought;
+     * unlike the <THOUGHT>/<COMMAND> text protocol it never routes that text through its
+     * update_status tag parser, so <UPDATE>/<PLAN> plan markup would reach the UI raw. Reformat the
+     * markup into plain readable text. Every section's content is kept: Junie echoes this text back
+     * as assistant history, and the model relies on the previous plan to track progress across
+     * steps.
      */
     fun formatUpdateMarkup(text: String?): String? {
         if (text == null || !UPDATE_MARKUP_PATTERN.matcher(text).find()) {
@@ -207,21 +211,23 @@ object JunieCommandProtocolCompat {
             return completedResponse
         }
         var changed = false
-        val result = mapOutputTextParts(completedResponse) { text, _ ->
-            val formatted = formatUpdateMarkup(text)
-            if (text != formatted) {
-                changed = true
+        val result =
+            mapOutputTextParts(completedResponse) { text, _ ->
+                val formatted = formatUpdateMarkup(text)
+                if (text != formatted) {
+                    changed = true
+                }
+                formatted ?: text
             }
-            formatted ?: text
-        }
         return if (changed) result else completedResponse
     }
 
     private fun replaceTagSection(text: String, tagName: String, prefix: String): String {
-        val pattern = Pattern.compile(
-            "<$tagName>\\s*(.*?)\\s*</$tagName>",
-            Pattern.CASE_INSENSITIVE or Pattern.DOTALL,
-        )
+        val pattern =
+            Pattern.compile(
+                "<$tagName>\\s*(.*?)\\s*</$tagName>",
+                Pattern.CASE_INSENSITIVE or Pattern.DOTALL,
+            )
         val matcher = pattern.matcher(text)
         val result = StringBuilder()
         while (matcher.find()) {
@@ -259,7 +265,8 @@ object JunieCommandProtocolCompat {
             return ""
         }
         return try {
-            val arguments = JsonHelper.parseToJsonElement(argumentsJson) as? JsonObject ?: return argumentsJson
+            val arguments =
+                JsonHelper.parseToJsonElement(argumentsJson) as? JsonObject ?: return argumentsJson
             if (toolName == "answer") {
                 arguments.stringPath("full_answer", "")
             } else {
@@ -272,7 +279,8 @@ object JunieCommandProtocolCompat {
 
     private fun wrapCommandText(toolName: String?, text: String?): String {
         val name = if (toolName.isNullOrBlank()) "submit" else toolName
-        val argument = if (text == null) "" else displayText(text).trim().replace("</COMMAND>", "<\\/COMMAND>")
+        val argument =
+            if (text == null) "" else displayText(text).trim().replace("</COMMAND>", "<\\/COMMAND>")
         if (argument.isBlank()) {
             return "<COMMAND>$name</COMMAND>"
         }
@@ -345,10 +353,11 @@ object JunieCommandProtocolCompat {
     }
 
     private fun tagText(text: String, tagName: String): String {
-        val pattern = Pattern.compile(
-            "<$tagName>(.*?)</$tagName>",
-            Pattern.CASE_INSENSITIVE or Pattern.DOTALL,
-        )
+        val pattern =
+            Pattern.compile(
+                "<$tagName>(.*?)</$tagName>",
+                Pattern.CASE_INSENSITIVE or Pattern.DOTALL,
+            )
         val matcher = pattern.matcher(text)
         if (!matcher.find()) {
             return ""
@@ -391,7 +400,10 @@ object JunieCommandProtocolCompat {
         return parts
     }
 
-    private fun mapOutputTextParts(response: JsonObject, mapper: (String, Int) -> String): JsonObject {
+    private fun mapOutputTextParts(
+        response: JsonObject,
+        mapper: (String, Int) -> String,
+    ): JsonObject {
         val output = response["output"] as? JsonArray ?: return response
         val mappedOutput = createArrayNode()
         var changed = false

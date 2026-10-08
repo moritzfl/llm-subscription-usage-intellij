@@ -45,27 +45,37 @@ internal enum class ProviderAuthState {
 }
 
 /**
- * Per-provider UI behavior: indicator texts, percentages, popup section, and auth state.
- * New providers add one implementation and register it on [de.moritzf.quota.idea.common.ProviderCatalog].
+ * Per-provider UI behavior: indicator texts, percentages, popup section, and auth state. New
+ * providers add one implementation and register it on
+ * [de.moritzf.quota.idea.common.ProviderCatalog].
  */
 internal interface ProviderUi {
     val type: QuotaProviderType
     val icon: Icon
 
     /** Label used in the popup "Updated:" row. */
-    val updatedAtLabel: String get() = type.displayName
+    val updatedAtLabel: String
+        get() = type.displayName
 
     fun tooltip(quota: ProviderQuota?, error: String?, accountId: String = type.id): String =
-        buildIndicatorTooltip(type, quota, error, authState(accountId), accountTooltipName(type, accountId))
+        buildIndicatorTooltip(
+            type,
+            quota,
+            error,
+            authState(accountId),
+            accountTooltipName(type, accountId),
+        )
 
     fun barText(quota: ProviderQuota?, error: String?): String
 
-    fun barText(quota: ProviderQuota?, error: String?, accountId: String): String = barText(quota, error)
+    fun barText(quota: ProviderQuota?, error: String?, accountId: String): String =
+        barText(quota, error)
 
     /** Percent for the bar indicator, or -1 when unknown. */
     fun displayPercent(quota: ProviderQuota?, error: String?): Int
 
-    fun displayPercent(quota: ProviderQuota?, error: String?, accountId: String): Int = displayPercent(quota, error)
+    fun displayPercent(quota: ProviderQuota?, error: String?, accountId: String): Int =
+        displayPercent(quota, error)
 
     /** Percent for the cake icon, or -1 for the unknown icon. */
     fun cakePercent(quota: ProviderQuota?, error: String?): Int = displayPercent(quota, error)
@@ -74,14 +84,18 @@ internal interface ProviderUi {
         displayPercent(quota, error, accountId)
 
     fun periodElapsedFraction(quota: ProviderQuota?, error: String?): Double?
+
     fun authState(): ProviderAuthState = authState(type.id)
+
     fun authState(accountId: String): ProviderAuthState
+
     fun createPopupSection(): ProviderPopupSection
 }
 
 internal fun accountTooltipName(type: QuotaProviderType, accountId: String): String? {
-    val settings = runCatching { de.moritzf.quota.idea.settings.QuotaSettingsState.getInstance() }.getOrNull()
-        ?: return null
+    val settings =
+        runCatching { de.moritzf.quota.idea.settings.QuotaSettingsState.getInstance() }.getOrNull()
+            ?: return null
     if (!settings.accountTypeHasDuplicates(type)) return null
     return settings.account(accountId)?.name?.trim()?.takeIf { it.isNotEmpty() }
 }
@@ -89,9 +103,11 @@ internal fun accountTooltipName(type: QuotaProviderType, accountId: String): Str
 /** Facade over [de.moritzf.quota.idea.common.ProviderCatalog] for indicator/popup UI. */
 internal object ProviderUiRegistry {
     val all: Map<QuotaProviderType, ProviderUi>
-        get() = de.moritzf.quota.idea.common.ProviderCatalog.defaultProviderOrder().associateWith { type ->
-            de.moritzf.quota.idea.common.ProviderCatalog.get(type).ui
-        }
+        get() =
+            de.moritzf.quota.idea.common.ProviderCatalog.defaultProviderOrder().associateWith { type
+                ->
+                de.moritzf.quota.idea.common.ProviderCatalog.get(type).ui
+            }
 
     fun forType(type: QuotaProviderType): ProviderUi =
         de.moritzf.quota.idea.common.ProviderCatalog.get(type).ui
@@ -99,7 +115,9 @@ internal object ProviderUiRegistry {
 
 internal object OpenAiUi : ProviderUi {
     override val type = QuotaProviderType.OPEN_AI
-    override val icon: Icon get() = QuotaIcons.OPENAI
+    override val icon: Icon
+        get() = QuotaIcons.OPENAI
+
     override val updatedAtLabel = "Codex"
 
     override fun barText(quota: ProviderQuota?, error: String?) = barText(quota, error, type.id)
@@ -107,12 +125,14 @@ internal object OpenAiUi : ProviderUi {
     override fun barText(quota: ProviderQuota?, error: String?, accountId: String) =
         indicatorBarDisplayText(quota as? OpenAiCodexQuota, error, isLoggedIn(accountId))
 
-    override fun displayPercent(quota: ProviderQuota?, error: String?) = displayPercent(quota, error, type.id)
+    override fun displayPercent(quota: ProviderQuota?, error: String?) =
+        displayPercent(quota, error, type.id)
 
     override fun displayPercent(quota: ProviderQuota?, error: String?, accountId: String) =
         indicatorDisplayPercent(quota as? OpenAiCodexQuota, error, isLoggedIn(accountId))
 
-    override fun cakePercent(quota: ProviderQuota?, error: String?): Int = cakePercent(quota, error, type.id)
+    override fun cakePercent(quota: ProviderQuota?, error: String?): Int =
+        cakePercent(quota, error, type.id)
 
     override fun cakePercent(quota: ProviderQuota?, error: String?, accountId: String): Int {
         if (!isLoggedIn(accountId) || error != null) return -1
@@ -125,16 +145,19 @@ internal object OpenAiUi : ProviderUi {
         openAiPeriodElapsedFraction(quota as? OpenAiCodexQuota, error)
 
     override fun authState(accountId: String) =
-        if (isLoggedIn(accountId)) ProviderAuthState.AUTHENTICATED else ProviderAuthState.UNAUTHENTICATED
+        if (isLoggedIn(accountId)) ProviderAuthState.AUTHENTICATED
+        else ProviderAuthState.UNAUTHENTICATED
 
     override fun createPopupSection() = OpenAiPopupSection()
 
-    private fun isLoggedIn(accountId: String) = QuotaAuthService.getInstance().isLoggedIn(accountId, QuotaProviderType.OPEN_AI)
+    private fun isLoggedIn(accountId: String) =
+        QuotaAuthService.getInstance().isLoggedIn(accountId, QuotaProviderType.OPEN_AI)
 }
 
 internal object OpenCodeUi : ProviderUi {
     override val type = QuotaProviderType.OPEN_CODE
-    override val icon: Icon get() = QuotaIcons.OPENCODE
+    override val icon: Icon
+        get() = QuotaIcons.OPENCODE
 
     override fun barText(quota: ProviderQuota?, error: String?) =
         openCodeBarDisplayText(quota as? OpenCodeQuota, error)
@@ -160,7 +183,8 @@ internal object OpenCodeUi : ProviderUi {
 
 internal object OllamaUi : ProviderUi {
     override val type = QuotaProviderType.OLLAMA
-    override val icon: Icon get() = QuotaIcons.OLLAMA
+    override val icon: Icon
+        get() = QuotaIcons.OLLAMA
 
     override fun barText(quota: ProviderQuota?, error: String?) =
         ollamaBarDisplayText(quota as? OllamaQuota, error)
@@ -185,7 +209,8 @@ internal object OllamaUi : ProviderUi {
 
 internal object ZaiUi : ProviderUi {
     override val type = QuotaProviderType.ZAI
-    override val icon: Icon get() = QuotaIcons.ZAI
+    override val icon: Icon
+        get() = QuotaIcons.ZAI
 
     override fun barText(quota: ProviderQuota?, error: String?) =
         zaiBarDisplayText(quota as? ZaiQuota, error)
@@ -210,7 +235,8 @@ internal object ZaiUi : ProviderUi {
 
 internal object MiniMaxUi : ProviderUi {
     override val type = QuotaProviderType.MINIMAX
-    override val icon: Icon get() = QuotaIcons.MINIMAX
+    override val icon: Icon
+        get() = QuotaIcons.MINIMAX
 
     override fun barText(quota: ProviderQuota?, error: String?) =
         miniMaxBarDisplayText(quota as? MiniMaxQuota, error)
@@ -235,13 +261,18 @@ internal object MiniMaxUi : ProviderUi {
 
 internal object MistralUi : ProviderUi {
     override val type = QuotaProviderType.MISTRAL
-    override val icon: Icon get() = QuotaIcons.MISTRAL
+    override val icon: Icon
+        get() = QuotaIcons.MISTRAL
 
     override fun barText(quota: ProviderQuota?, error: String?) =
         mistralBarDisplayText(quota as? MistralQuota, error)
 
     override fun displayPercent(quota: ProviderQuota?, error: String?) =
-        (quota as? MistralQuota)?.let(::mistralDisplayWindow)?.usagePercent?.roundToInt()?.let(::clampPercent) ?: -1
+        (quota as? MistralQuota)
+            ?.let(::mistralDisplayWindow)
+            ?.usagePercent
+            ?.roundToInt()
+            ?.let(::clampPercent) ?: -1
 
     override fun periodElapsedFraction(quota: ProviderQuota?, error: String?) =
         mistralPeriodElapsedFraction(quota as? MistralQuota, error)
@@ -251,7 +282,8 @@ internal object MistralUi : ProviderUi {
         val apiKey = MistralApiKeyStore.forAccount(accountId)
         return when {
             !cookies.isLoaded() && !apiKey.isLoaded() -> ProviderAuthState.UNKNOWN
-            !cookies.load().isNullOrBlank() || !apiKey.load().isNullOrBlank() -> ProviderAuthState.AUTHENTICATED
+            !cookies.load().isNullOrBlank() || !apiKey.load().isNullOrBlank() ->
+                ProviderAuthState.AUTHENTICATED
             else -> ProviderAuthState.UNAUTHENTICATED
         }
     }
@@ -261,13 +293,18 @@ internal object MistralUi : ProviderUi {
 
 internal object KimiUi : ProviderUi {
     override val type = QuotaProviderType.KIMI
-    override val icon: Icon get() = QuotaIcons.KIMI
+    override val icon: Icon
+        get() = QuotaIcons.KIMI
 
     override fun barText(quota: ProviderQuota?, error: String?) =
         kimiBarDisplayText(quota as? KimiQuota, error)
 
     override fun displayPercent(quota: ProviderQuota?, error: String?) =
-        (quota as? KimiQuota)?.let(::kimiDisplayWindow)?.usagePercent?.roundToInt()?.let(::clampPercent) ?: -1
+        (quota as? KimiQuota)
+            ?.let(::kimiDisplayWindow)
+            ?.usagePercent
+            ?.roundToInt()
+            ?.let(::clampPercent) ?: -1
 
     override fun periodElapsedFraction(quota: ProviderQuota?, error: String?) =
         kimiPeriodElapsedFraction(quota as? KimiQuota, error)
@@ -286,13 +323,18 @@ internal object KimiUi : ProviderUi {
 
 internal object GitHubUi : ProviderUi {
     override val type = QuotaProviderType.GITHUB
-    override val icon: Icon get() = QuotaIcons.GITHUB
+    override val icon: Icon
+        get() = QuotaIcons.GITHUB
 
     override fun barText(quota: ProviderQuota?, error: String?) =
         gitHubBarDisplayText(quota as? GitHubQuota, error)
 
     override fun displayPercent(quota: ProviderQuota?, error: String?) =
-        (quota as? GitHubQuota)?.let(::gitHubDisplayWindow)?.usagePercent?.roundToInt()?.let(::clampPercent) ?: -1
+        (quota as? GitHubQuota)
+            ?.let(::gitHubDisplayWindow)
+            ?.usagePercent
+            ?.roundToInt()
+            ?.let(::clampPercent) ?: -1
 
     override fun periodElapsedFraction(quota: ProviderQuota?, error: String?) =
         gitHubPeriodElapsedFraction(quota as? GitHubQuota, error)
@@ -311,7 +353,8 @@ internal object GitHubUi : ProviderUi {
 
 internal object CursorUi : ProviderUi {
     override val type = QuotaProviderType.CURSOR
-    override val icon: Icon get() = QuotaIcons.CURSOR
+    override val icon: Icon
+        get() = QuotaIcons.CURSOR
 
     override fun barText(quota: ProviderQuota?, error: String?) =
         cursorBarDisplayText(quota as? CursorQuota, error)
@@ -336,7 +379,8 @@ internal object CursorUi : ProviderUi {
 
 internal object SuperGrokUi : ProviderUi {
     override val type = QuotaProviderType.SUPERGROK
-    override val icon: Icon get() = QuotaIcons.SUPERGROK
+    override val icon: Icon
+        get() = QuotaIcons.SUPERGROK
 
     override fun barText(quota: ProviderQuota?, error: String?) =
         superGrokBarDisplayText(quota as? SuperGrokQuota, error)
@@ -348,7 +392,9 @@ internal object SuperGrokUi : ProviderUi {
         superGrokPeriodElapsedFraction(quota as? SuperGrokQuota, error)
 
     override fun authState(accountId: String): ProviderAuthState {
-        return if (QuotaAuthService.getInstance().isLoggedIn(accountId, QuotaProviderType.SUPERGROK)) {
+        return if (
+            QuotaAuthService.getInstance().isLoggedIn(accountId, QuotaProviderType.SUPERGROK)
+        ) {
             ProviderAuthState.AUTHENTICATED
         } else {
             ProviderAuthState.UNAUTHENTICATED
@@ -360,7 +406,8 @@ internal object SuperGrokUi : ProviderUi {
 
 internal object ClaudeUi : ProviderUi {
     override val type = QuotaProviderType.CLAUDE
-    override val icon: Icon get() = QuotaIcons.CLAUDE
+    override val icon: Icon
+        get() = QuotaIcons.CLAUDE
 
     override fun barText(quota: ProviderQuota?, error: String?) =
         claudeBarDisplayText(quota as? ClaudeQuota, error)

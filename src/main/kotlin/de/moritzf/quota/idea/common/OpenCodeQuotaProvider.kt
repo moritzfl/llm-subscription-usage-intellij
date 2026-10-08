@@ -29,29 +29,35 @@ class OpenCodeQuotaProvider(
 
     override fun refresh() {
         val startedGeneration = synchronized(dataLock) { generation }
-        fun update(action: () -> Unit) = synchronized(dataLock) {
-            if (generation == startedGeneration) action()
-        }
+        fun update(action: () -> Unit) =
+            synchronized(dataLock) { if (generation == startedGeneration) action() }
         try {
             val credentials = credentialsProvider(null)
             if (credentials?.accessToken.isNullOrBlank()) {
                 update { clearData(notConfiguredMessage) }
                 return
             }
-            val quota = try {
-                fetch(checkNotNull(credentials))
-            } catch (exception: OpenCodeQuotaException) {
-                if (exception.statusCode != 401) throw exception
-                val refreshed = credentialsProvider(credentials.accessToken)
-                if (refreshed?.accessToken.isNullOrBlank()) {
-                    update { clearData(notConfiguredMessage) }
-                    return
+            val quota =
+                try {
+                    fetch(checkNotNull(credentials))
+                } catch (exception: OpenCodeQuotaException) {
+                    if (exception.statusCode != 401) throw exception
+                    val refreshed = credentialsProvider(credentials.accessToken)
+                    if (refreshed?.accessToken.isNullOrBlank()) {
+                        update { clearData(notConfiguredMessage) }
+                        return
+                    }
+                    fetch(checkNotNull(refreshed))
                 }
-                fetch(checkNotNull(refreshed))
-            }
             update { storeQuota(quota, quota.rawJson) }
         } catch (exception: OpenCodeQuotaException) {
-            update { storeFetchFailure(exception.statusCode, exception.message ?: "OpenCode request failed", exception.rawBody) }
+            update {
+                storeFetchFailure(
+                    exception.statusCode,
+                    exception.message ?: "OpenCode request failed",
+                    exception.rawBody,
+                )
+            }
         } catch (exception: Exception) {
             update { storeError(exception.message ?: "OpenCode request failed") }
         }
@@ -62,10 +68,11 @@ class OpenCodeQuotaProvider(
         if (lastToken.getAndSet(token) != token) resetWorkspaceCache()
         val settings = settingsProvider()
         // Browser-selected organization scope wins over any workspace left by an earlier login.
-        val workspace = credentials.accountId?.takeIf { it.isNotBlank() }
-            ?: settings?.openCodeWorkspaceIdFor(accountId)?.takeIf { it.isNotBlank() }
-            ?: cachedWorkspaceId.get()
-            ?: openCodeClient.discoverWorkspaceId(token)
+        val workspace =
+            credentials.accountId?.takeIf { it.isNotBlank() }
+                ?: settings?.openCodeWorkspaceIdFor(accountId)?.takeIf { it.isNotBlank() }
+                ?: cachedWorkspaceId.get()
+                ?: openCodeClient.discoverWorkspaceId(token)
         cachedWorkspaceId.set(workspace)
         if (settings != null && settings.openCodeWorkspaceIdFor(accountId) != workspace) {
             settings.setOpenCodeWorkspaceIdFor(accountId, workspace)

@@ -1,17 +1,15 @@
 package de.moritzf.quota.idea.auth
 
-import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.openai.dto.OpenAiAuthorizationDto
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.decodeFromJsonElement
-import kotlinx.serialization.json.jsonObject
+import de.moritzf.quota.shared.JsonSupport
 import java.security.MessageDigest
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonObject
 
-/**
- * Utilities for extracting account metadata from JWT tokens.
- */
+/** Utilities for extracting account metadata from JWT tokens. */
 object QuotaTokenUtil {
     @OptIn(ExperimentalEncodingApi::class)
     @JvmStatic
@@ -26,15 +24,16 @@ object QuotaTokenUtil {
         }
 
         return try {
-            val decoded = Base64.UrlSafe
-                .withPadding(Base64.PaddingOption.ABSENT_OPTIONAL)
-                .decode(parts[1])
-            val payload = JsonSupport.json.parseToJsonElement(String(decoded, Charsets.UTF_8)).jsonObject
+            val decoded =
+                Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT_OPTIONAL).decode(parts[1])
+            val payload =
+                JsonSupport.json.parseToJsonElement(String(decoded, Charsets.UTF_8)).jsonObject
             val openAiAuthNode = payload["https://api.openai.com/auth"]
             if (openAiAuthNode == null || openAiAuthNode is JsonNull) {
                 null
             } else {
-                JsonSupport.json.decodeFromJsonElement<OpenAiAuthorizationDto>(openAiAuthNode)
+                JsonSupport.json
+                    .decodeFromJsonElement<OpenAiAuthorizationDto>(openAiAuthNode)
                     .chatgptAccountId
                     ?.trim()
                     ?.takeUnless { it.isBlank() }
@@ -67,7 +66,8 @@ object QuotaTokenUtil {
     fun fingerprint(token: String?): String {
         val value = token?.takeUnless { it.isBlank() } ?: return "none"
         return try {
-            val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
+            val digest =
+                MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
             digest.take(4).joinToString("") { "%02x".format(it) }
         } catch (_: Exception) {
             "unavailable"
@@ -77,8 +77,8 @@ object QuotaTokenUtil {
     @JvmStatic
     fun extractJwtExpiresAtMs(token: String?): Long? {
         val payload = extractPayload(token) ?: return null
-        val seconds = payload["exp"]?.toString()?.removeSurrounding("\"")?.toLongOrNull()
-            ?: return null
+        val seconds =
+            payload["exp"]?.toString()?.removeSurrounding("\"")?.toLongOrNull() ?: return null
         return seconds.takeIf { it > 0 }?.times(1000L)
     }
 
@@ -88,7 +88,8 @@ object QuotaTokenUtil {
         val parts = token.split(".")
         if (parts.size < 2) return null
         return try {
-            val decoded = Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT_OPTIONAL).decode(parts[1])
+            val decoded =
+                Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT_OPTIONAL).decode(parts[1])
             JsonSupport.json.parseToJsonElement(String(decoded, Charsets.UTF_8)).jsonObject
         } catch (_: Exception) {
             null

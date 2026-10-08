@@ -29,18 +29,37 @@ class SubscriptionProxyServerTest {
     @Test
     fun advertisesOnlyConfiguredProviderModels() {
         TestUpstream().use { upstream ->
-            val server = newServer(
-                providers = listOf(
-                    fakeProvider("xai", "SuperGrok", upstream.baseUri, "grok-token", "grok-4.3", "grok-4.3"),
-                    fakeProvider("github", "GitHub Copilot", upstream.baseUri, null, "gh-gpt-5.5", "gpt-5.5"),
-                ),
-            )
+            val server =
+                newServer(
+                    providers =
+                        listOf(
+                            fakeProvider(
+                                "xai",
+                                "SuperGrok",
+                                upstream.baseUri,
+                                "grok-token",
+                                "grok-4.3",
+                                "grok-4.3",
+                            ),
+                            fakeProvider(
+                                "github",
+                                "GitHub Copilot",
+                                upstream.baseUri,
+                                null,
+                                "gh-gpt-5.5",
+                                "gpt-5.5",
+                            ),
+                        )
+                )
             try {
                 server.start()
                 val response = get(server.port, "/v1/models")
 
                 assertEquals(200, response.statusCode())
-                val ids = parseObject(response.body())["data"]!!.jsonArray.map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                val ids =
+                    parseObject(response.body())["data"]!!.jsonArray.map {
+                        it.jsonObject["id"]!!.jsonPrimitive.content
+                    }
                 assertEquals(listOf("grok-4.3"), ids)
             } finally {
                 server.stop()
@@ -51,12 +70,28 @@ class SubscriptionProxyServerTest {
     @Test
     fun rejectsUnknownModelsWithoutCallingUpstream() {
         TestUpstream().use { upstream ->
-            val server = newServer(
-                providers = listOf(fakeProvider("xai", "SuperGrok", upstream.baseUri, "grok-token", "grok-4.3", "grok-4.3")),
-            )
+            val server =
+                newServer(
+                    providers =
+                        listOf(
+                            fakeProvider(
+                                "xai",
+                                "SuperGrok",
+                                upstream.baseUri,
+                                "grok-token",
+                                "grok-4.3",
+                                "grok-4.3",
+                            )
+                        )
+                )
             try {
                 server.start()
-                val response = post(server.port, "/v1/chat/completions", "{\"model\":\"gh-gpt-5.5\",\"messages\":[]}")
+                val response =
+                    post(
+                        server.port,
+                        "/v1/chat/completions",
+                        "{\"model\":\"gh-gpt-5.5\",\"messages\":[]}",
+                    )
 
                 assertEquals(400, response.statusCode())
                 assertTrue(response.body().contains("Unknown proxy model"))
@@ -70,27 +105,49 @@ class SubscriptionProxyServerTest {
     @Test
     fun routesByAdvertisedModelAndRewritesUpstreamModel() {
         TestUpstream(responseBody = "{\"id\":\"chatcmpl_1\",\"choices\":[]}").use { grokUpstream ->
-            TestUpstream(responseBody = "{\"id\":\"chatcmpl_2\",\"choices\":[]}").use { githubUpstream ->
-                val server = newServer(
-                    providers = listOf(
-                        fakeProvider("xai", "SuperGrok", grokUpstream.baseUri, "grok-token", "grok-4.3", "grok-4.3"),
-                        fakeProvider("github", "GitHub Copilot", githubUpstream.baseUri, "gh-token", "gh-gpt-5.5", "gpt-5.5"),
-                    ),
-                )
+            TestUpstream(responseBody = "{\"id\":\"chatcmpl_2\",\"choices\":[]}").use {
+                githubUpstream ->
+                val server =
+                    newServer(
+                        providers =
+                            listOf(
+                                fakeProvider(
+                                    "xai",
+                                    "SuperGrok",
+                                    grokUpstream.baseUri,
+                                    "grok-token",
+                                    "grok-4.3",
+                                    "grok-4.3",
+                                ),
+                                fakeProvider(
+                                    "github",
+                                    "GitHub Copilot",
+                                    githubUpstream.baseUri,
+                                    "gh-token",
+                                    "gh-gpt-5.5",
+                                    "gpt-5.5",
+                                ),
+                            )
+                    )
                 try {
                     server.start()
-                    val response = post(
-                        server.port,
-                        "/v1/chat/completions",
-                        "{\"model\":\"gh-gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
-                    )
+                    val response =
+                        post(
+                            server.port,
+                            "/v1/chat/completions",
+                            "{\"model\":\"gh-gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                        )
 
                     assertEquals(200, response.statusCode())
                     assertNull(grokUpstream.requests.poll(500, TimeUnit.MILLISECONDS))
-                    val githubRequest = assertNotNull(githubUpstream.requests.poll(2, TimeUnit.SECONDS))
+                    val githubRequest =
+                        assertNotNull(githubUpstream.requests.poll(2, TimeUnit.SECONDS))
                     assertEquals("/v1/chat/completions", githubRequest.path)
                     assertEquals("Bearer gh-token", githubRequest.firstHeader("Authorization"))
-                    assertTrue(githubRequest.body.contains("\"model\":\"gpt-5.5\""), githubRequest.body)
+                    assertTrue(
+                        githubRequest.body.contains("\"model\":\"gpt-5.5\""),
+                        githubRequest.body,
+                    )
                     assertFalse(githubRequest.body.contains("gh-gpt-5.5"), githubRequest.body)
                 } finally {
                     server.stop()
@@ -102,9 +159,20 @@ class SubscriptionProxyServerTest {
     @Test
     fun returnsLiteLlmModelInfoForAdvertisedModels() {
         TestUpstream().use { upstream ->
-            val server = newServer(
-                providers = listOf(fakeProvider("github", "GitHub Copilot", upstream.baseUri, "gh-token", "gh-gpt-5.5", "gpt-5.5")),
-            )
+            val server =
+                newServer(
+                    providers =
+                        listOf(
+                            fakeProvider(
+                                "github",
+                                "GitHub Copilot",
+                                upstream.baseUri,
+                                "gh-token",
+                                "gh-gpt-5.5",
+                                "gpt-5.5",
+                            )
+                        )
+                )
             try {
                 server.start()
                 val response = get(server.port, "/v1/model/info")
@@ -114,10 +182,22 @@ class SubscriptionProxyServerTest {
                 assertEquals("gh-gpt-5.5", modelInfo["model_name"]!!.jsonPrimitive.content)
                 assertEquals(
                     "github",
-                    modelInfo["model_info"]!!.jsonObject["litellm_provider"]!!.jsonPrimitive.content,
+                    modelInfo["model_info"]!!
+                        .jsonObject["litellm_provider"]!!
+                        .jsonPrimitive
+                        .content,
                 )
-                assertEquals("none", modelInfo["model_info"]!!.jsonObject["fim_mode"]!!.jsonPrimitive.content)
-                assertEquals(false, modelInfo["model_info"]!!.jsonObject["supports_native_fim"]!!.jsonPrimitive.boolean)
+                assertEquals(
+                    "none",
+                    modelInfo["model_info"]!!.jsonObject["fim_mode"]!!.jsonPrimitive.content,
+                )
+                assertEquals(
+                    false,
+                    modelInfo["model_info"]!!
+                        .jsonObject["supports_native_fim"]!!
+                        .jsonPrimitive
+                        .boolean,
+                )
             } finally {
                 server.stop()
             }
@@ -127,60 +207,101 @@ class SubscriptionProxyServerTest {
     @Test
     fun usageEndpointCountsChatCompletionTokens() {
         TestUpstream(
-            responseBody = "{\"id\":\"chatcmpl_1\",\"choices\":[],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":5}}",
-        ).use { upstream ->
-            val server = newServer(
-                providers = listOf(fakeProvider("github", "GitHub Copilot", upstream.baseUri, "gh-token", "gh-gpt-5.5", "gpt-5.5")),
+                responseBody =
+                    "{\"id\":\"chatcmpl_1\",\"choices\":[],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":5}}"
             )
-            try {
-                server.start()
-                val chat = post(
-                    server.port,
-                    "/v1/chat/completions",
-                    "{\"model\":\"gh-gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
-                )
-                assertEquals(200, chat.statusCode(), chat.body())
+            .use { upstream ->
+                val server =
+                    newServer(
+                        providers =
+                            listOf(
+                                fakeProvider(
+                                    "github",
+                                    "GitHub Copilot",
+                                    upstream.baseUri,
+                                    "gh-token",
+                                    "gh-gpt-5.5",
+                                    "gpt-5.5",
+                                )
+                            )
+                    )
+                try {
+                    server.start()
+                    val chat =
+                        post(
+                            server.port,
+                            "/v1/chat/completions",
+                            "{\"model\":\"gh-gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                        )
+                    assertEquals(200, chat.statusCode(), chat.body())
 
-                val usage = get(server.port, "/v1/usage")
-                assertEquals(200, usage.statusCode())
-                val total = parseObject(usage.body())["total"]!!.jsonObject
-                assertEquals(3, total["prompt_tokens"]!!.jsonPrimitive.content.toLong())
-                assertEquals(5, total["completion_tokens"]!!.jsonPrimitive.content.toLong())
-                assertEquals(8, total["total_tokens"]!!.jsonPrimitive.content.toLong())
-            } finally {
-                server.stop()
+                    val usage = get(server.port, "/v1/usage")
+                    assertEquals(200, usage.statusCode())
+                    val total = parseObject(usage.body())["total"]!!.jsonObject
+                    assertEquals(3, total["prompt_tokens"]!!.jsonPrimitive.content.toLong())
+                    assertEquals(5, total["completion_tokens"]!!.jsonPrimitive.content.toLong())
+                    assertEquals(8, total["total_tokens"]!!.jsonPrimitive.content.toLong())
+                } finally {
+                    server.stop()
+                }
             }
-        }
     }
 
     @Test
     fun modelInfoIncludesFimAliasAndReportsAdapterOnlyForSelectedModel() {
         TestUpstream().use { upstream ->
-            val server = newServer(
-                providers = listOf(
-                    fakeProvider("github", "GitHub Copilot", upstream.baseUri, "gh-token", "gh-gpt-5.5", "gpt-5.5"),
-                    fakeProvider("xai", "SuperGrok", upstream.baseUri, "grok-token", "sg-grok-4.3", "grok-4.3"),
-                ),
-                completionsConfig = CompletionsConfig(
-                    enabled = true,
-                    modelLocalId = "gh-gpt-5.5",
-                    useChatAdapter = true,
-                ),
-            )
+            val server =
+                newServer(
+                    providers =
+                        listOf(
+                            fakeProvider(
+                                "github",
+                                "GitHub Copilot",
+                                upstream.baseUri,
+                                "gh-token",
+                                "gh-gpt-5.5",
+                                "gpt-5.5",
+                            ),
+                            fakeProvider(
+                                "xai",
+                                "SuperGrok",
+                                upstream.baseUri,
+                                "grok-token",
+                                "sg-grok-4.3",
+                                "grok-4.3",
+                            ),
+                        ),
+                    completionsConfig =
+                        CompletionsConfig(
+                            enabled = true,
+                            modelLocalId = "gh-gpt-5.5",
+                            useChatAdapter = true,
+                        ),
+                )
             try {
                 server.start()
                 val response = get(server.port, "/v1/model/info")
 
                 assertEquals(200, response.statusCode())
                 val data = parseObject(response.body())["data"]!!.jsonArray
-                assertEquals("qwen2.5-coder", data[0].jsonObject["model_name"]!!.jsonPrimitive.content)
+                assertEquals(
+                    "qwen2.5-coder",
+                    data[0].jsonObject["model_name"]!!.jsonPrimitive.content,
+                )
                 assertEquals(
                     "adapter",
-                    data[0].jsonObject["model_info"]!!.jsonObject["fim_mode"]!!.jsonPrimitive.content,
+                    data[0]
+                        .jsonObject["model_info"]!!
+                        .jsonObject["fim_mode"]!!
+                        .jsonPrimitive
+                        .content,
                 )
                 val byName = data.associate { row ->
                     row.jsonObject["model_name"]!!.jsonPrimitive.content to
-                        row.jsonObject["model_info"]!!.jsonObject["fim_mode"]!!.jsonPrimitive.content
+                        row.jsonObject["model_info"]!!
+                            .jsonObject["fim_mode"]!!
+                            .jsonPrimitive
+                            .content
                 }
                 assertEquals("adapter", byName["gh-gpt-5.5"])
                 assertEquals("none", byName["sg-grok-4.3"])
@@ -193,29 +314,54 @@ class SubscriptionProxyServerTest {
     @Test
     fun modelInfoReportsNativeFimWhenAdapterIsOff() {
         TestUpstream().use { upstream ->
-            val server = newServer(
-                providers = listOf(fakeProvider("github", "GitHub Copilot", upstream.baseUri, "gh-token", "gh-gpt-5.5", "gpt-5.5")),
-                completionsConfig = CompletionsConfig(
-                    enabled = true,
-                    modelLocalId = "gh-gpt-5.5",
-                    useChatAdapter = false,
-                ),
-            )
+            val server =
+                newServer(
+                    providers =
+                        listOf(
+                            fakeProvider(
+                                "github",
+                                "GitHub Copilot",
+                                upstream.baseUri,
+                                "gh-token",
+                                "gh-gpt-5.5",
+                                "gpt-5.5",
+                            )
+                        ),
+                    completionsConfig =
+                        CompletionsConfig(
+                            enabled = true,
+                            modelLocalId = "gh-gpt-5.5",
+                            useChatAdapter = false,
+                        ),
+                )
             try {
                 server.start()
                 val response = get(server.port, "/v1/model/info")
 
                 assertEquals(200, response.statusCode())
                 val data = parseObject(response.body())["data"]!!.jsonArray
-                assertEquals("qwen2.5-coder", data[0].jsonObject["model_name"]!!.jsonPrimitive.content)
                 assertEquals(
-                    "native",
-                    data[0].jsonObject["model_info"]!!.jsonObject["fim_mode"]!!.jsonPrimitive.content,
+                    "qwen2.5-coder",
+                    data[0].jsonObject["model_name"]!!.jsonPrimitive.content,
                 )
                 assertEquals(
                     "native",
-                    data.first { it.jsonObject["model_name"]!!.jsonPrimitive.content == "gh-gpt-5.5" }
-                        .jsonObject["model_info"]!!.jsonObject["fim_mode"]!!.jsonPrimitive.content,
+                    data[0]
+                        .jsonObject["model_info"]!!
+                        .jsonObject["fim_mode"]!!
+                        .jsonPrimitive
+                        .content,
+                )
+                assertEquals(
+                    "native",
+                    data
+                        .first {
+                            it.jsonObject["model_name"]!!.jsonPrimitive.content == "gh-gpt-5.5"
+                        }
+                        .jsonObject["model_info"]!!
+                        .jsonObject["fim_mode"]!!
+                        .jsonPrimitive
+                        .content,
                 )
             } finally {
                 server.stop()
@@ -226,29 +372,44 @@ class SubscriptionProxyServerTest {
     @Test
     fun modelsEndpointOmitsAnthropicOnlyModelsButModelInfoIncludesThem() {
         TestUpstream().use { upstream ->
-            val server = newServer(
-                providers = listOf(
-                    fakeProvider(
-                        "github",
-                        "GitHub Copilot",
-                        upstream.baseUri,
-                        "gh-token",
-                        "gh-claude-sonnet-4.6",
-                        "claude-sonnet-4.6",
-                        routes = setOf(SubscriptionProxyRoute.ANTHROPIC_MESSAGES),
-                    ),
-                    fakeProvider("github2", "GitHub Copilot", upstream.baseUri, "gh-token", "gh-gpt-5.4", "gpt-5.4"),
-                ),
-            )
+            val server =
+                newServer(
+                    providers =
+                        listOf(
+                            fakeProvider(
+                                "github",
+                                "GitHub Copilot",
+                                upstream.baseUri,
+                                "gh-token",
+                                "gh-claude-sonnet-4.6",
+                                "claude-sonnet-4.6",
+                                routes = setOf(SubscriptionProxyRoute.ANTHROPIC_MESSAGES),
+                            ),
+                            fakeProvider(
+                                "github2",
+                                "GitHub Copilot",
+                                upstream.baseUri,
+                                "gh-token",
+                                "gh-gpt-5.4",
+                                "gpt-5.4",
+                            ),
+                        )
+                )
             try {
                 server.start()
 
                 val models = get(server.port, "/v1/models")
-                val modelIds = parseObject(models.body())["data"]!!.jsonArray.map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                val modelIds =
+                    parseObject(models.body())["data"]!!.jsonArray.map {
+                        it.jsonObject["id"]!!.jsonPrimitive.content
+                    }
                 assertEquals(listOf("gh-gpt-5.4"), modelIds)
 
                 val info = get(server.port, "/v1/model/info")
-                val infoIds = parseObject(info.body())["data"]!!.jsonArray.map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                val infoIds =
+                    parseObject(info.body())["data"]!!.jsonArray.map {
+                        it.jsonObject["id"]!!.jsonPrimitive.content
+                    }
                 assertTrue("gh-claude-sonnet-4.6" in infoIds)
                 assertTrue("gh-gpt-5.4" in infoIds)
             } finally {
@@ -260,18 +421,32 @@ class SubscriptionProxyServerTest {
     @Test
     fun rejectsInvalidLocalApiKeyBeforeCallingUpstream() {
         TestUpstream().use { upstream ->
-            val server = newServer(
-                providers = listOf(fakeProvider("xai", "SuperGrok", upstream.baseUri, "grok-token", "grok-4.3", "grok-4.3")),
-            )
+            val server =
+                newServer(
+                    providers =
+                        listOf(
+                            fakeProvider(
+                                "xai",
+                                "SuperGrok",
+                                upstream.baseUri,
+                                "grok-token",
+                                "grok-4.3",
+                                "grok-4.3",
+                            )
+                        )
+                )
             try {
                 server.start()
-                val response = httpClient.send(
-                    HttpRequest.newBuilder(URI.create("http://127.0.0.1:${server.port}/v1/models"))
-                        .header("Authorization", "Bearer wrong")
-                        .GET()
-                        .build(),
-                    HttpResponse.BodyHandlers.ofString(),
-                )
+                val response =
+                    httpClient.send(
+                        HttpRequest.newBuilder(
+                                URI.create("http://127.0.0.1:${server.port}/v1/models")
+                            )
+                            .header("Authorization", "Bearer wrong")
+                            .GET()
+                            .build(),
+                        HttpResponse.BodyHandlers.ofString(),
+                    )
 
                 assertEquals(401, response.statusCode())
                 assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
@@ -284,12 +459,28 @@ class SubscriptionProxyServerTest {
     @Test
     fun completionsDisabledReturns404() {
         TestUpstream().use { upstream ->
-            val server = newServer(
-                providers = listOf(fakeProvider("xai", "SuperGrok", upstream.baseUri, "grok-token", "grok-4.3", "grok-4.3")),
-            )
+            val server =
+                newServer(
+                    providers =
+                        listOf(
+                            fakeProvider(
+                                "xai",
+                                "SuperGrok",
+                                upstream.baseUri,
+                                "grok-token",
+                                "grok-4.3",
+                                "grok-4.3",
+                            )
+                        )
+                )
             try {
                 server.start()
-                val response = post(server.port, "/v1/completions", "{\"model\":\"grok-4.3\",\"prompt\":\"fun \"}")
+                val response =
+                    post(
+                        server.port,
+                        "/v1/completions",
+                        "{\"model\":\"grok-4.3\",\"prompt\":\"fun \"}",
+                    )
                 assertEquals(404, response.statusCode())
                 assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
             } finally {
@@ -303,26 +494,42 @@ class SubscriptionProxyServerTest {
         val chatBody =
             """{"id":"chatcmpl_1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"a + b"},"finish_reason":"stop"}]}"""
         TestUpstream(responseBody = chatBody).use { upstream ->
-            val server = newServer(
-                providers = listOf(fakeProvider("xai", "SuperGrok", upstream.baseUri, "grok-token", "grok-4.3", "grok-4.3")),
-                completionsConfig = CompletionsConfig(
-                    enabled = true,
-                    modelLocalId = "grok-4.3",
-                    useChatAdapter = true,
-                ),
-            )
+            val server =
+                newServer(
+                    providers =
+                        listOf(
+                            fakeProvider(
+                                "xai",
+                                "SuperGrok",
+                                upstream.baseUri,
+                                "grok-token",
+                                "grok-4.3",
+                                "grok-4.3",
+                            )
+                        ),
+                    completionsConfig =
+                        CompletionsConfig(
+                            enabled = true,
+                            modelLocalId = "grok-4.3",
+                            useChatAdapter = true,
+                        ),
+                )
             try {
                 server.start()
                 val models = get(server.port, "/v1/models")
-                val ids = parseObject(models.body())["data"]!!.jsonArray.map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                val ids =
+                    parseObject(models.body())["data"]!!.jsonArray.map {
+                        it.jsonObject["id"]!!.jsonPrimitive.content
+                    }
                 assertEquals(CompletionsConfig.FIM_ALIAS_ID, ids.first())
                 assertTrue("grok-4.3" in ids)
 
-                val response = post(
-                    server.port,
-                    "/v1/completions",
-                    """{"model":"${CompletionsConfig.FIM_ALIAS_ID}","prompt":"fun add(a: Int, b: Int): Int {\n    return ","suffix":"\n}","stream":false}""",
-                )
+                val response =
+                    post(
+                        server.port,
+                        "/v1/completions",
+                        """{"model":"${CompletionsConfig.FIM_ALIAS_ID}","prompt":"fun add(a: Int, b: Int): Int {\n    return ","suffix":"\n}","stream":false}""",
+                    )
                 assertEquals(200, response.statusCode(), response.body())
                 val body = parseObject(response.body())
                 assertEquals("text_completion", body["object"]!!.jsonPrimitive.content)
@@ -330,7 +537,10 @@ class SubscriptionProxyServerTest {
                 assertEquals("a + b", text)
                 val upstreamRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/v1/chat/completions", upstreamRequest.path)
-                assertTrue(upstreamRequest.body.contains("code_before_cursor"), upstreamRequest.body)
+                assertTrue(
+                    upstreamRequest.body.contains("code_before_cursor"),
+                    upstreamRequest.body,
+                )
                 assertFalse(upstreamRequest.body.contains("<|fim_prefix|>"), upstreamRequest.body)
             } finally {
                 server.stop()
@@ -341,13 +551,30 @@ class SubscriptionProxyServerTest {
     @Test
     fun completionsRejectsModelNotAllowlisted() {
         TestUpstream().use { upstream ->
-            val server = newServer(
-                providers = listOf(fakeProvider("xai", "SuperGrok", upstream.baseUri, "grok-token", "grok-4.3", "grok-4.3")),
-                completionsConfig = CompletionsConfig(enabled = true, modelLocalId = "grok-4.3"),
-            )
+            val server =
+                newServer(
+                    providers =
+                        listOf(
+                            fakeProvider(
+                                "xai",
+                                "SuperGrok",
+                                upstream.baseUri,
+                                "grok-token",
+                                "grok-4.3",
+                                "grok-4.3",
+                            )
+                        ),
+                    completionsConfig =
+                        CompletionsConfig(enabled = true, modelLocalId = "grok-4.3"),
+                )
             try {
                 server.start()
-                val response = post(server.port, "/completions", "{\"model\":\"other-model\",\"prompt\":\"fun \"}")
+                val response =
+                    post(
+                        server.port,
+                        "/completions",
+                        "{\"model\":\"other-model\",\"prompt\":\"fun \"}",
+                    )
                 assertEquals(400, response.statusCode())
                 assertTrue(response.body().contains("Unknown proxy model"))
                 assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
@@ -362,25 +589,41 @@ class SubscriptionProxyServerTest {
         val completionBody =
             """{"id":"cmpl_1","object":"text_completion","choices":[{"index":0,"text":"a + b","finish_reason":"stop"}]}"""
         TestUpstream(responseBody = completionBody).use { upstream ->
-            val server = newServer(
-                providers = listOf(fakeProvider("ollama", "Ollama", upstream.baseUri, "ol-token", "ol-qwen", "qwen")),
-                completionsConfig = CompletionsConfig(
-                    enabled = true,
-                    modelLocalId = "ol-qwen",
-                    useChatAdapter = false,
-                ),
-            )
+            val server =
+                newServer(
+                    providers =
+                        listOf(
+                            fakeProvider(
+                                "ollama",
+                                "Ollama",
+                                upstream.baseUri,
+                                "ol-token",
+                                "ol-qwen",
+                                "qwen",
+                            )
+                        ),
+                    completionsConfig =
+                        CompletionsConfig(
+                            enabled = true,
+                            modelLocalId = "ol-qwen",
+                            useChatAdapter = false,
+                        ),
+                )
             try {
                 server.start()
-                val response = post(
-                    server.port,
-                    "/completions",
-                    """{"model":"ol-qwen","prompt":"fun add() { return ","suffix":"}","stream":false}""",
-                )
+                val response =
+                    post(
+                        server.port,
+                        "/completions",
+                        """{"model":"ol-qwen","prompt":"fun add() { return ","suffix":"}","stream":false}""",
+                    )
                 assertEquals(200, response.statusCode(), response.body())
                 val upstreamRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/v1/completions", upstreamRequest.path)
-                assertTrue(upstreamRequest.body.contains("\"model\":\"qwen\""), upstreamRequest.body)
+                assertTrue(
+                    upstreamRequest.body.contains("\"model\":\"qwen\""),
+                    upstreamRequest.body,
+                )
             } finally {
                 server.stop()
             }
@@ -392,25 +635,47 @@ class SubscriptionProxyServerTest {
         val completionBody =
             """{"id":"cmpl_1","object":"text_completion","choices":[{"index":0,"text":"a + b","finish_reason":"stop"}]}"""
         TestUpstream(responseBody = completionBody).use { upstream ->
-            val server = newServer(
-                providers = listOf(fakeProvider("ollama", "Ollama", upstream.baseUri, "ol-token", "ol-qwen", "qwen")),
-                completionsConfig = CompletionsConfig(
-                    enabled = true,
-                    modelLocalId = "ol-qwen",
-                    useChatAdapter = false,
-                ),
-            )
+            val server =
+                newServer(
+                    providers =
+                        listOf(
+                            fakeProvider(
+                                "ollama",
+                                "Ollama",
+                                upstream.baseUri,
+                                "ol-token",
+                                "ol-qwen",
+                                "qwen",
+                            )
+                        ),
+                    completionsConfig =
+                        CompletionsConfig(
+                            enabled = true,
+                            modelLocalId = "ol-qwen",
+                            useChatAdapter = false,
+                        ),
+                )
             try {
                 server.start()
-                val response = post(
-                    server.port,
-                    "/v1/completions",
-                    """{"model":"ol-qwen","prompt":"fun add() { return ","suffix":"}","stream":true}""",
-                )
+                val response =
+                    post(
+                        server.port,
+                        "/v1/completions",
+                        """{"model":"ol-qwen","prompt":"fun add() { return ","suffix":"}","stream":true}""",
+                    )
                 assertEquals(200, response.statusCode(), response.body())
-                assertTrue(response.headers().firstValue("Content-Type").orElse("").contains("text/event-stream"))
+                assertTrue(
+                    response
+                        .headers()
+                        .firstValue("Content-Type")
+                        .orElse("")
+                        .contains("text/event-stream")
+                )
                 assertTrue(response.body().contains("data: "), response.body())
-                assertTrue(response.body().contains("\"object\":\"text_completion\""), response.body())
+                assertTrue(
+                    response.body().contains("\"object\":\"text_completion\""),
+                    response.body(),
+                )
                 assertTrue(response.body().contains("data: [DONE]"), response.body())
                 assertTrue(response.body().contains("\n\n"), response.body())
             } finally {
@@ -421,21 +686,39 @@ class SubscriptionProxyServerTest {
 
     @Test
     fun completionsStreamMapsChatChunks() {
-        val sse = "data: {\"id\":\"chatcmpl_1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"xyz\"},\"finish_reason\":null}]}\n\ndata: [DONE]\n\n"
-        TestUpstream(responseBody = sse, responseContentType = "text/event-stream").use { upstream ->
-            val server = newServer(
-                providers = listOf(fakeProvider("xai", "SuperGrok", upstream.baseUri, "grok-token", "grok-4.3", "grok-4.3")),
-                completionsConfig = CompletionsConfig(enabled = true, modelLocalId = "grok-4.3"),
-            )
+        val sse =
+            "data: {\"id\":\"chatcmpl_1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"xyz\"},\"finish_reason\":null}]}\n\ndata: [DONE]\n\n"
+        TestUpstream(responseBody = sse, responseContentType = "text/event-stream").use { upstream
+            ->
+            val server =
+                newServer(
+                    providers =
+                        listOf(
+                            fakeProvider(
+                                "xai",
+                                "SuperGrok",
+                                upstream.baseUri,
+                                "grok-token",
+                                "grok-4.3",
+                                "grok-4.3",
+                            )
+                        ),
+                    completionsConfig =
+                        CompletionsConfig(enabled = true, modelLocalId = "grok-4.3"),
+                )
             try {
                 server.start()
-                val response = post(
-                    server.port,
-                    "/v1/completions",
-                    """{"model":"grok-4.3","prompt":"abc","stream":true}""",
-                )
+                val response =
+                    post(
+                        server.port,
+                        "/v1/completions",
+                        """{"model":"grok-4.3","prompt":"abc","stream":true}""",
+                    )
                 assertEquals(200, response.statusCode(), response.body())
-                assertTrue(response.body().contains("\"object\":\"text_completion\""), response.body())
+                assertTrue(
+                    response.body().contains("\"object\":\"text_completion\""),
+                    response.body(),
+                )
                 assertTrue(response.body().contains("\"text\":\"xyz\""), response.body())
                 assertTrue(response.body().contains("data: [DONE]"), response.body())
             } finally {
@@ -447,30 +730,46 @@ class SubscriptionProxyServerTest {
     @Test
     fun passThroughProviderDropsHttp2PseudoHeaders() {
         assertFalse(PassThroughSubscriptionProxyProvider.shouldForwardResponseHeader(":status"))
-        assertFalse(PassThroughSubscriptionProxyProvider.shouldForwardResponseHeader("content-length"))
+        assertFalse(
+            PassThroughSubscriptionProxyProvider.shouldForwardResponseHeader("content-length")
+        )
         assertTrue(PassThroughSubscriptionProxyProvider.shouldForwardResponseHeader("x-request-id"))
     }
 
     @Test
     fun usesAdvertisedDefaultModelWhenRequestOmitsModel() {
         TestUpstream(responseBody = "{\"id\":\"chatcmpl_1\",\"choices\":[]}").use { upstream ->
-            val server = newServer(
-                providers = listOf(
-                    fakeProvider("xai", "SuperGrok", upstream.baseUri, "grok-token", "grok-4.3", "grok-4.3"),
-                    fakeProvider(
-                        "github",
-                        "GitHub Copilot",
-                        upstream.baseUri,
-                        "gh-token",
-                        "gh-gpt-5.5",
-                        "gpt-5.5",
-                        isDefault = true,
-                    ),
-                ),
-            )
+            val server =
+                newServer(
+                    providers =
+                        listOf(
+                            fakeProvider(
+                                "xai",
+                                "SuperGrok",
+                                upstream.baseUri,
+                                "grok-token",
+                                "grok-4.3",
+                                "grok-4.3",
+                            ),
+                            fakeProvider(
+                                "github",
+                                "GitHub Copilot",
+                                upstream.baseUri,
+                                "gh-token",
+                                "gh-gpt-5.5",
+                                "gpt-5.5",
+                                isDefault = true,
+                            ),
+                        )
+                )
             try {
                 server.start()
-                val response = post(server.port, "/v1/chat/completions", "{\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}")
+                val response =
+                    post(
+                        server.port,
+                        "/v1/chat/completions",
+                        "{\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    )
 
                 assertEquals(200, response.statusCode())
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
@@ -484,15 +783,36 @@ class SubscriptionProxyServerTest {
     @Test
     fun fallsBackToAlphabeticallyLatestModelWhenNoDefaultIsDeclared() {
         TestUpstream(responseBody = "{\"id\":\"chatcmpl_1\",\"choices\":[]}").use { upstream ->
-            val server = newServer(
-                providers = listOf(
-                    fakeProvider("openai", "OpenAI", upstream.baseUri, "openai-token", "gpt-5.4", "gpt-5.4"),
-                    fakeProvider("openai2", "OpenAI", upstream.baseUri, "openai-token", "gpt-5.5", "gpt-5.5"),
-                ),
-            )
+            val server =
+                newServer(
+                    providers =
+                        listOf(
+                            fakeProvider(
+                                "openai",
+                                "OpenAI",
+                                upstream.baseUri,
+                                "openai-token",
+                                "gpt-5.4",
+                                "gpt-5.4",
+                            ),
+                            fakeProvider(
+                                "openai2",
+                                "OpenAI",
+                                upstream.baseUri,
+                                "openai-token",
+                                "gpt-5.5",
+                                "gpt-5.5",
+                            ),
+                        )
+                )
             try {
                 server.start()
-                val response = post(server.port, "/v1/chat/completions", "{\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}")
+                val response =
+                    post(
+                        server.port,
+                        "/v1/chat/completions",
+                        "{\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    )
 
                 assertEquals(200, response.statusCode())
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
@@ -511,7 +831,8 @@ class SubscriptionProxyServerTest {
         localModel: String,
         upstreamModel: String,
         isDefault: Boolean = false,
-        routes: Set<SubscriptionProxyRoute> = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, SubscriptionProxyRoute.RESPONSES),
+        routes: Set<SubscriptionProxyRoute> =
+            setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, SubscriptionProxyRoute.RESPONSES),
     ): SubscriptionProxyProvider {
         return PassThroughSubscriptionProxyProvider(
             id = id,
@@ -519,15 +840,18 @@ class SubscriptionProxyServerTest {
             litellmProvider = id,
             baseUri = upstreamBaseUri,
             accessTokenProvider = { token },
-            modelMappingsProvider = { listOf(
-                PassThroughSubscriptionProxyProvider.ModelMapping(
-                    localId = localModel,
-                    upstreamId = upstreamModel,
-                    supportedRoutes = routes,
-                    isDefault = isDefault,
-                ),
-            ) },
-            requestLogger = RequestLogger(false, Files.createTempDirectory("subscription-proxy-test-logs")),
+            modelMappingsProvider = {
+                listOf(
+                    PassThroughSubscriptionProxyProvider.ModelMapping(
+                        localId = localModel,
+                        upstreamId = upstreamModel,
+                        supportedRoutes = routes,
+                        isDefault = isDefault,
+                    )
+                )
+            },
+            requestLogger =
+                RequestLogger(false, Files.createTempDirectory("subscription-proxy-test-logs")),
         )
     }
 
@@ -538,12 +862,13 @@ class SubscriptionProxyServerTest {
         val port = freePort()
         return TestServer(
             port = port,
-            server = SubscriptionProxyServer(
-                port = port,
-                localApiKeyProvider = { "local-key" },
-                providers = { providers },
-                completionsConfig = { completionsConfig },
-            ),
+            server =
+                SubscriptionProxyServer(
+                    port = port,
+                    localApiKeyProvider = { "local-key" },
+                    providers = { providers },
+                    completionsConfig = { completionsConfig },
+                ),
         )
     }
 
@@ -570,6 +895,7 @@ class SubscriptionProxyServerTest {
 
     private data class TestServer(val port: Int, val server: SubscriptionProxyServer) {
         fun start() = server.start()
+
         fun stop() = server.stop()
     }
 
@@ -578,18 +904,20 @@ class SubscriptionProxyServerTest {
         private val responseContentType: String = "application/json",
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
 
         init {
             server.createContext("/") { exchange ->
                 val body = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
-                requests += CapturedRequest(
-                    method = exchange.requestMethod,
-                    path = exchange.requestURI.rawPath,
-                    headers = exchange.requestHeaders.mapValues { it.value.toList() },
-                    body = body,
-                )
+                requests +=
+                    CapturedRequest(
+                        method = exchange.requestMethod,
+                        path = exchange.requestURI.rawPath,
+                        headers = exchange.requestHeaders.mapValues { it.value.toList() },
+                        body = body,
+                    )
                 val response = responseBody.toByteArray(Charsets.UTF_8)
                 exchange.responseHeaders.set("Content-Type", responseContentType)
                 exchange.sendResponseHeaders(200, response.size.toLong())
@@ -611,7 +939,8 @@ class SubscriptionProxyServerTest {
         val body: String,
     ) {
         fun firstHeader(name: String): String? {
-            return headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }
+            return headers.entries
+                .firstOrNull { it.key.equals(name, ignoreCase = true) }
                 ?.value
                 ?.firstOrNull()
         }

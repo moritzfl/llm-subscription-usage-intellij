@@ -1,19 +1,22 @@
 package de.moritzf.quota.idea.ui.popup
 
+import com.intellij.util.ui.JBUI
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.ui.indicator.QuotaPeriodDurations
 import de.moritzf.quota.idea.ui.indicator.clampPercent
 import de.moritzf.quota.minimax.MiniMaxQuota
-import kotlin.math.roundToInt
 import de.moritzf.quota.minimax.MiniMaxUsageWindow
-import com.intellij.util.ui.JBUI
 import de.moritzf.quota.shared.ProviderQuota
+import kotlin.math.roundToInt
 
 internal class MiniMaxPopupSection : ProviderPopupSection() {
     private val separator = createSeparatedBlock()
     private val errorLabel = createWarningLabel("").apply { border = JBUI.Borders.emptyTop(1) }
-    private val titleLabel = createSectionTitleLabel("MiniMax", QuotaIcons.MINIMAX).apply { border = JBUI.Borders.emptyTop(0) }
+    private val titleLabel =
+        createSectionTitleLabel("MiniMax", QuotaIcons.MINIMAX).apply {
+            border = JBUI.Borders.emptyTop(0)
+        }
     private val sessionBlock = WindowBlockPanel(3)
     private val weeklyBlock = WindowBlockPanel(5)
 
@@ -49,15 +52,20 @@ internal class MiniMaxPopupSection : ProviderPopupSection() {
                 weeklyBlock.showLoading("Weekly")
             }
             else -> {
-                val limitReached = (quota.sessionUsage?.usagePercent ?: 0.0) >= 100.0 ||
-                    (quota.weeklyUsage?.usagePercent ?: 0.0) >= 100.0
+                val limitReached =
+                    (quota.sessionUsage?.usagePercent ?: 0.0) >= 100.0 ||
+                        (quota.weeklyUsage?.usagePercent ?: 0.0) >= 100.0
                 errorLabel.isVisible = limitReached
                 if (limitReached) {
                     errorLabel.text = "MiniMax limit reached"
                 }
 
                 titleLabel.isVisible = true
-                titleLabel.text = sectionTitle("MiniMax", quota.plan.ifBlank { "MiniMax Token Plan (${quota.region})" })
+                titleLabel.text =
+                    sectionTitle(
+                        "MiniMax",
+                        quota.plan.ifBlank { "MiniMax Token Plan (${quota.region})" },
+                    )
                 quota.sessionUsage?.let {
                     sessionBlock.updateMiniMax(it, "Session", QuotaPeriodDurations.ROLLING_5H)
                 } ?: sessionBlock.clear()
@@ -90,7 +98,9 @@ internal class MiniMaxPopupSection : ProviderPopupSection() {
         if (resetText != null) {
             info += " - $resetText"
         } else {
-            QuotaUiUtil.formatCompactDuration(window.periodDuration ?: period)?.let { info += " ($it)" }
+            QuotaUiUtil.formatCompactDuration(window.periodDuration ?: period)?.let {
+                info += " ($it)"
+            }
         }
         update(describeDurationLimitLabel(window.periodDuration ?: period, label), info, percent)
     }

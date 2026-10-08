@@ -20,8 +20,19 @@ class SuperGrokAudioClientTest {
     fun postsSttWithUrlAndReturnsProviderJson() {
         TestServer(jsonBody = """{"text":"hello grok","duration":1.2}""").use { server ->
             val client = SuperGrokAudioClient(httpClient = httpClient, baseUri = server.baseUri)
-            val result = client.transcribe(accessToken = "grok-token", audioUrl = "https://example.com/a.mp3")
-            assertEquals("hello grok", JsonSupport.json.parseToJsonElement(result).jsonObject["text"]!!.jsonPrimitive.content)
+            val result =
+                client.transcribe(
+                    accessToken = "grok-token",
+                    audioUrl = "https://example.com/a.mp3",
+                )
+            assertEquals(
+                "hello grok",
+                JsonSupport.json
+                    .parseToJsonElement(result)
+                    .jsonObject["text"]!!
+                    .jsonPrimitive
+                    .content,
+            )
             val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
             assertEquals("POST", request.method)
             assertEquals("/stt", request.path)
@@ -35,7 +46,8 @@ class SuperGrokAudioClientTest {
         TestServer(binaryBody = audio).use { server ->
             val dir = Files.createTempDirectory("grok-tts")
             val client = SuperGrokAudioClient(httpClient = httpClient, baseUri = server.baseUri)
-            val result = client.synthesize(accessToken = "grok-token", text = "Hi", baseDirectory = dir)
+            val result =
+                client.synthesize(accessToken = "grok-token", text = "Hi", baseDirectory = dir)
             val written = JsonSupport.json.parseToJsonElement(result).jsonObject
             val output = java.nio.file.Path.of(written["output_file"]!!.jsonPrimitive.content)
             assertEquals(dir.toAbsolutePath().normalize(), output.parent)
@@ -65,15 +77,20 @@ class SuperGrokAudioClientTest {
         private val binaryBody: ByteArray? = null,
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: java.net.URI
 
         init {
             server.createContext("/") { exchange ->
                 val body = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
-                requests += CapturedRequest(exchange.requestMethod, exchange.requestURI.rawPath, body)
+                requests +=
+                    CapturedRequest(exchange.requestMethod, exchange.requestURI.rawPath, body)
                 val response = binaryBody ?: jsonBody.toByteArray()
-                exchange.responseHeaders.set("Content-Type", if (binaryBody != null) "audio/mpeg" else "application/json")
+                exchange.responseHeaders.set(
+                    "Content-Type",
+                    if (binaryBody != null) "audio/mpeg" else "application/json",
+                )
                 exchange.sendResponseHeaders(200, response.size.toLong())
                 exchange.responseBody.use { it.write(response) }
             }

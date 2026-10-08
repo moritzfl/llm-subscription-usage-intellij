@@ -13,11 +13,11 @@ import kotlin.test.assertTrue
 class ClientDisconnectsTest {
     @Test
     fun detectsBrokenPipeReportedByKtorWhileStreaming() {
-        // Mirrors the real chain: flush -> ClosedByteChannelException -> ClosedWriteChannelException
+        // Mirrors the real chain: flush -> ClosedByteChannelException ->
+        // ClosedWriteChannelException
         // -> IOException("Broken pipe").
-        val failure = ClosedByteChannelException(
-            ClosedWriteChannelException(IOException("Broken pipe")),
-        )
+        val failure =
+            ClosedByteChannelException(ClosedWriteChannelException(IOException("Broken pipe")))
 
         assertTrue(failure.isClientDisconnect())
     }
@@ -25,9 +25,10 @@ class ClientDisconnectsTest {
     @Test
     fun detectsDisconnectWrappedByTheSseEventLoop() {
         // ChatCompletionsHandler rewraps IOException from client writes as UncheckedIOException.
-        val failure = UncheckedIOException(
-            IOException(ClosedWriteChannelException(IOException("Broken pipe"))),
-        )
+        val failure =
+            UncheckedIOException(
+                IOException(ClosedWriteChannelException(IOException("Broken pipe")))
+            )
 
         assertTrue(failure.isClientDisconnect())
     }

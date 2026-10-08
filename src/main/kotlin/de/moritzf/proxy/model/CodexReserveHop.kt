@@ -12,7 +12,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 
 internal class CodexReserveHop(
-    private val aliasResolver: ModelAliasResolver = ModelAliasResolver(),
+    private val aliasResolver: ModelAliasResolver = ModelAliasResolver()
 ) {
     fun isEligibleRequest(path: String, method: String?, body: String?): Boolean {
         if (body.isNullOrBlank() || !method.equals("POST", ignoreCase = true)) {
@@ -34,7 +34,9 @@ internal class CodexReserveHop(
 
     fun originalModel(body: String): String? {
         val root = parseObject(body) ?: return null
-        val model = (root["model"] as? JsonPrimitive)?.content?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val model =
+            (root["model"] as? JsonPrimitive)?.content?.trim()?.takeIf { it.isNotEmpty() }
+                ?: return null
         return aliasResolver.resolve(model).model ?: model
     }
 
@@ -50,7 +52,8 @@ internal class CodexReserveHop(
                 root.forEach { (key, value) ->
                     when {
                         key == "model" -> put("model", JsonPrimitive(RESERVE_MODEL))
-                        key == "reasoning" && value is JsonObject -> put("reasoning", rewriteReasoning(value))
+                        key == "reasoning" && value is JsonObject ->
+                            put("reasoning", rewriteReasoning(value))
                         else -> put(key, value)
                     }
                 }
@@ -97,8 +100,10 @@ internal class CodexReserveHop(
         }
 
         fun isLunaModel(model: String): Boolean {
-            // Codex LUNA_MODEL is gpt-6-luna. Keep gpt-5.6-luna so the previous fast model still hops.
-            // gpt-reserve is not eligible (would hop to itself). Sol/Astra/Terra stay on their own buckets.
+            // Codex LUNA_MODEL is gpt-6-luna. Keep gpt-5.6-luna so the previous fast model still
+            // hops.
+            // gpt-reserve is not eligible (would hop to itself). Sol/Astra/Terra stay on their own
+            // buckets.
             val name = model.trim().lowercase(Locale.ROOT)
             return name.startsWith("gpt-6-luna") || name.startsWith("gpt-5.6-luna")
         }

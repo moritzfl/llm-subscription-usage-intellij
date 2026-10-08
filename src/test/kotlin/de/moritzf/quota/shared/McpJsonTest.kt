@@ -15,8 +15,14 @@ class McpJsonTest {
 
     @Test
     fun wrapsProviderTextWhenBodyIsNotJson() {
-        val result = JsonSupport.json.parseToJsonElement(McpJson.providerJsonOrRaw("temporarily unavailable"))
+        val result =
+            JsonSupport.json.parseToJsonElement(
+                McpJson.providerJsonOrRaw("temporarily unavailable")
+            )
 
-        assertEquals("temporarily unavailable", result.jsonObject["raw_response"]!!.jsonPrimitive.content)
+        assertEquals(
+            "temporarily unavailable",
+            result.jsonObject["raw_response"]!!.jsonPrimitive.content,
+        )
     }
 }

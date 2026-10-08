@@ -1,20 +1,18 @@
 package de.moritzf.quota.idea.ui
 
-import kotlin.time.Clock
-import kotlin.time.Instant
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.Duration
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.time.Clock
+import kotlin.time.Instant
 
-/**
- * UI formatting helpers for timestamps and relative quota time values.
- */
+/** UI formatting helpers for timestamps and relative quota time values. */
 object QuotaUiUtil {
-    private val absoluteFormatter: DateTimeFormatter = DateTimeFormatter
-        .ofPattern("MMM d, uuuu HH:mm", Locale.ENGLISH)
+    private val absoluteFormatter: DateTimeFormatter =
+        DateTimeFormatter.ofPattern("MMM d, uuuu HH:mm", Locale.ENGLISH)
 
     @JvmStatic
     fun formatReset(resetsAt: Instant?): String? {
@@ -22,7 +20,10 @@ object QuotaUiUtil {
             return null
         }
 
-        val duration = Duration.ofMillis(resetsAt.toEpochMilliseconds() - Clock.System.now().toEpochMilliseconds())
+        val duration =
+            Duration.ofMillis(
+                resetsAt.toEpochMilliseconds() - Clock.System.now().toEpochMilliseconds()
+            )
         val remaining = formatDuration(duration)
         if (remaining != null) {
             return "Resets $remaining"
@@ -38,7 +39,10 @@ object QuotaUiUtil {
             return null
         }
 
-        val duration = Duration.ofMillis(expiresAt.toEpochMilliseconds() - Clock.System.now().toEpochMilliseconds())
+        val duration =
+            Duration.ofMillis(
+                expiresAt.toEpochMilliseconds() - Clock.System.now().toEpochMilliseconds()
+            )
         val remaining = formatDuration(duration)
         if (remaining != null) {
             return "Expires $remaining"
@@ -55,7 +59,9 @@ object QuotaUiUtil {
         }
 
         return formatCompactDuration(
-            Duration.ofMillis(resetsAt.toEpochMilliseconds() - Clock.System.now().toEpochMilliseconds())
+            Duration.ofMillis(
+                resetsAt.toEpochMilliseconds() - Clock.System.now().toEpochMilliseconds()
+            )
         )
     }
 
@@ -65,7 +71,12 @@ object QuotaUiUtil {
             return null
         }
 
-        val ago = formatAgo(Duration.ofMillis(Clock.System.now().toEpochMilliseconds() - instant.toEpochMilliseconds()))
+        val ago =
+            formatAgo(
+                Duration.ofMillis(
+                    Clock.System.now().toEpochMilliseconds() - instant.toEpochMilliseconds()
+                )
+            )
         return ago ?: formatAbsoluteInstant(instant)
     }
 
@@ -89,8 +100,8 @@ object QuotaUiUtil {
     }
 
     /**
-     * Formats a duration into a compact string like "4d 3h 12m" (without "in" prefix).
-     * Returns null for negative durations.
+     * Formats a duration into a compact string like "4d 3h 12m" (without "in" prefix). Returns null
+     * for negative durations.
      */
     @JvmStatic
     fun formatCompactDuration(duration: Duration): String? {
@@ -150,7 +161,10 @@ object QuotaUiUtil {
 
     @JvmStatic
     fun formatOpenCodeBalance(balance: Long): String {
-        return BigDecimal.valueOf(balance).movePointLeft(8).setScale(2, RoundingMode.HALF_UP).toPlainString()
+        return BigDecimal.valueOf(balance)
+            .movePointLeft(8)
+            .setScale(2, RoundingMode.HALF_UP)
+            .toPlainString()
     }
 
     /** 1234 -> "1.2k", 46100000 -> "46.1M"; small values stay as-is. */
@@ -167,7 +181,8 @@ object QuotaUiUtil {
 
     private fun trimFraction(value: Double): String {
         val rounded = kotlin.math.round(value * 10.0) / 10.0
-        return if (rounded == rounded.toLong().toDouble()) rounded.toLong().toString() else rounded.toString()
+        return if (rounded == rounded.toLong().toDouble()) rounded.toLong().toString()
+        else rounded.toString()
     }
 
     @JvmStatic
@@ -187,7 +202,9 @@ object QuotaUiUtil {
     }
 
     private fun formatAbsoluteInstant(instant: Instant): String {
-        val zonedInstant = java.time.Instant.ofEpochMilli(instant.toEpochMilliseconds()).atZone(ZoneId.systemDefault())
+        val zonedInstant =
+            java.time.Instant.ofEpochMilli(instant.toEpochMilliseconds())
+                .atZone(ZoneId.systemDefault())
         return absoluteFormatter.format(zonedInstant)
     }
 }

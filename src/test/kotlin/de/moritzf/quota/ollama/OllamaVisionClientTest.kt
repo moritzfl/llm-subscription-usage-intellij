@@ -23,12 +23,13 @@ class OllamaVisionClientTest {
         TestUpstream("""{"choices":[{"message":{"content":"A robot."}}]}""").use { upstream ->
             val client = OllamaVisionClient(chatCompletionsUri = upstream.baseUri)
 
-            val answer = client.ask(
-                "ollama-key",
-                imageUrl = "https://example.com/a.png",
-                prompt = "Describe",
-                model = "qwen2.5vl",
-            )
+            val answer =
+                client.ask(
+                    "ollama-key",
+                    imageUrl = "https://example.com/a.png",
+                    prompt = "Describe",
+                    model = "qwen2.5vl",
+                )
 
             assertEquals("A robot.", answer)
             val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
@@ -45,9 +46,15 @@ class OllamaVisionClientTest {
     fun rejectsBadApiKeyWithTypedException() {
         TestUpstream("""{"error":"bad key"}""", status = 401).use { upstream ->
             val client = OllamaVisionClient(chatCompletionsUri = upstream.baseUri)
-            val exception = assertFailsWith<OllamaQuotaException> {
-                client.ask("bad", imageUrl = "https://example.com/a.png", prompt = "?", model = "qwen2.5vl")
-            }
+            val exception =
+                assertFailsWith<OllamaQuotaException> {
+                    client.ask(
+                        "bad",
+                        imageUrl = "https://example.com/a.png",
+                        prompt = "?",
+                        model = "qwen2.5vl",
+                    )
+                }
             assertTrue(exception.message!!.contains("API key"))
         }
     }
@@ -57,17 +64,19 @@ class OllamaVisionClientTest {
         private val status: Int = 200,
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
 
         init {
             server.createContext("/") { exchange ->
                 val body = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
-                requests += CapturedRequest(
-                    exchange.requestURI.rawPath,
-                    body,
-                    exchange.requestHeaders.getFirst("Authorization").orEmpty(),
-                )
+                requests +=
+                    CapturedRequest(
+                        exchange.requestURI.rawPath,
+                        body,
+                        exchange.requestHeaders.getFirst("Authorization").orEmpty(),
+                    )
                 val payload = responseBody.toByteArray()
                 exchange.sendResponseHeaders(status, payload.size.toLong())
                 exchange.responseBody.use { it.write(payload) }
@@ -81,5 +90,9 @@ class OllamaVisionClientTest {
         }
     }
 
-    private data class CapturedRequest(val path: String, val body: String, val authorization: String)
+    private data class CapturedRequest(
+        val path: String,
+        val body: String,
+        val authorization: String,
+    )
 }

@@ -1,6 +1,7 @@
 package de.moritzf.quota.openai.proxy
 
 import com.sun.net.httpserver.HttpServer
+import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.subscription.SubscriptionProxyServer
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -14,14 +15,13 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import de.moritzf.proxy.server.JsonHelper
 
 class OpenAiCodexSubscriptionProxyProviderTest {
     @Test
@@ -33,8 +33,11 @@ class OpenAiCodexSubscriptionProxyProviderTest {
                 val response = get(proxy.port, "/v1/models")
 
                 assertEquals(200, response.statusCode())
-                val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
-                    .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                val ids =
+                    JsonHelper.JSON.parseToJsonElement(response.body())
+                        .jsonObject["data"]!!
+                        .jsonArray
+                        .map { it.jsonObject["id"]!!.jsonPrimitive.content }
                 assertTrue("oa-gpt-6.1-sol" in ids)
                 assertTrue("oa-gpt-6-astra" in ids)
                 assertTrue("oa-gpt-6-sol" in ids)
@@ -58,11 +61,12 @@ class OpenAiCodexSubscriptionProxyProviderTest {
             val proxy = newProxy(upstream.baseUri)
             try {
                 proxy.start()
-                val response = post(
-                    proxy.port,
-                    "/v1/chat/completions",
-                    "{\"model\":\"oa-gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"Say pong\"}]}",
-                )
+                val response =
+                    post(
+                        proxy.port,
+                        "/v1/chat/completions",
+                        "{\"model\":\"oa-gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"Say pong\"}]}",
+                    )
 
                 assertEquals(200, response.statusCode())
                 assertTrue(response.body().contains("pong"), response.body())
@@ -73,7 +77,9 @@ class OpenAiCodexSubscriptionProxyProviderTest {
                 assertEquals("account-1", request.firstHeader("chatgpt-account-id"))
                 assertNull(request.firstHeader("version"))
                 assertEquals("openai-usage-quota-plugin", request.firstHeader("originator"))
-                assertTrue(request.firstHeader("User-Agent")!!.startsWith("openai-usage-quota-plugin/"))
+                assertTrue(
+                    request.firstHeader("User-Agent")!!.startsWith("openai-usage-quota-plugin/")
+                )
                 val upstreamBody = JsonHelper.JSON.parseToJsonElement(request.body).jsonObject
                 assertEquals("gpt-5.5", upstreamBody["model"]!!.jsonPrimitive.content)
                 assertEquals("true", upstreamBody["stream"]!!.jsonPrimitive.content)
@@ -89,11 +95,12 @@ class OpenAiCodexSubscriptionProxyProviderTest {
             val proxy = newProxy(upstream.baseUri)
             try {
                 proxy.start()
-                val response = post(
-                    proxy.port,
-                    "/v1/responses",
-                    "{\"model\":\"oa-gpt-unlisted\",\"input\":\"Say pong\"}",
-                )
+                val response =
+                    post(
+                        proxy.port,
+                        "/v1/responses",
+                        "{\"model\":\"oa-gpt-unlisted\",\"input\":\"Say pong\"}",
+                    )
 
                 assertEquals(200, response.statusCode())
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
@@ -105,7 +112,12 @@ class OpenAiCodexSubscriptionProxyProviderTest {
                 assertEquals("user", input[0].jsonObject["role"]!!.jsonPrimitive.content)
                 assertEquals(
                     "Say pong",
-                    input[0].jsonObject["content"]!!.jsonArray[0].jsonObject["text"]!!.jsonPrimitive.content,
+                    input[0]
+                        .jsonObject["content"]!!
+                        .jsonArray[0]
+                        .jsonObject["text"]!!
+                        .jsonPrimitive
+                        .content,
                 )
             } finally {
                 proxy.stop()
@@ -119,10 +131,27 @@ class OpenAiCodexSubscriptionProxyProviderTest {
             val proxy = newProxy(upstream.baseUri)
             try {
                 proxy.start()
-                for (model in listOf("oa-gpt-5.4", "oa-gpt-5.4-mini", "oa-gpt-5.2", "oa-gpt-5.3-codex", "oa-gpt-5.5-pro")) {
-                    val response = post(proxy.port, "/v1/chat/completions", """{"model":"$model","messages":[]}""")
+                for (model in
+                    listOf(
+                        "oa-gpt-5.4",
+                        "oa-gpt-5.4-mini",
+                        "oa-gpt-5.2",
+                        "oa-gpt-5.3-codex",
+                        "oa-gpt-5.5-pro",
+                    )) {
+                    val response =
+                        post(
+                            proxy.port,
+                            "/v1/chat/completions",
+                            """{"model":"$model","messages":[]}""",
+                        )
                     assertEquals(400, response.statusCode(), model)
-                    assertTrue(response.body().contains("not supported when using Codex with a ChatGPT account"), response.body())
+                    assertTrue(
+                        response
+                            .body()
+                            .contains("not supported when using Codex with a ChatGPT account"),
+                        response.body(),
+                    )
                 }
                 assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
             } finally {
@@ -133,20 +162,24 @@ class OpenAiCodexSubscriptionProxyProviderTest {
 
     private fun newProxy(upstreamBaseUri: URI): TestProxy {
         val port = freePort()
-        val provider = OpenAiCodexSubscriptionProxyProvider(
-            accessTokenProvider = { "codex-token" },
-            accountIdProvider = { "account-1" },
-            upstreamBaseUri = upstreamBaseUri,
-            requestLogDir = Files.createTempDirectory("codex-subscription-proxy-test-logs").toString(),
-        )
+        val provider =
+            OpenAiCodexSubscriptionProxyProvider(
+                accessTokenProvider = { "codex-token" },
+                accountIdProvider = { "account-1" },
+                upstreamBaseUri = upstreamBaseUri,
+                requestLogDir =
+                    Files.createTempDirectory("codex-subscription-proxy-test-logs").toString(),
+            )
         return TestProxy(
             port = port,
-            server = SubscriptionProxyServer(
-                port = port,
-                localApiKeyProvider = { "local-key" },
-                providers = { listOf(provider) },
-                requestLogDir = Files.createTempDirectory("subscription-proxy-test-logs").toString(),
-            ),
+            server =
+                SubscriptionProxyServer(
+                    port = port,
+                    localApiKeyProvider = { "local-key" },
+                    providers = { listOf(provider) },
+                    requestLogDir =
+                        Files.createTempDirectory("subscription-proxy-test-logs").toString(),
+                ),
         )
     }
 
@@ -173,6 +206,7 @@ class OpenAiCodexSubscriptionProxyProviderTest {
 
     private data class TestProxy(val port: Int, val server: SubscriptionProxyServer) {
         fun start() = server.start()
+
         fun stop() = server.stop()
     }
 
@@ -181,18 +215,20 @@ class OpenAiCodexSubscriptionProxyProviderTest {
         private val responseContentType: String = "text/event-stream",
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
 
         init {
             server.createContext("/") { exchange ->
                 val body = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
-                requests += CapturedRequest(
-                    method = exchange.requestMethod,
-                    path = exchange.requestURI.rawPath,
-                    headers = exchange.requestHeaders.mapValues { it.value.toList() },
-                    body = body,
-                )
+                requests +=
+                    CapturedRequest(
+                        method = exchange.requestMethod,
+                        path = exchange.requestURI.rawPath,
+                        headers = exchange.requestHeaders.mapValues { it.value.toList() },
+                        body = body,
+                    )
                 val response = responseBody.toByteArray(Charsets.UTF_8)
                 exchange.responseHeaders.set("Content-Type", responseContentType)
                 exchange.sendResponseHeaders(200, response.size.toLong())
@@ -214,7 +250,8 @@ class OpenAiCodexSubscriptionProxyProviderTest {
         val body: String,
     ) {
         fun firstHeader(name: String): String? {
-            return headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }
+            return headers.entries
+                .firstOrNull { it.key.equals(name, ignoreCase = true) }
                 ?.value
                 ?.firstOrNull()
         }

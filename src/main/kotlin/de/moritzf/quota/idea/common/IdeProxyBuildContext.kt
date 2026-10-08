@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea.common
 
+import com.intellij.openapi.diagnostic.Logger
 import de.moritzf.proxy.server.AccessLogFields
 import de.moritzf.proxy.server.ProxyCall
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
@@ -14,9 +15,6 @@ import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
 import de.moritzf.quota.idea.mistral.MistralApiKeyStore
 import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
 import de.moritzf.quota.idea.opencode.OpenCodeAuthService
-import de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel
-import de.moritzf.quota.opencode.proxy.OpenCodeConsoleSession
-import com.intellij.openapi.diagnostic.Logger
 import de.moritzf.quota.idea.settings.AccountCapability
 import de.moritzf.quota.idea.settings.AccountResolveException
 import de.moritzf.quota.idea.settings.AccountResolver
@@ -29,6 +27,8 @@ import de.moritzf.quota.minimax.proxy.MiniMaxSubscriptionProxyProvider
 import de.moritzf.quota.mistral.proxy.MistralSubscriptionProxyProvider
 import de.moritzf.quota.ollama.proxy.OllamaSubscriptionProxyProvider
 import de.moritzf.quota.openai.proxy.OpenAiCodexSubscriptionProxyProvider
+import de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel
+import de.moritzf.quota.opencode.proxy.OpenCodeConsoleSession
 import de.moritzf.quota.opencode.proxy.OpenCodeZenSubscriptionProxyProvider
 import de.moritzf.quota.supergrok.proxy.SuperGrokSubscriptionProxyProvider
 import de.moritzf.quota.zai.proxy.ZaiSubscriptionProxyProvider
@@ -76,7 +76,8 @@ internal object IdeProxyFactories {
         return SuperGrokSubscriptionProxyProvider(
             accessTokenProvider = {
                 resolvedAccount(ctx, QuotaProviderType.SUPERGROK)?.let { account ->
-                    ctx.authService().getAccessTokenBlocking(account.id, QuotaProviderType.SUPERGROK)
+                    ctx.authService()
+                        .getAccessTokenBlocking(account.id, QuotaProviderType.SUPERGROK)
                 }
             },
             tokenRefresher = { staleToken ->
@@ -90,14 +91,17 @@ internal object IdeProxyFactories {
     fun azure(ctx: IdeProxyBuildContext): SubscriptionProxyProvider {
         return AzureSubscriptionProxyProvider(
             configProvider = {
-                val account = resolvedAccount(ctx, QuotaProviderType.AZURE) ?: return@AzureSubscriptionProxyProvider null
+                val account =
+                    resolvedAccount(ctx, QuotaProviderType.AZURE)
+                        ?: return@AzureSubscriptionProxyProvider null
                 AzureSubscriptionProxyProvider.AzureProxyConfig(
                     accountId = account.id,
                     executable = AzureQuotaProvider.executableForAccount(account.id),
                     account = AzureQuotaProvider.configForAccount(account.id),
                 )
             },
-            accountKey = resolvedAccount(ctx, QuotaProviderType.AZURE)?.id ?: QuotaProviderType.AZURE.id,
+            accountKey =
+                resolvedAccount(ctx, QuotaProviderType.AZURE)?.id ?: QuotaProviderType.AZURE.id,
             fullRequestLogging = ctx.logRequests,
             requestLogDir = ctx.requestLogDir,
         )
@@ -110,16 +114,23 @@ internal object IdeProxyFactories {
                     GitHubCredentialsStore.forAccount(account.id).loadBlocking()?.accessToken
                 }
             },
-            upstreamBaseUri = githubCopilotBaseUri(
-                ctx.settings.githubHostFor(
-                    resolvedAccount(ctx, QuotaProviderType.GITHUB)?.id ?: QuotaProviderType.GITHUB.id,
+            upstreamBaseUri =
+                githubCopilotBaseUri(
+                    ctx.settings.githubHostFor(
+                        resolvedAccount(ctx, QuotaProviderType.GITHUB)?.id
+                            ?: QuotaProviderType.GITHUB.id
+                    )
                 ),
-            ),
             persistentModelCacheProvider = {
-                ctx.settings.subscriptionProxyModelCatalogJson(GitHubCopilotSubscriptionProxyProvider.ID)
+                ctx.settings.subscriptionProxyModelCatalogJson(
+                    GitHubCopilotSubscriptionProxyProvider.ID
+                )
             },
             persistentModelCacheSaver = { json ->
-                ctx.settings.setSubscriptionProxyModelCatalogJson(GitHubCopilotSubscriptionProxyProvider.ID, json)
+                ctx.settings.setSubscriptionProxyModelCatalogJson(
+                    GitHubCopilotSubscriptionProxyProvider.ID,
+                    json,
+                )
             },
             fullRequestLogging = ctx.logRequests,
             requestLogDir = ctx.requestLogDir,
@@ -152,7 +163,9 @@ internal object IdeProxyFactories {
             },
             regionProvider = {
                 val account = resolvedAccount(ctx, QuotaProviderType.MINIMAX)
-                miniMaxProxyRegion(ctx.settings.miniMaxRegionFor(account?.id ?: QuotaProviderType.MINIMAX.id))
+                miniMaxProxyRegion(
+                    ctx.settings.miniMaxRegionFor(account?.id ?: QuotaProviderType.MINIMAX.id)
+                )
             },
             fullRequestLogging = ctx.logRequests,
             requestLogDir = ctx.requestLogDir,
@@ -189,9 +202,17 @@ internal object IdeProxyFactories {
                 resolvedAccount(ctx, QuotaProviderType.OPEN_CODE)?.let { account ->
                     val auth = ctx.openCodeAuth()
                     auth.credentials(account.id)?.let { credentials ->
-                        val organization = credentials.accountId ?: ctx.settings.openCodeWorkspaceIdFor(account.id)
-                        OpenCodeConsoleSession(account.id, checkNotNull(credentials.accessToken), organization) { stale ->
-                            auth.credentials(account.id, stale)?.takeIf { it.accountId == credentials.accountId }?.accessToken
+                        val organization =
+                            credentials.accountId ?: ctx.settings.openCodeWorkspaceIdFor(account.id)
+                        OpenCodeConsoleSession(
+                            account.id,
+                            checkNotNull(credentials.accessToken),
+                            organization,
+                        ) { stale ->
+                            auth
+                                .credentials(account.id, stale)
+                                ?.takeIf { it.accountId == credentials.accountId }
+                                ?.accessToken
                         }
                     }
                 }
@@ -233,9 +254,15 @@ internal object IdeProxyFactories {
     ): de.moritzf.quota.idea.settings.ProviderAccount? {
         if (ctx.settings.accountsOf(type).isEmpty()) return null
         return try {
-            AccountResolver.resolve(type, capability = AccountCapability.PROXY, settings = ctx.settings)
+            AccountResolver.resolve(
+                type,
+                capability = AccountCapability.PROXY,
+                settings = ctx.settings,
+            )
         } catch (exception: AccountResolveException) {
-            LOG.warn("Could not resolve ${type.displayName} account for the local proxy: ${exception.message}")
+            LOG.warn(
+                "Could not resolve ${type.displayName} account for the local proxy: ${exception.message}"
+            )
             null
         }
     }
@@ -257,7 +284,8 @@ internal object IdeProxyFactories {
 
     fun githubCopilotBaseUri(enterpriseHost: String): URI {
         val host = GitHubQuotaClient.normalizedEnterpriseHost(enterpriseHost)
-        if (host == "github.com") return GitHubCopilotSubscriptionProxyProvider.DEFAULT_UPSTREAM_BASE_URI
+        if (host == "github.com")
+            return GitHubCopilotSubscriptionProxyProvider.DEFAULT_UPSTREAM_BASE_URI
         return URI.create("https://copilot-api.$host")
     }
 

@@ -10,7 +10,10 @@ class JsonSupportPrettyResponseTest {
         val pretty = JsonSupport.prettyResponse("""{"id":1,"login":"moritzfl"}""")
         assertTrue(pretty.contains("\n"))
         assertTrue(pretty.contains("\"login\""))
-        assertEquals("No GitHub response yet.", JsonSupport.prettyResponse("No GitHub response yet."))
+        assertEquals(
+            "No GitHub response yet.",
+            JsonSupport.prettyResponse("No GitHub response yet."),
+        )
     }
 
     @Test

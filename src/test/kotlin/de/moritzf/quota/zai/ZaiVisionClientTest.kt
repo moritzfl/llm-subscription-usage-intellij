@@ -23,12 +23,13 @@ class ZaiVisionClientTest {
         TestUpstream("""{"choices":[{"message":{"content":"A chart."}}]}""").use { upstream ->
             val client = ZaiVisionClient(chatCompletionsUri = upstream.baseUri)
 
-            val answer = client.ask(
-                "zai-key",
-                imageUrl = "https://example.com/a.png",
-                prompt = "Describe",
-                model = "glm-4.6v",
-            )
+            val answer =
+                client.ask(
+                    "zai-key",
+                    imageUrl = "https://example.com/a.png",
+                    prompt = "Describe",
+                    model = "glm-4.6v",
+                )
 
             assertEquals("A chart.", answer)
             val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
@@ -45,9 +46,15 @@ class ZaiVisionClientTest {
     fun rejectsBadApiKeyWithTypedException() {
         TestUpstream("""{"error":"bad key"}""", status = 401).use { upstream ->
             val client = ZaiVisionClient(chatCompletionsUri = upstream.baseUri)
-            val exception = assertFailsWith<ZaiQuotaException> {
-                client.ask("bad", imageUrl = "https://example.com/a.png", prompt = "?", model = "glm-4.6v")
-            }
+            val exception =
+                assertFailsWith<ZaiQuotaException> {
+                    client.ask(
+                        "bad",
+                        imageUrl = "https://example.com/a.png",
+                        prompt = "?",
+                        model = "glm-4.6v",
+                    )
+                }
             assertTrue(exception.message!!.contains("API key"))
         }
     }
@@ -57,23 +64,26 @@ class ZaiVisionClientTest {
         private val status: Int = 200,
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
 
         init {
             server.createContext("/") { exchange ->
                 val body = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
-                requests += CapturedRequest(
-                    exchange.requestURI.rawPath,
-                    body,
-                    exchange.requestHeaders.getFirst("Authorization").orEmpty(),
-                )
+                requests +=
+                    CapturedRequest(
+                        exchange.requestURI.rawPath,
+                        body,
+                        exchange.requestHeaders.getFirst("Authorization").orEmpty(),
+                    )
                 val payload = responseBody.toByteArray()
                 exchange.sendResponseHeaders(status, payload.size.toLong())
                 exchange.responseBody.use { it.write(payload) }
             }
             server.start()
-            baseUri = URI.create("http://127.0.0.1:${server.address.port}/api/paas/v4/chat/completions")
+            baseUri =
+                URI.create("http://127.0.0.1:${server.address.port}/api/paas/v4/chat/completions")
         }
 
         override fun close() {
@@ -81,5 +91,9 @@ class ZaiVisionClientTest {
         }
     }
 
-    private data class CapturedRequest(val path: String, val body: String, val authorization: String)
+    private data class CapturedRequest(
+        val path: String,
+        val body: String,
+        val authorization: String,
+    )
 }

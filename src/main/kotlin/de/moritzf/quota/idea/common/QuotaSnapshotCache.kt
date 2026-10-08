@@ -8,6 +8,7 @@ import de.moritzf.quota.openai.RateLimitResetCredit
 import de.moritzf.quota.openai.UsageWindow
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.ProviderQuota
+import java.time.Duration
 import kotlin.time.Instant
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
@@ -17,18 +18,18 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
-import java.time.Duration
 
 /**
- * Encodes provider quotas to JSON for persistent caching and decodes them back.
- * New providers register a snapshot codec on their catalog descriptor.
+ * Encodes provider quotas to JSON for persistent caching and decodes them back. New providers
+ * register a snapshot codec on their catalog descriptor.
  */
 internal object QuotaSnapshotCache {
     @Suppress("UNCHECKED_CAST")
     private fun codecFor(type: QuotaProviderType): QuotaCodec<ProviderQuota>? =
         QuotaProviderRegistry.getOrNull(type)?.snapshotCodec as QuotaCodec<ProviderQuota>?
 
-    fun encode(type: QuotaProviderType, quota: ProviderQuota): String? = codecFor(type)?.encode(quota)
+    fun encode(type: QuotaProviderType, quota: ProviderQuota): String? =
+        codecFor(type)?.encode(quota)
 
     fun decode(type: QuotaProviderType, json: String?): ProviderQuota? {
         if (json.isNullOrBlank()) return null
@@ -36,31 +37,35 @@ internal object QuotaSnapshotCache {
     }
 
     /** Serializes the bare quota payload; used as a raw-JSON fallback for display. */
-    fun encodePlain(type: QuotaProviderType, quota: ProviderQuota): String? = codecFor(type)?.encodePlain(quota)
+    fun encodePlain(type: QuotaProviderType, quota: ProviderQuota): String? =
+        codecFor(type)?.encodePlain(quota)
 }
 
 internal interface QuotaCodec<Q : ProviderQuota> {
     fun encode(quota: Q): String?
+
     fun decode(json: String): Q?
+
     fun encodePlain(quota: Q): String? = null
 }
 
 /** Persists the quota together with its transient raw upstream response. */
-internal class EnvelopeQuotaCodec<Q : ProviderQuota>(
-    private val serializer: KSerializer<Q>,
-) : QuotaCodec<Q> {
+internal class EnvelopeQuotaCodec<Q : ProviderQuota>(private val serializer: KSerializer<Q>) :
+    QuotaCodec<Q> {
     private val envelopeSerializer = CachedQuotaEnvelope.serializer(serializer)
 
     override fun encode(quota: Q): String? {
         val envelope = CachedQuotaEnvelope(quota, RawResponseRedactor.redact(quota.rawJson))
-        return runCatching { JsonSupport.json.encodeToString(envelopeSerializer, envelope) }.getOrNull()
+        return runCatching { JsonSupport.json.encodeToString(envelopeSerializer, envelope) }
+            .getOrNull()
     }
 
     override fun decode(json: String): Q? {
         return runCatching {
             val envelope = JsonSupport.json.decodeFromString(envelopeSerializer, json)
             envelope.quota.apply { rawJson = envelope.rawResponse }
-        }.getOrNull()
+        }
+            .getOrNull()
     }
 
     override fun encodePlain(quota: Q): String? {
@@ -76,55 +81,59 @@ private data class CachedQuotaEnvelope<Q>(
 
 internal object RawResponseRedactor {
     private const val REDACTED = "[REDACTED]"
-    private val exactSensitiveNames = setOf(
-        "authorization",
-        "proxy_authorization",
-        "cookie",
-        "set_cookie",
-        "access_token",
-        "refresh_token",
-        "id_token",
-        "api_key",
-        "apikey",
-        "password",
-        "secret",
-    )
-    private val tokenCountNames = setOf(
-        "total_tokens",
-        "input_tokens",
-        "output_tokens",
-        "prompt_tokens",
-        "completion_tokens",
-        "cached_tokens",
-        "reasoning_tokens",
-    )
+    private val exactSensitiveNames =
+        setOf(
+            "authorization",
+            "proxy_authorization",
+            "cookie",
+            "set_cookie",
+            "access_token",
+            "refresh_token",
+            "id_token",
+            "api_key",
+            "apikey",
+            "password",
+            "secret",
+        )
+    private val tokenCountNames =
+        setOf(
+            "total_tokens",
+            "input_tokens",
+            "output_tokens",
+            "prompt_tokens",
+            "completion_tokens",
+            "cached_tokens",
+            "reasoning_tokens",
+        )
     private val sensitiveNameFragments = listOf("secret", "password", "cookie")
 
     fun redact(raw: String?): String? {
         if (raw.isNullOrBlank()) return raw
-        val element = runCatching { JsonSupport.json.parseToJsonElement(raw) }.getOrNull() ?: return raw
+        val element =
+            runCatching { JsonSupport.json.parseToJsonElement(raw) }.getOrNull() ?: return raw
         return runCatching { redactElement(element).toString() }.getOrDefault(raw)
     }
 
     private fun redactElement(element: JsonElement): JsonElement {
         return when (element) {
-            is JsonObject -> buildJsonObject {
-                element.forEach { (key, value) ->
-                    put(key, if (isSensitiveName(key)) JsonPrimitive(REDACTED) else redactElement(value))
+            is JsonObject ->
+                buildJsonObject {
+                    element.forEach { (key, value) ->
+                        put(
+                            key,
+                            if (isSensitiveName(key)) JsonPrimitive(REDACTED)
+                            else redactElement(value),
+                        )
+                    }
                 }
-            }
-            is JsonArray -> buildJsonArray {
-                element.forEach { add(redactElement(it)) }
-            }
+            is JsonArray -> buildJsonArray { element.forEach { add(redactElement(it)) } }
             else -> element
         }
     }
 
     private fun isSensitiveName(name: String): Boolean {
-        val normalized = name
-            .replace(Regex("([a-z])([A-Z])"), "$1_$2")
-            .lowercase()
-            .replace('-', '_')
+        val normalized =
+            name.replace(Regex("([a-z])([A-Z])"), "$1_$2").lowercase().replace('-', '_')
         return normalized in exactSensitiveNames ||
             normalized.endsWith("_key") ||
             normalized.endsWith("key") && normalized.startsWith("api") ||
@@ -136,11 +145,13 @@ internal object RawResponseRedactor {
 /** OpenAI keeps a bespoke cache shape that flattens windows to epoch-millis timestamps. */
 internal object OpenAiQuotaCodec : QuotaCodec<OpenAiCodexQuota> {
     override fun encode(quota: OpenAiCodexQuota): String? {
-        return runCatching { JsonSupport.json.encodeToString(CachedOpenAiQuota.fromQuota(quota)) }.getOrNull()
+        return runCatching { JsonSupport.json.encodeToString(CachedOpenAiQuota.fromQuota(quota)) }
+            .getOrNull()
     }
 
     override fun decode(json: String): OpenAiCodexQuota? {
-        return runCatching { JsonSupport.json.decodeFromString<CachedOpenAiQuota>(json).toQuota() }.getOrNull()
+        return runCatching { JsonSupport.json.decodeFromString<CachedOpenAiQuota>(json).toQuota() }
+            .getOrNull()
     }
 }
 
@@ -208,7 +219,8 @@ private data class CachedOpenAiQuota(
                 rateLimitReachedType = quota.rateLimitReachedType,
                 resetCreditsAvailableCount = quota.resetCreditsAvailableCount,
                 resetCredits = quota.resetCredits,
-                extraRateLimits = quota.extraRateLimits.map(CachedOpenAiExtraRateLimit::fromExtraRateLimit),
+                extraRateLimits =
+                    quota.extraRateLimits.map(CachedOpenAiExtraRateLimit::fromExtraRateLimit),
             )
         }
     }

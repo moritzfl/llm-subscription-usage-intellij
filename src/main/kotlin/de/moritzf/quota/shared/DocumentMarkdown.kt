@@ -1,8 +1,8 @@
 package de.moritzf.quota.shared
 
+import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.StandardCopyOption.ATOMIC_MOVE
 import java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import kotlinx.serialization.SerialName
@@ -10,7 +10,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 
 internal object DocumentMarkdown {
-    private val FENCE = Regex("^```(?:markdown|md)?\\s*\\n([\\s\\S]*?)\\n```\\s*$", RegexOption.IGNORE_CASE)
+    private val FENCE =
+        Regex("^```(?:markdown|md)?\\s*\\n([\\s\\S]*?)\\n```\\s*$", RegexOption.IGNORE_CASE)
 
     fun unwrap(text: String): String {
         val trimmed = text.trim()
@@ -42,10 +43,20 @@ internal object DocumentMarkdown {
             }
             writeAtomically(outputFile, cleaned)
             return JsonSupport.json.encodeToString(
-                DocumentMarkdownWriteResult(outputFile.toString(), imageFiles, pageCount, pageFrom, pageTo, warnings, imageExport),
+                DocumentMarkdownWriteResult(
+                    outputFile.toString(),
+                    imageFiles,
+                    pageCount,
+                    pageFrom,
+                    pageTo,
+                    warnings,
+                    imageExport,
+                )
             )
         }
-        return JsonSupport.json.encodeToString(DocumentMarkdownTextResult(cleaned, pageCount, pageFrom, pageTo))
+        return JsonSupport.json.encodeToString(
+            DocumentMarkdownTextResult(cleaned, pageCount, pageFrom, pageTo)
+        )
     }
 
     fun writeAtomically(outputFile: Path, markdown: String) {
@@ -54,9 +65,14 @@ internal object DocumentMarkdown {
         val temporary = Files.createTempFile(parent, ".document-", ".md")
         try {
             Files.writeString(temporary, markdown)
-            try { Files.move(temporary, outputFile, ATOMIC_MOVE, REPLACE_EXISTING) }
-            catch (_: AtomicMoveNotSupportedException) { Files.move(temporary, outputFile, REPLACE_EXISTING) }
-        } finally { Files.deleteIfExists(temporary) }
+            try {
+                Files.move(temporary, outputFile, ATOMIC_MOVE, REPLACE_EXISTING)
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(temporary, outputFile, REPLACE_EXISTING)
+            }
+        } finally {
+            Files.deleteIfExists(temporary)
+        }
     }
 }
 

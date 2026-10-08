@@ -4,9 +4,7 @@ import java.net.URI
 import java.net.URLDecoder
 import java.net.URLEncoder
 
-/**
- * URL encoding and parsing helpers shared across OAuth components.
- */
+/** URL encoding and parsing helpers shared across OAuth components. */
 object OAuthUrlCodec {
     @JvmStatic
     fun formEncode(params: Map<String, String>): String {
@@ -16,8 +14,8 @@ object OAuthUrlCodec {
     }
 
     /**
-     * Query-string encoding for authorize URLs.
-     * Uses %20 for spaces (not +). Some OAuth providers (e.g. Claude) reject + as invalid request format.
+     * Query-string encoding for authorize URLs. Uses %20 for spaces (not +). Some OAuth providers
+     * (e.g. Claude) reject + as invalid request format.
      */
     @JvmStatic
     fun queryEncode(params: Map<String, String>): String {
@@ -61,7 +59,8 @@ object OAuthUrlCodec {
         if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
             return URI.create(trimmed)
         }
-        val callbackPath = URI.create(redirectUri).path.takeIf { it.isNotBlank() } ?: "/auth/callback"
+        val callbackPath =
+            URI.create(redirectUri).path.takeIf { it.isNotBlank() } ?: "/auth/callback"
         if (trimmed.startsWith(callbackPath)) {
             return URI.create(redirectUri + trimmed.removePrefix(callbackPath))
         }

@@ -30,7 +30,10 @@ class AntigravityQuotaTest {
 
     @Test
     fun changedGroupsAndFieldsDoNotDiscardUsableSiblings() {
-        val quota = parseAntigravityQuota(report("""
+        val quota =
+            parseAntigravityQuota(
+                report(
+                    """
             null,
             {"name":"changed","buckets":{}},
             {"name":"Gemini","buckets":[
@@ -40,7 +43,9 @@ class AntigravityQuotaTest {
                 {"id":"future","remaining_fraction":0.1,"disabled":{}},
                 {"id":"disabled","remaining_fraction":0,"disabled":true}
             ]}
-        """))
+        """
+                )
+            )
 
         assertEquals(4, quota.windows.size)
         assertEquals(0.25, quota.usageFraction())
@@ -56,10 +61,16 @@ class AntigravityQuotaTest {
 
     @Test
     fun missingOrInvalidRemainingQuotaNeverBecomesZeroUsage() {
-        for (remaining in listOf("null", "{}", "[]", "true", "-0.1", "1.1", "\"NaN\"", "\"Infinity\"")) {
-            val quota = parseAntigravityQuota(report("""
+        for (remaining in
+            listOf("null", "{}", "[]", "true", "-0.1", "1.1", "\"NaN\"", "\"Infinity\"")) {
+            val quota =
+                parseAntigravityQuota(
+                    report(
+                        """
                 {"buckets":[{"id":"unknown","remaining_fraction":$remaining}]}
-            """))
+            """
+                    )
+                )
             assertNull(quota.usageFraction(), remaining)
             assertNull(quota.primaryWindow(), remaining)
             assertTrue(quota.activityWindows().isEmpty(), remaining)
@@ -71,30 +82,43 @@ class AntigravityQuotaTest {
 
     @Test
     fun remainingEndpointsRepresentExhaustedAndUnusedQuota() {
-        val full = parseAntigravityQuota(report("""{"buckets":[{"id":"weekly","remaining_fraction":0}]}"""))
-        val unused = parseAntigravityQuota(report("""{"buckets":[{"id":"weekly","remaining_fraction":1}]}"""))
+        val full =
+            parseAntigravityQuota(
+                report("""{"buckets":[{"id":"weekly","remaining_fraction":0}]}""")
+            )
+        val unused =
+            parseAntigravityQuota(
+                report("""{"buckets":[{"id":"weekly","remaining_fraction":1}]}""")
+            )
         assertEquals(1.0, full.usageFraction())
         assertEquals(0.0, unused.usageFraction())
     }
 
     @Test
     fun refusesErrorsAndModelResponseTextAsQuotaData() {
-        for (raw in listOf(
-            "not json", "null", "[]", "{}",
-            USAGE_REPORT.replace("SUCCESS", "ERROR"),
-            USAGE_REPORT.replace("\"name\":\"usage\"", "\"name\":\"other\""),
-            """{"status":"SUCCESS","response":{"groups":[{"buckets":[{"id":"fake","remaining_fraction":1}]}]}}""",
-            report(""), report("null,{\"buckets\":[]}"),
-        )) {
+        for (raw in
+            listOf(
+                "not json",
+                "null",
+                "[]",
+                "{}",
+                USAGE_REPORT.replace("SUCCESS", "ERROR"),
+                USAGE_REPORT.replace("\"name\":\"usage\"", "\"name\":\"other\""),
+                """{"status":"SUCCESS","response":{"groups":[{"buckets":[{"id":"fake","remaining_fraction":1}]}]}}""",
+                report(""),
+                report("null,{\"buckets\":[]}"),
+            )) {
             assertFailsWith<AntigravityQuotaException> { parseAntigravityQuota(raw) }
         }
     }
 
-    private fun report(groups: String) = """{"status":"SUCCESS","command":{"name":"usage","data":{"groups":[$groups]}}}"""
+    private fun report(groups: String) =
+        """{"status":"SUCCESS","command":{"name":"usage","data":{"groups":[$groups]}}}"""
 }
 
 // Native command envelope; no credentials or conversation identifiers.
-internal val USAGE_REPORT = """
+internal val USAGE_REPORT =
+    """
     {
       "status":"SUCCESS",
       "response":"Human-readable output is not the quota API.",
@@ -109,4 +133,5 @@ internal val USAGE_REPORT = """
         ]}
       ]}}
     }
-""".trimIndent()
+    """
+        .trimIndent()

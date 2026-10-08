@@ -3,18 +3,22 @@ package de.moritzf.quota.idea.common
 import com.intellij.util.messages.Topic
 import de.moritzf.quota.shared.ProviderQuota
 
-/**
- * Message bus listener for quota refresh updates.
- */
+/** Message bus listener for quota refresh updates. */
 interface QuotaUsageListener {
     fun onQuotaUpdated(type: QuotaProviderType, quota: ProviderQuota?, error: String?) {}
 
-    fun onQuotaUpdated(type: QuotaProviderType, quota: ProviderQuota?, error: String?, accountId: String) {
+    fun onQuotaUpdated(
+        type: QuotaProviderType,
+        quota: ProviderQuota?,
+        error: String?,
+        accountId: String,
+    ) {
         onQuotaUpdated(type, quota, error)
     }
 
     companion object {
         @JvmField
-        val TOPIC: Topic<QuotaUsageListener> = Topic.create("LLM Subscription Usage Updated", QuotaUsageListener::class.java)
+        val TOPIC: Topic<QuotaUsageListener> =
+            Topic.create("LLM Subscription Usage Updated", QuotaUsageListener::class.java)
     }
 }

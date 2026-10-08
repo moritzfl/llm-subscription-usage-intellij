@@ -10,7 +10,8 @@ import java.nio.file.Path
 class AntigravityQuotaProvider(
     override val accountId: String = QuotaProviderType.ANTIGRAVITY.id,
     private val fetchQuota: () -> AntigravityQuota = {
-        AntigravityQuotaClient(executableProvider = { executableForAccount(accountId) }).fetchQuota()
+        AntigravityQuotaClient(executableProvider = { executableForAccount(accountId) })
+            .fetchQuota()
     },
 ) : CachedQuotaProvider<AntigravityQuota>() {
     override val type = QuotaProviderType.ANTIGRAVITY
@@ -34,22 +35,34 @@ class AntigravityQuotaProvider(
         }
     }
 
-    override fun clearData(error: String?) = synchronized(lock) {
-        generation++
-        super.clearData(error)
-    }
+    override fun clearData(error: String?) =
+        synchronized(lock) {
+            generation++
+            super.clearData(error)
+        }
 
     // The report has no account identity. Never restore a previous CLI login's quota after restart.
-    override fun hydrateFromCache(settings: QuotaSettingsState) { settings.dropAccountData(accountId) }
-    override fun persistToCache(settings: QuotaSettingsState) { settings.updateTimestamp(accountId) }
+    override fun hydrateFromCache(settings: QuotaSettingsState) {
+        settings.dropAccountData(accountId)
+    }
+
+    override fun persistToCache(settings: QuotaSettingsState) {
+        settings.updateTimestamp(accountId)
+    }
+
     override fun cachedUsageFraction(settings: QuotaSettingsState): Double? = null
-    override fun cachedActivityWindows(settings: QuotaSettingsState): Map<String, Double> = emptyMap()
+
+    override fun cachedActivityWindows(settings: QuotaSettingsState): Map<String, Double> =
+        emptyMap()
 
     companion object {
         fun executableForAccount(accountId: String): Path? {
             val configured = runCatching {
-                QuotaSettingsState.getInstance().account(accountId)?.extra(ProviderAccount.EXTRA_AGY_EXECUTABLE)
-            }.getOrNull()
+                QuotaSettingsState.getInstance()
+                    .account(accountId)
+                    ?.extra(ProviderAccount.EXTRA_AGY_EXECUTABLE)
+            }
+                .getOrNull()
             return AntigravityQuotaClient.findExecutable(configured)
         }
     }

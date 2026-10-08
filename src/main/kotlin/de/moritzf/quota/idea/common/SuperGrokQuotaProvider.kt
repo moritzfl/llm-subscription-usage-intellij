@@ -1,7 +1,7 @@
 package de.moritzf.quota.idea.common
 
-import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.auth.OAuthConnectionState
+import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.supergrok.SuperGrokQuota
 import de.moritzf.quota.supergrok.SuperGrokQuotaClient
 import de.moritzf.quota.supergrok.SuperGrokQuotaException
@@ -10,10 +10,12 @@ class SuperGrokQuotaProvider(
     override val accountId: String = QuotaProviderType.SUPERGROK.id,
     private val client: SuperGrokQuotaClient = SuperGrokQuotaClient(),
     private val tokenProvider: () -> String? = {
-        QuotaAuthService.getInstance().getAccessTokenBlocking(accountId, QuotaProviderType.SUPERGROK)
+        QuotaAuthService.getInstance()
+            .getAccessTokenBlocking(accountId, QuotaProviderType.SUPERGROK)
     },
     private val tokenRefresher: (staleAccessToken: String?) -> String? = { staleToken ->
-        QuotaAuthService.getInstance().forceRefreshBlocking(accountId, QuotaProviderType.SUPERGROK, staleToken)
+        QuotaAuthService.getInstance()
+            .forceRefreshBlocking(accountId, QuotaProviderType.SUPERGROK, staleToken)
     },
     private val connectionStateProvider: () -> OAuthConnectionState = {
         QuotaAuthService.getInstance().connectionState(accountId, QuotaProviderType.SUPERGROK)
@@ -52,7 +54,11 @@ class SuperGrokQuotaProvider(
         } catch (exception: SuperGrokQuotaException) {
             // Incomplete/flaky billing payloads (missing creditUsagePercent) and timeouts:
             // keep last good reading when we have one. Auth failures still clear the UI.
-            if (exception.statusCode != 401 && exception.statusCode != 403 && lastQuotaRef.get() != null) {
+            if (
+                exception.statusCode != 401 &&
+                    exception.statusCode != 403 &&
+                    lastQuotaRef.get() != null
+            ) {
                 return
             }
             storeError(exception.message ?: "Request failed", exception.rawBody)
@@ -83,15 +89,17 @@ class SuperGrokQuotaProvider(
         if (accessToken.isNullOrBlank()) {
             throw SuperGrokQuotaException(notConfiguredMessage)
         }
-        val resetId = tokenId?.trim()?.takeIf { it.isNotBlank() }
-            ?: lastQuotaRef.get()?.resetTokens?.firstOrNull()?.tokenId
-            ?: throw SuperGrokQuotaException("No SuperGrok reset is available.")
+        val resetId =
+            tokenId?.trim()?.takeIf { it.isNotBlank() }
+                ?: lastQuotaRef.get()?.resetTokens?.firstOrNull()?.tokenId
+                ?: throw SuperGrokQuotaException("No SuperGrok reset is available.")
         try {
             resetConsumer(accessToken, resetId)
         } catch (exception: SuperGrokQuotaException) {
             if (exception.statusCode != 401 && exception.statusCode != 403) throw exception
-            val refreshed = tokenRefresher(accessToken)?.takeIf { it.isNotBlank() && it != accessToken }
-                ?: throw exception
+            val refreshed =
+                tokenRefresher(accessToken)?.takeIf { it.isNotBlank() && it != accessToken }
+                    ?: throw exception
             resetConsumer(refreshed, resetId)
         }
     }
@@ -101,8 +109,9 @@ class SuperGrokQuotaProvider(
             client.fetchQuota(accessToken)
         } catch (exception: SuperGrokQuotaException) {
             if (exception.statusCode != 401 && exception.statusCode != 403) throw exception
-            val refreshed = tokenRefresher(accessToken)?.takeIf { it.isNotBlank() && it != accessToken }
-                ?: throw exception
+            val refreshed =
+                tokenRefresher(accessToken)?.takeIf { it.isNotBlank() && it != accessToken }
+                    ?: throw exception
             client.fetchQuota(refreshed)
         }
     }

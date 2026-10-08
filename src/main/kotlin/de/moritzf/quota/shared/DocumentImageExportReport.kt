@@ -14,6 +14,9 @@ internal data class DocumentImageExportReport(
     val failed: Int = 0,
     val diagnostics: List<String> = emptyList(),
 ) {
-    val succeeded: Int get() = svg + png + provider
-    val total: Int get() = succeeded + failed
+    val succeeded: Int
+        get() = svg + png + provider
+
+    val total: Int
+        get() = succeeded + failed
 }

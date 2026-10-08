@@ -27,20 +27,31 @@ import kotlinx.serialization.json.JsonPrimitive
 class MistralSubscriptionBudgetsTest {
     @Test
     fun fetchReadsAllowancesWithPluginSessionAndKeepsProviderBudgetJson() {
-        val http = FakeHttpClient(mapOf(
-            "/api/billing/v2/usage" to (200 to """{"vibe_usage":0}"""),
-            "/api-ui/trpc/billing.vibeUsage" to (200 to """[{"result":{"data":{"json":{"usage_percentage":0}}}}]"""),
-            "/subscription" to (200 to flight("a:{\"budget\":$BUDGETS}\n")),
-        ))
-        val quota = MistralQuotaClient(http) { Instant.parse("2026-09-28T10:00:00Z") }
-            .fetchQuota("ory_session_test=test-token; csrftoken=test-csrf")
+        val http =
+            FakeHttpClient(
+                mapOf(
+                    "/api/billing/v2/usage" to (200 to """{"vibe_usage":0}"""),
+                    "/api-ui/trpc/billing.vibeUsage" to
+                        (200 to """[{"result":{"data":{"json":{"usage_percentage":0}}}}]"""),
+                    "/subscription" to (200 to flight("a:{\"budget\":$BUDGETS}\n")),
+                )
+            )
+        val quota =
+            MistralQuotaClient(http) { Instant.parse("2026-09-28T10:00:00Z") }
+                .fetchQuota("ory_session_test=test-token; csrftoken=test-csrf")
         assertEquals(12.75, quota.includedApiUsage?.limitAmount)
         assertEquals(127.5, quota.monthlyUsage?.limitAmount)
         assertTrue(mistralBarDisplayText(quota, null).startsWith("93%"))
         val request = http.requests.single { it.uri().path == "/subscription" }
         assertEquals("https://admin.mistral.ai/subscription", request.uri().toString())
         assertEquals("text/html", request.headers().firstValue("Accept").orElse(null))
-        assertTrue(request.headers().firstValue("Cookie").orElse("").contains("ory_session_test=test-token"))
+        assertTrue(
+            request
+                .headers()
+                .firstValue("Cookie")
+                .orElse("")
+                .contains("ory_session_test=test-token")
+        )
         assertEquals("month=9&year=2026", http.requests.first().uri().query)
         assertTrue(quota.rawJson!!.contains("\"api_budget\""))
         assertTrue(!quota.rawJson!!.contains("test-token"))
@@ -49,8 +60,10 @@ class MistralSubscriptionBudgetsTest {
 
     @Test
     fun subscriptionStillWorksWhenLegacyEndpointsFail() {
-        val http = FakeHttpClient(mapOf("/subscription" to (200 to flight("a:{\"budget\":$BUDGETS}\n"))))
-        val quota = MistralQuotaClient(http).fetchQuota("ory_session_test=test-token; csrftoken=test-csrf")
+        val http =
+            FakeHttpClient(mapOf("/subscription" to (200 to flight("a:{\"budget\":$BUDGETS}\n"))))
+        val quota =
+            MistralQuotaClient(http).fetchQuota("ory_session_test=test-token; csrftoken=test-csrf")
         assertEquals(12.75, quota.includedApiUsage?.limitAmount)
         assertEquals(127.5, quota.monthlyUsage?.limitAmount)
         assertTrue(quota.rawJson!!.contains("billing_error"))
@@ -58,7 +71,8 @@ class MistralSubscriptionBudgetsTest {
 
     @Test
     fun missingSubscriptionPagePreservesLegacyReadingWithoutInventingAllowance() {
-        val http = FakeHttpClient(mapOf("/api/billing/v2/usage" to (200 to """{"vibe_usage":12}""")))
+        val http =
+            FakeHttpClient(mapOf("/api/billing/v2/usage" to (200 to """{"vibe_usage":12}""")))
         val quota = MistralQuotaClient(http).fetchQuota("ory_session_test=test-token")
         assertEquals(12.0, quota.monthlyUsage?.usagePercent)
         assertNull(quota.includedApiUsage)
@@ -92,8 +106,18 @@ class MistralSubscriptionBudgetsTest {
 
     @Test
     fun zeroAllowanceUsageStaysAPercentageEvenWhenApiActivityExists() {
-        val api = MistralUsageWindow(usagePercent = 0.0, limitAmount = 12.75, usedAmount = 0.0, currency = "EUR")
-        val quota = MistralQuota(includedApiUsage = api, apiUsage = MistralApiUsage(spendEur = 0.01, tokens = 100))
+        val api =
+            MistralUsageWindow(
+                usagePercent = 0.0,
+                limitAmount = 12.75,
+                usedAmount = 0.0,
+                currency = "EUR",
+            )
+        val quota =
+            MistralQuota(
+                includedApiUsage = api,
+                apiUsage = MistralApiUsage(spendEur = 0.01, tokens = 100),
+            )
         assertEquals("0%", mistralBarDisplayText(quota, null))
         val busyVibe = MistralUsageWindow(usagePercent = 80.0)
         assertSame(busyVibe, quota.copy(monthlyUsage = busyVibe).displayWindow())
@@ -102,7 +126,8 @@ class MistralSubscriptionBudgetsTest {
     @Test
     fun skipsByteCountedTextWithUnicodeAndFakeBudgetRecords() {
         val fake = "€\na:{\"budget\":${BUDGETS.replace("12.75", "999.0")}}\n"
-        val stream = "1:T${fake.toByteArray().size.toString(16)},$fake" + "2:{\"budget\":$BUDGETS}\n"
+        val stream =
+            "1:T${fake.toByteArray().size.toString(16)},$fake" + "2:{\"budget\":$BUDGETS}\n"
         val budgets = assertNotNull(MistralSubscriptionBudgets.parse(flight(stream)))
         assertEquals(12.75, MistralSubscriptionBudgets.window(budgets["api_budget"])?.limitAmount)
     }
@@ -121,9 +146,11 @@ class MistralSubscriptionBudgetsTest {
     @Test
     fun validatesAmountsAndSupportsOverageAndCalendarMonthReset() {
         fun window(percent: String, limit: String, currency: String = "USD") =
-            MistralSubscriptionBudgets.window(JsonSupport.json.parseToJsonElement(
-                """{"usage_percentage":$percent,"initial_budget":$limit,"currency":"$currency","reset_at":"2026-03-01T00:00:00Z"}""",
-            ))
+            MistralSubscriptionBudgets.window(
+                JsonSupport.json.parseToJsonElement(
+                    """{"usage_percentage":$percent,"initial_budget":$limit,"currency":"$currency","reset_at":"2026-03-01T00:00:00Z"}"""
+                )
+            )
         assertNull(window("-1", "15"))
         assertNull(window("0", "0"))
         assertNull(window("\"NaN\"", "15"))
@@ -137,51 +164,90 @@ class MistralSubscriptionBudgetsTest {
 
     @Test
     fun rawResponseIncludesOnlyExtractedProviderBudgetJson() {
-        val budgets = assertNotNull(MistralSubscriptionBudgets.parse(flight("a:{\"budget\":$BUDGETS}\n")))
-        val raw = MistralQuotaClient.buildRawResponse(null, null, null, null, subscriptionBudgets = budgets)
+        val budgets =
+            assertNotNull(MistralSubscriptionBudgets.parse(flight("a:{\"budget\":$BUDGETS}\n")))
+        val raw =
+            MistralQuotaClient.buildRawResponse(
+                null,
+                null,
+                null,
+                null,
+                subscriptionBudgets = budgets,
+            )
         assertTrue(raw.contains("\"subscription\""))
         assertTrue(raw.contains("\"api_budget\""))
         assertTrue(!raw.contains("__next_f"))
     }
 
-    private fun flight(stream: String): String = "<script>self.__next_f.push([1,${JsonPrimitive(stream)}])</script>"
+    private fun flight(stream: String): String =
+        "<script>self.__next_f.push([1,${JsonPrimitive(stream)}])</script>"
 
-    private class FakeHttpClient(private val responses: Map<String, Pair<Int, String>>) : HttpClient() {
+    private class FakeHttpClient(private val responses: Map<String, Pair<Int, String>>) :
+        HttpClient() {
         val requests = mutableListOf<HttpRequest>()
 
-        override fun <T : Any?> send(request: HttpRequest, responseBodyHandler: HttpResponse.BodyHandler<T>): HttpResponse<T> {
+        override fun <T : Any?> send(
+            request: HttpRequest,
+            responseBodyHandler: HttpResponse.BodyHandler<T>,
+        ): HttpResponse<T> {
             requests += request
             val (status, body) = responses[request.uri().path] ?: (500 to "unavailable")
-            val response = object : HttpResponse<String> {
-                override fun statusCode(): Int = status
-                override fun request(): HttpRequest = request
-                override fun previousResponse(): Optional<HttpResponse<String>> = Optional.empty()
-                override fun headers(): HttpHeaders = HttpHeaders.of(emptyMap()) { _, _ -> true }
-                override fun body(): String = body
-                override fun sslSession(): Optional<SSLSession> = Optional.empty()
-                override fun uri(): URI = request.uri()
-                override fun version(): Version = Version.HTTP_1_1
-            }
+            val response =
+                object : HttpResponse<String> {
+                    override fun statusCode(): Int = status
+
+                    override fun request(): HttpRequest = request
+
+                    override fun previousResponse(): Optional<HttpResponse<String>> =
+                        Optional.empty()
+
+                    override fun headers(): HttpHeaders =
+                        HttpHeaders.of(emptyMap()) { _, _ -> true }
+
+                    override fun body(): String = body
+
+                    override fun sslSession(): Optional<SSLSession> = Optional.empty()
+
+                    override fun uri(): URI = request.uri()
+
+                    override fun version(): Version = Version.HTTP_1_1
+                }
             @Suppress("UNCHECKED_CAST")
             return response as HttpResponse<T>
         }
 
-        override fun <T : Any?> sendAsync(request: HttpRequest, responseBodyHandler: HttpResponse.BodyHandler<T>): CompletableFuture<HttpResponse<T>> =
-            throw UnsupportedOperationException()
-        override fun <T : Any?> sendAsync(request: HttpRequest, responseBodyHandler: HttpResponse.BodyHandler<T>, pushPromiseHandler: HttpResponse.PushPromiseHandler<T>): CompletableFuture<HttpResponse<T>> =
-            throw UnsupportedOperationException()
+        override fun <T : Any?> sendAsync(
+            request: HttpRequest,
+            responseBodyHandler: HttpResponse.BodyHandler<T>,
+        ): CompletableFuture<HttpResponse<T>> = throw UnsupportedOperationException()
+
+        override fun <T : Any?> sendAsync(
+            request: HttpRequest,
+            responseBodyHandler: HttpResponse.BodyHandler<T>,
+            pushPromiseHandler: HttpResponse.PushPromiseHandler<T>,
+        ): CompletableFuture<HttpResponse<T>> = throw UnsupportedOperationException()
+
         override fun cookieHandler(): Optional<CookieHandler> = Optional.empty()
+
         override fun connectTimeout(): Optional<java.time.Duration> = Optional.empty()
+
         override fun followRedirects(): Redirect = Redirect.NEVER
+
         override fun proxy(): Optional<ProxySelector> = Optional.empty()
+
         override fun sslContext(): SSLContext = SSLContext.getDefault()
+
         override fun sslParameters(): SSLParameters = SSLParameters()
+
         override fun authenticator(): Optional<Authenticator> = Optional.empty()
+
         override fun version(): Version = Version.HTTP_1_1
+
         override fun executor(): Optional<java.util.concurrent.Executor> = Optional.empty()
     }
 
     companion object {
-        private const val BUDGETS = """{"api_budget":{"usage_percentage":93.25490196078431,"initial_budget":12.75,"currency":"EUR","reset_at":"2026-10-01T00:00:00Z"},"vibe_budget":{"usage_percentage":0,"initial_budget":127.5,"currency":"EUR","reset_at":"2026-10-01T00:00:00Z"}}"""
+        private const val BUDGETS =
+            """{"api_budget":{"usage_percentage":93.25490196078431,"initial_budget":12.75,"currency":"EUR","reset_at":"2026-10-01T00:00:00Z"},"vibe_budget":{"usage_percentage":0,"initial_budget":127.5,"currency":"EUR","reset_at":"2026-10-01T00:00:00Z"}}"""
     }
 }

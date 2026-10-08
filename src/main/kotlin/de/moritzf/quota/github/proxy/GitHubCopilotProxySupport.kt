@@ -4,10 +4,10 @@ import de.moritzf.proxy.subscription.SubscriptionProxyRoute
 import de.moritzf.proxy.transport.UrlResolver
 import de.moritzf.quota.shared.DocumentModelChoices
 import de.moritzf.quota.shared.JsonSupport
+import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
-import java.net.URI
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.minutes
@@ -37,11 +37,11 @@ internal object GitHubCopilotProxyIds {
     val UNSUPPORTED_MESSAGES_BODY_FIELDS = setOf("context_management", "output_config", "thinking")
     val DEFAULT_UPSTREAM_BASE_URI: URI = URI.create("https://api.githubcopilot.com")
     val DEFAULT_CACHE_TTL = 5.minutes
-    val DEFAULT_MISSING_MODEL_RETRY_DELAYS: List<Duration> = List(10) { index ->
-        Duration.ofMillis(1_000L shl index)
-    }
-    val DEFAULT_REQUEST_LOG_DIR: String = System.getProperty("java.io.tmpdir") +
-        "/openai-usage-quota-intellij/subscription-proxy-github-requests"
+    val DEFAULT_MISSING_MODEL_RETRY_DELAYS: List<Duration> =
+        List(10) { index -> Duration.ofMillis(1_000L shl index) }
+    val DEFAULT_REQUEST_LOG_DIR: String =
+        System.getProperty("java.io.tmpdir") +
+            "/openai-usage-quota-intellij/subscription-proxy-github-requests"
     val MODEL_RETRY_SEQUENCE = AtomicLong()
 }
 
@@ -69,19 +69,21 @@ internal fun modelType(item: JsonObject): String? {
 }
 
 internal fun remoteModelId(rawId: String): String? {
-    return rawId.trim()
-        .removePrefix(GitHubCopilotProxyIds.OPENCODE_PROVIDER_PREFIX)
-        .takeIf { it.isNotBlank() }
+    return rawId.trim().removePrefix(GitHubCopilotProxyIds.OPENCODE_PROVIDER_PREFIX).takeIf {
+        it.isNotBlank()
+    }
 }
 
 internal fun fallbackUpstreamId(localId: String): String? {
     val trimmed = localId.trim()
-    val upstreamId = when {
-        trimmed.startsWith(GitHubCopilotProxyIds.PREFIX) -> trimmed.removePrefix(GitHubCopilotProxyIds.PREFIX)
-        trimmed.startsWith(GitHubCopilotProxyIds.OPENCODE_PROVIDER_PREFIX) ->
-            trimmed.removePrefix(GitHubCopilotProxyIds.OPENCODE_PROVIDER_PREFIX)
-        else -> return null
-    }
+    val upstreamId =
+        when {
+            trimmed.startsWith(GitHubCopilotProxyIds.PREFIX) ->
+                trimmed.removePrefix(GitHubCopilotProxyIds.PREFIX)
+            trimmed.startsWith(GitHubCopilotProxyIds.OPENCODE_PROVIDER_PREFIX) ->
+                trimmed.removePrefix(GitHubCopilotProxyIds.OPENCODE_PROVIDER_PREFIX)
+            else -> return null
+        }
     return upstreamId.takeIf { it.isNotBlank() }
 }
 
@@ -94,7 +96,8 @@ internal fun supportsVision(capabilities: JsonObject?, supports: JsonObject?): B
 internal fun supportsPdf(capabilities: JsonObject?): Boolean =
     mediaTypes(capabilities).any { it == "application/pdf" }
 
-internal fun pdfMediaTypesKnown(capabilities: JsonObject?): Boolean = mediaTypes(capabilities).isNotEmpty()
+internal fun pdfMediaTypesKnown(capabilities: JsonObject?): Boolean =
+    mediaTypes(capabilities).isNotEmpty()
 
 internal data class GitHubListedModel(
     val id: String,
@@ -115,39 +118,62 @@ internal fun githubDocumentModelIds(models: List<GitHubListedModel>): List<Strin
 internal fun githubVisionModelIds(models: List<GitHubListedModel>): List<String> =
     models.filter { it.supportsVision }.map { it.id }
 
-/** Copilot `/models` body. PDF models when that model says so; every other model when it does not. */
-internal fun githubDocumentModelIds(body: String): List<String> = githubDocumentModelIds(parseGitHubListedModels(body))
+/**
+ * Copilot `/models` body. PDF models when that model says so; every other model when it does not.
+ */
+internal fun githubDocumentModelIds(body: String): List<String> =
+    githubDocumentModelIds(parseGitHubListedModels(body))
 
 internal fun parseGitHubListedModels(body: String): List<GitHubListedModel> {
-    val root = runCatching { JsonSupport.json.parseToJsonElement(body) }.getOrNull() ?: return emptyList()
-    val data = when (root) {
-        is JsonObject -> root["data"] as? JsonArray ?: root["models"] as? JsonArray
-        is JsonArray -> root
-        else -> null
-    } ?: return emptyList()
-    return data.mapNotNull { element ->
-        val item = element as? JsonObject ?: return@mapNotNull null
-        if (boolField(item, "model_picker_enabled") == false) return@mapNotNull null
-        if (stringField(item.jsonObject("policy"), "state") == "disabled") return@mapNotNull null
-        if (modelType(item) == "embeddings") return@mapNotNull null
-        val id = remoteModelId(stringField(item, "id") ?: return@mapNotNull null) ?: return@mapNotNull null
-        val capabilities = item["capabilities"] as? JsonObject
-        val supports = item["supports"] as? JsonObject
-        val endpoints = (item["supported_endpoints"] as? JsonArray)
-            ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
-            .orEmpty()
-        GitHubListedModel(id, supportsPdf(capabilities), pdfMediaTypesKnown(capabilities), supportsVision(capabilities, supports), endpoints)
-    }.distinctBy { it.id }
+    val root =
+        runCatching { JsonSupport.json.parseToJsonElement(body) }.getOrNull() ?: return emptyList()
+    val data =
+        when (root) {
+            is JsonObject -> root["data"] as? JsonArray ?: root["models"] as? JsonArray
+            is JsonArray -> root
+            else -> null
+        } ?: return emptyList()
+    return data
+        .mapNotNull { element ->
+            val item = element as? JsonObject ?: return@mapNotNull null
+            if (boolField(item, "model_picker_enabled") == false) return@mapNotNull null
+            if (stringField(item.jsonObject("policy"), "state") == "disabled")
+                return@mapNotNull null
+            if (modelType(item) == "embeddings") return@mapNotNull null
+            val id =
+                remoteModelId(stringField(item, "id") ?: return@mapNotNull null)
+                    ?: return@mapNotNull null
+            val capabilities = item["capabilities"] as? JsonObject
+            val supports = item["supports"] as? JsonObject
+            val endpoints =
+                (item["supported_endpoints"] as? JsonArray)
+                    ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+                    .orEmpty()
+            GitHubListedModel(
+                id,
+                supportsPdf(capabilities),
+                pdfMediaTypesKnown(capabilities),
+                supportsVision(capabilities, supports),
+                endpoints,
+            )
+        }
+        .distinctBy { it.id }
 }
 
 /**
  * Live `supported_endpoints` wins. A model id is only a fallback when Copilot did not list routes,
  * so a new id the user picked still has a request path.
  */
-internal fun githubDocumentRoute(modelId: String, endpoints: List<String> = emptyList()): de.moritzf.quota.shared.NativePdfRoute {
-    if (endpoints.any { it == "/v1/messages" || it == "/messages" }) return de.moritzf.quota.shared.NativePdfRoute.ANTHROPIC
-    if (endpoints.any { it.endsWith("/responses") || it == "/responses" }) return de.moritzf.quota.shared.NativePdfRoute.RESPONSES
-    if (endpoints.any { it.endsWith("/chat/completions") || it == "/chat/completions" }) return de.moritzf.quota.shared.NativePdfRoute.CHAT
+internal fun githubDocumentRoute(
+    modelId: String,
+    endpoints: List<String> = emptyList(),
+): de.moritzf.quota.shared.NativePdfRoute {
+    if (endpoints.any { it == "/v1/messages" || it == "/messages" })
+        return de.moritzf.quota.shared.NativePdfRoute.ANTHROPIC
+    if (endpoints.any { it.endsWith("/responses") || it == "/responses" })
+        return de.moritzf.quota.shared.NativePdfRoute.RESPONSES
+    if (endpoints.any { it.endsWith("/chat/completions") || it == "/chat/completions" })
+        return de.moritzf.quota.shared.NativePdfRoute.CHAT
     return when {
         isClaudeModel(modelId) -> de.moritzf.quota.shared.NativePdfRoute.ANTHROPIC
         shouldUseResponsesApi(modelId) -> de.moritzf.quota.shared.NativePdfRoute.RESPONSES
@@ -155,22 +181,30 @@ internal fun githubDocumentRoute(modelId: String, endpoints: List<String> = empt
     }
 }
 
-internal fun githubCopilotHeaders(token: String): Map<String, String> = mapOf(
-    "Authorization" to "Bearer $token",
-    "Accept" to "application/json",
-    "User-Agent" to GitHubCopilotProxyIds.USER_AGENT,
-    "Copilot-Integration-Id" to GitHubCopilotProxyIds.COPILOT_INTEGRATION_ID,
-    "Editor-Version" to GitHubCopilotProxyIds.EDITOR_VERSION,
-    "Editor-Plugin-Version" to GitHubCopilotProxyIds.EDITOR_PLUGIN_VERSION,
-    "X-GitHub-Api-Version" to GitHubCopilotProxyIds.API_VERSION,
-    "Openai-Intent" to "conversation-edits",
-    "x-initiator" to "user",
-)
+internal fun githubCopilotHeaders(token: String): Map<String, String> =
+    mapOf(
+        "Authorization" to "Bearer $token",
+        "Accept" to "application/json",
+        "User-Agent" to GitHubCopilotProxyIds.USER_AGENT,
+        "Copilot-Integration-Id" to GitHubCopilotProxyIds.COPILOT_INTEGRATION_ID,
+        "Editor-Version" to GitHubCopilotProxyIds.EDITOR_VERSION,
+        "Editor-Plugin-Version" to GitHubCopilotProxyIds.EDITOR_PLUGIN_VERSION,
+        "X-GitHub-Api-Version" to GitHubCopilotProxyIds.API_VERSION,
+        "Openai-Intent" to "conversation-edits",
+        "x-initiator" to "user",
+    )
 
-internal fun fetchGitHubListedModels(base: java.net.URI, token: String, httpClient: HttpClient = HttpClient.newHttpClient()): List<GitHubListedModel> {
-    val request = HttpRequest.newBuilder(java.net.URI.create(UrlResolver.resolveTargetUrl("/models", base.toString())))
-        .timeout(Duration.ofSeconds(30))
-        .GET()
+internal fun fetchGitHubListedModels(
+    base: java.net.URI,
+    token: String,
+    httpClient: HttpClient = HttpClient.newHttpClient(),
+): List<GitHubListedModel> {
+    val request =
+        HttpRequest.newBuilder(
+                java.net.URI.create(UrlResolver.resolveTargetUrl("/models", base.toString()))
+            )
+            .timeout(Duration.ofSeconds(30))
+            .GET()
     githubCopilotHeaders(token).forEach { (name, value) -> request.header(name, value) }
     val response = httpClient.send(request.build(), HttpResponse.BodyHandlers.ofString())
     if (response.statusCode() !in 200..299) return emptyList()
@@ -185,7 +219,9 @@ private fun mediaTypes(capabilities: JsonObject?): List<String> {
 
 internal fun routeForStorageValue(value: String?): SubscriptionProxyRoute? {
     return SubscriptionProxyRoute.entries.firstOrNull { route ->
-        value == route.normalizedPath || value == route.upstreamPath || value == "/v1${route.normalizedPath}"
+        value == route.normalizedPath ||
+            value == route.upstreamPath ||
+            value == "/v1${route.normalizedPath}"
     }
 }
 
@@ -194,7 +230,8 @@ internal fun shouldUseResponsesApi(modelId: String): Boolean {
     if (modelId.startsWith("mai-code-") || modelId.startsWith("grok-")) {
         return true
     }
-    val major = GPT_MAJOR_REGEX.find(modelId)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: return false
+    val major =
+        GPT_MAJOR_REGEX.find(modelId)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: return false
     return major >= 5 && !modelId.startsWith("gpt-5-mini")
 }
 

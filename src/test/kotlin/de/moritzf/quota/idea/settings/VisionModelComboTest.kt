@@ -11,8 +11,15 @@ class VisionModelComboTest {
     fun unverifiedModelsRemainSelectableAfterDeclaredVisionModels() {
         SwingUtilities.invokeAndWait {
             val picker = VisionModelCombo(groupUnverified = true)
-            picker.show("working-but-undeclared", listOf("declared"), listOf("declared", "working-but-undeclared"))
-            assertEquals(listOf("-", "declared", "working-but-undeclared"), (0 until picker.combo.itemCount).map(picker.combo::getItemAt))
+            picker.show(
+                "working-but-undeclared",
+                listOf("declared"),
+                listOf("declared", "working-but-undeclared"),
+            )
+            assertEquals(
+                listOf("-", "declared", "working-but-undeclared"),
+                (0 until picker.combo.itemCount).map(picker.combo::getItemAt),
+            )
             assertEquals("working-but-undeclared", picker.selected())
             assertTrue(picker.combo.toolTipText.contains("not declared"))
             assertFalse(picker.combo.isSwingPopup)
@@ -29,7 +36,10 @@ class VisionModelComboTest {
             val picker = VisionModelCombo(groupUnverified = true)
             picker.show(null, emptyList(), listOf("unverified"))
             assertEquals("-", picker.selected())
-            assertEquals(listOf("-", "unverified"), (0 until picker.combo.itemCount).map(picker.combo::getItemAt))
+            assertEquals(
+                listOf("-", "unverified"),
+                (0 until picker.combo.itemCount).map(picker.combo::getItemAt),
+            )
             picker.combo.selectedItem = "unverified"
             assertEquals("unverified", picker.storedValue())
         }

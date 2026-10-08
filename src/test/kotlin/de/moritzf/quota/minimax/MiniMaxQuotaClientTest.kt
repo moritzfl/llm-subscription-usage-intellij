@@ -20,7 +20,8 @@ import kotlin.time.Duration.Companion.minutes
 class MiniMaxQuotaClientTest {
     @Test
     fun parseQuotaUsesExplicitUsedCount() {
-        val body = """
+        val body =
+            """
             {
               "base_resp": {"status_code": 0, "status_msg": "ok"},
               "model_remains": [{
@@ -31,7 +32,8 @@ class MiniMaxQuotaClientTest {
                 "current_subscribe_title": "MiniMax Coding Pro"
               }]
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = MiniMaxQuotaClient.parseQuota(body, MiniMaxRegion.GLOBAL)
 
@@ -46,7 +48,8 @@ class MiniMaxQuotaClientTest {
 
     @Test
     fun parseQuotaComputesUsedFromRemainingAlias() {
-        val body = """
+        val body =
+            """
             {
               "base_resp": {"status_code": 0},
               "model_remains": [{
@@ -54,7 +57,8 @@ class MiniMaxQuotaClientTest {
                 "current_interval_remaining_count": 40
               }]
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = MiniMaxQuotaClient.parseQuota(body, MiniMaxRegion.GLOBAL)
 
@@ -67,7 +71,8 @@ class MiniMaxQuotaClientTest {
 
     @Test
     fun parseQuotaTreatsUsageCountAsRemaining() {
-        val body = """
+        val body =
+            """
             {
               "base_resp": {"status_code": 0},
               "model_remains": [{
@@ -75,7 +80,8 @@ class MiniMaxQuotaClientTest {
                 "current_interval_usage_count": 120
               }]
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = MiniMaxQuotaClient.parseQuota(body, MiniMaxRegion.GLOBAL)
 
@@ -86,7 +92,8 @@ class MiniMaxQuotaClientTest {
 
     @Test
     fun parseQuotaUsesRemainingPercentWhenCountsAreZero() {
-        val body = """
+        val body =
+            """
             {
               "base_resp": {"status_code": 0, "status_msg": "success"},
               "model_remains": [{
@@ -107,7 +114,8 @@ class MiniMaxQuotaClientTest {
                 "weekly_remains_time": 294269853
               }]
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = MiniMaxQuotaClient.parseQuota(body, MiniMaxRegion.GLOBAL)
 
@@ -127,7 +135,8 @@ class MiniMaxQuotaClientTest {
 
     @Test
     fun parseQuotaPrefersGeneralOverVideo() {
-        val body = """
+        val body =
+            """
             {
               "base_resp": {"status_code": 0},
               "model_remains": [
@@ -145,7 +154,8 @@ class MiniMaxQuotaClientTest {
                 }
               ]
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = MiniMaxQuotaClient.parseQuota(body, MiniMaxRegion.GLOBAL)
 
@@ -155,7 +165,8 @@ class MiniMaxQuotaClientTest {
 
     @Test
     fun parseQuotaMarksExhaustedStatusAs100() {
-        val body = """
+        val body =
+            """
             {
               "base_resp": {"status_code": 0},
               "model_remains": [{
@@ -166,7 +177,8 @@ class MiniMaxQuotaClientTest {
                 "current_weekly_status": 1
               }]
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = MiniMaxQuotaClient.parseQuota(body, MiniMaxRegion.GLOBAL)
 
@@ -176,7 +188,8 @@ class MiniMaxQuotaClientTest {
 
     @Test
     fun parseQuotaSkipsUnlimitedWindows() {
-        val body = """
+        val body =
+            """
             {
               "base_resp": {"status_code": 0},
               "model_remains": [{
@@ -187,7 +200,8 @@ class MiniMaxQuotaClientTest {
                 "current_weekly_status": 1
               }]
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = MiniMaxQuotaClient.parseQuota(body, MiniMaxRegion.GLOBAL)
 
@@ -197,7 +211,8 @@ class MiniMaxQuotaClientTest {
 
     @Test
     fun parseQuotaOmitsNullWeeklyWindow() {
-        val body = """
+        val body =
+            """
             {
               "base_resp": {"status_code": 0},
               "model_remains": [{
@@ -205,7 +220,8 @@ class MiniMaxQuotaClientTest {
                 "current_interval_used_count": 30
               }]
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = MiniMaxQuotaClient.parseQuota(body, MiniMaxRegion.GLOBAL)
 
@@ -216,7 +232,8 @@ class MiniMaxQuotaClientTest {
     @Test
     fun parseQuotaTreatsTokenPlanRemainsTimeAsMillis() {
         val before = Clock.System.now()
-        val body = """
+        val body =
+            """
             {
               "base_resp": {"status_code": 0},
               "model_remains": [{
@@ -228,7 +245,8 @@ class MiniMaxQuotaClientTest {
                 "weekly_remains_time": 294269853
               }]
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = MiniMaxQuotaClient.parseQuota(body, MiniMaxRegion.GLOBAL)
         val after = Clock.System.now()
@@ -243,11 +261,13 @@ class MiniMaxQuotaClientTest {
 
     @Test
     fun parseQuotaReportsApiError() {
-        val body = """{"base_resp":{"status_code":1001,"status_msg":"no plan"},"model_remains":[]}"""
+        val body =
+            """{"base_resp":{"status_code":1001,"status_msg":"no plan"},"model_remains":[]}"""
 
-        val exception = assertFailsWith<MiniMaxQuotaException> {
-            MiniMaxQuotaClient.parseQuota(body, MiniMaxRegion.CN)
-        }
+        val exception =
+            assertFailsWith<MiniMaxQuotaException> {
+                MiniMaxQuotaClient.parseQuota(body, MiniMaxRegion.CN)
+            }
 
         assertEquals("MiniMax API error: no plan", exception.message)
         assertEquals(body, exception.rawBody)
@@ -257,9 +277,10 @@ class MiniMaxQuotaClientTest {
     fun parseQuotaReportsMalformedPayload() {
         val body = "not json"
 
-        val exception = assertFailsWith<MiniMaxQuotaException> {
-            MiniMaxQuotaClient.parseQuota(body, MiniMaxRegion.GLOBAL)
-        }
+        val exception =
+            assertFailsWith<MiniMaxQuotaException> {
+                MiniMaxQuotaClient.parseQuota(body, MiniMaxRegion.GLOBAL)
+            }
 
         assertEquals("Could not parse usage data.", exception.message)
         assertEquals(body, exception.rawBody)
@@ -268,72 +289,92 @@ class MiniMaxQuotaClientTest {
     @Test
     fun fetchQuotaFallsBackToLegacyCodingPlan() {
         TestMiniMaxServer(
-            responses = mapOf(
-                "/v1/token_plan/remains" to (404 to """{"error":"not found"}"""),
-                "/v1/coding_plan/remains" to (200 to """
-                    {
-                      "base_resp": {"status_code": 0},
-                      "model_remains": [{
-                        "current_interval_total_count": 300,
-                        "current_interval_used_count": 75,
-                        "current_subscribe_title": "MiniMax Coding Pro"
-                      }]
-                    }
-                """.trimIndent()),
-            ),
-        ).use { server ->
-            val client = MiniMaxQuotaClient(
-                httpClient = HttpClient.newHttpClient(),
-                endpointsByRegion = {
-                    listOf(
-                        server.uri("/v1/token_plan/remains"),
-                        server.uri("/v1/coding_plan/remains"),
+                responses =
+                    mapOf(
+                        "/v1/token_plan/remains" to (404 to """{"error":"not found"}"""),
+                        "/v1/coding_plan/remains" to
+                            (200 to
+                                """
+                                {
+                                  "base_resp": {"status_code": 0},
+                                  "model_remains": [{
+                                    "current_interval_total_count": 300,
+                                    "current_interval_used_count": 75,
+                                    "current_subscribe_title": "MiniMax Coding Pro"
+                                  }]
+                                }
+                                """
+                                    .trimIndent()),
                     )
-                },
             )
+            .use { server ->
+                val client =
+                    MiniMaxQuotaClient(
+                        httpClient = HttpClient.newHttpClient(),
+                        endpointsByRegion = {
+                            listOf(
+                                server.uri("/v1/token_plan/remains"),
+                                server.uri("/v1/coding_plan/remains"),
+                            )
+                        },
+                    )
 
-            val quota = client.fetchQuota("sk-test", MiniMaxRegion.GLOBAL)
+                val quota = client.fetchQuota("sk-test", MiniMaxRegion.GLOBAL)
 
-            assertEquals("MiniMax Coding Pro (GLOBAL)", quota.plan)
-            assertEquals(25.0, assertNotNull(quota.sessionUsage).usagePercent)
-            assertEquals("/v1/token_plan/remains", server.requests.poll(2, TimeUnit.SECONDS)?.path)
-            assertEquals("/v1/coding_plan/remains", server.requests.poll(2, TimeUnit.SECONDS)?.path)
-        }
+                assertEquals("MiniMax Coding Pro (GLOBAL)", quota.plan)
+                assertEquals(25.0, assertNotNull(quota.sessionUsage).usagePercent)
+                assertEquals(
+                    "/v1/token_plan/remains",
+                    server.requests.poll(2, TimeUnit.SECONDS)?.path,
+                )
+                assertEquals(
+                    "/v1/coding_plan/remains",
+                    server.requests.poll(2, TimeUnit.SECONDS)?.path,
+                )
+            }
     }
 
     @Test
     fun fetchQuotaDoesNotFallbackOnUnauthorized() {
         TestMiniMaxServer(
-            responses = mapOf(
-                "/v1/token_plan/remains" to (401 to """{"error":"expired"}"""),
-                "/v1/coding_plan/remains" to (200 to """{"base_resp":{"status_code":0},"model_remains":[]}"""),
-            ),
-        ).use { server ->
-            val client = MiniMaxQuotaClient(
-                httpClient = HttpClient.newHttpClient(),
-                endpointsByRegion = {
-                    listOf(
-                        server.uri("/v1/token_plan/remains"),
-                        server.uri("/v1/coding_plan/remains"),
+                responses =
+                    mapOf(
+                        "/v1/token_plan/remains" to (401 to """{"error":"expired"}"""),
+                        "/v1/coding_plan/remains" to
+                            (200 to """{"base_resp":{"status_code":0},"model_remains":[]}"""),
                     )
-                },
             )
+            .use { server ->
+                val client =
+                    MiniMaxQuotaClient(
+                        httpClient = HttpClient.newHttpClient(),
+                        endpointsByRegion = {
+                            listOf(
+                                server.uri("/v1/token_plan/remains"),
+                                server.uri("/v1/coding_plan/remains"),
+                            )
+                        },
+                    )
 
-            val exception = assertFailsWith<MiniMaxQuotaException> {
-                client.fetchQuota("sk-test", MiniMaxRegion.GLOBAL)
+                val exception =
+                    assertFailsWith<MiniMaxQuotaException> {
+                        client.fetchQuota("sk-test", MiniMaxRegion.GLOBAL)
+                    }
+
+                assertEquals(401, exception.statusCode)
+                assertEquals(
+                    "/v1/token_plan/remains",
+                    server.requests.poll(2, TimeUnit.SECONDS)?.path,
+                )
+                assertNull(server.requests.poll(200, TimeUnit.MILLISECONDS))
             }
-
-            assertEquals(401, exception.statusCode)
-            assertEquals("/v1/token_plan/remains", server.requests.poll(2, TimeUnit.SECONDS)?.path)
-            assertNull(server.requests.poll(200, TimeUnit.MILLISECONDS))
-        }
     }
 
-    private class TestMiniMaxServer(
-        private val responses: Map<String, Pair<Int, String>>,
-    ) : AutoCloseable {
+    private class TestMiniMaxServer(private val responses: Map<String, Pair<Int, String>>) :
+        AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
 
         init {
             server.createContext("/") { exchange ->

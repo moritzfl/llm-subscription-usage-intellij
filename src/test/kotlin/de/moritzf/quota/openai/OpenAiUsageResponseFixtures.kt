@@ -3,18 +3,17 @@ package de.moritzf.quota.openai
 import de.moritzf.quota.shared.JsonSupport
 import org.intellij.lang.annotations.Language
 
-/**
- * Anonymized real-world Codex usage API payloads used as regression fixtures.
- */
+/** Anonymized real-world Codex usage API payloads used as regression fixtures. */
 object OpenAiUsageResponseFixtures {
     const val WORKSPACE_ACCOUNT_ID = "account-anon-workspace-1"
 
     /**
-     * Business usage-based workspace member with assigned credits available.
-     * Original shape: no rate_limit windows, credits.has_credits=true.
+     * Business usage-based workspace member with assigned credits available. Original shape: no
+     * rate_limit windows, credits.has_credits=true.
      */
     @Language("JSON")
-    val BUSINESS_MEMBER_WITH_ASSIGNED_CREDITS: String = """
+    val BUSINESS_MEMBER_WITH_ASSIGNED_CREDITS: String =
+        """
         {
           "user_id": "user-anon-business-member-1",
           "account_id": "account-anon-workspace-1",
@@ -42,15 +41,17 @@ object OpenAiUsageResponseFixtures {
             "available_count": 0
           }
         }
-    """.trimIndent()
+        """
+            .trimIndent()
 
     /**
-     * Business usage-based workspace member with assigned credits depleted.
-     * Original shape: no rate_limit windows, credits.has_credits=false,
+     * Business usage-based workspace member with assigned credits depleted. Original shape: no
+     * rate_limit windows, credits.has_credits=false,
      * rate_limit_reached_type=workspace_member_credits_depleted.
      */
     @Language("JSON")
-    val BUSINESS_MEMBER_ASSIGNED_CREDITS_DEPLETED: String = """
+    val BUSINESS_MEMBER_ASSIGNED_CREDITS_DEPLETED: String =
+        """
         {
           "user_id": "user-anon-business-member-2",
           "account_id": "account-anon-workspace-1",
@@ -81,15 +82,16 @@ object OpenAiUsageResponseFixtures {
             "available_count": 0
           }
         }
-    """.trimIndent()
+        """
+            .trimIndent()
 
     /**
-     * Plus subscriber with normal rate-limit windows and zero purchased credits.
-     * Original shape: credits.has_credits=false, balance="0",
-     * approx_*_messages returned as [0, 0] arrays.
+     * Plus subscriber with normal rate-limit windows and zero purchased credits. Original shape:
+     * credits.has_credits=false, balance="0", approx_*_messages returned as [0, 0] arrays.
      */
     @Language("JSON")
-    val PLUS_WITH_RATE_LIMITS_AND_ZERO_PURCHASED_CREDITS: String = """
+    val PLUS_WITH_RATE_LIMITS_AND_ZERO_PURCHASED_CREDITS: String =
+        """
         {
           "user_id": "user-anon-plus-1",
           "account_id": "user-anon-plus-1",
@@ -132,16 +134,17 @@ object OpenAiUsageResponseFixtures {
             "available_count": 0
           }
         }
-    """.trimIndent()
+        """
+            .trimIndent()
 
     /**
-     * Free account with a single weekly primary window.
-     * Public source: basketikun/chatgpt2api#202. Original shape:
-     * plan_type=free, primary_window only, secondary_window=null,
+     * Free account with a single weekly primary window. Public source: basketikun/chatgpt2api#202.
+     * Original shape: plan_type=free, primary_window only, secondary_window=null,
      * credits.balance=null, approx_*_messages=null.
      */
     @Language("JSON")
-    val FREE_WITH_WEEKLY_RATE_LIMIT: String = """
+    val FREE_WITH_WEEKLY_RATE_LIMIT: String =
+        """
         {
           "user_id": "user-anon-free-1",
           "account_id": "user-anon-free-1",
@@ -179,16 +182,17 @@ object OpenAiUsageResponseFixtures {
             "available_count": 0
           }
         }
-    """.trimIndent()
+        """
+            .trimIndent()
 
     /**
-     * ProLite account payload that broke strict plan enum decoders.
-     * Public source: steipete/CodexBar#709. Original shape includes
-     * additional_rate_limits and omits rate_limit_reached_type,
-     * referral_beacon, and rate_limit_reset_credits.
+     * ProLite account payload that broke strict plan enum decoders. Public source:
+     * steipete/CodexBar#709. Original shape includes additional_rate_limits and omits
+     * rate_limit_reached_type, referral_beacon, and rate_limit_reset_credits.
      */
     @Language("JSON")
-    val PROLITE_WITH_ADDITIONAL_RATE_LIMITS: String = """
+    val PROLITE_WITH_ADDITIONAL_RATE_LIMITS: String =
+        """
         {
           "user_id": "user-anon-prolite-1",
           "account_id": "user-anon-prolite-1",
@@ -246,14 +250,16 @@ object OpenAiUsageResponseFixtures {
           },
           "promo": null
         }
-    """.trimIndent()
+        """
+            .trimIndent()
 
     /**
-     * Business usage-based workspace owner whose workspace credits are depleted.
-     * Publicly confirmed rate_limit_reached_type from openai/codex#24114.
+     * Business usage-based workspace owner whose workspace credits are depleted. Publicly confirmed
+     * rate_limit_reached_type from openai/codex#24114.
      */
     @Language("JSON")
-    val BUSINESS_OWNER_CREDITS_DEPLETED: String = """
+    val BUSINESS_OWNER_CREDITS_DEPLETED: String =
+        """
         {
           "user_id": "user-anon-business-owner-1",
           "account_id": "account-anon-workspace-1",
@@ -284,14 +290,16 @@ object OpenAiUsageResponseFixtures {
             "available_count": 0
           }
         }
-    """.trimIndent()
+        """
+            .trimIndent()
 
     /**
-     * Business usage-based workspace owner blocked by the workspace spend cap.
-     * Publicly confirmed rate_limit_reached_type from openai/codex#24114.
+     * Business usage-based workspace owner blocked by the workspace spend cap. Publicly confirmed
+     * rate_limit_reached_type from openai/codex#24114.
      */
     @Language("JSON")
-    val BUSINESS_OWNER_USAGE_LIMIT_REACHED: String = """
+    val BUSINESS_OWNER_USAGE_LIMIT_REACHED: String =
+        """
         {
           "user_id": "user-anon-business-owner-2",
           "account_id": "account-anon-workspace-1",
@@ -322,14 +330,16 @@ object OpenAiUsageResponseFixtures {
             "available_count": 0
           }
         }
-    """.trimIndent()
+        """
+            .trimIndent()
 
     /**
-     * Business usage-based workspace member blocked by the owner-set spend cap.
-     * Publicly confirmed rate_limit_reached_type from openai/codex#24114.
+     * Business usage-based workspace member blocked by the owner-set spend cap. Publicly confirmed
+     * rate_limit_reached_type from openai/codex#24114.
      */
     @Language("JSON")
-    val BUSINESS_MEMBER_USAGE_LIMIT_REACHED: String = """
+    val BUSINESS_MEMBER_USAGE_LIMIT_REACHED: String =
+        """
         {
           "user_id": "user-anon-business-member-3",
           "account_id": "account-anon-workspace-1",
@@ -360,15 +370,17 @@ object OpenAiUsageResponseFixtures {
             "available_count": 0
           }
         }
-    """.trimIndent()
+        """
+            .trimIndent()
 
     /**
-     * Inferred: business usage-based workspace member with assigned credits
-     * available AND a non-zero balance/approx message ranges. Field set mirrors
-     * the captured business fixtures and the Plus shape for credit fields.
+     * Inferred: business usage-based workspace member with assigned credits available AND a
+     * non-zero balance/approx message ranges. Field set mirrors the captured business fixtures and
+     * the Plus shape for credit fields.
      */
     @Language("JSON")
-    val BUSINESS_MEMBER_WITH_ASSIGNED_CREDITS_AND_BALANCE: String = """
+    val BUSINESS_MEMBER_WITH_ASSIGNED_CREDITS_AND_BALANCE: String =
+        """
         {
           "user_id": "user-anon-business-member-4",
           "account_id": "account-anon-workspace-1",
@@ -396,15 +408,17 @@ object OpenAiUsageResponseFixtures {
             "available_count": 0
           }
         }
-    """.trimIndent()
+        """
+            .trimIndent()
 
     /**
-     * Inferred: business usage-based workspace member with unlimited credits
-     * (i.e. an explicit unlimited pool, not yet depleted). Mirrors the
-     * captured business shape; only credits.unlimited differs.
+     * Inferred: business usage-based workspace member with unlimited credits (i.e. an explicit
+     * unlimited pool, not yet depleted). Mirrors the captured business shape; only
+     * credits.unlimited differs.
      */
     @Language("JSON")
-    val BUSINESS_MEMBER_WITH_UNLIMITED_CREDITS: String = """
+    val BUSINESS_MEMBER_WITH_UNLIMITED_CREDITS: String =
+        """
         {
           "user_id": "user-anon-business-member-5",
           "account_id": "account-anon-workspace-1",
@@ -432,15 +446,17 @@ object OpenAiUsageResponseFixtures {
             "available_count": 0
           }
         }
-    """.trimIndent()
+        """
+            .trimIndent()
 
     /**
-     * Inferred: business usage-based workspace member blocked by an individual
-     * spend cap (per-member limit, not a workspace-wide cap). Field set mirrors
-     * the captured business shape; individual_limit is a non-null number.
+     * Inferred: business usage-based workspace member blocked by an individual spend cap
+     * (per-member limit, not a workspace-wide cap). Field set mirrors the captured business shape;
+     * individual_limit is a non-null number.
      */
     @Language("JSON")
-    val BUSINESS_MEMBER_INDIVIDUAL_SPEND_LIMIT_REACHED: String = """
+    val BUSINESS_MEMBER_INDIVIDUAL_SPEND_LIMIT_REACHED: String =
+        """
         {
           "user_id": "user-anon-business-member-6",
           "account_id": "account-anon-workspace-1",
@@ -468,15 +484,16 @@ object OpenAiUsageResponseFixtures {
             "available_count": 0
           }
         }
-    """.trimIndent()
+        """
+            .trimIndent()
 
     /**
-     * Inferred: business usage-based workspace owner whose overage limit was
-     * hit (workspace still has credits, but the configured overage cap is
-     * reached). Mirrors the captured business shape.
+     * Inferred: business usage-based workspace owner whose overage limit was hit (workspace still
+     * has credits, but the configured overage cap is reached). Mirrors the captured business shape.
      */
     @Language("JSON")
-    val BUSINESS_OWNER_OVERAGE_LIMIT_REACHED: String = """
+    val BUSINESS_OWNER_OVERAGE_LIMIT_REACHED: String =
+        """
         {
           "user_id": "user-anon-business-owner-3",
           "account_id": "account-anon-workspace-1",
@@ -504,16 +521,17 @@ object OpenAiUsageResponseFixtures {
             "available_count": 0
           }
         }
-    """.trimIndent()
+        """
+            .trimIndent()
 
     /**
-     * Inferred robustness fixture: business usage-based payload with the
-     * same shape the public prolite body uses (omits rate_limit_reached_type,
-     * referral_beacon, and rate_limit_reset_credits) to assert the decoder
-     * stays lenient on optional fields.
+     * Inferred robustness fixture: business usage-based payload with the same shape the public
+     * prolite body uses (omits rate_limit_reached_type, referral_beacon, and
+     * rate_limit_reset_credits) to assert the decoder stays lenient on optional fields.
      */
     @Language("JSON")
-    val BUSINESS_MEMBER_OMITTING_OPTIONAL_FIELDS: String = """
+    val BUSINESS_MEMBER_OMITTING_OPTIONAL_FIELDS: String =
+        """
         {
           "user_id": "user-anon-business-member-7",
           "account_id": "account-anon-workspace-1",
@@ -535,7 +553,8 @@ object OpenAiUsageResponseFixtures {
           },
           "promo": null
         }
-    """.trimIndent()
+        """
+            .trimIndent()
 
     fun deserialize(json: String): OpenAiCodexQuota {
         return JsonSupport.json.decodeFromString(json)
@@ -550,8 +569,7 @@ object OpenAiUsageResponseFixtures {
     fun plusWithRateLimitsAndZeroPurchasedCredits(): OpenAiCodexQuota =
         deserialize(PLUS_WITH_RATE_LIMITS_AND_ZERO_PURCHASED_CREDITS)
 
-    fun freeWithWeeklyRateLimit(): OpenAiCodexQuota =
-        deserialize(FREE_WITH_WEEKLY_RATE_LIMIT)
+    fun freeWithWeeklyRateLimit(): OpenAiCodexQuota = deserialize(FREE_WITH_WEEKLY_RATE_LIMIT)
 
     fun proliteWithAdditionalRateLimits(): OpenAiCodexQuota =
         deserialize(PROLITE_WITH_ADDITIONAL_RATE_LIMITS)
@@ -576,7 +594,8 @@ object OpenAiUsageResponseFixtures {
      * object with string money fields + used_percent (not a bare number).
      */
     @Language("JSON")
-    val TEAM_WITH_OBJECT_INDIVIDUAL_SPEND_LIMIT: String = """
+    val TEAM_WITH_OBJECT_INDIVIDUAL_SPEND_LIMIT: String =
+        """
         {
           "user_id": "user-anon-team-1",
           "account_id": "account-anon-team-1",
@@ -623,17 +642,19 @@ object OpenAiUsageResponseFixtures {
             "applicable_available_count": 0
           }
         }
-    """.trimIndent()
+        """
+            .trimIndent()
 
     fun businessMemberIndividualSpendLimitReached(): OpenAiCodexQuota =
         deserialize(BUSINESS_MEMBER_INDIVIDUAL_SPEND_LIMIT_REACHED)
 
     /**
-     * Live business prolite (2026-09): weekly window still open, credits.has_credits=false
-     * (no prepaid overage), and spend_control still has remaining assigned credits.
+     * Live business prolite (2026-09): weekly window still open, credits.has_credits=false (no
+     * prepaid overage), and spend_control still has remaining assigned credits.
      */
     @Language("JSON")
-    val BUSINESS_PROLITE_WITH_REMAINING_INDIVIDUAL_SPEND: String = """
+    val BUSINESS_PROLITE_WITH_REMAINING_INDIVIDUAL_SPEND: String =
+        """
         {
           "user_id": "user-anon-business-prolite-1",
           "account_id": "account-anon-workspace-1",
@@ -680,7 +701,8 @@ object OpenAiUsageResponseFixtures {
             "applicable_available_count": 0
           }
         }
-    """.trimIndent()
+        """
+            .trimIndent()
 
     fun teamWithObjectIndividualSpendLimit(): OpenAiCodexQuota =
         deserialize(TEAM_WITH_OBJECT_INDIVIDUAL_SPEND_LIMIT)

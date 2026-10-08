@@ -7,6 +7,5 @@ import org.jetbrains.annotations.Nullable
 
 @JvmDefaultWithoutCompatibility
 abstract class CustomComponentStatusBarWidget : CustomStatusBarWidget {
-    @Nullable
-    override fun getPresentation(): StatusBarWidget.WidgetPresentation? = null
+    @Nullable override fun getPresentation(): StatusBarWidget.WidgetPresentation? = null
 }

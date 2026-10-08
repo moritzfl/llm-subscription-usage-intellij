@@ -6,9 +6,9 @@ import java.nio.charset.StandardCharsets
 /**
  * Parses Cursor browser session cookies into API credentials.
  *
- * The `WorkosCursorSessionToken` cookie uses the format `userId::accessToken`
- * (URL-encoded as `userId%3A%3AaccessToken`). The access token is a JWT used as
- * Bearer auth against `https://api2.cursor.sh`.
+ * The `WorkosCursorSessionToken` cookie uses the format `userId::accessToken` (URL-encoded as
+ * `userId%3A%3AaccessToken`). The access token is a JWT used as Bearer auth against
+ * `https://api2.cursor.sh`.
  */
 object CursorSessionTokenParser {
     const val COOKIE_NAME = "WorkosCursorSessionToken"
@@ -46,8 +46,6 @@ object CursorSessionTokenParser {
     }
 
     private fun decode(value: String): String {
-        return runCatching {
-            URLDecoder.decode(value, StandardCharsets.UTF_8)
-        }.getOrDefault(value)
+        return runCatching { URLDecoder.decode(value, StandardCharsets.UTF_8) }.getOrDefault(value)
     }
 }

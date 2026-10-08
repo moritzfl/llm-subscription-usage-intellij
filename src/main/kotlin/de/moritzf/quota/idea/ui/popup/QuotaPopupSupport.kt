@@ -2,9 +2,9 @@ package de.moritzf.quota.idea.ui.popup
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
-import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
@@ -54,23 +54,26 @@ internal object QuotaPopupSupport {
 
         val contentPanel = QuotaPopupContentPanel(project, component) { popup?.cancel() }
         val scrollPane = QuotaPopupScrollPane(contentPanel)
-        val content = RefreshablePopupPanel<QuotaUsageSnapshot>(scrollPane) { state ->
-            contentPanel.update(state)
-            scrollPane.fitHeight(availablePopupHeight(component, location))
-        }
+        val content =
+            RefreshablePopupPanel<QuotaUsageSnapshot>(scrollPane) { state ->
+                contentPanel.update(state)
+                scrollPane.fitHeight(availablePopupHeight(component, location))
+            }
         var latestState = service.currentSnapshot()
         content.refresh(latestState)
 
-        popup = JBPopupFactory.getInstance()
-            .createComponentPopupBuilder(content, content)
-            .setRequestFocus(true)
-            .setFocusable(true)
-            .setResizable(false)
-            .setMovable(false)
-            .createPopup()
+        popup =
+            JBPopupFactory.getInstance()
+                .createComponentPopupBuilder(content, content)
+                .setRequestFocus(true)
+                .setFocusable(true)
+                .setResizable(false)
+                .setMovable(false)
+                .createPopup()
 
         val currentPopup = popup
-        val popupConnection: MessageBusConnection = ApplicationManager.getApplication().messageBus.connect(currentPopup)
+        val popupConnection: MessageBusConnection =
+            ApplicationManager.getApplication().messageBus.connect(currentPopup)
         var refreshScheduled = false
         fun scheduleRefresh() {
             if (refreshScheduled) {
@@ -82,17 +85,29 @@ internal object QuotaPopupSupport {
                 refreshPopup(currentPopup, content, component, location, latestState)
             }
         }
-        popupConnection.subscribe(QuotaUsageListener.TOPIC, object : QuotaUsageListener {
-            override fun onQuotaUpdated(type: QuotaProviderType, quota: ProviderQuota?, error: String?) {
-                latestState = service.currentSnapshot()
-                scheduleRefresh()
-            }
+        popupConnection.subscribe(
+            QuotaUsageListener.TOPIC,
+            object : QuotaUsageListener {
+                override fun onQuotaUpdated(
+                    type: QuotaProviderType,
+                    quota: ProviderQuota?,
+                    error: String?,
+                ) {
+                    latestState = service.currentSnapshot()
+                    scheduleRefresh()
+                }
 
-            override fun onQuotaUpdated(type: QuotaProviderType, quota: ProviderQuota?, error: String?, accountId: String) {
-                latestState = service.currentSnapshot()
-                scheduleRefresh()
-            }
-        })
+                override fun onQuotaUpdated(
+                    type: QuotaProviderType,
+                    quota: ProviderQuota?,
+                    error: String?,
+                    accountId: String,
+                ) {
+                    latestState = service.currentSnapshot()
+                    scheduleRefresh()
+                }
+            },
+        )
 
         latestState = service.currentSnapshot()
         content.refresh(latestState)
@@ -120,14 +135,19 @@ internal object QuotaPopupSupport {
         }
     }
 
-    private fun popupPoint(component: Component, content: JComponent, location: QuotaPopupLocation): Point {
+    private fun popupPoint(
+        component: Component,
+        content: JComponent,
+        location: QuotaPopupLocation,
+    ): Point {
         val popupSize = content.preferredSize
         val x = (component.width - popupSize.width) / 2
         val gap = JBUI.scale(4)
-        val y = when (location) {
-            QuotaPopupLocation.ABOVE -> -popupSize.height - gap
-            QuotaPopupLocation.BELOW -> component.height + gap
-        }
+        val y =
+            when (location) {
+                QuotaPopupLocation.ABOVE -> -popupSize.height - gap
+                QuotaPopupLocation.BELOW -> component.height + gap
+            }
         return Point(x, y)
     }
 
@@ -136,19 +156,22 @@ internal object QuotaPopupSupport {
         val insets = Toolkit.getDefaultToolkit().getScreenInsets(component.graphicsConfiguration)
         val anchor = component.locationOnScreen
         val gap = JBUI.scale(4)
-        val height = when (location) {
-            QuotaPopupLocation.ABOVE -> anchor.y - (screen.y + insets.top) - gap
-            QuotaPopupLocation.BELOW -> screen.y + screen.height - insets.bottom - (anchor.y + component.height) - gap
-        }
+        val height =
+            when (location) {
+                QuotaPopupLocation.ABOVE -> anchor.y - (screen.y + insets.top) - gap
+                QuotaPopupLocation.BELOW ->
+                    screen.y + screen.height - insets.bottom - (anchor.y + component.height) - gap
+            }
         return (height - JBUI.scale(4)).coerceAtLeast(1)
     }
 }
 
-internal class QuotaPopupScrollPane(content: JComponent) : JBScrollPane(
-    ScrollablePopupContent(content),
-    VERTICAL_SCROLLBAR_AS_NEEDED,
-    HORIZONTAL_SCROLLBAR_NEVER,
-) {
+internal class QuotaPopupScrollPane(content: JComponent) :
+    JBScrollPane(
+        ScrollablePopupContent(content),
+        VERTICAL_SCROLLBAR_AS_NEEDED,
+        HORIZONTAL_SCROLLBAR_NEVER,
+    ) {
     init {
         border = null
         isOpaque = false
@@ -157,7 +180,8 @@ internal class QuotaPopupScrollPane(content: JComponent) : JBScrollPane(
     }
 
     fun fitHeight(maxHeight: Int) {
-        preferredSize = Dimension(JBUI.scale(280), viewport.view.preferredSize.height.coerceAtMost(maxHeight))
+        preferredSize =
+            Dimension(JBUI.scale(280), viewport.view.preferredSize.height.coerceAtMost(maxHeight))
         revalidate()
     }
 }
@@ -170,11 +194,17 @@ private class ScrollablePopupContent(content: JComponent) : JPanel(BorderLayout(
 
     override fun getPreferredScrollableViewportSize(): Dimension = preferredSize
 
-    override fun getScrollableUnitIncrement(visibleRect: Rectangle, orientation: Int, direction: Int): Int =
-        JBUI.scale(16)
+    override fun getScrollableUnitIncrement(
+        visibleRect: Rectangle,
+        orientation: Int,
+        direction: Int,
+    ): Int = JBUI.scale(16)
 
-    override fun getScrollableBlockIncrement(visibleRect: Rectangle, orientation: Int, direction: Int): Int =
-        visibleRect.height
+    override fun getScrollableBlockIncrement(
+        visibleRect: Rectangle,
+        orientation: Int,
+        direction: Int,
+    ): Int = visibleRect.height
 
     override fun getScrollableTracksViewportWidth(): Boolean = true
 
@@ -206,23 +236,36 @@ private class QuotaPopupContentPanel(
 
     private val header = createHeaderRow { openSettings(project, component) { onClosePopup() } }
 
-    private val notLoggedInPanel = JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)).apply {
-        isOpaque = false
-        add(JBLabel("Not logged in.").apply { border = JBUI.Borders.emptyTop(1) })
-        add(ActionLink("Open Settings") { openSettings(project, component) { onClosePopup() } }.apply { border = JBUI.Borders.emptyTop(3) })
-    }
+    private val notLoggedInPanel =
+        JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)).apply {
+            isOpaque = false
+            add(JBLabel("Not logged in.").apply { border = JBUI.Borders.emptyTop(1) })
+            add(
+                ActionLink("Open Settings") { openSettings(project, component) { onClosePopup() } }
+                    .apply { border = JBUI.Borders.emptyTop(3) }
+            )
+        }
 
-    private val allHiddenPanel = JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)).apply {
-        isOpaque = false
-        add(JBLabel("All quota sources are hidden from this popup.").apply { border = JBUI.Borders.emptyTop(1) })
-        add(ActionLink("Open Settings") { openSettings(project, component) { onClosePopup() } }.apply { border = JBUI.Borders.emptyTop(3) })
-    }
+    private val allHiddenPanel =
+        JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)).apply {
+            isOpaque = false
+            add(
+                JBLabel("All quota sources are hidden from this popup.").apply {
+                    border = JBUI.Borders.emptyTop(1)
+                }
+            )
+            add(
+                ActionLink("Open Settings") { openSettings(project, component) { onClosePopup() } }
+                    .apply { border = JBUI.Borders.emptyTop(3) }
+            )
+        }
 
     private val sections = linkedMapOf<String, ProviderPopupSection>()
     private val sectionTypes = linkedMapOf<String, QuotaProviderType>()
 
     private val updatedAtSeparator = createSeparatedBlock()
-    private val updatedAtRow = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(3), 0)).apply { isOpaque = false }
+    private val updatedAtRow =
+        JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(3), 0)).apply { isOpaque = false }
 
     init {
         isOpaque = false
@@ -245,10 +288,14 @@ private class QuotaPopupContentPanel(
         rebuildSections(settings)
         val visibleSections = sections.keys.associateWith { id -> isSectionVisible(settings, id) }
 
-        val notLoggedIn = visibleSections.isEmpty() || visibleSections.values.none { it } &&
-            sections.keys.all { id -> !isAccountAuthenticated(settings, id) }
-        val allHidden = sections.isNotEmpty() && visibleSections.values.none { it } &&
-            sections.keys.any { id -> isAccountAuthenticated(settings, id) }
+        val notLoggedIn =
+            visibleSections.isEmpty() ||
+                visibleSections.values.none { it } &&
+                    sections.keys.all { id -> !isAccountAuthenticated(settings, id) }
+        val allHidden =
+            sections.isNotEmpty() &&
+                visibleSections.values.none { it } &&
+                sections.keys.any { id -> isAccountAuthenticated(settings, id) }
 
         notLoggedInPanel.isVisible = notLoggedIn
         allHiddenPanel.isVisible = !notLoggedIn && allHidden
@@ -266,37 +313,52 @@ private class QuotaPopupContentPanel(
         }
 
         val showAnySection = visibleSections.values.any { it }
-        val updatedAtItems = if (showAnySection) buildUpdatedAtItems(state, visibleSections, settings) else emptyList()
+        val updatedAtItems =
+            if (showAnySection) buildUpdatedAtItems(state, visibleSections, settings)
+            else emptyList()
 
         updatedAtSeparator.isVisible = updatedAtItems.isNotEmpty()
         updatedAtRow.isVisible = updatedAtItems.isNotEmpty()
         if (updatedAtItems.isNotEmpty()) {
             updatedAtRow.removeAll()
-            updatedAtRow.add(JBLabel("Updated:").apply { foreground = com.intellij.ui.JBColor.GRAY })
+            updatedAtRow.add(
+                JBLabel("Updated:").apply { foreground = com.intellij.ui.JBColor.GRAY }
+            )
             updatedAtItems.forEachIndexed { index, item ->
                 item.icons.forEach { providerIcon ->
-                    updatedAtRow.add(JBLabel().apply {
-                        icon = de.moritzf.quota.idea.ui.indicator.scaleIconToQuotaStatusSize(providerIcon.icon, this)
-                        toolTipText = providerIcon.label
-                    })
+                    updatedAtRow.add(
+                        JBLabel().apply {
+                            icon =
+                                de.moritzf.quota.idea.ui.indicator.scaleIconToQuotaStatusSize(
+                                    providerIcon.icon,
+                                    this,
+                                )
+                            toolTipText = providerIcon.label
+                        }
+                    )
                 }
-                updatedAtRow.add(JBLabel(item.text).apply { foreground = com.intellij.ui.JBColor.GRAY })
+                updatedAtRow.add(
+                    JBLabel(item.text).apply { foreground = com.intellij.ui.JBColor.GRAY }
+                )
                 if (index < updatedAtItems.lastIndex) {
-                    updatedAtRow.add(JBLabel(";").apply { foreground = com.intellij.ui.JBColor.GRAY })
+                    updatedAtRow.add(
+                        JBLabel(";").apply { foreground = com.intellij.ui.JBColor.GRAY }
+                    )
                 }
             }
         }
     }
 
     private fun rebuildSections(settings: QuotaSettingsState) {
-        val desired = if (settings.accounts.isNotEmpty()) {
-            settings.accounts.mapNotNull { account ->
-                val type = account.providerType() ?: return@mapNotNull null
-                account.id to type
+        val desired =
+            if (settings.accounts.isNotEmpty()) {
+                settings.accounts.mapNotNull { account ->
+                    val type = account.providerType() ?: return@mapNotNull null
+                    account.id to type
+                }
+            } else {
+                QuotaProviderRegistry.defaultProviderOrder().map { it.id to it }
             }
-        } else {
-            QuotaProviderRegistry.defaultProviderOrder().map { it.id to it }
-        }
         if (desired.map { it.first } == sections.keys.toList()) {
             return
         }
@@ -322,8 +384,11 @@ private class QuotaPopupContentPanel(
     }
 
     private fun isAccountAuthenticated(settings: QuotaSettingsState, id: String): Boolean {
-        val type = sectionTypes[id] ?: settings.account(id)?.providerType() ?: QuotaProviderType.fromId(id)
-            ?: return false
+        val type =
+            sectionTypes[id]
+                ?: settings.account(id)?.providerType()
+                ?: QuotaProviderType.fromId(id)
+                ?: return false
         return ProviderUiRegistry.forType(type).authState(id) != ProviderAuthState.UNAUTHENTICATED
     }
 
@@ -332,11 +397,12 @@ private class QuotaPopupContentPanel(
         visibleSections: Map<String, Boolean>,
         settings: QuotaSettingsState,
     ): List<UpdatedAtItem> {
-        val order = if (settings.accounts.isNotEmpty()) {
-            settings.accounts.map { it.id }
-        } else {
-            QuotaProviderRegistry.defaultProviderOrder().map { it.id }
-        }
+        val order =
+            if (settings.accounts.isNotEmpty()) {
+                settings.accounts.map { it.id }
+            } else {
+                QuotaProviderRegistry.defaultProviderOrder().map { it.id }
+            }
         val rawItems = order.mapNotNull { id ->
             if (visibleSections[id] != true) return@mapNotNull null
             val type = sectionTypes[id] ?: return@mapNotNull null
@@ -354,7 +420,7 @@ private class QuotaPopupContentPanel(
                     icons = listOf(item.icon),
                     text = QuotaUiUtil.formatInstant(item.fetchedAt) ?: "loading...",
                 )
-            },
+            }
         )
     }
 }

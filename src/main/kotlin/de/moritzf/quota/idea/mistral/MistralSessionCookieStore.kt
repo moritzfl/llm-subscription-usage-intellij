@@ -45,7 +45,10 @@ class MistralSessionCookieStore(
 
     fun save(cookie: String?) {
         loadGeneration.incrementAndGet()
-        PasswordSafe.instance.set(attributes, cookie?.takeIf { it.isNotBlank() }?.let { Credentials(userName, it) })
+        PasswordSafe.instance.set(
+            attributes,
+            cookie?.takeIf { it.isNotBlank() }?.let { Credentials(userName, it) },
+        )
         cachedCookie.set(cookie?.ifBlank { null })
         loaded.set(true)
         loading.set(false)
@@ -78,7 +81,11 @@ class MistralSessionCookieStore(
     }
 
     private fun loadCookie(attributes: CredentialAttributes): String? {
-        return try { PasswordSafe.instance.get(attributes)?.getPasswordAsString()?.ifBlank { null } } catch (_: Exception) { null }
+        return try {
+            PasswordSafe.instance.get(attributes)?.getPasswordAsString()?.ifBlank { null }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun notifyLoadedCallbacks() {
@@ -91,7 +98,8 @@ class MistralSessionCookieStore(
     companion object {
         private const val SERVICE_NAME = "Mistral Session Cookie"
         private const val DEFAULT_USER = "mistral-session-cookie"
-        private val extras = java.util.concurrent.ConcurrentHashMap<String, MistralSessionCookieStore>()
+        private val extras =
+            java.util.concurrent.ConcurrentHashMap<String, MistralSessionCookieStore>()
 
         @JvmStatic
         fun getInstance(): MistralSessionCookieStore =
@@ -105,6 +113,8 @@ class MistralSessionCookieStore(
                 DEFAULT_USER,
                 extras,
                 ::getInstance,
-            ) { service, user -> MistralSessionCookieStore(userName = user, serviceName = service) }
+            ) { service, user ->
+                MistralSessionCookieStore(userName = user, serviceName = service)
+            }
     }
 }

@@ -2,18 +2,18 @@ package de.moritzf.quota.minimax
 
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.LenientDoubleOrNullSerializer
-import kotlin.time.Clock
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
-import kotlin.time.Instant
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
 open class MiniMaxQuotaClient(
     private val httpClient: HttpClient = HttpClient.newHttpClient(),
@@ -39,31 +39,51 @@ open class MiniMaxQuotaClient(
     }
 
     private fun getJson(apiKey: String, endpoint: URI): String {
-        val request = HttpRequest.newBuilder()
-            .uri(endpoint)
-            .timeout(Duration.ofSeconds(30))
-            .header("Authorization", "Bearer $apiKey")
-            .header("Content-Type", "application/json")
-            .header("Accept", "application/json")
-            .GET()
-            .build()
+        val request =
+            HttpRequest.newBuilder()
+                .uri(endpoint)
+                .timeout(Duration.ofSeconds(30))
+                .header("Authorization", "Bearer $apiKey")
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .GET()
+                .build()
 
-        val response = try {
-            httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-        } catch (exception: IOException) {
-            throw MiniMaxQuotaException("Request failed. Check your connection.", 0, null, exception)
-        } catch (exception: InterruptedException) {
-            Thread.currentThread().interrupt()
-            throw MiniMaxQuotaException("Request failed. Check your connection.", 0, null, exception)
-        }
+        val response =
+            try {
+                httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            } catch (exception: IOException) {
+                throw MiniMaxQuotaException(
+                    "Request failed. Check your connection.",
+                    0,
+                    null,
+                    exception,
+                )
+            } catch (exception: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw MiniMaxQuotaException(
+                    "Request failed. Check your connection.",
+                    0,
+                    null,
+                    exception,
+                )
+            }
 
         val status = response.statusCode()
         val body = response.body()
         if (status == 401 || status == 403) {
-            throw MiniMaxQuotaException("Session expired. Check your MiniMax subscription key.", status, body)
+            throw MiniMaxQuotaException(
+                "Session expired. Check your MiniMax subscription key.",
+                status,
+                body,
+            )
         }
         if (status !in 200..299) {
-            throw MiniMaxQuotaException("Request failed (HTTP $status). Try again later.", status, body)
+            throw MiniMaxQuotaException(
+                "Request failed (HTTP $status). Try again later.",
+                status,
+                body,
+            )
         }
         return body
     }
@@ -73,75 +93,93 @@ open class MiniMaxQuotaClient(
         private const val STATUS_UNLIMITED = 3
         private const val MILLIS_EPOCH_THRESHOLD = 10_000_000_000L
 
-        private val GLOBAL_ENDPOINTS = listOf(
-            URI.create("https://api.minimax.io/v1/token_plan/remains"),
-            URI.create("https://www.minimax.io/v1/token_plan/remains"),
-            URI.create("https://api.minimax.io/v1/api/openplatform/coding_plan/remains"),
-            URI.create("https://api.minimax.io/v1/coding_plan/remains"),
-            URI.create("https://www.minimax.io/v1/api/openplatform/coding_plan/remains"),
-        )
-        private val CN_ENDPOINTS = listOf(
-            URI.create("https://api.minimaxi.com/v1/token_plan/remains"),
-            URI.create("https://api.minimaxi.com/v1/api/openplatform/coding_plan/remains"),
-            URI.create("https://api.minimaxi.com/v1/coding_plan/remains"),
-        )
+        private val GLOBAL_ENDPOINTS =
+            listOf(
+                URI.create("https://api.minimax.io/v1/token_plan/remains"),
+                URI.create("https://www.minimax.io/v1/token_plan/remains"),
+                URI.create("https://api.minimax.io/v1/api/openplatform/coding_plan/remains"),
+                URI.create("https://api.minimax.io/v1/coding_plan/remains"),
+                URI.create("https://www.minimax.io/v1/api/openplatform/coding_plan/remains"),
+            )
+        private val CN_ENDPOINTS =
+            listOf(
+                URI.create("https://api.minimaxi.com/v1/token_plan/remains"),
+                URI.create("https://api.minimaxi.com/v1/api/openplatform/coding_plan/remains"),
+                URI.create("https://api.minimaxi.com/v1/coding_plan/remains"),
+            )
 
         internal fun endpointsFor(region: MiniMaxRegion): List<URI> {
             return if (region == MiniMaxRegion.CN) CN_ENDPOINTS else GLOBAL_ENDPOINTS
         }
 
         fun parseQuota(body: String, region: MiniMaxRegion): MiniMaxQuota {
-            val dto = try {
-                JsonSupport.json.decodeFromString<MiniMaxResponseDto>(body)
-            } catch (exception: Exception) {
-                throw MiniMaxQuotaException("Could not parse usage data.", 200, body, exception)
-            }
+            val dto =
+                try {
+                    JsonSupport.json.decodeFromString<MiniMaxResponseDto>(body)
+                } catch (exception: Exception) {
+                    throw MiniMaxQuotaException("Could not parse usage data.", 200, body, exception)
+                }
 
             val statusCode = dto.baseResp?.statusCode ?: 0
             val statusMessage = dto.baseResp?.statusMsg.orEmpty()
             if (statusCode != 0) {
-                if (statusCode == 401 || statusCode == 403 || statusMessage.contains("auth", ignoreCase = true)) {
-                    throw MiniMaxQuotaException("Session expired. Check your MiniMax subscription key.", statusCode, body)
+                if (
+                    statusCode == 401 ||
+                        statusCode == 403 ||
+                        statusMessage.contains("auth", ignoreCase = true)
+                ) {
+                    throw MiniMaxQuotaException(
+                        "Session expired. Check your MiniMax subscription key.",
+                        statusCode,
+                        body,
+                    )
                 }
-                throw MiniMaxQuotaException("MiniMax API error: ${statusMessage.ifBlank { statusCode.toString() }}", statusCode, body)
+                throw MiniMaxQuotaException(
+                    "MiniMax API error: ${statusMessage.ifBlank { statusCode.toString() }}",
+                    statusCode,
+                    body,
+                )
             }
 
-            val item = dto.modelRemains.firstOrNull { it.modelName.equals("general", ignoreCase = true) }
-                ?: dto.modelRemains.firstOrNull()
-                ?: throw MiniMaxQuotaException("Could not parse usage data.", 200, body)
+            val item =
+                dto.modelRemains.firstOrNull { it.modelName.equals("general", ignoreCase = true) }
+                    ?: dto.modelRemains.firstOrNull()
+                    ?: throw MiniMaxQuotaException("Could not parse usage data.", 200, body)
             val countdownIsMillis = countdownUsesMillis(item)
 
             return MiniMaxQuota(
                 plan = normalizePlan(inferPlan(item, region), region),
                 region = region,
-                sessionUsage = parseWindow(
-                    total = item.currentIntervalTotalCount,
-                    explicitUsed = item.currentIntervalUsedCount,
-                    usageCount = item.currentIntervalUsageCount,
-                    remainingCount = item.currentIntervalRemainingCount,
-                    remainsCount = item.currentIntervalRemainsCount,
-                    remainingPercent = item.currentIntervalRemainingPercent,
-                    status = item.currentIntervalStatus,
-                    startTime = item.startTime,
-                    endTime = item.endTime,
-                    remainsTime = item.remainsTime,
-                    countdownIsMillis = countdownIsMillis,
-                    required = true,
-                ),
-                weeklyUsage = parseWindow(
-                    total = item.currentWeeklyTotalCount,
-                    explicitUsed = item.currentWeeklyUsedCount,
-                    usageCount = item.currentWeeklyUsageCount,
-                    remainingCount = item.currentWeeklyRemainingCount,
-                    remainsCount = item.currentWeeklyRemainsCount,
-                    remainingPercent = item.currentWeeklyRemainingPercent,
-                    status = item.currentWeeklyStatus,
-                    startTime = item.weeklyStartTime,
-                    endTime = item.weeklyEndTime,
-                    remainsTime = item.weeklyRemainsTime,
-                    countdownIsMillis = countdownIsMillis,
-                    required = false,
-                ),
+                sessionUsage =
+                    parseWindow(
+                        total = item.currentIntervalTotalCount,
+                        explicitUsed = item.currentIntervalUsedCount,
+                        usageCount = item.currentIntervalUsageCount,
+                        remainingCount = item.currentIntervalRemainingCount,
+                        remainsCount = item.currentIntervalRemainsCount,
+                        remainingPercent = item.currentIntervalRemainingPercent,
+                        status = item.currentIntervalStatus,
+                        startTime = item.startTime,
+                        endTime = item.endTime,
+                        remainsTime = item.remainsTime,
+                        countdownIsMillis = countdownIsMillis,
+                        required = true,
+                    ),
+                weeklyUsage =
+                    parseWindow(
+                        total = item.currentWeeklyTotalCount,
+                        explicitUsed = item.currentWeeklyUsedCount,
+                        usageCount = item.currentWeeklyUsageCount,
+                        remainingCount = item.currentWeeklyRemainingCount,
+                        remainsCount = item.currentWeeklyRemainsCount,
+                        remainingPercent = item.currentWeeklyRemainingPercent,
+                        status = item.currentWeeklyStatus,
+                        startTime = item.weeklyStartTime,
+                        endTime = item.weeklyEndTime,
+                        remainsTime = item.weeklyRemainsTime,
+                        countdownIsMillis = countdownIsMillis,
+                        required = false,
+                    ),
             )
         }
 
@@ -160,42 +198,49 @@ open class MiniMaxQuotaClient(
             required: Boolean,
         ): MiniMaxUsageWindow? {
             if (status == STATUS_UNLIMITED) return null
-            val hasSignal = remainingPercent != null ||
-                status != null ||
-                startTime != null ||
-                endTime != null ||
-                remainsTime != null ||
-                (total ?: 0L) > 0L ||
-                explicitUsed != null ||
-                usageCount != null ||
-                remainingCount != null ||
-                remainsCount != null
+            val hasSignal =
+                remainingPercent != null ||
+                    status != null ||
+                    startTime != null ||
+                    endTime != null ||
+                    remainsTime != null ||
+                    (total ?: 0L) > 0L ||
+                    explicitUsed != null ||
+                    usageCount != null ||
+                    remainingCount != null ||
+                    remainsCount != null
             if (!required && !hasSignal) return null
 
-            val resetsAt = endTime?.let(::epochSecondsOrMillis)
-                ?: remainsTime?.let { countdownInstant(it, countdownIsMillis) }
+            val resetsAt =
+                endTime?.let(::epochSecondsOrMillis)
+                    ?: remainsTime?.let { countdownInstant(it, countdownIsMillis) }
             val startMs = startTime?.let { epochSecondsOrMillis(it).toEpochMilliseconds() }
             val endMs = endTime?.let { epochSecondsOrMillis(it).toEpochMilliseconds() }
-            val periodDurationMs = if (startMs != null && endMs != null && endMs > startMs) endMs - startMs else null
+            val periodDurationMs =
+                if (startMs != null && endMs != null && endMs > startMs) endMs - startMs else null
 
             val remaining = remainingCount ?: remainsCount ?: usageCount
-            val usedFromCounts = when {
-                explicitUsed != null -> explicitUsed
-                remaining != null && (total ?: 0L) > 0L -> (total!! - remaining).coerceAtLeast(0)
-                else -> null
-            }
-            val percentFromCounts = if (total != null && total > 0 && usedFromCounts != null) {
-                usedFromCounts.toDouble() / total.toDouble() * 100.0
-            } else {
-                null
-            }
+            val usedFromCounts =
+                when {
+                    explicitUsed != null -> explicitUsed
+                    remaining != null && (total ?: 0L) > 0L ->
+                        (total!! - remaining).coerceAtLeast(0)
+                    else -> null
+                }
+            val percentFromCounts =
+                if (total != null && total > 0 && usedFromCounts != null) {
+                    usedFromCounts.toDouble() / total.toDouble() * 100.0
+                } else {
+                    null
+                }
             val percentFromRemaining = remainingPercent?.let { (100.0 - it).coerceAtLeast(0.0) }
-            val usagePercent = when {
-                status == STATUS_EXHAUSTED -> 100.0
-                percentFromRemaining != null -> percentFromRemaining
-                percentFromCounts != null -> percentFromCounts
-                else -> 0.0
-            }
+            val usagePercent =
+                when {
+                    status == STATUS_EXHAUSTED -> 100.0
+                    percentFromRemaining != null -> percentFromRemaining
+                    percentFromCounts != null -> percentFromCounts
+                    else -> 0.0
+                }
 
             return MiniMaxUsageWindow(
                 used = usedFromCounts ?: 0,
@@ -241,29 +286,36 @@ open class MiniMaxQuotaClient(
         private fun inferPlan(item: MiniMaxRemainDto, region: MiniMaxRegion): String {
             val titled = item.currentSubscribeTitle ?: item.planName ?: item.plan
             if (!titled.isNullOrBlank()) return titled.trim()
-            val weekly = item.currentWeeklyRemainingPercent != null ||
-                item.currentWeeklyStatus != null ||
-                item.weeklyEndTime != null ||
-                item.weeklyRemainsTime != null ||
-                (item.currentWeeklyTotalCount ?: 0L) > 0L
+            val weekly =
+                item.currentWeeklyRemainingPercent != null ||
+                    item.currentWeeklyStatus != null ||
+                    item.weeklyEndTime != null ||
+                    item.weeklyRemainsTime != null ||
+                    (item.currentWeeklyTotalCount ?: 0L) > 0L
             if (weekly || item.currentIntervalRemainingPercent != null) {
                 return "MiniMax Token Plan"
             }
             val total = item.currentIntervalTotalCount ?: 0
             return when (region) {
-                MiniMaxRegion.GLOBAL -> when (total) {
-                    100L, 1500L -> "MiniMax Coding Lite"
-                    300L, 4500L -> "MiniMax Coding Pro"
-                    1000L, 15000L -> "MiniMax Coding Max"
-                    2000L, 30000L -> "MiniMax Coding Ultra"
-                    else -> "MiniMax Coding Plan"
-                }
-                MiniMaxRegion.CN -> when (total) {
-                    600L -> "MiniMax Coding Lite"
-                    1500L -> "MiniMax Coding Pro"
-                    4500L -> "MiniMax Coding Max"
-                    else -> "MiniMax Coding Plan"
-                }
+                MiniMaxRegion.GLOBAL ->
+                    when (total) {
+                        100L,
+                        1500L -> "MiniMax Coding Lite"
+                        300L,
+                        4500L -> "MiniMax Coding Pro"
+                        1000L,
+                        15000L -> "MiniMax Coding Max"
+                        2000L,
+                        30000L -> "MiniMax Coding Ultra"
+                        else -> "MiniMax Coding Plan"
+                    }
+                MiniMaxRegion.CN ->
+                    when (total) {
+                        600L -> "MiniMax Coding Lite"
+                        1500L -> "MiniMax Coding Pro"
+                        4500L -> "MiniMax Coding Max"
+                        else -> "MiniMax Coding Plan"
+                    }
             }
         }
     }
@@ -290,7 +342,8 @@ private data class MiniMaxRemainDto(
     @SerialName("current_interval_remaining_count") val currentIntervalRemainingCount: Long? = null,
     @SerialName("current_interval_remains_count") val currentIntervalRemainsCount: Long? = null,
     @Serializable(with = LenientDoubleOrNullSerializer::class)
-    @SerialName("current_interval_remaining_percent") val currentIntervalRemainingPercent: Double? = null,
+    @SerialName("current_interval_remaining_percent")
+    val currentIntervalRemainingPercent: Double? = null,
     @SerialName("current_interval_status") val currentIntervalStatus: Int? = null,
     @SerialName("start_time") val startTime: Long? = null,
     @SerialName("end_time") val endTime: Long? = null,
@@ -301,7 +354,8 @@ private data class MiniMaxRemainDto(
     @SerialName("current_weekly_remaining_count") val currentWeeklyRemainingCount: Long? = null,
     @SerialName("current_weekly_remains_count") val currentWeeklyRemainsCount: Long? = null,
     @Serializable(with = LenientDoubleOrNullSerializer::class)
-    @SerialName("current_weekly_remaining_percent") val currentWeeklyRemainingPercent: Double? = null,
+    @SerialName("current_weekly_remaining_percent")
+    val currentWeeklyRemainingPercent: Double? = null,
     @SerialName("current_weekly_status") val currentWeeklyStatus: Int? = null,
     @SerialName("weekly_start_time") val weeklyStartTime: Long? = null,
     @SerialName("weekly_end_time") val weeklyEndTime: Long? = null,

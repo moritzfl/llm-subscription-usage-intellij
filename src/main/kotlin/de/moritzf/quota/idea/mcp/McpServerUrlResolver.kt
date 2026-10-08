@@ -16,28 +16,37 @@ internal object McpServerUrlResolver {
             val service = companion.javaClass.getMethod("getInstance").invoke(companion)
             val isRunning = serviceClass.getMethod("isRunning").invoke(service) as? Boolean ?: false
             if (!isRunning) {
-                return McpServerStatus(McpServerStatusState.NOT_RUNNING, "MCP server installed, but not running")
+                return McpServerStatus(
+                    McpServerStatusState.NOT_RUNNING,
+                    "MCP server installed, but not running",
+                )
             }
 
             val port = serviceClass.getMethod("getPort").invoke(service) as Int
-            val sseUrl = runCatching {
-                serviceClass.getMethod("getServerSseUrl").invoke(service) as? String
-            }.getOrNull().takeUnless { it.isNullOrBlank() } ?: "http://localhost:$port/sse"
+            val sseUrl =
+                runCatching {
+                    serviceClass.getMethod("getServerSseUrl").invoke(service) as? String
+                }
+                    .getOrNull()
+                    .takeUnless { it.isNullOrBlank() } ?: "http://localhost:$port/sse"
             val streamUrl = runCatching {
                 serviceClass.getMethod("getServerStreamUrl").invoke(service) as? String
-            }.getOrNull().takeUnless { it.isNullOrBlank() }
+            }
+                .getOrNull()
+                .takeUnless { it.isNullOrBlank() }
             McpServerStatus(
                 state = McpServerStatusState.RUNNING,
                 message = "MCP server running at $sseUrl",
                 endpoints = McpServerEndpoints(sseUrl = sseUrl, port = port, streamUrl = streamUrl),
             )
-        }.getOrElse { error ->
-            statusForError(error).also { status ->
-                if (status.state == McpServerStatusState.UNAVAILABLE) {
-                    logger.debug("IntelliJ MCP server URL is not available", error)
+        }
+            .getOrElse { error ->
+                statusForError(error).also { status ->
+                    if (status.state == McpServerStatusState.UNAVAILABLE) {
+                        logger.debug("IntelliJ MCP server URL is not available", error)
+                    }
                 }
             }
-        }
     }
 
     private fun statusForError(error: Throwable): McpServerStatus {

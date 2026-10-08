@@ -1,8 +1,8 @@
 package de.moritzf.quota.idea.action
 
-import de.moritzf.quota.shared.DocumentMarkdownWriteResult
 import de.moritzf.quota.shared.DocumentImageExportReport
 import de.moritzf.quota.shared.DocumentImageFormat
+import de.moritzf.quota.shared.DocumentMarkdownWriteResult
 import de.moritzf.quota.shared.JsonSupport
 import java.nio.file.Files
 import java.nio.file.Path
@@ -18,13 +18,15 @@ class PdfDocumentConversionTest {
         val output = Files.createTempFile("pdf-context-action", ".md")
         try {
             Files.writeString(output, "# Document")
-            val response = JsonSupport.json.encodeToString(DocumentMarkdownWriteResult(output.toString()))
+            val response =
+                JsonSupport.json.encodeToString(DocumentMarkdownWriteResult(output.toString()))
             checkConversionResult(response, output)
             assertEquals("# Document", Files.readString(output))
 
-            val wrongFile = JsonSupport.json.encodeToString(
-                DocumentMarkdownWriteResult(output.resolveSibling("elsewhere.md").toString()),
-            )
+            val wrongFile =
+                JsonSupport.json.encodeToString(
+                    DocumentMarkdownWriteResult(output.resolveSibling("elsewhere.md").toString())
+                )
             assertFailsWith<IllegalStateException> { checkConversionResult(wrongFile, output) }
         } finally {
             Files.deleteIfExists(output)
@@ -35,9 +37,10 @@ class PdfDocumentConversionTest {
     fun providerErrorsCannotLookSuccessfulWhenAnOlderOutputFileExists() {
         val output = Files.createTempFile("pdf-context-action-old", ".md")
         try {
-            val failure = assertFailsWith<IllegalStateException> {
-                checkConversionResult("""{"error":"OCR unavailable"}""", output)
-            }
+            val failure =
+                assertFailsWith<IllegalStateException> {
+                    checkConversionResult("""{"error":"OCR unavailable"}""", output)
+                }
             assertEquals("OCR unavailable", failure.message)
         } finally {
             Files.deleteIfExists(output)
@@ -49,9 +52,14 @@ class PdfDocumentConversionTest {
         val output = Files.createTempFile("pdf-context-warning", ".md")
         try {
             val warnings = listOf("Page 3: SVG unavailable; used PNG at 300 DPI.")
-            val response = JsonSupport.json.encodeToString(DocumentMarkdownWriteResult(output.toString(), warnings = warnings))
+            val response =
+                JsonSupport.json.encodeToString(
+                    DocumentMarkdownWriteResult(output.toString(), warnings = warnings)
+                )
             assertEquals(warnings, checkConversionResult(response, output).warnings)
-        } finally { Files.deleteIfExists(output) }
+        } finally {
+            Files.deleteIfExists(output)
+        }
     }
 
     @Test
@@ -59,10 +67,24 @@ class PdfDocumentConversionTest {
         val output = Files.createTempFile("pdf-context-report", ".md")
         try {
             val trace = IllegalStateException("Encoder failed").stackTraceToString()
-            val report = DocumentImageExportReport(DocumentImageFormat.SVG, 300,
-                svg = 8, png = 5, provider = 3, failed = 1, diagnostics = listOf(trace))
-            val response = JsonSupport.json.encodeToString(DocumentMarkdownWriteResult(output.toString(),
-                warnings = listOf("Image fallback used"), imageExport = report))
+            val report =
+                DocumentImageExportReport(
+                    DocumentImageFormat.SVG,
+                    300,
+                    svg = 8,
+                    png = 5,
+                    provider = 3,
+                    failed = 1,
+                    diagnostics = listOf(trace),
+                )
+            val response =
+                JsonSupport.json.encodeToString(
+                    DocumentMarkdownWriteResult(
+                        output.toString(),
+                        warnings = listOf("Image fallback used"),
+                        imageExport = report,
+                    )
+                )
             val result = checkConversionResult(response, output)
             val summary = documentConversionSummary(result)
             assertTrue(summary.contains("16 of 17 saved; 1 failed"))
@@ -71,7 +93,9 @@ class PdfDocumentConversionTest {
             assertFalse(summary.contains("IllegalStateException"))
             assertTrue(documentConversionDetails(result).contains(trace.trim()))
             assertEquals(report, result.imageExport)
-        } finally { Files.deleteIfExists(output) }
+        } finally {
+            Files.deleteIfExists(output)
+        }
     }
 
     @Test

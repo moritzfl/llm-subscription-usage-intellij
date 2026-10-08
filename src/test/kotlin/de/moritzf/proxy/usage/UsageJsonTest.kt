@@ -8,7 +8,8 @@ import kotlin.test.assertNull
 class UsageJsonTest {
     @Test
     fun readsOpenAiPromptAndCompletionTokens() {
-        val usage = JsonHelper.parseToJsonElementOrNull("{\"prompt_tokens\":3,\"completion_tokens\":5}")
+        val usage =
+            JsonHelper.parseToJsonElementOrNull("{\"prompt_tokens\":3,\"completion_tokens\":5}")
         assertEquals(3L to 5L, UsageJson.tokensFrom(usage))
     }
 
@@ -20,9 +21,10 @@ class UsageJsonTest {
 
     @Test
     fun prefersOpenAiKeysWhenBothArePresent() {
-        val usage = JsonHelper.parseToJsonElementOrNull(
-            "{\"prompt_tokens\":1,\"completion_tokens\":2,\"input_tokens\":9,\"output_tokens\":8}",
-        )
+        val usage =
+            JsonHelper.parseToJsonElementOrNull(
+                "{\"prompt_tokens\":1,\"completion_tokens\":2,\"input_tokens\":9,\"output_tokens\":8}"
+            )
         assertEquals(1L to 2L, UsageJson.tokensFrom(usage))
     }
 

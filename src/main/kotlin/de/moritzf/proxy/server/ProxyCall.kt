@@ -10,7 +10,9 @@ import io.ktor.util.AttributeKey
 import io.ktor.util.Attributes
 
 class ProxyCall(val call: ApplicationCall) {
-    val attributes: Attributes get() = call.attributes
+    val attributes: Attributes
+        get() = call.attributes
+
     var handled: Boolean = false
 
     fun method(): String = call.request.httpMethod.value
@@ -21,9 +23,7 @@ class ProxyCall(val call: ApplicationCall) {
 
     fun headers(): Map<String, String> {
         val result = LinkedHashMap<String, String>()
-        call.request.headers.forEach { name, values ->
-            result[name] = values.joinToString(",")
-        }
+        call.request.headers.forEach { name, values -> result[name] = values.joinToString(",") }
         return result
     }
 

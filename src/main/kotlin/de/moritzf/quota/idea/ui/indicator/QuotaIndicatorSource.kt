@@ -29,8 +29,9 @@ enum class QuotaIndicatorSource(
     companion object {
         const val LAST_USED_ID: String = "last_used"
 
-        fun forProvider(type: QuotaProviderType): QuotaIndicatorSource =
-            entries.first { it.providerType == type }
+        fun forProvider(type: QuotaProviderType): QuotaIndicatorSource = entries.first {
+            it.providerType == type
+        }
 
         @JvmStatic
         fun fromStorageValue(value: String?): QuotaIndicatorSource {

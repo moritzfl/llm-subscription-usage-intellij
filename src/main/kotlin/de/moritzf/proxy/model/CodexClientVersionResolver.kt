@@ -1,6 +1,6 @@
 package de.moritzf.proxy.model
+
 import de.moritzf.proxy.util.Json
-import kotlinx.serialization.json.JsonPrimitive
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.URI
@@ -11,27 +11,30 @@ import java.time.Duration
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import kotlinx.serialization.json.JsonPrimitive
+
 object CodexClientVersionResolver {
-    // Functionally verified against advertised Codex models. Default over a possibly stale local CLI.
+    // Functionally verified against advertised Codex models. Default over a possibly stale local
+    // CLI.
     const val FALLBACK_CODEX_CLIENT_VERSION: String = "0.145.0"
     private val VERSION_PATTERN = Regex("\\b\\d+\\.\\d+\\.\\d+\\b")
     private const val REGISTRY_URL = "https://registry.npmjs.org/@openai/codex/latest"
     private val cache = ConcurrentHashMap<String, String>()
-    private val SEMVER_COMPARATOR: Comparator<String> =
-        Comparator { left, right ->
-            val leftParts = left.split('.').map { it.toIntOrNull() ?: 0 }
-            val rightParts = right.split('.').map { it.toIntOrNull() ?: 0 }
-            val length = maxOf(leftParts.size, rightParts.size)
-            for (index in 0 until length) {
-                val leftPart = leftParts.getOrElse(index) { 0 }
-                val rightPart = rightParts.getOrElse(index) { 0 }
-                val cmp = leftPart.compareTo(rightPart)
-                if (cmp != 0) {
-                    return@Comparator cmp
-                }
+    private val SEMVER_COMPARATOR: Comparator<String> = Comparator { left, right ->
+        val leftParts = left.split('.').map { it.toIntOrNull() ?: 0 }
+        val rightParts = right.split('.').map { it.toIntOrNull() ?: 0 }
+        val length = maxOf(leftParts.size, rightParts.size)
+        for (index in 0 until length) {
+            val leftPart = leftParts.getOrElse(index) { 0 }
+            val rightPart = rightParts.getOrElse(index) { 0 }
+            val cmp = leftPart.compareTo(rightPart)
+            if (cmp != 0) {
+                return@Comparator cmp
             }
-            0
         }
+        0
+    }
+
     fun resolve(configuredVersion: String?): String {
         val trimmedVersion = configuredVersion?.trim()
         if (!trimmedVersion.isNullOrEmpty()) {
@@ -47,11 +50,11 @@ object CodexClientVersionResolver {
             ) ?: FALLBACK_CODEX_CLIENT_VERSION
         }
     }
+
     internal fun newestVersion(vararg versions: String?): String? {
-        return versions
-            .mapNotNull { normalizeVersion(it) }
-            .maxWithOrNull(SEMVER_COMPARATOR)
+        return versions.mapNotNull { normalizeVersion(it) }.maxWithOrNull(SEMVER_COMPARATOR)
     }
+
     fun resolveLocalCodexVersion(): String? {
         for (command in localCodexVersionCommands(isWindows())) {
             val version = normalizeVersion(runVersionCommand(command))
@@ -61,6 +64,7 @@ object CodexClientVersionResolver {
         }
         return null
     }
+
     fun localCodexVersionCommands(windows: Boolean): List<List<String>> {
         return if (windows) {
             listOf(
@@ -72,15 +76,15 @@ object CodexClientVersionResolver {
             listOf(listOf("codex", "--version"))
         }
     }
+
     private fun isWindows(): Boolean {
         return System.getProperty("os.name", "").lowercase(Locale.ROOT).contains("win")
     }
+
     fun runVersionCommand(command: List<String>): String? {
         var process: Process? = null
         return try {
-            process = ProcessBuilder(command)
-                .redirectErrorStream(true)
-                .start()
+            process = ProcessBuilder(command).redirectErrorStream(true).start()
             val finished = process.waitFor(5, TimeUnit.SECONDS)
             if (!finished) {
                 process.destroyForcibly()
@@ -104,25 +108,32 @@ object CodexClientVersionResolver {
             process?.destroy()
         }
     }
+
     fun resolveRemoteCodexVersion(): String? {
         return try {
-            val request = HttpRequest.newBuilder()
-                .uri(URI.create(REGISTRY_URL))
-                .header("Accept", "application/json")
-                .timeout(Duration.ofSeconds(10))
-                .GET()
-                .build()
-            val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
+            val request =
+                HttpRequest.newBuilder()
+                    .uri(URI.create(REGISTRY_URL))
+                    .header("Accept", "application/json")
+                    .timeout(Duration.ofSeconds(10))
+                    .GET()
+                    .build()
+            val response =
+                HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
             if (response.statusCode() !in 200..299) {
                 return null
             }
-            val root = Json.INSTANCE.parseToJsonElement(response.body()) as? kotlinx.serialization.json.JsonObject
+            val root =
+                Json.INSTANCE.parseToJsonElement(response.body())
+                    as? kotlinx.serialization.json.JsonObject
             val version = root?.get("version")
-            if (version is JsonPrimitive && version.isString) normalizeVersion(version.content) else null
+            if (version is JsonPrimitive && version.isString) normalizeVersion(version.content)
+            else null
         } catch (_: Exception) {
             null
         }
     }
+
     fun normalizeVersion(raw: String?): String? {
         return raw?.let { VERSION_PATTERN.find(it)?.value }
     }

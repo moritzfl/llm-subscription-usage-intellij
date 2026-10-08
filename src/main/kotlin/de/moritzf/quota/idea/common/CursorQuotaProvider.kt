@@ -6,16 +6,17 @@ import de.moritzf.quota.cursor.CursorQuotaClient
 import de.moritzf.quota.cursor.CursorQuotaException
 import de.moritzf.quota.idea.cursor.CursorCredentialsStore
 
-/**
- * Fetches and caches Cursor subscription usage data.
- */
+/** Fetches and caches Cursor subscription usage data. */
 class CursorQuotaProvider(
     override val accountId: String = QuotaProviderType.CURSOR.id,
     private val cursorClient: CursorQuotaClient = CursorQuotaClient(),
-    private val credentialsProvider: () -> CursorAuth? = { CursorCredentialsStore.forAccount(accountId).loadBlocking() },
+    private val credentialsProvider: () -> CursorAuth? = {
+        CursorCredentialsStore.forAccount(accountId).loadBlocking()
+    },
 ) : CachedQuotaProvider<CursorQuota>() {
     override val type = QuotaProviderType.CURSOR
-    override val notConfiguredMessage = "No Cursor session cookie configured. Paste WorkosCursorSessionToken from cursor.com in settings."
+    override val notConfiguredMessage =
+        "No Cursor session cookie configured. Paste WorkosCursorSessionToken from cursor.com in settings."
 
     override fun refresh() {
         val auth = credentialsProvider()
@@ -30,7 +31,8 @@ class CursorQuotaProvider(
         } catch (exception: CursorQuotaException) {
             storeFetchFailure(
                 exception.statusCode,
-                exception.message ?: "Usage request failed (HTTP ${exception.statusCode}). Try again later.",
+                exception.message
+                    ?: "Usage request failed (HTTP ${exception.statusCode}). Try again later.",
                 exception.responseBody,
             )
         } catch (exception: Exception) {

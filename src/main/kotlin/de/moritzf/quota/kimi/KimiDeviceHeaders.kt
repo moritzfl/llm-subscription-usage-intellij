@@ -10,28 +10,27 @@ object KimiDeviceHeaders {
     private const val PLATFORM = "kimi_cli"
     private const val VERSION = "1.40.0"
 
-    fun all(): Map<String, String> = mapOf(
-        "X-Msh-Platform" to PLATFORM,
-        "X-Msh-Version" to VERSION,
-        "X-Msh-Device-Name" to deviceName(),
-        "X-Msh-Device-Model" to deviceModel(),
-        "X-Msh-Os-Version" to osVersion(),
-        "X-Msh-Device-Id" to deviceId(),
-    )
+    fun all(): Map<String, String> =
+        mapOf(
+            "X-Msh-Platform" to PLATFORM,
+            "X-Msh-Version" to VERSION,
+            "X-Msh-Device-Name" to deviceName(),
+            "X-Msh-Device-Model" to deviceModel(),
+            "X-Msh-Os-Version" to osVersion(),
+            "X-Msh-Device-Id" to deviceId(),
+        )
 
     private fun sanitize(value: String): String {
         return try {
-            String(value.toByteArray(Charsets.US_ASCII)).trim()
-        } catch (_: Exception) {
-            value.trim().replace(Regex("[^\\x00-\\x7F]"), "")
-        }.ifBlank { "unknown" }
+                String(value.toByteArray(Charsets.US_ASCII)).trim()
+            } catch (_: Exception) {
+                value.trim().replace(Regex("[^\\x00-\\x7F]"), "")
+            }
+            .ifBlank { "unknown" }
     }
 
     private fun deviceName(): String {
-        return sanitize(
-            runCatching { InetAddress.getLocalHost().hostName }
-                .getOrElse { "unknown" },
-        )
+        return sanitize(runCatching { InetAddress.getLocalHost().hostName }.getOrElse { "unknown" })
     }
 
     private fun deviceModel(): String {
@@ -39,7 +38,8 @@ object KimiDeviceHeaders {
         val arch = System.getProperty("os.arch") ?: ""
         val version = System.getProperty("os.version") ?: ""
         return when {
-            system.startsWith("Mac") -> buildModel("macOS", cachedMacProductVersion ?: version, arch)
+            system.startsWith("Mac") ->
+                buildModel("macOS", cachedMacProductVersion ?: version, arch)
             system.startsWith("Windows") -> buildModel("Windows", windowsRelease(version), arch)
             system.isNotBlank() -> buildModel(system, version, arch)
             else -> "Unknown"
@@ -67,9 +67,8 @@ object KimiDeviceHeaders {
 
     private fun macProductVersion(): String? {
         return runCatching {
-            val process = ProcessBuilder("sw_vers", "-productVersion")
-                .redirectErrorStream(true)
-                .start()
+            val process =
+                ProcessBuilder("sw_vers", "-productVersion").redirectErrorStream(true).start()
             val output = process.inputStream.bufferedReader().readText().trim()
             val finished = process.waitFor(2, TimeUnit.SECONDS)
             if (!finished) {
@@ -77,7 +76,8 @@ object KimiDeviceHeaders {
                 return@runCatching null
             }
             output.ifBlank { null }
-        }.getOrNull()
+        }
+            .getOrNull()
     }
 
     private fun windowsRelease(kernelVersion: String): String {
@@ -92,9 +92,10 @@ object KimiDeviceHeaders {
 
     private fun buildModel(os: String, version: String, arch: String): String {
         return listOfNotNull(
-            os,
-            version.takeUnless { it.isBlank() },
-            arch.takeUnless { it.isBlank() },
-        ).joinToString(" ")
+                os,
+                version.takeUnless { it.isBlank() },
+                arch.takeUnless { it.isBlank() },
+            )
+            .joinToString(" ")
     }
 }

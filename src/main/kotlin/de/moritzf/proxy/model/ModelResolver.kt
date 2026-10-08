@@ -15,11 +15,9 @@ class ModelResolver(
     private val configuredModels: List<String>?,
     private val codexVersion: String?,
 ) {
-    @Volatile
-    private var cachedModels: List<String>? = null
+    @Volatile private var cachedModels: List<String>? = null
 
-    @Volatile
-    private var modelsCacheExpiresAt = 0L
+    @Volatile private var modelsCacheExpiresAt = 0L
 
     private val modelsLock = ReentrantLock()
 
@@ -54,7 +52,8 @@ class ModelResolver(
 
     private fun fetchAvailableModels(): List<String> {
         val clientVersion = resolveCodexClientVersion()
-        val path = "/models?client_version=" + URLEncoder.encode(clientVersion, StandardCharsets.UTF_8)
+        val path =
+            "/models?client_version=" + URLEncoder.encode(clientVersion, StandardCharsets.UTF_8)
         val response = client.requestString(path, "GET", null, null)
 
         if (response.statusCode() !in 200..<300) {
@@ -62,8 +61,9 @@ class ModelResolver(
             throw RuntimeException(message ?: "Failed to load models from Codex.")
         }
 
-        val parsed = Json.INSTANCE.parseToJsonElement(response.body()) as? JsonObject
-            ?: throw RuntimeException("Codex returned a malformed models response.")
+        val parsed =
+            Json.INSTANCE.parseToJsonElement(response.body()) as? JsonObject
+                ?: throw RuntimeException("Codex returned a malformed models response.")
         val modelsNode = parsed["models"]
         if (modelsNode !is JsonArray) {
             throw RuntimeException("Codex returned a malformed models response.")
@@ -94,7 +94,8 @@ class ModelResolver(
                 return null
             }
             try {
-                val parsed = Json.INSTANCE.parseToJsonElement(bodyText) as? JsonObject ?: return bodyText
+                val parsed =
+                    Json.INSTANCE.parseToJsonElement(bodyText) as? JsonObject ?: return bodyText
                 val detail = parsed["detail"]
                 if (detail is JsonPrimitive && detail.isString && detail.content.isNotEmpty()) {
                     return detail.content
@@ -106,8 +107,7 @@ class ModelResolver(
                         return message.content
                     }
                 }
-            } catch (_: Exception) {
-            }
+            } catch (_: Exception) {}
             return bodyText
         }
     }

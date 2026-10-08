@@ -15,9 +15,15 @@ class OAuthCredentialsStoreTest {
     @Test
     fun personalTokenModeSurvivesPasswordSafeReload() {
         val passwordSafe = FakePasswordSafe()
-        storeFor(QuotaProviderType.OPEN_AI, passwordSafe).save(
-            OAuthCredentials("at-personal", expiresAt = Long.MAX_VALUE, accountId = "workspace", personalAccessToken = true),
-        )
+        storeFor(QuotaProviderType.OPEN_AI, passwordSafe)
+            .save(
+                OAuthCredentials(
+                    "at-personal",
+                    expiresAt = Long.MAX_VALUE,
+                    accountId = "workspace",
+                    personalAccessToken = true,
+                )
+            )
 
         val restored = storeFor(QuotaProviderType.OPEN_AI, passwordSafe).load()!!
         assertTrue(restored.personalAccessToken)
@@ -70,20 +76,21 @@ class OAuthCredentialsStoreTest {
         val currentService = OAuthCredentialsStore.serviceNameForProvider(QuotaProviderType.CLAUDE)
         val legacyService = "LLM Subscription Usage OAuth"
         var writes = 0
-        val store = OAuthCredentialsStore(
-            serviceName = currentService,
-            userName = "claude-oauth",
-            legacyServiceName = legacyService,
-            legacyUserName = "claude-oauth",
-            credentialReader = { attributes ->
-                if (attributes.serviceName == currentService) {
-                    throw IllegalStateException("Password Safe unavailable")
-                }
-                Credentials("claude-oauth", credentialsJson("legacy-token"))
-            },
-            credentialWriter = { _, _ -> writes++ },
-            coordinator = OAuthCredentialCoordinator(),
-        )
+        val store =
+            OAuthCredentialsStore(
+                serviceName = currentService,
+                userName = "claude-oauth",
+                legacyServiceName = legacyService,
+                legacyUserName = "claude-oauth",
+                credentialReader = { attributes ->
+                    if (attributes.serviceName == currentService) {
+                        throw IllegalStateException("Password Safe unavailable")
+                    }
+                    Credentials("claude-oauth", credentialsJson("legacy-token"))
+                },
+                credentialWriter = { _, _ -> writes++ },
+                coordinator = OAuthCredentialCoordinator(),
+            )
 
         assertFailsWith<IllegalStateException> { store.load() }
         assertEquals(0, writes)
@@ -91,17 +98,24 @@ class OAuthCredentialsStoreTest {
 
     @Test
     fun clearFailureIsReported() {
-        val store = OAuthCredentialsStore(
-            serviceName = OAuthCredentialsStore.serviceNameForProvider(QuotaProviderType.CLAUDE),
-            userName = "claude-oauth",
-            credentialWriter = { _, _ -> throw IllegalStateException("Password Safe unavailable") },
-            coordinator = OAuthCredentialCoordinator(),
-        )
+        val store =
+            OAuthCredentialsStore(
+                serviceName =
+                    OAuthCredentialsStore.serviceNameForProvider(QuotaProviderType.CLAUDE),
+                userName = "claude-oauth",
+                credentialWriter = { _, _ ->
+                    throw IllegalStateException("Password Safe unavailable")
+                },
+                coordinator = OAuthCredentialCoordinator(),
+            )
 
         assertFailsWith<IllegalStateException> { store.clear() }
     }
 
-    private fun storeFor(type: QuotaProviderType, passwordSafe: FakePasswordSafe): OAuthCredentialsStore {
+    private fun storeFor(
+        type: QuotaProviderType,
+        passwordSafe: FakePasswordSafe,
+    ): OAuthCredentialsStore {
         val userName = "${type.id}-oauth"
         return OAuthCredentialsStore(
             serviceName = OAuthCredentialsStore.serviceNameForProvider(type),
@@ -124,7 +138,10 @@ class OAuthCredentialsStoreTest {
     }
 
     private fun credentialsJson(accessToken: String): String {
-        return JsonSupport.json.encodeToString(OAuthCredentials.serializer(), credentials(accessToken))
+        return JsonSupport.json.encodeToString(
+            OAuthCredentials.serializer(),
+            credentials(accessToken),
+        )
     }
 
     private class FakePasswordSafe {

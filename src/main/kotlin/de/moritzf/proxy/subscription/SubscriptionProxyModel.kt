@@ -43,7 +43,8 @@ interface SubscriptionProxyProvider {
 
     fun models(): List<SubscriptionProxyModel>
 
-    fun fallbackModel(localId: String, route: SubscriptionProxyRoute): SubscriptionProxyModel? = null
+    fun fallbackModel(localId: String, route: SubscriptionProxyRoute): SubscriptionProxyModel? =
+        null
 
     suspend fun handle(ctx: de.moritzf.proxy.server.ProxyCall, request: SubscriptionProxyRequest)
 }

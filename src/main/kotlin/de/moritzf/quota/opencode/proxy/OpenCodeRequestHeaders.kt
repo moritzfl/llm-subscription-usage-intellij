@@ -1,12 +1,12 @@
 package de.moritzf.quota.opencode.proxy
 
 import de.moritzf.proxy.util.ProxyVersion
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
-import java.security.MessageDigest
-import java.nio.charset.StandardCharsets
 
 /** Go rejects inference that omits a session id. Keep the client's id when it sent one. */
 internal object OpenCodeRequestHeaders {
@@ -21,17 +21,23 @@ internal object OpenCodeRequestHeaders {
     }
 
     internal fun sessionId(incomingSession: String?, body: JsonObject): String {
-        sanitize(incomingSession)?.let { return it }
-        sanitize((body["prompt_cache_key"] as? JsonPrimitive)?.contentOrNull)?.let { return it }
+        sanitize(incomingSession)?.let {
+            return it
+        }
+        sanitize((body["prompt_cache_key"] as? JsonPrimitive)?.contentOrNull)?.let {
+            return it
+        }
         return "lsu-" + fingerprint(body)
     }
 
     private fun fingerprint(body: JsonObject): String {
-        val basis = when (val messages = body["messages"]) {
-            is JsonArray -> messages.firstOrNull()?.toString().orEmpty()
-            else -> (body["input"] ?: body["prompt"])?.toString().orEmpty()
-        }
-        val digest = MessageDigest.getInstance("SHA-256").digest(basis.toByteArray(StandardCharsets.UTF_8))
+        val basis =
+            when (val messages = body["messages"]) {
+                is JsonArray -> messages.firstOrNull()?.toString().orEmpty()
+                else -> (body["input"] ?: body["prompt"])?.toString().orEmpty()
+            }
+        val digest =
+            MessageDigest.getInstance("SHA-256").digest(basis.toByteArray(StandardCharsets.UTF_8))
         return digest.take(8).joinToString("") { "%02x".format(it) }
     }
 

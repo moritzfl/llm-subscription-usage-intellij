@@ -12,9 +12,7 @@ enum class OAuthTokenBodyFormat {
     JSON,
 }
 
-/**
- * Immutable OAuth client configuration values for the login flow.
- */
+/** Immutable OAuth client configuration values for the login flow. */
 data class OAuthClientConfig(
     val clientId: String,
     val authorizationEndpoint: String,
@@ -51,10 +49,11 @@ data class OAuthClientConfig(
                 originator = "openai-usage-quota-plugin",
                 scopes = "openid profile email offline_access",
                 callbackPort = 1455,
-                extraParameters = mapOf(
-                    "codex_cli_simplified_flow" to "true",
-                    "originator" to "openai-usage-quota-plugin"
-                )
+                extraParameters =
+                    mapOf(
+                        "codex_cli_simplified_flow" to "true",
+                        "originator" to "openai-usage-quota-plugin",
+                    ),
             )
         }
 
@@ -68,10 +67,11 @@ data class OAuthClientConfig(
                 originator = "openai-usage-quota-plugin",
                 scopes = "openid profile email offline_access grok-cli:access api:access",
                 callbackPort = 56121,
-                extraParameters = mapOf(
-                    "plan" to "generic",
-                    "referrer" to "openai-usage-quota-plugin",
-                ),
+                extraParameters =
+                    mapOf(
+                        "plan" to "generic",
+                        "referrer" to "openai-usage-quota-plugin",
+                    ),
                 includeNonce = true,
             )
         }
@@ -85,7 +85,8 @@ data class OAuthClientConfig(
                 redirectUri = "https://platform.claude.com/oauth/code/callback",
                 originator = "openai-usage-quota-plugin",
                 // Exact scope list/order used by Claude Code / opencode-anthropic-auth.
-                scopes = "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload",
+                scopes =
+                    "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload",
                 callbackPort = 0,
                 callbackMode = OAuthCallbackMode.PASTE,
                 tokenBodyFormat = OAuthTokenBodyFormat.JSON,

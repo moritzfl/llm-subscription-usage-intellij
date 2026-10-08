@@ -1,23 +1,24 @@
 package de.moritzf.quota.idea.ui.popup
 
+import com.intellij.util.ui.JBUI
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.ui.indicator.clampPercent
+import de.moritzf.quota.shared.ProviderQuota
 import de.moritzf.quota.zai.ZaiCountUsageWindow
-import kotlin.math.roundToInt
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.zai.ZaiUsageWindow
-import com.intellij.openapi.ui.VerticalFlowLayout
-import com.intellij.util.ui.JBUI
-import de.moritzf.quota.shared.ProviderQuota
-import javax.swing.JPanel
+import kotlin.math.roundToInt
 
 private const val ZAI_LABEL = "Z.ai"
 
 internal class ZaiPopupSection : ProviderPopupSection() {
     private val separator = createSeparatedBlock()
     private val errorLabel = createWarningLabel("").apply { border = JBUI.Borders.emptyTop(1) }
-    private val titleLabel = createSectionTitleLabel(ZAI_LABEL, QuotaIcons.ZAI).apply { border = JBUI.Borders.emptyTop(0) }
+    private val titleLabel =
+        createSectionTitleLabel(ZAI_LABEL, QuotaIcons.ZAI).apply {
+            border = JBUI.Borders.emptyTop(0)
+        }
     private val sessionBlock = WindowBlockPanel(3)
     private val weeklyBlock = WindowBlockPanel(5)
     private val webSearchBlock = WindowBlockPanel(5)
@@ -56,9 +57,10 @@ internal class ZaiPopupSection : ProviderPopupSection() {
                 webSearchBlock.showLoading("Web searches")
             }
             else -> {
-                val limitReached = (quota.sessionUsage?.usagePercent ?: 0.0) >= 100.0 ||
-                    (quota.weeklyUsage?.usagePercent ?: 0.0) >= 100.0 ||
-                    (quota.webSearchUsage?.usagePercent ?: 0.0) >= 100.0
+                val limitReached =
+                    (quota.sessionUsage?.usagePercent ?: 0.0) >= 100.0 ||
+                        (quota.weeklyUsage?.usagePercent ?: 0.0) >= 100.0 ||
+                        (quota.webSearchUsage?.usagePercent ?: 0.0) >= 100.0
                 errorLabel.isVisible = limitReached
                 if (limitReached) {
                     errorLabel.text = "Z.ai limit reached"
@@ -66,9 +68,12 @@ internal class ZaiPopupSection : ProviderPopupSection() {
 
                 titleLabel.isVisible = true
                 titleLabel.text = sectionTitle(ZAI_LABEL, quota.plan.takeIf { it.isNotBlank() })
-                quota.sessionUsage?.let { sessionBlock.updateZai(it, "Session") } ?: sessionBlock.clear()
-                quota.weeklyUsage?.let { weeklyBlock.updateZai(it, "Weekly") } ?: weeklyBlock.clear()
-                quota.webSearchUsage?.let { webSearchBlock.updateZaiCount(it, "Web searches") } ?: webSearchBlock.clear()
+                quota.sessionUsage?.let { sessionBlock.updateZai(it, "Session") }
+                    ?: sessionBlock.clear()
+                quota.weeklyUsage?.let { weeklyBlock.updateZai(it, "Weekly") }
+                    ?: weeklyBlock.clear()
+                quota.webSearchUsage?.let { webSearchBlock.updateZaiCount(it, "Web searches") }
+                    ?: webSearchBlock.clear()
             }
         }
     }

@@ -1,4 +1,5 @@
 package de.moritzf.proxy.server
+
 import de.moritzf.proxy.config.ServerConfig
 import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.proxy.model.ChatGptSubscriptionModels
@@ -24,6 +25,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+
 class ResponsesHandler {
     private val client: CodexHttpClient
     private val config: ServerConfig
@@ -33,13 +35,17 @@ class ResponsesHandler {
     private val requestSanitizer = ResponsesRequestSanitizer()
     private val modelAliasResolver = ModelAliasResolver()
     private val upstreamErrorMapper = UpstreamErrorMapper()
-    private val replayStates: MutableMap<String, ResponsesState> = Collections.synchronizedMap(
-        object : LinkedHashMap<String, ResponsesState>(16, 0.75f, true) {
-            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ResponsesState>?): Boolean {
-                return size > MAX_REPLAY_NAMESPACES
+    private val replayStates: MutableMap<String, ResponsesState> =
+        Collections.synchronizedMap(
+            object : LinkedHashMap<String, ResponsesState>(16, 0.75f, true) {
+                override fun removeEldestEntry(
+                    eldest: MutableMap.MutableEntry<String, ResponsesState>?
+                ): Boolean {
+                    return size > MAX_REPLAY_NAMESPACES
+                }
             }
-        },
-    )
+        )
+
     constructor(
         client: CodexHttpClient,
         config: ServerConfig,
@@ -59,7 +65,8 @@ class ResponsesHandler {
     }
 
     suspend fun create(ctx: ProxyCall) {
-        val requestId = if (shouldUseRequestContext()) requestId(ctx) else requestLogger.nextRequestId()
+        val requestId =
+            if (shouldUseRequestContext()) requestId(ctx) else requestLogger.nextRequestId()
         val body = RequestValidator.parseLoggedJsonObject(ctx, requestLogger, requestId) ?: return
         handleParsed(ctx, requestId, body)
     }
@@ -78,22 +85,30 @@ class ResponsesHandler {
         val normalized = requestSanitizer.sanitize(normalizeBody(expanded), config.store)
         val normalizedModel = (normalized.get("model") as? JsonPrimitive)?.content
         if (ChatGptSubscriptionModels.isUnsupported(normalizedModel)) {
-            JsonHelper.toErrorResponse(ctx, ChatGptSubscriptionModels.unsupportedMessage(normalizedModel))
+            JsonHelper.toErrorResponse(
+                ctx,
+                ChatGptSubscriptionModels.unsupportedMessage(normalizedModel),
+            )
             return
         }
-        val promptCacheKey = if (config.forwardPromptCacheHeaders) {
-            (normalized.get("prompt_cache_key") as? JsonPrimitive)?.content
-        } else {
-            null
-        }
-        // Forward to upstream.
-        val upstream = withContext(Dispatchers.IO) {
-            UpstreamRetry.withRetries(ctx.header("x-litellm-num-retries")) {
-                sendUpstream(normalized, requestId, promptCacheKey)
+        val promptCacheKey =
+            if (config.forwardPromptCacheHeaders) {
+                (normalized.get("prompt_cache_key") as? JsonPrimitive)?.content
+            } else {
+                null
             }
-        }
+        // Forward to upstream.
+        val upstream =
+            withContext(Dispatchers.IO) {
+                UpstreamRetry.withRetries(ctx.header("x-litellm-num-retries")) {
+                    sendUpstream(normalized, requestId, promptCacheKey)
+                }
+            }
         AccessLogFields.upstreamStatus(ctx, upstream.statusCode())
-        ctx.responseHeader("x-litellm-model-id", (normalized.get("model") as? JsonPrimitive)?.content ?: "")
+        ctx.responseHeader(
+            "x-litellm-model-id",
+            (normalized.get("model") as? JsonPrimitive)?.content ?: "",
+        )
         if (upstream.statusCode() !in 200..<300) {
             upstreamErrorMapper.writeResponse(ctx, requestLogger, requestId, upstream)
             return
@@ -102,8 +117,12 @@ class ResponsesHandler {
             // Stream SSE directly to client. The recorder runs only when the replay cache is
             // enabled; otherwise the bytes pass straight through without a second parse.
             JsonHelper.setSseHeaders(ctx)
-            val recorder = if (state != null) StreamingCompletionRecorder(ctx, state, expandedJson) else null
-            ctx.call.respondOutputStream(ContentType.parse(JsonHelper.SSE_CONTENT_TYPE), HttpStatusCode.OK) {
+            val recorder =
+                if (state != null) StreamingCompletionRecorder(ctx, state, expandedJson) else null
+            ctx.call.respondOutputStream(
+                ContentType.parse(JsonHelper.SSE_CONTENT_TYPE),
+                HttpStatusCode.OK,
+            ) {
                 val output = this
                 upstream.body().use { stream ->
                     val buffer = ByteArray(8192)
@@ -127,30 +146,45 @@ class ResponsesHandler {
                 var completed = SseCollector.collectCompletedResponse(stream)
                 val status = completed.stringPath("status", "")
                 if (status == "failed" || status == "cancelled") {
-                    val errorMessage = completed.pathOrNull("error").stringPath("message", "Upstream response $status.")
+                    val errorMessage =
+                        completed
+                            .pathOrNull("error")
+                            .stringPath("message", "Upstream response $status.")
                     requestLogger.logClientResponse(requestId, 502, errorMessage)
                     JsonHelper.toErrorResponse(ctx, errorMessage, 502, "upstream_error")
                     return
                 }
                 if (JunieCommandProtocolCompat.isJunieRequest(expandedJson)) {
-                    completed = if (JunieCommandProtocolCompat.hasFunctionCallOutput(completed)) {
-                        // Native tool protocol: Junie shows message text verbatim as the step
-                        // thought, so reformat the <UPDATE> plan markup into readable text.
-                        JunieCommandProtocolCompat.formatUpdateMarkupInResponse(completed) ?: completed
-                    } else {
-                        val declaredToolName = JunieCommandProtocolCompat.declaredFallbackToolName(expandedJson)
-                        if (declaredToolName != null) {
-                            JunieCommandProtocolCompat.toToolResponse(completed, declaredToolName) ?: completed
-                        } else if (!JunieCommandProtocolCompat.hasToolDefinitions(expandedJson)) {
-                            // Tool-less Junie requests are the <THOUGHT>/<COMMAND> text protocol;
-                            // a synthetic call to an undeclared tool would not parse as a command.
-                            JunieCommandProtocolCompat.wrapCompletedResponse(completed) ?: completed
+                    completed =
+                        if (JunieCommandProtocolCompat.hasFunctionCallOutput(completed)) {
+                            // Native tool protocol: Junie shows message text verbatim as the step
+                            // thought, so reformat the <UPDATE> plan markup into readable text.
+                            JunieCommandProtocolCompat.formatUpdateMarkupInResponse(completed)
+                                ?: completed
                         } else {
-                            // Tools declared but no submit/answer: native protocol without a
-                            // fallback tool; still clean the plan markup in the text.
-                            JunieCommandProtocolCompat.formatUpdateMarkupInResponse(completed) ?: completed
+                            val declaredToolName =
+                                JunieCommandProtocolCompat.declaredFallbackToolName(expandedJson)
+                            if (declaredToolName != null) {
+                                JunieCommandProtocolCompat.toToolResponse(
+                                    completed,
+                                    declaredToolName,
+                                ) ?: completed
+                            } else if (
+                                !JunieCommandProtocolCompat.hasToolDefinitions(expandedJson)
+                            ) {
+                                // Tool-less Junie requests are the <THOUGHT>/<COMMAND> text
+                                // protocol;
+                                // a synthetic call to an undeclared tool would not parse as a
+                                // command.
+                                JunieCommandProtocolCompat.wrapCompletedResponse(completed)
+                                    ?: completed
+                            } else {
+                                // Tools declared but no submit/answer: native protocol without a
+                                // fallback tool; still clean the plan markup in the text.
+                                JunieCommandProtocolCompat.formatUpdateMarkupInResponse(completed)
+                                    ?: completed
+                            }
                         }
-                    }
                 }
                 recordUsage(ctx, completed["usage"])
                 // Best-effort same-process replay cache only; nothing is persisted locally.
@@ -159,10 +193,12 @@ class ResponsesHandler {
             }
         }
     }
+
     private fun normalizeBody(body: MutableJsonObject): MutableJsonObject {
         val normalized = body.deepCopy()
         normalized.put("stream", true)
-        val requestedModel = (normalized.get("model") as? JsonPrimitive)?.content ?: ServerConfig.DEFAULT_MODEL
+        val requestedModel =
+            (normalized.get("model") as? JsonPrimitive)?.content ?: ServerConfig.DEFAULT_MODEL
         val resolvedModel = modelAliasResolver.resolve(requestedModel)
         if (!resolvedModel.model.isNullOrBlank()) {
             normalized.put("model", resolvedModel.model)
@@ -171,7 +207,9 @@ class ResponsesHandler {
         if (!normalized.has("instructions") || !normalized.get("instructions").isTextual()) {
             normalized.put(
                 "instructions",
-                instructionsProvider.instructionsForModel((normalized.get("model") as? JsonPrimitive)?.content ?: ""),
+                instructionsProvider.instructionsForModel(
+                    (normalized.get("model") as? JsonPrimitive)?.content ?: ""
+                ),
             )
         }
         normalizeTextInput(normalized)
@@ -180,18 +218,20 @@ class ResponsesHandler {
         }
         val aliasEffort = resolvedModel.reasoningEffort
         val reasoningNode = normalized.get("reasoning")
-        val reasoning = if (reasoningNode is JsonObject) {
-            MutableJsonObject(reasoningNode)
-        } else {
-            createObjectNode()
-        }
+        val reasoning =
+            if (reasoningNode is JsonObject) {
+                MutableJsonObject(reasoningNode)
+            } else {
+                createObjectNode()
+            }
         // A tier baked into the model name (aliasEffort) is the user's explicit choice and
         // wins over a separately supplied reasoning.effort.
         val requestedEffort = aliasEffort ?: (reasoning.get("effort") as? JsonPrimitive)?.content
-        val clampedEffort = modelAliasResolver.clampReasoningEffort(
-            (normalized.get("model") as? JsonPrimitive)?.content ?: "",
-            requestedEffort,
-        )
+        val clampedEffort =
+            modelAliasResolver.clampReasoningEffort(
+                (normalized.get("model") as? JsonPrimitive)?.content ?: "",
+                requestedEffort,
+            )
         if (clampedEffort != null) {
             reasoning.put("effort", clampedEffort)
             normalized.set("reasoning", reasoning)
@@ -204,18 +244,15 @@ class ResponsesHandler {
         if (!input.isTextual()) return
         val content = createArrayNode()
         content.add(createObjectNode().put("type", "input_text").put("text", input.text))
-        val message = createObjectNode()
-            .put("type", "message")
-            .put("role", "user")
-            .set("content", content)
+        val message =
+            createObjectNode().put("type", "message").put("role", "user").set("content", content)
         normalized.set("input", createArrayNode().add(message))
     }
 
     /**
-     * The Codex backend rejects requests containing system-role input items
-     * ("System messages are not allowed"). Clients such as Junie's Responses client
-     * always send their system prompt as an input message, so move that text into
-     * the `instructions` field instead.
+     * The Codex backend rejects requests containing system-role input items ("System messages are
+     * not allowed"). Clients such as Junie's Responses client always send their system prompt as an
+     * input message, so move that text into the `instructions` field instead.
      */
     private fun hoistSystemMessagesIntoInstructions(normalized: MutableJsonObject) {
         val input = normalized.get("input")
@@ -242,22 +279,25 @@ class ResponsesHandler {
         }
         normalized.set("input", filteredInput)
         val instructions = normalized.get("instructions")
-        val existingInstructions = if (instructions.isTextual()) {
-            instructions.text.trim()
-        } else {
-            ""
-        }
-        val combined = if (existingInstructions.isEmpty()) {
-            systemTexts.toString()
-        } else {
-            existingInstructions + "\n" + systemTexts
-        }
+        val existingInstructions =
+            if (instructions.isTextual()) {
+                instructions.text.trim()
+            } else {
+                ""
+            }
+        val combined =
+            if (existingInstructions.isEmpty()) {
+                systemTexts.toString()
+            } else {
+                existingInstructions + "\n" + systemTexts
+            }
         normalized.put("instructions", combined)
     }
+
     private fun sendUpstream(
         normalized: MutableJsonObject,
         requestId: String,
-        promptCacheKey: String?
+        promptCacheKey: String?,
     ): HttpResponse<InputStream> {
         val payload = JsonHelper.encodeToString(normalized.build())
         if (shouldUseRequestContext()) {
@@ -277,9 +317,11 @@ class ResponsesHandler {
             mapOf("Content-Type" to "application/json"),
         )
     }
+
     private fun shouldUseRequestContext(): Boolean {
         return config.fullRequestLogging || config.forwardPromptCacheHeaders
     }
+
     private fun requestId(ctx: ProxyCall): String {
         var requestId = ctx.getAttribute(AccessLogFields.REQUEST_ID)
         if (requestId.isNullOrBlank()) {
@@ -288,6 +330,7 @@ class ResponsesHandler {
         }
         return requestId
     }
+
     private fun recordStreamingCompletion(
         ctx: ProxyCall,
         eventType: String?,
@@ -314,10 +357,12 @@ class ResponsesHandler {
                 return true
             }
         } catch (_: Exception) {
-            // Streaming payloads have already been forwarded; replay/usage bookkeeping is best-effort.
+            // Streaming payloads have already been forwarded; replay/usage bookkeeping is
+            // best-effort.
         }
         return false
     }
+
     private fun recordUsage(ctx: ProxyCall, usageNode: JsonElement?) {
         usageTracker.record(
             ctx.getAttribute(ProxyCallAttributes.KEY_NAME),
@@ -326,26 +371,29 @@ class ResponsesHandler {
         )
         UsageJson.record(ctx, usageNode)
     }
+
     private fun replayStateFor(ctx: ProxyCall): ResponsesState {
         val isAdmin = ctx.getAttribute(ProxyCallAttributes.IS_ADMIN) == true
         val keyFingerprint = ctx.getAttribute(ProxyCallAttributes.KEY_FINGERPRINT)
         val adminKeyFingerprint = ctx.getAttribute(ProxyCallAttributes.ADMIN_KEY_FINGERPRINT)
         val keyName = ctx.getAttribute(ProxyCallAttributes.KEY_NAME)
-        val namespace = if (isAdmin && adminKeyFingerprint != null) {
-            "admin-fp:$adminKeyFingerprint"
-        } else if (keyFingerprint != null) {
-            "key-fp:$keyFingerprint"
-        } else if (keyName != null) {
-            "key:$keyName"
-        } else if (isAdmin) {
-            "admin"
-        } else {
-            "open"
-        }
+        val namespace =
+            if (isAdmin && adminKeyFingerprint != null) {
+                "admin-fp:$adminKeyFingerprint"
+            } else if (keyFingerprint != null) {
+                "key-fp:$keyFingerprint"
+            } else if (keyName != null) {
+                "key:$keyName"
+            } else if (isAdmin) {
+                "admin"
+            } else {
+                "open"
+            }
         synchronized(replayStates) {
             return replayStates.computeIfAbsent(namespace) { ResponsesState() }
         }
     }
+
     private inner class StreamingCompletionRecorder(
         private val ctx: ProxyCall,
         private val state: ResponsesState,
@@ -356,6 +404,7 @@ class ResponsesHandler {
         private var eventType: String? = null
         private var recorded = false
         private var bookkeepingDisabled = false
+
         fun accept(buffer: ByteArray, length: Int) {
             if (bookkeepingDisabled) {
                 return
@@ -374,6 +423,7 @@ class ResponsesHandler {
                 }
             }
         }
+
         fun finish() {
             if (bookkeepingDisabled) {
                 return
@@ -386,6 +436,7 @@ class ResponsesHandler {
                 dispatchEvent()
             }
         }
+
         private fun acceptLine(rawLine: String) {
             var line = rawLine
             if (line.endsWith("\r")) {
@@ -407,6 +458,7 @@ class ResponsesHandler {
                 dataLines.add(value)
             }
         }
+
         private fun dispatchEvent() {
             if (!recorded) {
                 val data = if (dataLines.isEmpty()) null else dataLines.joinToString("\n")
@@ -415,6 +467,7 @@ class ResponsesHandler {
             eventType = null
             dataLines.clear()
         }
+
         private fun disableBookkeeping() {
             bookkeepingDisabled = true
             recorded = true
@@ -423,9 +476,11 @@ class ResponsesHandler {
             eventType = null
         }
     }
+
     companion object {
         private const val MAX_REPLAY_NAMESPACES = 512
         private const val MAX_SSE_BOOKKEEPING_LINE_BYTES = 64 * 1024
+
         private fun isSystemMessageItem(item: JsonObject): Boolean {
             val role = item.stringPath("role", "")
             if (role != "system" && role != "developer") {

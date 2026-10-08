@@ -3,8 +3,8 @@ package de.moritzf.quota.idea.mcp
 import de.moritzf.quota.idea.common.QuotaProviderType
 
 /**
- * Providers that support result-list web search (numbered results with content snippets).
- * Schema generation for the MCP tool parameter derives valid values from this enum.
+ * Providers that support result-list web search (numbered results with content snippets). Schema
+ * generation for the MCP tool parameter derives valid values from this enum.
  */
 enum class ListSearchProvider(val providerType: QuotaProviderType) {
     KIMI(QuotaProviderType.KIMI),
@@ -14,11 +14,11 @@ enum class ListSearchProvider(val providerType: QuotaProviderType) {
 }
 
 /**
- * Providers that support subscription-backed image generation.
- * Schema generation for the MCP tool parameter derives valid values from this enum.
+ * Providers that support subscription-backed image generation. Schema generation for the MCP tool
+ * parameter derives valid values from this enum.
  */
 enum class ImageEditProvider(val providerType: QuotaProviderType) {
-    SUPERGROK(QuotaProviderType.SUPERGROK),
+    SUPERGROK(QuotaProviderType.SUPERGROK)
 }
 
 enum class ImageGenerationProvider(val providerType: QuotaProviderType) {
@@ -70,8 +70,8 @@ enum class VisionProvider(val providerType: QuotaProviderType) {
 }
 
 /**
- * Subscription document converters, plus [PDFBOX].
- * [PDFBOX] is local Apache PDFBox text extraction and has no catalog account.
+ * Subscription document converters, plus [PDFBOX]. [PDFBOX] is local Apache PDFBox text extraction
+ * and has no catalog account.
  */
 enum class DocumentToMarkdownProvider(val providerType: QuotaProviderType?) {
     MISTRAL(QuotaProviderType.MISTRAL),

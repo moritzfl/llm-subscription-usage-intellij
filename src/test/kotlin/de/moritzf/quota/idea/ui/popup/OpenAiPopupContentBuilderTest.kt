@@ -21,18 +21,24 @@ class OpenAiPopupContentBuilderTest {
     fun resetLinkListsEveryTokenExpirationIncludingMissingDetails() {
         val section = OpenAiPopupSection()
         val now = Clock.System.now()
-        val quota = OpenAiCodexQuota(
-            resetCreditsAvailableCount = 3,
-            resetCredits = listOf(
-                RateLimitResetCredit("credit-1", "available", now + 3.days),
-                RateLimitResetCredit("credit-2", "available", now + 10.days),
-            ),
-        )
+        val quota =
+            OpenAiCodexQuota(
+                resetCreditsAvailableCount = 3,
+                resetCredits =
+                    listOf(
+                        RateLimitResetCredit("credit-1", "available", now + 3.days),
+                        RateLimitResetCredit("credit-2", "available", now + 10.days),
+                    ),
+            )
 
         section.update(quota, error = null, visible = true)
 
-        val tooltip = section.components.filterIsInstance<JPanel>()
-            .flatMap { it.components.filterIsInstance<ActionLink>() }.single().toolTipText
+        val tooltip =
+            section.components
+                .filterIsInstance<JPanel>()
+                .flatMap { it.components.filterIsInstance<ActionLink>() }
+                .single()
+                .toolTipText
         assertTrue(tooltip.contains("Token 1: Expires in "))
         assertTrue(tooltip.contains("Token 2: Expires in "))
         assertTrue(tooltip.contains("Token 3: Expiration unknown"))
@@ -42,22 +48,29 @@ class OpenAiPopupContentBuilderTest {
     @Test
     fun showsAllExtraRateLimitTitles() {
         val section = OpenAiPopupSection()
-        val quota = OpenAiCodexQuota(
-            resetCreditsAvailableCount = 1,
-            extraRateLimits = (1..5).map { index ->
-                OpenAiExtraRateLimit(
-                    id = "extra-$index",
-                    title = "Extra Model $index Hourly",
-                    window = UsageWindow(usedPercent = index * 10.0, windowDuration = Duration.ofHours(1)),
-                )
-            },
-        )
+        val quota =
+            OpenAiCodexQuota(
+                resetCreditsAvailableCount = 1,
+                extraRateLimits =
+                    (1..5).map { index ->
+                        OpenAiExtraRateLimit(
+                            id = "extra-$index",
+                            title = "Extra Model $index Hourly",
+                            window =
+                                UsageWindow(
+                                    usedPercent = index * 10.0,
+                                    windowDuration = Duration.ofHours(1),
+                                ),
+                        )
+                    },
+            )
 
         section.update(quota, error = null, visible = true)
 
-        val labels = section.components
-            .filterIsInstance<WindowBlockPanel>()
-            .flatMap { block -> block.components.filterIsInstance<JLabel>().map { it.text } }
+        val labels =
+            section.components.filterIsInstance<WindowBlockPanel>().flatMap { block ->
+                block.components.filterIsInstance<JLabel>().map { it.text }
+            }
         assertTrue(labels.contains("Extra Model 5 Hourly"))
 
         val components = section.components.toList()
@@ -70,10 +83,11 @@ class OpenAiPopupContentBuilderTest {
     @Test
     fun showsTitleCasedPlanWithoutSelfServePrefix() {
         val section = OpenAiPopupSection()
-        val quota = OpenAiCodexQuota(
-            planType = "self_serve_business_prolite",
-            primary = UsageWindow(usedPercent = 0.0, windowDuration = Duration.ofDays(7)),
-        )
+        val quota =
+            OpenAiCodexQuota(
+                planType = "self_serve_business_prolite",
+                primary = UsageWindow(usedPercent = 0.0, windowDuration = Duration.ofDays(7)),
+            )
 
         section.update(quota, error = null, visible = true)
 
@@ -96,10 +110,11 @@ class OpenAiPopupContentBuilderTest {
     fun showsAccountNameWhenSameTypeHasDuplicates() {
         val section = OpenAiPopupSection()
         section.accountTitle = "Work"
-        val quota = OpenAiCodexQuota(
-            planType = "self_serve_business_prolite",
-            primary = UsageWindow(usedPercent = 0.0, windowDuration = Duration.ofDays(7)),
-        )
+        val quota =
+            OpenAiCodexQuota(
+                planType = "self_serve_business_prolite",
+                primary = UsageWindow(usedPercent = 0.0, windowDuration = Duration.ofDays(7)),
+            )
 
         section.update(quota, error = null, visible = true)
 

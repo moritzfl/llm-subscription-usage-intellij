@@ -8,15 +8,16 @@ import kotlin.test.assertTrue
 class StandaloneOpenAiProxyTest {
     @Test
     fun standaloneOptionsParseCorsFlags() {
-        val options = parseStandaloneOptions(
-            arrayOf(
-                "--login",
-                "--cors-origin",
-                "https://client.example,http://localhost:5173",
-                "--cors-url=https://other.example",
-                "--allow-any-cors",
-            ),
-        )
+        val options =
+            parseStandaloneOptions(
+                arrayOf(
+                    "--login",
+                    "--cors-origin",
+                    "https://client.example,http://localhost:5173",
+                    "--cors-url=https://other.example",
+                    "--allow-any-cors",
+                )
+            )
 
         assertEquals(true, options.login)
         assertEquals(true, options.allowAnyCors)
@@ -29,16 +30,18 @@ class StandaloneOpenAiProxyTest {
     @Test
     fun tokenResponseCapturesRefreshTokenExpiryAndAccount() {
         val before = System.currentTimeMillis()
-        val credentials = credentialsFromTokenResponse(
-            """
+        val credentials =
+            credentialsFromTokenResponse(
+                """
                 {
                   "access_token": "access-token",
                   "refresh_token": "refresh-token",
                   "expires_in": 120,
                   "id_token": "${jwt("""{"https://api.openai.com/auth":{"chatgpt_account_id":"account-1"}}""")}"
                 }
-            """.trimIndent(),
-        )
+            """
+                    .trimIndent()
+            )
         val after = System.currentTimeMillis()
 
         assertEquals("access-token", credentials.accessToken)

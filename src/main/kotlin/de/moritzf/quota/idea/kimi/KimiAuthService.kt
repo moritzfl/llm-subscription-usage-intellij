@@ -5,17 +5,17 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
-import de.moritzf.quota.kimi.KimiDeviceTokenPollResult
-import de.moritzf.quota.kimi.KimiOAuthClient
 import de.moritzf.quota.idea.auth.AuthService
 import de.moritzf.quota.idea.auth.LoginResult
-import kotlinx.coroutines.CoroutineScope
+import de.moritzf.quota.kimi.KimiDeviceTokenPollResult
+import de.moritzf.quota.kimi.KimiOAuthClient
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import java.util.concurrent.atomic.AtomicBoolean
 
 @Service(Service.Level.APP)
 class KimiAuthService(
@@ -26,20 +26,24 @@ class KimiAuthService(
 ) : Disposable, AuthService {
     private val loginInProgress = AtomicBoolean(false)
 
-    override fun startLoginFlow(callback: (LoginResult) -> Unit, onVerificationUrl: ((String, String) -> Unit)?) {
+    override fun startLoginFlow(
+        callback: (LoginResult) -> Unit,
+        onVerificationUrl: ((String, String) -> Unit)?,
+    ) {
         if (!loginInProgress.compareAndSet(false, true)) {
             callback(LoginResult.error("Login already in progress"))
             return
         }
         scope.launch {
-            val result = try {
-                runLoginFlow(onVerificationUrl)
-            } catch (exception: Exception) {
-                LOG.warn("Kimi login failed", exception)
-                LoginResult.error(exception.message ?: "Login failed")
-            } finally {
-                loginInProgress.set(false)
-            }
+            val result =
+                try {
+                    runLoginFlow(onVerificationUrl)
+                } catch (exception: Exception) {
+                    LOG.warn("Kimi login failed", exception)
+                    LoginResult.error(exception.message ?: "Login failed")
+                } finally {
+                    loginInProgress.set(false)
+                }
             callback(result)
         }
     }
@@ -73,7 +77,9 @@ class KimiAuthService(
             throw exception
         } catch (exception: Exception) {
             if (onVerificationUrl == null) throw exception
-            LOG.info("Could not open Kimi login browser; use the verification URL and code in settings")
+            LOG.info(
+                "Could not open Kimi login browser; use the verification URL and code in settings"
+            )
         }
 
         var intervalSeconds = authorization.intervalSeconds.coerceAtLeast(1)
@@ -96,13 +102,13 @@ class KimiAuthService(
             }
             Thread.sleep(intervalSeconds * 1000L)
         }
-        return if (loginInProgress.get()) LoginResult.error("Authentication timed out") else LoginResult.error("Login canceled")
+        return if (loginInProgress.get()) LoginResult.error("Authentication timed out")
+        else LoginResult.error("Login canceled")
     }
 
     override fun dispose() {
         scope.cancel()
     }
-
 
     companion object {
         private val LOG = Logger.getInstance(KimiAuthService::class.java)
@@ -110,10 +116,12 @@ class KimiAuthService(
         private val extras = java.util.concurrent.ConcurrentHashMap<String, KimiAuthService>()
 
         @JvmStatic
-        fun getInstance(): KimiAuthService = ApplicationManager.getApplication().getService(KimiAuthService::class.java)
+        fun getInstance(): KimiAuthService =
+            ApplicationManager.getApplication().getService(KimiAuthService::class.java)
 
         fun forAccount(accountId: String): KimiAuthService {
-            if (accountId == de.moritzf.quota.idea.common.QuotaProviderType.KIMI.id) return getInstance()
+            if (accountId == de.moritzf.quota.idea.common.QuotaProviderType.KIMI.id)
+                return getInstance()
             return extras.computeIfAbsent(accountId) {
                 KimiAuthService(credentialsStore = KimiCredentialsStore.forAccount(accountId))
             }

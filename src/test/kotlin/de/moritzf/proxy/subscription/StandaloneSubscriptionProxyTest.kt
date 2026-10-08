@@ -1,29 +1,35 @@
 package de.moritzf.proxy.subscription
 
+import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
-import java.nio.file.Path
 
 class StandaloneSubscriptionProxyTest {
     @Test
     fun parsesStandaloneOptions() {
-        val options = parseStandaloneSubscriptionOptions(
-            arrayOf(
-                "--host", "127.0.0.1",
-                "--port=15555",
-                "--provider", "openai,github",
-                "--env-file=.env.proxy",
-                "--allow-any-cors",
-                "--cors-origin", "http://localhost:3000,https://client.example",
-                "--log-requests",
-                "--request-log-dir", "logs/proxy",
-                "--list-models",
-                "--login",
-                "--local-api-key", "sk-local",
-            ),
-        )
+        val options =
+            parseStandaloneSubscriptionOptions(
+                arrayOf(
+                    "--host",
+                    "127.0.0.1",
+                    "--port=15555",
+                    "--provider",
+                    "openai,github",
+                    "--env-file=.env.proxy",
+                    "--allow-any-cors",
+                    "--cors-origin",
+                    "http://localhost:3000,https://client.example",
+                    "--log-requests",
+                    "--request-log-dir",
+                    "logs/proxy",
+                    "--list-models",
+                    "--login",
+                    "--local-api-key",
+                    "sk-local",
+                )
+            )
 
         assertEquals("127.0.0.1", options.host)
         assertEquals(15555, options.port)

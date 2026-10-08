@@ -32,7 +32,10 @@ class QuotaProviderTypeTest {
             QuotaProviderType.entries.toSet(),
             QuotaProviderRegistry.all.map { it.type }.toSet(),
         )
-        assertEquals(QuotaProviderRegistry.all.size, QuotaProviderRegistry.all.map { it.type }.toSet().size)
+        assertEquals(
+            QuotaProviderRegistry.all.size,
+            QuotaProviderRegistry.all.map { it.type }.toSet().size,
+        )
     }
 
     @Test
@@ -45,17 +48,21 @@ class QuotaProviderTypeTest {
 
     @Test
     fun mergeProviderOrderUsesAlphabeticalDefaultWhenStoredOrderEmpty() {
-        assertEquals(QuotaProviderType.defaultProviderOrder(), QuotaProviderType.mergeProviderOrder(emptyList()))
+        assertEquals(
+            QuotaProviderType.defaultProviderOrder(),
+            QuotaProviderType.mergeProviderOrder(emptyList()),
+        )
     }
 
     @Test
     fun mergeProviderOrderInsertsAlphabeticallyFirstProviderAtStart() {
-        val merged = QuotaProviderType.mergeProviderOrder(
-            listOf(
-                QuotaProviderType.OPEN_AI,
-                QuotaProviderType.OPEN_CODE,
-            ),
-        )
+        val merged =
+            QuotaProviderType.mergeProviderOrder(
+                listOf(
+                    QuotaProviderType.OPEN_AI,
+                    QuotaProviderType.OPEN_CODE,
+                )
+            )
 
         assertEquals(QuotaProviderType.ANTIGRAVITY, merged.first())
         assertEquals(
@@ -80,11 +87,12 @@ class QuotaProviderTypeTest {
 
     @Test
     fun mergeProviderOrderPreservesRelativeCustomOrderForExistingProviders() {
-        val customOrder = listOf(
-            QuotaProviderType.OPEN_CODE,
-            QuotaProviderType.KIMI,
-            QuotaProviderType.OPEN_AI,
-        )
+        val customOrder =
+            listOf(
+                QuotaProviderType.OPEN_CODE,
+                QuotaProviderType.KIMI,
+                QuotaProviderType.OPEN_AI,
+            )
 
         val merged = QuotaProviderType.mergeProviderOrder(customOrder)
         val openCodeIndex = merged.indexOf(QuotaProviderType.OPEN_CODE)
@@ -97,13 +105,14 @@ class QuotaProviderTypeTest {
 
     @Test
     fun mergeProviderOrderInsertsAfterAlphabeticalPredecessorInCustomOrder() {
-        val merged = QuotaProviderType.mergeProviderOrder(
-            listOf(
-                QuotaProviderType.OPEN_CODE,
-                QuotaProviderType.KIMI,
-                QuotaProviderType.OPEN_AI,
-            ),
-        )
+        val merged =
+            QuotaProviderType.mergeProviderOrder(
+                listOf(
+                    QuotaProviderType.OPEN_CODE,
+                    QuotaProviderType.KIMI,
+                    QuotaProviderType.OPEN_AI,
+                )
+            )
 
         assertEquals(
             listOf(

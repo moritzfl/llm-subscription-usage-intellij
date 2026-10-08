@@ -1,16 +1,16 @@
 package de.moritzf.quota.shared
 
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.SerializationException
-import kotlinx.serialization.json.double
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.double
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 class LenientDoubleTest {
     @Test
@@ -51,28 +51,35 @@ class LenientDoubleTest {
     @Test
     fun serializesAsJsonNumber() {
         val encoded = JsonSupport.json.encodeToString(RequiredBox.serializer(), RequiredBox(15.2))
-        val primitive = JsonSupport.json.parseToJsonElement(encoded).jsonObject.getValue("usagePercent").jsonPrimitive
+        val primitive =
+            JsonSupport.json
+                .parseToJsonElement(encoded)
+                .jsonObject
+                .getValue("usagePercent")
+                .jsonPrimitive
         assertFalse(primitive.isString)
         assertEquals(15.2, primitive.double)
     }
 
     private fun decodeOrNull(raw: String): Double? {
-        return JsonSupport.json.decodeFromString(NullableBox.serializer(), """{"usagePercent":$raw}""").usagePercent
+        return JsonSupport.json
+            .decodeFromString(NullableBox.serializer(), """{"usagePercent":$raw}""")
+            .usagePercent
     }
 
     private fun decodeRequired(raw: String): Double {
-        return JsonSupport.json.decodeFromString(RequiredBox.serializer(), """{"usagePercent":$raw}""").usagePercent
+        return JsonSupport.json
+            .decodeFromString(RequiredBox.serializer(), """{"usagePercent":$raw}""")
+            .usagePercent
     }
 
     @Serializable
     private data class NullableBox(
-        @Serializable(with = LenientDoubleOrNullSerializer::class)
-        val usagePercent: Double? = null,
+        @Serializable(with = LenientDoubleOrNullSerializer::class) val usagePercent: Double? = null
     )
 
     @Serializable
     private data class RequiredBox(
-        @Serializable(with = LenientDoubleSerializer::class)
-        val usagePercent: Double = 0.0,
+        @Serializable(with = LenientDoubleSerializer::class) val usagePercent: Double = 0.0
     )
 }

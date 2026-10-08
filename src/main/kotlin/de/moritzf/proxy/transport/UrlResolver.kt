@@ -1,23 +1,28 @@
 package de.moritzf.proxy.transport
+
 import java.net.URI
+
 object UrlResolver {
     private const val API_V1_PREFIX = "/v1"
+
     fun resolveTargetUrl(input: String, baseUrl: String): String {
-        val base = try {
-            URI.create(baseUrl)
-        } catch (exception: IllegalArgumentException) {
-            throw IllegalArgumentException("Invalid base URL: $baseUrl", exception)
-        }
+        val base =
+            try {
+                URI.create(baseUrl)
+            } catch (exception: IllegalArgumentException) {
+                throw IllegalArgumentException("Invalid base URL: $baseUrl", exception)
+            }
         val basePath = stripTrailingSlash(base.path)
         val origin = base.scheme + "://" + base.authority
         var pathname: String
         var query = ""
         if (input.startsWith("http://") || input.startsWith("https://")) {
-            val parsed = try {
-                URI.create(input)
-            } catch (exception: IllegalArgumentException) {
-                throw IllegalArgumentException("Invalid input URL: $input", exception)
-            }
+            val parsed =
+                try {
+                    URI.create(input)
+                } catch (exception: IllegalArgumentException) {
+                    throw IllegalArgumentException("Invalid input URL: $input", exception)
+                }
             pathname = parsed.path
             query = parsed.rawQuery?.let { "?$it" }.orEmpty()
         } else {
@@ -41,6 +46,7 @@ object UrlResolver {
         }
         return origin + basePath + pathname + query
     }
+
     private fun stripTrailingSlash(path: String?): String {
         return path?.removeSuffix("/").orEmpty()
     }

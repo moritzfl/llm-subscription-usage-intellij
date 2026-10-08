@@ -1,10 +1,10 @@
 package de.moritzf.quota.idea.mcp
 
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
 import org.tomlj.Toml
 import org.tomlj.TomlParseResult
 import org.tomlj.TomlTable
-import java.nio.charset.StandardCharsets
-import java.nio.file.Files
 
 class McpTomlTargetUpdater {
     fun updateFile(tomlFilePath: String, propertyPath: String, value: String): Boolean {
@@ -27,14 +27,20 @@ class McpTomlTargetUpdater {
         requireExistingTargetValue(root, segments)
 
         val (lines, separator) = McpJsonTargetUpdater.splitPreservingNewlines(content)
-        val propertyIndex = findPropertyLine(lines, segments)
-            ?: error("TOML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(segments)}")
+        val propertyIndex =
+            findPropertyLine(lines, segments)
+                ?: error(
+                    "TOML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(segments)}"
+                )
         lines[propertyIndex] = replaceTomlStringValue(lines[propertyIndex], value)
         return lines.joinToString(separator)
     }
 
     companion object {
-        fun validateTargetFile(tomlFilePath: String, propertyPath: String): McpJsonTargetValidationError? {
+        fun validateTargetFile(
+            tomlFilePath: String,
+            propertyPath: String,
+        ): McpJsonTargetValidationError? {
             val file = McpJsonTargetUpdater.resolveJsonFilePath(tomlFilePath)
             if (!Files.exists(file)) {
                 return McpJsonTargetValidationError(
@@ -43,7 +49,9 @@ class McpTomlTargetUpdater {
                 )
             }
 
-            val content = runCatching { Files.readString(file, StandardCharsets.UTF_8) }
+            val content = runCatching {
+                Files.readString(file, StandardCharsets.UTF_8)
+            }
                 .getOrElse { error ->
                     return McpJsonTargetValidationError(
                         McpJsonTargetValidationProblem.FILE,
@@ -53,15 +61,22 @@ class McpTomlTargetUpdater {
             return validateTargetContent(content, propertyPath)
         }
 
-        fun validateTargetContent(content: String, propertyPath: String): McpJsonTargetValidationError? {
-            val segments = runCatching { McpJsonTargetUpdater.parsePropertyPath(propertyPath) }
+        fun validateTargetContent(
+            content: String,
+            propertyPath: String,
+        ): McpJsonTargetValidationError? {
+            val segments = runCatching {
+                McpJsonTargetUpdater.parsePropertyPath(propertyPath)
+            }
                 .getOrElse { error ->
                     return McpJsonTargetValidationError(
                         McpJsonTargetValidationProblem.PROPERTY,
                         error.message ?: "TOML property path is invalid.",
                     )
                 }
-            val root = runCatching { parseRoot(content) }
+            val root = runCatching {
+                parseRoot(content)
+            }
                 .getOrElse { error ->
                     return McpJsonTargetValidationError(
                         McpJsonTargetValidationProblem.FILE,
@@ -69,19 +84,20 @@ class McpTomlTargetUpdater {
                     )
                 }
             return runCatching {
-                requireExistingTargetValue(root, segments)
-                require(findPropertyLine(content.lines(), segments) != null) {
-                    "TOML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(segments)}"
+                    requireExistingTargetValue(root, segments)
+                    require(findPropertyLine(content.lines(), segments) != null) {
+                        "TOML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(segments)}"
+                    }
                 }
-            }.fold(
-                onSuccess = { null },
-                onFailure = { error ->
-                    McpJsonTargetValidationError(
-                        McpJsonTargetValidationProblem.PROPERTY,
-                        error.message ?: "TOML property path is invalid.",
-                    )
-                },
-            )
+                .fold(
+                    onSuccess = { null },
+                    onFailure = { error ->
+                        McpJsonTargetValidationError(
+                            McpJsonTargetValidationProblem.PROPERTY,
+                            error.message ?: "TOML property path is invalid.",
+                        )
+                    },
+                )
         }
 
         fun collectStringPropertyPaths(content: String): List<String> {
@@ -91,7 +107,11 @@ class McpTomlTargetUpdater {
             return paths
         }
 
-        private fun collectStringPropertyPaths(table: TomlTable, prefix: List<String>, paths: MutableList<String>) {
+        private fun collectStringPropertyPaths(
+            table: TomlTable,
+            prefix: List<String>,
+            paths: MutableList<String>,
+        ) {
             table.keySet().forEach { key ->
                 when (val value = table.get(key)) {
                     is String -> paths += McpJsonTargetUpdater.formatDotPath(prefix + key)
@@ -112,10 +132,16 @@ class McpTomlTargetUpdater {
         private fun requireExistingTargetValue(root: TomlTable, path: List<String>): Any? {
             var current: Any? = root
             path.forEachIndexed { index, segment ->
-                val currentTable = current as? TomlTable
-                    ?: error("TOML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(path.take(index))} is not a table")
-                current = currentTable.get(segment)
-                    ?: error("TOML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(path)}")
+                val currentTable =
+                    current as? TomlTable
+                        ?: error(
+                            "TOML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(path.take(index))} is not a table"
+                        )
+                current =
+                    currentTable.get(segment)
+                        ?: error(
+                            "TOML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(path)}"
+                        )
             }
             require(current is String) { "TOML property path must point to a string value." }
             return current
@@ -213,7 +239,10 @@ class McpTomlTargetUpdater {
             require(equalsIndex >= 0) { "TOML property line is invalid." }
             val commentIndex = line.commentIndexAfter(equalsIndex + 1)
             val suffix = if (commentIndex >= 0) line.substring(commentIndex) else ""
-            return line.substring(0, equalsIndex + 1) + " " + quoteTomlString(value) + if (suffix.isBlank()) "" else " " + suffix.trimStart()
+            return line.substring(0, equalsIndex + 1) +
+                " " +
+                quoteTomlString(value) +
+                if (suffix.isBlank()) "" else " " + suffix.trimStart()
         }
 
         private fun quoteTomlString(value: String): String {

@@ -39,23 +39,38 @@ internal object OperationQuota {
             return OperationQuotaStatus(exhausted = false, fetchedAt = quota.fetchedAt)
         }
         return when (quota) {
-            is AntigravityQuota -> fromPercentWindows(
-                quota.windows.mapNotNull { window ->
-                    window.usagePercent?.let { NamedWindow(window.id, it, window.resetsAt) }
-                },
-                quota.fetchedAt,
-            )
+            is AntigravityQuota ->
+                fromPercentWindows(
+                    quota.windows.mapNotNull { window ->
+                        window.usagePercent?.let { NamedWindow(window.id, it, window.resetsAt) }
+                    },
+                    quota.fetchedAt,
+                )
             is OpenAiCodexQuota -> openAi(quota, model)
-            is ClaudeQuota -> fromPercentWindows(
-                listOfNotNull(
-                    quota.fiveHourUsage?.let { NamedWindow("5-hour", it.usagePercent, it.resetsAt) },
-                    quota.sevenDayUsage?.let { NamedWindow("weekly", it.usagePercent, it.resetsAt) },
-                    quota.sevenDaySonnetUsage?.let { NamedWindow("sonnet", it.usagePercent, it.resetsAt) },
-                    quota.sevenDayOpusUsage?.let { NamedWindow("opus", it.usagePercent, it.resetsAt) },
-                    quota.routinesUsage?.let { NamedWindow("routines", it.usagePercent, it.resetsAt) },
-                ) + quota.scopedLimits.map { NamedWindow(it.label.ifBlank { "scoped" }, it.usagePercent, it.resetsAt) },
-                quota.fetchedAt,
-            )
+            is ClaudeQuota ->
+                fromPercentWindows(
+                    listOfNotNull(
+                        quota.fiveHourUsage?.let {
+                            NamedWindow("5-hour", it.usagePercent, it.resetsAt)
+                        },
+                        quota.sevenDayUsage?.let {
+                            NamedWindow("weekly", it.usagePercent, it.resetsAt)
+                        },
+                        quota.sevenDaySonnetUsage?.let {
+                            NamedWindow("sonnet", it.usagePercent, it.resetsAt)
+                        },
+                        quota.sevenDayOpusUsage?.let {
+                            NamedWindow("opus", it.usagePercent, it.resetsAt)
+                        },
+                        quota.routinesUsage?.let {
+                            NamedWindow("routines", it.usagePercent, it.resetsAt)
+                        },
+                    ) +
+                        quota.scopedLimits.map {
+                            NamedWindow(it.label.ifBlank { "scoped" }, it.usagePercent, it.resetsAt)
+                        },
+                    quota.fetchedAt,
+                )
             is SuperGrokQuota -> {
                 val window = quota.creditUsage
                 if (window == null) {
@@ -72,53 +87,81 @@ internal object OperationQuota {
                     )
                 }
             }
-            is OpenCodeQuota -> fromPercentWindows(
-                listOfNotNull(quota.rollingUsage, quota.weeklyUsage, quota.monthlyUsage).map { window ->
-                    val name = when {
-                        window === quota.rollingUsage -> "5-hour"
-                        window === quota.weeklyUsage -> "weekly"
-                        else -> "monthly"
-                    }
-                    val percent = if (window.isRateLimited) 100.0 else window.usagePercent
-                    NamedWindow(name, percent, null)
-                },
-                quota.fetchedAt,
-            )
-            is OllamaQuota -> fromPercentWindows(
-                listOfNotNull(
-                    quota.sessionUsage?.let { NamedWindow("session", it.usagePercent, it.resetsAt) },
-                    quota.weeklyUsage?.let { NamedWindow("weekly", it.usagePercent, it.resetsAt) },
-                    quota.monthlyUsage?.let { NamedWindow("monthly", it.usagePercent, it.resetsAt) },
-                ),
-                quota.fetchedAt,
-            )
+            is OpenCodeQuota ->
+                fromPercentWindows(
+                    listOfNotNull(quota.rollingUsage, quota.weeklyUsage, quota.monthlyUsage).map {
+                        window ->
+                        val name =
+                            when {
+                                window === quota.rollingUsage -> "5-hour"
+                                window === quota.weeklyUsage -> "weekly"
+                                else -> "monthly"
+                            }
+                        val percent = if (window.isRateLimited) 100.0 else window.usagePercent
+                        NamedWindow(name, percent, null)
+                    },
+                    quota.fetchedAt,
+                )
+            is OllamaQuota ->
+                fromPercentWindows(
+                    listOfNotNull(
+                        quota.sessionUsage?.let {
+                            NamedWindow("session", it.usagePercent, it.resetsAt)
+                        },
+                        quota.weeklyUsage?.let {
+                            NamedWindow("weekly", it.usagePercent, it.resetsAt)
+                        },
+                        quota.monthlyUsage?.let {
+                            NamedWindow("monthly", it.usagePercent, it.resetsAt)
+                        },
+                    ),
+                    quota.fetchedAt,
+                )
             is ZaiQuota -> zai(quota, capability)
-            is KimiQuota -> fromPercentWindows(
-                listOfNotNull(
-                    quota.sessionUsage?.let { NamedWindow("session", it.usagePercent, it.resetsAt) },
-                    quota.totalUsage?.let { NamedWindow("overall", it.usagePercent, it.resetsAt) },
-                ),
-                quota.fetchedAt,
-            )
-            is MiniMaxQuota -> fromPercentWindows(
-                listOfNotNull(
-                    quota.sessionUsage?.let { NamedWindow("session", it.usagePercent, it.resetsAt) },
-                    quota.weeklyUsage?.let { NamedWindow("weekly", it.usagePercent, it.resetsAt) },
-                ),
-                quota.fetchedAt,
-            )
+            is KimiQuota ->
+                fromPercentWindows(
+                    listOfNotNull(
+                        quota.sessionUsage?.let {
+                            NamedWindow("session", it.usagePercent, it.resetsAt)
+                        },
+                        quota.totalUsage?.let {
+                            NamedWindow("overall", it.usagePercent, it.resetsAt)
+                        },
+                    ),
+                    quota.fetchedAt,
+                )
+            is MiniMaxQuota ->
+                fromPercentWindows(
+                    listOfNotNull(
+                        quota.sessionUsage?.let {
+                            NamedWindow("session", it.usagePercent, it.resetsAt)
+                        },
+                        quota.weeklyUsage?.let {
+                            NamedWindow("weekly", it.usagePercent, it.resetsAt)
+                        },
+                    ),
+                    quota.fetchedAt,
+                )
             is MistralQuota -> mistral(quota, capability)
-            is GitHubQuota -> fromPercentWindows(
-                quota.limitedWindows().map { NamedWindow(it.label.ifBlank { "premium" }, it.usagePercent, it.resetsAt) },
-                quota.fetchedAt,
-            )
-            is CursorQuota -> fromPercentWindows(
-                listOfNotNull(
-                    quota.planUsage?.let { NamedWindow("included", it.totalPercentUsed, it.billingCycleEnd) },
-                    quota.requestUsage?.usagePercent()?.let { NamedWindow("requests", it, null) },
-                ),
-                quota.fetchedAt,
-            )
+            is GitHubQuota ->
+                fromPercentWindows(
+                    quota.limitedWindows().map {
+                        NamedWindow(it.label.ifBlank { "premium" }, it.usagePercent, it.resetsAt)
+                    },
+                    quota.fetchedAt,
+                )
+            is CursorQuota ->
+                fromPercentWindows(
+                    listOfNotNull(
+                        quota.planUsage?.let {
+                            NamedWindow("included", it.totalPercentUsed, it.billingCycleEnd)
+                        },
+                        quota.requestUsage?.usagePercent()?.let {
+                            NamedWindow("requests", it, null)
+                        },
+                    ),
+                    quota.fetchedAt,
+                )
             else -> OperationQuotaStatus(false, fetchedAt = quota.fetchedAt)
         }
     }
@@ -140,18 +183,20 @@ internal object OperationQuota {
         val luna = trimmedModel?.let(CodexReserveHop::isLunaModel) == true
         val reserve = trimmedModel?.let(CodexReserveHop::isReserveModel) == true
         val extra = quota.extraRateLimits.minByOrNull { it.window.usedPercent }
-        val rateExhausted = when {
-            reserve -> extra == null || extra.window.usedPercent >= 100.0
-            luna -> quota.limitReached == true && !quota.hasUnusedExtraRateLimits()
-            trimmedModel != null -> quota.limitReached == true
-            else -> quota.limitReached == true && !quota.hasUnusedExtraRateLimits()
-        }
-        if (rateExhausted) {
-            val pool = when {
-                reserve -> extra?.id ?: "gpt-reserve"
-                luna && quota.hasUnusedExtraRateLimits() -> extra?.id
-                else -> "rate_limit"
+        val rateExhausted =
+            when {
+                reserve -> extra == null || extra.window.usedPercent >= 100.0
+                luna -> quota.limitReached == true && !quota.hasUnusedExtraRateLimits()
+                trimmedModel != null -> quota.limitReached == true
+                else -> quota.limitReached == true && !quota.hasUnusedExtraRateLimits()
             }
+        if (rateExhausted) {
+            val pool =
+                when {
+                    reserve -> extra?.id ?: "gpt-reserve"
+                    luna && quota.hasUnusedExtraRateLimits() -> extra?.id
+                    else -> "rate_limit"
+                }
             return OperationQuotaStatus(
                 exhausted = true,
                 limitingPool = pool ?: "rate_limit",
@@ -196,8 +241,8 @@ internal object OperationQuota {
     }
 
     private fun mistral(quota: MistralQuota, capability: AccountCapability): OperationQuotaStatus {
-        val usesVibeQuota = capability == AccountCapability.QUOTA ||
-            capability == AccountCapability.PROXY
+        val usesVibeQuota =
+            capability == AccountCapability.QUOTA || capability == AccountCapability.PROXY
         if (!usesVibeQuota) {
             return OperationQuotaStatus(
                 exhausted = false,
@@ -209,22 +254,28 @@ internal object OperationQuota {
         return fromPercentWindows(
             listOfNotNull(
                 quota.monthlyUsage?.let { NamedWindow("monthly", it.usagePercent, it.resetsAt) },
-                quota.tokenUsage?.let { NamedWindow("tokens_per_minute", it.usagePercent, it.resetsAt) },
+                quota.tokenUsage?.let {
+                    NamedWindow("tokens_per_minute", it.usagePercent, it.resetsAt)
+                },
             ),
             quota.fetchedAt,
         )
     }
 
-    private fun fromPercentWindows(windows: List<NamedWindow>, fetchedAt: Instant?): OperationQuotaStatus {
+    private fun fromPercentWindows(
+        windows: List<NamedWindow>,
+        fetchedAt: Instant?,
+    ): OperationQuotaStatus {
         if (windows.isEmpty()) {
             return OperationQuotaStatus(false, fetchedAt = fetchedAt)
         }
         val exhausted = windows.filter { it.usagePercent >= 100.0 }
-        val pick = if (exhausted.isNotEmpty()) {
-            exhausted.maxBy { it.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE }
-        } else {
-            windows.maxBy { it.usagePercent }
-        }
+        val pick =
+            if (exhausted.isNotEmpty()) {
+                exhausted.maxBy { it.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE }
+            } else {
+                windows.maxBy { it.usagePercent }
+            }
         val isExhausted = pick.usagePercent >= 100.0
         return OperationQuotaStatus(
             exhausted = isExhausted,

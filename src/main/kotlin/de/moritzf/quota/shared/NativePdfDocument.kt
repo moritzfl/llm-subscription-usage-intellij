@@ -18,11 +18,20 @@ internal enum class NativePdfRoute {
     ANTHROPIC,
 }
 
-/** Request bodies and response text for a provider that accepts a PDF file part. No model catalog. */
+/**
+ * Request bodies and response text for a provider that accepts a PDF file part. No model catalog.
+ */
 internal object NativePdfDocument {
-    const val PROMPT = "Convert this document to markdown. Include the visible text. Return only the markdown."
+    const val PROMPT =
+        "Convert this document to markdown. Include the visible text. Return only the markdown."
 
-    fun requestJson(route: NativePdfRoute, model: String, filename: String, dataUrl: String, base64: String): String {
+    fun requestJson(
+        route: NativePdfRoute,
+        model: String,
+        filename: String,
+        dataUrl: String,
+        base64: String,
+    ): String {
         return when (route) {
             NativePdfRoute.RESPONSES -> responsesBody(model, filename, dataUrl)
             NativePdfRoute.CHAT -> chatBody(model, filename, dataUrl)
@@ -30,8 +39,18 @@ internal object NativePdfDocument {
         }
     }
 
-    /** Same routes, but with an image part and a caller-supplied question instead of the markdown prompt. */
-    fun visionRequestJson(route: NativePdfRoute, model: String, prompt: String, imageDataUrl: String, base64: String, mediaType: String): String {
+    /**
+     * Same routes, but with an image part and a caller-supplied question instead of the markdown
+     * prompt.
+     */
+    fun visionRequestJson(
+        route: NativePdfRoute,
+        model: String,
+        prompt: String,
+        imageDataUrl: String,
+        base64: String,
+        mediaType: String,
+    ): String {
         return when (route) {
             NativePdfRoute.RESPONSES -> responsesVisionBody(model, prompt, imageDataUrl)
             NativePdfRoute.CHAT -> chatVisionBody(model, prompt, imageDataUrl)
@@ -54,8 +73,15 @@ internal object NativePdfDocument {
         return Triple("data:$mime;base64,$encoded", encoded, mime)
     }
 
-    fun answer(route: NativePdfRoute, model: String, prompt: String, source: Path, post: (String) -> String): String {
-        val (dataUrl, base64, mediaType) = imageDataUrl(source) ?: error("Select a readable image file.")
+    fun answer(
+        route: NativePdfRoute,
+        model: String,
+        prompt: String,
+        source: Path,
+        post: (String) -> String,
+    ): String {
+        val (dataUrl, base64, mediaType) =
+            imageDataUrl(source) ?: error("Select a readable image file.")
         val body = post(visionRequestJson(route, model, prompt, dataUrl, base64, mediaType))
         val answer = extractText(body).trim()
         if (answer.isBlank()) error("Provider returned no answer.")
@@ -73,66 +99,92 @@ internal object NativePdfDocument {
         val body = post(requestJson(route, model, source.fileName.toString(), dataUrl, base64))
         val markdown = extractText(body)
         if (markdown.isBlank()) error("Provider returned no markdown.")
-        return DocumentMarkdown.resultJson(markdown, output ?: DocumentMarkdown.defaultOutput(source))
+        return DocumentMarkdown.resultJson(
+            markdown,
+            output ?: DocumentMarkdown.defaultOutput(source),
+        )
     }
 
     fun extractText(body: String): String {
         val trimmed = body.trim()
         if (trimmed.isEmpty()) return ""
         if (trimmed.startsWith("data:") || trimmed.contains("\ndata:")) return extractSse(trimmed)
-        val json = runCatching { JsonSupport.json.parseToJsonElement(trimmed) as? JsonObject }.getOrNull()
-            ?: return trimmed
+        val json =
+            runCatching { JsonSupport.json.parseToJsonElement(trimmed) as? JsonObject }.getOrNull()
+                ?: return trimmed
         providerError(json)?.let { error(it) }
-        responsesText(json)?.let { return it }
-        chatText(json)?.let { return it }
-        anthropicText(json)?.let { return it }
+        responsesText(json)?.let {
+            return it
+        }
+        chatText(json)?.let {
+            return it
+        }
+        anthropicText(json)?.let {
+            return it
+        }
         return trimmed
     }
 
-    private fun responsesBody(model: String, filename: String, dataUrl: String): String = buildJsonObject {
-        put("model", model)
-        put("stream", false)
-        putJsonArray("input") {
-            add(buildJsonObject {
-                put("type", "message")
-                put("role", "user")
-                putJsonArray("content") {
-                    add(buildJsonObject {
-                        put("type", "input_file")
-                        put("filename", filename)
-                        put("file_data", dataUrl)
-                    })
-                    add(buildJsonObject {
-                        put("type", "input_text")
-                        put("text", PROMPT)
-                    })
-                }
-            })
-        }
-    }.toString()
-
-    private fun chatBody(model: String, filename: String, dataUrl: String): String = buildJsonObject {
-        put("model", model)
-        put("stream", false)
-        putJsonArray("messages") {
-            add(buildJsonObject {
-                put("role", "user")
-                putJsonArray("content") {
-                    add(buildJsonObject {
-                        put("type", "file")
-                        putJsonObject("file") {
-                            put("filename", filename)
-                            put("file_data", dataUrl)
+    private fun responsesBody(model: String, filename: String, dataUrl: String): String =
+        buildJsonObject {
+            put("model", model)
+            put("stream", false)
+            putJsonArray("input") {
+                add(
+                    buildJsonObject {
+                        put("type", "message")
+                        put("role", "user")
+                        putJsonArray("content") {
+                            add(
+                                buildJsonObject {
+                                    put("type", "input_file")
+                                    put("filename", filename)
+                                    put("file_data", dataUrl)
+                                }
+                            )
+                            add(
+                                buildJsonObject {
+                                    put("type", "input_text")
+                                    put("text", PROMPT)
+                                }
+                            )
                         }
-                    })
-                    add(buildJsonObject {
-                        put("type", "text")
-                        put("text", PROMPT)
-                    })
-                }
-            })
+                    }
+                )
+            }
         }
-    }.toString()
+        .toString()
+
+    private fun chatBody(model: String, filename: String, dataUrl: String): String =
+        buildJsonObject {
+            put("model", model)
+            put("stream", false)
+            putJsonArray("messages") {
+                add(
+                    buildJsonObject {
+                        put("role", "user")
+                        putJsonArray("content") {
+                            add(
+                                buildJsonObject {
+                                    put("type", "file")
+                                    putJsonObject("file") {
+                                        put("filename", filename)
+                                        put("file_data", dataUrl)
+                                    }
+                                }
+                            )
+                            add(
+                                buildJsonObject {
+                                    put("type", "text")
+                                    put("text", PROMPT)
+                                }
+                            )
+                        }
+                    }
+                )
+            }
+        }
+        .toString()
 
     private fun anthropicBody(model: String, base64: String): String {
         return buildJsonObject {
@@ -140,105 +192,144 @@ internal object NativePdfDocument {
             put("max_tokens", 4096)
             put("stream", false)
             putJsonArray("messages") {
-                add(buildJsonObject {
-                    put("role", "user")
-                    putJsonArray("content") {
-                        add(buildJsonObject {
-                            put("type", "document")
-                            putJsonObject("source") {
-                                put("type", "base64")
-                                put("media_type", "application/pdf")
-                                put("data", base64)
-                            }
-                        })
-                        add(buildJsonObject {
-                            put("type", "text")
-                            put("text", PROMPT)
-                        })
+                add(
+                    buildJsonObject {
+                        put("role", "user")
+                        putJsonArray("content") {
+                            add(
+                                buildJsonObject {
+                                    put("type", "document")
+                                    putJsonObject("source") {
+                                        put("type", "base64")
+                                        put("media_type", "application/pdf")
+                                        put("data", base64)
+                                    }
+                                }
+                            )
+                            add(
+                                buildJsonObject {
+                                    put("type", "text")
+                                    put("text", PROMPT)
+                                }
+                            )
+                        }
                     }
-                })
+                )
             }
-        }.toString()
+        }
+            .toString()
     }
 
-    private fun responsesVisionBody(model: String, prompt: String, imageDataUrl: String): String = buildJsonObject {
-        put("model", model)
-        put("stream", false)
-        putJsonArray("input") {
-            add(buildJsonObject {
-                put("type", "message")
-                put("role", "user")
-                putJsonArray("content") {
-                    add(buildJsonObject {
-                        put("type", "input_image")
-                        put("image_url", imageDataUrl)
-                    })
-                    add(buildJsonObject {
-                        put("type", "input_text")
-                        put("text", prompt)
-                    })
-                }
-            })
+    private fun responsesVisionBody(model: String, prompt: String, imageDataUrl: String): String =
+        buildJsonObject {
+            put("model", model)
+            put("stream", false)
+            putJsonArray("input") {
+                add(
+                    buildJsonObject {
+                        put("type", "message")
+                        put("role", "user")
+                        putJsonArray("content") {
+                            add(
+                                buildJsonObject {
+                                    put("type", "input_image")
+                                    put("image_url", imageDataUrl)
+                                }
+                            )
+                            add(
+                                buildJsonObject {
+                                    put("type", "input_text")
+                                    put("text", prompt)
+                                }
+                            )
+                        }
+                    }
+                )
+            }
         }
-    }.toString()
+        .toString()
 
-    private fun chatVisionBody(model: String, prompt: String, imageDataUrl: String): String = buildJsonObject {
-        put("model", model)
-        put("stream", false)
-        putJsonArray("messages") {
-            add(buildJsonObject {
-                put("role", "user")
-                putJsonArray("content") {
-                    add(buildJsonObject {
-                        put("type", "image_url")
-                        put("image_url", buildJsonObject { put("url", imageDataUrl) })
-                    })
-                    add(buildJsonObject {
-                        put("type", "text")
-                        put("text", prompt)
-                    })
-                }
-            })
+    private fun chatVisionBody(model: String, prompt: String, imageDataUrl: String): String =
+        buildJsonObject {
+            put("model", model)
+            put("stream", false)
+            putJsonArray("messages") {
+                add(
+                    buildJsonObject {
+                        put("role", "user")
+                        putJsonArray("content") {
+                            add(
+                                buildJsonObject {
+                                    put("type", "image_url")
+                                    put("image_url", buildJsonObject { put("url", imageDataUrl) })
+                                }
+                            )
+                            add(
+                                buildJsonObject {
+                                    put("type", "text")
+                                    put("text", prompt)
+                                }
+                            )
+                        }
+                    }
+                )
+            }
         }
-    }.toString()
+        .toString()
 
-    private fun anthropicVisionBody(model: String, prompt: String, base64: String, mediaType: String): String = buildJsonObject {
+    private fun anthropicVisionBody(
+        model: String,
+        prompt: String,
+        base64: String,
+        mediaType: String,
+    ): String = buildJsonObject {
         put("model", model)
         put("max_tokens", 4096)
         put("stream", false)
         putJsonArray("messages") {
-            add(buildJsonObject {
-                put("role", "user")
-                putJsonArray("content") {
-                    add(buildJsonObject {
-                        put("type", "image")
-                        putJsonObject("source") {
-                            put("type", "base64")
-                            put("media_type", mediaType)
-                            put("data", base64)
-                        }
-                    })
-                    add(buildJsonObject {
-                        put("type", "text")
-                        put("text", prompt)
-                    })
+            add(
+                buildJsonObject {
+                    put("role", "user")
+                    putJsonArray("content") {
+                        add(
+                            buildJsonObject {
+                                put("type", "image")
+                                putJsonObject("source") {
+                                    put("type", "base64")
+                                    put("media_type", mediaType)
+                                    put("data", base64)
+                                }
+                            }
+                        )
+                        add(
+                            buildJsonObject {
+                                put("type", "text")
+                                put("text", prompt)
+                            }
+                        )
+                    }
                 }
-            })
+            )
         }
-    }.toString()
+    }
+        .toString()
 
     private fun imageMimeType(path: Path, bytes: ByteArray): String? {
         if (bytes.size >= 8 && bytes[0] == 0x89.toByte()) return "image/png"
-        if (bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte()) return "image/jpeg"
-        if (bytes.size >= 12 && bytes.decodeToString(0, 4) == "RIFF" &&
-            bytes.decodeToString(8, 12) == "WEBP"
+        if (bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte())
+            return "image/jpeg"
+        if (
+            bytes.size >= 12 &&
+                bytes.decodeToString(0, 4) == "RIFF" &&
+                bytes.decodeToString(8, 12) == "WEBP"
         ) {
             return "image/webp"
         }
         if (bytes.size >= 6 && bytes.decodeToString(0, 3) == "GIF") return "image/gif"
         return when (path.fileName.toString().substringAfterLast('.', "").lowercase()) {
             "png" -> "image/png"
-            "jpg", "jpeg" -> "image/jpeg"
+            "jpg",
+            "jpeg" -> "image/jpeg"
             "gif" -> "image/gif"
             "webp" -> "image/webp"
             else -> null
@@ -250,10 +341,13 @@ internal object NativePdfDocument {
         body.lineSequence().forEach { line ->
             val data = line.removePrefix("data:").trim()
             if (data.isEmpty() || data == "[DONE]" || !data.startsWith("{")) return@forEach
-            val event = runCatching { JsonSupport.json.parseToJsonElement(data) as? JsonObject }.getOrNull() ?: return@forEach
+            val event =
+                runCatching { JsonSupport.json.parseToJsonElement(data) as? JsonObject }.getOrNull()
+                    ?: return@forEach
             val type = (event["type"] as? JsonPrimitive)?.contentOrNull
             when (type) {
-                "response.output_text.delta" -> text.append((event["delta"] as? JsonPrimitive)?.contentOrNull.orEmpty())
+                "response.output_text.delta" ->
+                    text.append((event["delta"] as? JsonPrimitive)?.contentOrNull.orEmpty())
                 "content_block_delta" -> {
                     val delta = event["delta"] as? JsonObject
                     text.append((delta?.get("text") as? JsonPrimitive)?.contentOrNull.orEmpty())
@@ -267,11 +361,14 @@ internal object NativePdfDocument {
     private fun responsesText(json: JsonObject): String? {
         val output = json["output"] as? JsonArray ?: return null
         val parts = output.mapNotNull { item ->
-            val content = (item as? JsonObject)?.get("content") as? JsonArray ?: return@mapNotNull null
-            content.mapNotNull { part ->
-                val obj = part as? JsonObject ?: return@mapNotNull null
-                (obj["text"] as? JsonPrimitive)?.contentOrNull
-            }.joinToString("")
+            val content =
+                (item as? JsonObject)?.get("content") as? JsonArray ?: return@mapNotNull null
+            content
+                .mapNotNull { part ->
+                    val obj = part as? JsonObject ?: return@mapNotNull null
+                    (obj["text"] as? JsonPrimitive)?.contentOrNull
+                }
+                .joinToString("")
         }
         return parts.joinToString("\n").takeIf { it.isNotBlank() }
     }
@@ -280,29 +377,37 @@ internal object NativePdfDocument {
         val error = json["error"] ?: return null
         return when (error) {
             is JsonPrimitive -> error.contentOrNull?.takeIf { it.isNotBlank() }
-            is JsonObject -> (error["message"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+            is JsonObject ->
+                (error["message"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
             else -> null
         }
     }
 
     private fun chatText(json: JsonObject): String? {
         val choices = json["choices"] as? JsonArray ?: return null
-        val message = (choices.firstOrNull() as? JsonObject)?.get("message") as? JsonObject ?: return null
+        val message =
+            (choices.firstOrNull() as? JsonObject)?.get("message") as? JsonObject ?: return null
         return when (val content = message["content"]) {
             is JsonPrimitive -> content.contentOrNull
-            is JsonArray -> content.mapNotNull { part ->
-                (part as? JsonObject)?.get("text") as? JsonPrimitive
-            }.mapNotNull { it.contentOrNull }.joinToString("").takeIf { it.isNotBlank() }
+            is JsonArray ->
+                content
+                    .mapNotNull { part -> (part as? JsonObject)?.get("text") as? JsonPrimitive }
+                    .mapNotNull { it.contentOrNull }
+                    .joinToString("")
+                    .takeIf { it.isNotBlank() }
             else -> null
         }
     }
 
     private fun anthropicText(json: JsonObject): String? {
         val content = json["content"] as? JsonArray ?: return null
-        return content.mapNotNull { part ->
-            val obj = part as? JsonObject ?: return@mapNotNull null
-            if ((obj["type"] as? JsonPrimitive)?.contentOrNull != "text") return@mapNotNull null
-            (obj["text"] as? JsonPrimitive)?.contentOrNull
-        }.joinToString("").takeIf { it.isNotBlank() }
+        return content
+            .mapNotNull { part ->
+                val obj = part as? JsonObject ?: return@mapNotNull null
+                if ((obj["type"] as? JsonPrimitive)?.contentOrNull != "text") return@mapNotNull null
+                (obj["text"] as? JsonPrimitive)?.contentOrNull
+            }
+            .joinToString("")
+            .takeIf { it.isNotBlank() }
     }
 }

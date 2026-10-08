@@ -1,16 +1,13 @@
 package de.moritzf.quota.idea.ui.popup
 
+import com.intellij.util.ui.JBUI
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.ui.indicator.clampPercent
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.opencode.OpenCodeUsageWindow
-import com.intellij.openapi.ui.VerticalFlowLayout
-import kotlin.math.roundToInt
-import com.intellij.ui.components.JBLabel
-import com.intellij.util.ui.JBUI
 import de.moritzf.quota.shared.ProviderQuota
-import javax.swing.JPanel
+import kotlin.math.roundToInt
 
 private const val OPENCODE_GO_LABEL = "OpenCode Go"
 private const val OPENCODE_ZEN_LABEL = "OpenCode Zen"
@@ -18,7 +15,10 @@ private const val OPENCODE_ZEN_LABEL = "OpenCode Zen"
 internal class OpenCodePopupSection : ProviderPopupSection() {
     private val separator = createSeparatedBlock()
     private val errorLabel = createWarningLabel("").apply { border = JBUI.Borders.emptyTop(1) }
-    private val titleLabel = createSectionTitleLabel(OPENCODE_GO_LABEL, QuotaIcons.OPENCODE).apply { border = JBUI.Borders.emptyTop(0) }
+    private val titleLabel =
+        createSectionTitleLabel(OPENCODE_GO_LABEL, QuotaIcons.OPENCODE).apply {
+            border = JBUI.Borders.emptyTop(0)
+        }
     private val balanceLabel = createMutedLabel("").apply { border = JBUI.Borders.emptyTop(2) }
     private val rollingBlock = WindowBlockPanel(3)
     private val weeklyBlock = WindowBlockPanel(5)
@@ -60,24 +60,32 @@ internal class OpenCodePopupSection : ProviderPopupSection() {
             }
             else -> {
                 val limitReached = isAnyLimitReached(quota)
-                val warnings = listOfNotNull("OpenCode limit reached".takeIf { limitReached }) + quota.warnings
+                val warnings =
+                    listOfNotNull("OpenCode limit reached".takeIf { limitReached }) + quota.warnings
                 errorLabel.isVisible = warnings.isNotEmpty()
                 errorLabel.text = warnings.joinToString("; ")
 
                 titleLabel.isVisible = true
-                titleLabel.text = sectionTitle(if (quota.hasUsageState()) OPENCODE_GO_LABEL else OPENCODE_ZEN_LABEL)
+                titleLabel.text =
+                    sectionTitle(
+                        if (quota.hasUsageState()) OPENCODE_GO_LABEL else OPENCODE_ZEN_LABEL
+                    )
                 val balanceText = quota.availableBalance?.let(QuotaUiUtil::formatOpenCodeBalance)
                 balanceLabel.isVisible = balanceText != null
                 if (balanceText != null) {
-                    balanceLabel.text = if (quota.hasUsageState()) {
-                        "Available balance: $$balanceText"
-                    } else {
-                        "Available credits: $$balanceText"
-                    }
+                    balanceLabel.text =
+                        if (quota.hasUsageState()) {
+                            "Available balance: $$balanceText"
+                        } else {
+                            "Available credits: $$balanceText"
+                        }
                 }
-                quota.rollingUsage?.let { rollingBlock.updateOpenCode(it, "5h rolling") } ?: rollingBlock.clear()
-                quota.weeklyUsage?.let { weeklyBlock.updateOpenCode(it, "Weekly") } ?: weeklyBlock.clear()
-                quota.monthlyUsage?.let { monthlyBlock.updateOpenCode(it, "Monthly") } ?: monthlyBlock.clear()
+                quota.rollingUsage?.let { rollingBlock.updateOpenCode(it, "5h rolling") }
+                    ?: rollingBlock.clear()
+                quota.weeklyUsage?.let { weeklyBlock.updateOpenCode(it, "Weekly") }
+                    ?: weeklyBlock.clear()
+                quota.monthlyUsage?.let { monthlyBlock.updateOpenCode(it, "Monthly") }
+                    ?: monthlyBlock.clear()
             }
         }
     }

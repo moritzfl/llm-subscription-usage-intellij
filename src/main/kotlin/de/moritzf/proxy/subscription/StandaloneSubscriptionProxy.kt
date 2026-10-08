@@ -1,11 +1,11 @@
 package de.moritzf.proxy.subscription
 
 import de.moritzf.proxy.util.ApiKeyUtils
-import de.moritzf.quota.github.GitHubDeviceTokenPollResult
-import de.moritzf.quota.github.GitHubOAuthClient
 import de.moritzf.quota.azure.AzureCli
 import de.moritzf.quota.azure.azureAccountConfig
 import de.moritzf.quota.azure.proxy.AzureSubscriptionProxyProvider
+import de.moritzf.quota.github.GitHubDeviceTokenPollResult
+import de.moritzf.quota.github.GitHubOAuthClient
 import de.moritzf.quota.github.proxy.GitHubCopilotSubscriptionProxyProvider
 import de.moritzf.quota.kimi.KimiCredentials
 import de.moritzf.quota.kimi.proxy.KimiSubscriptionProxyProvider
@@ -15,8 +15,8 @@ import de.moritzf.quota.mistral.proxy.MistralSubscriptionProxyProvider
 import de.moritzf.quota.ollama.proxy.OllamaSubscriptionProxyProvider
 import de.moritzf.quota.openai.proxy.OpenAiCodexSubscriptionProxyProvider
 import de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel
-import de.moritzf.quota.opencode.proxy.OpenCodeZenSubscriptionProxyProvider
 import de.moritzf.quota.opencode.proxy.OpenCodeConsoleSession
+import de.moritzf.quota.opencode.proxy.OpenCodeZenSubscriptionProxyProvider
 import de.moritzf.quota.supergrok.proxy.SuperGrokSubscriptionProxyProvider
 import de.moritzf.quota.zai.proxy.ZaiSubscriptionProxyProvider
 import java.awt.Desktop
@@ -35,7 +35,8 @@ fun main(args: Array<String>) {
         saveGitHubCredentialsToDotEnv(options.envFile, token, envLocalApiKey = options.localApiKey)
     }
     val env = StandaloneEnv.load(options.envFile)
-    val localApiKey = options.localApiKey ?: env.value("SUBSCRIPTION_PROXY_API_KEY") ?: DEFAULT_LOCAL_API_KEY
+    val localApiKey =
+        options.localApiKey ?: env.value("SUBSCRIPTION_PROXY_API_KEY") ?: DEFAULT_LOCAL_API_KEY
     val providers = createProviders(options.providers, env, options)
     val enabledProviders = providers.filter { it.isConfigured() }
     if (options.listModels) {
@@ -45,16 +46,17 @@ fun main(args: Array<String>) {
     require(enabledProviders.isNotEmpty()) {
         "No configured providers selected. Add tokens to ${options.envFile} or environment variables."
     }
-    val proxy = SubscriptionProxyServer(
-        port = options.port,
-        localApiKeyProvider = { localApiKey },
-        providers = { enabledProviders },
-        host = options.host,
-        allowAnyCors = options.allowAnyCors,
-        allowedCorsOrigins = options.corsOrigins,
-        fullRequestLogging = options.logRequests,
-        requestLogDir = options.requestLogDir,
-    )
+    val proxy =
+        SubscriptionProxyServer(
+            port = options.port,
+            localApiKeyProvider = { localApiKey },
+            providers = { enabledProviders },
+            host = options.host,
+            allowAnyCors = options.allowAnyCors,
+            allowedCorsOrigins = options.corsOrigins,
+            fullRequestLogging = options.logRequests,
+            requestLogDir = options.requestLogDir,
+        )
     Runtime.getRuntime().addShutdownHook(Thread { proxy.stop() })
     proxy.start()
     println("Subscription proxy listening at http://${options.host}:${options.port}")
@@ -67,7 +69,18 @@ internal data class StandaloneSubscriptionOptions(
     val host: String = "127.0.0.1",
     val port: Int = DEFAULT_PORT,
     val envFile: Path = DEFAULT_ENV_FILE,
-    val providers: Set<String> = setOf("openai", "supergrok", "github", "kimi", "minimax", "mistral", "ollama", "opencode", "zai"),
+    val providers: Set<String> =
+        setOf(
+            "openai",
+            "supergrok",
+            "github",
+            "kimi",
+            "minimax",
+            "mistral",
+            "ollama",
+            "opencode",
+            "zai",
+        ),
     val allowAnyCors: Boolean = false,
     val corsOrigins: List<String> = emptyList(),
     val logRequests: Boolean = false,
@@ -77,7 +90,9 @@ internal data class StandaloneSubscriptionOptions(
     val localApiKey: String? = null,
 )
 
-internal fun parseStandaloneSubscriptionOptions(args: Array<String>): StandaloneSubscriptionOptions {
+internal fun parseStandaloneSubscriptionOptions(
+    args: Array<String>
+): StandaloneSubscriptionOptions {
     var options = StandaloneSubscriptionOptions()
     var index = 0
     while (index < args.size) {
@@ -91,28 +106,45 @@ internal fun parseStandaloneSubscriptionOptions(args: Array<String>): Standalone
             arg == "--host" -> options = options.copy(host = requireValue())
             arg.startsWith("--host=") -> options = options.copy(host = arg.substringAfter('='))
             arg == "--port" -> options = options.copy(port = requireValue().toInt())
-            arg.startsWith("--port=") -> options = options.copy(port = arg.substringAfter('=').toInt())
+            arg.startsWith("--port=") ->
+                options = options.copy(port = arg.substringAfter('=').toInt())
             arg == "--env-file" -> options = options.copy(envFile = Path.of(requireValue()))
-            arg.startsWith("--env-file=") -> options = options.copy(envFile = Path.of(arg.substringAfter('=')))
-            arg == "--provider" -> options = options.copy(providers = parseProviders(requireValue()))
-            arg.startsWith("--provider=") -> options = options.copy(providers = parseProviders(arg.substringAfter('=')))
+            arg.startsWith("--env-file=") ->
+                options = options.copy(envFile = Path.of(arg.substringAfter('=')))
+            arg == "--provider" ->
+                options = options.copy(providers = parseProviders(requireValue()))
+            arg.startsWith("--provider=") ->
+                options = options.copy(providers = parseProviders(arg.substringAfter('=')))
             arg == "--allow-any-cors" -> options = options.copy(allowAnyCors = true)
             arg == "--cors-origin" || arg == "--cors-url" -> {
-                options = options.copy(corsOrigins = options.corsOrigins + parseCommaSeparatedList(requireValue()))
+                options =
+                    options.copy(
+                        corsOrigins = options.corsOrigins + parseCommaSeparatedList(requireValue())
+                    )
             }
             arg.startsWith("--cors-origin=") -> {
-                options = options.copy(corsOrigins = options.corsOrigins + parseCommaSeparatedList(arg.substringAfter('=')))
+                options =
+                    options.copy(
+                        corsOrigins =
+                            options.corsOrigins + parseCommaSeparatedList(arg.substringAfter('='))
+                    )
             }
             arg.startsWith("--cors-url=") -> {
-                options = options.copy(corsOrigins = options.corsOrigins + parseCommaSeparatedList(arg.substringAfter('=')))
+                options =
+                    options.copy(
+                        corsOrigins =
+                            options.corsOrigins + parseCommaSeparatedList(arg.substringAfter('='))
+                    )
             }
             arg == "--log-requests" -> options = options.copy(logRequests = true)
             arg == "--request-log-dir" -> options = options.copy(requestLogDir = requireValue())
-            arg.startsWith("--request-log-dir=") -> options = options.copy(requestLogDir = arg.substringAfter('='))
+            arg.startsWith("--request-log-dir=") ->
+                options = options.copy(requestLogDir = arg.substringAfter('='))
             arg == "--list-models" -> options = options.copy(listModels = true)
             arg == "--login" -> options = options.copy(login = true)
             arg == "--local-api-key" -> options = options.copy(localApiKey = requireValue())
-            arg.startsWith("--local-api-key=") -> options = options.copy(localApiKey = arg.substringAfter('='))
+            arg.startsWith("--local-api-key=") ->
+                options = options.copy(localApiKey = arg.substringAfter('='))
             else -> error("Unknown argument: $arg")
         }
         index += 1
@@ -133,7 +165,8 @@ private fun loginGitHubCopilot(): String {
     println("If the browser did not open, visit: ${authorization.verificationUri}")
     println("Enter code: ${authorization.userCode} (copied to clipboard)")
 
-    val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(authorization.expiresInSeconds.toLong())
+    val deadline =
+        System.nanoTime() + TimeUnit.SECONDS.toNanos(authorization.expiresInSeconds.toLong())
     var intervalSeconds = authorization.intervalSeconds.coerceAtLeast(1)
     while (System.nanoTime() < deadline) {
         Thread.sleep(TimeUnit.SECONDS.toMillis(intervalSeconds.toLong()))
@@ -144,11 +177,12 @@ private fun loginGitHubCopilot(): String {
             }
 
             is GitHubDeviceTokenPollResult.Pending -> {
-                intervalSeconds = when {
-                    result.nextIntervalSeconds > 0 -> result.nextIntervalSeconds
-                    result.slowDown -> intervalSeconds + 5
-                    else -> intervalSeconds
-                }
+                intervalSeconds =
+                    when {
+                        result.nextIntervalSeconds > 0 -> result.nextIntervalSeconds
+                        result.slowDown -> intervalSeconds + 5
+                        else -> intervalSeconds
+                    }
             }
         }
     }
@@ -176,100 +210,145 @@ private fun createProviders(
 ): List<SubscriptionProxyProvider> {
     val providers = mutableListOf<SubscriptionProxyProvider>()
     if ("openai" in selected) {
-        providers += OpenAiCodexSubscriptionProxyProvider(
-            accessTokenProvider = { env.value("OPENAI_PROXY_ACCESS_TOKEN") },
-            accountIdProvider = { env.value("OPENAI_PROXY_ACCOUNT_ID") },
-            fullRequestLogging = options.logRequests,
-            requestLogDir = options.requestLogDir,
-        )
+        providers +=
+            OpenAiCodexSubscriptionProxyProvider(
+                accessTokenProvider = { env.value("OPENAI_PROXY_ACCESS_TOKEN") },
+                accountIdProvider = { env.value("OPENAI_PROXY_ACCOUNT_ID") },
+                fullRequestLogging = options.logRequests,
+                requestLogDir = options.requestLogDir,
+            )
     }
     if ("supergrok" in selected || "grok" in selected || "xai" in selected) {
-        providers += SuperGrokSubscriptionProxyProvider(
-            accessTokenProvider = {
-                env.value("SUPERGROK_PROXY_ACCESS_TOKEN") ?: env.value("SUPERGROK_ACCESS_TOKEN")
-            },
-            fullRequestLogging = options.logRequests,
-            requestLogDir = options.requestLogDir,
-        )
+        providers +=
+            SuperGrokSubscriptionProxyProvider(
+                accessTokenProvider = {
+                    env.value("SUPERGROK_PROXY_ACCESS_TOKEN") ?: env.value("SUPERGROK_ACCESS_TOKEN")
+                },
+                fullRequestLogging = options.logRequests,
+                requestLogDir = options.requestLogDir,
+            )
     }
     if ("github" in selected || "copilot" in selected) {
-        providers += GitHubCopilotSubscriptionProxyProvider(
-            accessTokenProvider = { env.value("GITHUB_COPILOT_PROXY_ACCESS_TOKEN") },
-            fullRequestLogging = options.logRequests,
-            requestLogDir = options.requestLogDir,
-        )
+        providers +=
+            GitHubCopilotSubscriptionProxyProvider(
+                accessTokenProvider = { env.value("GITHUB_COPILOT_PROXY_ACCESS_TOKEN") },
+                fullRequestLogging = options.logRequests,
+                requestLogDir = options.requestLogDir,
+            )
     }
     if ("kimi" in selected) {
-        providers += KimiSubscriptionProxyProvider(
-            credentialsProvider = {
-                val accessToken = env.value("KIMI_PROXY_ACCESS_TOKEN") ?: env.value("KIMI_ACCESS_TOKEN")
-                val refreshToken = env.value("KIMI_PROXY_REFRESH_TOKEN") ?: env.value("KIMI_REFRESH_TOKEN")
-                if (accessToken.isNullOrBlank() && refreshToken.isNullOrBlank()) null else KimiCredentials(
-                    accessToken = accessToken.orEmpty(),
-                    refreshToken = refreshToken.orEmpty(),
-                )
-            },
-            fullRequestLogging = options.logRequests,
-            requestLogDir = options.requestLogDir,
-        )
+        providers +=
+            KimiSubscriptionProxyProvider(
+                credentialsProvider = {
+                    val accessToken =
+                        env.value("KIMI_PROXY_ACCESS_TOKEN") ?: env.value("KIMI_ACCESS_TOKEN")
+                    val refreshToken =
+                        env.value("KIMI_PROXY_REFRESH_TOKEN") ?: env.value("KIMI_REFRESH_TOKEN")
+                    if (accessToken.isNullOrBlank() && refreshToken.isNullOrBlank()) null
+                    else
+                        KimiCredentials(
+                            accessToken = accessToken.orEmpty(),
+                            refreshToken = refreshToken.orEmpty(),
+                        )
+                },
+                fullRequestLogging = options.logRequests,
+                requestLogDir = options.requestLogDir,
+            )
     }
     if ("minimax" in selected) {
-        providers += MiniMaxSubscriptionProxyProvider(
-            apiKeyProvider = { env.value("MINIMAX_PROXY_API_KEY") ?: env.value("MINIMAX_API_KEY") },
-            regionProvider = { miniMaxRegion(env.value("MINIMAX_PROXY_REGION") ?: env.value("MINIMAX_REGION")) },
-            fullRequestLogging = options.logRequests,
-            requestLogDir = options.requestLogDir,
-        )
+        providers +=
+            MiniMaxSubscriptionProxyProvider(
+                apiKeyProvider = {
+                    env.value("MINIMAX_PROXY_API_KEY") ?: env.value("MINIMAX_API_KEY")
+                },
+                regionProvider = {
+                    miniMaxRegion(env.value("MINIMAX_PROXY_REGION") ?: env.value("MINIMAX_REGION"))
+                },
+                fullRequestLogging = options.logRequests,
+                requestLogDir = options.requestLogDir,
+            )
     }
     if ("mistral" in selected) {
-        providers += MistralSubscriptionProxyProvider(
-            apiKeyProvider = { env.value("MISTRAL_PROXY_API_KEY") ?: env.value("MISTRAL_API_KEY") },
-            fullRequestLogging = options.logRequests,
-            requestLogDir = options.requestLogDir,
-        )
+        providers +=
+            MistralSubscriptionProxyProvider(
+                apiKeyProvider = {
+                    env.value("MISTRAL_PROXY_API_KEY") ?: env.value("MISTRAL_API_KEY")
+                },
+                fullRequestLogging = options.logRequests,
+                requestLogDir = options.requestLogDir,
+            )
     }
     if ("ollama" in selected) {
-        providers += OllamaSubscriptionProxyProvider(
-            apiKeyProvider = { env.value("OLLAMA_PROXY_API_KEY") ?: env.value("OLLAMA_API_KEY") },
-            fullRequestLogging = options.logRequests,
-            requestLogDir = options.requestLogDir,
-        )
+        providers +=
+            OllamaSubscriptionProxyProvider(
+                apiKeyProvider = {
+                    env.value("OLLAMA_PROXY_API_KEY") ?: env.value("OLLAMA_API_KEY")
+                },
+                fullRequestLogging = options.logRequests,
+                requestLogDir = options.requestLogDir,
+            )
     }
     if ("opencode" in selected || "opencode-zen" in selected || "zen" in selected) {
-        providers += OpenCodeZenSubscriptionProxyProvider(
-            consoleSessionProvider = {
-                env.value("OPENCODE_PROXY_ACCESS_TOKEN")?.let { token ->
-                    OpenCodeConsoleSession("opencode", token, env.value("OPENCODE_PROXY_ORG_ID")) { null }
-                }
-            },
-            fullRequestLogging = options.logRequests,
-            requestLogDir = options.requestLogDir,
-            pools = { OpenCodeConsoleModel.fetchPools() },
-        )
+        providers +=
+            OpenCodeZenSubscriptionProxyProvider(
+                consoleSessionProvider = {
+                    env.value("OPENCODE_PROXY_ACCESS_TOKEN")?.let { token ->
+                        OpenCodeConsoleSession(
+                            "opencode",
+                            token,
+                            env.value("OPENCODE_PROXY_ORG_ID"),
+                        ) {
+                            null
+                        }
+                    }
+                },
+                fullRequestLogging = options.logRequests,
+                requestLogDir = options.requestLogDir,
+                pools = { OpenCodeConsoleModel.fetchPools() },
+            )
     }
     if ("azure" in selected) {
-        providers += AzureSubscriptionProxyProvider(
-            configProvider = {
-                val executable = AzureCli.findExecutable(env.value("AZURE_PROXY_EXECUTABLE") ?: env.value("AZURE_CLI"))
-                val account = azureAccountConfig(
-                    subscriptionId = env.value("AZURE_PROXY_SUBSCRIPTION_ID") ?: env.value("AZURE_SUBSCRIPTION_ID"),
-                    resourceName = env.value("AZURE_PROXY_RESOURCE_NAME") ?: env.value("AZURE_RESOURCE_NAME"),
-                    endpoint = env.value("AZURE_PROXY_ENDPOINT") ?: env.value("AZURE_OPENAI_ENDPOINT"),
-                    location = env.value("AZURE_PROXY_LOCATION"),
-                    deploymentNames = env.value("AZURE_PROXY_DEPLOYMENTS"),
-                )
-                AzureSubscriptionProxyProvider.AzureProxyConfig(executable = executable, account = account)
-            },
-            fullRequestLogging = options.logRequests,
-            requestLogDir = options.requestLogDir,
-        )
+        providers +=
+            AzureSubscriptionProxyProvider(
+                configProvider = {
+                    val executable =
+                        AzureCli.findExecutable(
+                            env.value("AZURE_PROXY_EXECUTABLE") ?: env.value("AZURE_CLI")
+                        )
+                    val account =
+                        azureAccountConfig(
+                            subscriptionId =
+                                env.value("AZURE_PROXY_SUBSCRIPTION_ID")
+                                    ?: env.value("AZURE_SUBSCRIPTION_ID"),
+                            resourceName =
+                                env.value("AZURE_PROXY_RESOURCE_NAME")
+                                    ?: env.value("AZURE_RESOURCE_NAME"),
+                            endpoint =
+                                env.value("AZURE_PROXY_ENDPOINT")
+                                    ?: env.value("AZURE_OPENAI_ENDPOINT"),
+                            location = env.value("AZURE_PROXY_LOCATION"),
+                            deploymentNames = env.value("AZURE_PROXY_DEPLOYMENTS"),
+                        )
+                    AzureSubscriptionProxyProvider.AzureProxyConfig(
+                        executable = executable,
+                        account = account,
+                    )
+                },
+                fullRequestLogging = options.logRequests,
+                requestLogDir = options.requestLogDir,
+            )
     }
     if ("zai" in selected || "z.ai" in selected || "zhipu" in selected) {
-        providers += ZaiSubscriptionProxyProvider(
-            apiKeyProvider = { env.value("ZAI_PROXY_API_KEY") ?: env.value("ZAI_API_KEY") ?: env.value("ZHIPU_API_KEY") },
-            fullRequestLogging = options.logRequests,
-            requestLogDir = options.requestLogDir,
-        )
+        providers +=
+            ZaiSubscriptionProxyProvider(
+                apiKeyProvider = {
+                    env.value("ZAI_PROXY_API_KEY")
+                        ?: env.value("ZAI_API_KEY")
+                        ?: env.value("ZHIPU_API_KEY")
+                },
+                fullRequestLogging = options.logRequests,
+                requestLogDir = options.requestLogDir,
+            )
     }
     return providers
 }
@@ -289,19 +368,26 @@ private fun printModels(providers: List<SubscriptionProxyProvider>) {
     }
 }
 
-private fun saveGitHubCredentialsToDotEnv(path: Path, accessToken: String, envLocalApiKey: String?) {
+private fun saveGitHubCredentialsToDotEnv(
+    path: Path,
+    accessToken: String,
+    envLocalApiKey: String?,
+) {
     val existing = loadDotEnvValues(path).toMutableMap()
     existing["GITHUB_COPILOT_PROXY_ACCESS_TOKEN"] = accessToken
-    val generatedKey = envLocalApiKey == null && existing["SUBSCRIPTION_PROXY_API_KEY"].isNullOrBlank()
-    val localApiKey = envLocalApiKey
-        ?: existing["SUBSCRIPTION_PROXY_API_KEY"]
-        ?: ApiKeyUtils.generateNewKey()
+    val generatedKey =
+        envLocalApiKey == null && existing["SUBSCRIPTION_PROXY_API_KEY"].isNullOrBlank()
+    val localApiKey =
+        envLocalApiKey ?: existing["SUBSCRIPTION_PROXY_API_KEY"] ?: ApiKeyUtils.generateNewKey()
     existing["SUBSCRIPTION_PROXY_API_KEY"] = localApiKey
     existing.putIfAbsent("SUBSCRIPTION_PROXY_PORT", DEFAULT_PORT.toString())
     restrictToOwner(path)
-    Files.writeString(path, existing.entries.joinToString("\n", postfix = "\n") { (key, value) ->
-        "$key=${value.toDotEnvValue()}"
-    })
+    Files.writeString(
+        path,
+        existing.entries.joinToString("\n", postfix = "\n") { (key, value) ->
+            "$key=${value.toDotEnvValue()}"
+        },
+    )
     println("Saved GitHub Copilot proxy credentials to ${path.toAbsolutePath().normalize()}")
     if (generatedKey) {
         println("Generated SUBSCRIPTION_PROXY_API_KEY=$localApiKey")
@@ -313,24 +399,22 @@ private fun parseProviders(value: String): Set<String> {
 }
 
 private fun parseCommaSeparatedList(value: String?): List<String> {
-    return value
-        ?.split(',')
-        ?.map { it.trim() }
-        ?.filter { it.isNotEmpty() }
-        .orEmpty()
+    return value?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
 }
 
 private fun loadDotEnvValues(path: Path): Map<String, String> {
     if (!Files.exists(path)) return emptyMap()
-    return Files.readAllLines(path).mapNotNull { line ->
-        val trimmed = line.trim()
-        if (trimmed.isEmpty() || trimmed.startsWith('#')) return@mapNotNull null
-        val index = trimmed.indexOf('=')
-        if (index <= 0) return@mapNotNull null
-        val key = trimmed.substring(0, index).trim()
-        val value = trimmed.substring(index + 1).trim().unquoteDotEnvValue()
-        key.takeIf { it.isNotBlank() }?.let { it to value }
-    }.toMap()
+    return Files.readAllLines(path)
+        .mapNotNull { line ->
+            val trimmed = line.trim()
+            if (trimmed.isEmpty() || trimmed.startsWith('#')) return@mapNotNull null
+            val index = trimmed.indexOf('=')
+            if (index <= 0) return@mapNotNull null
+            val key = trimmed.substring(0, index).trim()
+            val value = trimmed.substring(index + 1).trim().unquoteDotEnvValue()
+            key.takeIf { it.isNotBlank() }?.let { it to value }
+        }
+        .toMap()
 }
 
 private fun restrictToOwner(path: Path) {
@@ -338,7 +422,9 @@ private fun restrictToOwner(path: Path) {
         if (!Files.exists(path)) {
             Files.createFile(path)
         }
-        if (java.nio.file.FileSystems.getDefault().supportedFileAttributeViews().contains("posix")) {
+        if (
+            java.nio.file.FileSystems.getDefault().supportedFileAttributeViews().contains("posix")
+        ) {
             Files.setPosixFilePermissions(
                 path,
                 setOf(
@@ -365,7 +451,8 @@ private fun String.unquoteDotEnvValue(): String {
     return this
 }
 
-internal class StandaloneEnv private constructor(
+internal class StandaloneEnv
+private constructor(
     private val fileValues: Map<String, String>,
     private val processValues: Map<String, String>,
 ) {
@@ -381,19 +468,24 @@ internal class StandaloneEnv private constructor(
 
         private fun loadDotEnv(path: Path): Map<String, String> {
             if (!Files.exists(path)) return emptyMap()
-            return Files.readAllLines(path).mapNotNull { line ->
-                val trimmed = line.trim()
-                if (trimmed.isEmpty() || trimmed.startsWith('#')) return@mapNotNull null
-                val index = trimmed.indexOf('=')
-                if (index <= 0) return@mapNotNull null
-                val key = trimmed.substring(0, index).trim()
-                val value = trimmed.substring(index + 1).trim().unquoteDotEnvValue()
-                key.takeIf { it.isNotBlank() }?.let { it to value }
-            }.toMap()
+            return Files.readAllLines(path)
+                .mapNotNull { line ->
+                    val trimmed = line.trim()
+                    if (trimmed.isEmpty() || trimmed.startsWith('#')) return@mapNotNull null
+                    val index = trimmed.indexOf('=')
+                    if (index <= 0) return@mapNotNull null
+                    val key = trimmed.substring(0, index).trim()
+                    val value = trimmed.substring(index + 1).trim().unquoteDotEnvValue()
+                    key.takeIf { it.isNotBlank() }?.let { it to value }
+                }
+                .toMap()
         }
 
         private fun String.unquoteDotEnvValue(): String {
-            if (length >= 2 && ((first() == '"' && last() == '"') || (first() == '\'' && last() == '\''))) {
+            if (
+                length >= 2 &&
+                    ((first() == '"' && last() == '"') || (first() == '\'' && last() == '\''))
+            ) {
                 return substring(1, length - 1)
             }
             return this

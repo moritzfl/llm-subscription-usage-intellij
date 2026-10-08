@@ -1,27 +1,27 @@
 package de.moritzf.quota.idea.settings
 
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.components.PersistentStateComponent
+import com.intellij.openapi.components.Service
+import com.intellij.openapi.components.State
+import com.intellij.openapi.components.Storage
+import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.quota.idea.common.ProviderCatalog
 import de.moritzf.quota.idea.common.QuotaProviderRegistry
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaSnapshotCache
 import de.moritzf.quota.idea.mcp.McpServerSyncTarget
 import de.moritzf.quota.idea.mcp.McpServerTransport
-import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.quota.idea.openai.OpenAiProxyService
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorLocation
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorSource
 import de.moritzf.quota.minimax.MiniMaxRegionPreference
-import com.intellij.openapi.components.PersistentStateComponent
-import com.intellij.openapi.components.Service
-import com.intellij.openapi.components.State
-import com.intellij.openapi.components.Storage
 
 /**
  * Persistent plugin settings shared at application scope.
  *
- * Per-account values (cache, timestamps) are stored in maps keyed by
- * [ProviderAccount.id]. [QuotaProviderType.id] remains the catalog / MCP type.
+ * Per-account values (cache, timestamps) are stored in maps keyed by [ProviderAccount.id].
+ * [QuotaProviderType.id] remains the catalog / MCP type.
  */
 @State(name = "OpenAiUsageQuotaSettings", storages = [Storage("openai-usage-quota.xml")])
 @Service(Service.Level.APP)
@@ -46,10 +46,12 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var proxyCompletionsModelId: String = ""
     var proxyCompletionsUseChatAdapter: Boolean = true
     var proxyCompletionsMaxOutputTokens: Int = CompletionsConfig.DEFAULT_MAX_OUTPUT_TOKENS
-    var proxyCompletionsMaxRequestsPerMinute: Int = CompletionsConfig.DEFAULT_MAX_REQUESTS_PER_MINUTE
+    var proxyCompletionsMaxRequestsPerMinute: Int =
+        CompletionsConfig.DEFAULT_MAX_REQUESTS_PER_MINUTE
     var proxyCompletionsTimeoutSeconds: Int = CompletionsConfig.DEFAULT_TIMEOUT_SECONDS
     var proxyCompletionsPriorityTier: Boolean = false
-    var subscriptionProxyEnabledProviders: MutableList<String> = DEFAULT_SUBSCRIPTION_PROXY_PROVIDERS.toMutableList()
+    var subscriptionProxyEnabledProviders: MutableList<String> =
+        DEFAULT_SUBSCRIPTION_PROXY_PROVIDERS.toMutableList()
     var subscriptionProxyModelCatalogJsons: MutableMap<String, String> = mutableMapOf()
     var githubEnterpriseHost: String = ""
     var accounts: MutableList<ProviderAccount> = mutableListOf()
@@ -70,26 +72,38 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         cachedQuotaJsons = state.cachedQuotaJsons.toMutableMap()
         lastActiveSource = state.lastActiveSource
         openCodeWorkspaceId = state.openCodeWorkspaceId
-        minimaxRegionPreference = MiniMaxRegionPreference.fromStorageValue(state.minimaxRegionPreference).name
+        minimaxRegionPreference =
+            MiniMaxRegionPreference.fromStorageValue(state.minimaxRegionPreference).name
         providerOrder = state.providerOrder.ifBlank { DEFAULT_PROVIDER_ORDER }
         syncIntellijMcpServerUrl = state.syncIntellijMcpServerUrl
-        mcpServerSyncTargets = state.mcpServerSyncTargets.map { target ->
-            target.copy(
-                transportType = McpServerTransport.fromStorageValue(target.transportType).name,
-            )
-        }.toMutableList()
+        mcpServerSyncTargets =
+            state.mcpServerSyncTargets
+                .map { target ->
+                    target.copy(
+                        transportType =
+                            McpServerTransport.fromStorageValue(target.transportType).name
+                    )
+                }
+                .toMutableList()
         openAiProxyEnabled = state.openAiProxyEnabled
-        openAiProxyPort = OpenAiProxyService.sanitizePort(state.openAiProxyPort.takeIf { it > 0 } ?: OpenAiProxyService.DEFAULT_PORT)
+        openAiProxyPort =
+            OpenAiProxyService.sanitizePort(
+                state.openAiProxyPort.takeIf { it > 0 } ?: OpenAiProxyService.DEFAULT_PORT
+            )
         openAiProxyLogRequests = state.openAiProxyLogRequests
         proxyCompletionsEnabled = state.proxyCompletionsEnabled
         proxyCompletionsModelId = state.proxyCompletionsModelId.trim()
         proxyCompletionsUseChatAdapter = state.proxyCompletionsUseChatAdapter
-        proxyCompletionsMaxOutputTokens = CompletionsConfig.clampMaxOutputTokens(state.proxyCompletionsMaxOutputTokens)
+        proxyCompletionsMaxOutputTokens =
+            CompletionsConfig.clampMaxOutputTokens(state.proxyCompletionsMaxOutputTokens)
         proxyCompletionsMaxRequestsPerMinute =
             CompletionsConfig.clampMaxRequestsPerMinute(state.proxyCompletionsMaxRequestsPerMinute)
-        proxyCompletionsTimeoutSeconds = CompletionsConfig.clampTimeoutSeconds(state.proxyCompletionsTimeoutSeconds)
+        proxyCompletionsTimeoutSeconds =
+            CompletionsConfig.clampTimeoutSeconds(state.proxyCompletionsTimeoutSeconds)
         proxyCompletionsPriorityTier = state.proxyCompletionsPriorityTier
-        subscriptionProxyEnabledProviders = sanitizeSubscriptionProxyProviders(state.subscriptionProxyEnabledProviders).toMutableList()
+        subscriptionProxyEnabledProviders =
+            sanitizeSubscriptionProxyProviders(state.subscriptionProxyEnabledProviders)
+                .toMutableList()
         subscriptionProxyModelCatalogJsons = state.subscriptionProxyModelCatalogJsons.toMutableMap()
         githubEnterpriseHost = state.githubEnterpriseHost.trim()
         accounts = sanitizeAccounts(state.accounts).toMutableList()
@@ -108,7 +122,8 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         statusBarDisplayMode = displayMode.name
     }
 
-    fun location(): QuotaIndicatorLocation = QuotaIndicatorLocation.fromStorageValue(indicatorLocation)
+    fun location(): QuotaIndicatorLocation =
+        QuotaIndicatorLocation.fromStorageValue(indicatorLocation)
 
     fun setLocation(location: QuotaIndicatorLocation) {
         indicatorLocation = location.name
@@ -151,9 +166,9 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     }
 
     fun miniMaxRegionFor(accountId: String): MiniMaxRegionPreference =
-        account(accountId)?.extra(ProviderAccount.EXTRA_MINIMAX_REGION)
-            ?.let(MiniMaxRegionPreference::fromStorageValue)
-            ?: miniMaxRegionPreference()
+        account(accountId)
+            ?.extra(ProviderAccount.EXTRA_MINIMAX_REGION)
+            ?.let(MiniMaxRegionPreference::fromStorageValue) ?: miniMaxRegionPreference()
 
     fun setMiniMaxRegionFor(accountId: String, value: MiniMaxRegionPreference) {
         account(accountId)?.setExtra(ProviderAccount.EXTRA_MINIMAX_REGION, value.name)
@@ -173,7 +188,8 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         }
     }
 
-    fun isHiddenFromPopup(provider: QuotaProviderType): Boolean = provider.id in hiddenFromQuotaPopup
+    fun isHiddenFromPopup(provider: QuotaProviderType): Boolean =
+        provider.id in hiddenFromQuotaPopup
 
     fun cachedQuotaJson(provider: QuotaProviderType): String? = cachedQuotaJson(provider.id)
 
@@ -215,10 +231,13 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     }
 
     fun syncLegacyAccountFields() {
-        githubEnterpriseHost = account(QuotaProviderType.GITHUB.id)?.extra(ProviderAccount.EXTRA_GITHUB_HOST).orEmpty()
-        minimaxRegionPreference = account(QuotaProviderType.MINIMAX.id)?.extra(ProviderAccount.EXTRA_MINIMAX_REGION)
-            ?: MiniMaxRegionPreference.AUTO.name
-        openCodeWorkspaceId = account(QuotaProviderType.OPEN_CODE.id)?.extra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE)
+        githubEnterpriseHost =
+            account(QuotaProviderType.GITHUB.id)?.extra(ProviderAccount.EXTRA_GITHUB_HOST).orEmpty()
+        minimaxRegionPreference =
+            account(QuotaProviderType.MINIMAX.id)?.extra(ProviderAccount.EXTRA_MINIMAX_REGION)
+                ?: MiniMaxRegionPreference.AUTO.name
+        openCodeWorkspaceId =
+            account(QuotaProviderType.OPEN_CODE.id)?.extra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE)
     }
 
     fun isSubscriptionProxyProviderEnabled(provider: QuotaProviderType): Boolean {
@@ -228,11 +247,13 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     fun setSubscriptionProxyProviderEnabled(provider: QuotaProviderType, enabled: Boolean) {
         if (provider !in SUBSCRIPTION_PROXY_SUPPORTED_PROVIDERS) return
         if (enabled) {
-            if (provider.id !in subscriptionProxyEnabledProviders) subscriptionProxyEnabledProviders.add(provider.id)
+            if (provider.id !in subscriptionProxyEnabledProviders)
+                subscriptionProxyEnabledProviders.add(provider.id)
         } else {
             subscriptionProxyEnabledProviders.remove(provider.id)
         }
-        subscriptionProxyEnabledProviders = sanitizeSubscriptionProxyProviders(subscriptionProxyEnabledProviders).toMutableList()
+        subscriptionProxyEnabledProviders =
+            sanitizeSubscriptionProxyProviders(subscriptionProxyEnabledProviders).toMutableList()
     }
 
     fun completionsConfig(): CompletionsConfig {
@@ -240,8 +261,10 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
             enabled = openAiProxyEnabled && proxyCompletionsEnabled,
             modelLocalId = proxyCompletionsModelId.trim(),
             useChatAdapter = proxyCompletionsUseChatAdapter,
-            maxOutputTokens = CompletionsConfig.clampMaxOutputTokens(proxyCompletionsMaxOutputTokens),
-            maxRequestsPerMinute = CompletionsConfig.clampMaxRequestsPerMinute(proxyCompletionsMaxRequestsPerMinute),
+            maxOutputTokens =
+                CompletionsConfig.clampMaxOutputTokens(proxyCompletionsMaxOutputTokens),
+            maxRequestsPerMinute =
+                CompletionsConfig.clampMaxRequestsPerMinute(proxyCompletionsMaxRequestsPerMinute),
             timeoutMillis = CompletionsConfig.timeoutMillis(proxyCompletionsTimeoutSeconds),
             priorityTier = proxyCompletionsPriorityTier,
         )
@@ -253,7 +276,8 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
             .toSet()
     }
 
-    fun subscriptionProxyModelCatalogJson(providerId: String): String? = subscriptionProxyModelCatalogJsons[providerId]
+    fun subscriptionProxyModelCatalogJson(providerId: String): String? =
+        subscriptionProxyModelCatalogJsons[providerId]
 
     fun setSubscriptionProxyModelCatalogJson(providerId: String, json: String?) {
         if (json.isNullOrBlank()) {
@@ -265,7 +289,9 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
 
     fun account(id: String): ProviderAccount? = accounts.firstOrNull { it.id == id }
 
-    fun accountsOf(type: QuotaProviderType): List<ProviderAccount> = accounts.filter { it.typeId == type.id }
+    fun accountsOf(type: QuotaProviderType): List<ProviderAccount> = accounts.filter {
+        it.typeId == type.id
+    }
 
     fun defaultAccount(type: QuotaProviderType): ProviderAccount? =
         accountsOf(type).firstOrNull { it.isDefault } ?: accountsOf(type).firstOrNull()
@@ -279,7 +305,8 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
 
     fun accountListLabel(account: ProviderAccount): String {
         val type = account.providerType() ?: return account.name
-        return if (accountTypeHasDuplicates(type)) "${type.displayName} (${account.name})" else type.displayName
+        return if (accountTypeHasDuplicates(type)) "${type.displayName} (${account.name})"
+        else type.displayName
     }
 
     fun suggestedAccountName(type: QuotaProviderType): String =
@@ -308,10 +335,17 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     fun hasDuplicateAccountNames(): Boolean = accounts.any(::duplicateAccountName)
 
     fun addAccount(type: QuotaProviderType): ProviderAccount {
-        require(ProviderCatalog.get(type).capabilities.multipleAccounts || accountsOf(type).isEmpty()) {
+        require(
+            ProviderCatalog.get(type).capabilities.multipleAccounts || accountsOf(type).isEmpty()
+        ) {
             "${type.displayName} supports only one account."
         }
-        val created = ProviderAccount.create(type, suggestedAccountName(type), isFirstOfType = accountsOf(type).isEmpty())
+        val created =
+            ProviderAccount.create(
+                type,
+                suggestedAccountName(type),
+                isFirstOfType = accountsOf(type).isEmpty(),
+            )
         accounts.add(created)
         return created
     }
@@ -354,23 +388,29 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
             val latestAt = ranked.maxOfOrNull { it.second } ?: 0L
             if (latestAt <= 0L) return QuotaIndicatorSource.OPEN_AI
             val order = QuotaProviderRegistry.defaultProviderOrder()
-            val latest = order.firstOrNull { type -> ranked.any { it.first == type && it.second == latestAt } }
-                ?: ranked.first { it.second == latestAt }.first
+            val latest =
+                order.firstOrNull { type ->
+                    ranked.any { it.first == type && it.second == latestAt }
+                } ?: ranked.first { it.second == latestAt }.first
             return QuotaIndicatorSource.forProvider(latest)
         }
-        val updates = QuotaProviderRegistry.all.associate { registration ->
-            val provider = registration.type
-            provider to timestampFor(provider.id, provider)
-        }
+        val updates =
+            QuotaProviderRegistry.all.associate { registration ->
+                val provider = registration.type
+                provider to timestampFor(provider.id, provider)
+            }
         if (updates.values.max() == 0L) return QuotaIndicatorSource.OPEN_AI
-        val latest = QuotaProviderRegistry.defaultProviderOrder().maxByOrNull { updates.getValue(it) }
-            ?: return QuotaIndicatorSource.OPEN_AI
+        val latest =
+            QuotaProviderRegistry.defaultProviderOrder().maxByOrNull { updates.getValue(it) }
+                ?: return QuotaIndicatorSource.OPEN_AI
         return QuotaIndicatorSource.forProvider(latest)
     }
 
     private fun timestampFor(accountId: String, type: QuotaProviderType): Long {
         return lastUpdate(accountId).takeIf { it > 0 }
-            ?: QuotaSnapshotCache.decode(type, cachedQuotaJson(accountId))?.fetchedAt?.toEpochMilliseconds()
+            ?: QuotaSnapshotCache.decode(type, cachedQuotaJson(accountId))
+                ?.fetchedAt
+                ?.toEpochMilliseconds()
             ?: 0L
     }
 
@@ -386,18 +426,24 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
 
         fun sanitizeAccounts(raw: List<ProviderAccount>?): List<ProviderAccount> {
             val singleAccountTypes = mutableSetOf<String>()
-            val copied = raw.orEmpty().map { account ->
-                account.copy(
-                    id = account.id.trim(),
-                    typeId = account.typeId.trim(),
-                    name = account.name.trim(),
-                    extras = account.extras.toMutableMap(),
-                )
-            }.filter { it.id.isNotEmpty() && it.typeId.isNotEmpty() }
-                .filter { account ->
-                    val multiple = account.providerType()?.let { ProviderCatalog.get(it).capabilities.multipleAccounts } ?: true
-                    multiple || singleAccountTypes.add(account.typeId)
-                }
+            val copied =
+                raw.orEmpty()
+                    .map { account ->
+                        account.copy(
+                            id = account.id.trim(),
+                            typeId = account.typeId.trim(),
+                            name = account.name.trim(),
+                            extras = account.extras.toMutableMap(),
+                        )
+                    }
+                    .filter { it.id.isNotEmpty() && it.typeId.isNotEmpty() }
+                    .filter { account ->
+                        val multiple =
+                            account.providerType()?.let {
+                                ProviderCatalog.get(it).capabilities.multipleAccounts
+                            } ?: true
+                        multiple || singleAccountTypes.add(account.typeId)
+                    }
             val byType = copied.groupBy { it.typeId }
             return copied.map { account ->
                 val siblings = byType[account.typeId].orEmpty()
@@ -412,10 +458,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
 
         fun sanitizeSubscriptionProxyProviders(ids: List<String>?): List<String> {
             val supportedIds = SUBSCRIPTION_PROXY_SUPPORTED_PROVIDERS.map { it.id }
-            return ids.orEmpty()
-                .map { it.trim() }
-                .filter { it in supportedIds }
-                .distinct()
+            return ids.orEmpty().map { it.trim() }.filter { it in supportedIds }.distinct()
         }
 
         @JvmStatic

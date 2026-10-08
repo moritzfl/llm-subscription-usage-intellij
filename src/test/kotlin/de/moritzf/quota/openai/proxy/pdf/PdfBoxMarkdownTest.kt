@@ -21,8 +21,7 @@ import org.apache.pdfbox.pdmodel.font.Standard14Fonts
 import org.junit.jupiter.api.io.TempDir
 
 class PdfBoxMarkdownTest {
-    @TempDir
-    lateinit var directory: Path
+    @TempDir lateinit var directory: Path
 
     @Test
     fun extractsEmbeddedTextAsMarkdownAndWarnsAboutLimits() {
@@ -72,9 +71,14 @@ class PdfBoxMarkdownTest {
 
         val cancelled = directory.resolve("cancelled.md")
         assertFailsWith<IllegalStateException> {
-            PdfBoxMarkdown.convert(source, cancelled, progress = DocumentConversionProgress { completed, _, _ ->
-                if (completed > 0) error("cancel")
-            })
+            PdfBoxMarkdown.convert(
+                source,
+                cancelled,
+                progress =
+                    DocumentConversionProgress { completed, _, _ ->
+                        if (completed > 0) error("cancel")
+                    },
+            )
         }
         assertFalse(Files.exists(cancelled))
     }
@@ -83,13 +87,21 @@ class PdfBoxMarkdownTest {
     fun rejectsNonPdfAndOutOfRangePages() {
         val text = directory.resolve("note.txt")
         Files.writeString(text, "not a pdf")
-        assertFailsWith<IllegalArgumentException> { PdfBoxMarkdown.convert(text, directory.resolve("note.md")) }
+        assertFailsWith<IllegalArgumentException> {
+            PdfBoxMarkdown.convert(text, directory.resolve("note.md"))
+        }
 
         val source = directory.resolve("one.pdf")
         writePdf(source, listOf("Only" to false))
-        val error = assertFailsWith<IllegalArgumentException> {
-            PdfBoxMarkdown.convert(source, directory.resolve("one.md"), pageFrom = 2, pageTo = 2)
-        }
+        val error =
+            assertFailsWith<IllegalArgumentException> {
+                PdfBoxMarkdown.convert(
+                    source,
+                    directory.resolve("one.md"),
+                    pageFrom = 2,
+                    pageTo = 2,
+                )
+            }
         assertTrue(error.message.orEmpty().contains("1 pages"))
     }
 
@@ -102,8 +114,10 @@ class PdfBoxMarkdownTest {
         }
         val output = directory.resolve("blank.md")
         val raw = PdfBoxMarkdown.convert(source, output)
-        val warnings = JsonSupport.json.parseToJsonElement(raw).jsonObject["warnings"]!!.jsonArray
-            .map { it.jsonPrimitive.content }
+        val warnings =
+            JsonSupport.json.parseToJsonElement(raw).jsonObject["warnings"]!!.jsonArray.map {
+                it.jsonPrimitive.content
+            }
         assertTrue(warnings.contains(PdfBoxMarkdown.NO_EMBEDDED_TEXT))
         assertTrue(Files.isRegularFile(output))
     }
@@ -116,7 +130,9 @@ class PdfBoxMarkdownTest {
                 content.beginText()
                 content.newLineAtOffset(40f, 700f)
                 lines.forEach { (text, bold) ->
-                    val font = if (bold) Standard14Fonts.FontName.HELVETICA_BOLD else Standard14Fonts.FontName.HELVETICA
+                    val font =
+                        if (bold) Standard14Fonts.FontName.HELVETICA_BOLD
+                        else Standard14Fonts.FontName.HELVETICA
                     content.setFont(PDType1Font(font), 12f)
                     content.showText(text)
                     content.newLineAtOffset(0f, -16f)

@@ -17,7 +17,8 @@ import kotlin.test.assertTrue
 class KimiQuotaClientTest {
     @Test
     fun parseQuotaExtractsSessionAndTotalUsage() {
-        val body = """
+        val body =
+            """
             {
               "usage": {"limit":"100", "remaining":"74", "resetTime":"2026-02-11T17:32:50.757941Z"},
               "limits": [{
@@ -26,7 +27,8 @@ class KimiQuotaClientTest {
               }],
               "user": {"membership": {"level":"LEVEL_INTERMEDIATE"}}
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = KimiQuotaClient.parseQuota(body)
 
@@ -44,9 +46,7 @@ class KimiQuotaClientTest {
     fun parseQuotaReportsInvalidPayload() {
         val body = "not json"
 
-        val exception = assertFailsWith<KimiQuotaException> {
-            KimiQuotaClient.parseQuota(body)
-        }
+        val exception = assertFailsWith<KimiQuotaException> { KimiQuotaClient.parseQuota(body) }
 
         assertEquals("Could not parse usage data.", exception.message)
         assertEquals(body, exception.rawBody)
@@ -55,51 +55,59 @@ class KimiQuotaClientTest {
     @Test
     fun fetchQuotaRefreshesCredentialsAndRetriesAfterUnauthorizedResponse() {
         TestKimiServer(
-            usageResponses = listOf(
-                401 to "{\"error\":\"expired\"}",
-                200 to """
+                usageResponses =
+                    listOf(
+                        401 to "{\"error\":\"expired\"}",
+                        200 to
+                            """
+                            {
+                              "usage": {"limit":"100", "remaining":"90"},
+                              "limits": [],
+                              "user": {"membership": {"level":"LEVEL_PREMIUM"}}
+                            }
+                            """
+                                .trimIndent(),
+                    ),
+                tokenBody =
+                    """
                     {
-                      "usage": {"limit":"100", "remaining":"90"},
-                      "limits": [],
-                      "user": {"membership": {"level":"LEVEL_PREMIUM"}}
+                      "access_token": "fresh-token",
+                      "refresh_token": "refresh-2",
+                      "expires_in": 3600
                     }
-                """.trimIndent(),
-            ),
-            tokenBody = """
-                {
-                  "access_token": "fresh-token",
-                  "refresh_token": "refresh-2",
-                  "expires_in": 3600
-                }
-            """.trimIndent(),
-        ).use { server ->
-            val client = KimiQuotaClient(
-                httpClient = httpClient,
-                usageEndpoint = server.baseUri.resolve("/usage"),
-                tokenEndpoint = server.baseUri.resolve("/token"),
+                    """
+                        .trimIndent(),
             )
+            .use { server ->
+                val client =
+                    KimiQuotaClient(
+                        httpClient = httpClient,
+                        usageEndpoint = server.baseUri.resolve("/usage"),
+                        tokenEndpoint = server.baseUri.resolve("/token"),
+                    )
 
-            val result = client.fetchQuota(
-                KimiCredentials(
-                    accessToken = "stale-token",
-                    refreshToken = "refresh-1",
-                    expiresAtEpochSeconds = 9_999_999_999.0,
-                ),
-            )
+                val result =
+                    client.fetchQuota(
+                        KimiCredentials(
+                            accessToken = "stale-token",
+                            refreshToken = "refresh-1",
+                            expiresAtEpochSeconds = 9_999_999_999.0,
+                        )
+                    )
 
-            assertEquals("Kimi Code Premium", result.quota.plan)
-            assertEquals("fresh-token", result.credentials.accessToken)
-            assertEquals("refresh-2", result.credentials.refreshToken)
-            val firstUsage = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
-            assertEquals("/usage", firstUsage.path)
-            assertEquals("Bearer stale-token", firstUsage.firstHeader("Authorization"))
-            val tokenRequest = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
-            assertEquals("/token", tokenRequest.path)
-            assertTrue(tokenRequest.body.contains("refresh_token=refresh-1"))
-            val retryUsage = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
-            assertEquals("/usage", retryUsage.path)
-            assertEquals("Bearer fresh-token", retryUsage.firstHeader("Authorization"))
-        }
+                assertEquals("Kimi Code Premium", result.quota.plan)
+                assertEquals("fresh-token", result.credentials.accessToken)
+                assertEquals("refresh-2", result.credentials.refreshToken)
+                val firstUsage = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/usage", firstUsage.path)
+                assertEquals("Bearer stale-token", firstUsage.firstHeader("Authorization"))
+                val tokenRequest = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/token", tokenRequest.path)
+                assertTrue(tokenRequest.body.contains("refresh_token=refresh-1"))
+                val retryUsage = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/usage", retryUsage.path)
+                assertEquals("Bearer fresh-token", retryUsage.firstHeader("Authorization"))
+            }
     }
 
     private class TestKimiServer(
@@ -109,23 +117,27 @@ class KimiQuotaClientTest {
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
         private val queuedUsageResponses = ArrayDeque(usageResponses)
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
 
         init {
             server.createContext("/") { exchange ->
-                val requestBody = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
-                requests += CapturedRequest(
-                    path = exchange.requestURI.rawPath,
-                    headers = exchange.requestHeaders.mapValues { it.value.toList() },
-                    body = requestBody,
-                )
+                val requestBody =
+                    exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
+                requests +=
+                    CapturedRequest(
+                        path = exchange.requestURI.rawPath,
+                        headers = exchange.requestHeaders.mapValues { it.value.toList() },
+                        body = requestBody,
+                    )
 
-                val (status, body) = when (exchange.requestURI.rawPath) {
-                    "/usage" -> nextUsageResponse()
-                    "/token" -> tokenStatus to tokenBody
-                    else -> 404 to "{}"
-                }
+                val (status, body) =
+                    when (exchange.requestURI.rawPath) {
+                        "/usage" -> nextUsageResponse()
+                        "/token" -> tokenStatus to tokenBody
+                        else -> 404 to "{}"
+                    }
                 val response = body.toByteArray(Charsets.UTF_8)
                 exchange.responseHeaders.set("Content-Type", "application/json")
                 exchange.sendResponseHeaders(status, response.size.toLong())
@@ -153,7 +165,10 @@ class KimiQuotaClientTest {
         val body: String,
     ) {
         fun firstHeader(name: String): String? {
-            return headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }?.value?.firstOrNull()
+            return headers.entries
+                .firstOrNull { it.key.equals(name, ignoreCase = true) }
+                ?.value
+                ?.firstOrNull()
         }
     }
 

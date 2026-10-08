@@ -11,17 +11,15 @@ import de.moritzf.quota.idea.auth.AuthService
 import de.moritzf.quota.idea.auth.LoginResult
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.settings.QuotaSettingsState
-import kotlinx.coroutines.CoroutineScope
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import java.util.concurrent.atomic.AtomicBoolean
 
-/**
- * GitHub device-flow login.
- */
+/** GitHub device-flow login. */
 @Service(Service.Level.APP)
 class GitHubAuthService(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
@@ -34,7 +32,10 @@ class GitHubAuthService(
 ) : Disposable, AuthService {
     private val loginInProgress = AtomicBoolean(false)
 
-    override fun startLoginFlow(callback: (LoginResult) -> Unit, onVerificationUrl: ((String, String) -> Unit)?) {
+    override fun startLoginFlow(
+        callback: (LoginResult) -> Unit,
+        onVerificationUrl: ((String, String) -> Unit)?,
+    ) {
         startLoginFlow(callback, onVerificationUrl, enterpriseHost = null)
     }
 
@@ -48,14 +49,15 @@ class GitHubAuthService(
             return
         }
         scope.launch {
-            val result = try {
-                runLoginFlow(onVerificationUrl, enterpriseHost)
-            } catch (exception: Exception) {
-                LOG.warn("GitHub login failed", exception)
-                LoginResult.error(exception.message ?: "Login failed")
-            } finally {
-                loginInProgress.set(false)
-            }
+            val result =
+                try {
+                    runLoginFlow(onVerificationUrl, enterpriseHost)
+                } catch (exception: Exception) {
+                    LOG.warn("GitHub login failed", exception)
+                    LoginResult.error(exception.message ?: "Login failed")
+                } finally {
+                    loginInProgress.set(false)
+                }
             callback(result)
         }
     }
@@ -81,11 +83,12 @@ class GitHubAuthService(
         onVerificationUrl: ((String, String) -> Unit)?,
         enterpriseHost: String?,
     ): LoginResult {
-        val oauthClient = if (enterpriseHost != null) {
-            GitHubOAuthClient.forHost(enterpriseHost)
-        } else {
-            oauthClientProvider()
-        }
+        val oauthClient =
+            if (enterpriseHost != null) {
+                GitHubOAuthClient.forHost(enterpriseHost)
+            } else {
+                oauthClientProvider()
+            }
         val authorization = oauthClient.requestDeviceAuthorization()
         if (authorization.deviceCode.isBlank() || authorization.userCode.isBlank()) {
             return LoginResult.error("GitHub did not return a usable device code")
@@ -97,7 +100,9 @@ class GitHubAuthService(
             throw exception
         } catch (exception: Exception) {
             if (onVerificationUrl == null) throw exception
-            LOG.info("Could not open GitHub login browser; use the verification URL and code in settings")
+            LOG.info(
+                "Could not open GitHub login browser; use the verification URL and code in settings"
+            )
         }
 
         var intervalSeconds = authorization.intervalSeconds.coerceAtLeast(1)
@@ -115,21 +120,22 @@ class GitHubAuthService(
                     return LoginResult.success()
                 }
                 is GitHubDeviceTokenPollResult.Pending -> {
-                    intervalSeconds = when {
-                        result.nextIntervalSeconds > 0 -> result.nextIntervalSeconds
-                        result.slowDown -> intervalSeconds + 5
-                        else -> intervalSeconds
-                    }
+                    intervalSeconds =
+                        when {
+                            result.nextIntervalSeconds > 0 -> result.nextIntervalSeconds
+                            result.slowDown -> intervalSeconds + 5
+                            else -> intervalSeconds
+                        }
                 }
             }
         }
-        return if (loginInProgress.get()) LoginResult.error("Authentication timed out") else LoginResult.error("Login canceled")
+        return if (loginInProgress.get()) LoginResult.error("Authentication timed out")
+        else LoginResult.error("Login canceled")
     }
 
     override fun dispose() {
         scope.cancel()
     }
-
 
     companion object {
         private val LOG = Logger.getInstance(GitHubAuthService::class.java)
@@ -137,10 +143,12 @@ class GitHubAuthService(
         private val extras = java.util.concurrent.ConcurrentHashMap<String, GitHubAuthService>()
 
         @JvmStatic
-        fun getInstance(): GitHubAuthService = ApplicationManager.getApplication().getService(GitHubAuthService::class.java)
+        fun getInstance(): GitHubAuthService =
+            ApplicationManager.getApplication().getService(GitHubAuthService::class.java)
 
         fun forAccount(accountId: String): GitHubAuthService {
-            if (accountId == de.moritzf.quota.idea.common.QuotaProviderType.GITHUB.id) return getInstance()
+            if (accountId == de.moritzf.quota.idea.common.QuotaProviderType.GITHUB.id)
+                return getInstance()
             return extras.computeIfAbsent(accountId) {
                 GitHubAuthService(
                     oauthClientProvider = {

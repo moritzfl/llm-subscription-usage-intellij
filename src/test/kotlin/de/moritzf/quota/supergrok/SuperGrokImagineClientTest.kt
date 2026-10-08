@@ -27,27 +27,33 @@ class SuperGrokImagineClientTest {
     @Test
     fun postsImageGenerationsWithSingleUrlImageByDefault() {
         TestGrokServer(
-            responseBody = """{"created":1,"data":[{"url":"https://cdn.example/cat.png"}]}""",
-        ).use { server ->
-            val client = SuperGrokImagineClient(httpClient = httpClient, baseUri = server.baseUri)
-
-            val result = client.generateImage(
-                accessToken = "grok-token",
-                prompt = "  a cat in space  ",
+                responseBody = """{"created":1,"data":[{"url":"https://cdn.example/cat.png"}]}"""
             )
+            .use { server ->
+                val client =
+                    SuperGrokImagineClient(httpClient = httpClient, baseUri = server.baseUri)
 
-            assertTrue(result.contains("https://cdn.example/cat.png"))
+                val result =
+                    client.generateImage(
+                        accessToken = "grok-token",
+                        prompt = "  a cat in space  ",
+                    )
 
-            val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
-            assertEquals("POST", request.method)
-            assertEquals("/images/generations", request.path)
-            assertEquals("Bearer grok-token", request.firstHeader("Authorization"))
-            val body = parseObject(request.body)
-            assertEquals(SuperGrokImagineClient.DEFAULT_IMAGE_MODEL, body["model"]!!.jsonPrimitive.content)
-            assertEquals("a cat in space", body["prompt"]!!.jsonPrimitive.content)
-            assertEquals(1, body["n"]!!.jsonPrimitive.int)
-            assertEquals("url", body["response_format"]!!.jsonPrimitive.content)
-        }
+                assertTrue(result.contains("https://cdn.example/cat.png"))
+
+                val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("POST", request.method)
+                assertEquals("/images/generations", request.path)
+                assertEquals("Bearer grok-token", request.firstHeader("Authorization"))
+                val body = parseObject(request.body)
+                assertEquals(
+                    SuperGrokImagineClient.DEFAULT_IMAGE_MODEL,
+                    body["model"]!!.jsonPrimitive.content,
+                )
+                assertEquals("a cat in space", body["prompt"]!!.jsonPrimitive.content)
+                assertEquals(1, body["n"]!!.jsonPrimitive.int)
+                assertEquals("url", body["response_format"]!!.jsonPrimitive.content)
+            }
     }
 
     @Test
@@ -58,12 +64,13 @@ class SuperGrokImagineClientTest {
             val client = SuperGrokImagineClient(httpClient = httpClient, baseUri = server.baseUri)
             val projectDir = Files.createTempDirectory("supergrok-imagine-test")
             try {
-                val result = client.generateImage(
-                    accessToken = "grok-token",
-                    prompt = "logo",
-                    targetFile = "out/logo.png",
-                    baseDirectory = projectDir,
-                )
+                val result =
+                    client.generateImage(
+                        accessToken = "grok-token",
+                        prompt = "logo",
+                        targetFile = "out/logo.png",
+                        baseDirectory = projectDir,
+                    )
                 val response = parseObject(result)
                 val output = response["output_file"]!!.jsonPrimitive.content
                 assertTrue(output.endsWith("out/logo.png") || output.endsWith("out\\logo.png"))
@@ -89,9 +96,8 @@ class SuperGrokImagineClientTest {
     fun rejectsBlankImagePromptBeforeNetwork() {
         TestGrokServer().use { server ->
             val client = SuperGrokImagineClient(httpClient = httpClient, baseUri = server.baseUri)
-            val exception = assertFailsWith<SuperGrokQuotaException> {
-                client.generateImage("token", "   ")
-            }
+            val exception =
+                assertFailsWith<SuperGrokQuotaException> { client.generateImage("token", "   ") }
             assertEquals("Image prompt is required.", exception.message)
             assertNull(server.requests.poll(300, TimeUnit.MILLISECONDS))
         }
@@ -99,81 +105,105 @@ class SuperGrokImagineClientTest {
 
     @Test
     fun editImagePostsJsonNotMultipart() {
-        TestGrokServer(
-            responseBody = """{"data":[{"url":"https://imgen.x.ai/edit.png"}]}""",
-        ).use { server ->
+        TestGrokServer(responseBody = """{"data":[{"url":"https://imgen.x.ai/edit.png"}]}""").use {
+            server ->
             val client = SuperGrokImagineClient(httpClient = httpClient, baseUri = server.baseUri)
-            val result = client.editImage("token", "make it a sketch", imageUrl = "https://example.test/in.png")
+            val result =
+                client.editImage(
+                    "token",
+                    "make it a sketch",
+                    imageUrl = "https://example.test/in.png",
+                )
             assertTrue(result.contains("imgen.x.ai"))
             val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
             assertEquals("/images/edits", request.path)
             val payload = JsonSupport.json.parseToJsonElement(request.body).jsonObject
-            assertEquals("https://example.test/in.png", payload["image"]!!.jsonObject["url"]!!.jsonPrimitive.content)
+            assertEquals(
+                "https://example.test/in.png",
+                payload["image"]!!.jsonObject["url"]!!.jsonPrimitive.content,
+            )
             assertEquals("image_url", payload["image"]!!.jsonObject["type"]!!.jsonPrimitive.content)
         }
     }
 
     @Test
     fun editImageRejectsMissingSource() {
-        val exception = assertFailsWith<SuperGrokQuotaException> {
-            SuperGrokImagineClient.sourceImageUrl(null, null)
-        }
+        val exception =
+            assertFailsWith<SuperGrokQuotaException> {
+                SuperGrokImagineClient.sourceImageUrl(null, null)
+            }
         assertEquals("Provide imageUrl or a local image path.", exception.message)
     }
 
     @Test
     fun videoGenerationPollsUntilDone() {
         MultiResponseGrokServer(
-            postBody = """{"request_id":"vid-1","status":"pending"}""",
-            getBodies = listOf(
-                """{"request_id":"vid-1","status":"pending"}""",
-                """{"request_id":"vid-1","status":"done","video":{"url":"https://cdn.example/v.mp4"}}""",
-            ),
-        ).use { server ->
-            val client = SuperGrokImagineClient(
-                httpClient = httpClient,
-                baseUri = server.baseUri,
-                sleeper = { /* no sleep in tests */ },
+                postBody = """{"request_id":"vid-1","status":"pending"}""",
+                getBodies =
+                    listOf(
+                        """{"request_id":"vid-1","status":"pending"}""",
+                        """{"request_id":"vid-1","status":"done","video":{"url":"https://cdn.example/v.mp4"}}""",
+                    ),
             )
-            val result = client.generateVideo(
-                accessToken = "grok-token",
-                prompt = "waterfall pan",
-                model = "grok-imagine-video",
-                duration = 12,
-                imageUrl = "https://example.com/still.png",
-                waitForCompletion = true,
-                pollTimeoutSeconds = 30,
-            )
-            assertTrue(result.contains("cdn.example/v.mp4"))
-            assertTrue(server.requests.any { it.method == "POST" && it.path.endsWith("/videos/generations") })
-            assertTrue(server.requests.any { it.method == "GET" && it.path.contains("/videos/vid-1") })
-            val post = server.requests.first { it.method == "POST" }
-            val body = parseObject(post.body)
-            assertEquals("grok-imagine-video", body["model"]!!.jsonPrimitive.content)
-            assertEquals("waterfall pan", body["prompt"]!!.jsonPrimitive.content)
-            assertEquals(12, body["duration"]!!.jsonPrimitive.int)
-            assertEquals("https://example.com/still.png", body["image"]!!.jsonObject["url"]!!.jsonPrimitive.content)
-        }
+            .use { server ->
+                val client =
+                    SuperGrokImagineClient(
+                        httpClient = httpClient,
+                        baseUri = server.baseUri,
+                        sleeper = { /* no sleep in tests */ },
+                    )
+                val result =
+                    client.generateVideo(
+                        accessToken = "grok-token",
+                        prompt = "waterfall pan",
+                        model = "grok-imagine-video",
+                        duration = 12,
+                        imageUrl = "https://example.com/still.png",
+                        waitForCompletion = true,
+                        pollTimeoutSeconds = 30,
+                    )
+                assertTrue(result.contains("cdn.example/v.mp4"))
+                assertTrue(
+                    server.requests.any {
+                        it.method == "POST" && it.path.endsWith("/videos/generations")
+                    }
+                )
+                assertTrue(
+                    server.requests.any { it.method == "GET" && it.path.contains("/videos/vid-1") }
+                )
+                val post = server.requests.first { it.method == "POST" }
+                val body = parseObject(post.body)
+                assertEquals("grok-imagine-video", body["model"]!!.jsonPrimitive.content)
+                assertEquals("waterfall pan", body["prompt"]!!.jsonPrimitive.content)
+                assertEquals(12, body["duration"]!!.jsonPrimitive.int)
+                assertEquals(
+                    "https://example.com/still.png",
+                    body["image"]!!.jsonObject["url"]!!.jsonPrimitive.content,
+                )
+            }
     }
 
     @Test
     fun writesVideoToTargetFileByDownloadingUrl() {
         val video = byteArrayOf(0, 1, 2, 3)
         TestGrokServer(files = mapOf("/v.mp4" to video)).use { server ->
-            server.responseBody = """{"request_id":"vid-1","status":"done","video":{"url":"${server.baseUri}v.mp4"}}"""
-            val client = SuperGrokImagineClient(
-                httpClient = httpClient,
-                baseUri = server.baseUri,
-                sleeper = { },
-            )
+            server.responseBody =
+                """{"request_id":"vid-1","status":"done","video":{"url":"${server.baseUri}v.mp4"}}"""
+            val client =
+                SuperGrokImagineClient(
+                    httpClient = httpClient,
+                    baseUri = server.baseUri,
+                    sleeper = {},
+                )
             val dir = Files.createTempDirectory("grok-vid")
             try {
-                val result = client.generateVideo(
-                    accessToken = "grok-token",
-                    prompt = "clip",
-                    targetFile = "out/clip.mp4",
-                    baseDirectory = dir,
-                )
+                val result =
+                    client.generateVideo(
+                        accessToken = "grok-token",
+                        prompt = "clip",
+                        targetFile = "out/clip.mp4",
+                        baseDirectory = dir,
+                    )
                 val written = parseObject(result)
                 val output = dir.resolve("out/clip.mp4")
                 assertEquals(output.toString(), written["output_file"]!!.jsonPrimitive.content)
@@ -187,19 +217,22 @@ class SuperGrokImagineClientTest {
     @Test
     fun videoGenerationCanReturnRequestImmediately() {
         MultiResponseGrokServer(
-            postBody = """{"request_id":"vid-9","status":"pending"}""",
-            getBodies = emptyList(),
-        ).use { server ->
-            val client = SuperGrokImagineClient(httpClient = httpClient, baseUri = server.baseUri)
-            val result = client.generateVideo(
-                accessToken = "token",
-                prompt = "clip",
-                waitForCompletion = false,
+                postBody = """{"request_id":"vid-9","status":"pending"}""",
+                getBodies = emptyList(),
             )
-            assertTrue(result.contains("vid-9"))
-            assertEquals(1, server.requests.size)
-            assertEquals("POST", server.requests.single().method)
-        }
+            .use { server ->
+                val client =
+                    SuperGrokImagineClient(httpClient = httpClient, baseUri = server.baseUri)
+                val result =
+                    client.generateVideo(
+                        accessToken = "token",
+                        prompt = "clip",
+                        waitForCompletion = false,
+                    )
+                assertTrue(result.contains("vid-9"))
+                assertEquals(1, server.requests.size)
+                assertEquals("POST", server.requests.single().method)
+            }
     }
 
     private fun tinyPng(): ByteArray {
@@ -220,19 +253,21 @@ class SuperGrokImagineClientTest {
         private val responseStatus: Int = 200,
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
 
         init {
             server.createContext("/") { exchange ->
                 val body = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
                 val path = exchange.requestURI.rawPath
-                requests += CapturedRequest(
-                    method = exchange.requestMethod,
-                    path = path,
-                    headers = exchange.requestHeaders.mapValues { it.value.toList() },
-                    body = body,
-                )
+                requests +=
+                    CapturedRequest(
+                        method = exchange.requestMethod,
+                        path = path,
+                        headers = exchange.requestHeaders.mapValues { it.value.toList() },
+                        body = body,
+                    )
                 val file = files[path]
                 if (file != null) {
                     exchange.responseHeaders.set("Content-Type", "image/png")
@@ -260,27 +295,35 @@ class SuperGrokImagineClientTest {
     ) : AutoCloseable {
         val requests = mutableListOf<CapturedRequest>()
         private val getIndex = AtomicInteger(0)
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
 
         init {
             server.createContext("/") { exchange ->
                 val body = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
-                val captured = CapturedRequest(
-                    method = exchange.requestMethod,
-                    path = exchange.requestURI.rawPath,
-                    headers = exchange.requestHeaders.mapValues { it.value.toList() },
-                    body = body,
-                )
+                val captured =
+                    CapturedRequest(
+                        method = exchange.requestMethod,
+                        path = exchange.requestURI.rawPath,
+                        headers = exchange.requestHeaders.mapValues { it.value.toList() },
+                        body = body,
+                    )
                 synchronized(requests) { requests += captured }
-                val responseText = when (exchange.requestMethod) {
-                    "POST" -> postBody
-                    "GET" -> {
-                        val idx = getIndex.getAndIncrement().coerceAtMost(getBodies.lastIndex.coerceAtLeast(0))
-                        getBodies.getOrElse(idx) { getBodies.lastOrNull() ?: """{"status":"pending"}""" }
+                val responseText =
+                    when (exchange.requestMethod) {
+                        "POST" -> postBody
+                        "GET" -> {
+                            val idx =
+                                getIndex
+                                    .getAndIncrement()
+                                    .coerceAtMost(getBodies.lastIndex.coerceAtLeast(0))
+                            getBodies.getOrElse(idx) {
+                                getBodies.lastOrNull() ?: """{"status":"pending"}"""
+                            }
+                        }
+                        else -> """{"error":"method"}"""
                     }
-                    else -> """{"error":"method"}"""
-                }
                 val response = responseText.toByteArray(Charsets.UTF_8)
                 exchange.responseHeaders.set("Content-Type", "application/json")
                 exchange.sendResponseHeaders(200, response.size.toLong())
@@ -302,7 +345,10 @@ class SuperGrokImagineClientTest {
         val body: String,
     ) {
         fun firstHeader(name: String): String? {
-            return headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }?.value?.firstOrNull()
+            return headers.entries
+                .firstOrNull { it.key.equals(name, ignoreCase = true) }
+                ?.value
+                ?.firstOrNull()
         }
     }
 

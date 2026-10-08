@@ -1,7 +1,6 @@
 package de.moritzf.quota.idea
 
 import de.moritzf.quota.idea.auth.QuotaTokenUtil
-import org.intellij.lang.annotations.Language
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.test.Test
@@ -9,10 +8,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
+import org.intellij.lang.annotations.Language
 
-/**
- * Tests for extracting account metadata from OAuth/JWT tokens.
- */
+/** Tests for extracting account metadata from OAuth/JWT tokens. */
 class QuotaTokenUtilTest {
     @Test
     fun fingerprintIdentifiesTokensWithoutRevealingThem() {
@@ -35,13 +33,15 @@ class QuotaTokenUtilTest {
     @Test
     fun extractChatGptAccountIdReturnsTrimmedAccountIdWhenPresent() {
         @Language("JSON")
-        val payload = """
+        val payload =
+            """
             {
               "https://api.openai.com/auth": {
                 "chatgpt_account_id": "  account-123  "
               }
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val token = buildToken(payload)
 
@@ -51,11 +51,13 @@ class QuotaTokenUtilTest {
     @Test
     fun extractChatGptAccountIdReturnsNullWhenClaimIsMissing() {
         @Language("JSON")
-        val payload = """
+        val payload =
+            """
             {
               "sub": "user-1"
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val token = buildToken(payload)
 
@@ -88,16 +90,17 @@ class QuotaTokenUtilTest {
 
     private fun buildToken(@Language("JSON") payloadJson: String): String {
         @Language("JSON")
-        val headerJson = """
+        val headerJson =
+            """
             {"alg":"none","typ":"JWT"}
-        """.trimIndent()
+            """
+                .trimIndent()
         return "${base64Url(headerJson)}.${base64Url(payloadJson)}.signature"
     }
 
     @OptIn(ExperimentalEncodingApi::class)
     private fun base64Url(value: String): String {
-        return Base64.UrlSafe
-            .withPadding(Base64.PaddingOption.ABSENT)
+        return Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT)
             .encode(value.toByteArray(Charsets.UTF_8))
     }
 }

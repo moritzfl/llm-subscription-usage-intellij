@@ -1,6 +1,5 @@
 package de.moritzf.quota.idea.auth
 
-import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
@@ -10,15 +9,17 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import org.junit.jupiter.api.io.TempDir
 
 class OAuthCredentialCoordinatorTest {
-    @field:TempDir
-    lateinit var directory: Path
+    @field:TempDir lateinit var directory: Path
 
     @Test
     fun refreshWaitsForAnotherJvmButCredentialWritesRemainAvailable() {
         val source = directory.resolve("LockHolder.java")
-        Files.writeString(source, """
+        Files.writeString(
+            source,
+            """
             import java.nio.channels.FileChannel;
             import java.nio.file.Path;
             import java.nio.file.StandardOpenOption;
@@ -32,19 +33,23 @@ class OAuthCredentialCoordinatorTest {
                     }
                 }
             }
-        """.trimIndent())
-        val process = ProcessBuilder(
-            Path.of(System.getProperty("java.home"), "bin", "java").toString(),
-            source.toString(), directory.resolve("refresh.lock").toString(),
-        ).redirectErrorStream(true).start()
+            """
+                .trimIndent(),
+        )
+        val process =
+            ProcessBuilder(
+                    Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                    source.toString(),
+                    directory.resolve("refresh.lock").toString(),
+                )
+                .redirectErrorStream(true)
+                .start()
         val executor = Executors.newSingleThreadExecutor()
         val coordinator = OAuthCredentialCoordinator(directory)
         val acquired = CountDownLatch(1)
         try {
             assertEquals("locked", process.inputStream.bufferedReader().readLine())
-            val waiting = executor.submit {
-                coordinator.withRefreshLock { acquired.countDown() }
-            }
+            val waiting = executor.submit { coordinator.withRefreshLock { acquired.countDown() } }
             assertFalse(acquired.await(200, TimeUnit.MILLISECONDS))
             assertEquals("write", coordinator.withWriteLock { "write" })
             process.outputStream.write(1)
@@ -54,7 +59,10 @@ class OAuthCredentialCoordinatorTest {
             assertTrue(process.waitFor(5, TimeUnit.SECONDS))
             assertEquals(0, process.exitValue())
             // The OS lock must have been released, too.
-            assertEquals("released", OAuthCredentialCoordinator(directory).withRefreshLock { "released" })
+            assertEquals(
+                "released",
+                OAuthCredentialCoordinator(directory).withRefreshLock { "released" },
+            )
         } finally {
             process.destroyForcibly()
             executor.shutdownNow()

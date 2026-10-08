@@ -34,17 +34,36 @@ internal class MistralMarkdownWriter(
             if (includeImages) {
                 page.images.orEmpty().forEachIndexed { index, image ->
                     val name = MistralOcrClient.imageFileName(image.id) ?: return@forEachIndexed
-                    val box = listOfNotNull(image.topLeftX, image.topLeftY, image.bottomRightX, image.bottomRightY)
-                    val region = if (page.index == null || page.index == pageIndex) {
-                        PdfFigureRegion.fromPixels(pageNumber, box, page.dimensions?.width, page.dimensions?.height)
-                    } else null
-                    val link = images.write(pageNumber, index + 1, region) {
-                        val encoded = image.imageBase64?.substringAfter("base64,")?.trim().orEmpty()
-                        if (encoded.isEmpty()) null else ProviderDocumentImage(
-                            Base64.getDecoder().decode(encoded), name.substringAfterLast('.', "png"),
+                    val box =
+                        listOfNotNull(
+                            image.topLeftX,
+                            image.topLeftY,
+                            image.bottomRightX,
+                            image.bottomRightY,
                         )
+                    val region =
+                        if (page.index == null || page.index == pageIndex) {
+                            PdfFigureRegion.fromPixels(
+                                pageNumber,
+                                box,
+                                page.dimensions?.width,
+                                page.dimensions?.height,
+                            )
+                        } else null
+                    val link =
+                        images.write(pageNumber, index + 1, region) {
+                            val encoded =
+                                image.imageBase64?.substringAfter("base64,")?.trim().orEmpty()
+                            if (encoded.isEmpty()) null
+                            else
+                                ProviderDocumentImage(
+                                    Base64.getDecoder().decode(encoded),
+                                    name.substringAfterLast('.', "png"),
+                                )
+                        }
+                    check(!links.containsKey(image.id)) {
+                        "OCR returned duplicate image id '${image.id}' on page $pageNumber."
                     }
-                    check(!links.containsKey(image.id)) { "OCR returned duplicate image id '${image.id}' on page $pageNumber." }
                     links[image.id] = link
                     // Some responses use a basename in Markdown but a path in the image metadata.
                     links.putIfAbsent(name, link)
@@ -65,15 +84,24 @@ internal class MistralMarkdownWriter(
         }
         committed = true
         images.commit()
-        return MistralOcrWriteResult(outputFile.toString(), images.imageFiles, pageCount, images.warnings,
-            images.report.takeIf { includeImages })
+        return MistralOcrWriteResult(
+            outputFile.toString(),
+            images.imageFiles,
+            pageCount,
+            images.warnings,
+            images.report.takeIf { includeImages },
+        )
     }
 
     override fun close() {
         try {
             writer.close()
         } finally {
-            try { if (!committed) Files.deleteIfExists(temporary) } finally { images.close() }
+            try {
+                if (!committed) Files.deleteIfExists(temporary)
+            } finally {
+                images.close()
+            }
         }
     }
 }

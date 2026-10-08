@@ -1,16 +1,16 @@
 package de.moritzf.quota.idea.auth
 
 import de.moritzf.quota.shared.JsonSupport
-import kotlinx.serialization.Serializable
 import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
 import java.security.MessageDigest
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
-import java.util.UUID
+import kotlinx.serialization.Serializable
 
 /**
  * Separate refresh and write locks let logout/new login win while a refresh is on the wire.
@@ -60,24 +60,35 @@ class OAuthCredentialCoordinator(private val directory: Path? = null) {
         val temporary = Files.createTempFile(path.parent, "oauth-", ".tmp")
         try {
             Files.writeString(temporary, value)
-            Files.move(temporary, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            Files.move(
+                temporary,
+                path,
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING,
+            )
         } finally {
             Files.deleteIfExists(temporary)
         }
     }
 
-    private fun lockFor(name: String): ReentrantLock = directory?.let {
-        processLocks.computeIfAbsent(it.resolve("$name.lock").toAbsolutePath().normalize()) { ReentrantLock() }
-    } ?: ReentrantLock()
+    private fun lockFor(name: String): ReentrantLock =
+        directory?.let {
+            processLocks.computeIfAbsent(it.resolve("$name.lock").toAbsolutePath().normalize()) {
+                ReentrantLock()
+            }
+        } ?: ReentrantLock()
 
     private fun <T> withLock(lock: ReentrantLock, name: String, action: () -> T): T {
         lock.lockInterruptibly()
         try {
             if (directory == null || lock.holdCount > 1) return action()
             Files.createDirectories(directory)
-            return FileChannel.open(directory.resolve("$name.lock"), StandardOpenOption.CREATE, StandardOpenOption.WRITE).use { channel ->
-                channel.lock().use { action() }
-            }
+            return FileChannel.open(
+                    directory.resolve("$name.lock"),
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.WRITE,
+                )
+                .use { channel -> channel.lock().use { action() } }
         } finally {
             lock.unlock()
         }
@@ -86,8 +97,10 @@ class OAuthCredentialCoordinator(private val directory: Path? = null) {
     companion object {
         private val processLocks = ConcurrentHashMap<Path, ReentrantLock>()
 
-        internal fun hash(value: String): String = MessageDigest.getInstance("SHA-256")
-            .digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+        internal fun hash(value: String): String =
+            MessageDigest.getInstance("SHA-256")
+                .digest(value.toByteArray(Charsets.UTF_8))
+                .joinToString("") { "%02x".format(it) }
     }
 }
 
@@ -98,9 +111,14 @@ internal data class OAuthRefreshReceipt(
     val attemptedAtMs: Long,
     val accessTokenRejected: Boolean = false,
 ) {
-    enum class Outcome { TEMPORARY_FAILURE, REJECTED, ROTATED }
+    enum class Outcome {
+        TEMPORARY_FAILURE,
+        REJECTED,
+        ROTATED,
+    }
 
-    fun matches(credentials: OAuthCredentials): Boolean = credentialsHash == fingerprint(credentials)
+    fun matches(credentials: OAuthCredentials): Boolean =
+        credentialsHash == fingerprint(credentials)
 
     companion object {
         fun fingerprint(credentials: OAuthCredentials): String =

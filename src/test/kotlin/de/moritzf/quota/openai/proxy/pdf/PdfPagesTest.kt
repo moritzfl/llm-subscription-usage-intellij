@@ -26,9 +26,7 @@ class PdfPagesTest {
         assertNull(PdfPages.resolve(3, 2, 4))
         val slice = dir.resolve("p2.pdf")
         assertTrue(PdfPages.writeSlice(pdf, 2, 2, slice))
-        Loader.loadPDF(slice.toFile()).use { doc ->
-            assertEquals(1, doc.numberOfPages)
-        }
+        Loader.loadPDF(slice.toFile()).use { doc -> assertEquals(1, doc.numberOfPages) }
         assertFalse(PdfPages.isPdf(dir.resolve("missing.pdf")))
     }
 }

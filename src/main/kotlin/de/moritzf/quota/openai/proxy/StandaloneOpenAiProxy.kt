@@ -9,6 +9,8 @@ import java.awt.Desktop
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.URI
+import java.net.URLDecoder
+import java.net.URLEncoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
@@ -21,8 +23,6 @@ import java.util.Base64
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
-import java.net.URLDecoder
-import java.net.URLEncoder
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -30,31 +30,37 @@ import kotlinx.serialization.json.longOrNull
 
 fun main(args: Array<String>) {
     val options = parseStandaloneOptions(args)
-    val credentials = if (options.login) {
-        loginCredentials().also(::saveCredentialsToDotEnv)
-    } else {
-        loadCredentials()
-    }
+    val credentials =
+        if (options.login) {
+            loginCredentials().also(::saveCredentialsToDotEnv)
+        } else {
+            loadCredentials()
+        }
     val credentialManager = StandaloneCredentialManager(credentials)
-    val accessToken = credentialManager.accessToken() ?: error(
-        "OPENAI_PROXY_ACCESS_TOKEN or OPENAI_PROXY_REFRESH_TOKEN, .env, OPENAI_PROXY_CREDENTIALS_FILE, or --login is required",
-    )
+    val accessToken =
+        credentialManager.accessToken()
+            ?: error(
+                "OPENAI_PROXY_ACCESS_TOKEN or OPENAI_PROXY_REFRESH_TOKEN, .env, OPENAI_PROXY_CREDENTIALS_FILE, or --login is required"
+            )
     val localApiKey = env("OPENAI_PROXY_API_KEY") ?: DEFAULT_LOCAL_API_KEY
     val port = env("OPENAI_PROXY_PORT")?.toIntOrNull() ?: DEFAULT_PORT
 
-    val proxy = OpenAiProxyServer(
-        port = port,
-        localApiKeyProvider = { localApiKey },
-        accessTokenProvider = { credentialManager.accessToken() },
-        accountIdProvider = { credentialManager.accountId() },
-        tokenRefresher = credentialManager::refreshAfterRejected,
-        debugLogger = debugLogger(),
-        fullRequestLogging = env("OPENAI_PROXY_LOG_REQUESTS").toBooleanFlag(),
-        requestLogDir = env("OPENAI_PROXY_REQUEST_LOG_DIR") ?: DEFAULT_REQUEST_LOG_DIR,
-        allowAnyCors = options.allowAnyCors || env("OPENAI_PROXY_ALLOW_ANY_CORS").toBooleanFlag(),
-        allowedCorsOrigins = options.corsOrigins + parseCommaSeparatedList(env("OPENAI_PROXY_CORS_ORIGINS")),
-        consoleAccessLog = true,
-    )
+    val proxy =
+        OpenAiProxyServer(
+            port = port,
+            localApiKeyProvider = { localApiKey },
+            accessTokenProvider = { credentialManager.accessToken() },
+            accountIdProvider = { credentialManager.accountId() },
+            tokenRefresher = credentialManager::refreshAfterRejected,
+            debugLogger = debugLogger(),
+            fullRequestLogging = env("OPENAI_PROXY_LOG_REQUESTS").toBooleanFlag(),
+            requestLogDir = env("OPENAI_PROXY_REQUEST_LOG_DIR") ?: DEFAULT_REQUEST_LOG_DIR,
+            allowAnyCors =
+                options.allowAnyCors || env("OPENAI_PROXY_ALLOW_ANY_CORS").toBooleanFlag(),
+            allowedCorsOrigins =
+                options.corsOrigins + parseCommaSeparatedList(env("OPENAI_PROXY_CORS_ORIGINS")),
+            consoleAccessLog = true,
+        )
     Runtime.getRuntime().addShutdownHook(Thread { proxy.stop() })
     proxy.start()
     println("OpenAI standalone proxy listening at http://127.0.0.1:$port")
@@ -83,8 +89,10 @@ internal fun parseStandaloneOptions(args: Array<String>): StandaloneProxyOptions
                 require(index < args.size) { "$arg requires a value" }
                 corsOrigins += parseCommaSeparatedList(args[index])
             }
-            arg.startsWith("--cors-origin=") -> corsOrigins += parseCommaSeparatedList(arg.substringAfter('='))
-            arg.startsWith("--cors-url=") -> corsOrigins += parseCommaSeparatedList(arg.substringAfter('='))
+            arg.startsWith("--cors-origin=") ->
+                corsOrigins += parseCommaSeparatedList(arg.substringAfter('='))
+            arg.startsWith("--cors-url=") ->
+                corsOrigins += parseCommaSeparatedList(arg.substringAfter('='))
             else -> error("Unknown argument: $arg")
         }
         index += 1
@@ -93,15 +101,10 @@ internal fun parseStandaloneOptions(args: Array<String>): StandaloneProxyOptions
 }
 
 private fun parseCommaSeparatedList(value: String?): List<String> {
-    return value
-        ?.split(',')
-        ?.map { it.trim() }
-        ?.filter { it.isNotEmpty() }
-        .orEmpty()
+    return value?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
 }
 
-@Volatile
-private var loadedDotEnv: Map<String, String>? = null
+@Volatile private var loadedDotEnv: Map<String, String>? = null
 
 private fun env(name: String): String? {
     return System.getenv(name)?.takeIf { it.isNotBlank() }
@@ -139,7 +142,11 @@ private fun loginCredentials(): StandaloneCredentials {
     val state = randomBase64Url(16)
     val callback = AtomicReference<OAuthCallback?>()
     val latch = CountDownLatch(1)
-    val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), OAUTH_CALLBACK_PORT), 0)
+    val server =
+        HttpServer.create(
+            InetSocketAddress(InetAddress.getLoopbackAddress(), OAUTH_CALLBACK_PORT),
+            0,
+        )
     server.createContext("/auth/callback") { exchange ->
         handleOAuthCallback(exchange, state, callback, latch)
     }
@@ -191,12 +198,14 @@ private fun handleOAuthCallback(
         val error = params["error"]
         val code = params["code"]
         val state = params["state"]
-        val result = when {
-            error != null -> OAuthCallback(error = "OAuth error: $error")
-            code.isNullOrBlank() || state.isNullOrBlank() -> OAuthCallback(error = "Missing code or state")
-            state != expectedState -> OAuthCallback(error = "State mismatch")
-            else -> OAuthCallback(code = code)
-        }
+        val result =
+            when {
+                error != null -> OAuthCallback(error = "OAuth error: $error")
+                code.isNullOrBlank() || state.isNullOrBlank() ->
+                    OAuthCallback(error = "Missing code or state")
+                state != expectedState -> OAuthCallback(error = "State mismatch")
+                else -> OAuthCallback(code = code)
+            }
         callback.set(result)
         latch.countDown()
         val ok = result.error == null
@@ -215,38 +224,49 @@ private fun handleOAuthCallback(
 }
 
 private fun exchangeAuthorizationCode(code: String, verifier: String): StandaloneCredentials {
-    val body = formEncode(
-        "grant_type" to "authorization_code",
-        "client_id" to OAUTH_CLIENT_ID,
-        "code" to code,
-        "redirect_uri" to OAUTH_REDIRECT_URI,
-        "code_verifier" to verifier,
-    )
-    val request = HttpRequest.newBuilder(URI.create(OAUTH_TOKEN_ENDPOINT))
-        .timeout(Duration.ofSeconds(30))
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .header("Accept", "application/json")
-        .POST(HttpRequest.BodyPublishers.ofString(body))
-        .build()
+    val body =
+        formEncode(
+            "grant_type" to "authorization_code",
+            "client_id" to OAUTH_CLIENT_ID,
+            "code" to code,
+            "redirect_uri" to OAUTH_REDIRECT_URI,
+            "code_verifier" to verifier,
+        )
+    val request =
+        HttpRequest.newBuilder(URI.create(OAUTH_TOKEN_ENDPOINT))
+            .timeout(Duration.ofSeconds(30))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Accept", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(body))
+            .build()
     val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
-    check(response.statusCode() in 200..299) { "Token exchange failed: HTTP ${response.statusCode()} ${response.body()}" }
+    check(response.statusCode() in 200..299) {
+        "Token exchange failed: HTTP ${response.statusCode()} ${response.body()}"
+    }
     return credentialsFromTokenResponse(response.body())
 }
 
-private fun refreshCredentials(refreshToken: String, fallback: StandaloneCredentials): StandaloneCredentials {
-    val body = formEncode(
-        "grant_type" to "refresh_token",
-        "client_id" to OAUTH_CLIENT_ID,
-        "refresh_token" to refreshToken,
-    )
-    val request = HttpRequest.newBuilder(URI.create(OAUTH_TOKEN_ENDPOINT))
-        .timeout(Duration.ofSeconds(30))
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .header("Accept", "application/json")
-        .POST(HttpRequest.BodyPublishers.ofString(body))
-        .build()
+private fun refreshCredentials(
+    refreshToken: String,
+    fallback: StandaloneCredentials,
+): StandaloneCredentials {
+    val body =
+        formEncode(
+            "grant_type" to "refresh_token",
+            "client_id" to OAUTH_CLIENT_ID,
+            "refresh_token" to refreshToken,
+        )
+    val request =
+        HttpRequest.newBuilder(URI.create(OAUTH_TOKEN_ENDPOINT))
+            .timeout(Duration.ofSeconds(30))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Accept", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(body))
+            .build()
     val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
-    check(response.statusCode() in 200..299) { "Token refresh failed: HTTP ${response.statusCode()} ${response.body()}" }
+    check(response.statusCode() in 200..299) {
+        "Token refresh failed: HTTP ${response.statusCode()} ${response.body()}"
+    }
     val refreshed = credentialsFromTokenResponse(response.body())
     return refreshed.copy(
         refreshToken = refreshed.refreshToken ?: fallback.refreshToken,
@@ -256,14 +276,16 @@ private fun refreshCredentials(refreshToken: String, fallback: StandaloneCredent
 
 internal fun credentialsFromTokenResponse(body: String): StandaloneCredentials {
     val response = JsonSupport.json.decodeFromString<OAuthTokenResponseDto>(body)
-    val accessToken = response.accessToken?.takeIf { it.isNotBlank() }
-        ?: error("Token response did not include access_token")
+    val accessToken =
+        response.accessToken?.takeIf { it.isNotBlank() }
+            ?: error("Token response did not include access_token")
     val expiresAt = resolveExpiresAt(accessToken, response.expiresIn)
     return StandaloneCredentials(
         accessToken = accessToken,
         refreshToken = response.refreshToken?.takeIf { it.isNotBlank() },
         expiresAt = expiresAt,
-        accountId = extractChatGptAccountId(response.idToken) ?: extractChatGptAccountId(accessToken),
+        accountId =
+            extractChatGptAccountId(response.idToken) ?: extractChatGptAccountId(accessToken),
     )
 }
 
@@ -275,28 +297,32 @@ private fun resolveExpiresAt(accessToken: String, expiresInSeconds: Long): Long 
 }
 
 private fun buildAuthorizationUrl(challenge: String, state: String): String {
-    val query = formEncode(
-        "client_id" to OAUTH_CLIENT_ID,
-        "redirect_uri" to OAUTH_REDIRECT_URI,
-        "scope" to "openid profile email offline_access",
-        "code_challenge" to challenge,
-        "code_challenge_method" to "S256",
-        "response_type" to "code",
-        "state" to state,
-        "codex_cli_simplified_flow" to "true",
-        "originator" to "openai-usage-quota-plugin",
-    )
+    val query =
+        formEncode(
+            "client_id" to OAUTH_CLIENT_ID,
+            "redirect_uri" to OAUTH_REDIRECT_URI,
+            "scope" to "openid profile email offline_access",
+            "code_challenge" to challenge,
+            "code_challenge_method" to "S256",
+            "response_type" to "code",
+            "state" to state,
+            "codex_cli_simplified_flow" to "true",
+            "originator" to "openai-usage-quota-plugin",
+        )
     return "$OAUTH_AUTHORIZATION_ENDPOINT?$query"
 }
 
 private fun parseQuery(query: String?): Map<String, String> {
     if (query.isNullOrBlank()) return emptyMap()
-    return query.split('&').mapNotNull { pair ->
-        val index = pair.indexOf('=')
-        if (index <= 0) return@mapNotNull null
-        URLDecoder.decode(pair.substring(0, index), Charsets.UTF_8) to
-            URLDecoder.decode(pair.substring(index + 1), Charsets.UTF_8)
-    }.toMap()
+    return query
+        .split('&')
+        .mapNotNull { pair ->
+            val index = pair.indexOf('=')
+            if (index <= 0) return@mapNotNull null
+            URLDecoder.decode(pair.substring(0, index), Charsets.UTF_8) to
+                URLDecoder.decode(pair.substring(index + 1), Charsets.UTF_8)
+        }
+        .toMap()
 }
 
 private fun formEncode(vararg params: Pair<String, String>): String {
@@ -326,17 +352,27 @@ private fun sha256Base64Url(value: String): String {
 
 private fun extractChatGptAccountId(jwt: String?): String? {
     val payload = jwt?.split('.')?.getOrNull(1) ?: return null
-    val json = runCatching { String(Base64.getUrlDecoder().decode(payload), Charsets.UTF_8) }.getOrNull() ?: return null
-    val root = runCatching { JsonSupport.json.parseToJsonElement(json).jsonObject }.getOrNull() ?: return null
-    return root["https://api.openai.com/auth"]?.jsonObject
-        ?.get("chatgpt_account_id")?.jsonPrimitive?.content
-        ?: root["email"]?.jsonPrimitive?.content
+    val json =
+        runCatching { String(Base64.getUrlDecoder().decode(payload), Charsets.UTF_8) }.getOrNull()
+            ?: return null
+    val root =
+        runCatching { JsonSupport.json.parseToJsonElement(json).jsonObject }.getOrNull()
+            ?: return null
+    return root["https://api.openai.com/auth"]
+        ?.jsonObject
+        ?.get("chatgpt_account_id")
+        ?.jsonPrimitive
+        ?.content ?: root["email"]?.jsonPrimitive?.content
 }
 
 private fun extractJwtExpiresAtMs(jwt: String): Long? {
     val payload = jwt.split('.').getOrNull(1) ?: return null
-    val json = runCatching { String(Base64.getUrlDecoder().decode(payload), Charsets.UTF_8) }.getOrNull() ?: return null
-    val root = runCatching { JsonSupport.json.parseToJsonElement(json).jsonObject }.getOrNull() ?: return null
+    val json =
+        runCatching { String(Base64.getUrlDecoder().decode(payload), Charsets.UTF_8) }.getOrNull()
+            ?: return null
+    val root =
+        runCatching { JsonSupport.json.parseToJsonElement(json).jsonObject }.getOrNull()
+            ?: return null
     return root["exp"]?.jsonPrimitive?.longOrNull?.times(1000L)
 }
 
@@ -345,22 +381,25 @@ private fun loadCredentials(): StandaloneCredentials {
     return StandaloneCredentials(
         accessToken = env("OPENAI_PROXY_ACCESS_TOKEN") ?: fileCredentials?.accessToken,
         refreshToken = env("OPENAI_PROXY_REFRESH_TOKEN") ?: fileCredentials?.refreshToken,
-        expiresAt = env("OPENAI_PROXY_EXPIRES_AT")?.toLongOrNull() ?: fileCredentials?.expiresAt ?: 0L,
+        expiresAt =
+            env("OPENAI_PROXY_EXPIRES_AT")?.toLongOrNull() ?: fileCredentials?.expiresAt ?: 0L,
         accountId = env("OPENAI_PROXY_ACCOUNT_ID") ?: fileCredentials?.accountId,
     )
 }
 
 private fun loadDotEnv(path: Path): Map<String, String> {
     if (!Files.exists(path)) return emptyMap()
-    return Files.readAllLines(path).mapNotNull { line ->
-        val trimmed = line.trim()
-        if (trimmed.isEmpty() || trimmed.startsWith('#')) return@mapNotNull null
-        val index = trimmed.indexOf('=')
-        if (index <= 0) return@mapNotNull null
-        val key = trimmed.substring(0, index).trim()
-        val value = trimmed.substring(index + 1).trim().unquoteDotEnvValue()
-        key.takeIf { it.isNotBlank() }?.let { it to value }
-    }.toMap()
+    return Files.readAllLines(path)
+        .mapNotNull { line ->
+            val trimmed = line.trim()
+            if (trimmed.isEmpty() || trimmed.startsWith('#')) return@mapNotNull null
+            val index = trimmed.indexOf('=')
+            if (index <= 0) return@mapNotNull null
+            val key = trimmed.substring(0, index).trim()
+            val value = trimmed.substring(index + 1).trim().unquoteDotEnvValue()
+            key.takeIf { it.isNotBlank() }?.let { it to value }
+        }
+        .toMap()
 }
 
 private fun String.unquoteDotEnvValue(): String {
@@ -374,20 +413,25 @@ private fun saveCredentialsToDotEnv(credentials: StandaloneCredentials) {
     val accessToken = credentials.accessToken?.takeIf { it.isNotBlank() } ?: return
     val existing = loadDotEnv(DOT_ENV_PATH).toMutableMap()
     existing["OPENAI_PROXY_ACCESS_TOKEN"] = accessToken
-    credentials.refreshToken?.takeIf { it.isNotBlank() }?.let { existing["OPENAI_PROXY_REFRESH_TOKEN"] = it }
+    credentials.refreshToken
+        ?.takeIf { it.isNotBlank() }
+        ?.let { existing["OPENAI_PROXY_REFRESH_TOKEN"] = it }
     if (credentials.expiresAt > 0) {
         existing["OPENAI_PROXY_EXPIRES_AT"] = credentials.expiresAt.toString()
     }
-    credentials.accountId?.takeIf { it.isNotBlank() }?.let { existing["OPENAI_PROXY_ACCOUNT_ID"] = it }
+    credentials.accountId
+        ?.takeIf { it.isNotBlank() }
+        ?.let { existing["OPENAI_PROXY_ACCOUNT_ID"] = it }
     if (existing["OPENAI_PROXY_API_KEY"].isNullOrBlank()) {
         val generated = ApiKeyUtils.generateNewKey()
         existing["OPENAI_PROXY_API_KEY"] = generated
         println("Generated OPENAI_PROXY_API_KEY=$generated")
     }
     existing.putIfAbsent("OPENAI_PROXY_PORT", DEFAULT_PORT.toString())
-    val content = existing.entries.joinToString("\n", postfix = "\n") { (key, value) ->
-        "$key=${value.toDotEnvValue()}"
-    }
+    val content =
+        existing.entries.joinToString("\n", postfix = "\n") { (key, value) ->
+            "$key=${value.toDotEnvValue()}"
+        }
     // The file holds the OAuth access token; restrict it to the owner before writing,
     // mirroring AuthLoader's handling of auth.json.
     restrictToOwner(DOT_ENV_PATH)
@@ -401,7 +445,9 @@ private fun restrictToOwner(path: Path) {
         if (!Files.exists(path)) {
             Files.createFile(path)
         }
-        if (java.nio.file.FileSystems.getDefault().supportedFileAttributeViews().contains("posix")) {
+        if (
+            java.nio.file.FileSystems.getDefault().supportedFileAttributeViews().contains("posix")
+        ) {
             Files.setPosixFilePermissions(
                 path,
                 setOf(
@@ -428,15 +474,18 @@ private fun String?.toBooleanFlag(): Boolean {
 private fun credentialsFromFile(filePath: String): StandaloneCredentials {
     val root = JsonSupport.json.parseToJsonElement(Files.readString(Path.of(filePath))).jsonObject
     return StandaloneCredentials(
-        accessToken = root["accessToken"]?.jsonPrimitive?.content
-            ?: root["access_token"]?.jsonPrimitive?.content,
-        refreshToken = root["refreshToken"]?.jsonPrimitive?.contentOrNull
-            ?: root["refresh_token"]?.jsonPrimitive?.contentOrNull,
-        expiresAt = root["expiresAt"]?.jsonPrimitive?.longOrNull
-            ?: root["expires_at"]?.jsonPrimitive?.longOrNull
-            ?: 0L,
-        accountId = root["accountId"]?.jsonPrimitive?.content
-            ?: root["account_id"]?.jsonPrimitive?.content,
+        accessToken =
+            root["accessToken"]?.jsonPrimitive?.content
+                ?: root["access_token"]?.jsonPrimitive?.content,
+        refreshToken =
+            root["refreshToken"]?.jsonPrimitive?.contentOrNull
+                ?: root["refresh_token"]?.jsonPrimitive?.contentOrNull,
+        expiresAt =
+            root["expiresAt"]?.jsonPrimitive?.longOrNull
+                ?: root["expires_at"]?.jsonPrimitive?.longOrNull
+                ?: 0L,
+        accountId =
+            root["accountId"]?.jsonPrimitive?.content ?: root["account_id"]?.jsonPrimitive?.content,
     )
 }
 
@@ -446,13 +495,14 @@ private class StandaloneCredentialManager(initialCredentials: StandaloneCredenti
     @Synchronized
     fun accessToken(): String? {
         if (credentials.accessToken.isNullOrBlank() || credentials.isExpired()) {
-            refreshLocked()?.let { return it.accessToken }
+            refreshLocked()?.let {
+                return it.accessToken
+            }
         }
         return credentials.accessToken
     }
 
-    @Synchronized
-    fun accountId(): String? = credentials.accountId
+    @Synchronized fun accountId(): String? = credentials.accountId
 
     @Synchronized
     fun refreshAfterRejected(staleAccessToken: String?): String? {
@@ -479,7 +529,8 @@ internal data class StandaloneCredentials(
     val expiresAt: Long = 0L,
     val accountId: String? = null,
 ) {
-    fun isExpired(): Boolean = expiresAt > 0 && System.currentTimeMillis() >= expiresAt - TOKEN_EXPIRY_SKEW_MS
+    fun isExpired(): Boolean =
+        expiresAt > 0 && System.currentTimeMillis() >= expiresAt - TOKEN_EXPIRY_SKEW_MS
 }
 
 private data class OAuthCallback(

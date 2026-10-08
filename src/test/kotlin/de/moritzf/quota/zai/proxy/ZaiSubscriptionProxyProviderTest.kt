@@ -31,16 +31,20 @@ class ZaiSubscriptionProxyProviderTest {
 
                 val modelsResponse = get(proxy.port, "/v1/models")
                 assertEquals(200, modelsResponse.statusCode())
-                val ids = JsonHelper.JSON.parseToJsonElement(modelsResponse.body()).jsonObject["data"]!!.jsonArray
-                    .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                val ids =
+                    JsonHelper.JSON.parseToJsonElement(modelsResponse.body())
+                        .jsonObject["data"]!!
+                        .jsonArray
+                        .map { it.jsonObject["id"]!!.jsonPrimitive.content }
                 assertTrue("za-glm-5.2" in ids)
                 assertTrue(ids.all { it.startsWith(ZaiSubscriptionProxyProvider.PREFIX) })
 
-                val chatResponse = post(
-                    proxy.port,
-                    "/v1/chat/completions",
-                    "{\"model\":\"za-glm-5.2\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
-                )
+                val chatResponse =
+                    post(
+                        proxy.port,
+                        "/v1/chat/completions",
+                        "{\"model\":\"za-glm-5.2\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    )
 
                 assertEquals(200, chatResponse.statusCode())
                 val chatRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
@@ -60,11 +64,12 @@ class ZaiSubscriptionProxyProviderTest {
             try {
                 proxy.server.start()
 
-                val chatResponse = post(
-                    proxy.port,
-                    "/v1/chat/completions",
-                    "{\"model\":\"za-glm-5.3\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
-                )
+                val chatResponse =
+                    post(
+                        proxy.port,
+                        "/v1/chat/completions",
+                        "{\"model\":\"za-glm-5.3\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    )
 
                 assertEquals(200, chatResponse.statusCode())
                 val chatRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
@@ -79,18 +84,21 @@ class ZaiSubscriptionProxyProviderTest {
 
     private fun newProxy(upstreamBaseUri: URI): TestProxy {
         val port = freePort()
-        val provider = ZaiSubscriptionProxyProvider(
-            apiKeyProvider = { "zai-key" },
-            upstreamBaseUri = upstreamBaseUri,
-            requestLogDir = Files.createTempDirectory("zai-subscription-proxy-test-logs").toString(),
-        )
+        val provider =
+            ZaiSubscriptionProxyProvider(
+                apiKeyProvider = { "zai-key" },
+                upstreamBaseUri = upstreamBaseUri,
+                requestLogDir =
+                    Files.createTempDirectory("zai-subscription-proxy-test-logs").toString(),
+            )
         return TestProxy(
             port,
             SubscriptionProxyServer(
                 port = port,
                 localApiKeyProvider = { "local-key" },
                 providers = { listOf(provider) },
-                requestLogDir = Files.createTempDirectory("subscription-proxy-test-logs").toString(),
+                requestLogDir =
+                    Files.createTempDirectory("subscription-proxy-test-logs").toString(),
             ),
         )
     }
@@ -120,17 +128,19 @@ class ZaiSubscriptionProxyProviderTest {
 
     private class TestUpstream : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
 
         init {
             server.createContext("/") { exchange ->
                 val body = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
-                requests += CapturedRequest(
-                    path = exchange.requestURI.rawPath,
-                    headers = exchange.requestHeaders.mapValues { it.value.toList() },
-                    body = body,
-                )
+                requests +=
+                    CapturedRequest(
+                        path = exchange.requestURI.rawPath,
+                        headers = exchange.requestHeaders.mapValues { it.value.toList() },
+                        body = body,
+                    )
                 val responseBody = "{\"id\":\"chatcmpl_1\",\"choices\":[]}"
                 val response = responseBody.toByteArray(Charsets.UTF_8)
                 exchange.responseHeaders.set("Content-Type", "application/json")
@@ -152,7 +162,8 @@ class ZaiSubscriptionProxyProviderTest {
         val body: String,
     ) {
         fun firstHeader(name: String): String? {
-            return headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }
+            return headers.entries
+                .firstOrNull { it.key.equals(name, ignoreCase = true) }
                 ?.value
                 ?.firstOrNull()
         }

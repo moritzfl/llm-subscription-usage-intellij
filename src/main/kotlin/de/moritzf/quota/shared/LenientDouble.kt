@@ -21,15 +21,16 @@ import kotlinx.serialization.json.doubleOrNull
  * Non-numeric values are absent rather than a parse failure.
  *
  * JSON booleans stay absent. Providers use them as flags, not amounts — for example
- * `individual_limit: true` is a placeholder, not 1.0. `toDoubleOrNull("true")` failing
- * is incidental; the type check is the contract.
+ * `individual_limit: true` is a placeholder, not 1.0. `toDoubleOrNull("true")` failing is
+ * incidental; the type check is the contract.
  */
 internal fun JsonElement.lenientDoubleOrNull(): Double? {
     val primitive = this as? JsonPrimitive ?: return null
     if (primitive.booleanOrNull != null) return null
-    val value = primitive.doubleOrNull
-        ?: primitive.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }?.toDoubleOrNull()
-        ?: return null
+    val value =
+        primitive.doubleOrNull
+            ?: primitive.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }?.toDoubleOrNull()
+            ?: return null
     return value.takeIf { it.isFinite() }
 }
 
@@ -38,8 +39,8 @@ internal object LenientDoubleSerializer : KSerializer<Double> {
         PrimitiveSerialDescriptor("LenientDouble", PrimitiveKind.DOUBLE)
 
     override fun deserialize(decoder: Decoder): Double {
-        val jsonDecoder = decoder as? JsonDecoder
-            ?: error("LenientDoubleSerializer requires JsonDecoder")
+        val jsonDecoder =
+            decoder as? JsonDecoder ?: error("LenientDoubleSerializer requires JsonDecoder")
         val element = jsonDecoder.decodeJsonElement()
         return element.lenientDoubleOrNull()
             ?: throw SerializationException("Expected a number, got ${element.toString().take(64)}")
@@ -55,8 +56,8 @@ internal object LenientDoubleOrNullSerializer : KSerializer<Double?> {
         PrimitiveSerialDescriptor("LenientDouble", PrimitiveKind.DOUBLE)
 
     override fun deserialize(decoder: Decoder): Double? {
-        val jsonDecoder = decoder as? JsonDecoder
-            ?: error("LenientDoubleOrNullSerializer requires JsonDecoder")
+        val jsonDecoder =
+            decoder as? JsonDecoder ?: error("LenientDoubleOrNullSerializer requires JsonDecoder")
         val element = jsonDecoder.decodeJsonElement()
         if (element is JsonNull) return null
         return element.lenientDoubleOrNull()
@@ -64,8 +65,9 @@ internal object LenientDoubleOrNullSerializer : KSerializer<Double?> {
 
     override fun serialize(encoder: Encoder, value: Double?) {
         if (value == null) {
-            val jsonEncoder = encoder as? JsonEncoder
-                ?: error("LenientDoubleOrNullSerializer requires JsonEncoder")
+            val jsonEncoder =
+                encoder as? JsonEncoder
+                    ?: error("LenientDoubleOrNullSerializer requires JsonEncoder")
             jsonEncoder.encodeJsonElement(JsonNull)
         } else {
             encoder.encodeDouble(value)

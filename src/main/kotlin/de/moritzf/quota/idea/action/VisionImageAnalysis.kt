@@ -1,7 +1,6 @@
 package de.moritzf.quota.idea.action
 
 import de.moritzf.quota.idea.auth.QuotaAuthService
-import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.kimi.KimiCredentialsStore
 import de.moritzf.quota.idea.mcp.CodexMcpClient
 import de.moritzf.quota.idea.mcp.VisionProvider
@@ -25,7 +24,10 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
-/** IDE-side entry point for asking a vision model about one image; mirrors the subscription_vision MCP tool. */
+/**
+ * IDE-side entry point for asking a vision model about one image; mirrors the subscription_vision
+ * MCP tool.
+ */
 internal object VisionImageAnalysis {
     fun availableProviders(): List<VisionProvider> {
         val settings = QuotaSettingsState.getInstance()
@@ -46,48 +48,73 @@ internal object VisionImageAnalysis {
         return when (provider) {
             VisionProvider.OPEN_AI -> {
                 val auth = QuotaAuthService.getInstance()
-                val client = CodexMcpClient(
-                    accessTokenProvider = { auth.getAccessTokenBlocking(account.id, type) },
-                    accountIdProvider = { auth.getAccountId(account.id, type) },
-                    tokenRefresher = { auth.forceRefreshBlocking(account.id, type, it) },
-                )
-                val response = client.analyzeImage(localFile = image, prompt = trimmedPrompt, model = chosen)
+                val client =
+                    CodexMcpClient(
+                        accessTokenProvider = { auth.getAccessTokenBlocking(account.id, type) },
+                        accountIdProvider = { auth.getAccountId(account.id, type) },
+                        tokenRefresher = { auth.forceRefreshBlocking(account.id, type, it) },
+                    )
+                val response =
+                    client.analyzeImage(localFile = image, prompt = trimmedPrompt, model = chosen)
                 if (response.isError) error(responseErrorMessage(response.body)) else response.body
             }
 
             VisionProvider.SUPERGROK -> {
                 val auth = QuotaAuthService.getInstance()
-                val token = auth.getAccessTokenBlocking(account.id, type) ?: error("Grok login required.")
+                val token =
+                    auth.getAccessTokenBlocking(account.id, type) ?: error("Grok login required.")
                 val client = SuperGrokDocumentClient()
                 try {
-                    client.analyzeImage(token, localFile = image, prompt = trimmedPrompt, model = chosen)
+                    client.analyzeImage(
+                        token,
+                        localFile = image,
+                        prompt = trimmedPrompt,
+                        model = chosen,
+                    )
                 } catch (exception: SuperGrokQuotaException) {
                     if (exception.statusCode != 401 && exception.statusCode != 403) throw exception
-                    val refreshed = auth.forceRefreshBlocking(account.id, type, token) ?: throw exception
-                    client.analyzeImage(refreshed, localFile = image, prompt = trimmedPrompt, model = chosen)
+                    val refreshed =
+                        auth.forceRefreshBlocking(account.id, type, token) ?: throw exception
+                    client.analyzeImage(
+                        refreshed,
+                        localFile = image,
+                        prompt = trimmedPrompt,
+                        model = chosen,
+                    )
                 }
             }
 
             VisionProvider.MISTRAL -> {
-                val key = MistralApiKeyStore.forAccount(account.id).loadBlocking() ?: error("Mistral API key missing.")
-                MistralVisionClient.createDefault().ask(key, localFile = image, prompt = trimmedPrompt, model = chosen)
+                val key =
+                    MistralApiKeyStore.forAccount(account.id).loadBlocking()
+                        ?: error("Mistral API key missing.")
+                MistralVisionClient.createDefault()
+                    .ask(key, localFile = image, prompt = trimmedPrompt, model = chosen)
             }
 
             VisionProvider.ZAI -> {
-                val key = ZaiApiKeyStore.forAccount(account.id).loadBlocking() ?: error("Z.ai API key missing.")
-                ZaiVisionClient.createDefault().ask(key, localFile = image, prompt = trimmedPrompt, model = chosen)
+                val key =
+                    ZaiApiKeyStore.forAccount(account.id).loadBlocking()
+                        ?: error("Z.ai API key missing.")
+                ZaiVisionClient.createDefault()
+                    .ask(key, localFile = image, prompt = trimmedPrompt, model = chosen)
             }
 
             VisionProvider.OLLAMA -> {
-                val key = OllamaApiKeyStore.forAccount(account.id).loadBlocking() ?: error("Ollama API key missing.")
-                OllamaVisionClient.createDefault().ask(key, localFile = image, prompt = trimmedPrompt, model = chosen)
+                val key =
+                    OllamaApiKeyStore.forAccount(account.id).loadBlocking()
+                        ?: error("Ollama API key missing.")
+                OllamaVisionClient.createDefault()
+                    .ask(key, localFile = image, prompt = trimmedPrompt, model = chosen)
             }
 
             VisionProvider.KIMI -> {
                 val store = KimiCredentialsStore.forAccount(account.id)
                 val credentials = store.loadBlocking()
                 if (credentials?.isUsable() != true) error("Kimi login required.")
-                val result = KimiVisionClient.createDefault().ask(credentials, localFile = image, prompt = trimmedPrompt, model = chosen)
+                val result =
+                    KimiVisionClient.createDefault()
+                        .ask(credentials, localFile = image, prompt = trimmedPrompt, model = chosen)
                 if (result.credentials != credentials) store.save(result.credentials)
                 result.answer
             }
@@ -101,15 +128,25 @@ internal object VisionImageAnalysis {
     }
 
     private fun responseErrorMessage(body: String): String {
-        val json = runCatching { JsonSupport.json.parseToJsonElement(body) as? JsonObject }.getOrNull()
+        val json = runCatching {
+            JsonSupport.json.parseToJsonElement(body) as? JsonObject
+        }
+            .getOrNull()
         val error = json?.get("error")
-        val message = when (error) {
-            is JsonPrimitive -> error.contentOrNull
-            is JsonObject -> (error["message"] as? JsonPrimitive)?.contentOrNull
-            else -> null
-        }?.takeIf { it.isNotBlank() }
+        val message =
+            when (error) {
+                is JsonPrimitive -> error.contentOrNull
+                is JsonObject -> (error["message"] as? JsonPrimitive)?.contentOrNull
+                else -> null
+            }?.takeIf { it.isNotBlank() }
         if (message != null) return message
-        (json?.get("detail") as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }?.let { return it }
-        return body.trim().takeIf { it.isNotBlank() && !it.startsWith("{") } ?: "Codex image analysis failed."
+        (json?.get("detail") as? JsonPrimitive)
+            ?.contentOrNull
+            ?.takeIf { it.isNotBlank() }
+            ?.let {
+                return it
+            }
+        return body.trim().takeIf { it.isNotBlank() && !it.startsWith("{") }
+            ?: "Codex image analysis failed."
     }
 }

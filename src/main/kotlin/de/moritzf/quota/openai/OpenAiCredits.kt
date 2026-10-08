@@ -58,11 +58,11 @@ fun OpenAiCodexQuota.creditsLimitWarning(): String? {
     // Only treat as individual spend when the payload includes a concrete cap/object detail
     // (bare spend_control.reached is also used for other workspace limit types).
     val spend = spendControl
-    if (spend?.reached == true && (
-            (spend.individualLimit ?: 0.0) > 0.0 ||
+    if (
+        spend?.reached == true &&
+            ((spend.individualLimit ?: 0.0) > 0.0 ||
                 spend.usedPercent != null ||
-                spend.used != null
-            )
+                spend.used != null)
     ) {
         return "Individual spend limit reached"
     }
@@ -73,14 +73,12 @@ fun OpenAiCodexQuota.creditsLimitWarning(): String? {
 }
 
 /**
- * True only when spend_control carries a concrete per-member cap detail. A bare
- * `{"reached": false}` (present in nearly every individual-plan payload) is not detail and must
- * not trigger assigned-credits/spend UI. Mirrors the gating in [creditsLimitWarning].
+ * True only when spend_control carries a concrete per-member cap detail. A bare `{"reached":
+ * false}` (present in nearly every individual-plan payload) is not detail and must not trigger
+ * assigned-credits/spend UI. Mirrors the gating in [creditsLimitWarning].
  */
 fun OpenAiSpendControl.hasDetail(): Boolean {
-    return (individualLimit != null && individualLimit > 0.0) ||
-        usedPercent != null ||
-        used != null
+    return (individualLimit != null && individualLimit > 0.0) || usedPercent != null || used != null
 }
 
 fun OpenAiCodexQuota.hasSpendControlDetail(): Boolean = spendControl?.hasDetail() == true

@@ -18,11 +18,12 @@ import kotlin.test.assertTrue
 class OperationQuotaTest {
     @Test
     fun zaiWebSearchUsesSearchPoolNotTokenWindows() {
-        val quota = ZaiQuota(
-            sessionUsage = ZaiUsageWindow(usagePercent = 100.0),
-            weeklyUsage = ZaiUsageWindow(usagePercent = 100.0),
-            webSearchUsage = ZaiCountUsageWindow(used = 1, limit = 10, usagePercent = 10.0),
-        )
+        val quota =
+            ZaiQuota(
+                sessionUsage = ZaiUsageWindow(usagePercent = 100.0),
+                weeklyUsage = ZaiUsageWindow(usagePercent = 100.0),
+                webSearchUsage = ZaiCountUsageWindow(used = 1, limit = 10, usagePercent = 10.0),
+            )
 
         val search = OperationQuota.status(quota, AccountCapability.WEB_SEARCH)
         assertFalse(search.exhausted)
@@ -44,12 +45,18 @@ class OperationQuotaTest {
 
     @Test
     fun openAiNonLunaModelIsExhaustedWhenMainLimitReachedEvenWithReserve() {
-        val quota = OpenAiCodexQuota(
-            limitReached = true,
-            extraRateLimits = listOf(
-                OpenAiExtraRateLimit("gpt-reserve", "GPT Reserve Weekly", UsageWindow(usedPercent = 0.0)),
-            ),
-        )
+        val quota =
+            OpenAiCodexQuota(
+                limitReached = true,
+                extraRateLimits =
+                    listOf(
+                        OpenAiExtraRateLimit(
+                            "gpt-reserve",
+                            "GPT Reserve Weekly",
+                            UsageWindow(usedPercent = 0.0),
+                        )
+                    ),
+            )
 
         assertFalse(AccountResolver.isHardStop(quota))
         assertFalse(AccountResolver.isHardStop(quota, AccountCapability.PROXY, "gpt-6-luna"))

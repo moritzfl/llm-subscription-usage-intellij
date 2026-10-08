@@ -4,10 +4,9 @@ import com.intellij.openapi.ui.VerticalFlowLayout
 import de.moritzf.quota.shared.ProviderQuota
 import javax.swing.JPanel
 
-/**
- * One provider's block in the quota popup.
- */
-internal abstract class ProviderPopupSection : JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)) {
+/** One provider's block in the quota popup. */
+internal abstract class ProviderPopupSection :
+    JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)) {
     var accountId: String? = null
     var accountTitle: String? = null
 

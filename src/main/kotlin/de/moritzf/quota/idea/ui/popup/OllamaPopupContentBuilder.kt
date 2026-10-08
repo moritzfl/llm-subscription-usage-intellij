@@ -1,21 +1,24 @@
 package de.moritzf.quota.idea.ui.popup
 
+import com.intellij.util.ui.JBUI
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.ui.indicator.QuotaPeriodDurations
 import de.moritzf.quota.idea.ui.indicator.clampPercent
 import de.moritzf.quota.ollama.OllamaQuota
-import kotlin.math.roundToInt
 import de.moritzf.quota.ollama.OllamaUsageWindow
-import com.intellij.util.ui.JBUI
 import de.moritzf.quota.shared.ProviderQuota
+import kotlin.math.roundToInt
 
 private const val OLLAMA_LABEL = "Ollama Cloud"
 
 internal class OllamaPopupSection : ProviderPopupSection() {
     private val separator = createSeparatedBlock()
     private val errorLabel = createWarningLabel("").apply { border = JBUI.Borders.emptyTop(1) }
-    private val titleLabel = createSectionTitleLabel(OLLAMA_LABEL, QuotaIcons.OLLAMA).apply { border = JBUI.Borders.emptyTop(0) }
+    private val titleLabel =
+        createSectionTitleLabel(OLLAMA_LABEL, QuotaIcons.OLLAMA).apply {
+            border = JBUI.Borders.emptyTop(0)
+        }
     private val sessionBlock = WindowBlockPanel(3)
     private val weeklyBlock = WindowBlockPanel(5)
     private val monthlyBlock = WindowBlockPanel(5)
@@ -54,9 +57,10 @@ internal class OllamaPopupSection : ProviderPopupSection() {
                 monthlyBlock.showLoading("Monthly")
             }
             else -> {
-                val limitReached = (quota.sessionUsage?.usagePercent ?: 0.0) >= 100.0 ||
-                    (quota.weeklyUsage?.usagePercent ?: 0.0) >= 100.0 ||
-                    (quota.monthlyUsage?.usagePercent ?: 0.0) >= 100.0
+                val limitReached =
+                    (quota.sessionUsage?.usagePercent ?: 0.0) >= 100.0 ||
+                        (quota.weeklyUsage?.usagePercent ?: 0.0) >= 100.0 ||
+                        (quota.monthlyUsage?.usagePercent ?: 0.0) >= 100.0
                 errorLabel.isVisible = limitReached
                 if (limitReached) {
                     errorLabel.text = "Ollama limit reached"
@@ -98,12 +102,19 @@ internal class OllamaPopupSection : ProviderPopupSection() {
         val resetText = QuotaUiUtil.formatReset(window.resetsAt)
         var info = "$percent% used"
         if (window.usedAmountUsd != null && window.allowanceUsd != null) {
-            info += String.format(java.util.Locale.ROOT, " • $%.2f / $%.2f", window.usedAmountUsd, window.allowanceUsd)
+            info +=
+                String.format(
+                    java.util.Locale.ROOT,
+                    " • $%.2f / $%.2f",
+                    window.usedAmountUsd,
+                    window.allowanceUsd,
+                )
         }
         if (resetText != null) {
             info += " - $resetText"
         } else {
-            // API omits resets_at; show known window length instead of leaving time blank/"unknown".
+            // API omits resets_at; show known window length instead of leaving time
+            // blank/"unknown".
             QuotaUiUtil.formatCompactDuration(period)?.let { info += " ($it)" }
         }
         update("$label limit", info, percent)

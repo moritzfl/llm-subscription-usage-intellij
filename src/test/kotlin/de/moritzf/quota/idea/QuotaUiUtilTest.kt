@@ -1,13 +1,13 @@
 package de.moritzf.quota.idea
 
 import de.moritzf.quota.idea.ui.QuotaUiUtil
-import kotlin.time.Clock
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 
 class QuotaUiUtilTest {

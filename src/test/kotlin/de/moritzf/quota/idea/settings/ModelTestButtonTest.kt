@@ -14,12 +14,13 @@ class ModelTestButtonTest {
     fun documentTestTracksLoadedSelectionWithoutManualModelSwitch() {
         SwingUtilities.invokeAndWait {
             val combo = JComboBox<String>()
-            val button = DocumentTestButton(
-                DocumentToMarkdownProvider.AZURE,
-                { (combo.selectedItem as? String).orEmpty() },
-                { null },
-                combo,
-            )
+            val button =
+                DocumentTestButton(
+                    DocumentToMarkdownProvider.AZURE,
+                    { (combo.selectedItem as? String).orEmpty() },
+                    { null },
+                    combo,
+                )
             assertFalse(button.isEnabled)
 
             combo.model = DefaultComboBoxModel(arrayOf("mistral-ocr-4-0", "-"))

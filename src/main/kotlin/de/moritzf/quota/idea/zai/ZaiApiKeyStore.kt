@@ -13,8 +13,8 @@ import java.util.concurrent.atomic.AtomicReference
 import java.util.logging.Logger
 
 /**
- * Stores the Z.ai API key in IntelliJ PasswordSafe.
- * Caches the value in memory to avoid calling PasswordSafe on the EDT.
+ * Stores the Z.ai API key in IntelliJ PasswordSafe. Caches the value in memory to avoid calling
+ * PasswordSafe on the EDT.
  */
 @Service(Service.Level.APP)
 class ZaiApiKeyStore(
@@ -51,11 +51,12 @@ class ZaiApiKeyStore(
         val generation = loadGeneration.get()
         AppExecutorUtil.getAppExecutorService().execute {
             try {
-                val stored = try {
-                    PasswordSafe.instance.get(attributes)
-                } catch (exception: Exception) {
-                    null
-                }
+                val stored =
+                    try {
+                        PasswordSafe.instance.get(attributes)
+                    } catch (exception: Exception) {
+                        null
+                    }
                 val apiKey = stored?.getPasswordAsString()?.ifBlank { null }
                 if (loadGeneration.get() == generation) {
                     cachedApiKey.set(apiKey)
@@ -70,12 +71,13 @@ class ZaiApiKeyStore(
 
     fun loadBlocking(): String? {
         loadGeneration.incrementAndGet()
-        val stored = try {
-            PasswordSafe.instance.get(attributes)
-        } catch (exception: Exception) {
-            LOG.warning("Failed to load Z.ai API key: ${exception.message}")
-            return null
-        }
+        val stored =
+            try {
+                PasswordSafe.instance.get(attributes)
+            } catch (exception: Exception) {
+                LOG.warning("Failed to load Z.ai API key: ${exception.message}")
+                return null
+            }
         val apiKey = stored?.getPasswordAsString()?.ifBlank { null }
         cachedApiKey.set(apiKey)
         loaded.set(true)
@@ -112,9 +114,7 @@ class ZaiApiKeyStore(
         }
         val callbacks = loadCallbacks.toList()
         loadCallbacks.clear()
-        callbacks.forEach { callback ->
-            ApplicationManager.getApplication().invokeLater(callback)
-        }
+        callbacks.forEach { callback -> ApplicationManager.getApplication().invokeLater(callback) }
     }
 
     companion object {
@@ -137,6 +137,8 @@ class ZaiApiKeyStore(
                 USER_NAME,
                 extras,
                 ::getInstance,
-            ) { service, user -> ZaiApiKeyStore(userName = user, serviceName = service) }
+            ) { service, user ->
+                ZaiApiKeyStore(userName = user, serviceName = service)
+            }
     }
 }

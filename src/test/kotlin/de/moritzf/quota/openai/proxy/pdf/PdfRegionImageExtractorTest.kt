@@ -46,9 +46,15 @@ class PdfRegionImageExtractorTest {
             val topLeft = dir.resolve("top-left.png")
             assertTrue(
                 ex.renderRegion(
-                    PdfRegionImageExtractor.PageRegion(1, 0f, 0f, square / pageWidth, square / pageHeight),
+                    PdfRegionImageExtractor.PageRegion(
+                        1,
+                        0f,
+                        0f,
+                        square / pageWidth,
+                        square / pageHeight,
+                    ),
                     topLeft,
-                ),
+                )
             )
             val bottomRight = dir.resolve("bottom-right.png")
             assertTrue(
@@ -61,13 +67,21 @@ class PdfRegionImageExtractorTest {
                         1f,
                     ),
                     bottomRight,
-                ),
+                )
             )
 
             val red = ImageIO.read(topLeft.toFile())
             val blue = ImageIO.read(bottomRight.toFile())
-            assertEquals(Color.RED.rgb, red.getRGB(red.width / 2, red.height / 2), "top-left crop should be red")
-            assertEquals(Color.BLUE.rgb, blue.getRGB(blue.width / 2, blue.height / 2), "bottom-right crop should be blue")
+            assertEquals(
+                Color.RED.rgb,
+                red.getRGB(red.width / 2, red.height / 2),
+                "top-left crop should be red",
+            )
+            assertEquals(
+                Color.BLUE.rgb,
+                blue.getRGB(blue.width / 2, blue.height / 2),
+                "bottom-right crop should be blue",
+            )
         }
     }
 }

@@ -23,7 +23,11 @@ internal class AntigravityPopupSection : ProviderPopupSection() {
         isVisible = visible
         if (!visible) return
         titleLabel.text = sectionTitle("Antigravity")
-        val warning = error ?: (quota as? AntigravityQuota)?.warnings?.joinToString(" ")?.takeIf { it.isNotEmpty() }
+        val warning =
+            error
+                ?: (quota as? AntigravityQuota)?.warnings?.joinToString(" ")?.takeIf {
+                    it.isNotEmpty()
+                }
         errorLabel.text = warning.orEmpty()
         errorLabel.isVisible = warning != null
         blocks.forEach { it.clear() }
@@ -33,15 +37,19 @@ internal class AntigravityPopupSection : ProviderPopupSection() {
                 val title = "${window.group} / $label"
                 val percent = window.usagePercent?.roundToInt()
                 val info = buildList {
-                    add(when {
-                        window.disabled -> "Unavailable"
-                        percent == null -> "Usage unavailable"
-                        else -> "$percent% used"
-                    })
+                    add(
+                        when {
+                            window.disabled -> "Unavailable"
+                            percent == null -> "Usage unavailable"
+                            else -> "$percent% used"
+                        }
+                    )
                     QuotaUiUtil.formatReset(window.resetsAt)?.let(::add)
-                }.joinToString(" - ")
+                }
+                    .joinToString(" - ")
                 block(index).apply {
-                    if (percent != null) update(title, info, percent) else showUnavailable(title, info)
+                    if (percent != null) update(title, info, percent)
+                    else showUnavailable(title, info)
                 }
             }
         } else if (error == null) {

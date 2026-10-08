@@ -37,51 +37,91 @@ open class MiniMaxImageClient(
         if (trimmedPrompt.isBlank()) {
             throw MiniMaxQuotaException("Image prompt is required.")
         }
-        val token = apiKey.trim().ifBlank {
-            throw MiniMaxQuotaException("MiniMax API key missing. Add a MiniMax API key in settings.")
-        }
-        val body = JsonSupport.json.encodeToString(
-            MiniMaxImageRequestDto(model = model.trim().ifBlank { DEFAULT_MODEL }, prompt = trimmedPrompt),
-        )
+        val token =
+            apiKey.trim().ifBlank {
+                throw MiniMaxQuotaException(
+                    "MiniMax API key missing. Add a MiniMax API key in settings."
+                )
+            }
+        val body =
+            JsonSupport.json.encodeToString(
+                MiniMaxImageRequestDto(
+                    model = model.trim().ifBlank { DEFAULT_MODEL },
+                    prompt = trimmedPrompt,
+                )
+            )
         val response = send(postJson(token, apiHost(region).resolve(IMAGE_PATH), body))
         val status = response.statusCode()
         val responseBody = response.body()
         if (status == 401 || status == 403) {
-            throw MiniMaxQuotaException("Session expired. Check your MiniMax API key.", status, responseBody)
+            throw MiniMaxQuotaException(
+                "Session expired. Check your MiniMax API key.",
+                status,
+                responseBody,
+            )
         }
         if (status !in 200..299) {
-            throw MiniMaxQuotaException("MiniMax image generation failed (HTTP $status). Try again later.", status, responseBody)
+            throw MiniMaxQuotaException(
+                "MiniMax image generation failed (HTTP $status). Try again later.",
+                status,
+                responseBody,
+            )
         }
         checkBaseResp(responseBody)
         val output = resolveOutput(targetFile, baseDirectory)
         if (output == null) {
             return McpJson.providerJsonOrRaw(responseBody)
         }
-        val url = firstImageUrl(responseBody)
-            ?: throw MiniMaxQuotaException("MiniMax image generation returned no image URL.", status, responseBody)
+        val url =
+            firstImageUrl(responseBody)
+                ?: throw MiniMaxQuotaException(
+                    "MiniMax image generation returned no image URL.",
+                    status,
+                    responseBody,
+                )
         val bytes = download(url)
         val parent = output.parent
         if (parent != null) {
             Files.createDirectories(parent)
         }
         Files.write(output, bytes)
-        return JsonSupport.json.encodeToString(MiniMaxImageWriteResult(output.toString(), bytes.size.toLong()))
+        return JsonSupport.json.encodeToString(
+            MiniMaxImageWriteResult(output.toString(), bytes.size.toLong())
+        )
     }
 
     private fun download(url: String): ByteArray {
-        val response = try {
-            httpClient.send(
-                HttpRequest.newBuilder().uri(URI.create(url)).timeout(Duration.ofSeconds(90)).GET().build(),
-                HttpResponse.BodyHandlers.ofByteArray(),
-            )
-        } catch (exception: IOException) {
-            throw MiniMaxQuotaException("Request failed. Check your connection.", 0, null, exception)
-        } catch (exception: InterruptedException) {
-            Thread.currentThread().interrupt()
-            throw MiniMaxQuotaException("Request failed. Check your connection.", 0, null, exception)
-        }
+        val response =
+            try {
+                httpClient.send(
+                    HttpRequest.newBuilder()
+                        .uri(URI.create(url))
+                        .timeout(Duration.ofSeconds(90))
+                        .GET()
+                        .build(),
+                    HttpResponse.BodyHandlers.ofByteArray(),
+                )
+            } catch (exception: IOException) {
+                throw MiniMaxQuotaException(
+                    "Request failed. Check your connection.",
+                    0,
+                    null,
+                    exception,
+                )
+            } catch (exception: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw MiniMaxQuotaException(
+                    "Request failed. Check your connection.",
+                    0,
+                    null,
+                    exception,
+                )
+            }
         if (response.statusCode() !in 200..299) {
-            throw MiniMaxQuotaException("MiniMax image download failed (HTTP ${response.statusCode()}).", response.statusCode())
+            throw MiniMaxQuotaException(
+                "MiniMax image download failed (HTTP ${response.statusCode()}).",
+                response.statusCode(),
+            )
         }
         return response.body()
     }
@@ -101,10 +141,20 @@ open class MiniMaxImageClient(
         return try {
             httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         } catch (exception: IOException) {
-            throw MiniMaxQuotaException("Request failed. Check your connection.", 0, null, exception)
+            throw MiniMaxQuotaException(
+                "Request failed. Check your connection.",
+                0,
+                null,
+                exception,
+            )
         } catch (exception: InterruptedException) {
             Thread.currentThread().interrupt()
-            throw MiniMaxQuotaException("Request failed. Check your connection.", 0, null, exception)
+            throw MiniMaxQuotaException(
+                "Request failed. Check your connection.",
+                0,
+                null,
+                exception,
+            )
         }
     }
 
@@ -124,18 +174,25 @@ open class MiniMaxImageClient(
         fun createDefault(): MiniMaxImageClient = MiniMaxImageClient()
 
         internal fun firstImageUrl(body: String): String? {
-            val root = runCatching { JsonSupport.json.parseToJsonElement(body) as? JsonObject }.getOrNull() ?: return null
+            val root =
+                runCatching { JsonSupport.json.parseToJsonElement(body) as? JsonObject }.getOrNull()
+                    ?: return null
             val data = root["data"] as? JsonObject ?: return null
             val urls = data["image_urls"] as? JsonArray ?: return null
             return (urls.firstOrNull() as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
         }
 
         internal fun checkBaseResp(body: String) {
-            val root = runCatching { JsonSupport.json.parseToJsonElement(body) as? JsonObject }.getOrNull() ?: return
+            val root =
+                runCatching { JsonSupport.json.parseToJsonElement(body) as? JsonObject }.getOrNull()
+                    ?: return
             val base = root["base_resp"] as? JsonObject ?: return
             val code = (base["status_code"] as? JsonPrimitive)?.intOrNull ?: 0
             if (code != 0) {
-                val msg = (base["status_msg"] as? JsonPrimitive)?.contentOrNull.orEmpty().ifBlank { code.toString() }
+                val msg =
+                    (base["status_msg"] as? JsonPrimitive)?.contentOrNull.orEmpty().ifBlank {
+                        code.toString()
+                    }
                 throw MiniMaxQuotaException("MiniMax image generation failed: $msg", code, body)
             }
         }

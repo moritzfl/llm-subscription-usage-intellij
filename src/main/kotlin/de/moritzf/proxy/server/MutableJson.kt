@@ -7,9 +7,9 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 /**
- * Mutable JSON object builder that wraps an immutable [JsonObject].
- * Provides Jackson-like in-place mutation semantics ([put], [set], [remove])
- * while building on kotlinx.serialization under the hood.
+ * Mutable JSON object builder that wraps an immutable [JsonObject]. Provides Jackson-like in-place
+ * mutation semantics ([put], [set], [remove]) while building on kotlinx.serialization under the
+ * hood.
  *
  * Call [build] to produce the immutable [JsonObject].
  */
@@ -37,17 +37,11 @@ class MutableJsonObject(initial: JsonObject = JsonObject(emptyMap())) {
         entries[key] = JsonPrimitive(value)
     }
 
-    fun put(key: String, value: JsonElement): MutableJsonObject = apply {
-        entries[key] = value
-    }
+    fun put(key: String, value: JsonElement): MutableJsonObject = apply { entries[key] = value }
 
-    fun putNull(key: String): MutableJsonObject = apply {
-        entries[key] = JsonNull
-    }
+    fun putNull(key: String): MutableJsonObject = apply { entries[key] = JsonNull }
 
-    fun set(key: String, value: JsonElement): MutableJsonObject = apply {
-        entries[key] = value
-    }
+    fun set(key: String, value: JsonElement): MutableJsonObject = apply { entries[key] = value }
 
     fun set(key: String, value: MutableJsonObject): MutableJsonObject = apply {
         entries[key] = value.build()
@@ -57,9 +51,7 @@ class MutableJsonObject(initial: JsonObject = JsonObject(emptyMap())) {
         entries[key] = value.build()
     }
 
-    fun remove(key: String): MutableJsonObject = apply {
-        entries.remove(key)
-    }
+    fun remove(key: String): MutableJsonObject = apply { entries.remove(key) }
 
     fun has(key: String): Boolean = entries.containsKey(key) && entries[key] !is JsonNull
 
@@ -81,9 +73,8 @@ class MutableJsonObject(initial: JsonObject = JsonObject(emptyMap())) {
 }
 
 /**
- * Mutable JSON array builder that wraps an immutable [JsonArray].
- * Provides Jackson-like in-place mutation semantics ([add], [addAll])
- * while building on kotlinx.serialization under the hood.
+ * Mutable JSON array builder that wraps an immutable [JsonArray]. Provides Jackson-like in-place
+ * mutation semantics ([add], [addAll]) while building on kotlinx.serialization under the hood.
  *
  * Call [build] to produce the immutable [JsonArray].
  */
@@ -91,33 +82,19 @@ class MutableJsonArray(initial: JsonArray = JsonArray(emptyList())) {
 
     private val elements: MutableList<JsonElement> = initial.toMutableList()
 
-    fun add(value: JsonElement): MutableJsonArray = apply {
-        elements.add(value)
-    }
+    fun add(value: JsonElement): MutableJsonArray = apply { elements.add(value) }
 
-    fun add(value: MutableJsonObject): MutableJsonArray = apply {
-        elements.add(value.build())
-    }
+    fun add(value: MutableJsonObject): MutableJsonArray = apply { elements.add(value.build()) }
 
-    fun add(value: MutableJsonArray): MutableJsonArray = apply {
-        elements.add(value.build())
-    }
+    fun add(value: MutableJsonArray): MutableJsonArray = apply { elements.add(value.build()) }
 
-    fun add(value: String): MutableJsonArray = apply {
-        elements.add(JsonPrimitive(value))
-    }
+    fun add(value: String): MutableJsonArray = apply { elements.add(JsonPrimitive(value)) }
 
-    fun add(value: Int): MutableJsonArray = apply {
-        elements.add(JsonPrimitive(value))
-    }
+    fun add(value: Int): MutableJsonArray = apply { elements.add(JsonPrimitive(value)) }
 
-    fun add(value: Long): MutableJsonArray = apply {
-        elements.add(JsonPrimitive(value))
-    }
+    fun add(value: Long): MutableJsonArray = apply { elements.add(JsonPrimitive(value)) }
 
-    fun add(value: Boolean): MutableJsonArray = apply {
-        elements.add(JsonPrimitive(value))
-    }
+    fun add(value: Boolean): MutableJsonArray = apply { elements.add(JsonPrimitive(value)) }
 
     fun addAll(elements: Iterable<JsonElement>): MutableJsonArray = apply {
         this.elements.addAll(elements)
@@ -131,9 +108,7 @@ class MutableJsonArray(initial: JsonArray = JsonArray(emptyList())) {
         this.elements.addAll(other.elements)
     }
 
-    fun removeAll(): MutableJsonArray = apply {
-        elements.clear()
-    }
+    fun removeAll(): MutableJsonArray = apply { elements.clear() }
 
     fun isEmpty(): Boolean = elements.isEmpty()
 
@@ -145,9 +120,11 @@ class MutableJsonArray(initial: JsonArray = JsonArray(emptyList())) {
         elements.forEach(action)
     }
 
-    fun map(mapper: (JsonElement) -> JsonElement): MutableJsonArray = MutableJsonArray(JsonArray(elements.map(mapper)))
+    fun map(mapper: (JsonElement) -> JsonElement): MutableJsonArray =
+        MutableJsonArray(JsonArray(elements.map(mapper)))
 
-    fun filter(predicate: (JsonElement) -> Boolean): MutableJsonArray = MutableJsonArray(JsonArray(elements.filter(predicate)))
+    fun filter(predicate: (JsonElement) -> Boolean): MutableJsonArray =
+        MutableJsonArray(JsonArray(elements.filter(predicate)))
 
     fun get(index: Int): JsonElement? = elements.getOrNull(index)
 
@@ -160,12 +137,8 @@ class MutableJsonArray(initial: JsonArray = JsonArray(emptyList())) {
     }
 }
 
-/**
- * Convenience factory for creating a mutable JSON object.
- */
+/** Convenience factory for creating a mutable JSON object. */
 fun createObjectNode(): MutableJsonObject = MutableJsonObject()
 
-/**
- * Convenience factory for creating a mutable JSON array.
- */
+/** Convenience factory for creating a mutable JSON array. */
 fun createArrayNode(): MutableJsonArray = MutableJsonArray()

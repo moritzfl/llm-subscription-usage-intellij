@@ -25,19 +25,30 @@ class DocumentModelsTest {
 
     @Test
     fun prefixedChoicesComeFromDiscoveryAndKeepASavedOcrId() {
-        val choices = DocumentModels.prefixedChoices(
-            listOf("mistral-large-3", "mistral-ocr-4-0", "mistral-ocr-4-1", "mistral-ocr-latest"),
-            "mistral-ocr-2505",
-            DocumentModels.MISTRAL_DEFAULT,
-            DocumentModels::isMistralOcrModel,
-        )
+        val choices =
+            DocumentModels.prefixedChoices(
+                listOf(
+                    "mistral-large-3",
+                    "mistral-ocr-4-0",
+                    "mistral-ocr-4-1",
+                    "mistral-ocr-latest",
+                ),
+                "mistral-ocr-2505",
+                DocumentModels.MISTRAL_DEFAULT,
+                DocumentModels::isMistralOcrModel,
+            )
         assertEquals(
             listOf("mistral-ocr-latest", "mistral-ocr-4-1", "mistral-ocr-4-0", "mistral-ocr-2505"),
             choices,
         )
         assertEquals(
             listOf(DocumentModels.MISTRAL_DEFAULT),
-            DocumentModels.prefixedChoices(emptyList(), "pixtral-large", DocumentModels.MISTRAL_DEFAULT, DocumentModels::isMistralOcrModel),
+            DocumentModels.prefixedChoices(
+                emptyList(),
+                "pixtral-large",
+                DocumentModels.MISTRAL_DEFAULT,
+                DocumentModels::isMistralOcrModel,
+            ),
         )
     }
 
@@ -57,64 +68,121 @@ class DocumentModelsTest {
 
     @Test
     fun resolveKeepsDetectedChoiceAndFallsBackWhenMissing() {
-        assertEquals("mistral-ocr-4-0", DocumentModels.resolveDetected("mistral-ocr-4-0", DocumentModels.MISTRAL_DEFAULT, DocumentModels::isMistralOcrModel))
-        assertEquals(DocumentModels.MISTRAL_DEFAULT, DocumentModels.resolveDetected("pixtral-large", DocumentModels.MISTRAL_DEFAULT, DocumentModels::isMistralOcrModel))
-        assertEquals(DocumentModels.MISTRAL_DEFAULT, DocumentModels.resolveDetected(null, DocumentModels.MISTRAL_DEFAULT, DocumentModels::isMistralOcrModel))
+        assertEquals(
+            "mistral-ocr-4-0",
+            DocumentModels.resolveDetected(
+                "mistral-ocr-4-0",
+                DocumentModels.MISTRAL_DEFAULT,
+                DocumentModels::isMistralOcrModel,
+            ),
+        )
+        assertEquals(
+            DocumentModels.MISTRAL_DEFAULT,
+            DocumentModels.resolveDetected(
+                "pixtral-large",
+                DocumentModels.MISTRAL_DEFAULT,
+                DocumentModels::isMistralOcrModel,
+            ),
+        )
+        assertEquals(
+            DocumentModels.MISTRAL_DEFAULT,
+            DocumentModels.resolveDetected(
+                null,
+                DocumentModels.MISTRAL_DEFAULT,
+                DocumentModels::isMistralOcrModel,
+            ),
+        )
     }
 
     @Test
     fun defaultSelectionIsNotStored() {
-        assertEquals(null, DocumentModels.storedSelection(DocumentModels.OPEN_AI_DEFAULT, DocumentModels.OPEN_AI_DEFAULT))
-        assertEquals("gpt-5.6-luna", DocumentModels.storedSelection("gpt-5.6-luna", DocumentModels.OPEN_AI_DEFAULT))
+        assertEquals(
+            null,
+            DocumentModels.storedSelection(
+                DocumentModels.OPEN_AI_DEFAULT,
+                DocumentModels.OPEN_AI_DEFAULT,
+            ),
+        )
+        assertEquals(
+            "gpt-5.6-luna",
+            DocumentModels.storedSelection("gpt-5.6-luna", DocumentModels.OPEN_AI_DEFAULT),
+        )
         assertEquals("-", DocumentModels.storedSelection("-", DocumentModels.MISTRAL_DEFAULT))
         assertEquals(null, DocumentModels.storedSelection("-", "-"))
         assertFalse(DocumentModels.differs("-", null, "-"))
         assertTrue(DocumentModels.differs("-", null, DocumentModels.MISTRAL_DEFAULT))
         assertEquals(listOf("-", "gpt-6-sol"), DocumentModels.withOff(listOf("gpt-6-sol", "-")))
-        assertFalse(DocumentModels.differs(DocumentModels.OPEN_AI_DEFAULT, null, DocumentModels.OPEN_AI_DEFAULT))
+        assertFalse(
+            DocumentModels.differs(
+                DocumentModels.OPEN_AI_DEFAULT,
+                null,
+                DocumentModels.OPEN_AI_DEFAULT,
+            )
+        )
         assertTrue(DocumentModels.differs("gpt-6-luna", null, DocumentModels.OPEN_AI_DEFAULT))
     }
 
     @Test
     fun superGrokChoicesUseDiscoveryAndDropImagine() {
-        val choices = DocumentModels.superGrokChoices(listOf("grok-4.5", "grok-imagine", "grok-4.6"), "grok-4.3")
+        val choices =
+            DocumentModels.superGrokChoices(
+                listOf("grok-4.5", "grok-imagine", "grok-4.6"),
+                "grok-4.3",
+            )
         assertEquals(listOf("grok-4.6", "grok-4.5", "grok-4.3"), choices)
         assertEquals(listOf("grok-4.7"), DocumentModels.superGrokChoices(emptyList(), null))
     }
 
     @Test
     fun parseSuperGrokDocumentModelsSkipsImageModels() {
-        val body = """
+        val body =
+            """
             {"data":[
               {"id":"grok-4.6","prompt_text_token_price":1},
               {"id":"grok-4.5"},
               {"id":"grok-imagine","image_price":1},
               {"id":"flux","image_price":2}
             ]}
-        """.trimIndent()
-        assertEquals(listOf("grok-4.6", "grok-4.5"), DocumentModels.parseSuperGrokDocumentModelIds(body))
+            """
+                .trimIndent()
+        assertEquals(
+            listOf("grok-4.6", "grok-4.5"),
+            DocumentModels.parseSuperGrokDocumentModelIds(body),
+        )
     }
 
     @Test
     fun parseModelIdsReadsDataOrModels() {
-        assertEquals(listOf("mistral-ocr-4-1", "mistral-small"), DocumentModels.parseModelIds("""{"data":[{"id":"mistral-ocr-4-1"},{"id":"mistral-small"}]}"""))
-        assertEquals(listOf("glm-ocr"), DocumentModels.parseModelIds("""{"models":[{"id":"glm-ocr"}]}"""))
+        assertEquals(
+            listOf("mistral-ocr-4-1", "mistral-small"),
+            DocumentModels.parseModelIds(
+                """{"data":[{"id":"mistral-ocr-4-1"},{"id":"mistral-small"}]}"""
+            ),
+        )
+        assertEquals(
+            listOf("glm-ocr"),
+            DocumentModels.parseModelIds("""{"models":[{"id":"glm-ocr"}]}"""),
+        )
     }
 
     @Test
     fun parseVisionModelIdsKeepsImageChatModelsAndFallsBackWithoutCapabilities() {
-        val body = """
+        val body =
+            """
             {"data":[
               {"id":"mistral-large-latest","capabilities":{"vision":true,"completion_chat":true}},
               {"id":"mistral-ocr-latest","capabilities":{"vision":true,"completion_chat":false}},
               {"id":"codestral-latest","capabilities":{"vision":false,"completion_chat":true}},
               {"id":"voxtral-mini-latest","capabilities":{"vision":false,"completion_chat":false}}
             ]}
-        """.trimIndent()
+            """
+                .trimIndent()
         assertEquals(listOf("mistral-large-latest"), DocumentModels.parseVisionModelIds(body))
         assertEquals(
             listOf("legacy-a", "legacy-b"),
-            DocumentModels.parseVisionModelIds("""{"data":[{"id":"legacy-a"},{"id":"legacy-b"}]}"""),
+            DocumentModels.parseVisionModelIds(
+                """{"data":[{"id":"legacy-a"},{"id":"legacy-b"}]}"""
+            ),
         )
     }
 }

@@ -38,12 +38,14 @@ data class CompletionsConfig(
         const val SERVICE_TIER_PRIORITY = "priority"
         val DISABLED = CompletionsConfig()
 
-        fun clampMaxOutputTokens(value: Int): Int = value.coerceIn(MIN_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS)
+        fun clampMaxOutputTokens(value: Int): Int =
+            value.coerceIn(MIN_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS)
 
         fun clampMaxRequestsPerMinute(value: Int): Int =
             value.coerceIn(MIN_REQUESTS_PER_MINUTE, MAX_REQUESTS_PER_MINUTE)
 
-        fun clampTimeoutSeconds(value: Int): Int = value.coerceIn(MIN_TIMEOUT_SECONDS, MAX_TIMEOUT_SECONDS)
+        fun clampTimeoutSeconds(value: Int): Int =
+            value.coerceIn(MIN_TIMEOUT_SECONDS, MAX_TIMEOUT_SECONDS)
 
         fun timeoutMillis(seconds: Int): Long = clampTimeoutSeconds(seconds) * 1000L
     }

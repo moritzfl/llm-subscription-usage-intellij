@@ -4,9 +4,7 @@ import de.moritzf.quota.openai.UsageWindow
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/**
- * DTO describing rate-limit availability and its primary/secondary windows.
- */
+/** DTO describing rate-limit availability and its primary/secondary windows. */
 @Serializable
 data class RateLimitDto(
     val allowed: Boolean? = null,

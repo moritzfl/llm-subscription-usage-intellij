@@ -27,18 +27,19 @@ internal interface QuotaSettingsMigration {
 }
 
 /**
- * Runs pending migrations while [QuotaSettingsState] loads, before any consumer reads settings,
- * and records the reached version in [QuotaSettingsState.settingsVersion].
+ * Runs pending migrations while [QuotaSettingsState] loads, before any consumer reads settings, and
+ * records the reached version in [QuotaSettingsState.settingsVersion].
  */
 internal object QuotaSettingsMigrations {
     /** Raise by one whenever a migration is added, and tag the new migration with that value. */
     const val CURRENT_VERSION: Int = 3
 
-    val ALL: List<QuotaSettingsMigration> = listOf(
-        DropOllamaSessionCookieCredentials,
-        NormalizeIndicatorSourceStorageIds,
-        CreateProviderAccounts,
-    )
+    val ALL: List<QuotaSettingsMigration> =
+        listOf(
+            DropOllamaSessionCookieCredentials,
+            NormalizeIndicatorSourceStorageIds,
+            CreateProviderAccounts,
+        )
 
     fun run(state: QuotaSettingsState, migrations: List<QuotaSettingsMigration> = ALL) {
         var failed = false
@@ -69,10 +70,11 @@ internal object DropOllamaSessionCookieCredentials : QuotaSettingsMigration {
     override val id = "drop-ollama-session-cookie-credentials"
     override val version = 1
 
-    private val obsoleteCredentials = listOf(
-        CredentialAttributes("Ollama Session Cookie", "ollama-session"),
-        CredentialAttributes("Ollama CF Clearance", "ollama-cf"),
-    )
+    private val obsoleteCredentials =
+        listOf(
+            CredentialAttributes("Ollama Session Cookie", "ollama-session"),
+            CredentialAttributes("Ollama CF Clearance", "ollama-cf"),
+        )
 
     override fun apply(state: QuotaSettingsState) {
         val application = ApplicationManager.getApplication() ?: return
@@ -94,13 +96,15 @@ internal object NormalizeIndicatorSourceStorageIds : QuotaSettingsMigration {
     override val version = 2
 
     override fun apply(state: QuotaSettingsState) {
-        state.indicatorSource = QuotaIndicatorSource.fromStorageValue(state.indicatorSource).storageId
+        state.indicatorSource =
+            QuotaIndicatorSource.fromStorageValue(state.indicatorSource).storageId
         val active = state.lastActiveSource?.trim().orEmpty()
         if (active.isEmpty()) return
-        val provider = QuotaProviderType.fromId(active)
-            ?: QuotaIndicatorSource.entries
-                .firstOrNull { it.name.equals(active, ignoreCase = true) }
-                ?.providerType
+        val provider =
+            QuotaProviderType.fromId(active)
+                ?: QuotaIndicatorSource.entries
+                    .firstOrNull { it.name.equals(active, ignoreCase = true) }
+                    ?.providerType
         state.lastActiveSource = provider?.id
     }
 }
@@ -113,42 +117,61 @@ internal object CreateProviderAccounts : QuotaSettingsMigration {
         if (ApplicationManager.getApplication() == null) return
         runCatching {
             PasswordSafe.instance.get(
-                CredentialAttributes("LLM Subscription Usage", "migration-probe"),
+                CredentialAttributes("LLM Subscription Usage", "migration-probe")
             )
-        }.getOrThrow()
+        }
+            .getOrThrow()
         apply(state, TypeHasStoredCredentials::invoke)
     }
 
     fun apply(state: QuotaSettingsState, hasCredentials: (QuotaProviderType) -> Boolean) {
         if (state.accounts.isNotEmpty()) return
 
-        val configured = QuotaProviderType.entries.filter { type ->
-            hasCredentials(type) || !state.cachedQuotaJson(type).isNullOrBlank()
-        }.toSet()
+        val configured =
+            QuotaProviderType.entries
+                .filter { type ->
+                    hasCredentials(type) || !state.cachedQuotaJson(type).isNullOrBlank()
+                }
+                .toSet()
         if (configured.isEmpty()) return
 
-        val storedTypes = state.providerOrder.split(",")
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .mapNotNull(QuotaProviderType::fromId)
-            .distinct()
-        val ordered = storedTypes.filter { it in configured } +
-            configured.filter { it !in storedTypes }.sortedBy { it.displayName }
+        val storedTypes =
+            state.providerOrder
+                .split(",")
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .mapNotNull(QuotaProviderType::fromId)
+                .distinct()
+        val ordered =
+            storedTypes.filter { it in configured } +
+                configured.filter { it !in storedTypes }.sortedBy { it.displayName }
 
-        state.accounts = ordered.map { type ->
-            ProviderAccount.create(type, type.displayName, isFirstOfType = true).apply {
-                hiddenFromPopup = state.isHiddenFromPopup(type)
-                when (type) {
-                    QuotaProviderType.OPEN_CODE ->
-                        setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, state.openCodeWorkspaceId)
-                    QuotaProviderType.GITHUB ->
-                        setExtra(ProviderAccount.EXTRA_GITHUB_HOST, state.githubEnterpriseHost)
-                    QuotaProviderType.MINIMAX ->
-                        setExtra(ProviderAccount.EXTRA_MINIMAX_REGION, state.minimaxRegionPreference)
-                    else -> Unit
+        state.accounts =
+            ordered
+                .map { type ->
+                    ProviderAccount.create(type, type.displayName, isFirstOfType = true).apply {
+                        hiddenFromPopup = state.isHiddenFromPopup(type)
+                        when (type) {
+                            QuotaProviderType.OPEN_CODE ->
+                                setExtra(
+                                    ProviderAccount.EXTRA_OPENCODE_WORKSPACE,
+                                    state.openCodeWorkspaceId,
+                                )
+                            QuotaProviderType.GITHUB ->
+                                setExtra(
+                                    ProviderAccount.EXTRA_GITHUB_HOST,
+                                    state.githubEnterpriseHost,
+                                )
+                            QuotaProviderType.MINIMAX ->
+                                setExtra(
+                                    ProviderAccount.EXTRA_MINIMAX_REGION,
+                                    state.minimaxRegionPreference,
+                                )
+                            else -> Unit
+                        }
+                    }
                 }
-            }
-        }.toMutableList()
+                .toMutableList()
         state.hiddenFromQuotaPopup.clear()
     }
 }

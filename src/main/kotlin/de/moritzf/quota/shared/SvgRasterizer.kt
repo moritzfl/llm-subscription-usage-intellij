@@ -1,11 +1,11 @@
 package de.moritzf.quota.shared
 
 import java.io.IOException
+import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption.ATOMIC_MOVE
 import java.nio.file.StandardCopyOption.REPLACE_EXISTING
-import java.nio.file.AtomicMoveNotSupportedException
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -14,10 +14,14 @@ import org.apache.batik.transcoder.TranscoderInput
 import org.apache.batik.transcoder.TranscoderOutput
 import org.apache.batik.transcoder.image.PNGTranscoder
 
-/** Local SVG to PNG. Figure exports use PDF points as SVG user units, so DPI is points × dpi / 72. */
+/**
+ * Local SVG to PNG. Figure exports use PDF points as SVG user units, so DPI is points × dpi / 72.
+ */
 internal object SvgRasterizer {
-    private val WIDTH = Regex("""<svg\b[^>]*\swidth="([0-9]+(?:\.[0-9]+)?)"""", RegexOption.IGNORE_CASE)
-    private val HEIGHT = Regex("""<svg\b[^>]*\sheight="([0-9]+(?:\.[0-9]+)?)"""", RegexOption.IGNORE_CASE)
+    private val WIDTH =
+        Regex("""<svg\b[^>]*\swidth="([0-9]+(?:\.[0-9]+)?)"""", RegexOption.IGNORE_CASE)
+    private val HEIGHT =
+        Regex("""<svg\b[^>]*\sheight="([0-9]+(?:\.[0-9]+)?)"""", RegexOption.IGNORE_CASE)
 
     fun toPng(source: Path, output: Path?, dpi: Int = 300): String {
         require(dpi in 72..600) { "Image export DPI must be between 72 and 600." }

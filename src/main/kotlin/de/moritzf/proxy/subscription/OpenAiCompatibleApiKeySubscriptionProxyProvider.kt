@@ -29,46 +29,52 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
     private val localIdPrefix: String = "",
     private val staticModels: List<StaticModel> = emptyList(),
     private val discoverModels: Boolean = true,
-    private val supportedRoutes: Set<SubscriptionProxyRoute> = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS),
+    private val supportedRoutes: Set<SubscriptionProxyRoute> =
+        setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS),
     private val nativeCompletionsRoute: SubscriptionProxyRoute = SubscriptionProxyRoute.COMPLETIONS,
-    private val upstreamRouteProvider: (SubscriptionProxyRequest) -> SubscriptionProxyRoute = { it.route },
+    private val upstreamRouteProvider: (SubscriptionProxyRequest) -> SubscriptionProxyRoute = {
+        it.route
+    },
     private val upstreamUrlProvider: (SubscriptionProxyRequest) -> String? = { null },
-    private val requestBodyTransformer: (SubscriptionProxyRequest, JsonObject) -> JsonObject = { _, body -> body },
+    private val requestBodyTransformer: (SubscriptionProxyRequest, JsonObject) -> JsonObject =
+        { _, body ->
+            body
+        },
     private val jsonResponseTransformer: ((SubscriptionProxyRequest, String) -> String)? = null,
     private val modelTransformer: (StaticModel) -> StaticModel = { it },
     private val includeModel: (String) -> Boolean = { true },
     private val extraRoutesForModel: (String) -> Set<SubscriptionProxyRoute> = { emptySet() },
     private val defaultHeaders: Map<String, String> = DEFAULT_HEADERS,
-    private val httpClient: HttpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(30))
-        .build(),
+    private val httpClient: HttpClient =
+        HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build(),
     fullRequestLogging: Boolean = false,
     requestLogDir: String = DEFAULT_REQUEST_LOG_DIR,
     private val modelCacheTtl: kotlin.time.Duration = CACHE_TTL,
 ) : SubscriptionProxyProvider {
-    private val delegate = PassThroughSubscriptionProxyProvider(
-        id = id,
-        displayName = displayName,
-        litellmProvider = litellmProvider,
-        baseUri = baseUri,
-        accessTokenProvider = apiKeyProvider,
-        modelMappingsProvider = ::modelMappings,
-        defaultHeaders = defaultHeaders,
-        upstreamRouteProvider = { request ->
-            val routed =
-                if (request.route == SubscriptionProxyRoute.COMPLETIONS) {
-                    request.copy(route = nativeCompletionsRoute)
-                } else {
-                    request
-                }
-            upstreamRouteProvider(routed)
-        },
-        upstreamUrlProvider = upstreamUrlProvider,
-        requestBodyTransformer = requestBodyTransformer,
-        jsonResponseTransformer = jsonResponseTransformer,
-        httpClient = httpClient,
-        requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir)),
-    )
+    private val delegate =
+        PassThroughSubscriptionProxyProvider(
+            id = id,
+            displayName = displayName,
+            litellmProvider = litellmProvider,
+            baseUri = baseUri,
+            accessTokenProvider = apiKeyProvider,
+            modelMappingsProvider = ::modelMappings,
+            defaultHeaders = defaultHeaders,
+            upstreamRouteProvider = { request ->
+                val routed =
+                    if (request.route == SubscriptionProxyRoute.COMPLETIONS) {
+                        request.copy(route = nativeCompletionsRoute)
+                    } else {
+                        request
+                    }
+                upstreamRouteProvider(routed)
+            },
+            upstreamUrlProvider = upstreamUrlProvider,
+            requestBodyTransformer = requestBodyTransformer,
+            jsonResponseTransformer = jsonResponseTransformer,
+            httpClient = httpClient,
+            requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir)),
+        )
 
     @Volatile private var modelCache: ModelCache? = null
 
@@ -76,10 +82,14 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
 
     override fun models(): List<SubscriptionProxyModel> = delegate.models()
 
-    override fun fallbackModel(localId: String, route: SubscriptionProxyRoute): SubscriptionProxyModel? {
-        if (localIdPrefix.isBlank() ||
-            !localId.startsWith(localIdPrefix) ||
-            localId.length == localIdPrefix.length
+    override fun fallbackModel(
+        localId: String,
+        route: SubscriptionProxyRoute,
+    ): SubscriptionProxyModel? {
+        if (
+            localIdPrefix.isBlank() ||
+                !localId.startsWith(localIdPrefix) ||
+                localId.length == localIdPrefix.length
         ) {
             return null
         }
@@ -100,7 +110,10 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
         )
     }
 
-    override suspend fun handle(ctx: de.moritzf.proxy.server.ProxyCall, request: SubscriptionProxyRequest) {
+    override suspend fun handle(
+        ctx: de.moritzf.proxy.server.ProxyCall,
+        request: SubscriptionProxyRequest,
+    ) {
         delegate.handle(ctx, request)
     }
 
@@ -137,20 +150,25 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
     }
 
     private fun fetchModels(apiKey: String): List<StaticModel> {
-        val builder = HttpRequest.newBuilder(URI.create(UrlResolver.resolveTargetUrl("/models", baseUri.toString())))
-            .timeout(Duration.ofSeconds(30))
-            .header("Authorization", "Bearer $apiKey")
-            .GET()
+        val builder =
+            HttpRequest.newBuilder(
+                    URI.create(UrlResolver.resolveTargetUrl("/models", baseUri.toString()))
+                )
+                .timeout(Duration.ofSeconds(30))
+                .header("Authorization", "Bearer $apiKey")
+                .GET()
         defaultHeaders.forEach { (name, value) -> builder.header(name, value) }
         val response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString())
         if (response.statusCode() !in 200..299) return emptyList()
         val root = JsonHelper.parseToJsonElementOrNull(response.body()) ?: return emptyList()
-        val data = when (root) {
-            is JsonObject -> root["data"] as? JsonArray ?: root["models"] as? JsonArray
-            is JsonArray -> root
-            else -> null
-        } ?: return emptyList()
-        return data.mapNotNull(::parseRemoteModel)
+        val data =
+            when (root) {
+                is JsonObject -> root["data"] as? JsonArray ?: root["models"] as? JsonArray
+                is JsonArray -> root
+                else -> null
+            } ?: return emptyList()
+        return data
+            .mapNotNull(::parseRemoteModel)
             .filter { includeModel(it.id) }
             .map(modelTransformer)
             .distinctBy { it.id }
@@ -162,12 +180,14 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
 
     private fun parseRemoteModel(element: JsonElement): StaticModel? {
         val item = element as? JsonObject ?: return null
-        val id = (item["id"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() } ?: return null
+        val id =
+            (item["id"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() } ?: return null
         val modelType = (item["object"] as? JsonPrimitive)?.contentOrNull
         if (modelType == "embedding" || modelType == "embeddings") return null
         return StaticModel(
             id = id,
-            maxInputTokens = intField(item, "max_input_tokens") ?: intField(item, "max_context_window_tokens"),
+            maxInputTokens =
+                intField(item, "max_input_tokens") ?: intField(item, "max_context_window_tokens"),
             maxOutputTokens = intField(item, "max_output_tokens"),
             isDefault = boolField(item, "is_default") ?: boolField(item, "default") ?: false,
         )
@@ -189,13 +209,15 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
     )
 
     companion object {
-        private val DEFAULT_HEADERS = mapOf(
-            "Accept" to "application/json",
-            "Content-Type" to JsonHelper.JSON_CONTENT_TYPE,
-        )
+        private val DEFAULT_HEADERS =
+            mapOf(
+                "Accept" to "application/json",
+                "Content-Type" to JsonHelper.JSON_CONTENT_TYPE,
+            )
         private val CACHE_TTL = 5.minutes
-        private val DEFAULT_REQUEST_LOG_DIR = System.getProperty("java.io.tmpdir") +
-            "/openai-usage-quota-intellij/subscription-proxy-openai-compatible-requests"
+        private val DEFAULT_REQUEST_LOG_DIR =
+            System.getProperty("java.io.tmpdir") +
+                "/openai-usage-quota-intellij/subscription-proxy-openai-compatible-requests"
 
         private fun String?.trimmedOrNull(): String? = this?.trim()?.takeIf { it.isNotBlank() }
 

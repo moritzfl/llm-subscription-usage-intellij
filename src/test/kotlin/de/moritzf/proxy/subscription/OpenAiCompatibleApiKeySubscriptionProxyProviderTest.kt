@@ -24,67 +24,95 @@ import kotlinx.serialization.json.jsonPrimitive
 class OpenAiCompatibleApiKeySubscriptionProxyProviderTest {
     @Test
     fun discoversOpenAiCompatibleModelsAndForwardsChat() {
-        TestUpstream(modelsBody = """
-            {"object":"list","data":[
-              {"id":"model-a","object":"model"},
-              {"id":"embed-a","object":"embedding"}
-            ]}
-        """.trimIndent()).use { upstream ->
-            val proxy = newProxy(
-                OpenAiCompatibleApiKeySubscriptionProxyProvider(
-                    id = "test-provider",
-                    displayName = "Test Provider",
-                    litellmProvider = "test-provider",
-                    baseUri = upstream.baseUri,
-                    apiKeyProvider = { "provider-key" },
-                    localIdPrefix = "test-",
-                    requestLogDir = Files.createTempDirectory("api-key-provider-test-logs").toString(),
-                ),
+        TestUpstream(
+                modelsBody =
+                    """
+                    {"object":"list","data":[
+                      {"id":"model-a","object":"model"},
+                      {"id":"embed-a","object":"embedding"}
+                    ]}
+                    """
+                        .trimIndent()
             )
-            try {
-                proxy.server.start()
+            .use { upstream ->
+                val proxy =
+                    newProxy(
+                        OpenAiCompatibleApiKeySubscriptionProxyProvider(
+                            id = "test-provider",
+                            displayName = "Test Provider",
+                            litellmProvider = "test-provider",
+                            baseUri = upstream.baseUri,
+                            apiKeyProvider = { "provider-key" },
+                            localIdPrefix = "test-",
+                            requestLogDir =
+                                Files.createTempDirectory("api-key-provider-test-logs").toString(),
+                        )
+                    )
+                try {
+                    proxy.server.start()
 
-                val modelsResponse = get(proxy.port, "/v1/models")
-                val ids = JsonHelper.JSON.parseToJsonElement(modelsResponse.body()).jsonObject["data"]!!.jsonArray
-                    .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertEquals(listOf("test-model-a"), ids)
+                    val modelsResponse = get(proxy.port, "/v1/models")
+                    val ids =
+                        JsonHelper.JSON.parseToJsonElement(modelsResponse.body())
+                            .jsonObject["data"]!!
+                            .jsonArray
+                            .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                    assertEquals(listOf("test-model-a"), ids)
 
-                val chatResponse = post(proxy.port, "/v1/chat/completions", "{" +
-                    "\"model\":\"test-model-a\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}" )
-                assertEquals(200, chatResponse.statusCode())
-                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-                val chatRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-                assertEquals("/v1/chat/completions", chatRequest.path)
-                assertEquals("Bearer provider-key", chatRequest.firstHeader("Authorization"))
-                assertTrue(chatRequest.body.contains("\"model\":\"model-a\""), chatRequest.body)
-            } finally {
-                proxy.server.stop()
+                    val chatResponse =
+                        post(
+                            proxy.port,
+                            "/v1/chat/completions",
+                            "{" +
+                                "\"model\":\"test-model-a\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                        )
+                    assertEquals(200, chatResponse.statusCode())
+                    assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                    val chatRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                    assertEquals("/v1/chat/completions", chatRequest.path)
+                    assertEquals("Bearer provider-key", chatRequest.firstHeader("Authorization"))
+                    assertTrue(chatRequest.body.contains("\"model\":\"model-a\""), chatRequest.body)
+                } finally {
+                    proxy.server.stop()
+                }
             }
-        }
     }
 
     @Test
     fun advertisesStaticModelsWhenDiscoveryIsDisabled() {
         TestUpstream().use { upstream ->
-            val proxy = newProxy(
-                OpenAiCompatibleApiKeySubscriptionProxyProvider(
-                    id = "zai",
-                    displayName = "Z.ai",
-                    litellmProvider = "zai",
-                    baseUri = upstream.baseUri,
-                    apiKeyProvider = { "zai-key" },
-                    discoverModels = false,
-                    staticModels = listOf(
-                        OpenAiCompatibleApiKeySubscriptionProxyProvider.StaticModel("glm-5.1"),
-                        OpenAiCompatibleApiKeySubscriptionProxyProvider.StaticModel("glm-5.2", isDefault = true),
-                    ),
-                    requestLogDir = Files.createTempDirectory("static-provider-test-logs").toString(),
-                ),
-            )
+            val proxy =
+                newProxy(
+                    OpenAiCompatibleApiKeySubscriptionProxyProvider(
+                        id = "zai",
+                        displayName = "Z.ai",
+                        litellmProvider = "zai",
+                        baseUri = upstream.baseUri,
+                        apiKeyProvider = { "zai-key" },
+                        discoverModels = false,
+                        staticModels =
+                            listOf(
+                                OpenAiCompatibleApiKeySubscriptionProxyProvider.StaticModel(
+                                    "glm-5.1"
+                                ),
+                                OpenAiCompatibleApiKeySubscriptionProxyProvider.StaticModel(
+                                    "glm-5.2",
+                                    isDefault = true,
+                                ),
+                            ),
+                        requestLogDir =
+                            Files.createTempDirectory("static-provider-test-logs").toString(),
+                    )
+                )
             try {
                 proxy.server.start()
 
-                val response = post(proxy.port, "/v1/chat/completions", "{\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}")
+                val response =
+                    post(
+                        proxy.port,
+                        "/v1/chat/completions",
+                        "{\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    )
 
                 assertEquals(200, response.statusCode())
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
@@ -99,42 +127,49 @@ class OpenAiCompatibleApiKeySubscriptionProxyProviderTest {
     @Test
     fun keepsLastDiscoveredModelsWhenRefreshFails() {
         TestUpstream(
-            modelsBody = """{"object":"list","data":[{"id":"model-a","object":"model"}]}""",
-            modelsStatus = AtomicInteger(200),
-        ).use { upstream ->
-            val proxy = newProxy(
-                OpenAiCompatibleApiKeySubscriptionProxyProvider(
-                    id = "test-provider",
-                    displayName = "Test Provider",
-                    litellmProvider = "test-provider",
-                    baseUri = upstream.baseUri,
-                    apiKeyProvider = { "provider-key" },
-                    localIdPrefix = "test-",
-                    requestLogDir = Files.createTempDirectory("api-key-provider-stale-logs").toString(),
-                    modelCacheTtl = kotlin.time.Duration.ZERO,
-                ),
+                modelsBody = """{"object":"list","data":[{"id":"model-a","object":"model"}]}""",
+                modelsStatus = AtomicInteger(200),
             )
-            try {
-                proxy.server.start()
-                val first = get(proxy.port, "/v1/models")
-                assertEquals(200, first.statusCode())
-                assertEquals(
-                    listOf("test-model-a"),
-                    JsonHelper.JSON.parseToJsonElement(first.body()).jsonObject["data"]!!.jsonArray
-                        .map { it.jsonObject["id"]!!.jsonPrimitive.content },
-                )
-                upstream.modelsStatus.set(500)
-                val second = get(proxy.port, "/v1/models")
-                assertEquals(200, second.statusCode())
-                assertEquals(
-                    listOf("test-model-a"),
-                    JsonHelper.JSON.parseToJsonElement(second.body()).jsonObject["data"]!!.jsonArray
-                        .map { it.jsonObject["id"]!!.jsonPrimitive.content },
-                )
-            } finally {
-                proxy.server.stop()
+            .use { upstream ->
+                val proxy =
+                    newProxy(
+                        OpenAiCompatibleApiKeySubscriptionProxyProvider(
+                            id = "test-provider",
+                            displayName = "Test Provider",
+                            litellmProvider = "test-provider",
+                            baseUri = upstream.baseUri,
+                            apiKeyProvider = { "provider-key" },
+                            localIdPrefix = "test-",
+                            requestLogDir =
+                                Files.createTempDirectory("api-key-provider-stale-logs").toString(),
+                            modelCacheTtl = kotlin.time.Duration.ZERO,
+                        )
+                    )
+                try {
+                    proxy.server.start()
+                    val first = get(proxy.port, "/v1/models")
+                    assertEquals(200, first.statusCode())
+                    assertEquals(
+                        listOf("test-model-a"),
+                        JsonHelper.JSON.parseToJsonElement(first.body())
+                            .jsonObject["data"]!!
+                            .jsonArray
+                            .map { it.jsonObject["id"]!!.jsonPrimitive.content },
+                    )
+                    upstream.modelsStatus.set(500)
+                    val second = get(proxy.port, "/v1/models")
+                    assertEquals(200, second.statusCode())
+                    assertEquals(
+                        listOf("test-model-a"),
+                        JsonHelper.JSON.parseToJsonElement(second.body())
+                            .jsonObject["data"]!!
+                            .jsonArray
+                            .map { it.jsonObject["id"]!!.jsonPrimitive.content },
+                    )
+                } finally {
+                    proxy.server.stop()
+                }
             }
-        }
     }
 
     private fun newProxy(provider: SubscriptionProxyProvider): TestProxy {
@@ -145,7 +180,8 @@ class OpenAiCompatibleApiKeySubscriptionProxyProviderTest {
                 port = port,
                 localApiKeyProvider = { "local-key" },
                 providers = { listOf(provider) },
-                requestLogDir = Files.createTempDirectory("subscription-proxy-test-logs").toString(),
+                requestLogDir =
+                    Files.createTempDirectory("subscription-proxy-test-logs").toString(),
             ),
         )
     }
@@ -178,25 +214,29 @@ class OpenAiCompatibleApiKeySubscriptionProxyProviderTest {
         val modelsStatus: AtomicInteger = AtomicInteger(200),
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
 
         init {
             server.createContext("/") { exchange ->
                 val body = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
-                requests += CapturedRequest(
-                    path = exchange.requestURI.rawPath,
-                    headers = exchange.requestHeaders.mapValues { it.value.toList() },
-                    body = body,
-                )
-                val responseBody = if (exchange.requestURI.rawPath.endsWith("/models")) {
-                    modelsBody
-                } else {
-                    "{\"id\":\"chatcmpl_1\",\"choices\":[]}"
-                }
+                requests +=
+                    CapturedRequest(
+                        path = exchange.requestURI.rawPath,
+                        headers = exchange.requestHeaders.mapValues { it.value.toList() },
+                        body = body,
+                    )
+                val responseBody =
+                    if (exchange.requestURI.rawPath.endsWith("/models")) {
+                        modelsBody
+                    } else {
+                        "{\"id\":\"chatcmpl_1\",\"choices\":[]}"
+                    }
                 val response = responseBody.toByteArray(Charsets.UTF_8)
                 exchange.responseHeaders.set("Content-Type", "application/json")
-                val status = if (exchange.requestURI.rawPath.endsWith("/models")) modelsStatus.get() else 200
+                val status =
+                    if (exchange.requestURI.rawPath.endsWith("/models")) modelsStatus.get() else 200
                 exchange.sendResponseHeaders(status, response.size.toLong())
                 exchange.responseBody.use { output -> output.write(response) }
             }
@@ -215,7 +255,8 @@ class OpenAiCompatibleApiKeySubscriptionProxyProviderTest {
         val body: String,
     ) {
         fun firstHeader(name: String): String? {
-            return headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }
+            return headers.entries
+                .firstOrNull { it.key.equals(name, ignoreCase = true) }
                 ?.value
                 ?.firstOrNull()
         }

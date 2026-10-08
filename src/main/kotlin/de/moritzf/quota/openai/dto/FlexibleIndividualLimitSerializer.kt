@@ -19,15 +19,17 @@ import kotlinx.serialization.json.longOrNull
  * Team/business `spend_control.individual_limit` is either:
  * - a bare number (legacy),
  * - null,
- * - or an object `{ limit, used, remaining, used_percent, reset_at, ... }`
- *   where money fields may be strings.
+ * - or an object `{ limit, used, remaining, used_percent, reset_at, ... }` where money fields may
+ *   be strings.
  */
 object FlexibleIndividualLimitSerializer : KSerializer<FlexibleIndividualLimit?> {
-    override val descriptor: SerialDescriptor = buildClassSerialDescriptor("FlexibleIndividualLimit")
+    override val descriptor: SerialDescriptor =
+        buildClassSerialDescriptor("FlexibleIndividualLimit")
 
     override fun deserialize(decoder: Decoder): FlexibleIndividualLimit? {
-        val jsonDecoder = decoder as? JsonDecoder
-            ?: error("FlexibleIndividualLimitSerializer requires JsonDecoder")
+        val jsonDecoder =
+            decoder as? JsonDecoder
+                ?: error("FlexibleIndividualLimitSerializer requires JsonDecoder")
         return parse(jsonDecoder.decodeJsonElement())
     }
 
@@ -41,15 +43,17 @@ object FlexibleIndividualLimitSerializer : KSerializer<FlexibleIndividualLimit?>
             is JsonPrimitive -> {
                 element.lenientDoubleOrNull()?.let { FlexibleIndividualLimit(amount = it) }
             }
-            is JsonObject -> FlexibleIndividualLimit(
-                amount = element.flexibleDouble("limit"),
-                used = element.flexibleDouble("used"),
-                remaining = element.flexibleDouble("remaining"),
-                usedPercent = element.flexibleDouble("used_percent"),
-                remainingPercent = element.flexibleDouble("remaining_percent"),
-                resetAtEpochSeconds = element.flexibleLong("reset_at"),
-                resetAfterSeconds = element.flexibleLong("reset_after_seconds"),
-            ).takeUnless { it.isEmpty() }
+            is JsonObject ->
+                FlexibleIndividualLimit(
+                        amount = element.flexibleDouble("limit"),
+                        used = element.flexibleDouble("used"),
+                        remaining = element.flexibleDouble("remaining"),
+                        usedPercent = element.flexibleDouble("used_percent"),
+                        remainingPercent = element.flexibleDouble("remaining_percent"),
+                        resetAtEpochSeconds = element.flexibleLong("reset_at"),
+                        resetAfterSeconds = element.flexibleLong("reset_after_seconds"),
+                    )
+                    .takeUnless { it.isEmpty() }
             else -> null
         }
     }

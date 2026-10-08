@@ -24,7 +24,8 @@ internal class DeviceLoginPanel {
             cell(code).align(AlignX.FILL).resizableColumn()
             cell(copyButton("Copy Code", code))
         }
-    }.apply { isVisible = false }
+    }
+        .apply { isVisible = false }
 
     fun show(prompt: DeviceLoginPrompt?) {
         url.text = prompt?.verificationUrl.orEmpty()
@@ -32,7 +33,12 @@ internal class DeviceLoginPanel {
         component.isVisible = prompt != null
     }
 
-    private fun copyButton(label: String, field: JBTextField) = JButton(label, AllIcons.Actions.Copy).apply {
-        addActionListener { Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(field.text), null) }
-    }
+    private fun copyButton(label: String, field: JBTextField) =
+        JButton(label, AllIcons.Actions.Copy).apply {
+            addActionListener {
+                Toolkit.getDefaultToolkit()
+                    .systemClipboard
+                    .setContents(StringSelection(field.text), null)
+            }
+        }
 }

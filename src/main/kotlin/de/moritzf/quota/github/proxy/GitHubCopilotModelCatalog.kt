@@ -41,11 +41,9 @@ internal class GitHubCopilotModelCatalog(
     private val missingModelRetryDelays: List<Duration>,
     private val modelCacheTtl: kotlin.time.Duration,
 ) {
-    @Volatile
-    private var modelCache: ModelCache? = null
+    @Volatile private var modelCache: ModelCache? = null
     private val missingModelRetryLock = Any()
-    @Volatile
-    private var missingModelRetry: MissingModelRetry? = null
+    @Volatile private var missingModelRetry: MissingModelRetry? = null
 
     fun models(): List<GitHubCopilotRemoteModel> {
         val now = Clock.System.now()
@@ -60,7 +58,10 @@ internal class GitHubCopilotModelCatalog(
     }
 
     @OptIn(ExperimentalTime::class)
-    private fun refreshRemoteModels(now: Instant, cached: ModelCache?): List<GitHubCopilotRemoteModel> {
+    private fun refreshRemoteModels(
+        now: Instant,
+        cached: ModelCache?,
+    ): List<GitHubCopilotRemoteModel> {
         val token = accessTokenProvider().trimmedOrNull() ?: return cached?.models.orEmpty()
         val fetched = runCatching { fetchModels(token) }.getOrDefault(emptyList())
         if (fetched.isEmpty()) {
@@ -91,47 +92,60 @@ internal class GitHubCopilotModelCatalog(
 
     @OptIn(ExperimentalTime::class)
     private fun loadPersistedModelCache(now: Instant): ModelCache? {
-        val raw = runCatching { persistentModelCacheProvider() }
-            .getOrNull()
-            ?.takeIf { it.isNotBlank() }
-            ?: return null
+        val raw =
+            runCatching { persistentModelCacheProvider() }.getOrNull()?.takeIf { it.isNotBlank() }
+                ?: return null
         val root = JsonHelper.parseToJsonElementOrNull(raw) as? JsonObject ?: return null
-        val models = (root["models"] as? JsonArray)
-            ?.mapNotNull { parseCachedRemoteModel(it) }
-            ?.filter { it.supportedRoutes.isNotEmpty() }
-            ?.distinctBy { it.id }
-            .orEmpty()
+        val models =
+            (root["models"] as? JsonArray)
+                ?.mapNotNull { parseCachedRemoteModel(it) }
+                ?.filter { it.supportedRoutes.isNotEmpty() }
+                ?.distinctBy { it.id }
+                .orEmpty()
         if (models.isEmpty()) return null
         val fetchedAt = parseFetchedAt(root) ?: (now - modelCacheTtl)
         return ModelCache(models, fetchedAt)
     }
 
     @OptIn(ExperimentalTime::class)
-    private fun cacheModels(models: List<GitHubCopilotRemoteModel>, fetchedAt: Instant = Clock.System.now()) {
+    private fun cacheModels(
+        models: List<GitHubCopilotRemoteModel>,
+        fetchedAt: Instant = Clock.System.now(),
+    ) {
         modelCache = ModelCache(models, fetchedAt)
         savePersistedModels(models, fetchedAt)
     }
 
     @OptIn(ExperimentalTime::class)
-    private fun savePersistedModels(models: List<GitHubCopilotRemoteModel>, fetchedAt: Instant = Clock.System.now()) {
+    private fun savePersistedModels(
+        models: List<GitHubCopilotRemoteModel>,
+        fetchedAt: Instant = Clock.System.now(),
+    ) {
         val payload = buildJsonObject {
             put("version", 1)
             put("fetchedAtEpochMs", fetchedAt.toEpochMilliseconds())
             put(
                 "models",
-                JsonArray(models.map { model ->
-                    buildJsonObject {
-                        put("id", model.id)
-                        put("supportedRoutes", JsonArray(model.supportedRoutes.map { JsonPrimitive(it.normalizedPath) }))
-                        put("supportsFunctionCalling", model.supportsFunctionCalling)
-                        put("supportsVision", model.supportsVision)
-                        put("supportsPdf", model.supportsPdf)
-                        put("pdfCapabilityKnown", model.pdfCapabilityKnown)
-                        model.maxInputTokens?.let { put("maxInputTokens", it) }
-                        model.maxOutputTokens?.let { put("maxOutputTokens", it) }
-                        put("isDefault", model.isDefault)
+                JsonArray(
+                    models.map { model ->
+                        buildJsonObject {
+                            put("id", model.id)
+                            put(
+                                "supportedRoutes",
+                                JsonArray(
+                                    model.supportedRoutes.map { JsonPrimitive(it.normalizedPath) }
+                                ),
+                            )
+                            put("supportsFunctionCalling", model.supportsFunctionCalling)
+                            put("supportsVision", model.supportsVision)
+                            put("supportsPdf", model.supportsPdf)
+                            put("pdfCapabilityKnown", model.pdfCapabilityKnown)
+                            model.maxInputTokens?.let { put("maxInputTokens", it) }
+                            model.maxOutputTokens?.let { put("maxOutputTokens", it) }
+                            put("isDefault", model.isDefault)
+                        }
                     }
-                }),
+                ),
             )
         }
         runCatching { persistentModelCacheSaver(JsonHelper.encodeToString(payload)) }
@@ -146,10 +160,13 @@ internal class GitHubCopilotModelCatalog(
     private fun parseCachedRemoteModel(element: JsonElement): GitHubCopilotRemoteModel? {
         val item = element as? JsonObject ?: return null
         val id = stringField(item, "id") ?: return null
-        val routes = (item["supportedRoutes"] as? JsonArray)
-            ?.mapNotNull { route -> routeForStorageValue((route as? JsonPrimitive)?.contentOrNull) }
-            ?.toSet()
-            .orEmpty()
+        val routes =
+            (item["supportedRoutes"] as? JsonArray)
+                ?.mapNotNull { route ->
+                    routeForStorageValue((route as? JsonPrimitive)?.contentOrNull)
+                }
+                ?.toSet()
+                .orEmpty()
         return GitHubCopilotRemoteModel(
             id = id,
             supportedRoutes = routes,
@@ -163,7 +180,10 @@ internal class GitHubCopilotModelCatalog(
         )
     }
 
-    private fun mergeModels(fetched: List<GitHubCopilotRemoteModel>, cachedModels: List<GitHubCopilotRemoteModel>): List<GitHubCopilotRemoteModel> {
+    private fun mergeModels(
+        fetched: List<GitHubCopilotRemoteModel>,
+        cachedModels: List<GitHubCopilotRemoteModel>,
+    ): List<GitHubCopilotRemoteModel> {
         val merged = LinkedHashMap<String, GitHubCopilotRemoteModel>()
         fetched.forEach { model -> merged[model.id] = model }
         cachedModels.forEach { model -> merged.putIfAbsent(model.id, model) }
@@ -171,22 +191,32 @@ internal class GitHubCopilotModelCatalog(
     }
 
     @OptIn(ExperimentalTime::class)
-    private fun startMissingModelRetry(token: String, missingModels: List<GitHubCopilotRemoteModel>, firstFetched: List<GitHubCopilotRemoteModel>) {
+    private fun startMissingModelRetry(
+        token: String,
+        missingModels: List<GitHubCopilotRemoteModel>,
+        firstFetched: List<GitHubCopilotRemoteModel>,
+    ) {
         val missingIds = missingModels.mapTo(mutableSetOf()) { it.id }
-        val retry = synchronized(missingModelRetryLock) {
-            val active = missingModelRetry
-            if (active != null && active.missingIds == missingIds) return
-            val next = MissingModelRetry(missingIds, GitHubCopilotProxyIds.MODEL_RETRY_SEQUENCE.incrementAndGet())
-            missingModelRetry = next
-            next
-        }
+        val retry =
+            synchronized(missingModelRetryLock) {
+                val active = missingModelRetry
+                if (active != null && active.missingIds == missingIds) return
+                val next =
+                    MissingModelRetry(
+                        missingIds,
+                        GitHubCopilotProxyIds.MODEL_RETRY_SEQUENCE.incrementAndGet(),
+                    )
+                missingModelRetry = next
+                next
+            }
         Thread {
             retryMissingModels(token, retry, missingModels, firstFetched)
-        }.apply {
-            isDaemon = true
-            name = "github-copilot-model-retry-${retry.sequence}"
-            start()
         }
+            .apply {
+                isDaemon = true
+                name = "github-copilot-model-retry-${retry.sequence}"
+                start()
+            }
     }
 
     @OptIn(ExperimentalTime::class)
@@ -221,14 +251,22 @@ internal class GitHubCopilotModelCatalog(
             }
         }
         if (isActiveRetry(retry)) {
-            val cachedConfirmedModels = missingModels.filter { it.id !in stillMissingIds && it.id !in confirmedModels }
-            val unconfirmedMissingModels = if (successfulRetries < missingModelRetryDelays.size) {
-                missingModels.filter { it.id in stillMissingIds }
-            } else {
-                emptyList()
+            val cachedConfirmedModels = missingModels.filter {
+                it.id !in stillMissingIds && it.id !in confirmedModels
             }
+            val unconfirmedMissingModels =
+                if (successfulRetries < missingModelRetryDelays.size) {
+                    missingModels.filter { it.id in stillMissingIds }
+                } else {
+                    emptyList()
+                }
             cacheModels(
-                mergeModels(latestFetched, confirmedModels.values.toList() + cachedConfirmedModels + unconfirmedMissingModels),
+                mergeModels(
+                    latestFetched,
+                    confirmedModels.values.toList() +
+                        cachedConfirmedModels +
+                        unconfirmedMissingModels,
+                )
             )
             finishMissingModelRetry(retry)
         }
@@ -237,9 +275,7 @@ internal class GitHubCopilotModelCatalog(
     private fun isActiveRetry(retry: MissingModelRetry): Boolean = missingModelRetry === retry
 
     private fun clearMissingModelRetry() {
-        synchronized(missingModelRetryLock) {
-            missingModelRetry = null
-        }
+        synchronized(missingModelRetryLock) { missingModelRetry = null }
     }
 
     private fun finishMissingModelRetry(retry: MissingModelRetry) {
@@ -250,7 +286,9 @@ internal class GitHubCopilotModelCatalog(
 
     private fun fetchModels(token: String): List<GitHubCopilotRemoteModel> {
         val request =
-            HttpRequest.newBuilder(URI.create(UrlResolver.resolveTargetUrl("/models", upstreamBaseUri.toString())))
+            HttpRequest.newBuilder(
+                    URI.create(UrlResolver.resolveTargetUrl("/models", upstreamBaseUri.toString()))
+                )
                 .timeout(Duration.ofSeconds(30))
                 .header("Authorization", "Bearer $token")
                 .header("Accept", "application/json")
@@ -264,12 +302,16 @@ internal class GitHubCopilotModelCatalog(
         val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         if (response.statusCode() !in 200..299) return emptyList()
         val root = JsonHelper.parseToJsonElementOrNull(response.body()) ?: return emptyList()
-        val data = when (root) {
-            is JsonObject -> root["data"] as? JsonArray ?: root["models"] as? JsonArray
-            is JsonArray -> root
-            else -> null
-        } ?: return emptyList()
-        return data.mapNotNull { parseRemoteModel(it) }.filter { it.supportedRoutes.isNotEmpty() }.distinctBy { it.id }
+        val data =
+            when (root) {
+                is JsonObject -> root["data"] as? JsonArray ?: root["models"] as? JsonArray
+                is JsonArray -> root
+                else -> null
+            } ?: return emptyList()
+        return data
+            .mapNotNull { parseRemoteModel(it) }
+            .filter { it.supportedRoutes.isNotEmpty() }
+            .distinctBy { it.id }
     }
 
     private fun parseRemoteModel(element: JsonElement): GitHubCopilotRemoteModel? {
@@ -283,12 +325,15 @@ internal class GitHubCopilotModelCatalog(
         val id = remoteModelId(stringField(item, "id") ?: return null) ?: return null
         return GitHubCopilotRemoteModel(
             id = id,
-            supportedRoutes = supportedRoutes(id, modelType(item), item["supported_endpoints"] as? JsonArray),
+            supportedRoutes =
+                supportedRoutes(id, modelType(item), item["supported_endpoints"] as? JsonArray),
             supportsFunctionCalling = toolCalls,
             supportsVision = supportsVision(capabilities, supports),
             supportsPdf = supportsPdf(capabilities),
             pdfCapabilityKnown = pdfMediaTypesKnown(capabilities),
-            maxInputTokens = intField(limits, "max_context_window_tokens") ?: intField(limits, "max_prompt_tokens"),
+            maxInputTokens =
+                intField(limits, "max_context_window_tokens")
+                    ?: intField(limits, "max_prompt_tokens"),
             maxOutputTokens = intField(limits, "max_output_tokens"),
             isDefault = boolField(item, "is_default") ?: boolField(item, "default") ?: false,
         )
@@ -297,9 +342,10 @@ internal class GitHubCopilotModelCatalog(
     private fun supportedRoutes(
         modelId: String,
         modelType: String?,
-        endpoints: JsonArray?
+        endpoints: JsonArray?,
     ): Set<SubscriptionProxyRoute> {
-        val values = endpoints?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }?.toSet().orEmpty()
+        val values =
+            endpoints?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }?.toSet().orEmpty()
         if (values.isEmpty()) {
             return if (modelType == "embeddings") {
                 emptySet()
@@ -311,7 +357,9 @@ internal class GitHubCopilotModelCatalog(
             }
         }
         return buildSet {
-            val hasChat = values.any { it.endsWith("/chat/completions") || it == "/chat/completions" }
+            val hasChat = values.any {
+                it.endsWith("/chat/completions") || it == "/chat/completions"
+            }
             val hasResponses = values.any { it.endsWith("/responses") || it == "/responses" }
             val hasMessages = values.any { it == "/v1/messages" || it == "/messages" }
             if (hasMessages) {

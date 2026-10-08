@@ -1,20 +1,22 @@
 package de.moritzf.quota.idea.ui.popup
 
+import com.intellij.util.ui.JBUI
 import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.github.GitHubSubscriptionState
 import de.moritzf.quota.github.GitHubUsageWindow
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.ui.indicator.clampPercent
-import kotlin.math.roundToInt
-import com.intellij.util.ui.JBUI
 import de.moritzf.quota.shared.ProviderQuota
+import kotlin.math.roundToInt
 
 internal class GitHubPopupSection : ProviderPopupSection() {
     private val separator = createSeparatedBlock()
     private val errorLabel = createWarningLabel("").apply { border = JBUI.Borders.emptyTop(1) }
     private val titleLabel =
-        createSectionTitleLabel("GitHub Copilot", QuotaIcons.GITHUB).apply { border = JBUI.Borders.emptyTop(0) }
+        createSectionTitleLabel("GitHub Copilot", QuotaIcons.GITHUB).apply {
+            border = JBUI.Borders.emptyTop(0)
+        }
 
     // Copilot reports up to three windows: premium requests, chat, completions.
     private val premiumBlock = WindowBlockPanel(3)
@@ -61,7 +63,8 @@ internal class GitHubPopupSection : ProviderPopupSection() {
                     errorLabel.isVisible = true
                     errorLabel.text = inactiveMessage
                     titleLabel.isVisible = true
-                    titleLabel.text = sectionTitle("GitHub Copilot", quota.plan.takeIf { it.isNotBlank() })
+                    titleLabel.text =
+                        sectionTitle("GitHub Copilot", quota.plan.takeIf { it.isNotBlank() })
                     return
                 }
 
@@ -72,7 +75,8 @@ internal class GitHubPopupSection : ProviderPopupSection() {
                 }
 
                 titleLabel.isVisible = true
-                titleLabel.text = sectionTitle("GitHub Copilot", quota.plan.takeIf { it.isNotBlank() })
+                titleLabel.text =
+                    sectionTitle("GitHub Copilot", quota.plan.takeIf { it.isNotBlank() })
                 bindWindow(premiumBlock, quota.premiumInteractions)
                 bindWindow(chatBlock, quota.chat)
                 bindWindow(completionsBlock, quota.completions)
@@ -84,7 +88,8 @@ internal class GitHubPopupSection : ProviderPopupSection() {
         return when (state) {
             GitHubSubscriptionState.ACTIVE -> null
             GitHubSubscriptionState.SUBSCRIPTION_ENDED -> "GitHub Copilot subscription ended"
-            GitHubSubscriptionState.NO_ACTIVE_SUBSCRIPTION -> "No active GitHub Copilot subscription"
+            GitHubSubscriptionState.NO_ACTIVE_SUBSCRIPTION ->
+                "No active GitHub Copilot subscription"
         }
     }
 

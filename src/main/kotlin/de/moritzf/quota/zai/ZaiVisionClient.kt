@@ -21,21 +21,38 @@ open class ZaiVisionClient(
         prompt: String,
         model: String,
     ): String {
-        val token = apiKey.trim().ifBlank {
-            throw ZaiQuotaException("Z.ai API key missing. Add a Z.ai API key in settings.")
-        }
-        val trimmedPrompt = prompt.trim().ifBlank { throw ZaiQuotaException("Image prompt is required.") }
-        val imageContent = VisionChat.chatImageContent(imageUrl, localFile)
-            ?: throw ZaiQuotaException("Provide an image URL or a local image file.")
-        val selectedModel = model.trim().ifBlank { throw ZaiQuotaException("Select a Z.ai vision model in settings.") }
-        val response = send(postJson(token, chatCompletionsUri, VisionChat.chatRequestJson(selectedModel, imageContent, trimmedPrompt)))
+        val token =
+            apiKey.trim().ifBlank {
+                throw ZaiQuotaException("Z.ai API key missing. Add a Z.ai API key in settings.")
+            }
+        val trimmedPrompt =
+            prompt.trim().ifBlank { throw ZaiQuotaException("Image prompt is required.") }
+        val imageContent =
+            VisionChat.chatImageContent(imageUrl, localFile)
+                ?: throw ZaiQuotaException("Provide an image URL or a local image file.")
+        val selectedModel =
+            model.trim().ifBlank {
+                throw ZaiQuotaException("Select a Z.ai vision model in settings.")
+            }
+        val response =
+            send(
+                postJson(
+                    token,
+                    chatCompletionsUri,
+                    VisionChat.chatRequestJson(selectedModel, imageContent, trimmedPrompt),
+                )
+            )
         val status = response.statusCode()
         val body = response.body()
         if (status == 401 || status == 403) {
             throw ZaiQuotaException("API key invalid. Check your Z.ai API key.", status, body)
         }
         if (status !in 200..299) {
-            throw ZaiQuotaException("Z.ai image analysis failed (HTTP $status). Try again later.", status, body)
+            throw ZaiQuotaException(
+                "Z.ai image analysis failed (HTTP $status). Try again later.",
+                status,
+                body,
+            )
         }
         return VisionChat.chatAnswer(body)
             ?: throw ZaiQuotaException("Z.ai image analysis returned no output.", status, body)
@@ -53,7 +70,8 @@ open class ZaiVisionClient(
     }
 
     companion object {
-        private val CHAT_COMPLETIONS_URI = URI.create("https://api.z.ai/api/paas/v4/chat/completions")
+        private val CHAT_COMPLETIONS_URI =
+            URI.create("https://api.z.ai/api/paas/v4/chat/completions")
 
         fun createDefault(): ZaiVisionClient = ZaiVisionClient()
 

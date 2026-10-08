@@ -33,26 +33,36 @@ class MiniMaxSubscriptionProxyProviderTest {
 
                 val modelsResponse = get(proxy.port, "/v1/models")
                 assertEquals(200, modelsResponse.statusCode())
-                val ids = JsonHelper.JSON.parseToJsonElement(modelsResponse.body()).jsonObject["data"]!!.jsonArray
-                    .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                val ids =
+                    JsonHelper.JSON.parseToJsonElement(modelsResponse.body())
+                        .jsonObject["data"]!!
+                        .jsonArray
+                        .map { it.jsonObject["id"]!!.jsonPrimitive.content }
                 assertEquals(
                     listOf("mm-MiniMax-M2.1"),
                     ids.filter { it !in OpenAiMedia.advertisedMediaIds(setOf("minimax")) },
                 )
                 assertTrue("mm-image-01" in ids)
-                assertEquals("/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
-
-                val chatResponse = post(
-                    proxy.port,
-                    "/v1/chat/completions",
-                    "{\"model\":\"mm-MiniMax-M2.1\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                assertEquals(
+                    "/v1/models",
+                    assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path,
                 )
+
+                val chatResponse =
+                    post(
+                        proxy.port,
+                        "/v1/chat/completions",
+                        "{\"model\":\"mm-MiniMax-M2.1\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    )
 
                 assertEquals(200, chatResponse.statusCode())
                 val chatRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/v1/chat/completions", chatRequest.path)
                 assertEquals("Bearer minimax-key", chatRequest.firstHeader("Authorization"))
-                assertTrue(chatRequest.body.contains("\"model\":\"MiniMax-M2.1\""), chatRequest.body)
+                assertTrue(
+                    chatRequest.body.contains("\"model\":\"MiniMax-M2.1\""),
+                    chatRequest.body,
+                )
             } finally {
                 proxy.server.stop()
             }
@@ -66,17 +76,24 @@ class MiniMaxSubscriptionProxyProviderTest {
             try {
                 proxy.server.start()
 
-                val chatResponse = post(
-                    proxy.port,
-                    "/v1/chat/completions",
-                    "{\"model\":\"mm-MiniMax-M2.7\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
-                )
+                val chatResponse =
+                    post(
+                        proxy.port,
+                        "/v1/chat/completions",
+                        "{\"model\":\"mm-MiniMax-M2.7\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    )
 
                 assertEquals(200, chatResponse.statusCode())
-                assertEquals("/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
+                assertEquals(
+                    "/v1/models",
+                    assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path,
+                )
                 val chatRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/v1/chat/completions", chatRequest.path)
-                assertTrue(chatRequest.body.contains("\"model\":\"MiniMax-M2.7\""), chatRequest.body)
+                assertTrue(
+                    chatRequest.body.contains("\"model\":\"MiniMax-M2.7\""),
+                    chatRequest.body,
+                )
                 assertTrue(!chatRequest.body.contains("mm-MiniMax-M2.7"), chatRequest.body)
             } finally {
                 proxy.server.stop()
@@ -86,19 +103,22 @@ class MiniMaxSubscriptionProxyProviderTest {
 
     private fun newProxy(upstreamBaseUri: URI): TestProxy {
         val port = freePort()
-        val provider = MiniMaxSubscriptionProxyProvider(
-            apiKeyProvider = { "minimax-key" },
-            regionProvider = { MiniMaxRegion.GLOBAL },
-            upstreamBaseUri = upstreamBaseUri,
-            requestLogDir = Files.createTempDirectory("minimax-subscription-proxy-test-logs").toString(),
-        )
+        val provider =
+            MiniMaxSubscriptionProxyProvider(
+                apiKeyProvider = { "minimax-key" },
+                regionProvider = { MiniMaxRegion.GLOBAL },
+                upstreamBaseUri = upstreamBaseUri,
+                requestLogDir =
+                    Files.createTempDirectory("minimax-subscription-proxy-test-logs").toString(),
+            )
         return TestProxy(
             port,
             SubscriptionProxyServer(
                 port = port,
                 localApiKeyProvider = { "local-key" },
                 providers = { listOf(provider) },
-                requestLogDir = Files.createTempDirectory("subscription-proxy-test-logs").toString(),
+                requestLogDir =
+                    Files.createTempDirectory("subscription-proxy-test-logs").toString(),
             ),
         )
     }
@@ -128,25 +148,28 @@ class MiniMaxSubscriptionProxyProviderTest {
 
     private class TestUpstream : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
 
         init {
             server.createContext("/") { exchange ->
                 val body = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
-                requests += CapturedRequest(
-                    path = exchange.requestURI.rawPath,
-                    headers = exchange.requestHeaders.mapValues { it.value.toList() },
-                    body = body,
-                )
-                val responseBody = if (exchange.requestURI.rawPath.endsWith("/models")) {
-                    "{\"object\":\"list\",\"data\":[" +
-                        "{\"id\":\"MiniMax-M2.1\",\"object\":\"model\"}," +
-                        "{\"id\":\"embedding\",\"object\":\"embedding\"}" +
-                        "]}"
-                } else {
-                    "{\"id\":\"chatcmpl_1\",\"choices\":[]}"
-                }
+                requests +=
+                    CapturedRequest(
+                        path = exchange.requestURI.rawPath,
+                        headers = exchange.requestHeaders.mapValues { it.value.toList() },
+                        body = body,
+                    )
+                val responseBody =
+                    if (exchange.requestURI.rawPath.endsWith("/models")) {
+                        "{\"object\":\"list\",\"data\":[" +
+                            "{\"id\":\"MiniMax-M2.1\",\"object\":\"model\"}," +
+                            "{\"id\":\"embedding\",\"object\":\"embedding\"}" +
+                            "]}"
+                    } else {
+                        "{\"id\":\"chatcmpl_1\",\"choices\":[]}"
+                    }
                 val response = responseBody.toByteArray(Charsets.UTF_8)
                 exchange.responseHeaders.set("Content-Type", "application/json")
                 exchange.sendResponseHeaders(200, response.size.toLong())
@@ -167,7 +190,8 @@ class MiniMaxSubscriptionProxyProviderTest {
         val body: String,
     ) {
         fun firstHeader(name: String): String? {
-            return headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }
+            return headers.entries
+                .firstOrNull { it.key.equals(name, ignoreCase = true) }
                 ?.value
                 ?.firstOrNull()
         }

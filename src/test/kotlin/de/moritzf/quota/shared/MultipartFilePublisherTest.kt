@@ -48,26 +48,28 @@ class MultipartFilePublisherTest {
         val chunks = CopyOnWriteArrayList<ByteArray>()
         val done = CountDownLatch(1)
         var error: Throwable? = null
-        publisher.subscribe(object : Flow.Subscriber<ByteBuffer> {
-            override fun onSubscribe(subscription: Flow.Subscription) {
-                subscription.request(Long.MAX_VALUE)
-            }
+        publisher.subscribe(
+            object : Flow.Subscriber<ByteBuffer> {
+                override fun onSubscribe(subscription: Flow.Subscription) {
+                    subscription.request(Long.MAX_VALUE)
+                }
 
-            override fun onNext(item: ByteBuffer) {
-                val bytes = ByteArray(item.remaining())
-                item.get(bytes)
-                chunks += bytes
-            }
+                override fun onNext(item: ByteBuffer) {
+                    val bytes = ByteArray(item.remaining())
+                    item.get(bytes)
+                    chunks += bytes
+                }
 
-            override fun onError(throwable: Throwable) {
-                error = throwable
-                done.countDown()
-            }
+                override fun onError(throwable: Throwable) {
+                    error = throwable
+                    done.countDown()
+                }
 
-            override fun onComplete() {
-                done.countDown()
+                override fun onComplete() {
+                    done.countDown()
+                }
             }
-        })
+        )
         assertTrue(done.await(5, TimeUnit.SECONDS))
         error?.let { throw it }
         val size = chunks.sumOf { it.size }

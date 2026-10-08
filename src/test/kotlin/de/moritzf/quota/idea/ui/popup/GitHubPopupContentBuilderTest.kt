@@ -12,12 +12,14 @@ class GitHubPopupContentBuilderTest {
     @Test
     fun hidesUnlimitedWindows() {
         val section = GitHubPopupSection()
-        val quota = GitHubQuota(
-            plan = "Copilot Individual",
-            premiumInteractions = GitHubUsageWindow(label = "Premium requests", usagePercent = 26.833),
-            chat = GitHubUsageWindow(label = "Chat", unlimited = true),
-            completions = GitHubUsageWindow(label = "Completions", unlimited = true),
-        )
+        val quota =
+            GitHubQuota(
+                plan = "Copilot Individual",
+                premiumInteractions =
+                    GitHubUsageWindow(label = "Premium requests", usagePercent = 26.833),
+                chat = GitHubUsageWindow(label = "Chat", unlimited = true),
+                completions = GitHubUsageWindow(label = "Completions", unlimited = true),
+            )
 
         section.update(quota, error = null, visible = true)
 
@@ -31,10 +33,11 @@ class GitHubPopupContentBuilderTest {
     @Test
     fun showsEndedSubscriptionMessage() {
         val section = GitHubPopupSection()
-        val quota = GitHubQuota(
-            plan = "Copilot Individual",
-            subscriptionState = GitHubSubscriptionState.SUBSCRIPTION_ENDED,
-        )
+        val quota =
+            GitHubQuota(
+                plan = "Copilot Individual",
+                subscriptionState = GitHubSubscriptionState.SUBSCRIPTION_ENDED,
+            )
 
         section.update(quota, error = null, visible = true)
 

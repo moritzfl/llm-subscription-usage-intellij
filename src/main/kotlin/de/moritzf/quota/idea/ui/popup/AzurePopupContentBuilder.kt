@@ -32,19 +32,34 @@ internal class AzurePopupSection : ProviderPopupSection() {
         if (error == null && azure != null) {
             var index = 0
             azure.account?.let { identity ->
-                val subscription = identity.subscriptionName ?: identity.subscriptionId ?: "Subscription unavailable"
-                block(index++).showUnavailable(subscription, "User: ${identity.userName ?: "unavailable"}")
+                val subscription =
+                    identity.subscriptionName
+                        ?: identity.subscriptionId
+                        ?: "Subscription unavailable"
+                block(index++)
+                    .showUnavailable(subscription, "User: ${identity.userName ?: "unavailable"}")
             }
-            val deployments = azure.currentWindows().filter { it.kind == AzureUsageWindow.DEPLOYMENT }
+            val deployments =
+                azure.currentWindows().filter { it.kind == AzureUsageWindow.DEPLOYMENT }
             for ((resource, windows) in deployments.groupBy { it.resourceName to it.location }) {
                 val (name, region) = resource
-                block(index++).showUnavailable("Resource: ${name ?: "unavailable"}", "Region: ${region ?: "unavailable"}")
-                for (model in windows.map { it.modelName?.takeIf(String::isNotBlank) ?: it.id }.distinct()) {
+                block(index++)
+                    .showUnavailable(
+                        "Resource: ${name ?: "unavailable"}",
+                        "Region: ${region ?: "unavailable"}",
+                    )
+                for (model in
+                    windows.map { it.modelName?.takeIf(String::isNotBlank) ?: it.id }.distinct()) {
                     block(index++).showTitleOnly(model)
                 }
             }
             for (window in azure.liveWindows()) {
-                block(index++).update("Live rate limit: ${window.label}", window.describeLive(), window.usagePercent!!.roundToInt())
+                block(index++)
+                    .update(
+                        "Live rate limit: ${window.label}",
+                        window.describeLive(),
+                        window.usagePercent!!.roundToInt(),
+                    )
             }
         } else if (error == null) {
             block(0).showUnavailable("Azure", "Loading...")
@@ -54,7 +69,8 @@ internal class AzurePopupSection : ProviderPopupSection() {
     }
 
     private fun AzureUsageWindow.describeLive(): String {
-        val amount = "${remaining!!.toLong()} remaining of ${limit!!.toLong()} ${unit.orEmpty()}".trim()
+        val amount =
+            "${remaining!!.toLong()} remaining of ${limit!!.toLong()} ${unit.orEmpty()}".trim()
         return listOfNotNull(amount, QuotaUiUtil.formatReset(resetsAt)).joinToString(" - ")
     }
 

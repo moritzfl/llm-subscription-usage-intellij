@@ -1,7 +1,7 @@
 package de.moritzf.proxy
 
-import de.moritzf.proxy.config.ServerConfig
 import de.moritzf.proxy.config.HostBinding
+import de.moritzf.proxy.config.ServerConfig
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.sse.SseParser
 import de.moritzf.proxy.util.Json
@@ -33,39 +33,50 @@ internal object StartupProbe {
         httpClient: HttpClient,
     ): StartupProbeResult {
         val model = selectModel(config, availableModels)
-        val body = """{"model":"$model","messages":[{"role":"user","content":"Hello!"}],"stream":true}"""
-        val requestBuilder = HttpRequest.newBuilder()
-            .uri(URI.create(startupProbeUrl(config)))
-            .timeout(Duration.ofSeconds(60))
-            .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString(body))
+        val body =
+            """{"model":"$model","messages":[{"role":"user","content":"Hello!"}],"stream":true}"""
+        val requestBuilder =
+            HttpRequest.newBuilder()
+                .uri(URI.create(startupProbeUrl(config)))
+                .timeout(Duration.ofSeconds(60))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
         if (!apiKey.isNullOrBlank()) {
             requestBuilder.header("Authorization", "Bearer $apiKey")
         }
         return try {
-            val response = httpClient.send(
-                requestBuilder.build(),
-                HttpResponse.BodyHandlers.ofString(),
-            )
+            val response =
+                httpClient.send(
+                    requestBuilder.build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
             val status = response.statusCode()
-            val responseText = if (status in 200..<300) {
-                extractResponseText(response.body())
-            } else {
-                formatRawBody(response.body())
-            }
+            val responseText =
+                if (status in 200..<300) {
+                    extractResponseText(response.body())
+                } else {
+                    formatRawBody(response.body())
+                }
             if (status in 200..<300) {
                 val hasModelResponse = hasActualResponse(responseText)
                 return StartupProbeResult(
                     hasModelResponse,
                     status,
-                    if (hasModelResponse) "HTTP $status" else "HTTP $status, no model response text",
+                    if (hasModelResponse) "HTTP $status"
+                    else "HTTP $status, no model response text",
                     responseText,
                     model,
                 )
             }
             StartupProbeResult(false, status, "HTTP $status", responseText, model)
         } catch (exception: Exception) {
-            StartupProbeResult(false, 0, "${exception.javaClass.simpleName}: ${exception.message}", null, model)
+            StartupProbeResult(
+                false,
+                0,
+                "${exception.javaClass.simpleName}: ${exception.message}",
+                null,
+                model,
+            )
         }
     }
 
@@ -84,8 +95,9 @@ internal object StartupProbe {
             return extractStreamingResponseText(responseBody)
         }
         return try {
-            val root = Json.INSTANCE.parseToJsonElement(responseBody) as? JsonObject
-                ?: return "<missing choices[0].message.content>"
+            val root =
+                Json.INSTANCE.parseToJsonElement(responseBody) as? JsonObject
+                    ?: return "<missing choices[0].message.content>"
             val choices = root["choices"]
             if (choices !is JsonArray || choices.isEmpty()) {
                 return "<missing choices[0].message.content>"

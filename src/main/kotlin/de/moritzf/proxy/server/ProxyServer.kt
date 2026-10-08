@@ -41,59 +41,81 @@ class ProxyServer(
 
     init {
         if (config.requiresApiKeyEnforcement() && !apiKeyStore.isEnforcing()) {
-            throw IllegalStateException("API key enforcement is required when binding to a non-loopback host: ${config.host}")
+            throw IllegalStateException(
+                "API key enforcement is required when binding to a non-loopback host: ${config.host}"
+            )
         }
         requestLogger = RequestLogger(config.fullRequestLogging, Path.of(config.requestLogDir))
-        val instructionsProvider = if (config.codexInstructionsMode == "latest-codex") {
-            CodexInstructionsProvider(
-                CodexInstructionsProvider.Mode.LATEST_CODEX,
-                config.instructions,
-                Path.of(config.codexInstructionsCacheDir),
-                Duration.ofMinutes(15),
-                client.getHttpClient(),
-            )
-        } else {
-            CodexInstructionsProvider(config.instructions)
-        }
-        app = embeddedServer(CIO, host = config.host, port = config.port) {
-            routing {
-                getProxy("/health", HealthHandler()::handle)
-                getProxy("/health/liveliness", ::livenessProbe)
-                getProxy("/health/liveness", ::livenessProbe)
-                getProxy("/health/readiness", ::readinessProbe)
-                val modelsHandler = ModelsHandler(modelResolver)
-                getProxy("/v1/models", modelsHandler::handle)
-                getProxy("/models", modelsHandler::handle)
-                val modelInfoHandler = LiteLlmModelInfoHandler(modelResolver)
-                getProxy("/v1/model/info", modelInfoHandler::handle)
-                getProxy("/model/info", modelInfoHandler::handle)
-                getProxy("/v1/usage", UsageHandler(usageTracker)::handle)
-                val responsesHandler = ResponsesHandler(client, config, usageTracker, requestLogger, instructionsProvider)
-                postProxy("/v1/responses", responsesHandler::handle)
-                postProxy("/responses", responsesHandler::handle)
-                val compactHandler = CodexJsonHandler(client, requestLogger, "/responses/compact")
-                postProxy("/v1/responses/compact", compactHandler::handle)
-                postProxy("/responses/compact", compactHandler::handle)
-                val memoriesHandler = CodexJsonHandler(client, requestLogger, "/memories/trace_summarize")
-                postProxy("/v1/memories/trace_summarize", memoriesHandler::handle)
-                postProxy("/memories/trace_summarize", memoriesHandler::handle)
-                val chatCompletionsHandler = ChatCompletionsHandler(client, config, usageTracker, requestLogger, instructionsProvider)
-                postProxy("/v1/chat/completions", chatCompletionsHandler::handle)
-                postProxy("/chat/completions", chatCompletionsHandler::handle)
-                val imageGenerationsHandler = CodexJsonHandler(client, requestLogger, "/images/generations")
-                postProxy("/v1/images/generations", imageGenerationsHandler::handle)
-                postProxy("/images/generations", imageGenerationsHandler::handle)
-                val imageEditsHandler = CodexJsonHandler(client, requestLogger, "/images/edits")
-                postProxy("/v1/images/edits", imageEditsHandler::handle)
-                postProxy("/images/edits", imageEditsHandler::handle)
-                val alphaSearchHandler = CodexJsonHandler(client, requestLogger, "/alpha/search")
-                postProxy("/v1/alpha/search", alphaSearchHandler::handle)
-                postProxy("/alpha/search", alphaSearchHandler::handle)
-                optionsProxy("{...}", ::notFound)
-                getProxy("{...}", ::notFound)
-                postProxy("{...}", ::notFound)
+        val instructionsProvider =
+            if (config.codexInstructionsMode == "latest-codex") {
+                CodexInstructionsProvider(
+                    CodexInstructionsProvider.Mode.LATEST_CODEX,
+                    config.instructions,
+                    Path.of(config.codexInstructionsCacheDir),
+                    Duration.ofMinutes(15),
+                    client.getHttpClient(),
+                )
+            } else {
+                CodexInstructionsProvider(config.instructions)
             }
-        }
+        app =
+            embeddedServer(CIO, host = config.host, port = config.port) {
+                routing {
+                    getProxy("/health", HealthHandler()::handle)
+                    getProxy("/health/liveliness", ::livenessProbe)
+                    getProxy("/health/liveness", ::livenessProbe)
+                    getProxy("/health/readiness", ::readinessProbe)
+                    val modelsHandler = ModelsHandler(modelResolver)
+                    getProxy("/v1/models", modelsHandler::handle)
+                    getProxy("/models", modelsHandler::handle)
+                    val modelInfoHandler = LiteLlmModelInfoHandler(modelResolver)
+                    getProxy("/v1/model/info", modelInfoHandler::handle)
+                    getProxy("/model/info", modelInfoHandler::handle)
+                    getProxy("/v1/usage", UsageHandler(usageTracker)::handle)
+                    val responsesHandler =
+                        ResponsesHandler(
+                            client,
+                            config,
+                            usageTracker,
+                            requestLogger,
+                            instructionsProvider,
+                        )
+                    postProxy("/v1/responses", responsesHandler::handle)
+                    postProxy("/responses", responsesHandler::handle)
+                    val compactHandler =
+                        CodexJsonHandler(client, requestLogger, "/responses/compact")
+                    postProxy("/v1/responses/compact", compactHandler::handle)
+                    postProxy("/responses/compact", compactHandler::handle)
+                    val memoriesHandler =
+                        CodexJsonHandler(client, requestLogger, "/memories/trace_summarize")
+                    postProxy("/v1/memories/trace_summarize", memoriesHandler::handle)
+                    postProxy("/memories/trace_summarize", memoriesHandler::handle)
+                    val chatCompletionsHandler =
+                        ChatCompletionsHandler(
+                            client,
+                            config,
+                            usageTracker,
+                            requestLogger,
+                            instructionsProvider,
+                        )
+                    postProxy("/v1/chat/completions", chatCompletionsHandler::handle)
+                    postProxy("/chat/completions", chatCompletionsHandler::handle)
+                    val imageGenerationsHandler =
+                        CodexJsonHandler(client, requestLogger, "/images/generations")
+                    postProxy("/v1/images/generations", imageGenerationsHandler::handle)
+                    postProxy("/images/generations", imageGenerationsHandler::handle)
+                    val imageEditsHandler = CodexJsonHandler(client, requestLogger, "/images/edits")
+                    postProxy("/v1/images/edits", imageEditsHandler::handle)
+                    postProxy("/images/edits", imageEditsHandler::handle)
+                    val alphaSearchHandler =
+                        CodexJsonHandler(client, requestLogger, "/alpha/search")
+                    postProxy("/v1/alpha/search", alphaSearchHandler::handle)
+                    postProxy("/alpha/search", alphaSearchHandler::handle)
+                    optionsProxy("{...}", ::notFound)
+                    getProxy("{...}", ::notFound)
+                    postProxy("{...}", ::notFound)
+                }
+            }
     }
 
     fun start() {
@@ -140,7 +162,8 @@ class ProxyServer(
             handler(ctx)
         } catch (exception: AuthRequiredException) {
             LOG.warn("Rejected {} {}: {}", ctx.method(), ctx.path(), exception.message)
-            if (!ctx.handled) JsonHelper.toErrorResponse(ctx, exception.message, 401, "authentication_error")
+            if (!ctx.handled)
+                JsonHelper.toErrorResponse(ctx, exception.message, 401, "authentication_error")
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (exception: Exception) {
@@ -158,8 +181,8 @@ class ProxyServer(
     }
 
     /**
-     * Best effort: the response may already be committed (streaming), in which case there is no
-     * way left to tell the client about the failure.
+     * Best effort: the response may already be committed (streaming), in which case there is no way
+     * left to tell the client about the failure.
      */
     private suspend fun respondServerError(ctx: ProxyCall) {
         try {
@@ -167,19 +190,25 @@ class ProxyServer(
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (failure: Exception) {
-            LOG.debug("Could not deliver error response for {} {}", ctx.method(), ctx.path(), failure)
+            LOG.debug(
+                "Could not deliver error response for {} {}",
+                ctx.method(),
+                ctx.path(),
+                failure,
+            )
         }
     }
 
     private fun applyCorsHeaders(ctx: ProxyCall) {
         val origin = ctx.header(HttpHeaders.Origin)
-        val allowedOrigin = if (config.allowAnyCors) {
-            "*"
-        } else if (origin != null && isAllowedCorsOrigin(origin, config.allowedCorsOrigins)) {
-            origin
-        } else {
-            null
-        }
+        val allowedOrigin =
+            if (config.allowAnyCors) {
+                "*"
+            } else if (origin != null && isAllowedCorsOrigin(origin, config.allowedCorsOrigins)) {
+                origin
+            } else {
+                null
+            }
         if (allowedOrigin == null) {
             return
         }
@@ -188,21 +217,27 @@ class ProxyServer(
         ctx.responseHeader(HttpHeaders.AccessControlAllowMethods, "GET,POST,OPTIONS")
         ctx.responseHeader(
             HttpHeaders.AccessControlAllowHeaders,
-            ctx.header(HttpHeaders.AccessControlRequestHeaders) ?: "Authorization,Content-Type,X-LiteLLM-Num-Retries",
+            ctx.header(HttpHeaders.AccessControlRequestHeaders)
+                ?: "Authorization,Content-Type,X-LiteLLM-Num-Retries",
         )
     }
 
     companion object {
         private val LOG = LoggerFactory.getLogger(ProxyServer::class.java)
+
         suspend fun authenticateRequest(ctx: ProxyCall, apiKeyStore: ApiKeyStore) {
             // Health probes are unauthenticated, matching LiteLLM's liveliness/readiness endpoints.
             if (ctx.path() == "/health" || ctx.path().startsWith("/health/")) return
             if (isCorsPreflight(ctx)) return
             val auth = ctx.header(HttpHeaders.Authorization)
-            val key = if (auth != null && auth.startsWith("Bearer ")) auth.substring(7).trim() else null
+            val key =
+                if (auth != null && auth.startsWith("Bearer ")) auth.substring(7).trim() else null
             if (key != null && key == apiKeyStore.adminKey()) {
                 ctx.setAttribute(ProxyCallAttributes.IS_ADMIN, true)
-                ctx.setAttribute(ProxyCallAttributes.ADMIN_KEY_FINGERPRINT, ApiKeyUtils.fingerprint(key))
+                ctx.setAttribute(
+                    ProxyCallAttributes.ADMIN_KEY_FINGERPRINT,
+                    ApiKeyUtils.fingerprint(key),
+                )
                 return
             }
             val name = if (key != null) apiKeyStore.lookup(key) else null
@@ -215,7 +250,10 @@ class ProxyServer(
                 ctx.handled = true
             } else {
                 ctx.setAttribute(ProxyCallAttributes.KEY_NAME, name)
-                ctx.setAttribute(ProxyCallAttributes.KEY_FINGERPRINT, ApiKeyUtils.fingerprint(key!!))
+                ctx.setAttribute(
+                    ProxyCallAttributes.KEY_FINGERPRINT,
+                    ApiKeyUtils.fingerprint(key!!),
+                )
             }
         }
 
@@ -238,7 +276,10 @@ class ProxyServer(
                 ctx.header(HttpHeaders.AccessControlRequestMethod) != null
         }
 
-        internal fun isAllowedCorsOrigin(origin: String, additionalAllowedOrigins: List<String>): Boolean {
+        internal fun isAllowedCorsOrigin(
+            origin: String,
+            additionalAllowedOrigins: List<String>,
+        ): Boolean {
             val parsed = parseCorsOrigin(origin) ?: return false
             if (isLoopbackCorsHost(parsed.host)) {
                 return true
@@ -252,7 +293,9 @@ class ProxyServer(
             if (scheme != "http" && scheme != "https") return null
             if (!uri.rawPath.isNullOrBlank() && uri.rawPath != "/") return null
             if (uri.rawQuery != null || uri.rawFragment != null) return null
-            val host = uri.host?.removeSurrounding("[", "]")?.lowercase(Locale.ROOT)?.trimEnd('.') ?: return null
+            val host =
+                uri.host?.removeSurrounding("[", "]")?.lowercase(Locale.ROOT)?.trimEnd('.')
+                    ?: return null
             return CorsOrigin(scheme, host, uri.port.takeIf { it >= 0 })
         }
 
@@ -268,7 +311,10 @@ class ProxyServer(
             val parts = host.split('.')
             if (parts.size != 4 || parts[0] != "127") return false
             return parts.drop(1).all { part ->
-                part.isNotEmpty() && part.length <= 3 && part.all(Char::isDigit) && part.toIntOrNull() in 0..255
+                part.isNotEmpty() &&
+                    part.length <= 3 &&
+                    part.all(Char::isDigit) &&
+                    part.toIntOrNull() in 0..255
             }
         }
 
@@ -280,11 +326,12 @@ class ProxyServer(
 
         private fun logAccessLine(ctx: ProxyCall) {
             val startNanos = ctx.getAttribute(AccessLogFields.START_NANOS)
-            val durationMillis = if (startNanos == null) {
-                0L
-            } else {
-                Duration.ofNanos(System.nanoTime() - startNanos).toMillis()
-            }
+            val durationMillis =
+                if (startNanos == null) {
+                    0L
+                } else {
+                    Duration.ofNanos(System.nanoTime() - startNanos).toMillis()
+                }
             val responseStatus = ctx.responseStatus()
             val status = accessLogStatus(ctx, responseStatus)
             System.out.printf(

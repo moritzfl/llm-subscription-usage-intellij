@@ -2,9 +2,7 @@ package de.moritzf.quota.idea.settings
 
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorLocation
 
-/**
- * Rendering mode for the quota indicator.
- */
+/** Rendering mode for the quota indicator. */
 enum class QuotaDisplayMode(private val displayName: String) {
     ICON_ONLY("Icon only"),
     PERCENTAGE_BAR("Percentage bar"),
@@ -22,7 +20,10 @@ enum class QuotaDisplayMode(private val displayName: String) {
         }
 
         @JvmStatic
-        fun sanitizeFor(location: QuotaIndicatorLocation, displayMode: QuotaDisplayMode): QuotaDisplayMode {
+        fun sanitizeFor(
+            location: QuotaIndicatorLocation,
+            displayMode: QuotaDisplayMode,
+        ): QuotaDisplayMode {
             return if (displayMode in supportedFor(location)) displayMode else ICON_ONLY
         }
 
@@ -33,7 +34,8 @@ enum class QuotaDisplayMode(private val displayName: String) {
             }
 
             val normalized = value.trim()
-            return entries.firstOrNull { it.name.equals(normalized, ignoreCase = true) } ?: ICON_ONLY
+            return entries.firstOrNull { it.name.equals(normalized, ignoreCase = true) }
+                ?: ICON_ONLY
         }
     }
 }

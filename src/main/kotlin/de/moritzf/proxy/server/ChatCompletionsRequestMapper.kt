@@ -15,7 +15,11 @@ internal class ChatCompletionsRequestMapper(
     private val instructionsProvider: CodexInstructionsProvider,
     private val modelAliasResolver: ModelAliasResolver,
 ) {
-    fun build(chatBody: JsonObject, model: String, aliasReasoningEffort: String?): MutableJsonObject {
+    fun build(
+        chatBody: JsonObject,
+        model: String,
+        aliasReasoningEffort: String?,
+    ): MutableJsonObject {
         val upstream = createObjectNode()
         upstream.put("model", model)
         upstream.put("stream", true)
@@ -29,7 +33,8 @@ internal class ChatCompletionsRequestMapper(
             val msg = messageElement as? JsonObject ?: continue
             val role = msg.stringPath("role", "")
             when (role) {
-                "system", "developer" -> {
+                "system",
+                "developer" -> {
                     val text = extractTextContent(msg["content"])
                     if (text.isNotEmpty()) {
                         if (instructions.isNotEmpty()) instructions.append("\n")
@@ -95,7 +100,9 @@ internal class ChatCompletionsRequestMapper(
         upstream.put("instructions", instr)
 
         // Optional parameters.
-        chatBody["temperature"]?.takeUnless { it is JsonNull }?.let { upstream.set("temperature", it) }
+        chatBody["temperature"]
+            ?.takeUnless { it is JsonNull }
+            ?.let { upstream.set("temperature", it) }
         chatBody["top_p"]?.takeUnless { it is JsonNull }?.let { upstream.set("top_p", it) }
         // max_completion_tokens (newer SDK) takes precedence over deprecated max_tokens.
         val maxCompletionTokens = (chatBody["max_completion_tokens"] as? JsonPrimitive)?.intOrNull
@@ -113,11 +120,10 @@ internal class ChatCompletionsRequestMapper(
         }
 
         // Tool choice.
-        chatBody["tool_choice"]?.takeUnless { it is JsonNull }?.let {
-            setToolChoice(upstream, it)
-        } ?: chatBody["function_call"]?.takeUnless { it is JsonNull }?.let {
-            setLegacyFunctionCallChoice(upstream, it)
-        }
+        chatBody["tool_choice"]?.takeUnless { it is JsonNull }?.let { setToolChoice(upstream, it) }
+            ?: chatBody["function_call"]
+                ?.takeUnless { it is JsonNull }
+                ?.let { setLegacyFunctionCallChoice(upstream, it) }
 
         // Structured output: chat `response_format` json_schema maps to Responses `text.format`.
         val responseFormat = chatBody["response_format"] as? JsonObject
@@ -144,8 +150,11 @@ internal class ChatCompletionsRequestMapper(
         // Reasoning effort. A tier baked into the model name (aliasReasoningEffort) is the
         // user's explicit choice and wins over a separately supplied reasoning_effort, which
         // for clients like Junie can be a stale per-model default.
-        val requestedEffort = aliasReasoningEffort ?:
-            chatBody["reasoning_effort"]?.takeUnless { it is JsonNull }?.let { (it as? JsonPrimitive)?.content }
+        val requestedEffort =
+            aliasReasoningEffort
+                ?: chatBody["reasoning_effort"]
+                    ?.takeUnless { it is JsonNull }
+                    ?.let { (it as? JsonPrimitive)?.content }
         if (requestedEffort != null) {
             val reasoning = createObjectNode()
             reasoning.put("effort", modelAliasResolver.clampReasoningEffort(model, requestedEffort))
@@ -206,7 +215,10 @@ internal class ChatCompletionsRequestMapper(
         tools.add(tool)
     }
 
-    private fun setLegacyFunctionCallChoice(upstream: MutableJsonObject, functionCall: JsonElement) {
+    private fun setLegacyFunctionCallChoice(
+        upstream: MutableJsonObject,
+        functionCall: JsonElement,
+    ) {
         if (functionCall.isTextual()) {
             val choice = functionCall.text
             if (choice.isNotBlank()) {

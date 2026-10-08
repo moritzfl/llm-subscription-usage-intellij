@@ -1,8 +1,10 @@
 package de.moritzf.proxy.sse
+
 import java.io.BufferedReader
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
+
 object SseParser {
     fun parse(input: InputStream): List<ServerSentEvent> {
         val events = mutableListOf<ServerSentEvent>()
@@ -20,7 +22,12 @@ object SseParser {
             while (line != null) {
                 if (line.isEmpty()) {
                     if (eventType != null || dataLines.isNotEmpty()) {
-                        consumer(ServerSentEvent(eventType, dataLines.takeIf { it.isNotEmpty() }?.joinToString("\n")))
+                        consumer(
+                            ServerSentEvent(
+                                eventType,
+                                dataLines.takeIf { it.isNotEmpty() }?.joinToString("\n"),
+                            )
+                        )
                         eventType = null
                         dataLines.clear()
                     }
@@ -37,7 +44,12 @@ object SseParser {
                 line = reader.readLine()
             }
             if (eventType != null || dataLines.isNotEmpty()) {
-                consumer(ServerSentEvent(eventType, dataLines.takeIf { it.isNotEmpty() }?.joinToString("\n")))
+                consumer(
+                    ServerSentEvent(
+                        eventType,
+                        dataLines.takeIf { it.isNotEmpty() }?.joinToString("\n"),
+                    )
+                )
             }
         }
     }

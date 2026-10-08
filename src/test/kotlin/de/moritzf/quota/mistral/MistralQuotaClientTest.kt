@@ -13,15 +13,17 @@ import kotlinx.serialization.encodeToString
 class MistralQuotaClientTest {
     @Test
     fun buildRawResponseWrapsSessionAndApiKeyPayloads() {
-        val raw = MistralQuotaClient.buildRawResponse(
-            billingBody = """{"vibe_usage":1.5}""",
-            vibeBody = """[{"result":{"data":{"json":{"usage_percentage":1.5}}}}]""",
-            identityBody = """{"email":"a@b.c"}""",
-            rateLimits = mapOf(
-                "x-ratelimit-limit-tokens-minute" to "500000",
-                "x-ratelimit-remaining-tokens-minute" to "499000",
-            ),
-        )
+        val raw =
+            MistralQuotaClient.buildRawResponse(
+                billingBody = """{"vibe_usage":1.5}""",
+                vibeBody = """[{"result":{"data":{"json":{"usage_percentage":1.5}}}}]""",
+                identityBody = """{"email":"a@b.c"}""",
+                rateLimits =
+                    mapOf(
+                        "x-ratelimit-limit-tokens-minute" to "500000",
+                        "x-ratelimit-remaining-tokens-minute" to "499000",
+                    ),
+            )
         assertTrue(raw.contains("\"session\""))
         assertTrue(raw.contains("\"billing\""))
         assertTrue(raw.contains("\"vibe\""))
@@ -33,14 +35,16 @@ class MistralQuotaClientTest {
 
     @Test
     fun buildRawResponseOmitsMissingSides() {
-        val sessionOnly = MistralQuotaClient.buildRawResponse("""{"vibe_usage":0}""", null, null, null)
+        val sessionOnly =
+            MistralQuotaClient.buildRawResponse("""{"vibe_usage":0}""", null, null, null)
         assertTrue(sessionOnly.contains("\"session\""))
         assertTrue(!sessionOnly.contains("\"api_key\""))
     }
 
     @Test
     fun parseIdentityReadsOrgWorkspaceAndKeyName() {
-        val body = """
+        val body =
+            """
             {
               "id": "user-1",
               "email": "user@example.com",
@@ -48,7 +52,8 @@ class MistralQuotaClientTest {
               "organization": {"id": "org-1", "name": "Example Org"},
               "api_key": {"id": "key-1", "name": "Test-usage-plugin"}
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val identity = MistralQuotaClient.parseIdentity(body)
 
@@ -67,14 +72,13 @@ class MistralQuotaClientTest {
 
     @Test
     fun parseIdentityRejectsUnreadablePayload() {
-        assertFailsWith<MistralQuotaException> {
-            MistralQuotaClient.parseIdentity("not-json")
-        }
+        assertFailsWith<MistralQuotaException> { MistralQuotaClient.parseIdentity("not-json") }
     }
 
     @Test
     fun parseApiUsageSumsTokensPagesCallsAndExactSpend() {
-        val body = """
+        val body =
+            """
             {
               "completion": {"models": {
                 "zai-glm-5-3::zai-glm-5-3": {
@@ -109,7 +113,8 @@ class MistralQuotaClientTest {
                 {"event_type":"api_connectors","billing_metric":"image_generation","billing_group":"calls","api_zone":"global","service_tier":"standard","price":"0.0850000000"}
               ]
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val usage = assertNotNull(MistralQuotaClient.parseApiUsage(body))
 
@@ -125,11 +130,13 @@ class MistralQuotaClientTest {
 
     @Test
     fun parseApiUsageWithoutPricesKeepsTotalsButNullSpend() {
-        val body = """
+        val body =
+            """
             {"completion":{"models":{"m":{"input":[
               {"event_type":"api_tokens","billing_metric":"m","billing_group":"input","api_zone":"global","service_tier":"standard","value_paid":10}
             ]}}}}
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val usage = assertNotNull(MistralQuotaClient.parseApiUsage(body))
 
@@ -145,16 +152,30 @@ class MistralQuotaClientTest {
 
     @Test
     fun mistralQuotaSerializesApiUsage() {
-        val quota = MistralQuota(apiUsage = MistralApiUsage(spendEur = 9.42, tokens = 44_000_000, ocrPages = 442))
-        val json = de.moritzf.quota.shared.JsonSupport.json.encodeToString(MistralQuota.serializer(), quota)
-        val decoded = de.moritzf.quota.shared.JsonSupport.json.decodeFromString(MistralQuota.serializer(), json)
+        val quota =
+            MistralQuota(
+                apiUsage = MistralApiUsage(spendEur = 9.42, tokens = 44_000_000, ocrPages = 442)
+            )
+        val json =
+            de.moritzf.quota.shared.JsonSupport.json.encodeToString(
+                MistralQuota.serializer(),
+                quota,
+            )
+        val decoded =
+            de.moritzf.quota.shared.JsonSupport.json.decodeFromString(
+                MistralQuota.serializer(),
+                json,
+            )
         assertEquals(quota.apiUsage, decoded.apiUsage)
     }
 
     @Test
     fun windowFromValuesComputesUsedPercentAndMinuteReset() {
         val now = Instant.fromEpochMilliseconds(1_780_000_030_000L)
-        val window = assertNotNull(MistralQuotaClient.windowFromValues(limit = 500_000, remaining = 499_000, now = now))
+        val window =
+            assertNotNull(
+                MistralQuotaClient.windowFromValues(limit = 500_000, remaining = 499_000, now = now)
+            )
 
         assertEquals(1_000, window.used)
         assertEquals(500_000, window.limit)
@@ -172,9 +193,10 @@ class MistralQuotaClientTest {
 
     @Test
     fun parseSessionCookiesRequiresOrySession() {
-        val session = MistralQuotaClient.parseSessionCookies(
-            "Cookie: ory_session_abc=token; csrftoken=csrf-1; other=x",
-        )
+        val session =
+            MistralQuotaClient.parseSessionCookies(
+                "Cookie: ory_session_abc=token; csrftoken=csrf-1; other=x"
+            )
         assertEquals("csrf-1", session.csrfToken)
         assertEquals("csrftoken=csrf-1; ory_session_abc=token", session.consoleCookieHeader())
         assertFailsWith<MistralQuotaException> {
@@ -184,11 +206,12 @@ class MistralQuotaClientTest {
 
     @Test
     fun encodeStoredSessionStripsQuotesAndRoundTripsFields() {
-        val stored = MistralQuotaClient.encodeStoredSession(
-            sessionName = "ory_session_coolcurranf83m3srkfl",
-            sessionValue = "\"abc\"",
-            csrfToken = "csrf-1",
-        )
+        val stored =
+            MistralQuotaClient.encodeStoredSession(
+                sessionName = "ory_session_coolcurranf83m3srkfl",
+                sessionValue = "\"abc\"",
+                csrfToken = "csrf-1",
+            )
         val session = MistralQuotaClient.parseSessionCookies(stored)
         assertEquals("csrf-1", session.csrfToken)
         assertEquals("ory_session_coolcurranf83m3srkfl", session.sessionPairs.single().first)
@@ -200,9 +223,11 @@ class MistralQuotaClientTest {
 
     @Test
     fun parseVibeUsageReadsPercentAndReset() {
-        val body = """
+        val body =
+            """
             [{"result":{"data":{"json":{"usage_percentage":42.5,"reset_at":"2026-09-01T00:00:00Z"}}}}]
-        """.trimIndent()
+            """
+                .trimIndent()
         val vibe = assertNotNull(MistralQuotaClient.parseVibeUsage(body))
         assertEquals(42.5, vibe.usagePercent)
         assertEquals(Instant.parse("2026-09-01T00:00:00Z"), vibe.resetsAt)
@@ -210,9 +235,10 @@ class MistralQuotaClientTest {
 
     @Test
     fun monthlyWindowPrefersVibePercentOverBilling() {
-        val billing = MistralQuotaClient.parseBilling(
-            """{"vibe_usage":10.0,"start_date":"2026-08-01","end_date":"2026-08-31"}""",
-        )
+        val billing =
+            MistralQuotaClient.parseBilling(
+                """{"vibe_usage":10.0,"start_date":"2026-08-01","end_date":"2026-08-31"}"""
+            )
         val vibe = MistralVibeUsage(42.5, Instant.parse("2026-09-01T00:00:00Z"))
         val window = assertNotNull(MistralQuotaClient.monthlyWindow(vibe, billing))
         assertEquals(42.5, window.usagePercent)
@@ -230,13 +256,15 @@ class MistralQuotaClientTest {
 
     @Test
     fun rawResponseKeepsBillingErrorWhenAdminUsageFails() {
-        val raw = MistralQuotaClient.buildRawResponse(
-            billingBody = null,
-            vibeBody = """[{"result":{"data":{"json":{"usage_percentage":0,"reset_at":"2026-10-01T00:00:00Z"}}}}]""",
-            identityBody = null,
-            rateLimits = null,
-            billingError = "Request failed (HTTP 500). Try again later.",
-        )
+        val raw =
+            MistralQuotaClient.buildRawResponse(
+                billingBody = null,
+                vibeBody =
+                    """[{"result":{"data":{"json":{"usage_percentage":0,"reset_at":"2026-10-01T00:00:00Z"}}}}]""",
+                identityBody = null,
+                rateLimits = null,
+                billingError = "Request failed (HTTP 500). Try again later.",
+            )
         assertTrue(raw.contains("billing_error"))
         assertTrue(raw.contains("HTTP 500"))
         assertTrue(raw.contains("\"vibe\""))

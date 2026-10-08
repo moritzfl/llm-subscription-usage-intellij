@@ -41,10 +41,11 @@ internal object AiAssistantSettingsNavigator {
             return
         }
         val project = CommonDataKeys.PROJECT.getData(context)
-        ShowSettingsUtil.getInstance().showSettingsDialog(
-            project,
-            { (it as? SearchableConfigurable)?.id == PROVIDERS_AND_API_KEYS_ID },
-            null,
-        )
+        ShowSettingsUtil.getInstance()
+            .showSettingsDialog(
+                project,
+                { (it as? SearchableConfigurable)?.id == PROVIDERS_AND_API_KEYS_ID },
+                null,
+            )
     }
 }

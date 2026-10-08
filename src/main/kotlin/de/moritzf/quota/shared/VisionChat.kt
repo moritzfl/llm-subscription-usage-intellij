@@ -12,11 +12,14 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 
 /**
- * OpenAI-compatible chat vision request pieces shared by subscription API-key providers
- * (Mistral, Z.ai, Ollama, Kimi). Providers only add auth, endpoint, and error mapping.
+ * OpenAI-compatible chat vision request pieces shared by subscription API-key providers (Mistral,
+ * Z.ai, Ollama, Kimi). Providers only add auth, endpoint, and error mapping.
  */
 internal object VisionChat {
-    /** Image data URL plus raw base64 (Anthropic needs the raw data), or null when the file is not an image. */
+    /**
+     * Image data URL plus raw base64 (Anthropic needs the raw data), or null when the file is not
+     * an image.
+     */
     fun imageDataUrl(path: Path): Pair<String, String>? {
         if (!Files.isRegularFile(path)) return null
         val bytes = Files.readAllBytes(path)
@@ -25,7 +28,10 @@ internal object VisionChat {
         return "data:$mime;base64,$base64" to base64
     }
 
-    /** Public URL passthrough or local-file data URL as one OpenAI-compatible image_url content part. */
+    /**
+     * Public URL passthrough or local-file data URL as one OpenAI-compatible image_url content
+     * part.
+     */
     fun chatImageContent(imageUrl: String?, localFile: Path?): JsonObject? {
         val url = imageUrl?.trim().orEmpty()
         if (url.isNotEmpty()) {
@@ -46,47 +52,61 @@ internal object VisionChat {
             put("model", model)
             put("stream", false)
             putJsonArray("messages") {
-                add(buildJsonObject {
-                    put("role", "user")
-                    putJsonArray("content") {
-                        add(imageContent)
-                        add(buildJsonObject {
-                            put("type", "text")
-                            put("text", prompt)
-                        })
+                add(
+                    buildJsonObject {
+                        put("role", "user")
+                        putJsonArray("content") {
+                            add(imageContent)
+                            add(
+                                buildJsonObject {
+                                    put("type", "text")
+                                    put("text", prompt)
+                                }
+                            )
+                        }
                     }
-                })
+                )
             }
-        }.toString()
+        }
+            .toString()
     }
 
     /** First chat choice's message content, as a plain string or text parts. */
     fun chatAnswer(body: String): String? {
-        val root = runCatching { JsonSupport.json.parseToJsonElement(body) }.getOrNull() as? JsonObject ?: return null
-        val message = ((root["choices"] as? JsonArray)?.firstOrNull() as? JsonObject)?.get("message") as? JsonObject
-            ?: return null
+        val root =
+            runCatching { JsonSupport.json.parseToJsonElement(body) }.getOrNull() as? JsonObject
+                ?: return null
+        val message =
+            ((root["choices"] as? JsonArray)?.firstOrNull() as? JsonObject)?.get("message")
+                as? JsonObject ?: return null
         return when (val content = message["content"]) {
             is JsonPrimitive -> content.contentOrNull?.takeIf { it.isNotBlank() }
-            is JsonArray -> content.mapNotNull { (it as? JsonObject)?.get("text") as? JsonPrimitive }
-                .mapNotNull { it.contentOrNull }
-                .joinToString("")
-                .takeIf { it.isNotBlank() }
+            is JsonArray ->
+                content
+                    .mapNotNull { (it as? JsonObject)?.get("text") as? JsonPrimitive }
+                    .mapNotNull { it.contentOrNull }
+                    .joinToString("")
+                    .takeIf { it.isNotBlank() }
             else -> null
         }
     }
 
     private fun imageMimeType(path: Path, bytes: ByteArray): String? {
         if (bytes.size >= 8 && bytes[0] == 0x89.toByte()) return "image/png"
-        if (bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte()) return "image/jpeg"
-        if (bytes.size >= 12 && bytes.decodeToString(0, 4) == "RIFF" &&
-            bytes.decodeToString(8, 12) == "WEBP"
+        if (bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte())
+            return "image/jpeg"
+        if (
+            bytes.size >= 12 &&
+                bytes.decodeToString(0, 4) == "RIFF" &&
+                bytes.decodeToString(8, 12) == "WEBP"
         ) {
             return "image/webp"
         }
         if (bytes.size >= 6 && (bytes.decodeToString(0, 3) == "GIF")) return "image/gif"
         return when (path.fileName.toString().substringAfterLast('.', "").lowercase()) {
             "png" -> "image/png"
-            "jpg", "jpeg" -> "image/jpeg"
+            "jpg",
+            "jpeg" -> "image/jpeg"
             "gif" -> "image/gif"
             "webp" -> "image/webp"
             else -> null

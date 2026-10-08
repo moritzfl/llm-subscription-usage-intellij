@@ -13,31 +13,56 @@ import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 
 internal class AntigravitySettingsPanel : ProviderSettingsPanel() {
-    val executableField = TextFieldWithBrowseButton().apply {
-        addBrowseFolderListener(null, FileChooserDescriptorFactory.singleFile().withTitle("AGY Executable"))
-        textField.columns = 30
-        toolTipText = "Optional absolute path to agy (agy.exe on Windows). Blank uses PATH and standard install locations."
-    }
+    val executableField =
+        TextFieldWithBrowseButton().apply {
+            addBrowseFolderListener(
+                null,
+                FileChooserDescriptorFactory.singleFile().withTitle("AGY Executable"),
+            )
+            textField.columns = 30
+            toolTipText =
+                "Optional absolute path to agy (agy.exe on Windows). Blank uses PATH and standard install locations."
+        }
     private val status = JBLabel()
     private val viewer = createResponseViewer()
 
     init {
-        install(panel {
-            row { cell(status).align(AlignX.FILL).resizableColumn() }
-            row { comment("Uses the current Antigravity CLI login. Install AGY 1.1.11 or later and run agy in a terminal to sign in.") }
-            row { comment("Quota only. One CLI account; credentials stay with AGY. Change accounts in AGY.") }
-            row("AGY executable:") {
-                cell(executableField).align(AlignX.FILL).resizableColumn()
-                    .comment("Leave blank for automatic detection. Changes take effect after Apply.")
-                button("Detect") { detectExecutable() }.applyToComponent {
-                    toolTipText = "Auto-detect AGY from PATH and standard install locations and fill the path"
-                    accessibleContext.accessibleName = "Detect AGY executable path"
+        install(
+            panel {
+                row { cell(status).align(AlignX.FILL).resizableColumn() }
+                row {
+                    comment(
+                        "Uses the current Antigravity CLI login. Install AGY 1.1.11 or later and run agy in a terminal to sign in."
+                    )
                 }
-            }
-            row {
-                browserLink("AGY setup (Google documentation)", "https://antigravity.google/docs/cli/install/")
-            }
-        }, createResponseSection(viewer))
+                row {
+                    comment(
+                        "Quota only. One CLI account; credentials stay with AGY. Change accounts in AGY."
+                    )
+                }
+                row("AGY executable:") {
+                    cell(executableField)
+                        .align(AlignX.FILL)
+                        .resizableColumn()
+                        .comment(
+                            "Leave blank for automatic detection. Changes take effect after Apply."
+                        )
+                    button("Detect") { detectExecutable() }
+                        .applyToComponent {
+                            toolTipText =
+                                "Auto-detect AGY from PATH and standard install locations and fill the path"
+                            accessibleContext.accessibleName = "Detect AGY executable path"
+                        }
+                }
+                row {
+                    browserLink(
+                        "AGY setup (Google documentation)",
+                        "https://antigravity.google/docs/cli/install/",
+                    )
+                }
+            },
+            createResponseSection(viewer),
+        )
     }
 
     fun normalizedExecutablePath(): String? = executableField.text.trim().takeIf { it.isNotEmpty() }
@@ -65,27 +90,35 @@ internal class AntigravitySettingsPanel : ProviderSettingsPanel() {
         val id = accountKey(QuotaProviderType.ANTIGRAVITY)
         val quota = service.getLastQuota(id) as? AntigravityQuota
         val error = service.getLastError(id)
-        val message = when {
-            error != null -> AuthStatusMessage(error, isError = true)
-            quota == null -> AuthStatusMessage("No AGY usage report yet.", kind = AuthStatusKind.PENDING)
-            quota.warnings.isNotEmpty() -> AuthStatusMessage(
-                "Connected. ${quota.warnings.joinToString(" ")}",
-                kind = AuthStatusKind.PENDING,
-            )
-            else -> AuthStatusMessage("Connected to the current AGY CLI account.")
-        }
-        val color = when (message.kind) {
-            AuthStatusKind.CONNECTED -> "#4CAF50"
-            AuthStatusKind.DISCONNECTED -> "#F44336"
-            AuthStatusKind.PENDING -> "#FFC107"
-        }
-        status.text = "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(message.text)}</html>"
+        val message =
+            when {
+                error != null -> AuthStatusMessage(error, isError = true)
+                quota == null ->
+                    AuthStatusMessage("No AGY usage report yet.", kind = AuthStatusKind.PENDING)
+                quota.warnings.isNotEmpty() ->
+                    AuthStatusMessage(
+                        "Connected. ${quota.warnings.joinToString(" ")}",
+                        kind = AuthStatusKind.PENDING,
+                    )
+                else -> AuthStatusMessage("Connected to the current AGY CLI account.")
+            }
+        val color =
+            when (message.kind) {
+                AuthStatusKind.CONNECTED -> "#4CAF50"
+                AuthStatusKind.DISCONNECTED -> "#F44336"
+                AuthStatusKind.PENDING -> "#FFC107"
+            }
+        status.text =
+            "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(message.text)}</html>"
     }
 
     override fun updateResponseArea() {
         val service = QuotaUsageService.getInstance()
         val id = accountKey(QuotaProviderType.ANTIGRAVITY)
-        viewer.text = service.getLastError(id) ?: service.getLastResponseJson(id) ?: "No AGY usage report yet."
+        viewer.text =
+            service.getLastError(id)
+                ?: service.getLastResponseJson(id)
+                ?: "No AGY usage report yet."
         viewer.caretPosition = 0
     }
 }

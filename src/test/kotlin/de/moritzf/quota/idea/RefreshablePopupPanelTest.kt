@@ -20,10 +20,12 @@ class RefreshablePopupPanelTest {
     @Test
     fun refreshUpdatesContentInPlace() {
         val label = JBLabel("empty")
-        val panel = RefreshablePopupPanel<QuotaUsageSnapshot>(label) { state ->
-            val snapshot = state[QuotaProviderType.OPEN_AI]
-            label.text = snapshot.error ?: (snapshot.quota as? OpenAiCodexQuota)?.planType ?: "empty"
-        }
+        val panel =
+            RefreshablePopupPanel<QuotaUsageSnapshot>(label) { state ->
+                val snapshot = state[QuotaProviderType.OPEN_AI]
+                label.text =
+                    snapshot.error ?: (snapshot.quota as? OpenAiCodexQuota)?.planType ?: "empty"
+            }
 
         panel.refresh(openAiSnapshot(quota = null, error = "Loading usage data..."))
         assertEquals("Loading usage data...", label.text)
@@ -64,6 +66,8 @@ class RefreshablePopupPanelTest {
     }
 
     private fun openAiSnapshot(quota: OpenAiCodexQuota?, error: String?): QuotaUsageSnapshot {
-        return QuotaUsageSnapshot(mapOf(QuotaProviderType.OPEN_AI to ProviderSnapshot(quota, error)))
+        return QuotaUsageSnapshot(
+            mapOf(QuotaProviderType.OPEN_AI to ProviderSnapshot(quota, error))
+        )
     }
 }

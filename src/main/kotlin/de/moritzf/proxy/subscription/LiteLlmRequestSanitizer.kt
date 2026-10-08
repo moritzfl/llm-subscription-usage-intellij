@@ -6,34 +6,35 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 
 object LiteLlmRequestSanitizer {
-    private val CHAT_COMPLETION_KEYS = setOf(
-        "model",
-        "messages",
-        "temperature",
-        "top_p",
-        "n",
-        "stream",
-        "stream_options",
-        "stop",
-        "max_tokens",
-        "max_completion_tokens",
-        "tools",
-        "tool_choice",
-        "functions",
-        "function_call",
-        "response_format",
-        "parallel_tool_calls",
-        "presence_penalty",
-        "frequency_penalty",
-        "reasoning_effort",
-        "verbosity",
-        "prompt_cache_key",
-        "service_tier",
-        "store",
-        "logprobs",
-        "top_logprobs",
-        "prediction",
-    )
+    private val CHAT_COMPLETION_KEYS =
+        setOf(
+            "model",
+            "messages",
+            "temperature",
+            "top_p",
+            "n",
+            "stream",
+            "stream_options",
+            "stop",
+            "max_tokens",
+            "max_completion_tokens",
+            "tools",
+            "tool_choice",
+            "functions",
+            "function_call",
+            "response_format",
+            "parallel_tool_calls",
+            "presence_penalty",
+            "frequency_penalty",
+            "reasoning_effort",
+            "verbosity",
+            "prompt_cache_key",
+            "service_tier",
+            "store",
+            "logprobs",
+            "top_logprobs",
+            "prediction",
+        )
 
     fun sanitize(route: SubscriptionProxyRoute, body: JsonObject): JsonObject {
         val dropRequested = (body["drop_params"] as? JsonPrimitive)?.booleanOrNull == true
@@ -54,10 +55,6 @@ object LiteLlmRequestSanitizer {
         if (body.keys.none(drop)) {
             return body
         }
-        return buildJsonObject {
-            body.forEach { (key, value) ->
-                if (!drop(key)) put(key, value)
-            }
-        }
+        return buildJsonObject { body.forEach { (key, value) -> if (!drop(key)) put(key, value) } }
     }
 }

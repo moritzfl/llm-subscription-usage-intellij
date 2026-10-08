@@ -4,16 +4,15 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/**
- * Tests for OAuth URL encoding and callback/query parsing helpers.
- */
+/** Tests for OAuth URL encoding and callback/query parsing helpers. */
 class OAuthUrlCodecTest {
     @Test
     fun formEncodeEncodesReservedCharacters() {
-        val params = linkedMapOf(
-            "state" to "a b+c",
-            "redirect_uri" to "http://localhost:1455/auth/callback?x=1&y=2",
-        )
+        val params =
+            linkedMapOf(
+                "state" to "a b+c",
+                "redirect_uri" to "http://localhost:1455/auth/callback?x=1&y=2",
+            )
 
         val encoded = OAuthUrlCodec.formEncode(params)
 
@@ -25,7 +24,8 @@ class OAuthUrlCodecTest {
 
     @Test
     fun formEncodeSupportsVarargPairs() {
-        val encoded = OAuthUrlCodec.formEncode("grant_type" to "refresh token", "client_id" to "a+b")
+        val encoded =
+            OAuthUrlCodec.formEncode("grant_type" to "refresh token", "client_id" to "a+b")
 
         assertEquals("grant_type=refresh+token&client_id=a%2Bb", encoded)
     }
@@ -44,10 +44,15 @@ class OAuthUrlCodecTest {
     fun parseCallbackUriAcceptsAbsoluteAndRelativeForms() {
         val redirectUri = "http://localhost:1455/auth/callback"
 
-        val absolute = OAuthUrlCodec.parseCallbackUri("https://example.com/auth/callback?code=abc", redirectUri)
+        val absolute =
+            OAuthUrlCodec.parseCallbackUri(
+                "https://example.com/auth/callback?code=abc",
+                redirectUri,
+            )
         assertEquals("https://example.com/auth/callback?code=abc", absolute.toString())
 
-        val relative = OAuthUrlCodec.parseCallbackUri("/auth/callback?code=abc&state=xyz", redirectUri)
+        val relative =
+            OAuthUrlCodec.parseCallbackUri("/auth/callback?code=abc&state=xyz", redirectUri)
         assertEquals("/auth/callback", relative.path)
         assertEquals("code=abc&state=xyz", relative.rawQuery)
     }

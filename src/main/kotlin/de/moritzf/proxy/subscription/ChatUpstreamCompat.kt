@@ -2,7 +2,6 @@ package de.moritzf.proxy.subscription
 
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.server.isTextual
-import de.moritzf.proxy.server.remove
 import de.moritzf.proxy.server.text
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -12,8 +11,8 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.put
 
 /**
- * Junie sends one chat shape to every provider. Several upstreams reject pieces of it,
- * or spend a small `max_tokens` budget on hidden reasoning and return an empty answer.
+ * Junie sends one chat shape to every provider. Several upstreams reject pieces of it, or spend a
+ * small `max_tokens` budget on hidden reasoning and return an empty answer.
  */
 object ChatUpstreamCompat {
     fun adaptChat(modelId: String, body: JsonObject): JsonObject {
@@ -26,9 +25,7 @@ object ChatUpstreamCompat {
         val omit = unsupportedChatFields(modelId)
         if (omit.isEmpty() || body.keys.none { it in omit }) return body
         return buildJsonObject {
-            body.forEach { (key, value) ->
-                if (key !in omit) put(key, value)
-            }
+            body.forEach { (key, value) -> if (key !in omit) put(key, value) }
         }
     }
 
@@ -66,22 +63,28 @@ object ChatUpstreamCompat {
             }
             buildJsonObject {
                 choice.forEach { (key, value) ->
-                    if (key != "message" && key != "finish_reason" && key != "finish_details") put(key, value)
+                    if (key != "message" && key != "finish_reason" && key != "finish_details")
+                        put(key, value)
                 }
                 put("message", updatedMessage)
                 put("finish_reason", "stop")
-                put("finish_details", buildJsonObject {
-                    put("type", "stop")
-                    put("stop", cut.sequence)
-                })
+                put(
+                    "finish_details",
+                    buildJsonObject {
+                        put("type", "stop")
+                        put("stop", cut.sequence)
+                    },
+                )
             }
         }
         if (!changed) return raw
-        return JsonHelper.encodeToString(buildJsonObject {
-            root.forEach { (key, value) ->
-                put(key, if (key == "choices") JsonArray(updatedChoices) else value)
+        return JsonHelper.encodeToString(
+            buildJsonObject {
+                root.forEach { (key, value) ->
+                    put(key, if (key == "choices") JsonArray(updatedChoices) else value)
+                }
             }
-        })
+        )
     }
 
     private fun hasTools(body: JsonObject): Boolean {
@@ -122,7 +125,8 @@ object ChatUpstreamCompat {
                 firedSequence = sequence
             }
         }
-        return if (firedSequence != null) StopCut(text.substring(0, earliestStart), firedSequence) else null
+        return if (firedSequence != null) StopCut(text.substring(0, earliestStart), firedSequence)
+        else null
     }
 
     private data class StopCut(val content: String, val sequence: String)

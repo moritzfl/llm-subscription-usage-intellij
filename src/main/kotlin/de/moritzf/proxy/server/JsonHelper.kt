@@ -32,23 +32,31 @@ object JsonHelper {
     suspend fun toJsonResponse(ctx: ProxyCall, body: Any?, status: Int) {
         ctx.setStatus(status)
         try {
-            val json = when (body) {
-                null -> JSON.encodeToString(JsonElement.serializer(), JsonNull)
-                is JsonElement -> JSON.encodeToString(JsonElement.serializer(), body)
-                is String -> JSON.encodeToString(JsonElement.serializer(), JsonPrimitive(body))
-                is Number -> JSON.encodeToString(JsonElement.serializer(), JsonPrimitive(body))
-                is Boolean -> JSON.encodeToString(JsonElement.serializer(), JsonPrimitive(body))
-                is Map<*, *> -> {
-                    val element = mapToJsonElement(body)
-                    JSON.encodeToString(JsonElement.serializer(), element)
+            val json =
+                when (body) {
+                    null -> JSON.encodeToString(JsonElement.serializer(), JsonNull)
+                    is JsonElement -> JSON.encodeToString(JsonElement.serializer(), body)
+                    is String -> JSON.encodeToString(JsonElement.serializer(), JsonPrimitive(body))
+                    is Number -> JSON.encodeToString(JsonElement.serializer(), JsonPrimitive(body))
+                    is Boolean -> JSON.encodeToString(JsonElement.serializer(), JsonPrimitive(body))
+                    is Map<*, *> -> {
+                        val element = mapToJsonElement(body)
+                        JSON.encodeToString(JsonElement.serializer(), element)
+                    }
+                    is List<*> -> {
+                        val element = listToJsonElement(body)
+                        JSON.encodeToString(JsonElement.serializer(), element)
+                    }
+                    else ->
+                        JSON.encodeToString(
+                            JsonElement.serializer(),
+                            JsonPrimitive(body.toString()),
+                        )
                 }
-                is List<*> -> {
-                    val element = listToJsonElement(body)
-                    JSON.encodeToString(JsonElement.serializer(), element)
-                }
-                else -> JSON.encodeToString(JsonElement.serializer(), JsonPrimitive(body.toString()))
-            }
-            AccessLogFields.responseBytes(ctx, json.toByteArray(StandardCharsets.UTF_8).size.toLong())
+            AccessLogFields.responseBytes(
+                ctx,
+                json.toByteArray(StandardCharsets.UTF_8).size.toLong(),
+            )
             ctx.call.respondText(
                 json,
                 ContentType.Application.Json.withCharset(StandardCharsets.UTF_8),
@@ -57,7 +65,10 @@ object JsonHelper {
             ctx.handled = true
         } catch (_: Exception) {
             val fallback = "{}"
-            AccessLogFields.responseBytes(ctx, fallback.toByteArray(StandardCharsets.UTF_8).size.toLong())
+            AccessLogFields.responseBytes(
+                ctx,
+                fallback.toByteArray(StandardCharsets.UTF_8).size.toLong(),
+            )
             ctx.call.respondText(
                 fallback,
                 ContentType.Application.Json.withCharset(StandardCharsets.UTF_8),
@@ -103,7 +114,8 @@ object JsonHelper {
         put("code", code)
     }
 
-    fun readUtf8Body(input: InputStream): String = String(input.readAllBytes(), StandardCharsets.UTF_8)
+    fun readUtf8Body(input: InputStream): String =
+        String(input.readAllBytes(), StandardCharsets.UTF_8)
 
     fun toUsage(usageNode: JsonElement?): JsonObject = buildJsonObject {
         if (usageNode == null || usageNode !is JsonObject) {
@@ -117,28 +129,23 @@ object JsonHelper {
         put("prompt_tokens", promptTokens)
         put("completion_tokens", completionTokens)
         put("total_tokens", promptTokens + completionTokens)
-        val cachedTokens = usageNode
-            .pathOrNull("input_tokens_details")?.intPath("cached_tokens", -1)
+        val cachedTokens =
+            usageNode.pathOrNull("input_tokens_details")?.intPath("cached_tokens", -1)
         if (cachedTokens != null && cachedTokens >= 0) {
-            putJsonObject("prompt_tokens_details") {
-                put("cached_tokens", cachedTokens)
-            }
+            putJsonObject("prompt_tokens_details") { put("cached_tokens", cachedTokens) }
         }
-        val reasoningTokens = usageNode
-            .pathOrNull("output_tokens_details")?.intPath("reasoning_tokens", -1)
+        val reasoningTokens =
+            usageNode.pathOrNull("output_tokens_details")?.intPath("reasoning_tokens", -1)
         if (reasoningTokens != null && reasoningTokens >= 0) {
-            putJsonObject("completion_tokens_details") {
-                put("reasoning_tokens", reasoningTokens)
-            }
+            putJsonObject("completion_tokens_details") { put("reasoning_tokens", reasoningTokens) }
         }
     }
 
     /**
-     * Normalizes any upstream error payload to the OpenAI `{"error":{...}}` envelope,
-     * which is the only shape OpenAI-compatible clients parse. The Codex backend frequently
-     * answers `{"detail": "..."}` instead. When [overrideType] is set, e.g.
-     * `insufficient_quota`, it replaces the error type and code so clients classify the
-     * failure correctly.
+     * Normalizes any upstream error payload to the OpenAI `{"error":{...}}` envelope, which is the
+     * only shape OpenAI-compatible clients parse. The Codex backend frequently answers `{"detail":
+     * "..."}` instead. When [overrideType] is set, e.g. `insufficient_quota`, it replaces the error
+     * type and code so clients classify the failure correctly.
      */
     fun toUpstreamErrorBody(raw: String?, status: Int, overrideType: String?): String {
         var parsed: JsonObject? = null
@@ -148,8 +155,7 @@ object JsonHelper {
                 if (candidate is JsonObject) {
                     parsed = candidate
                 }
-            } catch (_: Exception) {
-            }
+            } catch (_: Exception) {}
         }
         if (parsed != null && overrideType == null) {
             val error = parsed.pathOrNull("error")
@@ -179,15 +185,17 @@ object JsonHelper {
         ctx.responseHeader("X-Accel-Buffering", "no")
     }
 
-    fun encodeToString(element: JsonElement): String = JSON.encodeToString(JsonElement.serializer(), element)
+    fun encodeToString(element: JsonElement): String =
+        JSON.encodeToString(JsonElement.serializer(), element)
 
     fun parseToJsonElement(input: String): JsonElement = JSON.parseToJsonElement(input)
 
-    fun parseToJsonElementOrNull(input: String): JsonElement? = try {
-        JSON.parseToJsonElement(input)
-    } catch (_: Exception) {
-        null
-    }
+    fun parseToJsonElementOrNull(input: String): JsonElement? =
+        try {
+            JSON.parseToJsonElement(input)
+        } catch (_: Exception) {
+            null
+        }
 
     private fun mapToJsonElement(map: Map<*, *>): JsonElement = buildJsonObject {
         map.forEach { (key, value) ->
@@ -239,8 +247,8 @@ object JsonHelper {
 }
 
 /**
- * Extension helpers for safe navigation of kotlinx.serialization JsonElement trees,
- * replacing Jackson's `path().asText()/asInt()/asLong()/asBoolean()` patterns.
+ * Extension helpers for safe navigation of kotlinx.serialization JsonElement trees, replacing
+ * Jackson's `path().asText()/asInt()/asLong()/asBoolean()` patterns.
  */
 fun JsonElement?.pathOrNull(key: String): JsonElement? {
     if (this !is JsonObject) return null

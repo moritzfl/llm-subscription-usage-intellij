@@ -1,18 +1,12 @@
 package de.moritzf.quota.mistral
 
+import de.moritzf.quota.openai.proxy.pdf.PdfFigureRenderer
+import de.moritzf.quota.shared.DocumentImageExportReport
+import de.moritzf.quota.shared.DocumentImageOptions
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
 import de.moritzf.quota.shared.MultipartFilePublisher
-import de.moritzf.quota.shared.DocumentImageOptions
-import de.moritzf.quota.shared.DocumentImageExportReport
 import de.moritzf.quota.shared.OriginalPdf
-import de.moritzf.quota.openai.proxy.pdf.PdfFigureRenderer
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
@@ -22,6 +16,12 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
 import java.util.UUID
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 open class MistralOcrClient(
     private val httpClient: HttpClient = defaultHttpClient(),
@@ -37,22 +37,30 @@ open class MistralOcrClient(
         model: String = DEFAULT_MODEL,
         imageOptions: DocumentImageOptions = DocumentImageOptions(),
     ): String {
-        val token = apiKey.trim().ifBlank {
-            throw MistralQuotaException("Mistral API key missing. Add a Mistral API key in settings.")
-        }
+        val token =
+            apiKey.trim().ifBlank {
+                throw MistralQuotaException(
+                    "Mistral API key missing. Add a Mistral API key in settings."
+                )
+            }
         val document = resolveDocument(token, documentUrl, localFile)
         val markdownOutput = outputFile ?: defaultMarkdownOutput(localFile)
         val writeImages = includeImages && markdownOutput != null
-        val body = ocrRequestJson(
-            model = model.trim().ifBlank { DEFAULT_MODEL },
-            document = document,
-            includeImageBase64 = writeImages,
-        )
+        val body =
+            ocrRequestJson(
+                model = model.trim().ifBlank { DEFAULT_MODEL },
+                document = document,
+                includeImageBase64 = writeImages,
+            )
         val response = sendString(postJson(token, ocrUri, body))
         val status = response.statusCode()
         val responseBody = response.body()
         if (status == 401 || status == 403) {
-            throw MistralQuotaException("Session expired. Check your Mistral API key.", status, responseBody)
+            throw MistralQuotaException(
+                "Session expired. Check your Mistral API key.",
+                status,
+                responseBody,
+            )
         }
         if (status !in 200..299) {
             throw httpError("Mistral OCR failed", status, responseBody)
@@ -60,17 +68,28 @@ open class MistralOcrClient(
         if (markdownOutput == null) {
             return McpJson.providerJsonOrRaw(responseBody)
         }
-        val written = writeMarkdown(responseBody, markdownOutput, writeImages, imageOptions,
-            OriginalPdf.source(localFile, documentUrl))
+        val written =
+            writeMarkdown(
+                responseBody,
+                markdownOutput,
+                writeImages,
+                imageOptions,
+                OriginalPdf.source(localFile, documentUrl),
+            )
         return JsonSupport.json.encodeToString(written)
     }
 
-    private fun resolveDocument(apiKey: String, documentUrl: String?, localFile: Path?): MistralOcrDocumentDto {
+    private fun resolveDocument(
+        apiKey: String,
+        documentUrl: String?,
+        localFile: Path?,
+    ): MistralOcrDocumentDto {
         val url = documentUrl?.trim().orEmpty()
         if (url.isNotEmpty()) {
             return MistralOcrDocumentDto(type = "document_url", documentUrl = url)
         }
-        val path = localFile ?: throw MistralQuotaException("Provide documentUrl or a local file path.")
+        val path =
+            localFile ?: throw MistralQuotaException("Provide documentUrl or a local file path.")
         if (!Files.isRegularFile(path)) {
             throw MistralQuotaException("Local document was not found.")
         }
@@ -80,21 +99,29 @@ open class MistralOcrClient(
 
     private fun uploadFile(apiKey: String, path: Path): String {
         val boundary = "----MistralOcr${UUID.randomUUID().toString().replace("-", "")}"
-        val request = HttpRequest.newBuilder()
-            .uri(filesUri)
-            .timeout(Duration.ofSeconds(120))
-            .header("Authorization", "Bearer $apiKey")
-            .header("Content-Type", "multipart/form-data; boundary=$boundary")
-            .POST(MultipartFilePublisher.of(boundary, listOf("purpose" to "ocr"), path))
-            .build()
+        val request =
+            HttpRequest.newBuilder()
+                .uri(filesUri)
+                .timeout(Duration.ofSeconds(120))
+                .header("Authorization", "Bearer $apiKey")
+                .header("Content-Type", "multipart/form-data; boundary=$boundary")
+                .POST(MultipartFilePublisher.of(boundary, listOf("purpose" to "ocr"), path))
+                .build()
         val response = sendString(request)
         if (response.statusCode() !in 200..299) {
             throw httpError("Mistral file upload failed", response.statusCode(), response.body())
         }
-        val root = runCatching { JsonSupport.json.parseToJsonElement(response.body()) as? JsonObject }.getOrNull()
+        val root = runCatching {
+            JsonSupport.json.parseToJsonElement(response.body()) as? JsonObject
+        }
+            .getOrNull()
         val id = (root?.get("id") as? JsonPrimitive)?.contentOrNull
         if (id.isNullOrBlank()) {
-            throw MistralQuotaException("Mistral file upload returned no id.", response.statusCode(), response.body())
+            throw MistralQuotaException(
+                "Mistral file upload returned no id.",
+                response.statusCode(),
+                response.body(),
+            )
         }
         return id
     }
@@ -103,10 +130,20 @@ open class MistralOcrClient(
         return try {
             httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         } catch (exception: IOException) {
-            throw MistralQuotaException("Request failed. Check your connection.", 0, null, exception)
+            throw MistralQuotaException(
+                "Request failed. Check your connection.",
+                0,
+                null,
+                exception,
+            )
         } catch (exception: InterruptedException) {
             Thread.currentThread().interrupt()
-            throw MistralQuotaException("Request failed. Check your connection.", 0, null, exception)
+            throw MistralQuotaException(
+                "Request failed. Check your connection.",
+                0,
+                null,
+                exception,
+            )
         }
     }
 
@@ -133,7 +170,7 @@ open class MistralOcrClient(
                     document = document,
                     includeImageBase64 = includeImageBase64,
                     includeBlocks = false,
-                ),
+                )
             )
         }
 
@@ -145,21 +182,47 @@ open class MistralOcrClient(
         }
 
         internal fun mistralErrorDetail(body: String): String? {
-            val root = runCatching { JsonSupport.json.parseToJsonElement(body) as? JsonObject }.getOrNull()
-                ?: return null
-            (root["message"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }?.let { return it }
+            val root =
+                runCatching { JsonSupport.json.parseToJsonElement(body) as? JsonObject }.getOrNull()
+                    ?: return null
+            (root["message"] as? JsonPrimitive)
+                ?.contentOrNull
+                ?.takeIf { it.isNotBlank() }
+                ?.let {
+                    return it
+                }
             when (val error = root["error"]) {
-                is JsonPrimitive -> error.contentOrNull?.takeIf { it.isNotBlank() }?.let { return it }
+                is JsonPrimitive ->
+                    error.contentOrNull
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let {
+                            return it
+                        }
                 is JsonObject ->
-                    (error["message"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }?.let { return it }
+                    (error["message"] as? JsonPrimitive)
+                        ?.contentOrNull
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let {
+                            return it
+                        }
 
                 else -> Unit
             }
             when (val detail = root["detail"]) {
-                is JsonPrimitive -> detail.contentOrNull?.takeIf { it.isNotBlank() }?.let { return it }
+                is JsonPrimitive ->
+                    detail.contentOrNull
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let {
+                            return it
+                        }
                 is JsonArray -> {
                     val first = detail.firstOrNull() as? JsonObject
-                    (first?.get("msg") as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }?.let { return it }
+                    (first?.get("msg") as? JsonPrimitive)
+                        ?.contentOrNull
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let {
+                            return it
+                        }
                 }
 
                 else -> Unit
@@ -169,11 +232,12 @@ open class MistralOcrClient(
 
         private fun httpError(prefix: String, status: Int, body: String): MistralQuotaException {
             val detail = mistralErrorDetail(body)
-            val message = if (detail.isNullOrBlank()) {
-                "$prefix (HTTP $status). Try again later."
-            } else {
-                "$prefix (HTTP $status): $detail"
-            }
+            val message =
+                if (detail.isNullOrBlank()) {
+                    "$prefix (HTTP $status). Try again later."
+                } else {
+                    "$prefix (HTTP $status): $detail"
+                }
             return MistralQuotaException(message, status, body)
         }
 
@@ -184,15 +248,22 @@ open class MistralOcrClient(
             imageOptions: DocumentImageOptions = DocumentImageOptions(),
             originalPdf: () -> PdfFigureRenderer? = { null },
         ): MistralOcrWriteResult {
-            val parsed = try {
-                JsonSupport.json.decodeFromString<MistralOcrResponseDto>(responseBody)
-            } catch (exception: Exception) {
-                throw MistralQuotaException("Could not parse OCR response.", 200, responseBody, exception)
-            }
-            return MistralMarkdownWriter(outputFile, includeImages, imageOptions, originalPdf).use { writer ->
-                writer.append(parsed.pages)
-                writer.commit()
-            }
+            val parsed =
+                try {
+                    JsonSupport.json.decodeFromString<MistralOcrResponseDto>(responseBody)
+                } catch (exception: Exception) {
+                    throw MistralQuotaException(
+                        "Could not parse OCR response.",
+                        200,
+                        responseBody,
+                        exception,
+                    )
+                }
+            return MistralMarkdownWriter(outputFile, includeImages, imageOptions, originalPdf)
+                .use { writer ->
+                    writer.append(parsed.pages)
+                    writer.commit()
+                }
         }
 
         private fun defaultHttpClient(): HttpClient =
@@ -228,9 +299,7 @@ internal data class MistralOcrDocumentDto(
 )
 
 @Serializable
-internal data class MistralOcrResponseDto(
-    val pages: List<MistralOcrPageDto> = emptyList(),
-)
+internal data class MistralOcrResponseDto(val pages: List<MistralOcrPageDto> = emptyList())
 
 @Serializable
 internal data class MistralOcrPageDto(
@@ -241,7 +310,10 @@ internal data class MistralOcrPageDto(
 )
 
 @Serializable
-internal data class MistralOcrPageDimensionsDto(val width: Double? = null, val height: Double? = null)
+internal data class MistralOcrPageDimensionsDto(
+    val width: Double? = null,
+    val height: Double? = null,
+)
 
 @Serializable
 internal data class MistralOcrImageDto(

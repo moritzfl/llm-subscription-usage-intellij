@@ -25,7 +25,11 @@ class KimiQuotaProvider(
             }
             storeQuota(result.quota, result.quota.rawJson)
         } catch (exception: KimiQuotaException) {
-            storeFetchFailure(exception.statusCode, exception.message ?: "Request failed", exception.rawBody)
+            storeFetchFailure(
+                exception.statusCode,
+                exception.message ?: "Request failed",
+                exception.rawBody,
+            )
         } catch (exception: Exception) {
             storeError(exception.message ?: "Request failed")
         }

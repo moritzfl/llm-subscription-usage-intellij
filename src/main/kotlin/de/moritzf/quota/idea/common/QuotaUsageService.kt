@@ -19,7 +19,8 @@ import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 
 /**
- * Periodically fetches quota data from all registered providers and publishes updates to the IDE message bus.
+ * Periodically fetches quota data from all registered providers and publishes updates to the IDE
+ * message bus.
  */
 @Service(Service.Level.APP)
 class QuotaUsageService(
@@ -27,11 +28,14 @@ class QuotaUsageService(
     private val settingsProvider: () -> QuotaSettingsState? = {
         runCatching { QuotaSettingsState.getInstance() }.getOrNull()
     },
-    private val scheduler: ScheduledExecutorService = AppExecutorUtil.getAppScheduledExecutorService(),
+    private val scheduler: ScheduledExecutorService =
+        AppExecutorUtil.getAppScheduledExecutorService(),
     private val updatePublisher: (QuotaUsageSnapshot) -> Unit = { snapshot ->
         ApplicationManager.getApplication().invokeLater {
-            val publisher = ApplicationManager.getApplication().messageBus
-                .syncPublisher(QuotaUsageListener.TOPIC)
+            val publisher =
+                ApplicationManager.getApplication()
+                    .messageBus
+                    .syncPublisher(QuotaUsageListener.TOPIC)
             snapshot.accountEntries.forEach { (accountId, entry) ->
                 val type = snapshot.accountTypes[accountId] ?: return@forEach
                 publisher.onQuotaUpdated(type, entry.quota, entry.error, accountId)
@@ -47,16 +51,16 @@ class QuotaUsageService(
         val lock = Any()
     }
 
-    private val states = ConcurrentHashMap<String, ProviderState>().apply {
-        providers.forEach { provider -> put(provider.accountId, ProviderState(provider)) }
-    }
+    private val states =
+        ConcurrentHashMap<String, ProviderState>().apply {
+            providers.forEach { provider -> put(provider.accountId, ProviderState(provider)) }
+        }
     /**
-     * Sticky per-account, per-window activity baselines for "Last used" detection.
-     * Only move a window baseline on significant increase (marks last-used) or
-     * significant decrease (reset/decay). Sub-threshold growth must NOT move the
-     * baseline, otherwise slow usage never accumulates past [MIN_USAGE_INCREASE]
-     * between polls. Windows are compared independently so decay in one limit
-     * cannot cancel growth in another.
+     * Sticky per-account, per-window activity baselines for "Last used" detection. Only move a
+     * window baseline on significant increase (marks last-used) or significant decrease
+     * (reset/decay). Sub-threshold growth must NOT move the baseline, otherwise slow usage never
+     * accumulates past [MIN_USAGE_INCREASE] between polls. Windows are compared independently so
+     * decay in one limit cannot cancel growth in another.
      */
     private val activityBaselines = ConcurrentHashMap<String, Map<String, Double>>()
     private var scheduled: ScheduledFuture<*>? = null
@@ -77,7 +81,8 @@ class QuotaUsageService(
 
     fun getLastQuota(type: QuotaProviderType): ProviderQuota? = provider(type)?.getLastQuota()
 
-    fun getLastQuota(accountId: String): ProviderQuota? = providerForAccount(accountId)?.getLastQuota()
+    fun getLastQuota(accountId: String): ProviderQuota? =
+        providerForAccount(accountId)?.getLastQuota()
 
     fun getLastError(type: QuotaProviderType): String? = provider(type)?.getLastError()
 
@@ -85,13 +90,14 @@ class QuotaUsageService(
 
     fun getLastResponseJson(type: QuotaProviderType): String? = provider(type)?.getLastRawJson()
 
-    fun getLastResponseJson(accountId: String): String? = providerForAccount(accountId)?.getLastRawJson()
+    fun getLastResponseJson(accountId: String): String? =
+        providerForAccount(accountId)?.getLastRawJson()
 
     /**
-     * The error the status bar and popup should show. A temporary failure is hidden while a
-     * reading is available: the quota stays visible with its "Updated" time instead of being
-     * replaced by a message that the next refresh resolves. The settings page keeps using
-     * [getLastError], so the failure is still visible for diagnosis.
+     * The error the status bar and popup should show. A temporary failure is hidden while a reading
+     * is available: the quota stays visible with its "Updated" time instead of being replaced by a
+     * message that the next refresh resolves. The settings page keeps using [getLastError], so the
+     * failure is still visible for diagnosis.
      */
     private fun displayError(provider: QuotaProvider): String? {
         val error = provider.getLastError() ?: return null
@@ -107,29 +113,41 @@ class QuotaUsageService(
         }
         val accountTypes = states.mapValues { (_, state) -> state.provider.type }
         val settings = settingsProvider()
-        val typeEntries = QuotaProviderType.entries.mapNotNull { type ->
-            val preferredId = settings?.defaultAccount(type)?.id
-                ?: settings?.accountsOf(type)?.firstOrNull()?.id
-                ?: type.id
-            val state = states[preferredId] ?: return@mapNotNull null
-            type to ProviderSnapshot(state.provider.getLastQuota(), displayError(state.provider))
-        }.toMap()
+        val typeEntries =
+            QuotaProviderType.entries
+                .mapNotNull { type ->
+                    val preferredId =
+                        settings?.defaultAccount(type)?.id
+                            ?: settings?.accountsOf(type)?.firstOrNull()?.id
+                            ?: type.id
+                    val state = states[preferredId] ?: return@mapNotNull null
+                    type to
+                        ProviderSnapshot(
+                            state.provider.getLastQuota(),
+                            displayError(state.provider),
+                        )
+                }
+                .toMap()
         return QuotaUsageSnapshot(typeEntries, accountEntries, accountTypes)
     }
 
     internal fun getEffectiveIndicatorData(): QuotaIndicatorData {
         val settings = settingsProvider()
         val configured = settings?.source() ?: QuotaIndicatorSource.OPEN_AI
-        val source = when (configured) {
-            QuotaIndicatorSource.LAST_USED -> resolveLastActiveSource(settings)
-            else -> configured
-        }
+        val source =
+            when (configured) {
+                QuotaIndicatorSource.LAST_USED -> resolveLastActiveSource(settings)
+                else -> configured
+            }
         val type = source.providerType ?: QuotaProviderType.OPEN_AI
-        val accountId = when (configured) {
-            QuotaIndicatorSource.LAST_USED ->
-                settings?.lastActiveAccount()?.id ?: settings?.defaultAccount(type)?.id ?: type.id
-            else -> settings?.defaultAccount(type)?.id ?: type.id
-        }
+        val accountId =
+            when (configured) {
+                QuotaIndicatorSource.LAST_USED ->
+                    settings?.lastActiveAccount()?.id
+                        ?: settings?.defaultAccount(type)?.id
+                        ?: type.id
+                else -> settings?.defaultAccount(type)?.id ?: type.id
+            }
         val accountProvider = providerForAccount(accountId)
         return QuotaIndicatorData(
             type,
@@ -148,16 +166,22 @@ class QuotaUsageService(
     }
 
     fun refreshAsync(type: QuotaProviderType) {
-        AppExecutorUtil.getAppExecutorService().execute { refreshProvider(provider(type)?.accountId ?: type.id) }
+        AppExecutorUtil.getAppExecutorService().execute {
+            refreshProvider(provider(type)?.accountId ?: type.id)
+        }
     }
 
-    fun refreshAsync(accountId: String, forceUpdate: Boolean = false): CompletableFuture<ProviderSnapshot?> =
+    fun refreshAsync(
+        accountId: String,
+        forceUpdate: Boolean = false,
+    ): CompletableFuture<ProviderSnapshot?> =
         CompletableFuture.supplyAsync(
-            { refreshProvider(accountId, forceUpdate) },
-            AppExecutorUtil.getAppExecutorService(),
-        ).whenComplete { _, failure ->
-            if (failure != null) LOG.warn("Quota provider refresh failed", failure)
-        }
+                { refreshProvider(accountId, forceUpdate) },
+                AppExecutorUtil.getAppExecutorService(),
+            )
+            .whenComplete { _, failure ->
+                if (failure != null) LOG.warn("Quota provider refresh failed", failure)
+            }
 
     fun refreshBlocking(type: QuotaProviderType) {
         refreshProvider(provider(type)?.accountId ?: type.id)
@@ -216,10 +240,12 @@ class QuotaUsageService(
             states[account.id] = ProviderState(provider)
             added += account.id
         }
-        states.keys.filter { it !in desired }.forEach { id ->
-            states.remove(id)
-            activityBaselines.remove(id)
-        }
+        states.keys
+            .filter { it !in desired }
+            .forEach { id ->
+                states.remove(id)
+                activityBaselines.remove(id)
+            }
         publishUpdate()
         added.forEach(::refreshAsync)
     }
@@ -243,7 +269,8 @@ class QuotaUsageService(
 
     private fun scheduleRefresh() {
         val minutes = maxOf(1, settingsProvider()?.refreshMinutes ?: 5)
-        scheduled = scheduler.scheduleWithFixedDelay(::refreshNow, 0, minutes.toLong(), TimeUnit.MINUTES)
+        scheduled =
+            scheduler.scheduleWithFixedDelay(::refreshNow, 0, minutes.toLong(), TimeUnit.MINUTES)
     }
 
     private fun hydrateCachedQuotas() {
@@ -252,21 +279,23 @@ class QuotaUsageService(
     }
 
     private fun refreshNow() {
-        val futures = states.keys.map { accountId ->
-            CompletableFuture.runAsync(
-                {
-                    runCatching { refreshProvider(accountId) }
-                        .onFailure { LOG.warn("Quota provider refresh failed", it) }
-                },
-                { command -> IntelliJVirtualThreads.ofVirtual().start(command) },
-            )
-        }
-        futures.forEach { future ->
-            runCatching { future.join() }
-        }
+        val futures =
+            states.keys.map { accountId ->
+                CompletableFuture.runAsync(
+                    {
+                        runCatching { refreshProvider(accountId) }
+                            .onFailure { LOG.warn("Quota provider refresh failed", it) }
+                    },
+                    { command -> IntelliJVirtualThreads.ofVirtual().start(command) },
+                )
+            }
+        futures.forEach { future -> runCatching { future.join() } }
     }
 
-    private fun refreshProvider(accountId: String, forceUpdate: Boolean = false): ProviderSnapshot? {
+    private fun refreshProvider(
+        accountId: String,
+        forceUpdate: Boolean = false,
+    ): ProviderSnapshot? {
         while (true) {
             val state = states[accountId] ?: return null
             val ownedFuture: CompletableFuture<ProviderSnapshot>?
@@ -337,8 +366,9 @@ class QuotaUsageService(
         val current = provider.currentActivityWindows()
         if (current.isEmpty()) return
 
-        val previous = activityBaselines[accountId]
-            ?: provider.cachedActivityWindows(settings).takeIf { it.isNotEmpty() }
+        val previous =
+            activityBaselines[accountId]
+                ?: provider.cachedActivityWindows(settings).takeIf { it.isNotEmpty() }
         if (previous == null) {
             activityBaselines[accountId] = current
             return
@@ -378,7 +408,9 @@ class QuotaUsageService(
     }
 
     private fun resolveLastActiveSource(settings: QuotaSettingsState?): QuotaIndicatorSource {
-        settings?.lastActiveProvider()?.let { return QuotaIndicatorSource.forProvider(it) }
+        settings?.lastActiveProvider()?.let {
+            return QuotaIndicatorSource.forProvider(it)
+        }
         return settings?.lastUsedSource() ?: QuotaIndicatorSource.OPEN_AI
     }
 

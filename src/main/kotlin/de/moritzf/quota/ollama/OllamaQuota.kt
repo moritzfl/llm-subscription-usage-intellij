@@ -5,9 +5,7 @@ import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
-/**
- * Ollama Cloud subscription usage from `GET https://ollama.com/api/balance`.
- */
+/** Ollama Cloud subscription usage from `GET https://ollama.com/api/balance`. */
 @Serializable
 data class OllamaQuota(
     val sessionUsage: OllamaUsageWindow? = null,
@@ -21,11 +19,12 @@ data class OllamaQuota(
     }
 
     override fun usageFraction(): Double? {
-        val windows = listOfNotNull(
-            sessionUsage?.usagePercent,
-            weeklyUsage?.usagePercent,
-            monthlyUsage?.usagePercent,
-        )
+        val windows =
+            listOfNotNull(
+                sessionUsage?.usagePercent,
+                weeklyUsage?.usagePercent,
+                monthlyUsage?.usagePercent,
+            )
         return windows.maxOrNull()?.let { it / 100.0 }
     }
 
@@ -36,9 +35,7 @@ data class OllamaQuota(
     }
 }
 
-/**
- * Single Ollama Cloud usage window. [usagePercent] is 0..100.
- */
+/** Single Ollama Cloud usage window. [usagePercent] is 0..100. */
 @Serializable
 data class OllamaUsageWindow(
     val usagePercent: Double = 0.0,

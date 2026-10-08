@@ -28,27 +28,41 @@ open class SuperGrokWebSearchClient(
         if (trimmedQuery.isBlank()) {
             throw SuperGrokQuotaException("Search query is required.")
         }
-        val token = accessToken.trim().ifBlank {
-            throw SuperGrokQuotaException("Grok login required. Log in from SuperGrok settings.")
-        }
+        val token =
+            accessToken.trim().ifBlank {
+                throw SuperGrokQuotaException(
+                    "Grok login required. Log in from SuperGrok settings."
+                )
+            }
         val trimmedModel = model.trim().ifBlank { DEFAULT_MODEL }
         val allowed = parseDomainList(allowedDomains)
         val excluded = parseDomainList(excludedDomains)
-        if (allowed == null || excluded == null || (allowed.isNotEmpty() && excluded.isNotEmpty())) {
+        if (
+            allowed == null || excluded == null || (allowed.isNotEmpty() && excluded.isNotEmpty())
+        ) {
             throw SuperGrokQuotaException(
                 "Invalid Grok web search options. allowedDomains and excludedDomains must be comma-separated " +
-                    "domain names, up to $MAX_SEARCH_FILTER_DOMAINS each, and cannot both be set.",
+                    "domain names, up to $MAX_SEARCH_FILTER_DOMAINS each, and cannot both be set."
             )
         }
         val outputTokens = maxOutputTokens.coerceIn(MIN_MAX_OUTPUT_TOKENS, MAX_MAX_OUTPUT_TOKENS)
-        val response = send(searchRequest(token, trimmedQuery, trimmedModel, allowed, excluded, outputTokens))
+        val response =
+            send(searchRequest(token, trimmedQuery, trimmedModel, allowed, excluded, outputTokens))
         val status = response.statusCode()
         val body = response.body()
         if (status == 401 || status == 403) {
-            throw SuperGrokQuotaException("Grok auth expired. Log in to SuperGrok again from settings.", status, body)
+            throw SuperGrokQuotaException(
+                "Grok auth expired. Log in to SuperGrok again from settings.",
+                status,
+                body,
+            )
         }
         if (status !in 200..299) {
-            throw SuperGrokQuotaException("Grok web search failed (HTTP $status). Try again later.", status, body)
+            throw SuperGrokQuotaException(
+                "Grok web search failed (HTTP $status). Try again later.",
+                status,
+                body,
+            )
         }
         return McpJson.providerJsonOrRaw(body)
     }
@@ -62,14 +76,15 @@ open class SuperGrokWebSearchClient(
         maxOutputTokens: Int,
     ): HttpRequest {
         val filters = searchFilters(allowedDomains, excludedDomains)
-        val body = JsonSupport.json.encodeToString(
-            GrokResponsesRequestDto(
-                model = model,
-                input = listOf(GrokResponsesInputDto(role = "user", content = query)),
-                tools = listOf(GrokResponsesToolDto(type = "web_search", filters = filters)),
-                maxOutputTokens = maxOutputTokens,
-            ),
-        )
+        val body =
+            JsonSupport.json.encodeToString(
+                GrokResponsesRequestDto(
+                    model = model,
+                    input = listOf(GrokResponsesInputDto(role = "user", content = query)),
+                    tools = listOf(GrokResponsesToolDto(type = "web_search", filters = filters)),
+                    maxOutputTokens = maxOutputTokens,
+                )
+            )
 
         return HttpRequest.newBuilder()
             .uri(baseUri.resolve(RESPONSES_PATH))
@@ -86,19 +101,30 @@ open class SuperGrokWebSearchClient(
         return try {
             httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         } catch (exception: IOException) {
-            throw SuperGrokQuotaException("Grok web search failed. Check your connection.", 0, null, exception)
+            throw SuperGrokQuotaException(
+                "Grok web search failed. Check your connection.",
+                0,
+                null,
+                exception,
+            )
         } catch (exception: InterruptedException) {
             Thread.currentThread().interrupt()
-            throw SuperGrokQuotaException("Grok web search failed. Check your connection.", 0, null, exception)
+            throw SuperGrokQuotaException(
+                "Grok web search failed. Check your connection.",
+                0,
+                null,
+                exception,
+            )
         }
     }
 
     private fun parseDomainList(rawDomains: String?): List<String>? {
-        val domains = rawDomains
-            ?.split(',', '\n')
-            ?.map { it.trim().lowercase(Locale.ROOT).trim('.') }
-            ?.filter { it.isNotBlank() }
-            .orEmpty()
+        val domains =
+            rawDomains
+                ?.split(',', '\n')
+                ?.map { it.trim().lowercase(Locale.ROOT).trim('.') }
+                ?.filter { it.isNotBlank() }
+                .orEmpty()
         if (domains.size > MAX_SEARCH_FILTER_DOMAINS) return null
         return domains.takeIf { list -> list.all { DOMAIN_PATTERN.matches(it) } }
     }
@@ -125,14 +151,15 @@ open class SuperGrokWebSearchClient(
         private const val RESPONSES_PATH = "responses"
         private const val MAX_SEARCH_FILTER_DOMAINS = 5
         private val DEFAULT_BASE_URI = URI.create("https://api.x.ai/v1/")
-        private val DOMAIN_PATTERN = Regex("[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+")
+        private val DOMAIN_PATTERN =
+            Regex(
+                "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+"
+            )
 
         fun createDefault(): SuperGrokWebSearchClient = SuperGrokWebSearchClient()
 
         private fun defaultHttpClient(): HttpClient {
-            return HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(30))
-                .build()
+            return HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build()
         }
     }
 }

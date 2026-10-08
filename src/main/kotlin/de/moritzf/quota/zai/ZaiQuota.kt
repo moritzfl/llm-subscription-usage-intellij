@@ -1,14 +1,12 @@
 package de.moritzf.quota.zai
 
 import de.moritzf.quota.shared.ProviderQuota
+import java.time.Duration
 import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
-import java.time.Duration
 
-/**
- * Represents Z.ai GLM Coding subscription usage quota data.
- */
+/** Represents Z.ai GLM Coding subscription usage quota data. */
 @Serializable
 data class ZaiQuota(
     val plan: String = "",
@@ -23,11 +21,12 @@ data class ZaiQuota(
     }
 
     override fun usageFraction(): Double? {
-        val windows = listOfNotNull(
-            sessionUsage?.usagePercent,
-            weeklyUsage?.usagePercent,
-            webSearchUsage?.usagePercent,
-        )
+        val windows =
+            listOfNotNull(
+                sessionUsage?.usagePercent,
+                weeklyUsage?.usagePercent,
+                webSearchUsage?.usagePercent,
+            )
         return windows.maxOrNull()?.let { it / 100.0 }
     }
 
@@ -44,8 +43,7 @@ data class ZaiUsageWindow(
     val resetsAt: Instant? = null,
     val periodDurationMs: Long? = null,
 ) {
-    @Transient
-    val periodDuration: Duration? = periodDurationMs?.let(Duration::ofMillis)
+    @Transient val periodDuration: Duration? = periodDurationMs?.let(Duration::ofMillis)
 }
 
 @Serializable
@@ -56,6 +54,5 @@ data class ZaiCountUsageWindow(
     val resetsAt: Instant? = null,
     val periodDurationMs: Long? = null,
 ) {
-    @Transient
-    val periodDuration: Duration? = periodDurationMs?.let(Duration::ofMillis)
+    @Transient val periodDuration: Duration? = periodDurationMs?.let(Duration::ofMillis)
 }

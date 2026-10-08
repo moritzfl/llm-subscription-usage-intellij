@@ -38,31 +38,33 @@ class KimiSubscriptionProxyProvider(
 ) : SubscriptionProxyProvider {
     private val credentialRefresher = KimiCredentialRefresher(httpClient)
     private val requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir))
-    private val chatDelegate = PassThroughSubscriptionProxyProvider(
-        id = ID,
-        displayName = DISPLAY_NAME,
-        litellmProvider = LITELLM_PROVIDER,
-        baseUri = openAiCompatibleBaseUri,
-        accessTokenProvider = ::accessToken,
-        tokenRefresher = ::refreshAfterUnauthorized,
-        modelMappingsProvider = ::modelMappings,
-        defaultHeaders = defaultHeaders(),
-        requestBodyTransformer = ::chatRequestBody,
-        httpClient = httpClient,
-        requestLogger = requestLogger,
-    )
-    private val messagesDelegate = PassThroughSubscriptionProxyProvider(
-        id = ID,
-        displayName = DISPLAY_NAME,
-        litellmProvider = LITELLM_PROVIDER,
-        baseUri = anthropicCompatibleBaseUri,
-        accessTokenProvider = ::accessToken,
-        tokenRefresher = ::refreshAfterUnauthorized,
-        modelMappingsProvider = ::modelMappings,
-        defaultHeaders = defaultHeaders(),
-        httpClient = httpClient,
-        requestLogger = requestLogger,
-    )
+    private val chatDelegate =
+        PassThroughSubscriptionProxyProvider(
+            id = ID,
+            displayName = DISPLAY_NAME,
+            litellmProvider = LITELLM_PROVIDER,
+            baseUri = openAiCompatibleBaseUri,
+            accessTokenProvider = ::accessToken,
+            tokenRefresher = ::refreshAfterUnauthorized,
+            modelMappingsProvider = ::modelMappings,
+            defaultHeaders = defaultHeaders(),
+            requestBodyTransformer = ::chatRequestBody,
+            httpClient = httpClient,
+            requestLogger = requestLogger,
+        )
+    private val messagesDelegate =
+        PassThroughSubscriptionProxyProvider(
+            id = ID,
+            displayName = DISPLAY_NAME,
+            litellmProvider = LITELLM_PROVIDER,
+            baseUri = anthropicCompatibleBaseUri,
+            accessTokenProvider = ::accessToken,
+            tokenRefresher = ::refreshAfterUnauthorized,
+            modelMappingsProvider = ::modelMappings,
+            defaultHeaders = defaultHeaders(),
+            httpClient = httpClient,
+            requestLogger = requestLogger,
+        )
 
     private val refreshLock = Any()
     @Volatile private var modelCache: ModelCache? = null
@@ -74,13 +76,16 @@ class KimiSubscriptionProxyProvider(
 
     override fun models() = chatDelegate.models()
 
-    override fun fallbackModel(localId: String, route: SubscriptionProxyRoute): SubscriptionProxyModel? {
+    override fun fallbackModel(
+        localId: String,
+        route: SubscriptionProxyRoute,
+    ): SubscriptionProxyModel? {
         if (route !in SUPPORTED_ROUTES) return null
         val requestedLocalId = localId.trim()
-        val upstreamId = requestedLocalId
-            .takeIf { it.startsWith(PREFIX) && it.length > PREFIX.length }
-            ?.removePrefix(PREFIX)
-            ?: return null
+        val upstreamId =
+            requestedLocalId
+                .takeIf { it.startsWith(PREFIX) && it.length > PREFIX.length }
+                ?.removePrefix(PREFIX) ?: return null
         return SubscriptionProxyModel(
             localId = requestedLocalId,
             upstreamId = upstreamId,
@@ -97,24 +102,30 @@ class KimiSubscriptionProxyProvider(
         )
     }
 
-    override suspend fun handle(ctx: de.moritzf.proxy.server.ProxyCall, request: SubscriptionProxyRequest) {
+    override suspend fun handle(
+        ctx: de.moritzf.proxy.server.ProxyCall,
+        request: SubscriptionProxyRequest,
+    ) {
         when (request.route) {
             SubscriptionProxyRoute.ANTHROPIC_MESSAGES -> messagesDelegate.handle(ctx, request)
             SubscriptionProxyRoute.CHAT_COMPLETIONS,
             SubscriptionProxyRoute.RESPONSES -> chatDelegate.handle(ctx, request)
             SubscriptionProxyRoute.COMPLETIONS,
-            SubscriptionProxyRoute.FIM_COMPLETIONS -> JsonHelper.toErrorResponse(
-                ctx,
-                "Kimi does not support native /v1/completions. Enable the chat-FIM adapter.",
-                400,
-                "invalid_request_error",
-            )
+            SubscriptionProxyRoute.FIM_COMPLETIONS ->
+                JsonHelper.toErrorResponse(
+                    ctx,
+                    "Kimi does not support native /v1/completions. Enable the chat-FIM adapter.",
+                    400,
+                    "invalid_request_error",
+                )
         }
     }
 
     private fun chatRequestBody(request: SubscriptionProxyRequest, body: JsonObject): JsonObject {
         if (request.route != SubscriptionProxyRoute.CHAT_COMPLETIONS) return body
-        var transformed = ChatUpstreamCompat.omitUnsupportedChatFields(request.model.upstreamId, body).remove("temperature")
+        var transformed =
+            ChatUpstreamCompat.omitUnsupportedChatFields(request.model.upstreamId, body)
+                .remove("temperature")
         if (requiresAutoToolChoice(transformed["tool_choice"])) {
             transformed = transformed.put("tool_choice", JsonPrimitive("auto"))
         }
@@ -131,7 +142,10 @@ class KimiSubscriptionProxyProvider(
     private fun accessToken(): String? {
         synchronized(refreshLock) {
             val credentials = credentialsProvider() ?: return null
-            val refreshed = runCatching { credentialRefresher.refreshIfNeeded(credentials) }.getOrDefault(credentials)
+            val refreshed = runCatching {
+                credentialRefresher.refreshIfNeeded(credentials)
+            }
+                .getOrDefault(credentials)
             if (refreshed != credentials) credentialsSaver(refreshed)
             return refreshed.accessToken.trim().takeIf { it.isNotBlank() }
         }
@@ -143,7 +157,8 @@ class KimiSubscriptionProxyProvider(
             if (!staleAccessToken.isNullOrBlank() && credentials.accessToken != staleAccessToken) {
                 return credentials.accessToken.trim().takeIf { it.isNotBlank() }
             }
-            val refreshed = runCatching { credentialRefresher.refresh(credentials) }.getOrNull() ?: return null
+            val refreshed =
+                runCatching { credentialRefresher.refresh(credentials) }.getOrNull() ?: return null
             credentialsSaver(refreshed)
             return refreshed.accessToken.trim().takeIf { it.isNotBlank() }
         }
@@ -175,49 +190,69 @@ class KimiSubscriptionProxyProvider(
             return cached.models
         }
         val token = accessToken() ?: return emptyList()
-        val firstPartyModels = runCatching { fetchModels(token) }.getOrElse {
-            return cacheModels(cached?.models ?: DEFAULT_MODELS, now)
+        val firstPartyModels = runCatching {
+            fetchModels(token)
         }
-        val models = if (firstPartyModels.hasConcreteModelIds()) {
-            firstPartyModels
-        } else {
-            val catalogModels = modelsDevCatalogUri
-                ?.let { uri -> runCatching { fetchModelsDevCatalogModels(uri) }.getOrDefault(emptyList()) }
-                .orEmpty()
-            if (catalogModels.isEmpty()) {
+            .getOrElse {
+                return cacheModels(cached?.models ?: DEFAULT_MODELS, now)
+            }
+        val models =
+            if (firstPartyModels.hasConcreteModelIds()) {
                 firstPartyModels
             } else {
-                (catalogModels + firstPartyModels.ifEmpty { DEFAULT_MODELS }).distinctBy { it.id }
+                val catalogModels =
+                    modelsDevCatalogUri
+                        ?.let { uri ->
+                            runCatching { fetchModelsDevCatalogModels(uri) }
+                                .getOrDefault(emptyList())
+                        }
+                        .orEmpty()
+                if (catalogModels.isEmpty()) {
+                    firstPartyModels
+                } else {
+                    (catalogModels + firstPartyModels.ifEmpty { DEFAULT_MODELS }).distinctBy {
+                        it.id
+                    }
+                }
             }
-        }
         return cacheModels(models.ifEmpty { cached?.models ?: DEFAULT_MODELS }, now)
     }
 
     private fun fetchModels(token: String): List<RemoteModel> {
-        val request = HttpRequest.newBuilder(URI.create(resolveUpstreamUrl(openAiCompatibleBaseUri, "/models")))
-            .timeout(Duration.ofSeconds(30))
-            .header("Authorization", "Bearer $token")
-            .header("Accept", "application/json")
-            .GET()
-            .build()
+        val request =
+            HttpRequest.newBuilder(
+                    URI.create(resolveUpstreamUrl(openAiCompatibleBaseUri, "/models"))
+                )
+                .timeout(Duration.ofSeconds(30))
+                .header("Authorization", "Bearer $token")
+                .header("Accept", "application/json")
+                .GET()
+                .build()
         val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-        if (response.statusCode() !in 200..299) error("Kimi model discovery failed with HTTP ${response.statusCode()}")
-        val root = JsonHelper.parseToJsonElementOrNull(response.body()) as? JsonObject ?: return emptyList()
+        if (response.statusCode() !in 200..299)
+            error("Kimi model discovery failed with HTTP ${response.statusCode()}")
+        val root =
+            JsonHelper.parseToJsonElementOrNull(response.body()) as? JsonObject
+                ?: return emptyList()
         val data = root["data"] as? JsonArray ?: return emptyList()
         return data.mapNotNull(::parseRemoteModel).distinctBy { it.id }
     }
 
     private fun fetchModelsDevCatalogModels(uri: URI): List<RemoteModel> {
-        val request = HttpRequest.newBuilder(uri)
-            .timeout(Duration.ofSeconds(30))
-            .header("Accept", "application/json")
-            .GET()
-            .build()
+        val request =
+            HttpRequest.newBuilder(uri)
+                .timeout(Duration.ofSeconds(30))
+                .header("Accept", "application/json")
+                .GET()
+                .build()
         val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         if (response.statusCode() !in 200..299) return emptyList()
-        val root = JsonHelper.parseToJsonElementOrNull(response.body()) as? JsonObject ?: return emptyList()
+        val root =
+            JsonHelper.parseToJsonElementOrNull(response.body()) as? JsonObject
+                ?: return emptyList()
         val provider = root[MODELS_DEV_PROVIDER_ID] as? JsonObject ?: return emptyList()
-        if (stringField(provider, "api")?.trimEnd('/') != MODELS_DEV_PROVIDER_API) return emptyList()
+        if (stringField(provider, "api")?.trimEnd('/') != MODELS_DEV_PROVIDER_API)
+            return emptyList()
         val models = provider["models"] as? JsonObject ?: return emptyList()
         return models.mapNotNull { (id, element) -> parseModelsDevModel(id, element) }
     }
@@ -233,7 +268,9 @@ class KimiSubscriptionProxyProvider(
             maxInputTokens = maxInputTokens,
             maxOutputTokens = intField(item, "max_output_tokens") ?: MAX_OUTPUT_TOKENS,
             supportsToolUse = supportsToolUse,
-            supportsVision = boolField(item, "supports_image_in") == true || boolField(item, "supports_video_in") == true,
+            supportsVision =
+                boolField(item, "supports_image_in") == true ||
+                    boolField(item, "supports_video_in") == true,
             isDefault = id == MODEL_ID,
         )
     }
@@ -242,18 +279,23 @@ class KimiSubscriptionProxyProvider(
         val item = element as? JsonObject ?: return null
         val id = stringField(item, "id") ?: key.takeIf { it.isNotBlank() } ?: return null
         val limits = item["limit"] as? JsonObject
-        val maxInputTokens = limits?.let { intField(it, "context") }
-            ?: intField(item, "context_length")
-            ?: return null
+        val maxInputTokens =
+            limits?.let { intField(it, "context") }
+                ?: intField(item, "context_length")
+                ?: return null
         if (maxInputTokens <= 0) return null
         return RemoteModel(
             id = id,
             maxInputTokens = maxInputTokens,
-            maxOutputTokens = limits?.let { intField(it, "output") } ?: intField(item, "max_output_tokens") ?: MAX_OUTPUT_TOKENS,
+            maxOutputTokens =
+                limits?.let { intField(it, "output") }
+                    ?: intField(item, "max_output_tokens")
+                    ?: MAX_OUTPUT_TOKENS,
             supportsToolUse = boolField(item, "tool_call") ?: true,
-            supportsVision = boolField(item, "attachment") == true ||
-                inputModality(item, "image") ||
-                inputModality(item, "video"),
+            supportsVision =
+                boolField(item, "attachment") == true ||
+                    inputModality(item, "image") ||
+                    inputModality(item, "video"),
         )
     }
 
@@ -301,28 +343,35 @@ class KimiSubscriptionProxyProvider(
         private const val MAX_INPUT_TOKENS = 262_144
         private const val MAX_OUTPUT_TOKENS = 65_536
         private const val CACHE_TTL_MILLIS = 5 * 60 * 1000L
-        private val SUPPORTED_ROUTES = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, SubscriptionProxyRoute.ANTHROPIC_MESSAGES)
-        private val DEFAULT_MODELS = listOf(
-            RemoteModel(
-                id = MODEL_ID,
-                maxInputTokens = MAX_INPUT_TOKENS,
-                maxOutputTokens = MAX_OUTPUT_TOKENS,
-                supportsToolUse = true,
-                supportsVision = true,
-                isDefault = true,
-            ),
-        )
+        private val SUPPORTED_ROUTES =
+            setOf(
+                SubscriptionProxyRoute.CHAT_COMPLETIONS,
+                SubscriptionProxyRoute.ANTHROPIC_MESSAGES,
+            )
+        private val DEFAULT_MODELS =
+            listOf(
+                RemoteModel(
+                    id = MODEL_ID,
+                    maxInputTokens = MAX_INPUT_TOKENS,
+                    maxOutputTokens = MAX_OUTPUT_TOKENS,
+                    supportsToolUse = true,
+                    supportsVision = true,
+                    isDefault = true,
+                )
+            )
         private val OPENAI_COMPATIBLE_BASE_URI = URI.create("https://api.kimi.com/coding/v1")
         private val ANTHROPIC_COMPATIBLE_BASE_URI = URI.create("https://api.kimi.com/coding")
         private val MODELS_DEV_CATALOG_URI = URI.create("https://models.dev/api.json")
-        private val DEFAULT_REQUEST_LOG_DIR = System.getProperty("java.io.tmpdir") +
-            "/openai-usage-quota-intellij/subscription-proxy-kimi-requests"
+        private val DEFAULT_REQUEST_LOG_DIR =
+            System.getProperty("java.io.tmpdir") +
+                "/openai-usage-quota-intellij/subscription-proxy-kimi-requests"
 
-        private fun defaultHeaders(): Map<String, String> = mapOf(
-            "Accept" to "application/json",
-            "Content-Type" to "application/json",
-            "User-Agent" to "KimiCLI/1.40.0",
-        ) + KimiDeviceHeaders.all()
+        private fun defaultHeaders(): Map<String, String> =
+            mapOf(
+                "Accept" to "application/json",
+                "Content-Type" to "application/json",
+                "User-Agent" to "KimiCLI/1.40.0",
+            ) + KimiDeviceHeaders.all()
 
         private fun intField(item: JsonObject, name: String): Int? {
             return (item[name] as? JsonPrimitive)?.contentOrNull?.toIntOrNull()

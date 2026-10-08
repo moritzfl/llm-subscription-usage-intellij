@@ -10,8 +10,8 @@ import java.nio.channels.ClosedChannelException
  * fault.
  *
  * Detection is type-based on purpose: upstream calls use `java.net.http.HttpClient`, so a Ktor
- * byte-channel failure can only originate from the client-facing socket. Matching on messages
- * such as "Broken pipe" would also swallow genuine upstream transport errors, which must still be
+ * byte-channel failure can only originate from the client-facing socket. Matching on messages such
+ * as "Broken pipe" would also swallow genuine upstream transport errors, which must still be
  * reported to the client as a 5xx.
  */
 fun Throwable.isClientDisconnect(): Boolean {
@@ -20,8 +20,8 @@ fun Throwable.isClientDisconnect(): Boolean {
     while (current != null && depth < MAX_CAUSE_DEPTH) {
         if (
             current is ClosedByteChannelException ||
-            current is ClosedWriteChannelException ||
-            current is ClosedChannelException
+                current is ClosedWriteChannelException ||
+                current is ClosedChannelException
         ) {
             return true
         }

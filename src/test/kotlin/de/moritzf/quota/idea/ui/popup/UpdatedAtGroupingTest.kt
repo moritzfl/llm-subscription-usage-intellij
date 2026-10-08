@@ -10,13 +10,14 @@ class UpdatedAtGroupingTest {
         val mistral = icon("Mistral")
         val ollama = icon("Ollama")
         val openCode = icon("OpenCode")
-        val grouped = groupUpdatedAtItems(
-            listOf(
-                UpdatedAtItem(listOf(mistral), "just now"),
-                UpdatedAtItem(listOf(ollama), "just now"),
-                UpdatedAtItem(listOf(openCode), "5 minutes ago"),
-            ),
-        )
+        val grouped =
+            groupUpdatedAtItems(
+                listOf(
+                    UpdatedAtItem(listOf(mistral), "just now"),
+                    UpdatedAtItem(listOf(ollama), "just now"),
+                    UpdatedAtItem(listOf(openCode), "5 minutes ago"),
+                )
+            )
 
         assertEquals(
             listOf(

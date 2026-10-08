@@ -5,9 +5,7 @@ import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
-/**
- * Represents Cursor subscription usage from the Cursor dashboard API.
- */
+/** Represents Cursor subscription usage from the Cursor dashboard API. */
 @Serializable
 data class CursorQuota(
     val planName: String = "",
@@ -25,15 +23,27 @@ data class CursorQuota(
     @Transient override var rawJson: String? = null,
 ) : ProviderQuota {
     fun primaryUsagePercent(): Double? {
-        requestUsage?.usagePercent()?.let { return it }
-        planUsage?.totalPercentUsed?.let { return it }
-        spendLimit?.usagePercent()?.let { return it }
-        onDemandUsage?.usagePercent()?.let { return it }
+        requestUsage?.usagePercent()?.let {
+            return it
+        }
+        planUsage?.totalPercentUsed?.let {
+            return it
+        }
+        spendLimit?.usagePercent()?.let {
+            return it
+        }
+        onDemandUsage?.usagePercent()?.let {
+            return it
+        }
         return teamOnDemandUsage?.usagePercent()
     }
 
     override fun hasUsageState(): Boolean =
-        planUsage != null || spendLimit != null || onDemandUsage != null || teamOnDemandUsage != null || requestUsage != null
+        planUsage != null ||
+            spendLimit != null ||
+            onDemandUsage != null ||
+            teamOnDemandUsage != null ||
+            requestUsage != null
 
     override fun usageFraction(): Double? = primaryUsagePercent()?.let { it / 100.0 }
 

@@ -1,15 +1,15 @@
 package de.moritzf.quota.kimi
 
 import de.moritzf.quota.shared.JsonSupport
-import kotlin.time.Clock
-import kotlin.time.Instant
-import kotlinx.serialization.Serializable
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
+import kotlin.time.Clock
+import kotlin.time.Instant
+import kotlinx.serialization.Serializable
 
 open class KimiQuotaClient(
     private val httpClient: HttpClient = HttpClient.newHttpClient(),
@@ -20,24 +20,43 @@ open class KimiQuotaClient(
 
     open fun fetchQuota(credentials: KimiCredentials): KimiFetchResult {
         var usableCredentials = credentialRefresher.refreshIfNeeded(credentials)
-        var response = fetchQuotaResponse(usableCredentials.accessToken.ifBlank {
-            throw KimiQuotaException("Kimi login required. Log in from settings.")
-        })
+        var response =
+            fetchQuotaResponse(
+                usableCredentials.accessToken.ifBlank {
+                    throw KimiQuotaException("Kimi login required. Log in from settings.")
+                }
+            )
         if (response.statusCode().isUnauthorized()) {
-            usableCredentials = credentialRefresher.refresh(usableCredentials)
-                ?: throw KimiQuotaException("Session expired. Log in to Kimi again from settings.", response.statusCode(), response.body())
-            response = fetchQuotaResponse(usableCredentials.accessToken.ifBlank {
-                throw KimiQuotaException("Kimi login required. Log in from settings.")
-            })
+            usableCredentials =
+                credentialRefresher.refresh(usableCredentials)
+                    ?: throw KimiQuotaException(
+                        "Session expired. Log in to Kimi again from settings.",
+                        response.statusCode(),
+                        response.body(),
+                    )
+            response =
+                fetchQuotaResponse(
+                    usableCredentials.accessToken.ifBlank {
+                        throw KimiQuotaException("Kimi login required. Log in from settings.")
+                    }
+                )
         }
 
         val status = response.statusCode()
         val body = response.body()
         if (status == 401 || status == 403) {
-            throw KimiQuotaException("Session expired. Log in to Kimi again from settings.", status, body)
+            throw KimiQuotaException(
+                "Session expired. Log in to Kimi again from settings.",
+                status,
+                body,
+            )
         }
         if (status !in 200..299) {
-            throw KimiQuotaException("Request failed (HTTP $status). Try again later.", status, body)
+            throw KimiQuotaException(
+                "Request failed (HTTP $status). Try again later.",
+                status,
+                body,
+            )
         }
         val quota = parseQuota(body)
         quota.fetchedAt = Clock.System.now()
@@ -46,13 +65,14 @@ open class KimiQuotaClient(
     }
 
     private fun fetchQuotaResponse(accessToken: String): HttpResponse<String> {
-        val request = HttpRequest.newBuilder()
-            .uri(usageEndpoint)
-            .timeout(Duration.ofSeconds(30))
-            .header("Authorization", "Bearer $accessToken")
-            .header("Accept", "application/json")
-            .GET()
-            .build()
+        val request =
+            HttpRequest.newBuilder()
+                .uri(usageEndpoint)
+                .timeout(Duration.ofSeconds(30))
+                .header("Authorization", "Bearer $accessToken")
+                .header("Accept", "application/json")
+                .GET()
+                .build()
         return send(request)
     }
 
@@ -74,14 +94,17 @@ open class KimiQuotaClient(
         private val TOKEN_ENDPOINT = URI.create("https://auth.kimi.com/api/oauth/token")
 
         fun parseQuota(body: String): KimiQuota {
-            val dto = try {
-                JsonSupport.json.decodeFromString<KimiUsageResponseDto>(body)
-            } catch (exception: Exception) {
-                throw KimiQuotaException("Could not parse usage data.", 200, body, exception)
-            }
+            val dto =
+                try {
+                    JsonSupport.json.decodeFromString<KimiUsageResponseDto>(body)
+                } catch (exception: Exception) {
+                    throw KimiQuotaException("Could not parse usage data.", 200, body, exception)
+                }
             val total = dto.usage?.toWindow(null)
-            val sessionLimit = dto.limits.firstOrNull { it.window?.duration == 300L && it.window.timeUnit == "TIME_UNIT_MINUTE" }
-                ?: dto.limits.firstOrNull()
+            val sessionLimit =
+                dto.limits.firstOrNull {
+                    it.window?.duration == 300L && it.window.timeUnit == "TIME_UNIT_MINUTE"
+                } ?: dto.limits.firstOrNull()
             val session = sessionLimit?.detail?.toWindow(sessionLimit.window?.durationMillis())
             return KimiQuota(
                 plan = normalizeMembership(dto.user?.membership?.level),
@@ -97,7 +120,8 @@ open class KimiQuotaClient(
             return KimiUsageWindow(
                 used = used,
                 limit = limitValue,
-                usagePercent = if (limitValue > 0) used.toDouble() / limitValue.toDouble() * 100.0 else 0.0,
+                usagePercent =
+                    if (limitValue > 0) used.toDouble() / limitValue.toDouble() * 100.0 else 0.0,
                 resetsAt = resetTime?.let { runCatching { Instant.parse(it) }.getOrNull() },
                 periodDurationMs = durationMs,
             )
@@ -117,8 +141,14 @@ open class KimiQuotaClient(
                 "LEVEL_INTERMEDIATE" -> "Kimi Code Intermediate"
                 "LEVEL_ADVANCED" -> "Kimi Code Advanced"
                 "LEVEL_PREMIUM" -> "Kimi Code Premium"
-                null, "" -> "Kimi Code"
-                else -> level.removePrefix("LEVEL_").lowercase().replaceFirstChar { it.uppercase() }.let { "Kimi Code $it" }
+                null,
+                "" -> "Kimi Code"
+                else ->
+                    level
+                        .removePrefix("LEVEL_")
+                        .lowercase()
+                        .replaceFirstChar { it.uppercase() }
+                        .let { "Kimi Code $it" }
             }
         }
     }
@@ -155,8 +185,6 @@ private data class KimiLimitDetailDto(
     val resetTime: String? = null,
 )
 
-@Serializable
-private data class KimiUserDto(val membership: KimiMembershipDto? = null)
+@Serializable private data class KimiUserDto(val membership: KimiMembershipDto? = null)
 
-@Serializable
-private data class KimiMembershipDto(val level: String? = null)
+@Serializable private data class KimiMembershipDto(val level: String? = null)

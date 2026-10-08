@@ -30,10 +30,12 @@ import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.util.UUID
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonArray
@@ -44,8 +46,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 import org.slf4j.LoggerFactory
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 class CompletionsHandler(
     private val catalog: () -> SubscriptionModelCatalog,
@@ -63,45 +63,77 @@ class CompletionsHandler(
             JsonHelper.toErrorResponse(ctx, "FIM completions are disabled.", 404, "not_found_error")
             return
         }
-        AccessLogFields.mode(ctx, if (ctx.header(HttpHeaders.Accept)?.contains("text/event-stream") == true) "stream" else "proxy")
-        val requestId = ctx.getAttribute(AccessLogFields.REQUEST_ID) ?: requestLogger.nextRequestId()
+        AccessLogFields.mode(
+            ctx,
+            if (ctx.header(HttpHeaders.Accept)?.contains("text/event-stream") == true) "stream"
+            else "proxy",
+        )
+        val requestId =
+            ctx.getAttribute(AccessLogFields.REQUEST_ID) ?: requestLogger.nextRequestId()
         val body = RequestValidator.parseLoggedJsonObject(ctx, requestLogger, requestId) ?: return
         val parsed = CompletionsRequest.parse(body)
         val selectedId = cfg.modelLocalId.trim()
         if (selectedId.isEmpty()) {
-            JsonHelper.toErrorResponse(ctx, "No FIM completion model is configured.", 400, "invalid_request_error")
+            JsonHelper.toErrorResponse(
+                ctx,
+                "No FIM completion model is configured.",
+                400,
+                "invalid_request_error",
+            )
             return
         }
         val requested = parsed.model.ifBlank { cfg.aliasId }
         if (!cfg.acceptsModel(requested)) {
-            JsonHelper.toErrorResponse(ctx, "Unknown proxy model: $requested", 400, "invalid_request_error")
+            JsonHelper.toErrorResponse(
+                ctx,
+                "Unknown proxy model: $requested",
+                400,
+                "invalid_request_error",
+            )
             return
         }
         val models = catalog()
-        val model = resolveSelectedModel(models, selectedId) ?: run {
-            JsonHelper.toErrorResponse(ctx, "Unknown proxy model: $selectedId", 400, "invalid_request_error")
-            return
-        }
+        val model =
+            resolveSelectedModel(models, selectedId)
+                ?: run {
+                    JsonHelper.toErrorResponse(
+                        ctx,
+                        "Unknown proxy model: $selectedId",
+                        400,
+                        "invalid_request_error",
+                    )
+                    return
+                }
         if (!FimModels.isEligible(model)) {
-            JsonHelper.toErrorResponse(ctx, "Model ${model.localId} cannot be used for FIM completions.", 400, "invalid_request_error")
+            JsonHelper.toErrorResponse(
+                ctx,
+                "Model ${model.localId} cannot be used for FIM completions.",
+                400,
+                "invalid_request_error",
+            )
             return
         }
         val job = currentCoroutineContext()[Job]
         val key = ctx.getAttribute(ProxyCallAttributes.KEY_FINGERPRINT) ?: "local"
-        val fim = CompletionsGuard.budget(FimPromptParser.parse(parsed.prompt, parsed.suffix), cfg.maxPromptChars)
+        val fim =
+            CompletionsGuard.budget(
+                FimPromptParser.parse(parsed.prompt, parsed.suffix),
+                cfg.maxPromptChars,
+            )
         val maxTokens = CompletionsGuard.clampMaxTokens(parsed.maxTokens, cfg)
         val temperature = (parsed.temperature ?: DEFAULT_TEMPERATURE).coerceIn(0.0, MAX_TEMPERATURE)
         val completionId = completionId(requestId)
         val created = System.currentTimeMillis() / 1000L
         val advertised = advertisedModel(cfg, parsed)
         when (
-            val decision = guard.tryStart(
-                key = key,
-                config = cfg,
-                job = job,
-                fingerprint = fim.fingerprint(),
-                coalesce = cfg.strategy == CompletionsStrategy.CHAT_FIM,
-            )
+            val decision =
+                guard.tryStart(
+                    key = key,
+                    config = cfg,
+                    job = job,
+                    fingerprint = fim.fingerprint(),
+                    coalesce = cfg.strategy == CompletionsStrategy.CHAT_FIM,
+                )
         ) {
             is GuardDecision.Skip -> {
                 LOG.debug("Skipping FIM completion: {}", decision.reason)
@@ -109,11 +141,12 @@ class CompletionsHandler(
                 return
             }
             is GuardDecision.Join -> {
-                val text = try {
-                    withTimeout(cfg.timeoutMillis) { decision.result.await() }
-                } catch (_: TimeoutCancellationException) {
-                    ""
-                }
+                val text =
+                    try {
+                        withTimeout(cfg.timeoutMillis) { decision.result.await() }
+                    } catch (_: TimeoutCancellationException) {
+                        ""
+                    }
                 writeCompletion(ctx, parsed.stream, advertised, requestId, text)
                 return
             }
@@ -153,7 +186,12 @@ class CompletionsHandler(
                 if (parsed.stream) {
                     writeEmptyCompletion(ctx, true, advertised, requestId)
                 } else {
-                    JsonHelper.toErrorResponse(ctx, exception.message ?: "FIM completion failed.", 502, "upstream_error")
+                    JsonHelper.toErrorResponse(
+                        ctx,
+                        exception.message ?: "FIM completion failed.",
+                        502,
+                        "upstream_error",
+                    )
                 }
             }
         } finally {
@@ -176,28 +214,39 @@ class CompletionsHandler(
         key: String,
         producerJob: Job?,
     ) {
-        val chatBody = chatBody(
-            model.localId,
-            parsed,
-            fim,
-            maxTokens,
-            temperature,
-            priorityTier = cfg.priorityTier && FimModels.supportsPriorityTier(model),
-            reasoningEffort = FimModels.fimReasoningEffort(model),
-        )
+        val chatBody =
+            chatBody(
+                model.localId,
+                parsed,
+                fim,
+                maxTokens,
+                temperature,
+                priorityTier = cfg.priorityTier && FimModels.supportsPriorityTier(model),
+                reasoningEffort = FimModels.fimReasoningEffort(model),
+            )
         val payload = JsonHelper.encodeToString(chatBody)
         val apiKey = localApiKey()?.takeIf { it.isNotBlank() }
         if (apiKey == null) {
-            JsonHelper.toErrorResponse(ctx, "Subscription proxy local API key is missing", 401, "auth_error")
+            JsonHelper.toErrorResponse(
+                ctx,
+                "Subscription proxy local API key is missing",
+                401,
+                "auth_error",
+            )
             return
         }
-        val request = HttpRequest.newBuilder(URI.create("http://$host:$port/v1/chat/completions"))
-            .timeout(Duration.ofMillis(cfg.timeoutMillis))
-            .header(HttpHeaders.Authorization, "Bearer $apiKey")
-            .header(HttpHeaders.ContentType, JsonHelper.JSON_CONTENT_TYPE)
-            .header(HttpHeaders.Accept, if (parsed.stream) JsonHelper.SSE_CONTENT_TYPE else JsonHelper.JSON_CONTENT_TYPE)
-            .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
-            .build()
+        val request =
+            HttpRequest.newBuilder(URI.create("http://$host:$port/v1/chat/completions"))
+                .timeout(Duration.ofMillis(cfg.timeoutMillis))
+                .header(HttpHeaders.Authorization, "Bearer $apiKey")
+                .header(HttpHeaders.ContentType, JsonHelper.JSON_CONTENT_TYPE)
+                .header(
+                    HttpHeaders.Accept,
+                    if (parsed.stream) JsonHelper.SSE_CONTENT_TYPE
+                    else JsonHelper.JSON_CONTENT_TYPE,
+                )
+                .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
+                .build()
         val upstream = sendAsync(request)
         AccessLogFields.upstreamStatus(ctx, upstream.statusCode())
         if (upstream.statusCode() == 429) {
@@ -223,32 +272,38 @@ class CompletionsHandler(
         }
         guard.noteSuccess(key)
         val stops = CompletionSanitizer.effectiveStops(fim.prefix, parsed.stop, fim.languageHint)
-        val sanitizer = StreamingCompletionSanitizer(
-            prefix = fim.prefix,
-            suffix = fim.suffix,
-            stop = stops,
-            languageHint = fim.languageHint,
-        )
+        val sanitizer =
+            StreamingCompletionSanitizer(
+                prefix = fim.prefix,
+                suffix = fim.suffix,
+                stop = stops,
+                languageHint = fim.languageHint,
+            )
         val upstreamStream = isEventStream(upstream)
         if (parsed.stream) {
-            val text = if (upstreamStream) {
-                writeChatStream(ctx, upstream, sanitizer, completionId, created, advertised)
-            } else {
-                val raw = upstream.body().use { JsonHelper.readUtf8Body(it) }
-                val assembled = sanitizer.push(chatMessageContent(raw)) + sanitizer.finish()
-                writeCompletion(ctx, true, advertised, requestId, assembled)
-                assembled
-            }
+            val text =
+                if (upstreamStream) {
+                    writeChatStream(ctx, upstream, sanitizer, completionId, created, advertised)
+                } else {
+                    val raw = upstream.body().use { JsonHelper.readUtf8Body(it) }
+                    val assembled = sanitizer.push(chatMessageContent(raw)) + sanitizer.finish()
+                    writeCompletion(ctx, true, advertised, requestId, assembled)
+                    assembled
+                }
             guard.publish(key, producerJob, text)
         } else {
-            val text = if (upstreamStream) {
-                collectChatStream(upstream, sanitizer)
-            } else {
-                val raw = upstream.body().use { JsonHelper.readUtf8Body(it) }
-                sanitizer.push(chatMessageContent(raw)) + sanitizer.finish()
-            }
+            val text =
+                if (upstreamStream) {
+                    collectChatStream(upstream, sanitizer)
+                } else {
+                    val raw = upstream.body().use { JsonHelper.readUtf8Body(it) }
+                    sanitizer.push(chatMessageContent(raw)) + sanitizer.finish()
+                }
             guard.publish(key, producerJob, text)
-            JsonHelper.toJsonResponse(ctx, textCompletionJson(completionId, created, advertised, text))
+            JsonHelper.toJsonResponse(
+                ctx,
+                textCompletionJson(completionId, created, advertised, text),
+            )
         }
     }
 
@@ -261,10 +316,17 @@ class CompletionsHandler(
         maxTokens: Int,
         requestId: String,
     ) {
-        val provider = catalog.providerFor(model) ?: run {
-            JsonHelper.toErrorResponse(ctx, "Provider for ${model.localId} is not configured.", 503, "configuration_error")
-            return
-        }
+        val provider =
+            catalog.providerFor(model)
+                ?: run {
+                    JsonHelper.toErrorResponse(
+                        ctx,
+                        "Provider for ${model.localId} is not configured.",
+                        503,
+                        "configuration_error",
+                    )
+                    return
+                }
         provider.handle(
             ctx,
             SubscriptionProxyRequest(
@@ -308,7 +370,10 @@ class CompletionsHandler(
         JsonHelper.setSseHeaders(ctx)
         ctx.setStatus(200)
         ctx.handled = true
-        ctx.call.respondOutputStream(ContentType.parse(JsonHelper.SSE_CONTENT_TYPE), HttpStatusCode.OK) {
+        ctx.call.respondOutputStream(
+            ContentType.parse(JsonHelper.SSE_CONTENT_TYPE),
+            HttpStatusCode.OK,
+        ) {
             upstream.body().bufferedReader(StandardCharsets.UTF_8).use { reader ->
                 while (true) {
                     val line = reader.readLine() ?: break
@@ -324,7 +389,11 @@ class CompletionsHandler(
                             val extra = sanitizer.push(delta)
                             if (extra.isNotEmpty()) {
                                 assembled.append(extra)
-                                writeSseData(ctx, this, textCompletionChunk(id, created, model, extra, null))
+                                writeSseData(
+                                    ctx,
+                                    this,
+                                    textCompletionChunk(id, created, model, extra, null),
+                                )
                             }
                         }
                     }
@@ -372,7 +441,10 @@ class CompletionsHandler(
             JsonHelper.setSseHeaders(ctx)
             ctx.setStatus(200)
             ctx.handled = true
-            ctx.call.respondOutputStream(ContentType.parse(JsonHelper.SSE_CONTENT_TYPE), HttpStatusCode.OK) {
+            ctx.call.respondOutputStream(
+                ContentType.parse(JsonHelper.SSE_CONTENT_TYPE),
+                HttpStatusCode.OK,
+            ) {
                 writeSseData(ctx, this, textCompletionChunk(id, created, model, text, null))
                 writeSseData(ctx, this, textCompletionChunk(id, created, model, "", "stop"))
                 val done = "data: [DONE]\n\n".toByteArray(StandardCharsets.UTF_8)
@@ -385,14 +457,22 @@ class CompletionsHandler(
         }
     }
 
-    private suspend fun writeEmptyCompletion(ctx: ProxyCall, stream: Boolean, model: String, requestId: String) {
+    private suspend fun writeEmptyCompletion(
+        ctx: ProxyCall,
+        stream: Boolean,
+        model: String,
+        requestId: String,
+    ) {
         val id = completionId(requestId)
         val created = System.currentTimeMillis() / 1000L
         if (stream) {
             JsonHelper.setSseHeaders(ctx)
             ctx.setStatus(200)
             ctx.handled = true
-            ctx.call.respondOutputStream(ContentType.parse(JsonHelper.SSE_CONTENT_TYPE), HttpStatusCode.OK) {
+            ctx.call.respondOutputStream(
+                ContentType.parse(JsonHelper.SSE_CONTENT_TYPE),
+                HttpStatusCode.OK,
+            ) {
                 writeSseData(ctx, this, textCompletionChunk(id, created, model, "", "stop"))
                 val done = "data: [DONE]\n\n".toByteArray(StandardCharsets.UTF_8)
                 write(done)
@@ -423,12 +503,16 @@ class CompletionsHandler(
         private val LOG = LoggerFactory.getLogger(CompletionsHandler::class.java)
         private const val DEFAULT_TEMPERATURE = 0.1
         private const val MAX_TEMPERATURE = 0.2
-        private val HTTP_CLIENT: HttpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5))
-            .version(HttpClient.Version.HTTP_1_1)
-            .build()
+        private val HTTP_CLIENT: HttpClient =
+            HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(5))
+                .version(HttpClient.Version.HTTP_1_1)
+                .build()
 
-        internal fun advertisedModel(config: CompletionsConfig, request: CompletionsRequest): String {
+        internal fun advertisedModel(
+            config: CompletionsConfig,
+            request: CompletionsRequest,
+        ): String {
             return request.model.ifBlank { config.aliasId }
         }
 
@@ -448,18 +532,20 @@ class CompletionsHandler(
             fim: FimContext,
             maxTokens: Int,
         ): JsonObject {
-        val stops = CompletionSanitizer.effectiveStops(fim.prefix, request.stop, fim.languageHint)
-        return buildJsonObject {
-            put("model", modelId)
-            put("prompt", fim.prefix)
+            val stops =
+                CompletionSanitizer.effectiveStops(fim.prefix, request.stop, fim.languageHint)
+            return buildJsonObject {
+                put("model", modelId)
+                put("prompt", fim.prefix)
                 put("stream", request.stream)
                 put("max_tokens", maxTokens)
                 if (fim.suffix.isNotEmpty()) put("suffix", fim.suffix)
                 request.temperature?.let { put("temperature", it.coerceIn(0.0, MAX_TEMPERATURE)) }
                 if (stops.isNotEmpty()) {
-                    put("stop", buildJsonArray {
-                        stops.forEach { add(JsonPrimitive(it)) }
-                    })
+                    put(
+                        "stop",
+                        buildJsonArray { stops.forEach { add(JsonPrimitive(it)) } },
+                    )
                 }
             }
         }
@@ -473,7 +559,8 @@ class CompletionsHandler(
             priorityTier: Boolean = false,
             reasoningEffort: String? = null,
         ): JsonObject {
-            val stops = CompletionSanitizer.effectiveStops(fim.prefix, request.stop, fim.languageHint)
+            val stops =
+                CompletionSanitizer.effectiveStops(fim.prefix, request.stop, fim.languageHint)
             return buildJsonObject {
                 put("model", modelId)
                 put("stream", request.stream)
@@ -482,20 +569,28 @@ class CompletionsHandler(
                 if (!reasoningEffort.isNullOrBlank()) put("reasoning_effort", reasoningEffort)
                 put("prompt_cache_key", ChatFimPromptBuilder.PROMPT_CACHE_KEY)
                 if (priorityTier) put("service_tier", CompletionsConfig.SERVICE_TIER_PRIORITY)
-                put("messages", buildJsonArray {
-                    add(buildJsonObject {
-                        put("role", "system")
-                        put("content", ChatFimPromptBuilder.SYSTEM_PROMPT)
-                    })
-                    add(buildJsonObject {
-                        put("role", "user")
-                        put("content", ChatFimPromptBuilder.userPrompt(fim))
-                    })
-                })
+                put(
+                    "messages",
+                    buildJsonArray {
+                        add(
+                            buildJsonObject {
+                                put("role", "system")
+                                put("content", ChatFimPromptBuilder.SYSTEM_PROMPT)
+                            }
+                        )
+                        add(
+                            buildJsonObject {
+                                put("role", "user")
+                                put("content", ChatFimPromptBuilder.userPrompt(fim))
+                            }
+                        )
+                    },
+                )
                 if (stops.isNotEmpty()) {
-                    put("stop", buildJsonArray {
-                        stops.forEach { add(JsonPrimitive(it)) }
-                    })
+                    put(
+                        "stop",
+                        buildJsonArray { stops.forEach { add(JsonPrimitive(it)) } },
+                    )
                 }
             }
         }
@@ -530,18 +625,26 @@ class CompletionsHandler(
                 put("object", "text_completion")
                 put("created", created)
                 put("model", model)
-                put("choices", buildJsonArray {
-                    add(buildJsonObject {
-                        put("text", text)
-                        put("index", 0)
-                        put("finish_reason", finishReason)
-                    })
-                })
-                put("usage", buildJsonObject {
-                    put("prompt_tokens", 0)
-                    put("completion_tokens", 0)
-                    put("total_tokens", 0)
-                })
+                put(
+                    "choices",
+                    buildJsonArray {
+                        add(
+                            buildJsonObject {
+                                put("text", text)
+                                put("index", 0)
+                                put("finish_reason", finishReason)
+                            }
+                        )
+                    },
+                )
+                put(
+                    "usage",
+                    buildJsonObject {
+                        put("prompt_tokens", 0)
+                        put("completion_tokens", 0)
+                        put("total_tokens", 0)
+                    },
+                )
             }
         }
 
@@ -557,17 +660,22 @@ class CompletionsHandler(
                 put("object", "text_completion")
                 put("created", created)
                 put("model", model)
-                put("choices", buildJsonArray {
-                    add(buildJsonObject {
-                        put("index", 0)
-                        put("text", text)
-                        if (finishReason == null) {
-                            put("finish_reason", kotlinx.serialization.json.JsonNull)
-                        } else {
-                            put("finish_reason", finishReason)
-                        }
-                    })
-                })
+                put(
+                    "choices",
+                    buildJsonArray {
+                        add(
+                            buildJsonObject {
+                                put("index", 0)
+                                put("text", text)
+                                if (finishReason == null) {
+                                    put("finish_reason", kotlinx.serialization.json.JsonNull)
+                                } else {
+                                    put("finish_reason", finishReason)
+                                }
+                            }
+                        )
+                    },
+                )
             }
         }
 
@@ -585,8 +693,9 @@ class CompletionsHandler(
         }
 
         private fun isEventStream(response: HttpResponse<InputStream>): Boolean {
-            return response.headers().allValues(HttpHeaders.ContentType)
-                .any { it.contains("text/event-stream", ignoreCase = true) }
+            return response.headers().allValues(HttpHeaders.ContentType).any {
+                it.contains("text/event-stream", ignoreCase = true)
+            }
         }
     }
 }

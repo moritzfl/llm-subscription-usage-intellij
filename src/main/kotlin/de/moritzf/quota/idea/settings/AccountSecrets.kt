@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea.settings
 
+import com.intellij.openapi.diagnostic.Logger
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.cursor.CursorCredentialsStore
@@ -11,25 +12,25 @@ import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
 import de.moritzf.quota.idea.mistral.MistralApiKeyStore
 import de.moritzf.quota.idea.mistral.MistralSessionCookieStore
 import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
-import de.moritzf.quota.idea.opencode.OpenCodeAuthService
 import de.moritzf.quota.idea.opencode.LegacyOpenCodeSecrets
+import de.moritzf.quota.idea.opencode.OpenCodeAuthService
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
-import com.intellij.openapi.diagnostic.Logger
 
 internal object AccountSecrets {
     fun clear(account: ProviderAccount) {
         val id = account.id
         when (account.providerType()) {
-            QuotaProviderType.ANTIGRAVITY -> Unit // Removing the entry never logs out the external CLI.
+            QuotaProviderType.ANTIGRAVITY ->
+                Unit // Removing the entry never logs out the external CLI.
             QuotaProviderType.AZURE -> Unit // Removing the entry never logs out Azure CLI.
             QuotaProviderType.OPEN_AI,
             QuotaProviderType.CLAUDE,
-            QuotaProviderType.SUPERGROK,
-            -> runCatching {
-                val type = account.providerType()!!
-                QuotaAuthService.getInstance().clearCredentials(id, type)
-                QuotaAuthService.getInstance().forgetAccount(id)
-            }.onFailure { LOG.warn("Failed to clear OAuth credentials for account $id", it) }
+            QuotaProviderType.SUPERGROK -> runCatching {
+                    val type = account.providerType()!!
+                    QuotaAuthService.getInstance().clearCredentials(id, type)
+                    QuotaAuthService.getInstance().forgetAccount(id)
+                }
+                    .onFailure { LOG.warn("Failed to clear OAuth credentials for account $id", it) }
             QuotaProviderType.MISTRAL -> {
                 MistralSessionCookieStore.forAccount(id).clear()
                 MistralApiKeyStore.forAccount(id).clear()
@@ -44,7 +45,9 @@ internal object AccountSecrets {
             }
             QuotaProviderType.GITHUB -> {
                 runCatching { GitHubAuthService.forAccount(id).clearCredentials() }
-                    .onFailure { LOG.warn("Failed to clear GitHub credentials for account $id", it) }
+                    .onFailure {
+                        LOG.warn("Failed to clear GitHub credentials for account $id", it)
+                    }
                 GitHubCredentialsStore.forAccount(id).clear()
                 GitHubAuthService.forgetAccount(id)
             }

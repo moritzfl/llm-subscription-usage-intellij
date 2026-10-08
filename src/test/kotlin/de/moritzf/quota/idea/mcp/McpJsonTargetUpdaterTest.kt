@@ -1,16 +1,16 @@
 package de.moritzf.quota.idea.mcp
 
-import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.boolean
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 @OptIn(ExperimentalSerializationApi::class)
 class McpJsonTargetUpdaterTest {
@@ -21,21 +21,24 @@ class McpJsonTargetUpdaterTest {
 
     @Test
     fun dotPathUpdatesNestedValueAndPreservesSiblings() {
-        val updated = McpJsonTargetUpdater().updateContent(
-            """
-            {
-              "mcpServers": {
-                "jetbrains": {
-                  "url": "http://localhost:1/sse",
-                  "name": "IntelliJ"
-                }
-              },
-              "enabled": true
-            }
-            """.trimIndent(),
-            "mcpServers.jetbrains.url",
-            "http://localhost:63342/sse",
-        )
+        val updated =
+            McpJsonTargetUpdater()
+                .updateContent(
+                    """
+                    {
+                      "mcpServers": {
+                        "jetbrains": {
+                          "url": "http://localhost:1/sse",
+                          "name": "IntelliJ"
+                        }
+                      },
+                      "enabled": true
+                    }
+                    """
+                        .trimIndent(),
+                    "mcpServers.jetbrains.url",
+                    "http://localhost:63342/sse",
+                )
 
         val root = json.parseToJsonElement(updated).jsonObject
         val jetbrains = root["mcpServers"]!!.jsonObject["jetbrains"]!!.jsonObject
@@ -46,17 +49,20 @@ class McpJsonTargetUpdaterTest {
 
     @Test
     fun jsonUpdatePreservesExistingFormattingOutsideTargetValue() {
-        val updated = McpJsonTargetUpdater().updateContent(
-            """
-            {
-                "model":"gpt-5.4",
-                "mcpServers": { "jetbrains": { "url" : null, "name":"IntelliJ" } },
-                "enabled":true
-            }
-            """.trimIndent(),
-            "mcpServers.jetbrains.url",
-            "http://localhost:63342/sse",
-        )
+        val updated =
+            McpJsonTargetUpdater()
+                .updateContent(
+                    """
+                    {
+                        "model":"gpt-5.4",
+                        "mcpServers": { "jetbrains": { "url" : null, "name":"IntelliJ" } },
+                        "enabled":true
+                    }
+                    """
+                        .trimIndent(),
+                    "mcpServers.jetbrains.url",
+                    "http://localhost:63342/sse",
+                )
 
         assertEquals(
             """
@@ -65,32 +71,40 @@ class McpJsonTargetUpdaterTest {
                 "mcpServers": { "jetbrains": { "url" : "http://localhost:63342/sse", "name":"IntelliJ" } },
                 "enabled":true
             }
-            """.trimIndent(),
+            """
+                .trimIndent(),
             updated,
         )
     }
 
     @Test
     fun jsoncCommentsDoNotBreakRangeFinder() {
-        val updated = McpJsonTargetUpdater().updateContent(
-            """
-            {
-              // jetbrains MCP
-              "mcpServers": {
-                /* nested */
-                "jetbrains": {
-                  "url": "http://localhost:1/sse"
-                }
-              }
-            }
-            """.trimIndent(),
-            "mcpServers.jetbrains.url",
-            "http://localhost:63342/sse",
-        )
+        val updated =
+            McpJsonTargetUpdater()
+                .updateContent(
+                    """
+                    {
+                      // jetbrains MCP
+                      "mcpServers": {
+                        /* nested */
+                        "jetbrains": {
+                          "url": "http://localhost:1/sse"
+                        }
+                      }
+                    }
+                    """
+                        .trimIndent(),
+                    "mcpServers.jetbrains.url",
+                    "http://localhost:63342/sse",
+                )
         val parsed = json.parseToJsonElement(updated).jsonObject
         assertEquals(
             "http://localhost:63342/sse",
-            parsed["mcpServers"]!!.jsonObject["jetbrains"]!!.jsonObject["url"]!!.jsonPrimitive.content,
+            parsed["mcpServers"]!!
+                .jsonObject["jetbrains"]!!
+                .jsonObject["url"]!!
+                .jsonPrimitive
+                .content,
         )
         assertTrue(updated.contains("// jetbrains MCP"))
         assertTrue(updated.contains("/* nested */"))
@@ -98,40 +112,50 @@ class McpJsonTargetUpdaterTest {
 
     @Test
     fun jsonPointerUpdatesExistingNullValue() {
-        val updated = McpJsonTargetUpdater().updateContent(
-            """
-            {
-              "mcpServers": {
-                "jetbrains": {
-                  "url": null
-                }
-              }
-            }
-            """.trimIndent(),
-            "/mcpServers/jetbrains/url",
-            "http://localhost:63342/sse",
-        )
+        val updated =
+            McpJsonTargetUpdater()
+                .updateContent(
+                    """
+                    {
+                      "mcpServers": {
+                        "jetbrains": {
+                          "url": null
+                        }
+                      }
+                    }
+                    """
+                        .trimIndent(),
+                    "/mcpServers/jetbrains/url",
+                    "http://localhost:63342/sse",
+                )
 
         val root = json.parseToJsonElement(updated).jsonObject
         assertEquals(
             "http://localhost:63342/sse",
-            root["mcpServers"]!!.jsonObject["jetbrains"]!!.jsonObject["url"]!!.jsonPrimitive.content,
+            root["mcpServers"]!!
+                .jsonObject["jetbrains"]!!
+                .jsonObject["url"]!!
+                .jsonPrimitive
+                .content,
         )
     }
 
     @Test
     fun escapedDotKeepsLiteralDotInPropertyName() {
-        val updated = McpJsonTargetUpdater().updateContent(
-            """
-            {
-              "mcpServers": {
-                "jetbrains.url": "http://localhost:1/sse"
-              }
-            }
-            """.trimIndent(),
-            "mcpServers.jetbrains\\.url",
-            "http://localhost:63342/sse",
-        )
+        val updated =
+            McpJsonTargetUpdater()
+                .updateContent(
+                    """
+                    {
+                      "mcpServers": {
+                        "jetbrains.url": "http://localhost:1/sse"
+                      }
+                    }
+                    """
+                        .trimIndent(),
+                    "mcpServers.jetbrains\\.url",
+                    "http://localhost:63342/sse",
+                )
 
         val root = json.parseToJsonElement(updated).jsonObject
         assertEquals(
@@ -142,34 +166,39 @@ class McpJsonTargetUpdaterTest {
 
     @Test
     fun missingPathIsRejected() {
-        val error = assertFailsWith<IllegalStateException> {
-            McpJsonTargetUpdater().updateContent(
-                "{}",
-                "mcpServers.jetbrains.url",
-                "http://localhost:63342/sse",
-            )
-        }
+        val error =
+            assertFailsWith<IllegalStateException> {
+                McpJsonTargetUpdater()
+                    .updateContent(
+                        "{}",
+                        "mcpServers.jetbrains.url",
+                        "http://localhost:63342/sse",
+                    )
+            }
 
         assertEquals("JSON property path does not exist: mcpServers.jetbrains.url", error.message)
     }
 
     @Test
     fun nonStringPathIsRejected() {
-        val error = assertFailsWith<IllegalArgumentException> {
-            McpJsonTargetUpdater().updateContent(
-                """
-                {
-                  "mcpServers": {
-                    "jetbrains": {
-                      "url": true
-                    }
-                  }
-                }
-                """.trimIndent(),
-                "mcpServers.jetbrains.url",
-                "http://localhost:63342/sse",
-            )
-        }
+        val error =
+            assertFailsWith<IllegalArgumentException> {
+                McpJsonTargetUpdater()
+                    .updateContent(
+                        """
+                        {
+                          "mcpServers": {
+                            "jetbrains": {
+                              "url": true
+                            }
+                          }
+                        }
+                        """
+                            .trimIndent(),
+                        "mcpServers.jetbrains.url",
+                        "http://localhost:63342/sse",
+                    )
+            }
 
         assertEquals("JSON property path must point to a string or null value.", error.message)
     }
@@ -187,9 +216,10 @@ class McpJsonTargetUpdaterTest {
                     }
                   }
                 }
-                """.trimIndent(),
+                """
+                    .trimIndent(),
                 "mcpServers.jetbrains.url",
-            ),
+            )
         )
         assertNull(
             McpJsonTargetUpdater.validateTargetContent(
@@ -202,76 +232,87 @@ class McpJsonTargetUpdaterTest {
                     }
                   }
                 }
-                """.trimIndent(),
+                """
+                    .trimIndent(),
                 "mcpServers.jetbrains.nextUrl",
-            ),
+            )
         )
 
-        val missingPath = assertNotNull(
-            McpJsonTargetUpdater.validateTargetContent("{}", "mcpServers.jetbrains.url"),
-        )
+        val missingPath =
+            assertNotNull(
+                McpJsonTargetUpdater.validateTargetContent("{}", "mcpServers.jetbrains.url")
+            )
         assertEquals(McpJsonTargetValidationProblem.PROPERTY, missingPath.problem)
 
-        val nonStringPath = assertNotNull(
-            McpJsonTargetUpdater.validateTargetContent(
-                """
-                {
-                  "mcpServers": {
-                    "jetbrains": {
-                      "url": 63342
+        val nonStringPath =
+            assertNotNull(
+                McpJsonTargetUpdater.validateTargetContent(
+                    """
+                    {
+                      "mcpServers": {
+                        "jetbrains": {
+                          "url": 63342
+                        }
+                      }
                     }
-                  }
-                }
-                """.trimIndent(),
-                "mcpServers.jetbrains.url",
-            ),
-        )
+                    """
+                        .trimIndent(),
+                    "mcpServers.jetbrains.url",
+                )
+            )
         assertEquals(McpJsonTargetValidationProblem.PROPERTY, nonStringPath.problem)
     }
 
     @Test
     fun formatDotPathEscapesSegments() {
-        val formatted = McpJsonTargetUpdater.formatDotPath(listOf("mcpServers", "jetbrains.url", "slash\\key"))
+        val formatted =
+            McpJsonTargetUpdater.formatDotPath(listOf("mcpServers", "jetbrains.url", "slash\\key"))
 
         assertEquals("mcpServers.jetbrains\\.url.slash\\\\key", formatted)
-        assertEquals(listOf("mcpServers", "jetbrains.url", "slash\\key"), McpJsonTargetUpdater.parsePropertyPath(formatted))
+        assertEquals(
+            listOf("mcpServers", "jetbrains.url", "slash\\key"),
+            McpJsonTargetUpdater.parsePropertyPath(formatted),
+        )
     }
 
     @Test
     fun likelyMcpServerPathPrefersUrlLeaf() {
-        val likelyPath = McpJsonTargetUpdater.findLikelyMcpServerPath(
-            listOf(
-                "mcpServers.jetbrains",
-                "mcpServers.jetbrains.command",
-                "mcpServers.jetbrains.url",
-                "servers.other.url",
-            ),
-        )
+        val likelyPath =
+            McpJsonTargetUpdater.findLikelyMcpServerPath(
+                listOf(
+                    "mcpServers.jetbrains",
+                    "mcpServers.jetbrains.command",
+                    "mcpServers.jetbrains.url",
+                    "servers.other.url",
+                )
+            )
 
         assertEquals("mcpServers.jetbrains.url", likelyPath)
     }
 
     @Test
     fun likelyMcpServerPathRequiresMcpAndJetbrainsOrIntellij() {
-        val likelyPath = McpJsonTargetUpdater.findLikelyMcpServerPath(
-            listOf(
-                "mcpServers.github.url",
-                "servers.jetbrains.url",
-                "tooling.intellijMcp.endpoint",
-            ),
-        )
+        val likelyPath =
+            McpJsonTargetUpdater.findLikelyMcpServerPath(
+                listOf(
+                    "mcpServers.github.url",
+                    "servers.jetbrains.url",
+                    "tooling.intellijMcp.endpoint",
+                )
+            )
 
         assertEquals("tooling.intellijMcp.endpoint", likelyPath)
     }
 
     @Test
     fun likelyMcpServerPathAcceptsIdea() {
-        val likelyPath = McpJsonTargetUpdater.findLikelyMcpServerPath(
-            listOf(
-                "mcp_servers.github.url",
-                "mcp_servers.idea.url",
-            ),
-        )
+        val likelyPath =
+            McpJsonTargetUpdater.findLikelyMcpServerPath(
+                listOf(
+                    "mcp_servers.github.url",
+                    "mcp_servers.idea.url",
+                )
+            )
 
         assertEquals("mcp_servers.idea.url", likelyPath)
     }
@@ -281,29 +322,35 @@ class McpJsonTargetUpdaterTest {
         val endpoints = McpServerEndpoints("http://localhost:63342/sse", 63342)
 
         assertEquals("http://localhost:63342/sse", McpServerTransport.SSE.urlFor(endpoints))
-        assertEquals("http://localhost:63342/stream", McpServerTransport.STREAMABLE_HTTP.urlFor(endpoints))
+        assertEquals(
+            "http://localhost:63342/stream",
+            McpServerTransport.STREAMABLE_HTTP.urlFor(endpoints),
+        )
         assertEquals(
             "http://127.0.0.1:64342/stream",
             McpServerTransport.STREAMABLE_HTTP.urlFor(
-                endpoints.copy(streamUrl = "http://127.0.0.1:64342/stream"),
+                endpoints.copy(streamUrl = "http://127.0.0.1:64342/stream")
             ),
         )
     }
 
     @Test
     fun tomlDotPathUpdatesNestedValueAndPreservesSiblings() {
-        val updated = McpTomlTargetUpdater().updateContent(
-            """
-            model = "gpt-5.4"
-            [mcp_servers.idea]
-            url = "http://127.0.0.1:1/stream"
+        val updated =
+            McpTomlTargetUpdater()
+                .updateContent(
+                    """
+                    model = "gpt-5.4"
+                    [mcp_servers.idea]
+                    url = "http://127.0.0.1:1/stream"
 
-            [projects."/Users/moritz/Desktop/git/pebble"]
-            trust_level = "trusted"
-            """.trimIndent(),
-            "mcp_servers.idea.url",
-            "http://127.0.0.1:64342/stream",
-        )
+                    [projects."/Users/moritz/Desktop/git/pebble"]
+                    trust_level = "trusted"
+                    """
+                        .trimIndent(),
+                    "mcp_servers.idea.url",
+                    "http://127.0.0.1:64342/stream",
+                )
 
         assertEquals(
             """
@@ -313,23 +360,27 @@ class McpJsonTargetUpdaterTest {
 
             [projects."/Users/moritz/Desktop/git/pebble"]
             trust_level = "trusted"
-            """.trimIndent(),
+            """
+                .trimIndent(),
             updated,
         )
     }
 
     @Test
     fun tomlUpdatePreservesExistingFormattingOutsideTargetValue() {
-        val updated = McpTomlTargetUpdater().updateContent(
-            """
-            model = "gpt-5.4"
-            [mcp_servers.idea]
-            url    = "http://127.0.0.1:1/stream" # keep comment
-            name = "IntelliJ"
-            """.trimIndent(),
-            "mcp_servers.idea.url",
-            "http://127.0.0.1:64342/stream",
-        )
+        val updated =
+            McpTomlTargetUpdater()
+                .updateContent(
+                    """
+                    model = "gpt-5.4"
+                    [mcp_servers.idea]
+                    url    = "http://127.0.0.1:1/stream" # keep comment
+                    name = "IntelliJ"
+                    """
+                        .trimIndent(),
+                    "mcp_servers.idea.url",
+                    "http://127.0.0.1:64342/stream",
+                )
 
         assertEquals(
             """
@@ -337,56 +388,65 @@ class McpJsonTargetUpdaterTest {
             [mcp_servers.idea]
             url    = "http://127.0.0.1:64342/stream" # keep comment
             name = "IntelliJ"
-            """.trimIndent(),
+            """
+                .trimIndent(),
             updated,
         )
     }
 
     @Test
     fun tomlNonStringPathIsRejected() {
-        val error = assertFailsWith<IllegalArgumentException> {
-            McpTomlTargetUpdater().updateContent(
-                """
-                [mcp_servers.idea]
-                url = true
-                """.trimIndent(),
-                "mcp_servers.idea.url",
-                "http://127.0.0.1:64342/stream",
-            )
-        }
+        val error =
+            assertFailsWith<IllegalArgumentException> {
+                McpTomlTargetUpdater()
+                    .updateContent(
+                        """
+                        [mcp_servers.idea]
+                        url = true
+                        """
+                            .trimIndent(),
+                        "mcp_servers.idea.url",
+                        "http://127.0.0.1:64342/stream",
+                    )
+            }
 
         assertEquals("TOML property path must point to a string value.", error.message)
     }
 
     @Test
     fun tomlStringPropertyPathsAreCollectedForChooser() {
-        val paths = McpTomlTargetUpdater.collectStringPropertyPaths(
-            """
-            model = "gpt-5.4"
-            [mcp_servers.idea]
-            url = "http://127.0.0.1:1/stream"
-            enabled = true
-            """.trimIndent(),
-        )
+        val paths =
+            McpTomlTargetUpdater.collectStringPropertyPaths(
+                """
+                model = "gpt-5.4"
+                [mcp_servers.idea]
+                url = "http://127.0.0.1:1/stream"
+                enabled = true
+                """
+                    .trimIndent()
+            )
 
         assertEquals(listOf("mcp_servers.idea.url", "model"), paths.sorted())
     }
 
     @Test
     fun yamlDotPathUpdatesNestedValueAndPreservesSiblings() {
-        val updated = McpYamlTargetUpdater().updateContent(
-            """
-            model: gpt-5.4
-            mcp_servers:
-              idea:
-                url: http://127.0.0.1:1/stream
-            projects:
-              /Users/moritz/Desktop/git/pebble:
-                trust_level: trusted
-            """.trimIndent(),
-            "mcp_servers.idea.url",
-            "http://127.0.0.1:64342/stream",
-        )
+        val updated =
+            McpYamlTargetUpdater()
+                .updateContent(
+                    """
+                    model: gpt-5.4
+                    mcp_servers:
+                      idea:
+                        url: http://127.0.0.1:1/stream
+                    projects:
+                      /Users/moritz/Desktop/git/pebble:
+                        trust_level: trusted
+                    """
+                        .trimIndent(),
+                    "mcp_servers.idea.url",
+                    "http://127.0.0.1:64342/stream",
+                )
 
         assertEquals(
             """
@@ -397,24 +457,28 @@ class McpJsonTargetUpdaterTest {
             projects:
               /Users/moritz/Desktop/git/pebble:
                 trust_level: trusted
-            """.trimIndent(),
+            """
+                .trimIndent(),
             updated,
         )
     }
 
     @Test
     fun yamlUpdatePreservesExistingFormattingOutsideTargetValue() {
-        val updated = McpYamlTargetUpdater().updateContent(
-            """
-            model: gpt-5.4
-            mcp_servers:
-              idea:
-                url: http://127.0.0.1:1/stream # keep comment
-                name: IntelliJ
-            """.trimIndent(),
-            "mcp_servers.idea.url",
-            "http://127.0.0.1:64342/stream",
-        )
+        val updated =
+            McpYamlTargetUpdater()
+                .updateContent(
+                    """
+                    model: gpt-5.4
+                    mcp_servers:
+                      idea:
+                        url: http://127.0.0.1:1/stream # keep comment
+                        name: IntelliJ
+                    """
+                        .trimIndent(),
+                    "mcp_servers.idea.url",
+                    "http://127.0.0.1:64342/stream",
+                )
 
         assertEquals(
             """
@@ -423,18 +487,21 @@ class McpJsonTargetUpdaterTest {
               idea:
                 url: "http://127.0.0.1:64342/stream" # keep comment
                 name: IntelliJ
-            """.trimIndent(),
+            """
+                .trimIndent(),
             updated,
         )
     }
 
     @Test
     fun yamlUpdatePreservesCrlfLineEndings() {
-        val updated = McpYamlTargetUpdater().updateContent(
-            "mcp_servers:\r\n  idea:\r\n    url: http://127.0.0.1:1/stream\r\n",
-            "mcp_servers.idea.url",
-            "http://127.0.0.1:64342/stream",
-        )
+        val updated =
+            McpYamlTargetUpdater()
+                .updateContent(
+                    "mcp_servers:\r\n  idea:\r\n    url: http://127.0.0.1:1/stream\r\n",
+                    "mcp_servers.idea.url",
+                    "http://127.0.0.1:64342/stream",
+                )
 
         assertTrue(updated.contains("\r\n"))
         assertTrue(updated.contains("http://127.0.0.1:64342/stream"))
@@ -443,32 +510,37 @@ class McpJsonTargetUpdaterTest {
 
     @Test
     fun yamlNonStringPathIsRejected() {
-        val error = assertFailsWith<IllegalArgumentException> {
-            McpYamlTargetUpdater().updateContent(
-                """
-                mcp_servers:
-                  idea:
-                    url: true
-                """.trimIndent(),
-                "mcp_servers.idea.url",
-                "http://127.0.0.1:64342/stream",
-            )
-        }
+        val error =
+            assertFailsWith<IllegalArgumentException> {
+                McpYamlTargetUpdater()
+                    .updateContent(
+                        """
+                        mcp_servers:
+                          idea:
+                            url: true
+                        """
+                            .trimIndent(),
+                        "mcp_servers.idea.url",
+                        "http://127.0.0.1:64342/stream",
+                    )
+            }
 
         assertEquals("YAML property path must point to a string value.", error.message)
     }
 
     @Test
     fun yamlStringPropertyPathsAreCollectedForChooser() {
-        val paths = McpYamlTargetUpdater.collectStringPropertyPaths(
-            """
-            model: gpt-5.4
-            mcp_servers:
-              idea:
-                url: http://127.0.0.1:1/stream
-                enabled: true
-            """.trimIndent(),
-        )
+        val paths =
+            McpYamlTargetUpdater.collectStringPropertyPaths(
+                """
+                model: gpt-5.4
+                mcp_servers:
+                  idea:
+                    url: http://127.0.0.1:1/stream
+                    enabled: true
+                """
+                    .trimIndent()
+            )
 
         assertEquals(listOf("mcp_servers.idea.url", "model"), paths.sorted())
     }

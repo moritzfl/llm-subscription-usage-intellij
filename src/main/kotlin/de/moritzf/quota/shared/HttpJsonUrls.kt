@@ -8,7 +8,8 @@ import kotlinx.serialization.json.contentOrNull
 
 internal object HttpJsonUrls {
     fun first(body: String): String? {
-        val root = runCatching { JsonSupport.json.parseToJsonElement(body) }.getOrNull() ?: return null
+        val root =
+            runCatching { JsonSupport.json.parseToJsonElement(body) }.getOrNull() ?: return null
         return first(root)
     }
 

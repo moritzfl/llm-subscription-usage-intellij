@@ -13,6 +13,7 @@
 
 ## Validation
 
+- Format Kotlin sources and Gradle Kotlin scripts with `./gradlew ktfmtFormat` (KotlinLang style). `./gradlew ktfmtCheck` verifies formatting and is included in `check` and CI.
 - Use focused tests during edits, for example `./gradlew test --tests some.TestName`.
 - Before committing broad changes, run `./gradlew test`, `./gradlew verifyPlugin`, `./gradlew buildPlugin`, and `rtk git diff --check`.
 - `verifyPlugin` warnings for `IntelliJVirtualThreads.ofVirtual()` are expected unless production runtime actually changed.

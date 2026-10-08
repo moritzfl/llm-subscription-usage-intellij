@@ -50,17 +50,26 @@ internal object DocumentModels {
     fun isZaiOcrModel(id: String): Boolean = id.trim().startsWith("glm-ocr", ignoreCase = true)
 
     /** Proxy catalog minus the reserve hop. Codex has no usable live model list. */
-    fun openAiVisionModels(advertised: List<String>): List<String> =
-        advertised.filter { it.isNotBlank() && it != "gpt-reserve" }
+    fun openAiVisionModels(advertised: List<String>): List<String> = advertised.filter {
+        it.isNotBlank() && it != "gpt-reserve"
+    }
 
-    fun prefixedChoices(discovered: List<String>, saved: String?, defaultModel: String, accept: (String) -> Boolean): List<String> {
-        val ids = (discovered + listOfNotNull(saved?.trim()?.takeIf { it.isNotEmpty() }))
-            .map { it.trim() }
-            .filter(accept)
-            .distinct()
+    fun prefixedChoices(
+        discovered: List<String>,
+        saved: String?,
+        defaultModel: String,
+        accept: (String) -> Boolean,
+    ): List<String> {
+        val ids =
+            (discovered + listOfNotNull(saved?.trim()?.takeIf { it.isNotEmpty() }))
+                .map { it.trim() }
+                .filter(accept)
+                .distinct()
         if (ids.isEmpty()) return listOf(defaultModel)
         val rest = ids.filter { !it.equals(defaultModel, ignoreCase = true) }.sortedDescending()
-        return if (ids.any { it.equals(defaultModel, ignoreCase = true) }) listOf(defaultModel) + rest else rest
+        return if (ids.any { it.equals(defaultModel, ignoreCase = true) })
+            listOf(defaultModel) + rest
+        else rest
     }
 
     fun resolveDetected(saved: String?, defaultModel: String, accept: (String) -> Boolean): String {
@@ -83,7 +92,8 @@ internal object DocumentModels {
         listOf(OFF) + choices.map { it.trim() }.filter { it.isNotEmpty() && it != OFF }.distinct()
 
     fun differs(selected: String?, saved: String?, defaultModel: String): Boolean =
-        storedSelection(selected, defaultModel).orEmpty() != storedSelection(saved, defaultModel).orEmpty()
+        storedSelection(selected, defaultModel).orEmpty() !=
+            storedSelection(saved, defaultModel).orEmpty()
 
     /** Discovered text models. grok-4.7 is only the fallback when discovery is empty. */
     fun superGrokChoices(discovered: List<String>, saved: String?): List<String> =
@@ -97,24 +107,28 @@ internal object DocumentModels {
     fun parseModelIds(body: String): List<String> = parseModelEntries(body).map { it.id }
 
     /**
-     * Chat models whose capability flags report image input (`vision` + `completion_chat`).
-     * Falls back to every discovered id when the provider sends no capability flags, so a
-     * capabilities change cannot empty the vision picker.
+     * Chat models whose capability flags report image input (`vision` + `completion_chat`). Falls
+     * back to every discovered id when the provider sends no capability flags, so a capabilities
+     * change cannot empty the vision picker.
      */
     fun parseVisionModelIds(body: String): List<String> {
         val entries = parseModelEntries(body)
         if (entries.none { it.item["capabilities"] is JsonObject }) return entries.map { it.id }
         return entries.mapNotNull { entry ->
             val capabilities = entry.item["capabilities"] as? JsonObject ?: return@mapNotNull null
-            if (capabilities.booleanValue("vision") && capabilities.booleanValue("completion_chat")) entry.id else null
+            if (capabilities.booleanValue("vision") && capabilities.booleanValue("completion_chat"))
+                entry.id
+            else null
         }
     }
 
     fun parseSuperGrokDocumentModelIds(body: String): List<String> {
-        return parseModelEntries(body).mapNotNull { entry ->
-            if (!isSuperGrokTextModel(entry.id, entry.item)) return@mapNotNull null
-            entry.id
-        }.distinct()
+        return parseModelEntries(body)
+            .mapNotNull { entry ->
+                if (!isSuperGrokTextModel(entry.id, entry.item)) return@mapNotNull null
+                entry.id
+            }
+            .distinct()
     }
 
     fun fetchModelIds(uri: URI, bearer: String): List<String> {
@@ -125,17 +139,22 @@ internal object DocumentModels {
     fun fetchModelBody(uri: URI, bearer: String): String? {
         val token = bearer.trim()
         if (token.isEmpty()) return null
-        val request = HttpRequest.newBuilder(uri)
-            .timeout(Duration.ofSeconds(30))
-            .header("Authorization", "Bearer $token")
-            .header("Accept", "application/json")
-            .header("User-Agent", "openai-usage-quota-intellij")
-            .GET()
-            .build()
-        val response = runCatching {
-            HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build()
-                .send(request, HttpResponse.BodyHandlers.ofString())
-        }.getOrNull() ?: return null
+        val request =
+            HttpRequest.newBuilder(uri)
+                .timeout(Duration.ofSeconds(30))
+                .header("Authorization", "Bearer $token")
+                .header("Accept", "application/json")
+                .header("User-Agent", "openai-usage-quota-intellij")
+                .GET()
+                .build()
+        val response =
+            runCatching {
+                HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(30))
+                    .build()
+                    .send(request, HttpResponse.BodyHandlers.ofString())
+            }
+                .getOrNull() ?: return null
         if (response.statusCode() !in 200..299) return null
         return response.body()
     }
@@ -143,18 +162,22 @@ internal object DocumentModels {
     private data class ModelEntry(val id: String, val item: JsonObject)
 
     private fun parseModelEntries(body: String): List<ModelEntry> {
-        val root = runCatching { JsonSupport.json.parseToJsonElement(body) as? JsonObject }.getOrNull() ?: return emptyList()
+        val root =
+            runCatching { JsonSupport.json.parseToJsonElement(body) as? JsonObject }.getOrNull()
+                ?: return emptyList()
         val data = root["data"] as? JsonArray ?: root["models"] as? JsonArray ?: return emptyList()
         return data.mapNotNull { element ->
             val item = element as? JsonObject ?: return@mapNotNull null
-            val id = (item["id"] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
-                ?: return@mapNotNull null
+            val id =
+                (item["id"] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: return@mapNotNull null
             ModelEntry(id, item)
         }
     }
 
     private fun isSuperGrokTextModel(id: String, item: JsonObject): Boolean {
-        if (item["prompt_text_token_price"] != null || item["completion_text_token_price"] != null) return true
+        if (item["prompt_text_token_price"] != null || item["completion_text_token_price"] != null)
+            return true
         if (item["image_price"] != null || id.contains("imagine", ignoreCase = true)) return false
         return true
     }

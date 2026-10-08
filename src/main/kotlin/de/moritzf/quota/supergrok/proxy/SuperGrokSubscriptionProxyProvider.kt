@@ -29,32 +29,33 @@ import kotlinx.serialization.json.contentOrNull
 class SuperGrokSubscriptionProxyProvider(
     private val accessTokenProvider: () -> String?,
     private val tokenRefresher: (staleAccessToken: String?) -> String? = { null },
-    private val httpClient: HttpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(30))
-        .build(),
+    private val httpClient: HttpClient =
+        HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build(),
     private val upstreamBaseUri: URI = DEFAULT_UPSTREAM_BASE_URI,
     fullRequestLogging: Boolean = false,
     requestLogDir: String = DEFAULT_REQUEST_LOG_DIR,
     private val modelCacheTtl: kotlin.time.Duration = CACHE_TTL,
 ) : SubscriptionProxyProvider {
-    private val delegate = PassThroughSubscriptionProxyProvider(
-        id = ID,
-        displayName = DISPLAY_NAME,
-        litellmProvider = LITELLM_PROVIDER,
-        baseUri = upstreamBaseUri,
-        accessTokenProvider = accessTokenProvider,
-        tokenRefresher = tokenRefresher,
-        modelMappingsProvider = ::modelMappings,
-        defaultHeaders = mapOf(
-            "Accept" to "application/json",
-            "User-Agent" to "openai-usage-quota-intellij",
-        ),
-        requestBodyTransformer = ::requestBody,
-        requestHeadersProvider = ::cacheHeaders,
-        jsonResponseTransformer = ::jsonResponse,
-        httpClient = httpClient,
-        requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir)),
-    )
+    private val delegate =
+        PassThroughSubscriptionProxyProvider(
+            id = ID,
+            displayName = DISPLAY_NAME,
+            litellmProvider = LITELLM_PROVIDER,
+            baseUri = upstreamBaseUri,
+            accessTokenProvider = accessTokenProvider,
+            tokenRefresher = tokenRefresher,
+            modelMappingsProvider = ::modelMappings,
+            defaultHeaders =
+                mapOf(
+                    "Accept" to "application/json",
+                    "User-Agent" to "openai-usage-quota-intellij",
+                ),
+            requestBodyTransformer = ::requestBody,
+            requestHeadersProvider = ::cacheHeaders,
+            jsonResponseTransformer = ::jsonResponse,
+            httpClient = httpClient,
+            requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir)),
+        )
 
     @Volatile private var modelCache: ModelCache? = null
 
@@ -65,12 +66,16 @@ class SuperGrokSubscriptionProxyProvider(
 
     override fun models() = delegate.models()
 
-    override fun fallbackModel(localId: String, route: SubscriptionProxyRoute): SubscriptionProxyModel? {
+    override fun fallbackModel(
+        localId: String,
+        route: SubscriptionProxyRoute,
+    ): SubscriptionProxyModel? {
         if (route !in SUPPORTED_ROUTES) return null
-        val upstreamId = localId.trim()
-            .takeIf { it.startsWith(PREFIX) && it.length > PREFIX.length }
-            ?.removePrefix(PREFIX)
-            ?: return null
+        val upstreamId =
+            localId
+                .trim()
+                .takeIf { it.startsWith(PREFIX) && it.length > PREFIX.length }
+                ?.removePrefix(PREFIX) ?: return null
         if (upstreamId.contains("imagine", ignoreCase = true)) return null
         return SubscriptionProxyModel(
             localId = localId,
@@ -85,7 +90,10 @@ class SuperGrokSubscriptionProxyProvider(
         )
     }
 
-    override suspend fun handle(ctx: de.moritzf.proxy.server.ProxyCall, request: SubscriptionProxyRequest) {
+    override suspend fun handle(
+        ctx: de.moritzf.proxy.server.ProxyCall,
+        request: SubscriptionProxyRequest,
+    ) {
         delegate.handle(ctx, request)
     }
 
@@ -109,7 +117,8 @@ class SuperGrokSubscriptionProxyProvider(
     private fun requestBody(request: SubscriptionProxyRequest, body: JsonObject): JsonObject {
         var next = body
         if (next["prompt_cache_key"] != null) next = next.remove("prompt_cache_key")
-        if (request.route != SubscriptionProxyRoute.CHAT_COMPLETIONS || next["stop"] == null) return next
+        if (request.route != SubscriptionProxyRoute.CHAT_COMPLETIONS || next["stop"] == null)
+            return next
         return next.remove("stop")
     }
 
@@ -133,23 +142,29 @@ class SuperGrokSubscriptionProxyProvider(
     }
 
     private fun fetchModels(token: String): List<RemoteModel> {
-        val request = HttpRequest.newBuilder(URI.create(UrlResolver.resolveTargetUrl("/models", upstreamBaseUri.toString())))
-            .timeout(Duration.ofSeconds(30))
-            .header("Authorization", "Bearer $token")
-            .header("Accept", "application/json")
-            .header("User-Agent", "openai-usage-quota-intellij")
-            .GET()
-            .build()
+        val request =
+            HttpRequest.newBuilder(
+                    URI.create(UrlResolver.resolveTargetUrl("/models", upstreamBaseUri.toString()))
+                )
+                .timeout(Duration.ofSeconds(30))
+                .header("Authorization", "Bearer $token")
+                .header("Accept", "application/json")
+                .header("User-Agent", "openai-usage-quota-intellij")
+                .GET()
+                .build()
         val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         if (response.statusCode() !in 200..299) return emptyList()
-        val root = JsonHelper.parseToJsonElementOrNull(response.body()) as? JsonObject ?: return emptyList()
+        val root =
+            JsonHelper.parseToJsonElementOrNull(response.body()) as? JsonObject
+                ?: return emptyList()
         val data = root["data"] as? JsonArray ?: return emptyList()
         return data.mapNotNull { parseRemoteModel(it) }.distinctBy { it.id }
     }
 
     private fun parseRemoteModel(element: JsonElement): RemoteModel? {
         val item = element as? JsonObject ?: return null
-        val id = (item["id"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() } ?: return null
+        val id =
+            (item["id"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() } ?: return null
         if (!supportsTextInference(id, item)) return null
         return RemoteModel(
             id = id,
@@ -167,7 +182,9 @@ class SuperGrokSubscriptionProxyProvider(
     }
 
     private fun supportsTextInference(id: String, item: JsonObject): Boolean {
-        if (item["prompt_text_token_price"] != null || item["completion_text_token_price"] != null) {
+        if (
+            item["prompt_text_token_price"] != null || item["completion_text_token_price"] != null
+        ) {
             return true
         }
         if (item["image_price"] != null || id.contains("imagine", ignoreCase = true)) {
@@ -186,11 +203,13 @@ class SuperGrokSubscriptionProxyProvider(
         const val PREFIX = "sg-"
         private const val DISPLAY_NAME = "SuperGrok"
         private const val LITELLM_PROVIDER = "xai"
-        private val SUPPORTED_ROUTES = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, SubscriptionProxyRoute.RESPONSES)
+        private val SUPPORTED_ROUTES =
+            setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, SubscriptionProxyRoute.RESPONSES)
         val DEFAULT_UPSTREAM_BASE_URI: URI = URI.create("https://api.x.ai/v1")
         private val CACHE_TTL = 5.minutes
-        private val DEFAULT_REQUEST_LOG_DIR = System.getProperty("java.io.tmpdir") +
-            "/openai-usage-quota-intellij/subscription-proxy-supergrok-requests"
+        private val DEFAULT_REQUEST_LOG_DIR =
+            System.getProperty("java.io.tmpdir") +
+                "/openai-usage-quota-intellij/subscription-proxy-supergrok-requests"
 
         private fun String?.trimmedOrNull(): String? = this?.trim()?.takeIf { it.isNotBlank() }
     }

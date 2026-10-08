@@ -8,7 +8,8 @@ import kotlin.test.assertNotNull
 class ZaiQuotaClientTest {
     @Test
     fun parseQuotaExtractsPlanSessionWeeklyAndWebSearches() {
-        val subscriptionJson = """
+        val subscriptionJson =
+            """
             {
               "code": 200,
               "success": true,
@@ -20,8 +21,10 @@ class ZaiQuotaClientTest {
                 }
               ]
             }
-        """.trimIndent()
-        val quotaJson = """
+            """
+                .trimIndent()
+        val quotaJson =
+            """
             {
               "code": 200,
               "success": true,
@@ -56,7 +59,8 @@ class ZaiQuotaClientTest {
                 ]
               }
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = ZaiQuotaClient.parseQuota(subscriptionJson, quotaJson)
 
@@ -78,7 +82,8 @@ class ZaiQuotaClientTest {
     @Test
     fun parseQuotaMapsUnitOneAsDaysAndSortsTokenWindows() {
         val subscriptionJson = """{"success":true,"data":[]}"""
-        val quotaJson = """
+        val quotaJson =
+            """
             {
               "success": true,
               "data": {
@@ -102,7 +107,8 @@ class ZaiQuotaClientTest {
                 ]
               }
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = ZaiQuotaClient.parseQuota(subscriptionJson, quotaJson)
 
@@ -113,7 +119,8 @@ class ZaiQuotaClientTest {
     @Test
     fun parseQuotaComputesPercentageWhenMissing() {
         val subscriptionJson = """{"success":true,"data":[]}"""
-        val quotaJson = """
+        val quotaJson =
+            """
             {
               "success": true,
               "data": {
@@ -128,7 +135,8 @@ class ZaiQuotaClientTest {
                 ]
               }
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = ZaiQuotaClient.parseQuota(subscriptionJson, quotaJson)
 
@@ -138,7 +146,8 @@ class ZaiQuotaClientTest {
     @Test
     fun parseQuotaKeepsUsageWhenSubscriptionDocumentIsMalformed() {
         val subscriptionJson = """{"data": "reshaped-to-a-string"}"""
-        val quotaJson = """
+        val quotaJson =
+            """
             {
               "success": true,
               "data": {
@@ -153,7 +162,8 @@ class ZaiQuotaClientTest {
                 ]
               }
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = ZaiQuotaClient.parseQuota(subscriptionJson, quotaJson)
 
@@ -163,25 +173,30 @@ class ZaiQuotaClientTest {
 
     @Test
     fun parseQuotaReportsMissingCodingPlan() {
-        val subscriptionJson = """
+        val subscriptionJson =
+            """
             {
               "code": 200,
               "msg": "Operation successful",
               "data": [],
               "success": true
             }
-        """.trimIndent()
-        val quotaJson = """
+            """
+                .trimIndent()
+        val quotaJson =
+            """
             {
               "code": 500,
               "msg": "当前用户不存在coding plan",
               "success": false
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
-        val exception = assertFailsWith<ZaiQuotaException> {
-            ZaiQuotaClient.parseQuota(subscriptionJson, quotaJson)
-        }
+        val exception =
+            assertFailsWith<ZaiQuotaException> {
+                ZaiQuotaClient.parseQuota(subscriptionJson, quotaJson)
+            }
 
         assertEquals("No active Z.ai coding plan found.", exception.message)
         assertEquals(500, exception.statusCode)

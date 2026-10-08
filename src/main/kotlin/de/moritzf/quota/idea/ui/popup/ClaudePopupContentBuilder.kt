@@ -14,13 +14,17 @@ import kotlin.math.roundToInt
 internal class ClaudePopupSection : ProviderPopupSection() {
     private val separator = createSeparatedBlock()
     private val errorLabel = createWarningLabel("").apply { border = JBUI.Borders.emptyTop(1) }
-    private val titleLabel = createSectionTitleLabel("Claude", QuotaIcons.CLAUDE).apply { border = JBUI.Borders.emptyTop(0) }
+    private val titleLabel =
+        createSectionTitleLabel("Claude", QuotaIcons.CLAUDE).apply {
+            border = JBUI.Borders.emptyTop(0)
+        }
     private val fiveHourBlock = WindowBlockPanel(3)
     private val weeklyBlock = WindowBlockPanel(5)
     private val modelBlock = WindowBlockPanel(5)
-    private val scopedLimitsPanel = JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)).apply {
-        isOpaque = false
-    }
+    private val scopedLimitsPanel =
+        JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)).apply {
+            isOpaque = false
+        }
     private val routinesBlock = WindowBlockPanel(5)
     private val extraBlock = WindowBlockPanel(5)
 
@@ -61,15 +65,15 @@ internal class ClaudePopupSection : ProviderPopupSection() {
             }
             else -> {
                 val primary = quota.primaryWindow()
-                val limitReached = (
-                    listOfNotNull(
-                        quota.fiveHourUsage,
-                        quota.sevenDayUsage,
-                        quota.sevenDaySonnetUsage,
-                        quota.sevenDayOpusUsage,
-                        quota.routinesUsage,
-                    ) + quota.scopedLimits
-                    ).any { it.usagePercent >= 100.0 }
+                val limitReached =
+                    (listOfNotNull(
+                            quota.fiveHourUsage,
+                            quota.sevenDayUsage,
+                            quota.sevenDaySonnetUsage,
+                            quota.sevenDayOpusUsage,
+                            quota.routinesUsage,
+                        ) + quota.scopedLimits)
+                        .any { it.usagePercent >= 100.0 }
                 errorLabel.isVisible = limitReached
                 if (limitReached) {
                     errorLabel.text = "Claude limit reached"
@@ -77,24 +81,29 @@ internal class ClaudePopupSection : ProviderPopupSection() {
                 titleLabel.isVisible = true
                 titleLabel.text = sectionTitle("Claude", quota.plan.takeIf { it.isNotBlank() })
 
-                quota.fiveHourUsage?.let { fiveHourBlock.updateClaude(it, "5-hour") } ?: fiveHourBlock.clear()
-                quota.sevenDayUsage?.let { weeklyBlock.updateClaude(it, "Weekly") } ?: weeklyBlock.clear()
+                quota.fiveHourUsage?.let { fiveHourBlock.updateClaude(it, "5-hour") }
+                    ?: fiveHourBlock.clear()
+                quota.sevenDayUsage?.let { weeklyBlock.updateClaude(it, "Weekly") }
+                    ?: weeklyBlock.clear()
                 val modelWindow = quota.sevenDaySonnetUsage ?: quota.sevenDayOpusUsage
-                modelWindow?.let { modelBlock.updateClaude(it, it.label.ifBlank { "Model weekly" }) }
-                    ?: modelBlock.clear()
+                modelWindow?.let {
+                    modelBlock.updateClaude(it, it.label.ifBlank { "Model weekly" })
+                } ?: modelBlock.clear()
                 updateScopedLimits(quota.scopedLimits)
-                quota.routinesUsage?.let { routinesBlock.updateClaude(it, "Daily Routines") } ?: routinesBlock.clear()
+                quota.routinesUsage?.let { routinesBlock.updateClaude(it, "Daily Routines") }
+                    ?: routinesBlock.clear()
                 val extra = quota.extraUsage
                 if (extra?.isEnabled == true) {
                     val percent = extra.usagePercent?.roundToInt()?.let(::clampPercent) ?: 0
                     val used = extra.usedMajor
                     val limit = extra.monthlyLimitMajor
                     val currency = extra.currency?.takeIf { it.isNotBlank() } ?: "USD"
-                    val money = if (used != null && limit != null) {
-                        String.format("%.2f / %.2f %s", used, limit, currency)
-                    } else {
-                        null
-                    }
+                    val money =
+                        if (used != null && limit != null) {
+                            String.format("%.2f / %.2f %s", used, limit, currency)
+                        } else {
+                            null
+                        }
                     var info = "$percent% used"
                     if (money != null) info += " • $money"
                     extraBlock.update("Extra usage", info, percent)

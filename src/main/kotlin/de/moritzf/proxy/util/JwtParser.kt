@@ -1,8 +1,10 @@
 package de.moritzf.proxy.util
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
+
 import java.nio.charset.StandardCharsets
 import java.util.Base64
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+
 object JwtParser {
     fun parseClaims(token: String?): JsonObject? {
         if (token == null || !token.contains('.')) {
@@ -25,12 +27,15 @@ object JwtParser {
             null
         }
     }
+
     fun deriveAccountId(idToken: String?): String? {
         val claims = parseClaims(idToken) ?: return null
         val authClaim = claims["https://api.openai.com/auth"]
         if (authClaim is JsonObject) {
             val accountId = authClaim["chatgpt_account_id"]
-            if (accountId is JsonPrimitive && accountId.isString && accountId.content.isNotEmpty()) {
+            if (
+                accountId is JsonPrimitive && accountId.isString && accountId.content.isNotEmpty()
+            ) {
                 return accountId.content
             }
         }

@@ -1,11 +1,9 @@
 package de.moritzf.quota.openai
 
-import kotlin.time.Instant
 import java.time.Duration
+import kotlin.time.Instant
 
-/**
- * Represents usage information for one quota window.
- */
+/** Represents usage information for one quota window. */
 class UsageWindow(
     var usedPercent: Double = 0.0,
     var windowDuration: Duration? = null,

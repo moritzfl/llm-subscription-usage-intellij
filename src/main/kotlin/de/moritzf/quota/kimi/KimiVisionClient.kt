@@ -24,35 +24,56 @@ open class KimiVisionClient(
         prompt: String,
         model: String,
     ): KimiVisionResult {
-        val trimmedPrompt = prompt.trim().ifBlank { throw KimiQuotaException("Image prompt is required.") }
-        val imageContent = VisionChat.chatImageContent(imageUrl, localFile)
-            ?: throw KimiQuotaException("Provide an image URL or a local image file.")
-        val selectedModel = model.trim().ifBlank { throw KimiQuotaException("Select a Kimi vision model in settings.") }
+        val trimmedPrompt =
+            prompt.trim().ifBlank { throw KimiQuotaException("Image prompt is required.") }
+        val imageContent =
+            VisionChat.chatImageContent(imageUrl, localFile)
+                ?: throw KimiQuotaException("Provide an image URL or a local image file.")
+        val selectedModel =
+            model.trim().ifBlank {
+                throw KimiQuotaException("Select a Kimi vision model in settings.")
+            }
 
         var usableCredentials = credentialRefresher.refreshIfNeeded(credentials)
-        var accessToken = usableCredentials.accessToken.ifBlank {
-            throw KimiQuotaException("Kimi login required. Log in from settings.")
-        }
+        var accessToken =
+            usableCredentials.accessToken.ifBlank {
+                throw KimiQuotaException("Kimi login required. Log in from settings.")
+            }
 
         var response = send(chatRequest(accessToken, selectedModel, imageContent, trimmedPrompt))
         if (response.statusCode().isUnauthorized()) {
-            usableCredentials = credentialRefresher.refresh(usableCredentials)
-                ?: throw KimiQuotaException("Session expired. Log in to Kimi again from settings.", response.statusCode(), response.body())
-            accessToken = usableCredentials.accessToken.ifBlank {
-                throw KimiQuotaException("Kimi login required. Log in from settings.")
-            }
+            usableCredentials =
+                credentialRefresher.refresh(usableCredentials)
+                    ?: throw KimiQuotaException(
+                        "Session expired. Log in to Kimi again from settings.",
+                        response.statusCode(),
+                        response.body(),
+                    )
+            accessToken =
+                usableCredentials.accessToken.ifBlank {
+                    throw KimiQuotaException("Kimi login required. Log in from settings.")
+                }
             response = send(chatRequest(accessToken, selectedModel, imageContent, trimmedPrompt))
         }
         val status = response.statusCode()
         val body = response.body()
         if (status == 401 || status == 403) {
-            throw KimiQuotaException("Session expired. Log in to Kimi again from settings.", status, body)
+            throw KimiQuotaException(
+                "Session expired. Log in to Kimi again from settings.",
+                status,
+                body,
+            )
         }
         if (status !in 200..299) {
-            throw KimiQuotaException("Kimi image analysis failed (HTTP $status). Try again later.", status, body)
+            throw KimiQuotaException(
+                "Kimi image analysis failed (HTTP $status). Try again later.",
+                status,
+                body,
+            )
         }
-        val answer = VisionChat.chatAnswer(body)
-            ?: throw KimiQuotaException("Kimi image analysis returned no output.", status, body)
+        val answer =
+            VisionChat.chatAnswer(body)
+                ?: throw KimiQuotaException("Kimi image analysis returned no output.", status, body)
         return KimiVisionResult(answer, usableCredentials)
     }
 
@@ -62,15 +83,22 @@ open class KimiVisionClient(
         imageContent: kotlinx.serialization.json.JsonObject,
         prompt: String,
     ): HttpRequest {
-        val builder = HttpRequest.newBuilder()
-            .uri(chatEndpoint)
-            .timeout(Duration.ofSeconds(180))
-            .header("Authorization", "Bearer $accessToken")
-            .header("Content-Type", "application/json")
-            .header("Accept", "application/json")
-            .header("User-Agent", USER_AGENT)
+        val builder =
+            HttpRequest.newBuilder()
+                .uri(chatEndpoint)
+                .timeout(Duration.ofSeconds(180))
+                .header("Authorization", "Bearer $accessToken")
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .header("User-Agent", USER_AGENT)
         KimiDeviceHeaders.all().forEach { (key, value) -> builder.header(key, value) }
-        return builder.POST(HttpRequest.BodyPublishers.ofString(VisionChat.chatRequestJson(model, imageContent, prompt))).build()
+        return builder
+            .POST(
+                HttpRequest.BodyPublishers.ofString(
+                    VisionChat.chatRequestJson(model, imageContent, prompt)
+                )
+            )
+            .build()
     }
 
     private fun send(request: HttpRequest): HttpResponse<String> {
@@ -99,9 +127,7 @@ open class KimiVisionClient(
         fun createDefault(): KimiVisionClient = KimiVisionClient()
 
         private fun defaultHttpClient(): HttpClient {
-            return HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(30))
-                .build()
+            return HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build()
         }
     }
 }

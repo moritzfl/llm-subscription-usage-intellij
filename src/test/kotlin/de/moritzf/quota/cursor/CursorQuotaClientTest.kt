@@ -1,18 +1,19 @@
 package de.moritzf.quota.cursor
 
 import de.moritzf.quota.shared.JsonSupport
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.time.Instant
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
 
 class CursorQuotaClientTest {
     @Test
     fun parseQuotaExtractsPlanAndSpendLimitUsage() {
-        val periodUsageJson = """
+        val periodUsageJson =
+            """
             {
               "billingCycleStart": "1768055295000",
               "billingCycleEnd": "1770733695000",
@@ -38,8 +39,10 @@ class CursorQuotaClientTest {
               "autoModelSelectedDisplayMessage": "You've used 65% of your included total usage",
               "namedModelSelectedDisplayMessage": "You've used 75% of your included API usage"
             }
-        """.trimIndent()
-        val planInfoJson = """
+            """
+                .trimIndent()
+        val planInfoJson =
+            """
             {
               "planInfo": {
                 "planName": "Team",
@@ -48,20 +51,24 @@ class CursorQuotaClientTest {
                 "billingCycleEnd": "1770733695000"
               }
             }
-        """.trimIndent()
-        val profileJson = """
+            """
+                .trimIndent()
+        val profileJson =
+            """
             {
               "membershipType": "enterprise",
               "isTeamMember": true
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
-        val quota = CursorQuotaClient.parseQuota(
-            periodUsageJson,
-            planInfoJson,
-            profileJson,
-            CursorAuth(accessToken = "token", email = "dev@example.com"),
-        )
+        val quota =
+            CursorQuotaClient.parseQuota(
+                periodUsageJson,
+                planInfoJson,
+                profileJson,
+                CursorAuth(accessToken = "token", email = "dev@example.com"),
+            )
 
         assertEquals("Team", quota.planName)
         assertEquals("dev@example.com", quota.email)
@@ -89,7 +96,8 @@ class CursorQuotaClientTest {
 
     @Test
     fun parseQuotaKeepsUsageWhenSupplementaryDocumentsAreMalformed() {
-        val periodUsageJson = """
+        val periodUsageJson =
+            """
             {
               "planUsage": {
                 "totalSpend": 4500,
@@ -100,14 +108,16 @@ class CursorQuotaClientTest {
               },
               "spendLimitUsage": {}
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
-        val quota = CursorQuotaClient.parseQuota(
-            periodUsageJson,
-            """{"planInfo": "reshaped-to-a-string"}""",
-            "not json at all",
-            CursorAuth(accessToken = "token", email = "dev@example.com"),
-        )
+        val quota =
+            CursorQuotaClient.parseQuota(
+                periodUsageJson,
+                """{"planInfo": "reshaped-to-a-string"}""",
+                "not json at all",
+                CursorAuth(accessToken = "token", email = "dev@example.com"),
+            )
 
         assertEquals(65.0, quota.planUsage?.totalPercentUsed)
         assertEquals("", quota.planName)
@@ -116,12 +126,14 @@ class CursorQuotaClientTest {
 
     @Test
     fun parseQuotaWithoutUsageThrows() {
-        val periodUsageJson = """
+        val periodUsageJson =
+            """
             {
               "planUsage": {},
               "spendLimitUsage": {}
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         assertFailsWith<CursorQuotaException> {
             CursorQuotaClient.parseQuota(periodUsageJson, null, null)
@@ -130,7 +142,8 @@ class CursorQuotaClientTest {
 
     @Test
     fun parseUsageSummaryExtractsModernAndLegacyUsage() {
-        val usageSummaryJson = """
+        val usageSummaryJson =
+            """
             {
               "billingCycleStart": "2026-02-01T00:00:00.000Z",
               "billingCycleEnd": "2026-03-01T00:00:00.000Z",
@@ -163,15 +176,19 @@ class CursorQuotaClientTest {
                 }
               }
             }
-        """.trimIndent()
-        val userInfoJson = """
+            """
+                .trimIndent()
+        val userInfoJson =
+            """
             {
               "email": "dev@example.com",
               "name": "Dev",
               "sub": "user_123"
             }
-        """.trimIndent()
-        val requestUsageJson = """
+            """
+                .trimIndent()
+        val requestUsageJson =
+            """
             {
               "gpt-4": {
                 "numRequests": 120,
@@ -180,9 +197,11 @@ class CursorQuotaClientTest {
               },
               "startOfMonth": "2026-02-01"
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
-        val quota = CursorQuotaClient.parseUsageSummary(usageSummaryJson, userInfoJson, requestUsageJson)
+        val quota =
+            CursorQuotaClient.parseUsageSummary(usageSummaryJson, userInfoJson, requestUsageJson)
 
         assertEquals("dev@example.com", quota.email)
         assertEquals("team", quota.membershipType)
@@ -213,7 +232,8 @@ class CursorQuotaClientTest {
 
     @Test
     fun parseUsageSummaryKeepsUsageWhenSupplementaryDocumentsAreMalformed() {
-        val usageSummaryJson = """
+        val usageSummaryJson =
+            """
             {
               "membershipType": "team",
               "individualUsage": {
@@ -225,13 +245,15 @@ class CursorQuotaClientTest {
                 }
               }
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
-        val quota = CursorQuotaClient.parseUsageSummary(
-            usageSummaryJson,
-            """{"email": {"unexpected": "object"}}""",
-            "not json at all",
-        )
+        val quota =
+            CursorQuotaClient.parseUsageSummary(
+                usageSummaryJson,
+                """{"email": {"unexpected": "object"}}""",
+                "not json at all",
+            )
 
         assertEquals(12.5, quota.planUsage?.totalPercentUsed)
         assertEquals("team", quota.membershipType)
@@ -239,7 +261,8 @@ class CursorQuotaClientTest {
 
     @Test
     fun buildRawJsonPreservesStringEmbeddedPayload() {
-        val periodUsageJson = """{"displayMessage":"You've hit your usage limit","planUsage":{"totalPercentUsed":12}}"""
+        val periodUsageJson =
+            """{"displayMessage":"You've hit your usage limit","planUsage":{"totalPercentUsed":12}}"""
         val planInfoJson = """{"planInfo":{"planName":"Pro"}}"""
         val profileJson = """{"membershipType":"pro"}"""
 
@@ -253,18 +276,27 @@ class CursorQuotaClientTest {
 
     @Test
     fun normalizeRawJsonUpgradesLegacyStringEmbeddedPayload() {
-        val legacyJson = """
+        val legacyJson =
+            """
             {
               "periodUsage": "{\"displayMessage\":\"You've hit your usage limit\",\"planUsage\":{\"totalPercentUsed\":12}}",
               "planInfo": "{\"planInfo\":{\"planName\":\"Pro\"}}",
               "profile": "{\"membershipType\":\"pro\"}"
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val normalized = CursorQuotaClient.normalizeRawJson(legacyJson)
         val root = JsonSupport.json.parseToJsonElement(normalized).jsonObject
 
-        assertEquals("Pro", root["planInfo"]!!.jsonObject["planInfo"]!!.jsonObject["planName"]!!.toString().trim('"'))
+        assertEquals(
+            "Pro",
+            root["planInfo"]!!
+                .jsonObject["planInfo"]!!
+                .jsonObject["planName"]!!
+                .toString()
+                .trim('"'),
+        )
         assertEquals("pro", root["profile"]!!.jsonObject["membershipType"]!!.toString().trim('"'))
     }
 

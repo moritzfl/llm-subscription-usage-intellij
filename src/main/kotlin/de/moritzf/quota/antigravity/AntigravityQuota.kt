@@ -3,6 +3,8 @@ package de.moritzf.quota.antigravity
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.ProviderQuota
 import de.moritzf.quota.shared.lenientDoubleOrNull
+import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -11,8 +13,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
-import kotlin.time.Clock
-import kotlin.time.Instant
 
 @Serializable
 data class AntigravityQuota(
@@ -28,9 +28,12 @@ data class AntigravityQuota(
 
     override fun usageFraction(): Double? = primaryWindow()?.usagePercent?.div(100.0)
 
-    override fun activityWindows(): Map<String, Double> = windows.mapNotNull { window ->
-        window.usagePercent?.let { "${window.group}/${window.id}" to it / 100.0 }
-    }.toMap()
+    override fun activityWindows(): Map<String, Double> =
+        windows
+            .mapNotNull { window ->
+                window.usagePercent?.let { "${window.group}/${window.id}" to it / 100.0 }
+            }
+            .toMap()
 }
 
 @Serializable
@@ -43,22 +46,31 @@ data class AntigravityUsageWindow(
     val resetsAt: Instant? = null,
     val disabled: Boolean = false,
 ) {
-    val usagePercent: Double? get() = if (disabled) null else remainingFraction?.let { (1.0 - it) * 100.0 }
+    val usagePercent: Double?
+        get() = if (disabled) null else remainingFraction?.let { (1.0 - it) * 100.0 }
 }
 
 class AntigravityQuotaException(message: String) : Exception(message)
 
 /** Parse only the CLI's structured command report, never the model's response text. */
 internal fun parseAntigravityQuota(raw: String): AntigravityQuota {
-    val root = runCatching { JsonSupport.json.parseToJsonElement(raw) as? JsonObject }.getOrNull()
-        ?: throw AntigravityQuotaException("AGY returned invalid quota JSON. Update AGY and retry.")
+    val root =
+        runCatching { JsonSupport.json.parseToJsonElement(raw) as? JsonObject }.getOrNull()
+            ?: throw AntigravityQuotaException(
+                "AGY returned invalid quota JSON. Update AGY and retry."
+            )
     val command = root["command"] as? JsonObject
     if (root.text("status") != "SUCCESS" || command?.text("name") != "usage") {
-        throw AntigravityQuotaException("AGY did not return a successful usage report. Run agy to check your sign-in, then refresh.")
+        throw AntigravityQuotaException(
+            "AGY did not return a successful usage report. Run agy to check your sign-in, then refresh."
+        )
     }
     val data = command["data"] as? JsonObject
-    val groups = data?.get("groups") as? JsonArray
-        ?: throw AntigravityQuotaException("AGY returned no quota groups. Update AGY and retry.")
+    val groups =
+        data?.get("groups") as? JsonArray
+            ?: throw AntigravityQuotaException(
+                "AGY returned no quota groups. Update AGY and retry."
+            )
     val warnings = mutableListOf<String>()
     val windows = buildList {
         for (groupElement in groups) {
@@ -76,11 +88,17 @@ internal fun parseAntigravityQuota(raw: String): AntigravityQuota {
                     continue
                 }
                 val remainingValue = bucket["remaining_fraction"]
-                val remaining = remainingValue?.lenientDoubleOrNull()?.takeIf { it.isFinite() && it in 0.0..1.0 }
-                if (remainingValue.isPresent() && remaining == null) warnings += "Usage unavailable for $id."
+                val remaining =
+                    remainingValue?.lenientDoubleOrNull()?.takeIf {
+                        it.isFinite() && it in 0.0..1.0
+                    }
+                if (remainingValue.isPresent() && remaining == null)
+                    warnings += "Usage unavailable for $id."
                 val resetValue = bucket["reset_time"]
-                val reset = bucket.text("reset_time")?.let { runCatching { Instant.parse(it) }.getOrNull() }
-                if (resetValue.isPresent() && reset == null) warnings += "Reset time unavailable for $id."
+                val reset =
+                    bucket.text("reset_time")?.let { runCatching { Instant.parse(it) }.getOrNull() }
+                if (resetValue.isPresent() && reset == null)
+                    warnings += "Reset time unavailable for $id."
                 val disabledValue = bucket["disabled"]
                 val disabled = (disabledValue as? JsonPrimitive)?.booleanOrNull
                 if (disabledValue.isPresent() && disabled == null) {
@@ -92,15 +110,17 @@ internal fun parseAntigravityQuota(raw: String): AntigravityQuota {
                         group = group.text("name") ?: "Models",
                         label = bucket.text("name") ?: id,
                         window = bucket.text("window"),
-                        remainingFraction = if (disabledValue.isPresent() && disabled == null) null else remaining,
+                        remainingFraction =
+                            if (disabledValue.isPresent() && disabled == null) null else remaining,
                         resetsAt = reset,
                         disabled = disabled == true,
-                    ),
+                    )
                 )
             }
         }
     }
-    if (windows.isEmpty()) throw AntigravityQuotaException("AGY returned no readable quota windows.")
+    if (windows.isEmpty())
+        throw AntigravityQuotaException("AGY returned no readable quota windows.")
     return AntigravityQuota(windows, warnings.distinct(), Clock.System.now(), raw)
 }
 

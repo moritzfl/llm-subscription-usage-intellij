@@ -4,9 +4,7 @@ import de.moritzf.quota.shared.ProviderQuota
 import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 
-/**
- * Aggregates parsed Codex usage quota data returned by the backend.
- */
+/** Aggregates parsed Codex usage quota data returned by the backend. */
 @Serializable(with = OpenAiCodexQuotaSerializer::class)
 class OpenAiCodexQuota(
     var primary: UsageWindow? = null,
@@ -30,7 +28,11 @@ class OpenAiCodexQuota(
     var extraRateLimits: List<OpenAiExtraRateLimit> = emptyList(),
 ) : ProviderQuota {
     fun hasUsableWindows(): Boolean {
-        return primary != null || secondary != null || reviewPrimary != null || reviewSecondary != null || extraRateLimits.isNotEmpty()
+        return primary != null ||
+            secondary != null ||
+            reviewPrimary != null ||
+            reviewSecondary != null ||
+            extraRateLimits.isNotEmpty()
     }
 
     fun hasUnusedExtraRateLimits(): Boolean {
@@ -38,10 +40,13 @@ class OpenAiCodexQuota(
     }
 
     override fun usageFraction(): Double? {
-        val windows = listOfNotNull(
-            primary?.usedPercent, secondary?.usedPercent,
-            reviewPrimary?.usedPercent, reviewSecondary?.usedPercent,
-        ) + extraRateLimits.map { it.window.usedPercent }
+        val windows =
+            listOfNotNull(
+                primary?.usedPercent,
+                secondary?.usedPercent,
+                reviewPrimary?.usedPercent,
+                reviewSecondary?.usedPercent,
+            ) + extraRateLimits.map { it.window.usedPercent }
         return windows.maxOrNull()?.let { it / 100.0 }
     }
 

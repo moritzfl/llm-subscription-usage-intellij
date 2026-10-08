@@ -31,9 +31,7 @@ class OpenAiCodexSubscriptionProxyProvider(
     private val accessTokenProvider: () -> String?,
     accountIdProvider: () -> String?,
     tokenRefresher: (staleAccessToken: String?) -> String? = { null },
-    httpClient: HttpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(30))
-        .build(),
+    httpClient: HttpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build(),
     upstreamBaseUri: URI = OpenAiProxyServer.DEFAULT_UPSTREAM_BASE_URI,
     fullRequestLogging: Boolean = false,
     requestLogDir: String = DEFAULT_REQUEST_LOG_DIR,
@@ -41,40 +39,44 @@ class OpenAiCodexSubscriptionProxyProvider(
     override val id: String = "openai"
     override val displayName: String = "OpenAI/Codex"
 
-    private val config = ServerConfig(
-        ServerConfig.DEFAULT_HOST,
-        1,
-        OpenAiProxyServer.advertisedModels(),
-        null,
-        upstreamBaseUri.toString(),
-        ServerConfig.DEFAULT_CLIENT_ID,
-        null,
-        null,
-        DEFAULT_CODEX_INSTRUCTIONS,
-        false,
-        emptyMap(),
-        null,
-        false,
-        emptyList(),
-        fullRequestLogging,
-        requestLogDir,
-        false,
-        ServerConfig.DEFAULT_CODEX_INSTRUCTIONS_MODE,
-        null,
-        false,
-        false,
-    )
+    private val config =
+        ServerConfig(
+            ServerConfig.DEFAULT_HOST,
+            1,
+            OpenAiProxyServer.advertisedModels(),
+            null,
+            upstreamBaseUri.toString(),
+            ServerConfig.DEFAULT_CLIENT_ID,
+            null,
+            null,
+            DEFAULT_CODEX_INSTRUCTIONS,
+            false,
+            emptyMap(),
+            null,
+            false,
+            emptyList(),
+            fullRequestLogging,
+            requestLogDir,
+            false,
+            ServerConfig.DEFAULT_CODEX_INSTRUCTIONS_MODE,
+            null,
+            false,
+            false,
+        )
     private val requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir))
-    private val credentialsProvider = QuotaCodexCredentialsProvider(
-        accessTokenProvider,
-        accountIdProvider,
-        tokenRefresher,
-    )
+    private val credentialsProvider =
+        QuotaCodexCredentialsProvider(
+            accessTokenProvider,
+            accountIdProvider,
+            tokenRefresher,
+        )
     private val client = UnifiedCodexHttpClient(config, httpClient, credentialsProvider)
     private val instructionsProvider = CodexInstructionsProvider(DEFAULT_CODEX_INSTRUCTIONS)
     private val usageTracker = UsageTracker()
-    private val chatHandler = ChatCompletionsHandler(client, config, usageTracker, requestLogger, instructionsProvider)
-    private val responsesHandler = ResponsesHandler(client, config, usageTracker, requestLogger, instructionsProvider)
+    private val chatHandler =
+        ChatCompletionsHandler(client, config, usageTracker, requestLogger, instructionsProvider)
+    private val responsesHandler =
+        ResponsesHandler(client, config, usageTracker, requestLogger, instructionsProvider)
 
     override fun isConfigured(): Boolean = accessTokenProvider().trimmedOrNull() != null
 
@@ -87,7 +89,11 @@ class OpenAiCodexSubscriptionProxyProvider(
                 providerId = this.id,
                 providerName = displayName,
                 litellmProvider = LITELLM_PROVIDER,
-                supportedRoutes = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, SubscriptionProxyRoute.RESPONSES),
+                supportedRoutes =
+                    setOf(
+                        SubscriptionProxyRoute.CHAT_COMPLETIONS,
+                        SubscriptionProxyRoute.RESPONSES,
+                    ),
                 supportsFunctionCalling = true,
                 supportsParallelFunctionCalling = false,
                 supportsToolChoice = true,
@@ -100,12 +106,16 @@ class OpenAiCodexSubscriptionProxyProvider(
         }
     }
 
-    override fun fallbackModel(localId: String, route: SubscriptionProxyRoute): SubscriptionProxyModel? {
+    override fun fallbackModel(
+        localId: String,
+        route: SubscriptionProxyRoute,
+    ): SubscriptionProxyModel? {
         if (route !in SUPPORTED_ROUTES) return null
-        val upstreamId = localId.trim()
-            .takeIf { it.startsWith(PREFIX) && it.length > PREFIX.length }
-            ?.removePrefix(PREFIX)
-            ?: return null
+        val upstreamId =
+            localId
+                .trim()
+                .takeIf { it.startsWith(PREFIX) && it.length > PREFIX.length }
+                ?.removePrefix(PREFIX) ?: return null
         return SubscriptionProxyModel(
             localId = localId,
             upstreamId = upstreamId,
@@ -125,21 +135,25 @@ class OpenAiCodexSubscriptionProxyProvider(
     override suspend fun handle(ctx: ProxyCall, request: SubscriptionProxyRequest) {
         val upstreamBody = request.bodyWithUpstreamModel()
         when (request.route) {
-            SubscriptionProxyRoute.CHAT_COMPLETIONS -> chatHandler.handleParsed(ctx, request.requestId, upstreamBody)
-            SubscriptionProxyRoute.RESPONSES -> responsesHandler.handleParsed(ctx, request.requestId, upstreamBody)
-            SubscriptionProxyRoute.ANTHROPIC_MESSAGES -> JsonHelper.toErrorResponse(
-                ctx,
-                "OpenAI/Codex does not support /v1/messages.",
-                400,
-                "invalid_request_error",
-            )
+            SubscriptionProxyRoute.CHAT_COMPLETIONS ->
+                chatHandler.handleParsed(ctx, request.requestId, upstreamBody)
+            SubscriptionProxyRoute.RESPONSES ->
+                responsesHandler.handleParsed(ctx, request.requestId, upstreamBody)
+            SubscriptionProxyRoute.ANTHROPIC_MESSAGES ->
+                JsonHelper.toErrorResponse(
+                    ctx,
+                    "OpenAI/Codex does not support /v1/messages.",
+                    400,
+                    "invalid_request_error",
+                )
             SubscriptionProxyRoute.COMPLETIONS,
-            SubscriptionProxyRoute.FIM_COMPLETIONS -> JsonHelper.toErrorResponse(
-                ctx,
-                "OpenAI/Codex does not support native /v1/completions. Enable the chat-FIM adapter.",
-                400,
-                "invalid_request_error",
-            )
+            SubscriptionProxyRoute.FIM_COMPLETIONS ->
+                JsonHelper.toErrorResponse(
+                    ctx,
+                    "OpenAI/Codex does not support native /v1/completions. Enable the chat-FIM adapter.",
+                    400,
+                    "invalid_request_error",
+                )
         }
     }
 
@@ -176,7 +190,14 @@ class OpenAiCodexSubscriptionProxyProvider(
             requestId: String?,
             promptCacheKey: String?,
         ): HttpResponse<InputStream> {
-            return super.request(path, method, sanitizeResponsesBody(path, body), extraHeaders, requestId, promptCacheKey)
+            return super.request(
+                path,
+                method,
+                sanitizeResponsesBody(path, body),
+                extraHeaders,
+                requestId,
+                promptCacheKey,
+            )
         }
 
         @Throws(Exception::class)
@@ -186,7 +207,12 @@ class OpenAiCodexSubscriptionProxyProvider(
             body: String?,
             extraHeaders: Map<String, String>?,
         ): HttpResponse<String> {
-            return super.requestString(path, method, sanitizeResponsesBody(path, body), extraHeaders)
+            return super.requestString(
+                path,
+                method,
+                sanitizeResponsesBody(path, body),
+                extraHeaders,
+            )
         }
 
         private fun sanitizeResponsesBody(path: String, body: String?): String? {
@@ -197,7 +223,10 @@ class OpenAiCodexSubscriptionProxyProvider(
                 val root = JsonSupport.json.parseToJsonElement(body).jsonObject
                 val sanitized = buildJsonObject {
                     root.forEach { (key, value) ->
-                        if (key !in CODEX_OVERRIDDEN_RESPONSE_FIELDS && key !in CODEX_UNSUPPORTED_RESPONSE_FIELDS) {
+                        if (
+                            key !in CODEX_OVERRIDDEN_RESPONSE_FIELDS &&
+                                key !in CODEX_UNSUPPORTED_RESPONSE_FIELDS
+                        ) {
                             put(key, value)
                         }
                     }
@@ -205,7 +234,8 @@ class OpenAiCodexSubscriptionProxyProvider(
                     put("stream", true)
                 }
                 JsonSupport.json.encodeToString(JsonObject.serializer(), sanitized)
-            }.getOrElse { body }
+            }
+                .getOrElse { body }
         }
     }
 
@@ -213,14 +243,17 @@ class OpenAiCodexSubscriptionProxyProvider(
         private const val DEFAULT_CODEX_INSTRUCTIONS = "You are a coding assistant."
         const val PREFIX = "oa-"
         private const val LITELLM_PROVIDER = "openai-codex"
-        private val SUPPORTED_ROUTES = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, SubscriptionProxyRoute.RESPONSES)
-        private val DEFAULT_REQUEST_LOG_DIR = System.getProperty("java.io.tmpdir") +
-            "/openai-usage-quota-intellij/subscription-proxy-openai-requests"
+        private val SUPPORTED_ROUTES =
+            setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, SubscriptionProxyRoute.RESPONSES)
+        private val DEFAULT_REQUEST_LOG_DIR =
+            System.getProperty("java.io.tmpdir") +
+                "/openai-usage-quota-intellij/subscription-proxy-openai-requests"
         private val CODEX_OVERRIDDEN_RESPONSE_FIELDS = setOf("store", "stream")
-        private val CODEX_UNSUPPORTED_RESPONSE_FIELDS = setOf(
-            "max_output_tokens",
-            "temperature",
-        )
+        private val CODEX_UNSUPPORTED_RESPONSE_FIELDS =
+            setOf(
+                "max_output_tokens",
+                "temperature",
+            )
 
         private fun String?.trimmedOrNull(): String? = this?.trim()?.takeIf { it.isNotBlank() }
     }

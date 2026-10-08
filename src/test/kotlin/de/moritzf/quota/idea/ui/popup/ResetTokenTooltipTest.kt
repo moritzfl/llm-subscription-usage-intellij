@@ -14,10 +14,15 @@ class ResetTokenTooltipTest {
     fun listsRelativeExpirationsForEveryToken() {
         val now = Clock.System.now()
 
-        val tooltip = resetTokenTooltip(
-            "Redeem one Codex reset",
-            listOf(now + 3.days + 12.hours + 1.minutes, now + 2.hours + 30.minutes + 30.seconds, null),
-        )
+        val tooltip =
+            resetTokenTooltip(
+                "Redeem one Codex reset",
+                listOf(
+                    now + 3.days + 12.hours + 1.minutes,
+                    now + 2.hours + 30.minutes + 30.seconds,
+                    null,
+                ),
+            )
 
         assertEquals(
             "<html>Redeem one Codex reset" +
@@ -39,7 +44,8 @@ class ResetTokenTooltipTest {
 
     @Test
     fun escapesHtmlIncludingSubMinuteExpiration() {
-        val tooltip = resetTokenTooltip("Reset <test> & quota", listOf(Clock.System.now() + 30.seconds))
+        val tooltip =
+            resetTokenTooltip("Reset <test> & quota", listOf(Clock.System.now() + 30.seconds))
 
         assertTrue(tooltip.startsWith("<html>Reset &lt;test&gt; &amp; quota"))
         assertTrue(tooltip.contains("Token 1: Expires in &lt;1m"))

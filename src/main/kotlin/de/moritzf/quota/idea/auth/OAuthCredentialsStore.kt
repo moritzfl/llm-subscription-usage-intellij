@@ -9,29 +9,33 @@ import de.moritzf.quota.idea.common.CredentialStorage
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.shared.JsonSupport
 
-/**
- * Handles loading, saving, and clearing OAuth credentials in PasswordSafe.
- */
+/** Handles loading, saving, and clearing OAuth credentials in PasswordSafe. */
 class OAuthCredentialsStore(
     serviceName: String,
     private val userName: String,
     legacyServiceName: String? = null,
     legacyUserName: String? = null,
-    private val credentialReader: (CredentialAttributes) -> Credentials? = { PasswordSafe.instance.get(it) },
-    private val credentialWriter: (CredentialAttributes, Credentials?) -> Unit = { attributes, credentials ->
-        PasswordSafe.instance.set(attributes, credentials)
+    private val credentialReader: (CredentialAttributes) -> Credentials? = {
+        PasswordSafe.instance.get(it)
     },
-    override val coordinator: OAuthCredentialCoordinator = OAuthCredentialCoordinator(
-        PathManager.getCommonDataPath().resolve("llm-subscription-usage/oauth")
-            .resolve(OAuthCredentialCoordinator.hash(serviceName)),
-    ),
+    private val credentialWriter: (CredentialAttributes, Credentials?) -> Unit =
+        { attributes, credentials ->
+            PasswordSafe.instance.set(attributes, credentials)
+        },
+    override val coordinator: OAuthCredentialCoordinator =
+        OAuthCredentialCoordinator(
+            PathManager.getCommonDataPath()
+                .resolve("llm-subscription-usage/oauth")
+                .resolve(OAuthCredentialCoordinator.hash(serviceName))
+        ),
 ) : OAuthCredentialStore {
     private val attributes = CredentialAttributes(serviceName, userName)
-    private val legacyAttributes = if (legacyServiceName != null && legacyUserName != null) {
-        CredentialAttributes(legacyServiceName, legacyUserName)
-    } else {
-        null
-    }
+    private val legacyAttributes =
+        if (legacyServiceName != null && legacyUserName != null) {
+            CredentialAttributes(legacyServiceName, legacyUserName)
+        } else {
+            null
+        }
 
     override fun load(): OAuthCredentials? {
         val current = loadStoredCredentials(attributes, "stored")
@@ -69,20 +73,27 @@ class OAuthCredentialsStore(
         }
     }
 
-    private fun loadStoredCredentials(attributes: CredentialAttributes, source: String): StoredCredentials {
-        val stored = try {
-            credentialReader(attributes)
-        } catch (exception: Exception) {
-            LOG.warn("Failed to load $source OAuth credentials", exception)
-            throw IllegalStateException("Could not load $source OAuth credentials", exception)
-        } ?: return StoredCredentials(present = false, credentials = null)
+    private fun loadStoredCredentials(
+        attributes: CredentialAttributes,
+        source: String,
+    ): StoredCredentials {
+        val stored =
+            try {
+                credentialReader(attributes)
+            } catch (exception: Exception) {
+                LOG.warn("Failed to load $source OAuth credentials", exception)
+                throw IllegalStateException("Could not load $source OAuth credentials", exception)
+            } ?: return StoredCredentials(present = false, credentials = null)
         val json = stored.getPasswordAsString()
         if (json.isNullOrBlank() || json == CLEARED_MARKER) {
             return StoredCredentials(present = true, credentials = null)
         }
 
         return try {
-            StoredCredentials(present = true, credentials = JsonSupport.json.decodeFromString<OAuthCredentials>(json))
+            StoredCredentials(
+                present = true,
+                credentials = JsonSupport.json.decodeFromString<OAuthCredentials>(json),
+            )
         } catch (exception: Exception) {
             LOG.warn("Failed to parse $source OAuth credentials", exception)
             throw IllegalStateException("Could not parse $source OAuth credentials", exception)
@@ -109,8 +120,10 @@ class OAuthCredentialsStore(
             )
         }
 
-        internal fun serviceNameForProvider(type: QuotaProviderType): String = serviceNameForAccount(type.id)
+        internal fun serviceNameForProvider(type: QuotaProviderType): String =
+            serviceNameForAccount(type.id)
 
-        internal fun serviceNameForAccount(accountId: String): String = "$LEGACY_SERVICE_NAME ($accountId)"
+        internal fun serviceNameForAccount(accountId: String): String =
+            "$LEGACY_SERVICE_NAME ($accountId)"
     }
 }

@@ -10,24 +10,22 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.AlignY
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
-import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.auth.LoginResult
+import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
+import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.proxy.OpenAiProxyServer
-import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.shared.DocumentModels
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import javax.swing.JButton
 import javax.swing.JComponent
 
-/**
- * OpenAI Codex settings tab.
- */
+/** OpenAI Codex settings tab. */
 internal class OpenAiSettingsPanel(
-    private val modalityComponentProvider: () -> JComponent? = { null },
+    private val modalityComponentProvider: () -> JComponent? = { null }
 ) : ProviderSettingsPanel() {
     private val statusLabel = JBLabel().apply { isVisible = false }
     private val loginButton = createActionLink("Log In")
@@ -36,10 +34,11 @@ internal class OpenAiSettingsPanel(
     private val deviceLoginPanel = DeviceLoginPanel()
     private val cancelLoginButton = createActionLink("Cancel Login")
     private val logoutButton = createActionLink("Log Out")
-    private val copyUrlButton = JButton("Copy URL", AllIcons.Actions.Copy).apply {
-        isVisible = false
-        toolTipText = "Copy login URL to clipboard"
-    }
+    private val copyUrlButton =
+        JButton("Copy URL", AllIcons.Actions.Copy).apply {
+            isVisible = false
+            toolTipText = "Copy login URL to clipboard"
+        }
     private val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
     private val visionModelCombo = VisionModelCombo()
     private val accountIdField = JBTextField().apply { isEditable = false }
@@ -64,19 +63,33 @@ internal class OpenAiSettingsPanel(
             val authService = QuotaAuthService.getInstance()
             val accountId = accountKey()
             loginButton.isEnabled = false
-            authStatusMessage = AuthStatusMessage("Opening browser...", false, AuthStatusKind.PENDING)
+            authStatusMessage =
+                AuthStatusMessage("Opening browser...", false, AuthStatusKind.PENDING)
             updateAuthUi()
             authService.startLoginFlow(
                 accountId = accountId,
                 type = QuotaProviderType.OPEN_AI,
                 callback = { finishLogin(accountId, it) },
                 onAuthUrl = { url ->
-                    ApplicationManager.getApplication().invokeLater({
-                        if (accountKey() != accountId || !authService.isLoginInProgress(accountId, QuotaProviderType.OPEN_AI)) return@invokeLater
-                        authUrl = url
-                        copyUrlButton.isVisible = true
-                        onAuthUrlReceived?.invoke(url)
-                    }, ModalityState.stateForComponent(modalityComponentProvider() ?: this@OpenAiSettingsPanel))
+                    ApplicationManager.getApplication()
+                        .invokeLater(
+                            {
+                                if (
+                                    accountKey() != accountId ||
+                                        !authService.isLoginInProgress(
+                                            accountId,
+                                            QuotaProviderType.OPEN_AI,
+                                        )
+                                )
+                                    return@invokeLater
+                                authUrl = url
+                                copyUrlButton.isVisible = true
+                                onAuthUrlReceived?.invoke(url)
+                            },
+                            ModalityState.stateForComponent(
+                                modalityComponentProvider() ?: this@OpenAiSettingsPanel
+                            ),
+                        )
                 },
             )
             updateAuthUi()
@@ -84,15 +97,23 @@ internal class OpenAiSettingsPanel(
 
         deviceLoginButton.addActionListener {
             val accountId = accountKey()
-            authStatusMessage = AuthStatusMessage("Requesting device code...", kind = AuthStatusKind.PENDING)
-            QuotaAuthService.getInstance().startDeviceLoginFlow(
-                accountId, QuotaProviderType.OPEN_AI, { finishLogin(accountId, it) },
-                onPrompt = {
-                    ApplicationManager.getApplication().invokeLater({
-                        if (accountKey() == accountId) updateAuthUi()
-                    }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
-                },
-            )
+            authStatusMessage =
+                AuthStatusMessage("Requesting device code...", kind = AuthStatusKind.PENDING)
+            QuotaAuthService.getInstance()
+                .startDeviceLoginFlow(
+                    accountId,
+                    QuotaProviderType.OPEN_AI,
+                    { finishLogin(accountId, it) },
+                    onPrompt = {
+                        ApplicationManager.getApplication()
+                            .invokeLater(
+                                { if (accountKey() == accountId) updateAuthUi() },
+                                ModalityState.stateForComponent(
+                                    modalityComponentProvider() ?: this
+                                ),
+                            )
+                    },
+                )
             updateAuthUi()
         }
 
@@ -100,33 +121,49 @@ internal class OpenAiSettingsPanel(
             val accountId = accountKey()
             val dialog = OpenAiPersonalTokenDialog(modalityComponentProvider() ?: this)
             if (dialog.showAndGet()) {
-                authStatusMessage = AuthStatusMessage("Validating access token...", kind = AuthStatusKind.PENDING)
-                QuotaAuthService.getInstance().startPersonalTokenLogin(accountId, dialog.takeToken()) { finishLogin(accountId, it) }
+                authStatusMessage =
+                    AuthStatusMessage("Validating access token...", kind = AuthStatusKind.PENDING)
+                QuotaAuthService.getInstance().startPersonalTokenLogin(
+                    accountId,
+                    dialog.takeToken(),
+                ) {
+                    finishLogin(accountId, it)
+                }
                 updateAuthUi()
             }
         }
 
         cancelLoginButton.addActionListener {
-            val aborted = QuotaAuthService.getInstance().abortLogin(accountKey(), QuotaProviderType.OPEN_AI, "Login canceled")
-            authStatusMessage = AuthStatusMessage(
-                if (aborted) "Login canceled" else "No login in progress",
-                false,
-                if (aborted) AuthStatusKind.PENDING else AuthStatusKind.DISCONNECTED
-            )
+            val aborted =
+                QuotaAuthService.getInstance()
+                    .abortLogin(accountKey(), QuotaProviderType.OPEN_AI, "Login canceled")
+            authStatusMessage =
+                AuthStatusMessage(
+                    if (aborted) "Login canceled" else "No login in progress",
+                    false,
+                    if (aborted) AuthStatusKind.PENDING else AuthStatusKind.DISCONNECTED,
+                )
             updateAuthUi()
             onCancelLogin?.invoke()
         }
 
         logoutButton.addActionListener {
-            val cleared = QuotaAuthService.getInstance().clearCredentials(accountKey(), QuotaProviderType.OPEN_AI)
+            val cleared =
+                QuotaAuthService.getInstance()
+                    .clearCredentials(accountKey(), QuotaProviderType.OPEN_AI)
             if (cleared) {
                 QuotaUsageService.getInstance().clearUsageData(accountKey(), "Not logged in")
             }
-            authStatusMessage = if (cleared) {
-                AuthStatusMessage("Logged out", false, AuthStatusKind.DISCONNECTED)
-            } else {
-                AuthStatusMessage("Could not remove login from Password Safe", true, AuthStatusKind.CONNECTED)
-            }
+            authStatusMessage =
+                if (cleared) {
+                    AuthStatusMessage("Logged out", false, AuthStatusKind.DISCONNECTED)
+                } else {
+                    AuthStatusMessage(
+                        "Could not remove login from Password Safe",
+                        true,
+                        AuthStatusKind.CONNECTED,
+                    )
+                }
             updateAuthUi()
             updateAccountFields()
             if (cleared) {
@@ -150,26 +187,36 @@ internal class OpenAiSettingsPanel(
             }
             row { cell(deviceLoginPanel.component).align(AlignX.FILL).resizableColumn() }
             separator()
-            row("Account ID:") {
-                cell(accountIdField)
-                    .resizableColumn()
-                    .align(AlignX.FILL)
-            }
-            row("Email:") {
-                cell(emailField)
-                    .resizableColumn()
-                    .align(AlignX.FILL)
-            }
+            row("Account ID:") { cell(accountIdField).resizableColumn().align(AlignX.FILL) }
+            row("Email:") { cell(emailField).resizableColumn().align(AlignX.FILL) }
             row("Document model:") {
-                cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn().gap(RightGap.SMALL)
+                cell(documentModelCombo.combo)
+                    .align(AlignX.FILL)
+                    .resizableColumn()
+                    .gap(RightGap.SMALL)
                     .comment(DocumentModels.OFF_COMMENT)
                 cell(documentModelCombo.warning).align(AlignY.TOP)
-                cell(DocumentTestButton(de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.OPEN_AI, { documentModelCombo.selected().orEmpty() }, modalityComponentProvider, documentModelCombo.combo))
+                cell(
+                    DocumentTestButton(
+                        de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.OPEN_AI,
+                        { documentModelCombo.selected().orEmpty() },
+                        modalityComponentProvider,
+                        documentModelCombo.combo,
+                    )
+                )
             }
             row("Vision model:") {
-                cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
+                cell(visionModelCombo.combo)
+                    .align(AlignX.FILL)
+                    .resizableColumn()
                     .comment("Used by subscription_vision. '-' keeps vision off.")
-                cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.OPEN_AI, visionModelCombo, modalityComponentProvider))
+                cell(
+                    VisionTestButton(
+                        de.moritzf.quota.idea.mcp.VisionProvider.OPEN_AI,
+                        visionModelCombo,
+                        modalityComponentProvider,
+                    )
+                )
             }
         }
 
@@ -209,17 +256,25 @@ internal class OpenAiSettingsPanel(
         val inProgress = authService.isLoginInProgress(accountKey(), QuotaProviderType.OPEN_AI)
         val prompt = authService.deviceLoginPrompt(accountKey(), QuotaProviderType.OPEN_AI)
         deviceLoginPanel.show(prompt)
-        val uiState = QuotaSettingsAuthUiState.create(
-            loggedIn, inProgress,
-            if (prompt != null) AuthStatusMessage("Waiting for device authorization...", kind = AuthStatusKind.PENDING) else authStatusMessage,
-            authService.connectionState(accountKey(), QuotaProviderType.OPEN_AI),
-        )
+        val uiState =
+            QuotaSettingsAuthUiState.create(
+                loggedIn,
+                inProgress,
+                if (prompt != null)
+                    AuthStatusMessage(
+                        "Waiting for device authorization...",
+                        kind = AuthStatusKind.PENDING,
+                    )
+                else authStatusMessage,
+                authService.connectionState(accountKey(), QuotaProviderType.OPEN_AI),
+            )
         loginButton.isEnabled = uiState.loginEnabled
         deviceLoginButton.isEnabled = uiState.loginEnabled
         tokenLoginButton.isEnabled = uiState.loginEnabled
         cancelLoginButton.isEnabled = uiState.cancelEnabled
         logoutButton.isEnabled = uiState.logoutEnabled
-        statusLabel.text = uiState.visibleStatusMessage?.let { formatStatusText(it.text, it.kind) }.orEmpty()
+        statusLabel.text =
+            uiState.visibleStatusMessage?.let { formatStatusText(it.text, it.kind) }.orEmpty()
         statusLabel.isVisible = !uiState.visibleStatusMessage?.text.isNullOrBlank()
         if (!inProgress) {
             copyUrlButton.isVisible = false
@@ -228,24 +283,38 @@ internal class OpenAiSettingsPanel(
     }
 
     private fun finishLogin(accountId: String, result: LoginResult) {
-        ApplicationManager.getApplication().invokeLater({
-            if (result.success) QuotaUsageService.getInstance().refreshAsync(accountId)
-            if (accountKey() != accountId) return@invokeLater
-            authStatusMessage = if (result.success) {
-                AuthStatusMessage("Connected", kind = AuthStatusKind.CONNECTED)
-            } else {
-                AuthStatusMessage(result.message ?: "Login failed", true, AuthStatusKind.DISCONNECTED)
-            }
-            onLoginResult?.invoke(result.success, result.message)
-            updateAuthUi()
-            updateAccountFields()
-        }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
+        ApplicationManager.getApplication()
+            .invokeLater(
+                {
+                    if (result.success) QuotaUsageService.getInstance().refreshAsync(accountId)
+                    if (accountKey() != accountId) return@invokeLater
+                    authStatusMessage =
+                        if (result.success) {
+                            AuthStatusMessage("Connected", kind = AuthStatusKind.CONNECTED)
+                        } else {
+                            AuthStatusMessage(
+                                result.message ?: "Login failed",
+                                true,
+                                AuthStatusKind.DISCONNECTED,
+                            )
+                        }
+                    onLoginResult?.invoke(result.success, result.message)
+                    updateAuthUi()
+                    updateAccountFields()
+                },
+                ModalityState.stateForComponent(modalityComponentProvider() ?: this),
+            )
     }
 
     fun updateAccountFields() {
         val authService = QuotaAuthService.getInstance()
-        accountIdField.text = authService.getAccountId(accountKey(), QuotaProviderType.OPEN_AI).orEmpty()
-        emailField.text = if (authService.isLoggedIn(accountKey(), QuotaProviderType.OPEN_AI)) (QuotaUsageService.getInstance().getLastQuota(accountKey()) as? OpenAiCodexQuota)?.email else null.orEmpty()
+        accountIdField.text =
+            authService.getAccountId(accountKey(), QuotaProviderType.OPEN_AI).orEmpty()
+        emailField.text =
+            if (authService.isLoggedIn(accountKey(), QuotaProviderType.OPEN_AI))
+                (QuotaUsageService.getInstance().getLastQuota(accountKey()) as? OpenAiCodexQuota)
+                    ?.email
+            else null.orEmpty()
     }
 
     override fun updateResponseArea() {
@@ -254,12 +323,8 @@ internal class OpenAiSettingsPanel(
         codexResponseViewer.setCaretPosition(0)
     }
 
-
-
     private fun createActionLink(text: String): ActionLink {
-        return ActionLink(text).apply {
-            autoHideOnDisable = false
-        }
+        return ActionLink(text).apply { autoHideOnDisable = false }
     }
 
     private var shownAccountId: String? = null
@@ -281,12 +346,12 @@ internal class OpenAiSettingsPanel(
     }
 
     private fun formatStatusText(text: String, kind: AuthStatusKind): String {
-        val color = when (kind) {
-            AuthStatusKind.CONNECTED -> "#4CAF50"
-            AuthStatusKind.DISCONNECTED -> "#F44336"
-            AuthStatusKind.PENDING -> "#FFC107"
-        }
+        val color =
+            when (kind) {
+                AuthStatusKind.CONNECTED -> "#4CAF50"
+                AuthStatusKind.DISCONNECTED -> "#F44336"
+                AuthStatusKind.PENDING -> "#FFC107"
+            }
         return "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
     }
-
 }

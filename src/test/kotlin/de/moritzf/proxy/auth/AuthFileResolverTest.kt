@@ -7,7 +7,10 @@ import kotlin.test.assertTrue
 class AuthFileResolverTest {
     @Test
     fun explicitPathIsTheOnlyCandidate() {
-        assertEquals(listOf("/tmp/plugin-oauth.json"), AuthFileResolver.resolveCandidates("/tmp/plugin-oauth.json"))
+        assertEquals(
+            listOf("/tmp/plugin-oauth.json"),
+            AuthFileResolver.resolveCandidates("/tmp/plugin-oauth.json"),
+        )
     }
 
     @Test

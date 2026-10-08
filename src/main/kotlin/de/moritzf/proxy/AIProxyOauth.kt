@@ -1,4 +1,5 @@
 package de.moritzf.proxy
+
 import de.moritzf.proxy.auth.AuthFileResolver
 import de.moritzf.proxy.auth.AuthManager
 import de.moritzf.proxy.config.HostBinding
@@ -10,16 +11,18 @@ import de.moritzf.proxy.transport.CodexHttpClient
 import de.moritzf.proxy.usage.UsageTracker
 import de.moritzf.proxy.util.ApiKeyUtils
 import de.moritzf.proxy.util.ProxyVersion
-import picocli.CommandLine
-import picocli.CommandLine.Command
-import picocli.CommandLine.Option
 import java.net.http.HttpClient
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.Callable
+import picocli.CommandLine
+import picocli.CommandLine.Command
+import picocli.CommandLine.Option
+
 @Command(
     name = "AIProxyOauth",
-    description = ["Local HTTP proxy server exposing OpenAI-compatible endpoints via ChatGPT OAuth tokens."],
+    description =
+        ["Local HTTP proxy server exposing OpenAI-compatible endpoints via ChatGPT OAuth tokens."],
     mixinStandardHelpOptions = true,
     versionProvider = AIProxyOauth.ManifestVersionProvider::class,
 )
@@ -28,60 +31,92 @@ class AIProxyOauth : Callable<Int> {
     class ManifestVersionProvider : CommandLine.IVersionProvider {
         override fun getVersion(): Array<String> = arrayOf("AIProxyOauth ${ProxyVersion.get()}")
     }
+
     @Option(names = ["--host"], description = ["Host interface to bind to. Default: 127.0.0.1"])
     private var host: String? = null
     @Option(names = ["--port"], description = ["Port to listen on. Default: 10531"])
     private var port: Int? = null
-    @Option(names = ["--models"], description = ["Comma-separated model ids to expose from /v1/models."])
+    @Option(
+        names = ["--models"],
+        description = ["Comma-separated model ids to expose from /v1/models."],
+    )
     private var models: String? = null
-    @Option(names = ["--codex-version"], description = ["Codex API version to use for model discovery."])
+    @Option(
+        names = ["--codex-version"],
+        description = ["Codex API version to use for model discovery."],
+    )
     private var codexVersion: String? = null
     @Option(names = ["--base-url"], description = ["Override the upstream Codex base URL."])
     private var baseUrl: String? = null
-    @Option(names = ["--oauth-client-id"], description = ["Override the OAuth client id used for refresh."])
+    @Option(
+        names = ["--oauth-client-id"],
+        description = ["Override the OAuth client id used for refresh."],
+    )
     private var oauthClientId: String? = null
-    @Option(names = ["--oauth-token-url"], description = ["Override the OAuth token URL used for refresh."])
+    @Option(
+        names = ["--oauth-token-url"],
+        description = ["Override the OAuth token URL used for refresh."],
+    )
     private var oauthTokenUrl: String? = null
     @Option(names = ["--oauth-file"], description = ["Path to the local auth.json file."])
     private var oauthFile: String? = null
-    @Option(names = ["--store"], description = ["Whether to ask upstream to store responses. Default: false"])
+    @Option(
+        names = ["--store"],
+        description = ["Whether to ask upstream to store responses. Default: false"],
+    )
     private var store = false
-    @Option(names = ["--allow-any-cors"], description = ["Allow browser requests from any Origin. Default: false"])
+    @Option(
+        names = ["--allow-any-cors"],
+        description = ["Allow browser requests from any Origin. Default: false"],
+    )
     private var allowAnyCors = false
     @Option(
         names = ["--cors-origin", "--cors-url"],
         split = ",",
-        description = ["Additional browser Origin allowed by CORS. Localhost origins are allowed by default. Can be repeated or comma-separated."],
+        description =
+            [
+                "Additional browser Origin allowed by CORS. Localhost origins are allowed by default. Can be repeated or comma-separated."
+            ],
     )
     private var corsOrigins: List<String>? = null
     @Option(
         names = ["--log-requests"],
-        description = ["Log full proxied request/response metadata to disk with sensitive headers redacted. Default: false"],
+        description =
+            [
+                "Log full proxied request/response metadata to disk with sensitive headers redacted. Default: false"
+            ],
     )
     private var logRequests = false
     @Option(
         names = ["--request-log-dir"],
-        description = ["Directory for --log-requests output. Default: ./logs/requests"]
+        description = ["Directory for --log-requests output. Default: ./logs/requests"],
     )
     private var requestLogDir: String? = null
     @Option(
         names = ["--forward-prompt-cache-headers"],
-        description = ["Forward prompt_cache_key as upstream conversation/session headers. Experimental. Default: false"],
+        description =
+            [
+                "Forward prompt_cache_key as upstream conversation/session headers. Experimental. Default: false"
+            ],
     )
     private var forwardPromptCacheHeaders = false
     @Option(
         names = ["--responses-replay-cache"],
-        description = ["Emulate previous_response_id/item_reference for store=false via an in-memory cache. Only needed for clients that chain responses server-side. Default: false"],
+        description =
+            [
+                "Emulate previous_response_id/item_reference for store=false via an in-memory cache. Only needed for clients that chain responses server-side. Default: false"
+            ],
     )
     private var responsesReplayCache = false
     @Option(
         names = ["--codex-instructions"],
-        description = ["Instruction source: configured or latest-codex. Default: configured"]
+        description = ["Instruction source: configured or latest-codex. Default: configured"],
     )
     private var codexInstructionsMode: String? = null
     @Option(
         names = ["--codex-instructions-cache-dir"],
-        description = ["Directory for cached latest Codex instructions. Default: ./cache/codex-instructions"],
+        description =
+            ["Directory for cached latest Codex instructions. Default: ./cache/codex-instructions"],
     )
     private var codexInstructionsCacheDir: String? = null
     @Option(names = ["--api-key"], description = ["Comma-separated API keys clients must present."])
@@ -92,13 +127,18 @@ class AIProxyOauth : Callable<Int> {
         names = ["--generate-key"],
         arity = "0..1",
         fallbackValue = "",
-        description = ["Print a new random API key and exit. Optionally provide a name: --generate-key myapp"],
+        description =
+            [
+                "Print a new random API key and exit. Optionally provide a name: --generate-key myapp"
+            ],
     )
     private var generateKey: String? = null
-    @Option(names = ["--admin-key"], description = ["Owner key that can see all users' stats at GET /v1/usage."])
+    @Option(
+        names = ["--admin-key"],
+        description = ["Owner key that can see all users' stats at GET /v1/usage."],
+    )
     private var adminKey: String? = null
-    @CommandLine.Spec
-    private lateinit var spec: CommandLine.Model.CommandSpec
+    @CommandLine.Spec private lateinit var spec: CommandLine.Model.CommandSpec
 
     override fun call(): Int {
         if (generateKey != null) {
@@ -109,8 +149,8 @@ class AIProxyOauth : Callable<Int> {
         if (config.fullRequestLogging) {
             System.err.println(
                 "WARNING: full request logging is enabled. Request/response bodies may contain prompts, " +
-                        "tool outputs, file paths, and other sensitive data. Authorization and API key headers are " +
-                        "redacted, but logs should still be protected.",
+                    "tool outputs, file paths, and other sensitive data. Authorization and API key headers are " +
+                    "redacted, but logs should still be protected."
             )
         }
         val inlineKeys = parseInlineKeys()
@@ -126,9 +166,8 @@ class AIProxyOauth : Callable<Int> {
         if (!checkAuthFileExists(config)) {
             return 1
         }
-        val authHttpClient = HttpClient.newBuilder()
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .build()
+        val authHttpClient =
+            HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build()
         val authManager = AuthManager(config, authHttpClient)
         // Initial auth load to verify credentials.
         val authResult = authManager.ensureFresh()
@@ -140,23 +179,35 @@ class AIProxyOauth : Callable<Int> {
         val usageTracker = UsageTracker()
         val server = ProxyServer(config, httpClient, modelResolver, usageTracker, apiKeyStore)
         server.start()
-        val startupProbe = HttpClient.newHttpClient().use { startupProbeClient ->
-            StartupProbe.verify(
-                config,
-                availableModels,
-                if (apiKeyStore.isEnforcing()) StartupProbe.firstConfiguredApiKey(config) else null,
-                startupProbeClient,
-            )
-        }
-        printStartupBanner(config, availableModels, authResult.sourcePath, apiKeyStore.isEnforcing(), startupProbe)
+        val startupProbe =
+            HttpClient.newHttpClient().use { startupProbeClient ->
+                StartupProbe.verify(
+                    config,
+                    availableModels,
+                    if (apiKeyStore.isEnforcing()) StartupProbe.firstConfiguredApiKey(config)
+                    else null,
+                    startupProbeClient,
+                )
+            }
+        printStartupBanner(
+            config,
+            availableModels,
+            authResult.sourcePath,
+            apiKeyStore.isEnforcing(),
+            startupProbe,
+        )
         setupShutdownHook(server, authHttpClient, apiKeyStore)
         // Keep main thread alive.
         Thread.currentThread().join()
         return 0
     }
+
     private fun handleGenerateKey(): Int {
         val key = ApiKeyUtils.generateNewKey()
-        spec.commandLine().out.println(if (generateKey.isNullOrEmpty()) key else "$generateKey:$key")
+        spec
+            .commandLine()
+            .out
+            .println(if (generateKey.isNullOrEmpty()) key else "$generateKey:$key")
         return 0
     }
 
@@ -202,21 +253,21 @@ class AIProxyOauth : Callable<Int> {
             true,
         )
     }
+
     private fun parseModelList(): List<String>? {
         if (models.isNullOrEmpty()) {
             return null
         }
-        val modelList = models.orEmpty()
-            .split(',')
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
+        val modelList = models.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
         return modelList.ifEmpty { null }
     }
+
     /** Returns only the keys from --api-key (not --api-keys-file). */
     private fun parseInlineKeys(): MutableMap<String, String> {
         val map = HashMap<String, String>()
         if (!apiKey.isNullOrBlank()) {
-            apiKey.orEmpty()
+            apiKey
+                .orEmpty()
                 .split(',')
                 .map { it.trim() }
                 .filter { it.isNotEmpty() }
@@ -228,7 +279,8 @@ class AIProxyOauth : Callable<Int> {
     private fun parseApiKeyMap(): MutableMap<String, String> {
         val apiKeyMap = HashMap<String, String>()
         if (!apiKey.isNullOrEmpty()) {
-            apiKey.orEmpty()
+            apiKey
+                .orEmpty()
                 .split(',')
                 .map { it.trim() }
                 .filter { it.isNotEmpty() }
@@ -236,7 +288,8 @@ class AIProxyOauth : Callable<Int> {
         }
         val apiKeysPath = apiKeysFile
         if (!apiKeysPath.isNullOrEmpty()) {
-            Files.readAllLines(Path.of(apiKeysPath)).asSequence()
+            Files.readAllLines(Path.of(apiKeysPath))
+                .asSequence()
                 .map { it.trim() }
                 .filter { it.isNotEmpty() && !it.startsWith("#") }
                 .forEach { ApiKeyUtils.parseKeyEntry(it, apiKeyMap) }
@@ -250,12 +303,15 @@ class AIProxyOauth : Callable<Int> {
             if (!config.oauthFilePath.isNullOrEmpty()) {
                 System.err.println("No auth file was found at ${config.oauthFilePath}.")
             } else {
-                System.err.println("OAuth file path is required. Pass --oauth-file with a file this plugin owns.")
+                System.err.println(
+                    "OAuth file path is required. Pass --oauth-file with a file this plugin owns."
+                )
             }
             return false
         }
         return true
     }
+
     private fun resolveAvailableModels(modelResolver: ModelResolver): List<String> {
         return try {
             modelResolver.resolveModels()
@@ -264,6 +320,7 @@ class AIProxyOauth : Callable<Int> {
             emptyList()
         }
     }
+
     private fun printStartupBanner(
         config: ServerConfig,
         availableModels: List<String>,
@@ -279,18 +336,21 @@ class AIProxyOauth : Callable<Int> {
         if (availableModels.isNotEmpty()) {
             out.println("  Models:   ${availableModels.joinToString(", ")}")
         }
-        out.println("  Client API key enforcement: ${if (apiKeyEnforcement) "enabled" else "disabled"}")
+        out.println(
+            "  Client API key enforcement: ${if (apiKeyEnforcement) "enabled" else "disabled"}"
+        )
         out.println("  Network access: ${describeNetworkAccess(config.host)}")
         out.println("  CORS: ${describeCors(config)}")
         if (!authFilePath.isNullOrBlank()) {
             out.println("  Auth file: $authFilePath")
         }
         if (startupProbe != null) {
-            val checkStatus = if (startupProbe.success) {
-                "chat completion OK"
-            } else {
-                "chat completion failed (${startupProbe.message})"
-            }
+            val checkStatus =
+                if (startupProbe.success) {
+                    "chat completion OK"
+                } else {
+                    "chat completion failed (${startupProbe.message})"
+                }
             out.println("  Startup check: $checkStatus (model: ${startupProbe.model})")
             if (!startupProbe.responseText.isNullOrBlank()) {
                 out.println("  Startup response: ${startupProbe.responseText}")
@@ -307,25 +367,34 @@ class AIProxyOauth : Callable<Int> {
     }
 
     @Suppress("HttpUrlsUsage")
-    private fun proxyEndpointUrl(config: ServerConfig): String = "http://${config.host}:${config.port}/v1"
+    private fun proxyEndpointUrl(config: ServerConfig): String =
+        "http://${config.host}:${config.port}/v1"
 
-    private fun setupShutdownHook(server: ProxyServer, authHttpClient: HttpClient, apiKeyStore: ApiKeyStore) {
-        Runtime.getRuntime().addShutdownHook(
-            Thread(
-                {
-                    println("Shutting down...")
-                    server.stop()
-                    authHttpClient.close()
-                    apiKeyStore.stopWatching()
-                },
-                "shutdown-hook",
-            ),
-        )
+    private fun setupShutdownHook(
+        server: ProxyServer,
+        authHttpClient: HttpClient,
+        apiKeyStore: ApiKeyStore,
+    ) {
+        Runtime.getRuntime()
+            .addShutdownHook(
+                Thread(
+                    {
+                        println("Shutting down...")
+                        server.stop()
+                        authHttpClient.close()
+                        apiKeyStore.stopWatching()
+                    },
+                    "shutdown-hook",
+                )
+            )
     }
+
     companion object {
         internal fun describeNetworkAccess(host: String?): String {
-            return if (HostBinding.isLocalOnlyHost(host)) "Local access only" else "Full network access"
+            return if (HostBinding.isLocalOnlyHost(host)) "Local access only"
+            else "Full network access"
         }
+
         internal fun describeCors(config: ServerConfig): String {
             if (config.allowAnyCors) {
                 return "any origin"
@@ -335,6 +404,7 @@ class AIProxyOauth : Callable<Int> {
             }
             return "localhost origins"
         }
+
         internal fun findExistingAuthFile(authFilePath: String?): String? {
             for (candidate in AuthFileResolver.resolveCandidates(authFilePath)) {
                 if (Files.exists(Path.of(candidate))) {
@@ -343,6 +413,7 @@ class AIProxyOauth : Callable<Int> {
             }
             return null
         }
+
         @JvmStatic
         fun main(args: Array<String>) {
             val exitCode = CommandLine(AIProxyOauth()).execute(*args)

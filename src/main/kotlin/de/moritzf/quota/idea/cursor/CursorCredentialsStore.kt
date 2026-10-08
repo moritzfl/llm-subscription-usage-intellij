@@ -14,9 +14,7 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import java.util.logging.Logger
 
-/**
- * Resolves Cursor credentials from a browser session cookie.
- */
+/** Resolves Cursor credentials from a browser session cookie. */
 @Service(Service.Level.APP)
 class CursorCredentialsStore(
     private val userName: String = SESSION_USER_NAME,
@@ -86,7 +84,10 @@ class CursorCredentialsStore(
 
     fun clearSessionCookie() {
         loadGeneration.incrementAndGet()
-        de.moritzf.quota.idea.auth.PasswordSafeSecrets.clear(sessionAttributes, "Cursor session cookie")
+        de.moritzf.quota.idea.auth.PasswordSafeSecrets.clear(
+            sessionAttributes,
+            "Cursor session cookie",
+        )
         cachedSessionCookie.set(null)
         loaded.set(true)
         loading.set(false)
@@ -133,9 +134,7 @@ class CursorCredentialsStore(
         }
         val callbacks = loadCallbacks.toList()
         loadCallbacks.clear()
-        callbacks.forEach { callback ->
-            ApplicationManager.getApplication().invokeLater(callback)
-        }
+        callbacks.forEach { callback -> ApplicationManager.getApplication().invokeLater(callback) }
     }
 
     companion object {
@@ -144,10 +143,12 @@ class CursorCredentialsStore(
         private val LOG = Logger.getLogger(CursorCredentialsStore::class.java.name)
 
         @JvmStatic
-        private val extras = java.util.concurrent.ConcurrentHashMap<String, CursorCredentialsStore>()
+        private val extras =
+            java.util.concurrent.ConcurrentHashMap<String, CursorCredentialsStore>()
 
         fun getInstance(): CursorCredentialsStore {
-            return ApplicationManager.getApplication().getService(CursorCredentialsStore::class.java)
+            return ApplicationManager.getApplication()
+                .getService(CursorCredentialsStore::class.java)
         }
 
         fun forAccount(accountId: String): CursorCredentialsStore =
@@ -158,6 +159,8 @@ class CursorCredentialsStore(
                 SESSION_USER_NAME,
                 extras,
                 ::getInstance,
-            ) { service, user -> CursorCredentialsStore(userName = user, serviceName = service) }
+            ) { service, user ->
+                CursorCredentialsStore(userName = user, serviceName = service)
+            }
     }
 }

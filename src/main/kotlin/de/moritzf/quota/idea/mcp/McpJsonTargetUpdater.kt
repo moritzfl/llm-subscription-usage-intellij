@@ -1,15 +1,15 @@
 package de.moritzf.quota.idea.mcp
 
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import java.nio.charset.StandardCharsets
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
 
 @OptIn(ExperimentalSerializationApi::class)
 class McpJsonTargetUpdater(
@@ -18,7 +18,7 @@ class McpJsonTargetUpdater(
         allowTrailingComma = true
         prettyPrint = true
         prettyPrintIndent = "  "
-    },
+    }
 ) {
     private val tomlUpdater = McpTomlTargetUpdater()
     private val yamlUpdater = McpYamlTargetUpdater()
@@ -26,7 +26,8 @@ class McpJsonTargetUpdater(
     fun updateFile(jsonFilePath: String, propertyPath: String, value: String): Boolean {
         val file = resolveJsonFilePath(jsonFilePath)
         when {
-            file.extensionEquals("toml") -> return tomlUpdater.updateFile(jsonFilePath, propertyPath, value)
+            file.extensionEquals("toml") ->
+                return tomlUpdater.updateFile(jsonFilePath, propertyPath, value)
             file.extensionEquals("yaml") || file.extensionEquals("yml") -> {
                 return yamlUpdater.updateFile(jsonFilePath, propertyPath, value)
             }
@@ -48,8 +49,9 @@ class McpJsonTargetUpdater(
         val segments = parsePropertyPath(propertyPath)
         val root = parseRootObject(content, json)
         requireExistingTargetValue(root, segments)
-        val targetRange = findTargetValueRange(content, segments)
-            ?: error("JSON property path does not exist: ${formatDotPath(segments)}")
+        val targetRange =
+            findTargetValueRange(content, segments)
+                ?: error("JSON property path does not exist: ${formatDotPath(segments)}")
         return content.replaceRange(targetRange, quoteJsonString(value))
     }
 
@@ -64,7 +66,10 @@ class McpJsonTargetUpdater(
             return content.split(separator).toMutableList() to separator
         }
 
-        fun validateTargetFile(jsonFilePath: String, propertyPath: String): McpJsonTargetValidationError? {
+        fun validateTargetFile(
+            jsonFilePath: String,
+            propertyPath: String,
+        ): McpJsonTargetValidationError? {
             val file = resolveJsonFilePath(jsonFilePath)
             if (!Files.exists(file)) {
                 return McpJsonTargetValidationError(
@@ -73,13 +78,16 @@ class McpJsonTargetUpdater(
                 )
             }
             when {
-                file.extensionEquals("toml") -> return McpTomlTargetUpdater.validateTargetFile(jsonFilePath, propertyPath)
+                file.extensionEquals("toml") ->
+                    return McpTomlTargetUpdater.validateTargetFile(jsonFilePath, propertyPath)
                 file.extensionEquals("yaml") || file.extensionEquals("yml") -> {
                     return McpYamlTargetUpdater.validateTargetFile(jsonFilePath, propertyPath)
                 }
             }
 
-            val content = runCatching { Files.readString(file, StandardCharsets.UTF_8) }
+            val content = runCatching {
+                Files.readString(file, StandardCharsets.UTF_8)
+            }
                 .getOrElse { error ->
                     return McpJsonTargetValidationError(
                         McpJsonTargetValidationProblem.FILE,
@@ -89,32 +97,38 @@ class McpJsonTargetUpdater(
             return validateTargetContent(content, propertyPath)
         }
 
-        fun validateTargetContent(content: String, propertyPath: String): McpJsonTargetValidationError? {
-            val segments = runCatching { parsePropertyPath(propertyPath) }
+        fun validateTargetContent(
+            content: String,
+            propertyPath: String,
+        ): McpJsonTargetValidationError? {
+            val segments = runCatching {
+                parsePropertyPath(propertyPath)
+            }
                 .getOrElse { error ->
                     return McpJsonTargetValidationError(
                         McpJsonTargetValidationProblem.PROPERTY,
                         error.message ?: "JSON property path is invalid.",
                     )
                 }
-            val root = runCatching { parseRootObject(content, validationJson) }
+            val root = runCatching {
+                parseRootObject(content, validationJson)
+            }
                 .getOrElse { error ->
                     return McpJsonTargetValidationError(
                         McpJsonTargetValidationProblem.FILE,
                         error.message ?: "Could not parse JSON file.",
                     )
                 }
-            return runCatching {
-                requireExistingTargetValue(root, segments)
-            }.fold(
-                onSuccess = { null },
-                onFailure = { error ->
-                    McpJsonTargetValidationError(
-                        McpJsonTargetValidationProblem.PROPERTY,
-                        error.message ?: "JSON property path is invalid.",
-                    )
-                },
-            )
+            return runCatching { requireExistingTargetValue(root, segments) }
+                .fold(
+                    onSuccess = { null },
+                    onFailure = { error ->
+                        McpJsonTargetValidationError(
+                            McpJsonTargetValidationProblem.PROPERTY,
+                            error.message ?: "JSON property path is invalid.",
+                        )
+                    },
+                )
         }
 
         fun isSupportedTargetValue(value: JsonElement): Boolean {
@@ -123,11 +137,13 @@ class McpJsonTargetUpdater(
 
         fun resolveJsonFilePath(rawPath: String): Path {
             val trimmed = rawPath.trim()
-            val expanded = when {
-                trimmed == "~" -> System.getProperty("user.home")
-                trimmed.startsWith("~/") -> System.getProperty("user.home") + trimmed.substring(1)
-                else -> trimmed
-            }
+            val expanded =
+                when {
+                    trimmed == "~" -> System.getProperty("user.home")
+                    trimmed.startsWith("~/") ->
+                        System.getProperty("user.home") + trimmed.substring(1)
+                    else -> trimmed
+                }
             return Paths.get(expanded).toAbsolutePath().normalize()
         }
 
@@ -148,15 +164,21 @@ class McpJsonTargetUpdater(
             }
 
             val start = skipWhitespace(content, cursor)
-            val endExclusive = when {
-                content.startsWith("null", start) -> start + 4
-                start < content.length && content[start] == '"' -> findStringEnd(content, start) + 1
-                else -> return null
-            }
+            val endExclusive =
+                when {
+                    content.startsWith("null", start) -> start + 4
+                    start < content.length && content[start] == '"' ->
+                        findStringEnd(content, start) + 1
+                    else -> return null
+                }
             return start until endExclusive
         }
 
-        private fun findObjectPropertyValueStart(content: String, objectStart: Int, key: String): Int? {
+        private fun findObjectPropertyValueStart(
+            content: String,
+            objectStart: Int,
+            key: String,
+        ): Int? {
             var cursor = skipWhitespace(content, objectStart)
             if (cursor >= content.length || content[cursor] != '{') {
                 return null
@@ -200,7 +222,12 @@ class McpJsonTargetUpdater(
                 '{' -> skipBalanced(content, cursor, '{', '}')
                 '[' -> skipBalanced(content, cursor, '[', ']')
                 else -> {
-                    while (cursor < content.length && content[cursor] != ',' && content[cursor] != '}' && content[cursor] != ']') {
+                    while (
+                        cursor < content.length &&
+                            content[cursor] != ',' &&
+                            content[cursor] != '}' &&
+                            content[cursor] != ']'
+                    ) {
                         cursor++
                     }
                     cursor
@@ -277,10 +304,14 @@ class McpJsonTargetUpdater(
         private fun requireExistingTargetValue(root: JsonObject, path: List<String>): JsonElement {
             var current: JsonElement = root
             path.forEachIndexed { index, segment ->
-                val currentObject = current as? JsonObject
-                    ?: error("JSON property path does not exist: ${formatDotPath(path.take(index))} is not an object")
-                current = currentObject[segment]
-                    ?: error("JSON property path does not exist: ${formatDotPath(path)}")
+                val currentObject =
+                    current as? JsonObject
+                        ?: error(
+                            "JSON property path does not exist: ${formatDotPath(path.take(index))} is not an object"
+                        )
+                current =
+                    currentObject[segment]
+                        ?: error("JSON property path does not exist: ${formatDotPath(path)}")
             }
             require(isSupportedTargetValue(current)) {
                 "JSON property path must point to a string or null value."
@@ -292,21 +323,26 @@ class McpJsonTargetUpdater(
             val trimmed = rawPath.trim()
             require(trimmed.isNotEmpty()) { "JSON property path must not be blank" }
 
-            val segments = if (trimmed.startsWith('/')) {
-                trimmed.drop(1)
-                    .split('/')
-                    .map { segment -> segment.replace("~1", "/").replace("~0", "~") }
-            } else {
-                parseDotPath(trimmed)
-            }
+            val segments =
+                if (trimmed.startsWith('/')) {
+                    trimmed.drop(1).split('/').map { segment ->
+                        segment.replace("~1", "/").replace("~0", "~")
+                    }
+                } else {
+                    parseDotPath(trimmed)
+                }
 
-            require(segments.all { it.isNotBlank() }) { "JSON property path contains an empty segment" }
+            require(segments.all { it.isNotBlank() }) {
+                "JSON property path contains an empty segment"
+            }
             return segments
         }
 
         fun formatDotPath(segments: List<String>): String {
             require(segments.isNotEmpty()) { "JSON property path must not be blank" }
-            require(segments.all { it.isNotBlank() }) { "JSON property path contains an empty segment" }
+            require(segments.all { it.isNotBlank() }) {
+                "JSON property path contains an empty segment"
+            }
             return segments.joinToString(".") { segment ->
                 buildString {
                     segment.forEach { char ->
@@ -334,18 +370,24 @@ class McpJsonTargetUpdater(
 
         private fun scoreLikelyMcpServerPath(path: String): Int? {
             val lowerPath = path.lowercase()
-            if (!lowerPath.contains("mcp") || (!lowerPath.contains("intellij") && !lowerPath.contains("jetbrains") && !lowerPath.contains("idea"))) {
+            if (
+                !lowerPath.contains("mcp") ||
+                    (!lowerPath.contains("intellij") &&
+                        !lowerPath.contains("jetbrains") &&
+                        !lowerPath.contains("idea"))
+            ) {
                 return null
             }
 
             val segments = runCatching { parsePropertyPath(path) }.getOrDefault(path.split('.'))
             val lastSegment = segments.lastOrNull()?.lowercase().orEmpty()
-            return segments.size + when {
-                lastSegment == "url" -> 100
-                lastSegment.contains("url") -> 80
-                lastSegment.contains("endpoint") -> 60
-                else -> 0
-            }
+            return segments.size +
+                when {
+                    lastSegment == "url" -> 100
+                    lastSegment.contains("url") -> 80
+                    lastSegment.contains("endpoint") -> 60
+                    else -> 0
+                }
         }
 
         private fun parseDotPath(path: String): List<String> {
@@ -377,7 +419,9 @@ class McpJsonTargetUpdater(
         }
 
         private fun Path.extensionEquals(extension: String): Boolean {
-            return fileName?.toString()?.substringAfterLast('.', missingDelimiterValue = "")
+            return fileName
+                ?.toString()
+                ?.substringAfterLast('.', missingDelimiterValue = "")
                 ?.equals(extension, ignoreCase = true) == true
         }
     }

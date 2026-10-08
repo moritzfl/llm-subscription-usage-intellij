@@ -5,7 +5,10 @@ import de.moritzf.quota.shared.DocumentModels
 import java.awt.event.ItemEvent
 import javax.swing.DefaultComboBoxModel
 
-/** Settings combo for one account's document model. Vision rows keep the explainer on a warning icon. */
+/**
+ * Settings combo for one account's document model. Vision rows keep the explainer on a warning
+ * icon.
+ */
 internal class DocumentModelCombo(
     private val defaultModel: String,
     vision: Boolean,
@@ -31,7 +34,10 @@ internal class DocumentModelCombo(
         if ((0 until combo.itemCount).map(combo::getItemAt) != models) {
             combo.model = DefaultComboBoxModel(models.toTypedArray())
         }
-        val selected = saved?.trim()?.takeIf { it in models } ?: defaultModel.takeIf { it in models } ?: models.first()
+        val selected =
+            saved?.trim()?.takeIf { it in models }
+                ?: defaultModel.takeIf { it in models }
+                ?: models.first()
         if (combo.selectedItem != selected) combo.selectedItem = selected
         updateWarning()
     }

@@ -10,9 +10,13 @@ plugins {
     alias(libs.plugins.intelliJPlatform) // IntelliJ Platform Gradle Plugin
     alias(libs.plugins.changelog) // Gradle Changelog Plugin
     alias(libs.plugins.kover) // Gradle Kover Plugin
+    alias(libs.plugins.ktfmt)
 }
 
+ktfmt { kotlinLangStyle() }
+
 group = providers.gradleProperty("pluginGroup").get()
+
 version = providers.gradleProperty("pluginVersion").get()
 
 // Carry the plugin version (gradle.properties pluginVersion) into the runtime classpath
@@ -30,11 +34,7 @@ val generateVersionResource by tasks.registering {
     }
 }
 
-sourceSets {
-    main {
-        resources.srcDir(generateVersionResource)
-    }
-}
+sourceSets { main { resources.srcDir(generateVersionResource) } }
 
 // Set the JVM language level used to build the project.
 kotlin {
@@ -50,16 +50,25 @@ kotlin {
 repositories {
     mavenCentral()
 
-    // IntelliJ Platform Gradle Plugin Repositories Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-repositories-extension.html
-    intellijPlatform {
-        defaultRepositories()
-    }
+    // IntelliJ Platform Gradle Plugin Repositories Extension - read more:
+    // https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-repositories-extension.html
+    intellijPlatform { defaultRepositories() }
 }
 
-// Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/version_catalogs.html
+// Dependencies are managed with Gradle version catalog - read more:
+// https://docs.gradle.org/current/userguide/version_catalogs.html
 dependencies {
     implementation("dev.onvoid.webrtc:webrtc-java:0.19.0") { isTransitive = false }
-    for (platform in listOf("linux-x86_64", "linux-aarch64", "linux-aarch32", "macos-x86_64", "macos-aarch64", "windows-x86_64", "windows-aarch64")) {
+    for (platform in
+        listOf(
+            "linux-x86_64",
+            "linux-aarch64",
+            "linux-aarch32",
+            "macos-x86_64",
+            "macos-aarch64",
+            "windows-x86_64",
+            "windows-aarch64",
+        )) {
         runtimeOnly("dev.onvoid.webrtc:webrtc-java:0.19.0:$platform") { isTransitive = false }
     }
     implementation(libs.snakeyaml.engine)
@@ -67,7 +76,8 @@ dependencies {
     implementation(libs.picocli)
     implementation(libs.pdfbox)
     implementation(libs.pdfbox.io)
-    // Markdown export lives in pdfbox-tools (PDFText2Markdown, since 3.0.4). The debugger is a Swing app we never call.
+    // Markdown export lives in pdfbox-tools (PDFText2Markdown, since 3.0.4). The debugger is a
+    // Swing app we never call.
     implementation(libs.pdfbox.tools) {
         exclude(group = "org.apache.pdfbox", module = "pdfbox-debugger")
     }
@@ -86,78 +96,78 @@ dependencies {
     testRuntimeOnly(libs.junit4)
     testRuntimeOnly(libs.junit.platform.launcher)
 
-    // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
+    // IntelliJ Platform Gradle Plugin Dependencies Extension - read more:
+    // https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
     intellijPlatform {
         intellijIdea(providers.gradleProperty("platformVersion"))
 
-        // Plugin Dependencies. Uses `platformBundledPlugins` property from the gradle.properties file for bundled IntelliJ Platform plugins.
+        // Plugin Dependencies. Uses `platformBundledPlugins` property from the gradle.properties
+        // file for bundled IntelliJ Platform plugins.
         bundledPlugins(providers.gradleProperty("platformBundledPlugins").map { it.split(',') })
 
-        // Plugin Dependencies. Uses `platformPlugins` property from the gradle.properties file for plugin from JetBrains Marketplace.
+        // Plugin Dependencies. Uses `platformPlugins` property from the gradle.properties file for
+        // plugin from JetBrains Marketplace.
         plugins(providers.gradleProperty("platformPlugins").map { it.split(',') })
 
-        // Module Dependencies. Uses `platformBundledModules` property from the gradle.properties file for bundled IntelliJ Platform modules.
+        // Module Dependencies. Uses `platformBundledModules` property from the gradle.properties
+        // file for bundled IntelliJ Platform modules.
         bundledModules(providers.gradleProperty("platformBundledModules").map { it.split(',') })
 
         testFramework(TestFrameworkType.Platform)
     }
 }
 
-// Configure IntelliJ Platform Gradle Plugin - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-extension.html
+// Configure IntelliJ Platform Gradle Plugin - read more:
+// https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-extension.html
 intellijPlatform {
     pluginConfiguration {
         name = providers.gradleProperty("pluginName")
         version = providers.gradleProperty("pluginVersion")
 
         // Get the latest available change notes from the changelog file
-        changeNotes = providers.gradleProperty("pluginVersion").map { pluginVersion ->
-            with(project.changelog) {
-                renderItem(
-                    (getOrNull(pluginVersion) ?: getUnreleased())
-                        .withHeader(false)
-                        .withEmptySections(false),
-                    Changelog.OutputType.HTML,
-                )
+        changeNotes =
+            providers.gradleProperty("pluginVersion").map { pluginVersion ->
+                with(project.changelog) {
+                    renderItem(
+                        (getOrNull(pluginVersion) ?: getUnreleased())
+                            .withHeader(false)
+                            .withEmptySections(false),
+                        Changelog.OutputType.HTML,
+                    )
+                }
             }
-        }
 
-        ideaVersion {
-            sinceBuild = providers.gradleProperty("pluginSinceBuild")
-        }
+        ideaVersion { sinceBuild = providers.gradleProperty("pluginSinceBuild") }
     }
 }
 
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
-    }
-}
+java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
 
-// Configure Gradle Changelog Plugin - read more: https://github.com/JetBrains/gradle-changelog-plugin
+// Configure Gradle Changelog Plugin - read more:
+// https://github.com/JetBrains/gradle-changelog-plugin
 changelog {
     groups.empty()
     repositoryUrl = providers.gradleProperty("pluginRepositoryUrl")
     versionPrefix = ""
 }
 
-// Configure Gradle Kover Plugin - read more: https://kotlin.github.io/kotlinx-kover/gradle-plugin/#configuration-details
-kover {
-    reports {
-        filters {
-            excludes {
-                classes("*.Test*", "*.test*", "*.Tests")
-            }
-        }
-    }
-}
+// Configure Gradle Kover Plugin - read more:
+// https://kotlin.github.io/kotlinx-kover/gradle-plugin/#configuration-details
+kover { reports { filters { excludes { classes("*.Test*", "*.test*", "*.Tests") } } } }
 
 tasks {
-    val standaloneKotlinRuntime = configurations.detachedConfiguration(
-        project.dependencies.create("org.jetbrains.kotlin:kotlin-stdlib:${libs.versions.kotlin.get()}"),
-    )
-    val standaloneProxyClasspath = sourceSets.main.get().runtimeClasspath +
-        sourceSets.main.get().compileClasspath +
-        standaloneKotlinRuntime
+    check { dependsOn("ktfmtCheck") }
+
+    val standaloneKotlinRuntime =
+        configurations.detachedConfiguration(
+            project.dependencies.create(
+                "org.jetbrains.kotlin:kotlin-stdlib:${libs.versions.kotlin.get()}"
+            )
+        )
+    val standaloneProxyClasspath =
+        sourceSets.main.get().runtimeClasspath +
+            sourceSets.main.get().compileClasspath +
+            standaloneKotlinRuntime
 
     test {
         useJUnitPlatform()
@@ -179,8 +189,10 @@ tasks {
     }
 
     named("buildSearchableOptions") {
-        enabled = providers.gradleProperty("skipSearchableOptions")
-            .map { it.toBoolean().not() }
-            .getOrElse(true)
+        enabled =
+            providers
+                .gradleProperty("skipSearchableOptions")
+                .map { it.toBoolean().not() }
+                .getOrElse(true)
     }
 }

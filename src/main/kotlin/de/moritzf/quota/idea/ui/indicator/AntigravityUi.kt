@@ -10,17 +10,23 @@ import kotlin.math.roundToInt
 
 internal object AntigravityUi : ProviderUi {
     override val type = QuotaProviderType.ANTIGRAVITY
-    override val icon get() = QuotaIcons.ANTIGRAVITY
+    override val icon
+        get() = QuotaIcons.ANTIGRAVITY
 
     override fun barText(quota: ProviderQuota?, error: String?): String {
         if (error != null) return "error"
         if (quota == null) return "loading..."
         val window = (quota as? AntigravityQuota)?.primaryWindow() ?: return "no data"
-        return formatPercentWithOptionalTime(window.usagePercent!!.roundToInt(), window.resetsAt, window.period())
+        return formatPercentWithOptionalTime(
+            window.usagePercent!!.roundToInt(),
+            window.resetsAt,
+            window.period(),
+        )
     }
 
     override fun displayPercent(quota: ProviderQuota?, error: String?): Int =
-        if (error != null) -1 else (quota as? AntigravityQuota)?.primaryWindow()?.usagePercent?.roundToInt() ?: -1
+        if (error != null) -1
+        else (quota as? AntigravityQuota)?.primaryWindow()?.usagePercent?.roundToInt() ?: -1
 
     override fun periodElapsedFraction(quota: ProviderQuota?, error: String?): Double? {
         if (error != null) return null
@@ -31,14 +37,16 @@ internal object AntigravityUi : ProviderUi {
     }
 
     override fun authState(accountId: String): ProviderAuthState =
-        if (QuotaUsageService.getInstance().getLastQuota(accountId) != null) ProviderAuthState.AUTHENTICATED
+        if (QuotaUsageService.getInstance().getLastQuota(accountId) != null)
+            ProviderAuthState.AUTHENTICATED
         else ProviderAuthState.UNKNOWN
 
     override fun createPopupSection() = AntigravityPopupSection()
 }
 
-internal fun AntigravityUsageWindow.period(): java.time.Duration? = when (window) {
-    "5h" -> QuotaPeriodDurations.ROLLING_5H
-    "weekly" -> QuotaPeriodDurations.WEEKLY
-    else -> null
-}
+internal fun AntigravityUsageWindow.period(): java.time.Duration? =
+    when (window) {
+        "5h" -> QuotaPeriodDurations.ROLLING_5H
+        "weekly" -> QuotaPeriodDurations.WEEKLY
+        else -> null
+    }

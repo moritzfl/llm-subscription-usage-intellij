@@ -13,13 +13,13 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
 import java.util.Locale
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.put
 
 open class ZaiVideoClient(
     private val httpClient: HttpClient = defaultHttpClient(),
@@ -41,37 +41,61 @@ open class ZaiVideoClient(
         if (trimmedPrompt.isBlank()) {
             throw ZaiQuotaException("Video prompt is required.")
         }
-        val token = apiKey.trim().ifBlank {
-            throw ZaiQuotaException("Z.ai API key missing. Add a Z.ai API key in settings.")
-        }
-        val body = JsonSupport.json.encodeToString(
-            ZaiVideoRequestDto(
-                model = model.trim().ifBlank { DEFAULT_MODEL },
-                prompt = trimmedPrompt,
-                imageUrl = imageUrl?.trim()?.takeIf { it.isNotEmpty() },
-            ),
-        )
+        val token =
+            apiKey.trim().ifBlank {
+                throw ZaiQuotaException("Z.ai API key missing. Add a Z.ai API key in settings.")
+            }
+        val body =
+            JsonSupport.json.encodeToString(
+                ZaiVideoRequestDto(
+                    model = model.trim().ifBlank { DEFAULT_MODEL },
+                    prompt = trimmedPrompt,
+                    imageUrl = imageUrl?.trim()?.takeIf { it.isNotEmpty() },
+                )
+            )
         val start = send(postJson(token, generationsUri, body))
         val startBody = start.body()
         if (start.statusCode() == 401 || start.statusCode() == 403) {
-            throw ZaiQuotaException("API key invalid. Check your Z.ai API key.", start.statusCode(), startBody)
+            throw ZaiQuotaException(
+                "API key invalid. Check your Z.ai API key.",
+                start.statusCode(),
+                startBody,
+            )
         }
         if (start.statusCode() !in 200..299) {
-            throw ZaiQuotaException("Z.ai video generation failed (HTTP ${start.statusCode()}). Try again later.", start.statusCode(), startBody)
+            throw ZaiQuotaException(
+                "Z.ai video generation failed (HTTP ${start.statusCode()}). Try again later.",
+                start.statusCode(),
+                startBody,
+            )
         }
         if (!waitForCompletion) {
             return McpJson.providerJsonOrRaw(startBody)
         }
-        val id = taskId(startBody)
-            ?: throw ZaiQuotaException("Z.ai video generation returned no task id.", 200, startBody)
+        val id =
+            taskId(startBody)
+                ?: throw ZaiQuotaException(
+                    "Z.ai video generation returned no task id.",
+                    200,
+                    startBody,
+                )
         val json = poll(token, id, pollTimeoutSeconds.coerceIn(5, MAX_POLL_TIMEOUT_SECONDS))
         return writeVideoIfRequested(json, targetFile, baseDirectory)
     }
 
-    private fun writeVideoIfRequested(body: String, targetFile: String?, baseDirectory: Path?): String {
+    private fun writeVideoIfRequested(
+        body: String,
+        targetFile: String?,
+        baseDirectory: Path?,
+    ): String {
         val output = resolveVideoOutput(targetFile, baseDirectory) ?: return body
-        val url = HttpJsonUrls.first(body)
-            ?: throw ZaiQuotaException("Z.ai video generation returned no video URL.", 200, body)
+        val url =
+            HttpJsonUrls.first(body)
+                ?: throw ZaiQuotaException(
+                    "Z.ai video generation returned no video URL.",
+                    200,
+                    body,
+                )
         val bytes = download(url)
         val parent = output.parent
         if (parent != null) {
@@ -81,7 +105,8 @@ open class ZaiVideoClient(
         return buildJsonObject {
             put("output_file", output.toString())
             put("bytes", bytes.size.toLong())
-        }.toString()
+        }
+            .toString()
     }
 
     private fun resolveVideoOutput(targetFile: String?, baseDirectory: Path?): Path? {
@@ -89,23 +114,37 @@ open class ZaiVideoClient(
     }
 
     private fun download(url: String): ByteArray {
-        val response = try {
-            httpClient.send(
-                HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .timeout(Duration.ofSeconds(180))
-                    .GET()
-                    .build(),
-                HttpResponse.BodyHandlers.ofByteArray(),
-            )
-        } catch (exception: IOException) {
-            throw ZaiQuotaException("Request failed. Check your connection.", 0, null, exception)
-        } catch (exception: InterruptedException) {
-            Thread.currentThread().interrupt()
-            throw ZaiQuotaException("Request failed. Check your connection.", 0, null, exception)
-        }
+        val response =
+            try {
+                httpClient.send(
+                    HttpRequest.newBuilder()
+                        .uri(URI.create(url))
+                        .timeout(Duration.ofSeconds(180))
+                        .GET()
+                        .build(),
+                    HttpResponse.BodyHandlers.ofByteArray(),
+                )
+            } catch (exception: IOException) {
+                throw ZaiQuotaException(
+                    "Request failed. Check your connection.",
+                    0,
+                    null,
+                    exception,
+                )
+            } catch (exception: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw ZaiQuotaException(
+                    "Request failed. Check your connection.",
+                    0,
+                    null,
+                    exception,
+                )
+            }
         if (response.statusCode() !in 200..299) {
-            throw ZaiQuotaException("Z.ai video download failed (HTTP ${response.statusCode()}).", response.statusCode())
+            throw ZaiQuotaException(
+                "Z.ai video download failed (HTTP ${response.statusCode()}).",
+                response.statusCode(),
+            )
         }
         return response.body()
     }
@@ -114,15 +153,16 @@ open class ZaiVideoClient(
         val deadline = System.currentTimeMillis() + timeoutSeconds * 1000L
         var lastBody: String? = null
         while (System.currentTimeMillis() < deadline) {
-            val response = send(
-                HttpRequest.newBuilder()
-                    .uri(resultBaseUri.resolve(id))
-                    .timeout(Duration.ofSeconds(30))
-                    .header("Authorization", "Bearer $token")
-                    .header("Accept", "application/json")
-                    .GET()
-                    .build(),
-            )
+            val response =
+                send(
+                    HttpRequest.newBuilder()
+                        .uri(resultBaseUri.resolve(id))
+                        .timeout(Duration.ofSeconds(30))
+                        .header("Authorization", "Bearer $token")
+                        .header("Accept", "application/json")
+                        .GET()
+                        .build()
+                )
             lastBody = response.body()
             val status = response.statusCode()
             if (status == 401 || status == 403) {
@@ -133,8 +173,9 @@ open class ZaiVideoClient(
             }
             when (taskStatus(lastBody)?.uppercase(Locale.ROOT)) {
                 "SUCCESS" -> return McpJson.providerJsonOrRaw(lastBody)
-                "FAIL", "FAILED", "ERROR" ->
-                    throw ZaiQuotaException("Z.ai video generation failed.", 200, lastBody)
+                "FAIL",
+                "FAILED",
+                "ERROR" -> throw ZaiQuotaException("Z.ai video generation failed.", 200, lastBody)
                 else -> sleeper(POLL_INTERVAL_MS)
             }
         }
@@ -174,13 +215,17 @@ open class ZaiVideoClient(
         fun createDefault(): ZaiVideoClient = ZaiVideoClient()
 
         internal fun taskId(body: String): String? {
-            val root = runCatching { JsonSupport.json.parseToJsonElement(body) as? JsonObject }.getOrNull() ?: return null
+            val root =
+                runCatching { JsonSupport.json.parseToJsonElement(body) as? JsonObject }.getOrNull()
+                    ?: return null
             return (root["id"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
                 ?: (root["request_id"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
         }
 
         internal fun taskStatus(body: String): String? {
-            val root = runCatching { JsonSupport.json.parseToJsonElement(body) as? JsonObject }.getOrNull() ?: return null
+            val root =
+                runCatching { JsonSupport.json.parseToJsonElement(body) as? JsonObject }.getOrNull()
+                    ?: return null
             return (root["task_status"] as? JsonPrimitive)?.contentOrNull
         }
 

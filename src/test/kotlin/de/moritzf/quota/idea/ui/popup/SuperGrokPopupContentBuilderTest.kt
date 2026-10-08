@@ -15,18 +15,24 @@ class SuperGrokPopupContentBuilderTest {
     fun resetLinkListsEveryTokenExpiration() {
         val section = SuperGrokPopupSection()
         val now = Clock.System.now()
-        val quota = SuperGrokQuota(
-            resetTokens = listOf(
-                SuperGrokResetToken("restok_1", now + 3.days),
-                SuperGrokResetToken("restok_2", now + 10.days),
-                SuperGrokResetToken("restok_3"),
-            ),
-        )
+        val quota =
+            SuperGrokQuota(
+                resetTokens =
+                    listOf(
+                        SuperGrokResetToken("restok_1", now + 3.days),
+                        SuperGrokResetToken("restok_2", now + 10.days),
+                        SuperGrokResetToken("restok_3"),
+                    )
+            )
 
         section.update(quota, error = null, visible = true)
 
-        val tooltip = section.components.filterIsInstance<JPanel>()
-            .flatMap { it.components.filterIsInstance<ActionLink>() }.single().toolTipText
+        val tooltip =
+            section.components
+                .filterIsInstance<JPanel>()
+                .flatMap { it.components.filterIsInstance<ActionLink>() }
+                .single()
+                .toolTipText
         assertTrue(tooltip.contains("Redeem one SuperGrok weekly reset"))
         assertTrue(tooltip.contains("Token 1: Expires in "))
         assertTrue(tooltip.contains("Token 2: Expires in "))
@@ -37,11 +43,19 @@ class SuperGrokPopupContentBuilderTest {
     @Test
     fun hidesResetLinkWhenNoTokensRemain() {
         val section = SuperGrokPopupSection()
-        section.update(SuperGrokQuota(resetTokens = listOf(SuperGrokResetToken("restok_1"))), null, true)
+        section.update(
+            SuperGrokQuota(resetTokens = listOf(SuperGrokResetToken("restok_1"))),
+            null,
+            true,
+        )
 
         section.update(SuperGrokQuota(), null, true)
 
-        assertTrue(section.components.filterIsInstance<JPanel>()
-            .flatMap { it.components.filterIsInstance<ActionLink>() }.isEmpty())
+        assertTrue(
+            section.components
+                .filterIsInstance<JPanel>()
+                .flatMap { it.components.filterIsInstance<ActionLink>() }
+                .isEmpty()
+        )
     }
 }

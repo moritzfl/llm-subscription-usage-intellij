@@ -2,6 +2,13 @@ package de.moritzf.quota.claude
 
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.LenientDoubleOrNullSerializer
+import java.io.IOException
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.net.http.HttpTimeoutException
+import java.time.Duration
 import kotlin.math.roundToLong
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -18,51 +25,56 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.longOrNull
-import java.io.IOException
-import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
-import java.net.http.HttpTimeoutException
-import java.time.Duration
 
 open class ClaudeQuotaClient(
     private val httpClient: HttpClient = HttpClient.newHttpClient(),
     private val usageUri: URI = DEFAULT_USAGE_URI,
 ) {
     open fun fetchQuota(accessToken: String?): ClaudeQuota {
-        val token = accessToken?.trim()?.takeIf { it.isNotBlank() }
-            ?: throw ClaudeQuotaException("Claude login required. Log in from Claude settings.")
+        val token =
+            accessToken?.trim()?.takeIf { it.isNotBlank() }
+                ?: throw ClaudeQuotaException("Claude login required. Log in from Claude settings.")
 
         val body = getUsageJson(token)
-        val quota = try {
-            parseQuota(body)
-        } catch (exception: ClaudeQuotaException) {
-            throw ClaudeQuotaException(exception.message ?: "Claude usage response changed.", 200, body, exception)
-        } catch (exception: Exception) {
-            throw ClaudeQuotaException("Claude usage response changed.", 200, body, exception)
-        }
+        val quota =
+            try {
+                parseQuota(body)
+            } catch (exception: ClaudeQuotaException) {
+                throw ClaudeQuotaException(
+                    exception.message ?: "Claude usage response changed.",
+                    200,
+                    body,
+                    exception,
+                )
+            } catch (exception: Exception) {
+                throw ClaudeQuotaException("Claude usage response changed.", 200, body, exception)
+            }
         quota.rawJson = body
         return quota
     }
 
     private fun getUsageJson(accessToken: String): String {
-        val request = HttpRequest.newBuilder()
-            .uri(usageUri)
-            .timeout(Duration.ofSeconds(30))
-            .header("Authorization", "Bearer $accessToken")
-            .header("Accept", "application/json")
-            .header("Content-Type", "application/json")
-            .header("anthropic-beta", OAUTH_BETA)
-            .header("User-Agent", USER_AGENT)
-            .GET()
-            .build()
+        val request =
+            HttpRequest.newBuilder()
+                .uri(usageUri)
+                .timeout(Duration.ofSeconds(30))
+                .header("Authorization", "Bearer $accessToken")
+                .header("Accept", "application/json")
+                .header("Content-Type", "application/json")
+                .header("anthropic-beta", OAUTH_BETA)
+                .header("User-Agent", USER_AGENT)
+                .GET()
+                .build()
 
         val response = send(request)
         val status = response.statusCode()
         val body = response.body()
         if (status == 401) {
-            throw ClaudeQuotaException("Claude usage API rejected the access token (HTTP 401).", status, body)
+            throw ClaudeQuotaException(
+                "Claude usage API rejected the access token (HTTP 401).",
+                status,
+                body,
+            )
         }
         if (status == 403) {
             if (body.contains("user:profile", ignoreCase = true)) {
@@ -75,10 +87,18 @@ open class ClaudeQuotaClient(
             throw ClaudeQuotaException("Claude usage API denied access (HTTP 403).", status, body)
         }
         if (status == 429) {
-            throw ClaudeQuotaException("Claude usage API rate limited. Try again later.", status, body)
+            throw ClaudeQuotaException(
+                "Claude usage API rate limited. Try again later.",
+                status,
+                body,
+            )
         }
         if (status !in 200..299) {
-            throw ClaudeQuotaException("Claude usage request failed (HTTP $status). Try again later.", status, body)
+            throw ClaudeQuotaException(
+                "Claude usage request failed (HTTP $status). Try again later.",
+                status,
+                body,
+            )
         }
         return body
     }
@@ -87,12 +107,27 @@ open class ClaudeQuotaClient(
         return try {
             httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         } catch (exception: HttpTimeoutException) {
-            throw ClaudeQuotaException("Claude usage request timed out. Try again later.", 0, null, exception)
+            throw ClaudeQuotaException(
+                "Claude usage request timed out. Try again later.",
+                0,
+                null,
+                exception,
+            )
         } catch (exception: IOException) {
-            throw ClaudeQuotaException("Claude usage request failed. Check your connection.", 0, null, exception)
+            throw ClaudeQuotaException(
+                "Claude usage request failed. Check your connection.",
+                0,
+                null,
+                exception,
+            )
         } catch (exception: InterruptedException) {
             Thread.currentThread().interrupt()
-            throw ClaudeQuotaException("Claude usage request failed. Check your connection.", 0, null, exception)
+            throw ClaudeQuotaException(
+                "Claude usage request failed. Check your connection.",
+                0,
+                null,
+                exception,
+            )
         }
     }
 
@@ -111,46 +146,60 @@ open class ClaudeQuotaClient(
         ): ClaudeQuota {
             // Sections are decoded individually so one unparsable block (for example a reshaped
             // extra_usage or a broken limits entry) only drops that block, not the whole quota.
-            val root = runCatching { JsonSupport.json.parseToJsonElement(usageJson) }.getOrNull() as? JsonObject
-                ?: throw ClaudeQuotaException("Claude usage response changed.", 200, usageJson)
+            val root =
+                runCatching { JsonSupport.json.parseToJsonElement(usageJson) }.getOrNull()
+                    as? JsonObject
+                    ?: throw ClaudeQuotaException("Claude usage response changed.", 200, usageJson)
 
             fun window(key: String): ClaudeUsageWindowDto? =
                 JsonSupport.decodeSectionOrNull(root[key], ClaudeUsageWindowDto.serializer())
 
-            val payload = ClaudeUsageResponseDto(
-                fiveHour = window("five_hour"),
-                sevenDay = window("seven_day"),
-                sevenDaySonnet = window("seven_day_sonnet"),
-                sevenDayOpus = window("seven_day_opus"),
-                sevenDayOauthApps = window("seven_day_oauth_apps"),
-                sevenDayRoutines = window("seven_day_routines"),
-                sevenDayClaudeRoutines = window("seven_day_claude_routines"),
-                claudeRoutines = window("claude_routines"),
-                routines = window("routines"),
-                routine = window("routine"),
-                sevenDayCowork = window("seven_day_cowork"),
-                cowork = window("cowork"),
-                extraUsage = JsonSupport.decodeSectionOrNull(root["extra_usage"], ClaudeExtraUsageDto.serializer()),
-                limits = JsonSupport.decodeListItemsLeniently(root["limits"], ClaudeLimitDto.serializer()),
-            )
+            val payload =
+                ClaudeUsageResponseDto(
+                    fiveHour = window("five_hour"),
+                    sevenDay = window("seven_day"),
+                    sevenDaySonnet = window("seven_day_sonnet"),
+                    sevenDayOpus = window("seven_day_opus"),
+                    sevenDayOauthApps = window("seven_day_oauth_apps"),
+                    sevenDayRoutines = window("seven_day_routines"),
+                    sevenDayClaudeRoutines = window("seven_day_claude_routines"),
+                    claudeRoutines = window("claude_routines"),
+                    routines = window("routines"),
+                    routine = window("routine"),
+                    sevenDayCowork = window("seven_day_cowork"),
+                    cowork = window("cowork"),
+                    extraUsage =
+                        JsonSupport.decodeSectionOrNull(
+                            root["extra_usage"],
+                            ClaudeExtraUsageDto.serializer(),
+                        ),
+                    limits =
+                        JsonSupport.decodeListItemsLeniently(
+                            root["limits"],
+                            ClaudeLimitDto.serializer(),
+                        ),
+                )
 
             val fiveHour = payload.fiveHour.toWindow("5-hour", FIVE_HOUR_MS)
             val sevenDay = payload.sevenDay.toWindow("7-day", SEVEN_DAY_MS)
             val sevenDaySonnet = payload.sevenDaySonnet.toWindow("7-day Sonnet", SEVEN_DAY_MS)
             val sevenDayOpus = payload.sevenDayOpus.toWindow("7-day Opus", SEVEN_DAY_MS)
-            val sevenDayOauthApps = payload.sevenDayOauthApps.toWindow("7-day OAuth apps", SEVEN_DAY_MS)
+            val sevenDayOauthApps =
+                payload.sevenDayOauthApps.toWindow("7-day OAuth apps", SEVEN_DAY_MS)
             val routines = firstRoutinesWindow(payload)
             val scopedLimits = scopedLimitWindows(payload)
             val extraUsage = payload.extraUsage?.toExtraUsage()
 
-            val hasWindows = listOfNotNull(
-                fiveHour,
-                sevenDay,
-                sevenDaySonnet,
-                sevenDayOpus,
-                sevenDayOauthApps,
-                routines,
-            ).isNotEmpty() || scopedLimits.isNotEmpty()
+            val hasWindows =
+                listOfNotNull(
+                        fiveHour,
+                        sevenDay,
+                        sevenDaySonnet,
+                        sevenDayOpus,
+                        sevenDayOauthApps,
+                        routines,
+                    )
+                    .isNotEmpty() || scopedLimits.isNotEmpty()
             if (!hasWindows && extraUsage?.isEnabled != true) {
                 throw ClaudeQuotaException("Claude usage response changed.", 200, usageJson)
             }
@@ -177,48 +226,58 @@ open class ClaudeQuotaClient(
         private fun scopedLimitWindows(payload: ClaudeUsageResponseDto): List<ClaudeUsageWindow> {
             return payload.limits.orEmpty().mapNotNull { limit ->
                 val percent = limit.percent ?: return@mapNotNull null
-                val scopeLabel = limit.scope?.let { scope ->
-                    scope.model?.displayName?.takeIf { it.isNotBlank() }
-                        ?: scope.model?.id?.takeIf { it.isNotBlank() }
-                        ?: scope.surface?.takeIf { it.isNotBlank() }
-                } ?: return@mapNotNull null
+                val scopeLabel =
+                    limit.scope?.let { scope ->
+                        scope.model?.displayName?.takeIf { it.isNotBlank() }
+                            ?: scope.model?.id?.takeIf { it.isNotBlank() }
+                            ?: scope.surface?.takeIf { it.isNotBlank() }
+                    } ?: return@mapNotNull null
                 val group = limit.group?.takeIf { it.isNotBlank() } ?: limit.kind
-                val groupLabel = when (group?.lowercase()) {
-                    "session" -> "Session"
-                    "weekly" -> "Weekly"
-                    else -> group?.replaceFirstChar { it.uppercase() } ?: "Limit"
-                }
-                val periodDurationMs = when (group?.lowercase()) {
-                    "session" -> FIVE_HOUR_MS
-                    "weekly" -> SEVEN_DAY_MS
-                    else -> null
-                }
+                val groupLabel =
+                    when (group?.lowercase()) {
+                        "session" -> "Session"
+                        "weekly" -> "Weekly"
+                        else -> group?.replaceFirstChar { it.uppercase() } ?: "Limit"
+                    }
+                val periodDurationMs =
+                    when (group?.lowercase()) {
+                        "session" -> FIVE_HOUR_MS
+                        "weekly" -> SEVEN_DAY_MS
+                        else -> null
+                    }
                 ClaudeUsageWindow(
                     label = "$groupLabel ($scopeLabel)",
                     usagePercent = percent.coerceIn(0.0, 100.0),
-                    resetsAt = limit.resetsAt?.let { runCatching { Instant.parse(it) }.getOrNull() },
+                    resetsAt =
+                        limit.resetsAt?.let { runCatching { Instant.parse(it) }.getOrNull() },
                     periodDurationMs = periodDurationMs,
                 )
             }
         }
 
         private fun firstRoutinesWindow(payload: ClaudeUsageResponseDto): ClaudeUsageWindow? {
-            val candidates = listOf(
-                payload.sevenDayRoutines,
-                payload.sevenDayClaudeRoutines,
-                payload.claudeRoutines,
-                payload.routines,
-                payload.routine,
-                payload.sevenDayCowork,
-                payload.cowork,
-            )
+            val candidates =
+                listOf(
+                    payload.sevenDayRoutines,
+                    payload.sevenDayClaudeRoutines,
+                    payload.claudeRoutines,
+                    payload.routines,
+                    payload.routine,
+                    payload.sevenDayCowork,
+                    payload.cowork,
+                )
             for (candidate in candidates) {
-                candidate.toWindow("Daily Routines", SEVEN_DAY_MS)?.let { return it }
+                candidate.toWindow("Daily Routines", SEVEN_DAY_MS)?.let {
+                    return it
+                }
             }
             return null
         }
 
-        private fun ClaudeUsageWindowDto?.toWindow(label: String, periodDurationMs: Long): ClaudeUsageWindow? {
+        private fun ClaudeUsageWindowDto?.toWindow(
+            label: String,
+            periodDurationMs: Long,
+        ): ClaudeUsageWindow? {
             val utilization = this?.utilization ?: return null
             val resetsAt = this.resetsAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
             return ClaudeUsageWindow(
@@ -232,12 +291,13 @@ open class ClaudeQuotaClient(
         private fun ClaudeExtraUsageDto.toExtraUsage(): ClaudeExtraUsage {
             val limit = monthlyLimit
             val used = usedCredits
-            val percent = utilization
-                ?: if (limit != null && limit > 0 && used != null) {
-                    (used.toDouble() / limit.toDouble() * 100.0).coerceIn(0.0, 100.0)
-                } else {
-                    null
-                }
+            val percent =
+                utilization
+                    ?: if (limit != null && limit > 0 && used != null) {
+                        (used.toDouble() / limit.toDouble() * 100.0).coerceIn(0.0, 100.0)
+                    } else {
+                        null
+                    }
             return ClaudeExtraUsage(
                 isEnabled = isEnabled == true,
                 monthlyLimitCredits = limit,
@@ -257,7 +317,8 @@ private data class ClaudeUsageResponseDto(
     @SerialName("seven_day_opus") val sevenDayOpus: ClaudeUsageWindowDto? = null,
     @SerialName("seven_day_oauth_apps") val sevenDayOauthApps: ClaudeUsageWindowDto? = null,
     @SerialName("seven_day_routines") val sevenDayRoutines: ClaudeUsageWindowDto? = null,
-    @SerialName("seven_day_claude_routines") val sevenDayClaudeRoutines: ClaudeUsageWindowDto? = null,
+    @SerialName("seven_day_claude_routines")
+    val sevenDayClaudeRoutines: ClaudeUsageWindowDto? = null,
     @SerialName("claude_routines") val claudeRoutines: ClaudeUsageWindowDto? = null,
     @SerialName("routines") val routines: ClaudeUsageWindowDto? = null,
     @SerialName("routine") val routine: ClaudeUsageWindowDto? = null,
@@ -269,8 +330,7 @@ private data class ClaudeUsageResponseDto(
 
 @Serializable
 private data class ClaudeUsageWindowDto(
-    @Serializable(with = LenientDoubleOrNullSerializer::class)
-    val utilization: Double? = null,
+    @Serializable(with = LenientDoubleOrNullSerializer::class) val utilization: Double? = null,
     @SerialName("resets_at") val resetsAt: String? = null,
 )
 
@@ -278,8 +338,7 @@ private data class ClaudeUsageWindowDto(
 private data class ClaudeLimitDto(
     val kind: String? = null,
     val group: String? = null,
-    @Serializable(with = LenientDoubleOrNullSerializer::class)
-    val percent: Double? = null,
+    @Serializable(with = LenientDoubleOrNullSerializer::class) val percent: Double? = null,
     @SerialName("resets_at") val resetsAt: String? = null,
     val scope: ClaudeLimitScopeDto? = null,
 )
@@ -305,8 +364,7 @@ private data class ClaudeExtraUsageDto(
     @SerialName("used_credits")
     @Serializable(with = LenientCreditsSerializer::class)
     val usedCredits: Long? = null,
-    @Serializable(with = LenientDoubleOrNullSerializer::class)
-    val utilization: Double? = null,
+    @Serializable(with = LenientDoubleOrNullSerializer::class) val utilization: Double? = null,
     val currency: String? = null,
 )
 
@@ -318,7 +376,8 @@ private object LenientCreditsSerializer : KSerializer<Long?> {
     override val descriptor: SerialDescriptor = buildClassSerialDescriptor("ClaudeLenientCredits")
 
     override fun deserialize(decoder: Decoder): Long? {
-        val jsonDecoder = decoder as? JsonDecoder ?: error("LenientCreditsSerializer requires JsonDecoder")
+        val jsonDecoder =
+            decoder as? JsonDecoder ?: error("LenientCreditsSerializer requires JsonDecoder")
         val primitive = jsonDecoder.decodeJsonElement() as? JsonPrimitive ?: return null
         return primitive.longOrNull
             ?: primitive.doubleOrNull?.roundToLong()

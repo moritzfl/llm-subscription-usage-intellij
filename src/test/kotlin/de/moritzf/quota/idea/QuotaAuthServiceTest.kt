@@ -6,20 +6,26 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/**
- * Tests for OAuth callback URI and query parsing helpers.
- */
+/** Tests for OAuth callback URI and query parsing helpers. */
 class QuotaAuthServiceTest {
     @Test
     fun parseUriAcceptsFullCallbackUrl() {
-        val uri = QuotaAuthService.parseUri(QuotaProviderType.OPEN_AI, "http://127.0.0.1:1455/auth/callback?code=abc&state=xyz")
+        val uri =
+            QuotaAuthService.parseUri(
+                QuotaProviderType.OPEN_AI,
+                "http://127.0.0.1:1455/auth/callback?code=abc&state=xyz",
+            )
         assertEquals("/auth/callback", uri.path)
         assertEquals("code=abc&state=xyz", uri.rawQuery)
     }
 
     @Test
     fun parseUriAcceptsRelativeCallbackUrl() {
-        val uri = QuotaAuthService.parseUri(QuotaProviderType.OPEN_AI, "/auth/callback?code=abc&state=xyz")
+        val uri =
+            QuotaAuthService.parseUri(
+                QuotaProviderType.OPEN_AI,
+                "/auth/callback?code=abc&state=xyz",
+            )
         assertEquals("/auth/callback", uri.path)
         assertEquals("code=abc&state=xyz", uri.rawQuery)
     }

@@ -8,7 +8,11 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 internal object LegacyOpenCodeSecrets {
     fun clear(accountId: String) {
         val default = accountId == QuotaProviderType.OPEN_CODE.id
-        for ((serviceName, userName) in listOf("OpenCode Session Cookie" to "opencode-session", "OpenCode API Key" to "opencode-api-key")) {
+        for ((serviceName, userName) in
+            listOf(
+                "OpenCode Session Cookie" to "opencode-session",
+                "OpenCode API Key" to "opencode-api-key",
+            )) {
             val service = if (default) serviceName else "$serviceName ($accountId)"
             val user = if (default) userName else "$userName-$accountId"
             PasswordSafeSecrets.clear(CredentialAttributes(service, user), "legacy $serviceName")

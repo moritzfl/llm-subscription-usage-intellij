@@ -1,7 +1,11 @@
 package de.moritzf.quota.shared
 
 /** Local figure export, not an OCR request's input resolution. */
-enum class DocumentImageFormat { SVG, PNG, PROVIDER }
+enum class DocumentImageFormat {
+    SVG,
+    PNG,
+    PROVIDER,
+}
 
 data class DocumentImageOptions(
     val format: DocumentImageFormat = DocumentImageFormat.SVG,

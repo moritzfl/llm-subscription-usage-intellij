@@ -28,8 +28,14 @@ class QuotaIndicatorSourceTest {
     @Test
     fun fromStorageValueStillAcceptsLegacyEnumNames() {
         assertEquals(QuotaIndicatorSource.OPEN_AI, QuotaIndicatorSource.fromStorageValue("OPEN_AI"))
-        assertEquals(QuotaIndicatorSource.OPEN_CODE, QuotaIndicatorSource.fromStorageValue("open_code"))
-        assertEquals(QuotaIndicatorSource.LAST_USED, QuotaIndicatorSource.fromStorageValue("LAST_USED"))
+        assertEquals(
+            QuotaIndicatorSource.OPEN_CODE,
+            QuotaIndicatorSource.fromStorageValue("open_code"),
+        )
+        assertEquals(
+            QuotaIndicatorSource.LAST_USED,
+            QuotaIndicatorSource.fromStorageValue("LAST_USED"),
+        )
     }
 
     @Test

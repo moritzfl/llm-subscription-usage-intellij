@@ -32,9 +32,15 @@ class SuperGrokSubscriptionProxyProviderTest {
                 val response = get(proxy.port, "/v1/models")
 
                 assertEquals(200, response.statusCode())
-                val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
-                    .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertEquals(listOf("sg-grok-4.3"), ids.filter { it !in OpenAiMedia.advertisedMediaIds(setOf("supergrok")) })
+                val ids =
+                    JsonHelper.JSON.parseToJsonElement(response.body())
+                        .jsonObject["data"]!!
+                        .jsonArray
+                        .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                assertEquals(
+                    listOf("sg-grok-4.3"),
+                    ids.filter { it !in OpenAiMedia.advertisedMediaIds(setOf("supergrok")) },
+                )
                 assertTrue("sg-grok-imagine-image" in ids)
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/v1/models", request.path)
@@ -54,9 +60,15 @@ class SuperGrokSubscriptionProxyProviderTest {
                 val response = get(proxy.port, "/v1/models")
 
                 assertEquals(200, response.statusCode())
-                val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
-                    .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertEquals(emptyList(), ids.filter { it !in OpenAiMedia.advertisedMediaIds(setOf("supergrok")) })
+                val ids =
+                    JsonHelper.JSON.parseToJsonElement(response.body())
+                        .jsonObject["data"]!!
+                        .jsonArray
+                        .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                assertEquals(
+                    emptyList(),
+                    ids.filter { it !in OpenAiMedia.advertisedMediaIds(setOf("supergrok")) },
+                )
                 assertTrue("sg-grok-imagine-image" in ids)
             } finally {
                 proxy.stop()
@@ -66,11 +78,12 @@ class SuperGrokSubscriptionProxyProviderTest {
 
     @Test
     fun skipsImageAndVideoModelsForChatProxyRoutes() {
-        val modelsBody = "{\"object\":\"list\",\"data\":[" +
-            "{\"id\":\"grok-4.3\",\"prompt_text_token_price\":12500,\"completion_text_token_price\":25000}," +
-            "{\"id\":\"grok-imagine-image\",\"image_price\":200000000}," +
-            "{\"id\":\"grok-imagine-video-1.5\"}" +
-            "]}"
+        val modelsBody =
+            "{\"object\":\"list\",\"data\":[" +
+                "{\"id\":\"grok-4.3\",\"prompt_text_token_price\":12500,\"completion_text_token_price\":25000}," +
+                "{\"id\":\"grok-imagine-image\",\"image_price\":200000000}," +
+                "{\"id\":\"grok-imagine-video-1.5\"}" +
+                "]}"
         TestUpstream(modelsBody = modelsBody).use { upstream ->
             val proxy = newProxy(upstream.baseUri)
             try {
@@ -78,9 +91,15 @@ class SuperGrokSubscriptionProxyProviderTest {
                 val response = get(proxy.port, "/v1/models")
 
                 assertEquals(200, response.statusCode())
-                val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
-                    .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertEquals(listOf("sg-grok-4.3"), ids.filter { it !in OpenAiMedia.advertisedMediaIds(setOf("supergrok")) })
+                val ids =
+                    JsonHelper.JSON.parseToJsonElement(response.body())
+                        .jsonObject["data"]!!
+                        .jsonArray
+                        .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                assertEquals(
+                    listOf("sg-grok-4.3"),
+                    ids.filter { it !in OpenAiMedia.advertisedMediaIds(setOf("supergrok")) },
+                )
                 assertTrue("sg-grok-imagine-image" in ids)
             } finally {
                 proxy.stop()
@@ -94,7 +113,12 @@ class SuperGrokSubscriptionProxyProviderTest {
             val proxy = newProxy(upstream.baseUri)
             try {
                 proxy.start()
-                val response = post(proxy.port, "/v1/responses", "{\"model\":\"sg-grok-4.3\",\"input\":\"hi\"}")
+                val response =
+                    post(
+                        proxy.port,
+                        "/v1/responses",
+                        "{\"model\":\"sg-grok-4.3\",\"input\":\"hi\"}",
+                    )
 
                 assertEquals(200, response.statusCode())
                 val modelsRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
@@ -102,7 +126,10 @@ class SuperGrokSubscriptionProxyProviderTest {
                 val inferenceRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/v1/responses", inferenceRequest.path)
                 assertEquals("Bearer grok-token", inferenceRequest.firstHeader("Authorization"))
-                assertTrue(inferenceRequest.body.contains("\"model\":\"grok-4.3\""), inferenceRequest.body)
+                assertTrue(
+                    inferenceRequest.body.contains("\"model\":\"grok-4.3\""),
+                    inferenceRequest.body,
+                )
             } finally {
                 proxy.stop()
             }
@@ -115,13 +142,21 @@ class SuperGrokSubscriptionProxyProviderTest {
             val proxy = newProxy(upstream.baseUri)
             try {
                 proxy.start()
-                val response = post(proxy.port, "/v1/responses", "{\"model\":\"sg-grok-4.4\",\"input\":\"hi\"}")
+                val response =
+                    post(
+                        proxy.port,
+                        "/v1/responses",
+                        "{\"model\":\"sg-grok-4.4\",\"input\":\"hi\"}",
+                    )
 
                 assertEquals(200, response.statusCode())
                 assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
                 val inferenceRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/v1/responses", inferenceRequest.path)
-                assertTrue(inferenceRequest.body.contains("\"model\":\"grok-4.4\""), inferenceRequest.body)
+                assertTrue(
+                    inferenceRequest.body.contains("\"model\":\"grok-4.4\""),
+                    inferenceRequest.body,
+                )
                 assertTrue(!inferenceRequest.body.contains("sg-grok-4.4"), inferenceRequest.body)
             } finally {
                 proxy.stop()
@@ -132,35 +167,43 @@ class SuperGrokSubscriptionProxyProviderTest {
     @Test
     fun omitsUnsupportedChatStopAndTruncatesResponse() {
         TestUpstream(
-            inferenceBody = "{\"id\":\"chatcmpl_1\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"before</COMMAND> after\"},\"finish_reason\":\"stop\"}]}",
-        ).use { upstream ->
-            val proxy = newProxy(upstream.baseUri)
-            try {
-                proxy.start()
-                val response = post(
-                    proxy.port,
-                    "/v1/chat/completions",
-                    "{\"model\":\"sg-grok-4.3\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"stop\":[\"</COMMAND>\"]}",
-                )
+                inferenceBody =
+                    "{\"id\":\"chatcmpl_1\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"before</COMMAND> after\"},\"finish_reason\":\"stop\"}]}"
+            )
+            .use { upstream ->
+                val proxy = newProxy(upstream.baseUri)
+                try {
+                    proxy.start()
+                    val response =
+                        post(
+                            proxy.port,
+                            "/v1/chat/completions",
+                            "{\"model\":\"sg-grok-4.3\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"stop\":[\"</COMMAND>\"]}",
+                        )
 
-                assertEquals(200, response.statusCode())
-                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
-                val inferenceRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-                assertEquals("/v1/chat/completions", inferenceRequest.path)
-                assertTrue(!inferenceRequest.body.contains("\"stop\""), inferenceRequest.body)
+                    assertEquals(200, response.statusCode())
+                    assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
+                    val inferenceRequest =
+                        assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                    assertEquals("/v1/chat/completions", inferenceRequest.path)
+                    assertTrue(!inferenceRequest.body.contains("\"stop\""), inferenceRequest.body)
 
-                val responseJson = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject
-                val choice = responseJson["choices"]!!.jsonArray[0].jsonObject
-                assertEquals(
-                    "before",
-                    choice["message"]!!.jsonObject["content"]!!.jsonPrimitive.content,
-                )
-                assertEquals("stop", choice["finish_reason"]!!.jsonPrimitive.content)
-                assertEquals("</COMMAND>", choice["finish_details"]!!.jsonObject["stop"]!!.jsonPrimitive.content)
-            } finally {
-                proxy.stop()
+                    val responseJson =
+                        JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject
+                    val choice = responseJson["choices"]!!.jsonArray[0].jsonObject
+                    assertEquals(
+                        "before",
+                        choice["message"]!!.jsonObject["content"]!!.jsonPrimitive.content,
+                    )
+                    assertEquals("stop", choice["finish_reason"]!!.jsonPrimitive.content)
+                    assertEquals(
+                        "</COMMAND>",
+                        choice["finish_details"]!!.jsonObject["stop"]!!.jsonPrimitive.content,
+                    )
+                } finally {
+                    proxy.stop()
+                }
             }
-        }
     }
 
     @Test
@@ -169,17 +212,21 @@ class SuperGrokSubscriptionProxyProviderTest {
             val proxy = newProxy(upstream.baseUri)
             try {
                 proxy.start()
-                val response = post(
-                    proxy.port,
-                    "/v1/chat/completions",
-                    "{\"model\":\"sg-grok-4.3\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"prompt_cache_key\":\"lsu-fim-chat-v1\"}",
-                )
+                val response =
+                    post(
+                        proxy.port,
+                        "/v1/chat/completions",
+                        "{\"model\":\"sg-grok-4.3\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"prompt_cache_key\":\"lsu-fim-chat-v1\"}",
+                    )
 
                 assertEquals(200, response.statusCode())
                 assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 val inferenceRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("lsu-fim-chat-v1", inferenceRequest.firstHeader("x-grok-conv-id"))
-                assertTrue(!inferenceRequest.body.contains("prompt_cache_key"), inferenceRequest.body)
+                assertTrue(
+                    !inferenceRequest.body.contains("prompt_cache_key"),
+                    inferenceRequest.body,
+                )
             } finally {
                 proxy.stop()
             }
@@ -192,27 +239,34 @@ class SuperGrokSubscriptionProxyProviderTest {
             val proxy = newProxy(upstream.baseUri)
             try {
                 proxy.start()
-                val response = post(
-                    proxy.port,
-                    "/v1/chat/completions",
-                    "{" +
-                        "\"model\":\"sg-grok-4.3\"," +
-                        "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]," +
-                        "\"user\":\"primary\"," +
-                        "\"seed\":100000," +
-                        "\"drop_params\":true," +
-                        "\"reasoning_effort\":\"medium\"," +
-                        "\"stop\":[\"</COMMAND>\"]" +
-                        "}",
-                )
+                val response =
+                    post(
+                        proxy.port,
+                        "/v1/chat/completions",
+                        "{" +
+                            "\"model\":\"sg-grok-4.3\"," +
+                            "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]," +
+                            "\"user\":\"primary\"," +
+                            "\"seed\":100000," +
+                            "\"drop_params\":true," +
+                            "\"reasoning_effort\":\"medium\"," +
+                            "\"stop\":[\"</COMMAND>\"]" +
+                            "}",
+                    )
 
                 assertEquals(200, response.statusCode())
                 assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 val inferenceRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/v1/chat/completions", inferenceRequest.path)
-                assertTrue(inferenceRequest.body.contains("\"reasoning_effort\":\"medium\""), inferenceRequest.body)
+                assertTrue(
+                    inferenceRequest.body.contains("\"reasoning_effort\":\"medium\""),
+                    inferenceRequest.body,
+                )
                 assertTrue(!inferenceRequest.body.contains("drop_params"), inferenceRequest.body)
-                assertTrue(!inferenceRequest.body.contains("\"user\":\"primary\""), inferenceRequest.body)
+                assertTrue(
+                    !inferenceRequest.body.contains("\"user\":\"primary\""),
+                    inferenceRequest.body,
+                )
                 assertTrue(!inferenceRequest.body.contains("\"seed\""), inferenceRequest.body)
                 assertTrue(!inferenceRequest.body.contains("\"stop\""), inferenceRequest.body)
             } finally {
@@ -223,18 +277,21 @@ class SuperGrokSubscriptionProxyProviderTest {
 
     private fun newProxy(upstreamBaseUri: URI): TestProxy {
         val port = freePort()
-        val provider = SuperGrokSubscriptionProxyProvider(
-            accessTokenProvider = { "grok-token" },
-            upstreamBaseUri = upstreamBaseUri,
-            requestLogDir = Files.createTempDirectory("supergrok-subscription-proxy-test-logs").toString(),
-        )
+        val provider =
+            SuperGrokSubscriptionProxyProvider(
+                accessTokenProvider = { "grok-token" },
+                upstreamBaseUri = upstreamBaseUri,
+                requestLogDir =
+                    Files.createTempDirectory("supergrok-subscription-proxy-test-logs").toString(),
+            )
         return TestProxy(
             port,
             SubscriptionProxyServer(
                 port = port,
                 localApiKeyProvider = { "local-key" },
                 providers = { listOf(provider) },
-                requestLogDir = Files.createTempDirectory("subscription-proxy-test-logs").toString(),
+                requestLogDir =
+                    Files.createTempDirectory("subscription-proxy-test-logs").toString(),
             ),
         )
     }
@@ -262,6 +319,7 @@ class SuperGrokSubscriptionProxyProviderTest {
 
     private data class TestProxy(val port: Int, val server: SubscriptionProxyServer) {
         fun start() = server.start()
+
         fun stop() = server.stop()
     }
 
@@ -270,22 +328,25 @@ class SuperGrokSubscriptionProxyProviderTest {
         private val inferenceBody: String = "{\"id\":\"resp_1\",\"output\":[]}",
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
 
         init {
             server.createContext("/") { exchange ->
                 val body = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
-                requests += CapturedRequest(
-                    path = exchange.requestURI.rawPath,
-                    headers = exchange.requestHeaders.mapValues { it.value.toList() },
-                    body = body,
-                )
-                val responseBody = if (exchange.requestURI.rawPath.endsWith("/models")) {
-                    modelsBody
-                } else {
-                    inferenceBody
-                }
+                requests +=
+                    CapturedRequest(
+                        path = exchange.requestURI.rawPath,
+                        headers = exchange.requestHeaders.mapValues { it.value.toList() },
+                        body = body,
+                    )
+                val responseBody =
+                    if (exchange.requestURI.rawPath.endsWith("/models")) {
+                        modelsBody
+                    } else {
+                        inferenceBody
+                    }
                 val response = responseBody.toByteArray(Charsets.UTF_8)
                 exchange.responseHeaders.set("Content-Type", "application/json")
                 exchange.sendResponseHeaders(200, response.size.toLong())
@@ -306,7 +367,8 @@ class SuperGrokSubscriptionProxyProviderTest {
         val body: String,
     ) {
         fun firstHeader(name: String): String? {
-            return headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }
+            return headers.entries
+                .firstOrNull { it.key.equals(name, ignoreCase = true) }
                 ?.value
                 ?.firstOrNull()
         }

@@ -26,45 +26,49 @@ class MistralSubscriptionProxyProvider(
     fullRequestLogging: Boolean = false,
     requestLogDir: String = DEFAULT_REQUEST_LOG_DIR,
 ) : SubscriptionProxyProvider {
-    private val delegate = OpenAiCompatibleApiKeySubscriptionProxyProvider(
-        id = ID,
-        displayName = DISPLAY_NAME,
-        litellmProvider = LITELLM_PROVIDER,
-        baseUri = upstreamBaseUri,
-        apiKeyProvider = apiKeyProvider,
-        localIdPrefix = PREFIX,
-        nativeCompletionsRoute = SubscriptionProxyRoute.FIM_COMPLETIONS,
-        includeModel = OpenAiMedia::isChatDiscoveryId,
-        extraRoutesForModel = { id ->
-            if (FimModels.isNativeFimId(id)) setOf(SubscriptionProxyRoute.FIM_COMPLETIONS) else emptySet()
-        },
-        requestBodyTransformer = { request, body ->
-            if (request.route == SubscriptionProxyRoute.COMPLETIONS ||
-                request.route == SubscriptionProxyRoute.FIM_COMPLETIONS
-            ) {
-                buildJsonObject {
-                    body.forEach { (key, value) -> if (key != "stream") put(key, value) }
-                    put("stream", false)
+    private val delegate =
+        OpenAiCompatibleApiKeySubscriptionProxyProvider(
+            id = ID,
+            displayName = DISPLAY_NAME,
+            litellmProvider = LITELLM_PROVIDER,
+            baseUri = upstreamBaseUri,
+            apiKeyProvider = apiKeyProvider,
+            localIdPrefix = PREFIX,
+            nativeCompletionsRoute = SubscriptionProxyRoute.FIM_COMPLETIONS,
+            includeModel = OpenAiMedia::isChatDiscoveryId,
+            extraRoutesForModel = { id ->
+                if (FimModels.isNativeFimId(id)) setOf(SubscriptionProxyRoute.FIM_COMPLETIONS)
+                else emptySet()
+            },
+            requestBodyTransformer = { request, body ->
+                if (
+                    request.route == SubscriptionProxyRoute.COMPLETIONS ||
+                        request.route == SubscriptionProxyRoute.FIM_COMPLETIONS
+                ) {
+                    buildJsonObject {
+                        body.forEach { (key, value) -> if (key != "stream") put(key, value) }
+                        put("stream", false)
+                    }
+                } else if (body["reasoning_effort"] != null) {
+                    body.remove("reasoning_effort")
+                } else {
+                    body
                 }
-            } else if (body["reasoning_effort"] != null) {
-                body.remove("reasoning_effort")
-            } else {
-                body
-            }
-        },
-        jsonResponseTransformer = { request, raw ->
-            if (request.route == SubscriptionProxyRoute.COMPLETIONS ||
-                request.route == SubscriptionProxyRoute.FIM_COMPLETIONS
-            ) {
-                toTextCompletion(raw)
-            } else {
-                raw
-            }
-        },
-        httpClient = httpClient,
-        fullRequestLogging = fullRequestLogging,
-        requestLogDir = requestLogDir,
-    )
+            },
+            jsonResponseTransformer = { request, raw ->
+                if (
+                    request.route == SubscriptionProxyRoute.COMPLETIONS ||
+                        request.route == SubscriptionProxyRoute.FIM_COMPLETIONS
+                ) {
+                    toTextCompletion(raw)
+                } else {
+                    raw
+                }
+            },
+            httpClient = httpClient,
+            fullRequestLogging = fullRequestLogging,
+            requestLogDir = requestLogDir,
+        )
 
     override val id: String = ID
     override val displayName: String = DISPLAY_NAME
@@ -73,9 +77,13 @@ class MistralSubscriptionProxyProvider(
 
     override fun models() = delegate.models()
 
-    override fun fallbackModel(localId: String, route: SubscriptionProxyRoute) = delegate.fallbackModel(localId, route)
+    override fun fallbackModel(localId: String, route: SubscriptionProxyRoute) =
+        delegate.fallbackModel(localId, route)
 
-    override suspend fun handle(ctx: de.moritzf.proxy.server.ProxyCall, request: SubscriptionProxyRequest) {
+    override suspend fun handle(
+        ctx: de.moritzf.proxy.server.ProxyCall,
+        request: SubscriptionProxyRequest,
+    ) {
         delegate.handle(ctx, request)
     }
 
@@ -85,8 +93,9 @@ class MistralSubscriptionProxyProvider(
         private const val DISPLAY_NAME = "Mistral"
         private const val LITELLM_PROVIDER = "mistral"
         val DEFAULT_UPSTREAM_BASE_URI: URI = URI.create("https://api.mistral.ai/v1")
-        private val DEFAULT_REQUEST_LOG_DIR = System.getProperty("java.io.tmpdir") +
-            "/openai-usage-quota-intellij/subscription-proxy-mistral-requests"
+        private val DEFAULT_REQUEST_LOG_DIR =
+            System.getProperty("java.io.tmpdir") +
+                "/openai-usage-quota-intellij/subscription-proxy-mistral-requests"
 
         internal fun toTextCompletion(raw: String): String {
             val root = JsonHelper.parseToJsonElementOrNull(raw) as? JsonObject ?: return raw
@@ -99,26 +108,28 @@ class MistralSubscriptionProxyProvider(
                     root.forEach { (key, value) ->
                         when (key) {
                             "object" -> put("object", "text_completion")
-                            "choices" -> put(
-                                "choices",
-                                buildJsonArray {
-                                    add(
-                                        buildJsonObject {
-                                            put("text", text)
-                                            put("index", 0)
-                                            put(
-                                                "finish_reason",
-                                                (choice["finish_reason"] as? JsonPrimitive)?.contentOrNull ?: "stop",
-                                            )
-                                        },
-                                    )
-                                },
-                            )
+                            "choices" ->
+                                put(
+                                    "choices",
+                                    buildJsonArray {
+                                        add(
+                                            buildJsonObject {
+                                                put("text", text)
+                                                put("index", 0)
+                                                put(
+                                                    "finish_reason",
+                                                    (choice["finish_reason"] as? JsonPrimitive)
+                                                        ?.contentOrNull ?: "stop",
+                                                )
+                                            }
+                                        )
+                                    },
+                                )
                             else -> put(key, value)
                         }
                     }
                     if ("object" !in root) put("object", "text_completion")
-                },
+                }
             )
         }
     }

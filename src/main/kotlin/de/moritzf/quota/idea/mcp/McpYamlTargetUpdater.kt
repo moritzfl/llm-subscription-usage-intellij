@@ -1,9 +1,9 @@
 package de.moritzf.quota.idea.mcp
 
-import org.snakeyaml.engine.v2.api.Load
-import org.snakeyaml.engine.v2.api.LoadSettings
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
+import org.snakeyaml.engine.v2.api.Load
+import org.snakeyaml.engine.v2.api.LoadSettings
 
 class McpYamlTargetUpdater {
     fun updateFile(yamlFilePath: String, propertyPath: String, value: String): Boolean {
@@ -26,8 +26,11 @@ class McpYamlTargetUpdater {
         requireExistingTargetValue(root, segments)
 
         val (lines, separator) = McpJsonTargetUpdater.splitPreservingNewlines(content)
-        val propertyIndex = findPropertyLine(lines, segments)
-            ?: error("YAML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(segments)}")
+        val propertyIndex =
+            findPropertyLine(lines, segments)
+                ?: error(
+                    "YAML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(segments)}"
+                )
         lines[propertyIndex] = replaceYamlStringValue(lines[propertyIndex], value)
         return lines.joinToString(separator)
     }
@@ -35,7 +38,10 @@ class McpYamlTargetUpdater {
     companion object {
         private val loader = Load(LoadSettings.builder().build())
 
-        fun validateTargetFile(yamlFilePath: String, propertyPath: String): McpJsonTargetValidationError? {
+        fun validateTargetFile(
+            yamlFilePath: String,
+            propertyPath: String,
+        ): McpJsonTargetValidationError? {
             val file = McpJsonTargetUpdater.resolveJsonFilePath(yamlFilePath)
             if (!Files.exists(file)) {
                 return McpJsonTargetValidationError(
@@ -44,7 +50,9 @@ class McpYamlTargetUpdater {
                 )
             }
 
-            val content = runCatching { Files.readString(file, StandardCharsets.UTF_8) }
+            val content = runCatching {
+                Files.readString(file, StandardCharsets.UTF_8)
+            }
                 .getOrElse { error ->
                     return McpJsonTargetValidationError(
                         McpJsonTargetValidationProblem.FILE,
@@ -54,15 +62,22 @@ class McpYamlTargetUpdater {
             return validateTargetContent(content, propertyPath)
         }
 
-        fun validateTargetContent(content: String, propertyPath: String): McpJsonTargetValidationError? {
-            val segments = runCatching { McpJsonTargetUpdater.parsePropertyPath(propertyPath) }
+        fun validateTargetContent(
+            content: String,
+            propertyPath: String,
+        ): McpJsonTargetValidationError? {
+            val segments = runCatching {
+                McpJsonTargetUpdater.parsePropertyPath(propertyPath)
+            }
                 .getOrElse { error ->
                     return McpJsonTargetValidationError(
                         McpJsonTargetValidationProblem.PROPERTY,
                         error.message ?: "YAML property path is invalid.",
                     )
                 }
-            val root = runCatching { parseRoot(content) }
+            val root = runCatching {
+                parseRoot(content)
+            }
                 .getOrElse { error ->
                     return McpJsonTargetValidationError(
                         McpJsonTargetValidationProblem.FILE,
@@ -70,19 +85,20 @@ class McpYamlTargetUpdater {
                     )
                 }
             return runCatching {
-                requireExistingTargetValue(root, segments)
-                require(findPropertyLine(content.lines(), segments) != null) {
-                    "YAML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(segments)}"
+                    requireExistingTargetValue(root, segments)
+                    require(findPropertyLine(content.lines(), segments) != null) {
+                        "YAML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(segments)}"
+                    }
                 }
-            }.fold(
-                onSuccess = { null },
-                onFailure = { error ->
-                    McpJsonTargetValidationError(
-                        McpJsonTargetValidationProblem.PROPERTY,
-                        error.message ?: "YAML property path is invalid.",
-                    )
-                },
-            )
+                .fold(
+                    onSuccess = { null },
+                    onFailure = { error ->
+                        McpJsonTargetValidationError(
+                            McpJsonTargetValidationProblem.PROPERTY,
+                            error.message ?: "YAML property path is invalid.",
+                        )
+                    },
+                )
         }
 
         fun collectStringPropertyPaths(content: String): List<String> {
@@ -92,13 +108,18 @@ class McpYamlTargetUpdater {
             return paths
         }
 
-        private fun collectStringPropertyPaths(value: Any?, prefix: List<String>, paths: MutableList<String>) {
+        private fun collectStringPropertyPaths(
+            value: Any?,
+            prefix: List<String>,
+            paths: MutableList<String>,
+        ) {
             when (value) {
                 is String -> paths += McpJsonTargetUpdater.formatDotPath(prefix)
-                is Map<*, *> -> value.forEach { (key, childValue) ->
-                    val keyString = key as? String ?: return@forEach
-                    collectStringPropertyPaths(childValue, prefix + keyString, paths)
-                }
+                is Map<*, *> ->
+                    value.forEach { (key, childValue) ->
+                        val keyString = key as? String ?: return@forEach
+                        collectStringPropertyPaths(childValue, prefix + keyString, paths)
+                    }
             }
         }
 
@@ -110,10 +131,16 @@ class McpYamlTargetUpdater {
         private fun requireExistingTargetValue(root: Any?, path: List<String>): Any? {
             var current = root
             path.forEachIndexed { index, segment ->
-                val currentMap = current as? Map<*, *>
-                    ?: error("YAML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(path.take(index))} is not a map")
-                current = currentMap[segment]
-                    ?: error("YAML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(path)}")
+                val currentMap =
+                    current as? Map<*, *>
+                        ?: error(
+                            "YAML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(path.take(index))} is not a map"
+                        )
+                current =
+                    currentMap[segment]
+                        ?: error(
+                            "YAML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(path)}"
+                        )
             }
             require(current is String) { "YAML property path must point to a string value." }
             return current
@@ -143,7 +170,8 @@ class McpYamlTargetUpdater {
             if (content.isBlank() || content.trimStart().startsWith('-')) {
                 return null
             }
-            val indent = content.indexOfFirst { !it.isWhitespace() }.takeIf { it >= 0 } ?: return null
+            val indent =
+                content.indexOfFirst { !it.isWhitespace() }.takeIf { it >= 0 } ?: return null
             val trimmed = content.trimStart()
             val colonIndex = trimmed.indexOfUnquoted(':')
             if (colonIndex < 0) {
@@ -183,11 +211,15 @@ class McpYamlTargetUpdater {
 
         private fun replaceYamlStringValue(line: String, value: String): String {
             val commentIndex = line.commentIndexAfter(0)
-            val content = if (commentIndex >= 0) line.substring(0, commentIndex).trimEnd() else line.trimEnd()
+            val content =
+                if (commentIndex >= 0) line.substring(0, commentIndex).trimEnd() else line.trimEnd()
             val suffix = if (commentIndex >= 0) line.substring(commentIndex) else ""
             val colonIndex = content.indexOfUnquoted(':')
             require(colonIndex >= 0) { "YAML property line is invalid." }
-            return content.substring(0, colonIndex + 1) + " " + quoteYamlString(value) + if (suffix.isBlank()) "" else " " + suffix.trimStart()
+            return content.substring(0, colonIndex + 1) +
+                " " +
+                quoteYamlString(value) +
+                if (suffix.isBlank()) "" else " " + suffix.trimStart()
         }
 
         private fun quoteYamlString(value: String): String {

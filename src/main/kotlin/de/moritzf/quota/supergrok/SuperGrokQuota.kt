@@ -1,10 +1,10 @@
 package de.moritzf.quota.supergrok
 
 import de.moritzf.quota.shared.ProviderQuota
+import java.time.Duration
 import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
-import java.time.Duration
 
 @Serializable
 data class SuperGrokQuota(
@@ -34,10 +34,11 @@ data class SuperGrokUsageWindow(
     /** False when percent was inferred as 0% from a period-only billing payload. */
     val reported: Boolean = true,
 ) {
-    @Transient
-    val periodDuration: Duration? = periodDurationMs?.let(Duration::ofMillis)
+    @Transient val periodDuration: Duration? = periodDurationMs?.let(Duration::ofMillis)
 
-    /** Unified weekly billing only sets percent (used/limit stay 0); do not treat 0/0 as exhausted. */
+    /**
+     * Unified weekly billing only sets percent (used/limit stay 0); do not treat 0/0 as exhausted.
+     */
     fun isExhausted(): Boolean {
         if (usagePercent >= 100.0) return true
         return limit > 0 && used >= limit

@@ -23,7 +23,11 @@ data class QuotaUsageSnapshot(
         return type?.let { this[it] } ?: this[accountId]
     }
 
-    fun updated(accountId: String, type: QuotaProviderType, snapshot: ProviderSnapshot): QuotaUsageSnapshot {
+    fun updated(
+        accountId: String,
+        type: QuotaProviderType,
+        snapshot: ProviderSnapshot,
+    ): QuotaUsageSnapshot {
         return copy(
             entries = entries + (type to snapshot),
             accountEntries = accountEntries + (accountId to snapshot),

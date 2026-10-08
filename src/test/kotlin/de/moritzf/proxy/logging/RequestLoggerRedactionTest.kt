@@ -1,18 +1,19 @@
 package de.moritzf.proxy.logging
 
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertSame
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 class RequestLoggerRedactionTest {
     @Test
     fun redactsSensitiveFieldsInJsonBodies() {
-        val body = """
+        val body =
+            """
             {
               "model": "gpt-5",
               "api_key": "sk-secret",
@@ -21,7 +22,8 @@ class RequestLoggerRedactionTest {
               "nested": {"refresh_token": "rt-456", "password": "hunter2"},
               "items": [{"session_cookie": "c=1", "text": "keep me"}]
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val redacted = Json.parseToJsonElement(RequestLogger.redactBodyForLog(body)!!).jsonObject
 
@@ -39,12 +41,14 @@ class RequestLoggerRedactionTest {
 
     @Test
     fun keepsTokenCountAndLimitFields() {
-        val body = """
+        val body =
+            """
             {
               "max_tokens": 4096,
               "usage": {"total_tokens": 10, "input_tokens": 4, "output_tokens": 6}
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val redacted = Json.parseToJsonElement(RequestLogger.redactBodyForLog(body)!!).jsonObject
 

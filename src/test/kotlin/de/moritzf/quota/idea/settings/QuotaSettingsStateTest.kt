@@ -33,14 +33,16 @@ class QuotaSettingsStateTest {
 
     @Test
     fun subscriptionProxyProvidersIgnoreUnsupportedAndDuplicateIds() {
-        val state = QuotaSettingsState().apply {
-            subscriptionProxyEnabledProviders = mutableListOf(
-                QuotaProviderType.GITHUB.id,
-                QuotaProviderType.CURSOR.id,
-                QuotaProviderType.GITHUB.id,
-                QuotaProviderType.OPEN_AI.id,
-            )
-        }
+        val state =
+            QuotaSettingsState().apply {
+                subscriptionProxyEnabledProviders =
+                    mutableListOf(
+                        QuotaProviderType.GITHUB.id,
+                        QuotaProviderType.CURSOR.id,
+                        QuotaProviderType.GITHUB.id,
+                        QuotaProviderType.OPEN_AI.id,
+                    )
+            }
 
         val reloaded = QuotaSettingsState()
         reloaded.loadState(state)
@@ -48,7 +50,10 @@ class QuotaSettingsStateTest {
         assertTrue(reloaded.isSubscriptionProxyProviderEnabled(QuotaProviderType.GITHUB))
         assertTrue(reloaded.isSubscriptionProxyProviderEnabled(QuotaProviderType.OPEN_AI))
         assertFalse(reloaded.isSubscriptionProxyProviderEnabled(QuotaProviderType.CURSOR))
-        assertEquals(listOf(QuotaProviderType.GITHUB.id, QuotaProviderType.OPEN_AI.id), reloaded.subscriptionProxyEnabledProviders)
+        assertEquals(
+            listOf(QuotaProviderType.GITHUB.id, QuotaProviderType.OPEN_AI.id),
+            reloaded.subscriptionProxyEnabledProviders,
+        )
     }
 
     @Test
@@ -62,23 +67,30 @@ class QuotaSettingsStateTest {
 
     @Test
     fun completionsStayDisabledUntilProxyAndFimAreEnabled() {
-        val state = QuotaSettingsState().apply {
-            proxyCompletionsEnabled = true
-            proxyCompletionsModelId = " oa-gpt-5.5 "
-            proxyCompletionsMaxOutputTokens = 9_999
-            proxyCompletionsMaxRequestsPerMinute = 0
-            proxyCompletionsTimeoutSeconds = 1
-            proxyCompletionsPriorityTier = true
-        }
+        val state =
+            QuotaSettingsState().apply {
+                proxyCompletionsEnabled = true
+                proxyCompletionsModelId = " oa-gpt-5.5 "
+                proxyCompletionsMaxOutputTokens = 9_999
+                proxyCompletionsMaxRequestsPerMinute = 0
+                proxyCompletionsTimeoutSeconds = 1
+                proxyCompletionsPriorityTier = true
+            }
         val reloaded = QuotaSettingsState()
         reloaded.loadState(state)
 
         assertFalse(reloaded.completionsConfig().enabled)
         assertEquals("oa-gpt-5.5", reloaded.proxyCompletionsModelId)
         assertEquals(CompletionsConfig.MAX_OUTPUT_TOKENS, reloaded.proxyCompletionsMaxOutputTokens)
-        assertEquals(CompletionsConfig.MIN_REQUESTS_PER_MINUTE, reloaded.proxyCompletionsMaxRequestsPerMinute)
+        assertEquals(
+            CompletionsConfig.MIN_REQUESTS_PER_MINUTE,
+            reloaded.proxyCompletionsMaxRequestsPerMinute,
+        )
         assertEquals(CompletionsConfig.MIN_TIMEOUT_SECONDS, reloaded.proxyCompletionsTimeoutSeconds)
-        assertEquals(CompletionsConfig.timeoutMillis(CompletionsConfig.MIN_TIMEOUT_SECONDS), reloaded.completionsConfig().timeoutMillis)
+        assertEquals(
+            CompletionsConfig.timeoutMillis(CompletionsConfig.MIN_TIMEOUT_SECONDS),
+            reloaded.completionsConfig().timeoutMillis,
+        )
         assertTrue(reloaded.proxyCompletionsPriorityTier)
         assertTrue(reloaded.completionsConfig().priorityTier)
 

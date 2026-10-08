@@ -22,8 +22,9 @@ data class CompletionsRequest(
 ) {
     companion object {
         fun parse(body: JsonObject): CompletionsRequest {
-            val maxTokens = body.intPath("max_tokens").takeIf { it > 0 }
-                ?: body.intPath("max_completion_tokens").takeIf { it > 0 }
+            val maxTokens =
+                body.intPath("max_tokens").takeIf { it > 0 }
+                    ?: body.intPath("max_completion_tokens").takeIf { it > 0 }
             return CompletionsRequest(
                 model = body.stringPath("model").trim(),
                 prompt = promptText(body),

@@ -15,12 +15,14 @@ import kotlin.test.assertTrue
 class ClaudeQuotaProviderTest {
     @Test
     fun refreshStoresQuotaOnSuccess() {
-        val quota = ClaudeQuota(fiveHourUsage = null, sevenDayUsage = null, rawJson = "{\"ok\":true}")
-        val provider = ClaudeQuotaProvider(
-            client = FakeClaudeClient { quota },
-            tokenProvider = { "token" },
-            tokenRefresher = { null },
-        )
+        val quota =
+            ClaudeQuota(fiveHourUsage = null, sevenDayUsage = null, rawJson = "{\"ok\":true}")
+        val provider =
+            ClaudeQuotaProvider(
+                client = FakeClaudeClient { quota },
+                tokenProvider = { "token" },
+                tokenRefresher = { null },
+            )
 
         provider.refresh()
 
@@ -30,12 +32,13 @@ class ClaudeQuotaProviderTest {
 
     @Test
     fun refreshClearsDataWhenNotLoggedIn() {
-        val provider = ClaudeQuotaProvider(
-            client = FakeClaudeClient { throw ClaudeQuotaException("unused") },
-            tokenProvider = { null },
-            tokenRefresher = { null },
-            connectionStateProvider = { OAuthConnectionState.LOGGED_OUT },
-        )
+        val provider =
+            ClaudeQuotaProvider(
+                client = FakeClaudeClient { throw ClaudeQuotaException("unused") },
+                tokenProvider = { null },
+                tokenRefresher = { null },
+                connectionStateProvider = { OAuthConnectionState.LOGGED_OUT },
+            )
 
         provider.refresh()
 
@@ -47,12 +50,13 @@ class ClaudeQuotaProviderTest {
     fun refreshKeepsLoginAndLastQuotaWhenTokenIsTemporarilyUnavailable() {
         val quota = ClaudeQuota(rawJson = "{\"ok\":true}")
         var token: String? = "token"
-        val provider = ClaudeQuotaProvider(
-            client = FakeClaudeClient { quota },
-            tokenProvider = { token },
-            tokenRefresher = { null },
-            connectionStateProvider = { OAuthConnectionState.TEMPORARY_FAILURE },
-        )
+        val provider =
+            ClaudeQuotaProvider(
+                client = FakeClaudeClient { quota },
+                tokenProvider = { token },
+                tokenRefresher = { null },
+                connectionStateProvider = { OAuthConnectionState.TEMPORARY_FAILURE },
+            )
 
         provider.refresh()
         token = null
@@ -72,15 +76,21 @@ class ClaudeQuotaProviderTest {
     fun refreshKeepsLastQuotaOnRateLimitWhenPreviousDataExists() {
         val firstQuota = ClaudeQuota(rawJson = "{\"first\":true}")
         var fetchCount = 0
-        val provider = ClaudeQuotaProvider(
-            client = FakeClaudeClient {
-                fetchCount++
-                if (fetchCount == 1) firstQuota
-                else throw ClaudeQuotaException("Claude usage API rate limited. Try again later.", 429)
-            },
-            tokenProvider = { "token" },
-            tokenRefresher = { null },
-        )
+        val provider =
+            ClaudeQuotaProvider(
+                client =
+                    FakeClaudeClient {
+                        fetchCount++
+                        if (fetchCount == 1) firstQuota
+                        else
+                            throw ClaudeQuotaException(
+                                "Claude usage API rate limited. Try again later.",
+                                429,
+                            )
+                    },
+                tokenProvider = { "token" },
+                tokenRefresher = { null },
+            )
 
         provider.refresh()
         assertSame(firstQuota, provider.getLastQuota())
@@ -96,11 +106,15 @@ class ClaudeQuotaProviderTest {
 
     @Test
     fun refreshSurfacesErrorWhenRateLimitHasNoPreviousData() {
-        val provider = ClaudeQuotaProvider(
-            client = FakeClaudeClient { throw ClaudeQuotaException("Claude usage API rate limited.", 429) },
-            tokenProvider = { "token" },
-            tokenRefresher = { null },
-        )
+        val provider =
+            ClaudeQuotaProvider(
+                client =
+                    FakeClaudeClient {
+                        throw ClaudeQuotaException("Claude usage API rate limited.", 429)
+                    },
+                tokenProvider = { "token" },
+                tokenRefresher = { null },
+            )
 
         provider.refresh()
 
@@ -112,15 +126,21 @@ class ClaudeQuotaProviderTest {
     fun refreshSurfacesNonRateLimitErrorEvenWithPreviousData() {
         val firstQuota = ClaudeQuota(rawJson = "{\"first\":true}")
         var fetchCount = 0
-        val provider = ClaudeQuotaProvider(
-            client = FakeClaudeClient {
-                fetchCount++
-                if (fetchCount == 1) firstQuota
-                else throw ClaudeQuotaException("Claude usage request failed (HTTP 500).", 500)
-            },
-            tokenProvider = { "token" },
-            tokenRefresher = { null },
-        )
+        val provider =
+            ClaudeQuotaProvider(
+                client =
+                    FakeClaudeClient {
+                        fetchCount++
+                        if (fetchCount == 1) firstQuota
+                        else
+                            throw ClaudeQuotaException(
+                                "Claude usage request failed (HTTP 500).",
+                                500,
+                            )
+                    },
+                tokenProvider = { "token" },
+                tokenRefresher = { null },
+            )
 
         provider.refresh()
         provider.refresh()
@@ -134,18 +154,20 @@ class ClaudeQuotaProviderTest {
         val quota = ClaudeQuota(rawJson = "{\"ok\":true}")
         var fetchCount = 0
         var refreshCount = 0
-        val provider = ClaudeQuotaProvider(
-            client = FakeClaudeClient {
-                fetchCount++
-                if (fetchCount == 1) throw ClaudeQuotaException("expired", 401)
-                quota
-            },
-            tokenProvider = { "old-token" },
-            tokenRefresher = {
-                refreshCount++
-                "new-token"
-            },
-        )
+        val provider =
+            ClaudeQuotaProvider(
+                client =
+                    FakeClaudeClient {
+                        fetchCount++
+                        if (fetchCount == 1) throw ClaudeQuotaException("expired", 401)
+                        quota
+                    },
+                tokenProvider = { "old-token" },
+                tokenRefresher = {
+                    refreshCount++
+                    "new-token"
+                },
+            )
 
         provider.refresh()
 
@@ -159,18 +181,20 @@ class ClaudeQuotaProviderTest {
         val quota = ClaudeQuota(rawJson = "{\"ok\":true}")
         var fetchCount = 0
         var refreshCount = 0
-        val provider = ClaudeQuotaProvider(
-            client = FakeClaudeClient {
-                fetchCount++
-                if (fetchCount == 1) throw ClaudeQuotaException("expired", 403, "forbidden")
-                quota
-            },
-            tokenProvider = { "old-token" },
-            tokenRefresher = {
-                refreshCount++
-                "new-token"
-            },
-        )
+        val provider =
+            ClaudeQuotaProvider(
+                client =
+                    FakeClaudeClient {
+                        fetchCount++
+                        if (fetchCount == 1) throw ClaudeQuotaException("expired", 403, "forbidden")
+                        quota
+                    },
+                tokenProvider = { "old-token" },
+                tokenRefresher = {
+                    refreshCount++
+                    "new-token"
+                },
+            )
 
         provider.refresh()
 
@@ -183,38 +207,44 @@ class ClaudeQuotaProviderTest {
     fun refreshDoesNotRotateTokenAfterForbiddenResponse() {
         var refreshCount = 0
         var rejectedToken: String? = null
-        val provider = ClaudeQuotaProvider(
-            client = FakeClaudeClient {
-                throw ClaudeQuotaException(
-                    "Claude token is missing the user:profile scope required for usage.",
-                    403,
-                    "missing user:profile",
-                )
-            },
-            tokenProvider = { "token" },
-            tokenRefresher = {
-                refreshCount++
-                "new-token"
-            },
-            reconnectRequired = { rejectedToken = it },
-        )
+        val provider =
+            ClaudeQuotaProvider(
+                client =
+                    FakeClaudeClient {
+                        throw ClaudeQuotaException(
+                            "Claude token is missing the user:profile scope required for usage.",
+                            403,
+                            "missing user:profile",
+                        )
+                    },
+                tokenProvider = { "token" },
+                tokenRefresher = {
+                    refreshCount++
+                    "new-token"
+                },
+                reconnectRequired = { rejectedToken = it },
+            )
 
         provider.refresh()
 
         assertEquals(0, refreshCount)
         assertEquals("token", rejectedToken)
-        assertEquals("Claude token is missing the user:profile scope required for usage.", provider.getLastError())
+        assertEquals(
+            "Claude token is missing the user:profile scope required for usage.",
+            provider.getLastError(),
+        )
     }
 
     @Test
     fun rejectedRefreshKeepsQuotaButRequiresReconnect() {
         val quota = ClaudeQuota(rawJson = "{\"ok\":true}")
         var token: String? = "token"
-        val provider = ClaudeQuotaProvider(
-            client = FakeClaudeClient { quota },
-            tokenProvider = { token },
-            connectionStateProvider = { OAuthConnectionState.RECONNECT_REQUIRED },
-        )
+        val provider =
+            ClaudeQuotaProvider(
+                client = FakeClaudeClient { quota },
+                tokenProvider = { token },
+                connectionStateProvider = { OAuthConnectionState.RECONNECT_REQUIRED },
+            )
         provider.refresh()
         token = null
         provider.refresh()
@@ -227,15 +257,17 @@ class ClaudeQuotaProviderTest {
     fun temporaryRefreshFailureAfterUnauthorizedDoesNotReportLogout() {
         val quota = ClaudeQuota(rawJson = "{\"ok\":true}")
         var fail = false
-        val provider = ClaudeQuotaProvider(
-            client = FakeClaudeClient {
-                if (fail) throw ClaudeQuotaException("rejected", 401)
-                quota
-            },
-            tokenProvider = { "token" },
-            tokenRefresher = { null },
-            connectionStateProvider = { OAuthConnectionState.TEMPORARY_FAILURE },
-        )
+        val provider =
+            ClaudeQuotaProvider(
+                client =
+                    FakeClaudeClient {
+                        if (fail) throw ClaudeQuotaException("rejected", 401)
+                        quota
+                    },
+                tokenProvider = { "token" },
+                tokenRefresher = { null },
+                connectionStateProvider = { OAuthConnectionState.TEMPORARY_FAILURE },
+            )
         provider.refresh()
         fail = true
         provider.refresh()
@@ -248,12 +280,16 @@ class ClaudeQuotaProviderTest {
     fun freshTokenRejectedByUsageRequiresReconnect() {
         var rejectedToken: String? = null
         var refreshCount = 0
-        val provider = ClaudeQuotaProvider(
-            client = FakeClaudeClient { throw ClaudeQuotaException("rejected", 401) },
-            tokenProvider = { "old" },
-            tokenRefresher = { refreshCount++; "fresh" },
-            reconnectRequired = { rejectedToken = it },
-        )
+        val provider =
+            ClaudeQuotaProvider(
+                client = FakeClaudeClient { throw ClaudeQuotaException("rejected", 401) },
+                tokenProvider = { "old" },
+                tokenRefresher = {
+                    refreshCount++
+                    "fresh"
+                },
+                reconnectRequired = { rejectedToken = it },
+            )
         provider.refresh()
         assertEquals("fresh", rejectedToken)
         assertEquals(1, refreshCount)
@@ -262,12 +298,15 @@ class ClaudeQuotaProviderTest {
 
     @Test
     fun genericForbiddenResponseDoesNotRequireNewLogin() {
-        val provider = ClaudeQuotaProvider(
-            client = FakeClaudeClient { throw ClaudeQuotaException("permission denied", 403) },
-            tokenProvider = { "old" },
-            tokenRefresher = { "fresh" },
-            reconnectRequired = { error("a permission failure does not prove that login expired") },
-        )
+        val provider =
+            ClaudeQuotaProvider(
+                client = FakeClaudeClient { throw ClaudeQuotaException("permission denied", 403) },
+                tokenProvider = { "old" },
+                tokenRefresher = { "fresh" },
+                reconnectRequired = {
+                    error("a permission failure does not prove that login expired")
+                },
+            )
         provider.refresh()
         assertEquals("permission denied", provider.getLastError())
     }

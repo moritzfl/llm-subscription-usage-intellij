@@ -25,5 +25,6 @@ data class FimContext(
         return "$hash:${prefix.length}:${suffix.length}"
     }
 
-    fun commentContinuesAfterCursor(): Boolean = CompletionSanitizer.commentContinuesAfterCursor(suffix)
+    fun commentContinuesAfterCursor(): Boolean =
+        CompletionSanitizer.commentContinuesAfterCursor(suffix)
 }

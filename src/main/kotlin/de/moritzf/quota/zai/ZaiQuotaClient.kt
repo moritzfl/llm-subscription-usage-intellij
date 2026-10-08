@@ -2,13 +2,6 @@ package de.moritzf.quota.zai
 
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.LenientDoubleOrNullSerializer
-import kotlin.time.Clock
-import kotlin.time.Instant
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.SerializationException
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonPrimitive
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
@@ -17,10 +10,15 @@ import java.net.http.HttpResponse
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
+import kotlin.time.Clock
+import kotlin.time.Instant
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 
-/**
- * HTTP client for fetching Z.ai GLM Coding usage quota.
- */
+/** HTTP client for fetching Z.ai GLM Coding usage quota. */
 open class ZaiQuotaClient(
     private val httpClient: HttpClient = HttpClient.newHttpClient(),
     private val baseUri: URI = DEFAULT_BASE_URI,
@@ -33,15 +31,31 @@ open class ZaiQuotaClient(
         val quotaJson = getJson(apiKey, QUOTA_PATH)
         val rawJson = combinedRawJson(subscriptionJson, quotaJson)
 
-        val quota = try {
-            parseQuota(subscriptionJson, quotaJson)
-        } catch (exception: ZaiQuotaException) {
-            throw ZaiQuotaException(exception.message ?: "Usage response invalid. Try again later.", exception.statusCode, rawJson, exception)
-        } catch (exception: SerializationException) {
-            throw ZaiQuotaException("Usage response invalid. Try again later.", 200, rawJson, exception)
-        } catch (exception: IllegalArgumentException) {
-            throw ZaiQuotaException("Usage response invalid. Try again later.", 200, rawJson, exception)
-        }
+        val quota =
+            try {
+                parseQuota(subscriptionJson, quotaJson)
+            } catch (exception: ZaiQuotaException) {
+                throw ZaiQuotaException(
+                    exception.message ?: "Usage response invalid. Try again later.",
+                    exception.statusCode,
+                    rawJson,
+                    exception,
+                )
+            } catch (exception: SerializationException) {
+                throw ZaiQuotaException(
+                    "Usage response invalid. Try again later.",
+                    200,
+                    rawJson,
+                    exception,
+                )
+            } catch (exception: IllegalArgumentException) {
+                throw ZaiQuotaException(
+                    "Usage response invalid. Try again later.",
+                    200,
+                    rawJson,
+                    exception,
+                )
+            }
 
         quota.fetchedAt = Clock.System.now()
         quota.rawJson = rawJson
@@ -49,19 +63,26 @@ open class ZaiQuotaClient(
     }
 
     private fun getJson(apiKey: String, path: String): String {
-        val request = HttpRequest.newBuilder()
-            .uri(baseUri.resolve(path))
-            .timeout(Duration.ofSeconds(30))
-            .header("Authorization", "Bearer $apiKey")
-            .header("Accept", "application/json")
-            .GET()
-            .build()
+        val request =
+            HttpRequest.newBuilder()
+                .uri(baseUri.resolve(path))
+                .timeout(Duration.ofSeconds(30))
+                .header("Authorization", "Bearer $apiKey")
+                .header("Accept", "application/json")
+                .GET()
+                .build()
 
-        val response = try {
-            httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-        } catch (exception: IOException) {
-            throw ZaiQuotaException("Usage request failed. Check your connection.", 0, null, exception)
-        }
+        val response =
+            try {
+                httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            } catch (exception: IOException) {
+                throw ZaiQuotaException(
+                    "Usage request failed. Check your connection.",
+                    0,
+                    null,
+                    exception,
+                )
+            }
 
         val status = response.statusCode()
         val body = response.body()
@@ -69,14 +90,17 @@ open class ZaiQuotaClient(
             throw ZaiQuotaException("API key invalid. Check your Z.ai API key.", status, body)
         }
         if (status !in 200..299) {
-            throw ZaiQuotaException("Usage request failed (HTTP $status). Try again later.", status, body)
+            throw ZaiQuotaException(
+                "Usage request failed (HTTP $status). Try again later.",
+                status,
+                body,
+            )
         }
         return body
     }
 
     companion object {
-        @JvmField
-        val DEFAULT_BASE_URI: URI = URI.create("https://api.z.ai/")
+        @JvmField val DEFAULT_BASE_URI: URI = URI.create("https://api.z.ai/")
 
         private const val SUBSCRIPTION_PATH = "/api/biz/subscription/list"
         private const val QUOTA_PATH = "/api/monitor/usage/quota/limit"
@@ -85,7 +109,8 @@ open class ZaiQuotaClient(
             return buildJsonObject {
                 put("subscription", rawElement(subscriptionJson))
                 put("quota", rawElement(quotaJson))
-            }.toString()
+            }
+                .toString()
         }
 
         private fun rawElement(json: String): JsonElement {
@@ -96,22 +121,31 @@ open class ZaiQuotaClient(
         fun parseQuota(subscriptionJson: String, quotaJson: String): ZaiQuota {
             // The subscription document only enriches the quota (plan name, renew date); if it is
             // unparsable, keep the usage windows from the quota document.
-            val subscriptions = runCatching { JsonSupport.json.decodeFromString<ZaiSubscriptionResponseDto>(subscriptionJson) }
+            val subscriptions = runCatching {
+                JsonSupport.json.decodeFromString<ZaiSubscriptionResponseDto>(subscriptionJson)
+            }
                 .getOrElse { ZaiSubscriptionResponseDto() }
             val quotaResponse = JsonSupport.json.decodeFromString<ZaiQuotaResponseDto>(quotaJson)
             if (isNoCodingPlanResponse(subscriptions, quotaResponse)) {
-                throw ZaiQuotaException("No active Z.ai coding plan found.", quotaResponse.code ?: 200, quotaJson)
+                throw ZaiQuotaException(
+                    "No active Z.ai coding plan found.",
+                    quotaResponse.code ?: 200,
+                    quotaJson,
+                )
             }
             if (subscriptions.success == false || quotaResponse.success == false) {
                 throw IllegalArgumentException("Z.ai response marked unsuccessful")
             }
 
-            val subscription = subscriptions.data.firstOrNull { it.status?.equals("VALID", ignoreCase = true) == true }
-                ?: subscriptions.data.firstOrNull()
+            val subscription =
+                subscriptions.data.firstOrNull {
+                    it.status?.equals("VALID", ignoreCase = true) == true
+                } ?: subscriptions.data.firstOrNull()
             val limits = quotaResponse.data?.limits.orEmpty()
-            val tokenLimits = limits
-                .filter { it.type == "TOKENS_LIMIT" }
-                .sortedWith(compareBy<ZaiLimitDto> { it.durationMillis() ?: Long.MAX_VALUE })
+            val tokenLimits =
+                limits
+                    .filter { it.type == "TOKENS_LIMIT" }
+                    .sortedWith(compareBy<ZaiLimitDto> { it.durationMillis() ?: Long.MAX_VALUE })
             val session = tokenLimits.firstOrNull()
             val weekly = tokenLimits.takeIf { it.size >= 2 }?.lastOrNull()
             val webSearch = limits.firstOrNull { it.type == "TIME_LIMIT" }
@@ -121,7 +155,8 @@ open class ZaiQuotaClient(
                 plan = subscription?.productName.orEmpty(),
                 sessionUsage = session?.toUsageWindow(),
                 weeklyUsage = weekly?.toUsageWindow(),
-                webSearchUsage = webSearch?.toCountUsageWindow(subscriptionReset ?: nextMonthStartUtc()),
+                webSearchUsage =
+                    webSearch?.toCountUsageWindow(subscriptionReset ?: nextMonthStartUtc()),
             )
         }
 
@@ -172,15 +207,23 @@ open class ZaiQuotaClient(
         private fun parseResetDate(value: String): Instant? {
             return runCatching {
                 val date = LocalDate.parse(value.trim())
-                Instant.fromEpochMilliseconds(date.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli())
-            }.getOrNull()
+                Instant.fromEpochMilliseconds(
+                    date.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli()
+                )
+            }
+                .getOrNull()
         }
 
         private fun nextMonthStartUtc(): Instant {
-            val nextMonth = java.time.Instant.now().atZone(ZoneOffset.UTC).toLocalDate()
-                .withDayOfMonth(1)
-                .plusMonths(1)
-            return Instant.fromEpochMilliseconds(nextMonth.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli())
+            val nextMonth =
+                java.time.Instant.now()
+                    .atZone(ZoneOffset.UTC)
+                    .toLocalDate()
+                    .withDayOfMonth(1)
+                    .plusMonths(1)
+            return Instant.fromEpochMilliseconds(
+                nextMonth.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli()
+            )
         }
     }
 }
@@ -208,10 +251,7 @@ private data class ZaiQuotaResponseDto(
     val success: Boolean? = null,
 )
 
-@Serializable
-private data class ZaiQuotaDataDto(
-    val limits: List<ZaiLimitDto> = emptyList(),
-)
+@Serializable private data class ZaiQuotaDataDto(val limits: List<ZaiLimitDto> = emptyList())
 
 @Serializable
 private data class ZaiLimitDto(
@@ -221,7 +261,6 @@ private data class ZaiLimitDto(
     val usage: Long? = null,
     val currentValue: Long? = null,
     val remaining: Long? = null,
-    @Serializable(with = LenientDoubleOrNullSerializer::class)
-    val percentage: Double? = null,
+    @Serializable(with = LenientDoubleOrNullSerializer::class) val percentage: Double? = null,
     val nextResetTime: Long? = null,
 )

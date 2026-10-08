@@ -9,7 +9,11 @@ class ProviderListStatusTest {
     fun neverConfiguredWhenUnauthenticatedWithoutError() {
         assertEquals(
             ProviderListStatus.NEVER_CONFIGURED,
-            ProviderListStatus.resolve(ProviderAuthState.UNAUTHENTICATED, hasQuota = false, hasError = false),
+            ProviderListStatus.resolve(
+                ProviderAuthState.UNAUTHENTICATED,
+                hasQuota = false,
+                hasError = false,
+            ),
         )
     }
 
@@ -17,11 +21,19 @@ class ProviderListStatusTest {
     fun loggedOutIsNeverConfiguredEvenWithLeftoverError() {
         assertEquals(
             ProviderListStatus.NEVER_CONFIGURED,
-            ProviderListStatus.resolve(ProviderAuthState.UNAUTHENTICATED, hasQuota = false, hasError = true),
+            ProviderListStatus.resolve(
+                ProviderAuthState.UNAUTHENTICATED,
+                hasQuota = false,
+                hasError = true,
+            ),
         )
         assertEquals(
             ProviderListStatus.NEVER_CONFIGURED,
-            ProviderListStatus.resolve(ProviderAuthState.UNAUTHENTICATED, hasQuota = true, hasError = true),
+            ProviderListStatus.resolve(
+                ProviderAuthState.UNAUTHENTICATED,
+                hasQuota = true,
+                hasError = true,
+            ),
         )
     }
 
@@ -45,7 +57,11 @@ class ProviderListStatusTest {
     fun okWhenAuthenticatedWithQuotaAndNoError() {
         assertEquals(
             ProviderListStatus.OK,
-            ProviderListStatus.resolve(ProviderAuthState.AUTHENTICATED, hasQuota = true, hasError = false),
+            ProviderListStatus.resolve(
+                ProviderAuthState.AUTHENTICATED,
+                hasQuota = true,
+                hasError = false,
+            ),
         )
     }
 
@@ -53,7 +69,11 @@ class ProviderListStatusTest {
     fun warningWhenAuthenticatedWithStaleQuota() {
         assertEquals(
             ProviderListStatus.WARNING,
-            ProviderListStatus.resolve(ProviderAuthState.AUTHENTICATED, hasQuota = true, hasError = true),
+            ProviderListStatus.resolve(
+                ProviderAuthState.AUTHENTICATED,
+                hasQuota = true,
+                hasError = true,
+            ),
         )
     }
 
@@ -61,7 +81,11 @@ class ProviderListStatusTest {
     fun errorWhenAuthenticatedWithErrorAndNoQuota() {
         assertEquals(
             ProviderListStatus.ERROR,
-            ProviderListStatus.resolve(ProviderAuthState.AUTHENTICATED, hasQuota = false, hasError = true),
+            ProviderListStatus.resolve(
+                ProviderAuthState.AUTHENTICATED,
+                hasQuota = false,
+                hasError = true,
+            ),
         )
     }
 
@@ -69,7 +93,11 @@ class ProviderListStatusTest {
     fun warningWhenAuthenticatedWithoutQuotaYet() {
         assertEquals(
             ProviderListStatus.WARNING,
-            ProviderListStatus.resolve(ProviderAuthState.AUTHENTICATED, hasQuota = false, hasError = false),
+            ProviderListStatus.resolve(
+                ProviderAuthState.AUTHENTICATED,
+                hasQuota = false,
+                hasError = false,
+            ),
         )
     }
 

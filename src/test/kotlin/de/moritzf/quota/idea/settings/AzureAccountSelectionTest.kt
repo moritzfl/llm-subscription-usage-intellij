@@ -26,12 +26,13 @@ class AzureAccountSelectionTest {
         assertNull(preferredAzureCliAccount(accounts, "gone"))
     }
 
-    private fun account(id: String, default: Boolean = false) = AzureCliAccount(
-        subscriptionId = id,
-        subscriptionName = id,
-        tenantId = null,
-        userName = null,
-        userType = "user",
-        isDefault = default,
-    )
+    private fun account(id: String, default: Boolean = false) =
+        AzureCliAccount(
+            subscriptionId = id,
+            subscriptionName = id,
+            tenantId = null,
+            userName = null,
+            userType = "user",
+            isDefault = default,
+        )
 }

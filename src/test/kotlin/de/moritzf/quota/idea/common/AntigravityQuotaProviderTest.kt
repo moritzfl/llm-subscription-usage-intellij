@@ -21,16 +21,20 @@ class AntigravityQuotaProviderTest {
         val account = settings.addAccount(QuotaProviderType.ANTIGRAVITY)
         val provider = AntigravityQuotaProvider(account.id) { parseAntigravityQuota(USAGE_REPORT) }
         val scheduler = Executors.newSingleThreadScheduledExecutor()
-        val service = QuotaUsageService(
-            providers = listOf(provider),
-            settingsProvider = { settings },
-            scheduler = scheduler,
-            updatePublisher = {},
-            scheduleOnInit = false,
-        )
+        val service =
+            QuotaUsageService(
+                providers = listOf(provider),
+                settingsProvider = { settings },
+                scheduler = scheduler,
+                updatePublisher = {},
+                scheduleOnInit = false,
+            )
         try {
             service.refreshBlocking(account.id)
-            assertEquals(USAGE_REPORT, UsageQuotaMcpRegistry.get(provider.type).json(service, provider.type))
+            assertEquals(
+                USAGE_REPORT,
+                UsageQuotaMcpRegistry.get(provider.type).json(service, provider.type),
+            )
             assertNotNull(service.getLastQuota(account.id))
             assertNull(settings.cachedQuotaJson(account.id))
             assertTrue(settings.lastUpdate(account.id) > 0)
@@ -44,7 +48,10 @@ class AntigravityQuotaProviderTest {
     fun doesNotRestoreAnotherCliLoginsPersistedQuota() {
         val settings = QuotaSettingsState()
         val provider = AntigravityQuotaProvider { error("Hydration must not execute AGY") }
-        settings.setCachedQuotaJson(provider.accountId, QuotaSnapshotCache.encode(provider.type, parseAntigravityQuota(USAGE_REPORT)))
+        settings.setCachedQuotaJson(
+            provider.accountId,
+            QuotaSnapshotCache.encode(provider.type, parseAntigravityQuota(USAGE_REPORT)),
+        )
         settings.updateTimestamp(provider.accountId)
         settings.setLastActiveProvider(provider.type)
 

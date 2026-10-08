@@ -16,19 +16,24 @@ class OpenAiQuotaProviderTest {
     fun refreshKeepsLoginAndLastQuotaWhenTokenIsTemporarilyUnavailable() {
         val quota = OpenAiCodexQuota(allowed = true).apply { rawJson = "{\"ok\":true}" }
         var token: String? = "token"
-        val provider = OpenAiQuotaProvider(
-            quotaFetcher = { _, _ -> quota },
-            accessTokenProvider = { token },
-            accountIdProvider = { "account-1" },
-            tokenRefresher = { null },
-            connectionStateProvider = { OAuthConnectionState.TEMPORARY_FAILURE },
-        )
+        val provider =
+            OpenAiQuotaProvider(
+                quotaFetcher = { _, _ -> quota },
+                accessTokenProvider = { token },
+                accountIdProvider = { "account-1" },
+                tokenRefresher = { null },
+                connectionStateProvider = { OAuthConnectionState.TEMPORARY_FAILURE },
+            )
 
         provider.refresh()
         token = null
         provider.refresh()
 
-        assertSame(quota, provider.getLastQuota(), "a failed refresh must not drop the last reading")
+        assertSame(
+            quota,
+            provider.getLastQuota(),
+            "a failed refresh must not drop the last reading",
+        )
         assertTrue(provider.isLastErrorTransient())
         assertEquals(
             "OpenAI token could not be refreshed. Trying again with the next update.",
@@ -38,13 +43,14 @@ class OpenAiQuotaProviderTest {
 
     @Test
     fun refreshClearsDataWhenNotLoggedIn() {
-        val provider = OpenAiQuotaProvider(
-            quotaFetcher = { _, _ -> error("must not be called") },
-            accessTokenProvider = { null },
-            accountIdProvider = { null },
-            tokenRefresher = { null },
-            connectionStateProvider = { OAuthConnectionState.LOGGED_OUT },
-        )
+        val provider =
+            OpenAiQuotaProvider(
+                quotaFetcher = { _, _ -> error("must not be called") },
+                accessTokenProvider = { null },
+                accountIdProvider = { null },
+                tokenRefresher = { null },
+                connectionStateProvider = { OAuthConnectionState.LOGGED_OUT },
+            )
 
         provider.refresh()
 
@@ -56,15 +62,16 @@ class OpenAiQuotaProviderTest {
     fun forceRefreshSkipsHysteresisAfterReset() {
         val resetsAt = Clock.System.now() + 1.days
         var percent = 100.0
-        val provider = OpenAiQuotaProvider(
-            quotaFetcher = { _, _ ->
-                OpenAiCodexQuota(limitReached = percent >= 100.0).apply {
-                    primary = UsageWindow(usedPercent = percent, resetsAt = resetsAt)
-                }
-            },
-            accessTokenProvider = { "token" },
-            accountIdProvider = { "account-1" },
-        )
+        val provider =
+            OpenAiQuotaProvider(
+                quotaFetcher = { _, _ ->
+                    OpenAiCodexQuota(limitReached = percent >= 100.0).apply {
+                        primary = UsageWindow(usedPercent = percent, resetsAt = resetsAt)
+                    }
+                },
+                accessTokenProvider = { "token" },
+                accountIdProvider = { "account-1" },
+            )
 
         provider.refresh()
         percent = 99.2

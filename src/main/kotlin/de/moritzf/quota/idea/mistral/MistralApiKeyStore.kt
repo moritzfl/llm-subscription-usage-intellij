@@ -45,7 +45,10 @@ class MistralApiKeyStore(
 
     fun save(apiKey: String?) {
         loadGeneration.incrementAndGet()
-        PasswordSafe.instance.set(attributes, apiKey?.takeIf { it.isNotBlank() }?.let { Credentials(userName, it) })
+        PasswordSafe.instance.set(
+            attributes,
+            apiKey?.takeIf { it.isNotBlank() }?.let { Credentials(userName, it) },
+        )
         cachedApiKey.set(apiKey?.ifBlank { null })
         loaded.set(true)
         loading.set(false)
@@ -78,7 +81,11 @@ class MistralApiKeyStore(
     }
 
     private fun loadKey(attributes: CredentialAttributes): String? {
-        return try { PasswordSafe.instance.get(attributes)?.getPasswordAsString()?.ifBlank { null } } catch (_: Exception) { null }
+        return try {
+            PasswordSafe.instance.get(attributes)?.getPasswordAsString()?.ifBlank { null }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun notifyLoadedCallbacks() {
@@ -94,7 +101,8 @@ class MistralApiKeyStore(
         private val extras = java.util.concurrent.ConcurrentHashMap<String, MistralApiKeyStore>()
 
         @JvmStatic
-        fun getInstance(): MistralApiKeyStore = ApplicationManager.getApplication().getService(MistralApiKeyStore::class.java)
+        fun getInstance(): MistralApiKeyStore =
+            ApplicationManager.getApplication().getService(MistralApiKeyStore::class.java)
 
         fun forAccount(accountId: String): MistralApiKeyStore =
             de.moritzf.quota.idea.settings.AccountCredentialKeys.store(
@@ -104,6 +112,8 @@ class MistralApiKeyStore(
                 DEFAULT_USER,
                 extras,
                 ::getInstance,
-            ) { service, user -> MistralApiKeyStore(userName = user, serviceName = service) }
+            ) { service, user ->
+                MistralApiKeyStore(userName = user, serviceName = service)
+            }
     }
 }

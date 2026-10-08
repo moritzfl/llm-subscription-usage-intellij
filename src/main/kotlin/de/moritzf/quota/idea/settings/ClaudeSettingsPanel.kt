@@ -10,8 +10,8 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.claude.ClaudeQuota
-import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.auth.OAuthConnectionState
+import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
@@ -27,9 +27,8 @@ import javax.swing.JComponent
 /**
  * Claude settings tab.
  *
- * Anthropic has no device-code flow. Login is browser OAuth + paste of the
- * authorization code shown on the Claude callback page (same pattern as the
- * Claude Code / OpenCode Anthropic auth plugins).
+ * Anthropic has no device-code flow. Login is browser OAuth + paste of the authorization code shown
+ * on the Claude callback page (same pattern as the Claude Code / OpenCode Anthropic auth plugins).
  */
 internal class ClaudeSettingsPanel(
     private val modalityComponentProvider: () -> JComponent?,
@@ -39,14 +38,17 @@ internal class ClaudeSettingsPanel(
     private val loginButton = createActionLink("Log In with Claude")
     private val cancelLoginButton = createActionLink("Cancel Login")
     private val logoutButton = createActionLink("Log Out")
-    private val copyUrlButton = JButton("Copy URL", AllIcons.Actions.Copy).apply {
-        isVisible = false
-        toolTipText = "Copy login URL to clipboard"
-    }
-    private val authCodeField = JBPasswordField().apply {
-        columns = 40
-        toolTipText = "Paste the Claude callback URL, code#state, or code=...&state=... after browser login"
-    }
+    private val copyUrlButton =
+        JButton("Copy URL", AllIcons.Actions.Copy).apply {
+            isVisible = false
+            toolTipText = "Copy login URL to clipboard"
+        }
+    private val authCodeField =
+        JBPasswordField().apply {
+            columns = 40
+            toolTipText =
+                "Paste the Claude callback URL, code#state, or code=...&state=... after browser login"
+        }
     private val submitCodeButton = JButton("Submit Code")
     private val jsonViewer = createResponseViewer()
     private var authUrl: String? = null
@@ -58,74 +60,113 @@ internal class ClaudeSettingsPanel(
         }
 
         submitCodeButton.addActionListener { submitAuthCode() }
-        authCodeField.addKeyListener(object : KeyAdapter() {
-            override fun keyPressed(event: KeyEvent) {
-                if (event.keyCode == KeyEvent.VK_ENTER) {
-                    submitAuthCode()
+        authCodeField.addKeyListener(
+            object : KeyAdapter() {
+                override fun keyPressed(event: KeyEvent) {
+                    if (event.keyCode == KeyEvent.VK_ENTER) {
+                        submitAuthCode()
+                    }
                 }
             }
-        })
+        )
 
         loginButton.addActionListener {
             val authService = QuotaAuthService.getInstance()
             loginButton.isEnabled = false
             authCodeField.text = ""
-            authStatusMessage = AuthStatusMessage(
-                "Opening browser... complete Claude login, then paste the authorization code below.",
-                false,
-                AuthStatusKind.PENDING,
-            )
+            authStatusMessage =
+                AuthStatusMessage(
+                    "Opening browser... complete Claude login, then paste the authorization code below.",
+                    false,
+                    AuthStatusKind.PENDING,
+                )
             updateAuthUi()
             authService.startLoginFlow(
                 accountId = accountId(),
                 type = QuotaProviderType.CLAUDE,
                 callback = { result ->
-                ApplicationManager.getApplication().invokeLater({
-                    authStatusMessage = if (result.success) {
-                        authCodeField.text = ""
-                        AuthStatusMessage("Connected to Claude", false, AuthStatusKind.CONNECTED)
-                    } else {
-                        AuthStatusMessage(result.message ?: "Login failed", true, AuthStatusKind.DISCONNECTED)
-                    }
-                    loginButton.isEnabled = true
-                    updateAuthUi()
-                    if (result.success) {
-                        QuotaUsageService.getInstance().refreshAsync(accountId())
-                    }
-                }, ModalityState.stateForComponent(modalityComponentProvider() ?: this@ClaudeSettingsPanel))
-            }, onAuthUrl = { url ->
-                ApplicationManager.getApplication().invokeLater({
-                    authUrl = url
-                    copyUrlButton.isVisible = true
-                    authCodeField.requestFocusInWindow()
-                    updateAuthUi()
-                }, ModalityState.stateForComponent(modalityComponentProvider() ?: this@ClaudeSettingsPanel))
-            })
-            updateAuthUi()
-        }
-
-        cancelLoginButton.addActionListener {
-            val aborted = QuotaAuthService.getInstance().abortLogin(accountId(), QuotaProviderType.CLAUDE, "Login canceled")
-            authCodeField.text = ""
-            authStatusMessage = AuthStatusMessage(
-                if (aborted) "Login canceled" else "No login in progress",
-                false,
-                if (aborted) AuthStatusKind.PENDING else AuthStatusKind.DISCONNECTED,
+                    ApplicationManager.getApplication()
+                        .invokeLater(
+                            {
+                                authStatusMessage =
+                                    if (result.success) {
+                                        authCodeField.text = ""
+                                        AuthStatusMessage(
+                                            "Connected to Claude",
+                                            false,
+                                            AuthStatusKind.CONNECTED,
+                                        )
+                                    } else {
+                                        AuthStatusMessage(
+                                            result.message ?: "Login failed",
+                                            true,
+                                            AuthStatusKind.DISCONNECTED,
+                                        )
+                                    }
+                                loginButton.isEnabled = true
+                                updateAuthUi()
+                                if (result.success) {
+                                    QuotaUsageService.getInstance().refreshAsync(accountId())
+                                }
+                            },
+                            ModalityState.stateForComponent(
+                                modalityComponentProvider() ?: this@ClaudeSettingsPanel
+                            ),
+                        )
+                },
+                onAuthUrl = { url ->
+                    ApplicationManager.getApplication()
+                        .invokeLater(
+                            {
+                                authUrl = url
+                                copyUrlButton.isVisible = true
+                                authCodeField.requestFocusInWindow()
+                                updateAuthUi()
+                            },
+                            ModalityState.stateForComponent(
+                                modalityComponentProvider() ?: this@ClaudeSettingsPanel
+                            ),
+                        )
+                },
             )
             updateAuthUi()
         }
 
+        cancelLoginButton.addActionListener {
+            val aborted =
+                QuotaAuthService.getInstance()
+                    .abortLogin(accountId(), QuotaProviderType.CLAUDE, "Login canceled")
+            authCodeField.text = ""
+            authStatusMessage =
+                AuthStatusMessage(
+                    if (aborted) "Login canceled" else "No login in progress",
+                    false,
+                    if (aborted) AuthStatusKind.PENDING else AuthStatusKind.DISCONNECTED,
+                )
+            updateAuthUi()
+        }
+
         logoutButton.addActionListener {
-            val cleared = QuotaAuthService.getInstance().clearCredentials(accountKey(QuotaProviderType.CLAUDE), QuotaProviderType.CLAUDE)
+            val cleared =
+                QuotaAuthService.getInstance()
+                    .clearCredentials(
+                        accountKey(QuotaProviderType.CLAUDE),
+                        QuotaProviderType.CLAUDE,
+                    )
             if (cleared) {
                 QuotaUsageService.getInstance().clearUsageData(accountKey(QuotaProviderType.CLAUDE))
                 authCodeField.text = ""
             }
-            authStatusMessage = if (cleared) {
-                AuthStatusMessage("Logged out of Claude", false, AuthStatusKind.DISCONNECTED)
-            } else {
-                AuthStatusMessage("Could not remove Claude login from Password Safe", true, AuthStatusKind.CONNECTED)
-            }
+            authStatusMessage =
+                if (cleared) {
+                    AuthStatusMessage("Logged out of Claude", false, AuthStatusKind.DISCONNECTED)
+                } else {
+                    AuthStatusMessage(
+                        "Could not remove Claude login from Password Safe",
+                        true,
+                        AuthStatusKind.CONNECTED,
+                    )
+                }
             updateAuthUi()
         }
 
@@ -140,13 +181,12 @@ internal class ClaudeSettingsPanel(
                 cell(logoutButton)
             }
             row {
-                text("Claude has no device-code login. Click Log In, finish the browser flow, then paste the authorization code from the Claude page (full URL or code#state).")
+                text(
+                    "Claude has no device-code login. Click Log In, finish the browser flow, then paste the authorization code from the Claude page (full URL or code#state)."
+                )
             }
             row("Authorization code:") {
-                cell(authCodeField)
-                    .resizableColumn()
-                    .align(AlignX.FILL)
-                    .gap(RightGap.SMALL)
+                cell(authCodeField).resizableColumn().align(AlignX.FILL).gap(RightGap.SMALL)
                 cell(submitCodeButton)
             }
         }
@@ -157,29 +197,36 @@ internal class ClaudeSettingsPanel(
     private fun submitAuthCode() {
         val input = String(authCodeField.password).trim()
         if (input.isEmpty()) {
-            authStatusMessage = AuthStatusMessage(
-                "Paste the Claude authorization code first.",
-                true,
-                AuthStatusKind.PENDING,
-            )
+            authStatusMessage =
+                AuthStatusMessage(
+                    "Paste the Claude authorization code first.",
+                    true,
+                    AuthStatusKind.PENDING,
+                )
             updateAuthUi()
             return
         }
-        if (!QuotaAuthService.getInstance().isLoginInProgress(accountId(), QuotaProviderType.CLAUDE)) {
-            authStatusMessage = AuthStatusMessage(
-                "Click Log In with Claude first, then paste the code from that browser session.",
-                true,
-                AuthStatusKind.DISCONNECTED,
-            )
+        if (
+            !QuotaAuthService.getInstance().isLoginInProgress(accountId(), QuotaProviderType.CLAUDE)
+        ) {
+            authStatusMessage =
+                AuthStatusMessage(
+                    "Click Log In with Claude first, then paste the code from that browser session.",
+                    true,
+                    AuthStatusKind.DISCONNECTED,
+                )
             updateAuthUi()
             return
         }
-        val error = QuotaAuthService.getInstance().completePastedCallback(accountId(), QuotaProviderType.CLAUDE, input)
-        authStatusMessage = if (error == null) {
-            AuthStatusMessage("Exchanging authorization code...", false, AuthStatusKind.PENDING)
-        } else {
-            AuthStatusMessage(error, true, AuthStatusKind.PENDING)
-        }
+        val error =
+            QuotaAuthService.getInstance()
+                .completePastedCallback(accountId(), QuotaProviderType.CLAUDE, input)
+        authStatusMessage =
+            if (error == null) {
+                AuthStatusMessage("Exchanging authorization code...", false, AuthStatusKind.PENDING)
+            } else {
+                AuthStatusMessage(error, true, AuthStatusKind.PENDING)
+            }
         updateAuthUi()
     }
 
@@ -199,9 +246,18 @@ internal class ClaudeSettingsPanel(
         val inProgress = authService.isLoginInProgress(accountId(), QuotaProviderType.CLAUDE)
         val error = QuotaUsageService.getInstance().getLastError(accountId())
         val connection = authService.connectionState(accountId(), QuotaProviderType.CLAUDE)
-        val uiState = QuotaSettingsAuthUiState.create(loggedIn, inProgress, authStatusMessage, connection, error)
+        val uiState =
+            QuotaSettingsAuthUiState.create(
+                loggedIn,
+                inProgress,
+                authStatusMessage,
+                connection,
+                error,
+            )
         loginButton.isEnabled = uiState.loginEnabled
-        loginButton.text = if (connection == OAuthConnectionState.RECONNECT_REQUIRED) "Reconnect with Claude" else "Log In with Claude"
+        loginButton.text =
+            if (connection == OAuthConnectionState.RECONNECT_REQUIRED) "Reconnect with Claude"
+            else "Log In with Claude"
         cancelLoginButton.isEnabled = uiState.cancelEnabled
         logoutButton.isEnabled = uiState.logoutEnabled
         authCodeField.isEnabled = inProgress || uiState.loginEnabled
@@ -222,18 +278,18 @@ internal class ClaudeSettingsPanel(
         val quota = QuotaUsageService.getInstance().getLastQuota(accountId()) as? ClaudeQuota
         val error = QuotaUsageService.getInstance().getLastError(accountId())
         val rawJson = QuotaUsageService.getInstance().getLastResponseJson(accountId())
-        jsonViewer.text = when {
-            error != null && !rawJson.isNullOrBlank() -> "Error: $error\n\n$rawJson"
-            error != null -> "Error: $error"
-            quota == null -> "No Claude response yet."
-            !rawJson.isNullOrBlank() -> rawJson
-            else -> runCatching { JsonSupport.json.encodeToString(ClaudeQuota.serializer(), quota) }
-                .getOrElse { "Could not serialize response: ${it.message}" }
-        }
+        jsonViewer.text =
+            when {
+                error != null && !rawJson.isNullOrBlank() -> "Error: $error\n\n$rawJson"
+                error != null -> "Error: $error"
+                quota == null -> "No Claude response yet."
+                !rawJson.isNullOrBlank() -> rawJson
+                else ->
+                    runCatching { JsonSupport.json.encodeToString(ClaudeQuota.serializer(), quota) }
+                        .getOrElse { "Could not serialize response: ${it.message}" }
+            }
         jsonViewer.setCaretPosition(0)
     }
-
-
 
     private var shownAccountId: String? = null
 
@@ -257,11 +313,12 @@ internal class ClaudeSettingsPanel(
     }
 
     private fun formatStatusText(text: String, kind: AuthStatusKind): String {
-        val color = when (kind) {
-            AuthStatusKind.CONNECTED -> "#4CAF50"
-            AuthStatusKind.DISCONNECTED -> "#F44336"
-            AuthStatusKind.PENDING -> "#FFC107"
-        }
+        val color =
+            when (kind) {
+                AuthStatusKind.CONNECTED -> "#4CAF50"
+                AuthStatusKind.DISCONNECTED -> "#F44336"
+                AuthStatusKind.PENDING -> "#FFC107"
+            }
         return "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
     }
 }

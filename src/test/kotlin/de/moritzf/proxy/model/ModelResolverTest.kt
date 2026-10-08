@@ -20,26 +20,29 @@ class ModelResolverTest {
     @Test
     fun discoveryKeepsClientVersionQueryButUsesPluginIdentityHeaders() {
         TestUpstream().use { upstream ->
-            val config = ServerConfig(
-                "127.0.0.1",
-                1,
-                null,
-                CODEX_VERSION,
-                upstream.baseUri.toString(),
-                ServerConfig.DEFAULT_CLIENT_ID,
-                null,
-                null,
-                "",
-                false,
-                emptyMap(),
-                null,
-            )
-            val credentials = object : CredentialsProvider {
-                override fun getAuthHeaders(): Map<String, String> = mapOf(
-                    "Authorization" to "Bearer test-token",
-                    "chatgpt-account-id" to "account-1",
+            val config =
+                ServerConfig(
+                    "127.0.0.1",
+                    1,
+                    null,
+                    CODEX_VERSION,
+                    upstream.baseUri.toString(),
+                    ServerConfig.DEFAULT_CLIENT_ID,
+                    null,
+                    null,
+                    "",
+                    false,
+                    emptyMap(),
+                    null,
                 )
-            }
+            val credentials =
+                object : CredentialsProvider {
+                    override fun getAuthHeaders(): Map<String, String> =
+                        mapOf(
+                            "Authorization" to "Bearer test-token",
+                            "chatgpt-account-id" to "account-1",
+                        )
+                }
             val client = CodexHttpClient(config, HttpClient.newHttpClient(), credentials)
 
             val models = ModelResolver(client, null, CODEX_VERSION).resolveModels()
@@ -55,15 +58,17 @@ class ModelResolverTest {
 
     private class TestUpstream : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
 
         init {
             server.createContext("/") { exchange ->
-                requests += CapturedRequest(
-                    path = exchange.requestURI.rawPath + "?" + exchange.requestURI.rawQuery,
-                    headers = exchange.requestHeaders.mapValues { it.value.toList() },
-                )
+                requests +=
+                    CapturedRequest(
+                        path = exchange.requestURI.rawPath + "?" + exchange.requestURI.rawQuery,
+                        headers = exchange.requestHeaders.mapValues { it.value.toList() },
+                    )
                 val response = """{"models":[{"slug":"gpt-test"}]}""".toByteArray()
                 exchange.responseHeaders.set("Content-Type", "application/json")
                 exchange.sendResponseHeaders(200, response.size.toLong())
@@ -83,7 +88,10 @@ class ModelResolverTest {
         val headers: Map<String, List<String>>,
     ) {
         fun firstHeader(name: String): String? =
-            headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }?.value?.firstOrNull()
+            headers.entries
+                .firstOrNull { it.key.equals(name, ignoreCase = true) }
+                ?.value
+                ?.firstOrNull()
     }
 
     private companion object {

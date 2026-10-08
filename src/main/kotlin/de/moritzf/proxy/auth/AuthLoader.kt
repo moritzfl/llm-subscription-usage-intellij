@@ -1,12 +1,10 @@
 package de.moritzf.proxy.auth
+
 import de.moritzf.proxy.config.ServerConfig
-import de.moritzf.proxy.server.hasKey
 import de.moritzf.proxy.server.createObjectNode
+import de.moritzf.proxy.server.hasKey
 import de.moritzf.proxy.util.Json
 import de.moritzf.proxy.util.JwtParser
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.longOrNull
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
@@ -22,16 +20,22 @@ import java.nio.file.attribute.AclEntryType
 import java.nio.file.attribute.AclFileAttributeView
 import java.nio.file.attribute.PosixFilePermission
 import java.time.Instant
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.longOrNull
+
 object AuthLoader {
     private const val REFRESH_EXPIRY_MARGIN_MS = 5 * 60 * 1000L
     private const val REFRESH_INTERVAL_MS = 55 * 60 * 1000L
     private val PRETTY_JSON = kotlinx.serialization.json.Json { prettyPrint = true }
+
     class AuthResult(
         val accessToken: String,
         val accountId: String,
         val refreshToken: String?,
         val sourcePath: String,
     )
+
     fun loadAuthTokens(
         authFilePath: String?,
         clientId: String?,
@@ -43,16 +47,20 @@ object AuthLoader {
         var resolvedClientId = clientId
         if (resolvedClientId.isNullOrEmpty()) {
             val envClientId = System.getenv("CHATGPT_LOCAL_CLIENT_ID")
-            resolvedClientId = if (!envClientId.isNullOrEmpty()) envClientId else ServerConfig.DEFAULT_CLIENT_ID
+            resolvedClientId =
+                if (!envClientId.isNullOrEmpty()) envClientId else ServerConfig.DEFAULT_CLIENT_ID
         }
         var resolvedIssuer = issuer
         if (resolvedIssuer.isNullOrEmpty()) {
             val envIssuer = System.getenv("CHATGPT_LOCAL_ISSUER")
-            resolvedIssuer = if (!envIssuer.isNullOrEmpty()) envIssuer else ServerConfig.DEFAULT_ISSUER
+            resolvedIssuer =
+                if (!envIssuer.isNullOrEmpty()) envIssuer else ServerConfig.DEFAULT_ISSUER
         }
         val candidates = AuthFileResolver.resolveCandidates(authFilePath)
         if (candidates.isEmpty()) {
-            throw IOException("OAuth file path is required. Pass --oauth-file with a file this plugin owns.")
+            throw IOException(
+                "OAuth file path is required. Pass --oauth-file with a file this plugin owns."
+            )
         }
         var foundPath: String? = null
         var authData: JsonObject? = null
@@ -60,18 +68,20 @@ object AuthLoader {
             try {
                 val path = Path.of(candidate)
                 if (Files.exists(path)) {
-                    val parsed = Json.INSTANCE.parseToJsonElement(Files.readString(path)) as? JsonObject
+                    val parsed =
+                        Json.INSTANCE.parseToJsonElement(Files.readString(path)) as? JsonObject
                     if (parsed != null) {
                         foundPath = candidate
                         authData = parsed
                         break
                     }
                 }
-            } catch (_: Exception) {
-            }
+            } catch (_: Exception) {}
         }
         if (authData == null || foundPath == null) {
-            throw IOException("OAuth file not found. Pass --oauth-file with a file this plugin owns.")
+            throw IOException(
+                "OAuth file not found. Pass --oauth-file with a file this plugin owns."
+            )
         }
         val tokensNode = authData["tokens"] as? JsonObject
         var accessToken = getStringField(tokensNode, "access_token")
@@ -82,17 +92,19 @@ object AuthLoader {
         if (accountId.isNullOrEmpty()) {
             accountId = JwtParser.deriveAccountId(idToken)
         }
-        val needsRefresh = !refreshToken.isNullOrEmpty() &&
-            (forceRefresh || shouldRefreshAccessToken(accessToken, lastRefresh))
+        val needsRefresh =
+            !refreshToken.isNullOrEmpty() &&
+                (forceRefresh || shouldRefreshAccessToken(accessToken, lastRefresh))
         if (needsRefresh) {
             var resolvedTokenUrl = tokenUrl
             if (resolvedTokenUrl.isNullOrEmpty()) {
                 resolvedTokenUrl = resolvedIssuer.replace(Regex("/$"), "") + "/oauth/token"
             }
-            val refreshed = refreshChatGptTokens(refreshToken, resolvedClientId, resolvedTokenUrl, httpClient)
+            val refreshed =
+                refreshChatGptTokens(refreshToken, resolvedClientId, resolvedTokenUrl, httpClient)
             if (refreshed == null) {
                 System.err.println(
-                    "Warning: OAuth token refresh failed (server returned error). Continuing with existing token.",
+                    "Warning: OAuth token refresh failed (server returned error). Continuing with existing token."
                 )
             } else {
                 accessToken = refreshed.accessToken
@@ -100,7 +112,15 @@ object AuthLoader {
                 if (refreshed.refreshToken != null) refreshToken = refreshed.refreshToken
                 if (refreshed.accountId != null) accountId = refreshed.accountId
                 lastRefresh = Instant.now().toString()
-                writeAuthFile(foundPath, authData, idToken, accessToken, refreshToken, accountId, lastRefresh)
+                writeAuthFile(
+                    foundPath,
+                    authData,
+                    idToken,
+                    accessToken,
+                    refreshToken,
+                    accountId,
+                    lastRefresh,
+                )
             }
         }
         if (accessToken.isNullOrEmpty()) {
@@ -113,6 +133,7 @@ object AuthLoader {
         val finalAccountId = accountId
         return AuthResult(finalAccessToken, finalAccountId, refreshToken, foundPath)
     }
+
     private fun shouldRefreshAccessToken(accessToken: String?, lastRefresh: String?): Boolean {
         if (accessToken.isNullOrEmpty()) {
             return true
@@ -133,18 +154,20 @@ object AuthLoader {
         if (!lastRefresh.isNullOrEmpty()) {
             try {
                 val refreshedAt = Instant.parse(lastRefresh)
-                return refreshedAt.toEpochMilli() <= System.currentTimeMillis() - REFRESH_INTERVAL_MS
-            } catch (_: Exception) {
-            }
+                return refreshedAt.toEpochMilli() <=
+                    System.currentTimeMillis() - REFRESH_INTERVAL_MS
+            } catch (_: Exception) {}
         }
         return false
     }
+
     private data class RefreshResult(
         val accessToken: String,
         val idToken: String?,
         val refreshToken: String?,
         val accountId: String?,
     )
+
     private fun refreshChatGptTokens(
         refreshToken: String,
         clientId: String,
@@ -156,17 +179,22 @@ object AuthLoader {
         body.put("refresh_token", refreshToken)
         body.put("client_id", clientId)
         body.put("scope", "openid profile email offline_access")
-        val request = HttpRequest.newBuilder()
-            .uri(URI.create(tokenUrl))
-            .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString(Json.INSTANCE.encodeToString(JsonObject.serializer(), body.build())))
-            .build()
+        val request =
+            HttpRequest.newBuilder()
+                .uri(URI.create(tokenUrl))
+                .header("Content-Type", "application/json")
+                .POST(
+                    HttpRequest.BodyPublishers.ofString(
+                        Json.INSTANCE.encodeToString(JsonObject.serializer(), body.build())
+                    )
+                )
+                .build()
         val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         if (response.statusCode() !in 200..<300) {
             return null
         }
-        val payload = Json.INSTANCE.parseToJsonElement(response.body()) as? JsonObject
-            ?: return null
+        val payload =
+            Json.INSTANCE.parseToJsonElement(response.body()) as? JsonObject ?: return null
         val newAccessToken = getStringField(payload, "access_token")
         if (newAccessToken.isNullOrEmpty()) {
             return null
@@ -183,6 +211,7 @@ object AuthLoader {
             JwtParser.deriveAccountId(newIdToken),
         )
     }
+
     private fun writeAuthFile(
         filePath: String,
         originalData: JsonObject,
@@ -209,12 +238,21 @@ object AuthLoader {
             val tmp = path.resolveSibling(path.fileName.toString() + ".tmp")
             // Set strict permissions BEFORE writing any content.
             setStrictFilePermissions(tmp)
-            Files.writeString(tmp, PRETTY_JSON.encodeToString(JsonObject.serializer(), root.build()))
-            Files.move(tmp, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            Files.writeString(
+                tmp,
+                PRETTY_JSON.encodeToString(JsonObject.serializer(), root.build()),
+            )
+            Files.move(
+                tmp,
+                path,
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING,
+            )
         } catch (exception: Exception) {
             System.err.println("Warning: failed to write auth file to $filePath: $exception")
         }
     }
+
     private fun setStrictFilePermissions(path: Path) {
         try {
             if (!Files.exists(path)) {
@@ -231,36 +269,42 @@ object AuthLoader {
                 // Windows: ACLs.
                 val view = Files.getFileAttributeView(path, AclFileAttributeView::class.java)
                 val owner = Files.getOwner(path)
-                val entry = AclEntry.newBuilder()
-                    .setType(AclEntryType.ALLOW)
-                    .setPrincipal(owner)
-                    .setPermissions(
-                        AclEntryPermission.READ_DATA,
-                        AclEntryPermission.WRITE_DATA,
-                        AclEntryPermission.APPEND_DATA,
-                        AclEntryPermission.READ_NAMED_ATTRS,
-                        AclEntryPermission.WRITE_NAMED_ATTRS,
-                        AclEntryPermission.READ_ATTRIBUTES,
-                        AclEntryPermission.WRITE_ATTRIBUTES,
-                        AclEntryPermission.READ_ACL,
-                        AclEntryPermission.WRITE_ACL,
-                        AclEntryPermission.WRITE_OWNER,
-                        AclEntryPermission.SYNCHRONIZE,
-                        AclEntryPermission.DELETE,
-                    )
-                    .build()
+                val entry =
+                    AclEntry.newBuilder()
+                        .setType(AclEntryType.ALLOW)
+                        .setPrincipal(owner)
+                        .setPermissions(
+                            AclEntryPermission.READ_DATA,
+                            AclEntryPermission.WRITE_DATA,
+                            AclEntryPermission.APPEND_DATA,
+                            AclEntryPermission.READ_NAMED_ATTRS,
+                            AclEntryPermission.WRITE_NAMED_ATTRS,
+                            AclEntryPermission.READ_ATTRIBUTES,
+                            AclEntryPermission.WRITE_ATTRIBUTES,
+                            AclEntryPermission.READ_ACL,
+                            AclEntryPermission.WRITE_ACL,
+                            AclEntryPermission.WRITE_OWNER,
+                            AclEntryPermission.SYNCHRONIZE,
+                            AclEntryPermission.DELETE,
+                        )
+                        .build()
                 // Set the owner-only ACL.
                 view.acl = listOf(entry)
             }
         } catch (exception: Exception) {
-            System.err.println("Warning: could not set strict file permissions on $path: ${exception.message}")
+            System.err.println(
+                "Warning: could not set strict file permissions on $path: ${exception.message}"
+            )
         }
     }
+
     private fun getStringField(node: JsonObject?, field: String): String? {
         if (node == null || !node.hasKey(field)) {
             return null
         }
         val value = node[field]
-        return if (value is JsonPrimitive && value.isString && value.content.isNotEmpty()) value.content else null
+        return if (value is JsonPrimitive && value.isString && value.content.isNotEmpty())
+            value.content
+        else null
     }
 }

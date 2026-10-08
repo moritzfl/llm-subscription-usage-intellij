@@ -22,11 +22,12 @@ import org.apache.pdfbox.rendering.PDFRenderer
 /** One-page sample used by the settings document test. Created on the fly, never checked in. */
 internal object HelloPdf {
     const val TEXT = "Hello from LLM Subscription Usage"
-    internal val TABLE = arrayOf(
-        arrayOf("Provider", "Window", "Used"),
-        arrayOf("OpenAI", "5 hours", "12%"),
-        arrayOf("Mistral", "Week", "40%"),
-    )
+    internal val TABLE =
+        arrayOf(
+            arrayOf("Provider", "Window", "Used"),
+            arrayOf("OpenAI", "5 hours", "12%"),
+            arrayOf("Mistral", "Week", "40%"),
+        )
     private const val LIBERATION = "/org/apache/pdfbox/resources/ttf/LiberationSans-Regular.ttf"
     private const val ICON = "/META-INF/pluginIcon.svg"
     private const val PAGE_WIDTH = 720f
@@ -39,7 +40,11 @@ internal object HelloPdf {
 
     fun write(path: Path) {
         val tableHeight = ROW_HEIGHT * TABLE.size
-        val media = PDRectangle(PAGE_WIDTH, MARGIN + LOGO_SIZE + GAP + TITLE_SIZE + GAP + tableHeight + MARGIN)
+        val media =
+            PDRectangle(
+                PAGE_WIDTH,
+                MARGIN + LOGO_SIZE + GAP + TITLE_SIZE + GAP + tableHeight + MARGIN,
+            )
         PDDocument().use { document ->
             val page = PDPage(media)
             document.addPage(page)
@@ -51,7 +56,13 @@ internal object HelloPdf {
             val left = (media.width - blockWidth) / 2f
             var top = media.height - MARGIN
             PDPageContentStream(document, page).use { content ->
-                content.drawImage(logo, left + (blockWidth - LOGO_SIZE) / 2f, top - LOGO_SIZE, LOGO_SIZE, LOGO_SIZE)
+                content.drawImage(
+                    logo,
+                    left + (blockWidth - LOGO_SIZE) / 2f,
+                    top - LOGO_SIZE,
+                    LOGO_SIZE,
+                    LOGO_SIZE,
+                )
                 top -= LOGO_SIZE + GAP
                 content.beginText()
                 content.setFont(font, TITLE_SIZE)
@@ -59,15 +70,22 @@ internal object HelloPdf {
                 content.showText(TEXT)
                 content.endText()
                 top -= TITLE_SIZE + GAP
-                drawTable(content, font, left + (blockWidth - tableWidth) / 2f, top - tableHeight, tableWidth)
+                drawTable(
+                    content,
+                    font,
+                    left + (blockWidth - tableWidth) / 2f,
+                    top - tableHeight,
+                    tableWidth,
+                )
             }
             document.save(path.toFile())
         }
     }
 
     private fun liberation(document: PDDocument): PDType0Font {
-        val stream = PDType0Font::class.java.getResourceAsStream(LIBERATION)
-            ?: error("PDFBox Liberation Sans is missing")
+        val stream =
+            PDType0Font::class.java.getResourceAsStream(LIBERATION)
+                ?: error("PDFBox Liberation Sans is missing")
         return stream.use { PDType0Font.load(document, it, true) }
     }
 
@@ -83,9 +101,10 @@ internal object HelloPdf {
 
     private fun iconPng(size: Int): ByteArray {
         val raw = HelloPdf::class.java.getResourceAsStream(ICON) ?: error("Plugin icon is missing")
-        val xml = String(raw.use { it.readBytes() }, StandardCharsets.UTF_8)
-            .replace(Regex("""<!DOCTYPE[^>]*>"""), "")
-            .replace("""width="100%" height="100%"""", """width="$size" height="$size"""")
+        val xml =
+            String(raw.use { it.readBytes() }, StandardCharsets.UTF_8)
+                .replace(Regex("""<!DOCTYPE[^>]*>"""), "")
+                .replace("""width="100%" height="100%"""", """width="$size" height="$size"""")
         val png = ByteArrayOutputStream()
         val transcoder = PNGTranscoder()
         transcoder.addTranscodingHint(SVGAbstractTranscoder.KEY_WIDTH, size.toFloat())
@@ -98,7 +117,13 @@ internal object HelloPdf {
         return png.toByteArray()
     }
 
-    private fun drawTable(content: PDPageContentStream, font: PDType0Font, x: Float, bottom: Float, width: Float) {
+    private fun drawTable(
+        content: PDPageContentStream,
+        font: PDType0Font,
+        x: Float,
+        bottom: Float,
+        width: Float,
+    ) {
         val rows = TABLE.size
         val cols = TABLE[0].size
         val height = ROW_HEIGHT * rows

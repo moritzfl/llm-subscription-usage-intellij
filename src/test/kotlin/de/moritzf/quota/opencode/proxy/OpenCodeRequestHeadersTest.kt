@@ -1,13 +1,13 @@
 package de.moritzf.quota.opencode.proxy
 
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 class OpenCodeRequestHeadersTest {
     @Test
@@ -15,7 +15,10 @@ class OpenCodeRequestHeadersTest {
         val body = json()
 
         assertEquals("ses_keep", OpenCodeRequestHeaders.sessionId("ses_keep", body))
-        assertEquals("ses_keep", OpenCodeRequestHeaders.sessionId("ses_keep\r\nAuthorization: bearer", body))
+        assertEquals(
+            "ses_keep",
+            OpenCodeRequestHeaders.sessionId("ses_keep\r\nAuthorization: bearer", body),
+        )
     }
 
     @Test
@@ -39,9 +42,17 @@ class OpenCodeRequestHeadersTest {
 
     private fun json(promptCacheKey: String? = null, firstMessage: String = "hi"): JsonObject {
         return buildJsonObject {
-            put("messages", buildJsonArray {
-                add(buildJsonObject { put("role", "user"); put("content", firstMessage) })
-            })
+            put(
+                "messages",
+                buildJsonArray {
+                    add(
+                        buildJsonObject {
+                            put("role", "user")
+                            put("content", firstMessage)
+                        }
+                    )
+                },
+            )
             if (promptCacheKey != null) put("prompt_cache_key", JsonPrimitive(promptCacheKey))
         }
     }

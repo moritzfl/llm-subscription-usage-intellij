@@ -81,9 +81,15 @@ class KimiCredentialsStore(
     }
 
     private fun loadStoredCredentials(): KimiCredentials? {
-        val json = try { PasswordSafe.instance.get(attributes)?.getPasswordAsString() } catch (_: Exception) { null }
+        val json =
+            try {
+                PasswordSafe.instance.get(attributes)?.getPasswordAsString()
+            } catch (_: Exception) {
+                null
+            }
         if (json.isNullOrBlank()) return null
-        return runCatching { JsonSupport.json.decodeFromString(KimiCredentials.serializer(), json) }.getOrNull()
+        return runCatching { JsonSupport.json.decodeFromString(KimiCredentials.serializer(), json) }
+            .getOrNull()
     }
 
     private fun notifyLoadedCallbacks() {
@@ -98,7 +104,8 @@ class KimiCredentialsStore(
         private const val DEFAULT_USER = "kimi-credentials"
         private val extras = java.util.concurrent.ConcurrentHashMap<String, KimiCredentialsStore>()
 
-        fun getInstance(): KimiCredentialsStore = ApplicationManager.getApplication().getService(KimiCredentialsStore::class.java)
+        fun getInstance(): KimiCredentialsStore =
+            ApplicationManager.getApplication().getService(KimiCredentialsStore::class.java)
 
         fun forAccount(accountId: String): KimiCredentialsStore =
             de.moritzf.quota.idea.settings.AccountCredentialKeys.store(
@@ -108,6 +115,8 @@ class KimiCredentialsStore(
                 DEFAULT_USER,
                 extras,
                 ::getInstance,
-            ) { service, user -> KimiCredentialsStore(userName = user, serviceName = service) }
+            ) { service, user ->
+                KimiCredentialsStore(userName = user, serviceName = service)
+            }
     }
 }

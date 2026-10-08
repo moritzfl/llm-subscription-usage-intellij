@@ -22,12 +22,16 @@ import kotlin.math.roundToInt
 internal class SuperGrokPopupSection : ProviderPopupSection() {
     private val separator = createSeparatedBlock()
     private val errorLabel = createWarningLabel("").apply { border = JBUI.Borders.emptyTop(1) }
-    private val titleLabel = createSectionTitleLabel("SuperGrok", QuotaIcons.SUPERGROK).apply { border = JBUI.Borders.emptyTop(0) }
+    private val titleLabel =
+        createSectionTitleLabel("SuperGrok", QuotaIcons.SUPERGROK).apply {
+            border = JBUI.Borders.emptyTop(0)
+        }
     private val blocks = listOf(WindowBlockPanel(3), WindowBlockPanel(5))
-    private val resetTokensPanel = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(3), 0)).apply {
-        isOpaque = false
-        border = JBUI.Borders.emptyTop(5)
-    }
+    private val resetTokensPanel =
+        JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(3), 0)).apply {
+            isOpaque = false
+            border = JBUI.Borders.emptyTop(5)
+        }
 
     init {
         isOpaque = false
@@ -72,9 +76,9 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
                 if (usage != null) {
                     blocks[0].updateSuperGrok(usage)
                 }
-                quota.onDemandCap?.takeIf { it > 0 }?.let { cap ->
-                    blocks.getOrNull(1)?.update("Pay as you go", "Cap $cap", 0)
-                }
+                quota.onDemandCap
+                    ?.takeIf { it > 0 }
+                    ?.let { cap -> blocks.getOrNull(1)?.update("Pay as you go", "Cap $cap", 0) }
                 updateResetTokens(quota.resetTokens)
             }
         }
@@ -98,34 +102,47 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
             return
         }
         resetTokensPanel.add(JLabel("Resets available: ${resetTokens.size}"))
-        resetTokensPanel.add(ActionLink("Reset") { confirmAndReset(resetTokens.first().tokenId) }.apply {
-            icon = AllIcons.Actions.Restart
-            toolTipText = resetTokenTooltip("Redeem one SuperGrok weekly reset", resetTokens.map { it.expiresAt })
-            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-        })
+        resetTokensPanel.add(
+            ActionLink("Reset") { confirmAndReset(resetTokens.first().tokenId) }
+                .apply {
+                    icon = AllIcons.Actions.Restart
+                    toolTipText =
+                        resetTokenTooltip(
+                            "Redeem one SuperGrok weekly reset",
+                            resetTokens.map { it.expiresAt },
+                        )
+                    cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                }
+        )
         resetTokensPanel.isVisible = true
     }
 
     private fun confirmAndReset(tokenId: String) {
-        val result = Messages.showYesNoDialog(
-            "Redeem one SuperGrok weekly reset now?",
-            "Reset SuperGrok Limits",
-            "Reset",
-            "Cancel",
-            AllIcons.Actions.Restart,
-        )
+        val result =
+            Messages.showYesNoDialog(
+                "Redeem one SuperGrok weekly reset now?",
+                "Reset SuperGrok Limits",
+                "Reset",
+                "Cancel",
+                AllIcons.Actions.Restart,
+            )
         if (result != Messages.YES) {
             return
         }
         resetTokensPanel.components.filterIsInstance<ActionLink>().forEach { it.isEnabled = false }
         ApplicationManager.getApplication().executeOnPooledThread {
             runCatching {
-                val resolvedAccountId = accountId
-                    ?: runCatching {
-                        de.moritzf.quota.idea.settings.QuotaSettingsState.getInstance()
-                            .defaultAccount(de.moritzf.quota.idea.common.QuotaProviderType.SUPERGROK)?.id
-                    }.getOrNull()
-                    ?: return@runCatching
+                val resolvedAccountId =
+                    accountId
+                        ?: runCatching {
+                            de.moritzf.quota.idea.settings.QuotaSettingsState.getInstance()
+                                .defaultAccount(
+                                    de.moritzf.quota.idea.common.QuotaProviderType.SUPERGROK
+                                )
+                                ?.id
+                        }
+                            .getOrNull()
+                        ?: return@runCatching
                 QuotaUsageService.getInstance().consumeSuperGrokReset(tokenId, resolvedAccountId)
             }
                 .onFailure { exception ->

@@ -20,9 +20,7 @@ class SubscriptionUsageMcpToolsetTest {
 
     @Test
     fun mcpToolsReturnBridgeSafeStrings() {
-        val bad = mcpTools()
-            .filterNot { it.returnType.classifier == String::class }
-            .map { it.name }
+        val bad = mcpTools().filterNot { it.returnType.classifier == String::class }.map { it.name }
         assertTrue(mcpTools().isNotEmpty())
         assertEquals(emptyList(), bad)
     }
@@ -30,9 +28,10 @@ class SubscriptionUsageMcpToolsetTest {
     @Test
     fun subscriptionImageGenerationUsesSingleToolWithProviderEnum() {
         val imageTools = mcpTools("subscription_image_generation")
-        val legacyImageTools = mcpTools()
-            .mapNotNull { it.findAnnotation<McpTool>()?.name }
-            .filter { it == "codex_image_generation" || it == "supergrok_image_generation" }
+        val legacyImageTools =
+            mcpTools()
+                .mapNotNull { it.findAnnotation<McpTool>()?.name }
+                .filter { it == "codex_image_generation" || it == "supergrok_image_generation" }
 
         assertEquals(emptyList(), legacyImageTools)
         assertEquals(listOf("subscription_image_generation"), imageTools.map { it.mcpName() })
@@ -63,7 +62,8 @@ class SubscriptionUsageMcpToolsetTest {
 
     @Test
     fun subscriptionToolsStatusAcceptsOptionalCapabilityAndModel() {
-        val statusTools = mcpTools().filter { it.mcpName()?.startsWith("subscription_tools_status") == true }
+        val statusTools =
+            mcpTools().filter { it.mcpName()?.startsWith("subscription_tools_status") == true }
 
         assertEquals(listOf("subscription_tools_status"), statusTools.map { it.mcpName() })
         assertEquals(
@@ -75,11 +75,16 @@ class SubscriptionUsageMcpToolsetTest {
     @Test
     fun subscriptionQuotaUsesSingleToolWithProviderEnumParameter() {
         val toolNames = mcpTools().mapNotNull { it.mcpName() }
-        val quotaToolNames = toolNames.filter { it == "subscription_quota" || it.endsWith("_usage_quota") }
+        val quotaToolNames = toolNames.filter {
+            it == "subscription_quota" || it.endsWith("_usage_quota")
+        }
         val quotaTool = mcpTools("subscription_quota").single()
 
         assertEquals(listOf("subscription_quota"), quotaToolNames)
-        assertEquals(listOf(QuotaProviderType::class, String::class), quotaTool.mcpParamClassifiers())
+        assertEquals(
+            listOf(QuotaProviderType::class, String::class),
+            quotaTool.mcpParamClassifiers(),
+        )
     }
 
     @Test
@@ -102,7 +107,8 @@ class SubscriptionUsageMcpToolsetTest {
 
     @Test
     fun superGrokWebSearchUsesSingleToolWithConfigurableOptions() {
-        val searchTools = mcpTools().filter { it.mcpName()?.startsWith("supergrok_web_search") == true }
+        val searchTools =
+            mcpTools().filter { it.mcpName()?.startsWith("supergrok_web_search") == true }
 
         assertEquals(listOf("supergrok_web_search"), searchTools.map { it.mcpName() })
         assertEquals(
@@ -165,13 +171,20 @@ class SubscriptionUsageMcpToolsetTest {
             tools.single().mcpParamClassifiers(),
         )
         val imageOptions = tools.single().valueParameters.takeLast(3)
-        assertEquals(listOf("imageFormat", "imageDpi", "imagePaddingPoints"), imageOptions.map { it.name })
-        assertTrue(imageOptions.all { it.isOptional }, "Existing callers must not have to provide the new options")
+        assertEquals(
+            listOf("imageFormat", "imageDpi", "imagePaddingPoints"),
+            imageOptions.map { it.name },
+        )
+        assertTrue(
+            imageOptions.all { it.isOptional },
+            "Existing callers must not have to provide the new options",
+        )
     }
 
     @Test
     fun subscriptionWebSearchUsesSingleToolWithProviderEnumParameter() {
-        val searchTools = mcpTools().filter { it.mcpName()?.startsWith("subscription_web_search") == true }
+        val searchTools =
+            mcpTools().filter { it.mcpName()?.startsWith("subscription_web_search") == true }
 
         assertEquals(listOf("subscription_web_search"), searchTools.map { it.mcpName() })
         assertEquals(
@@ -185,7 +198,15 @@ class SubscriptionUsageMcpToolsetTest {
         val tools = mcpTools("subscription_image_edit")
         assertEquals(listOf("subscription_image_edit"), tools.map { it.mcpName() })
         assertEquals(
-            listOf(String::class, ImageEditProvider::class, String::class, String::class, String::class, String::class, String::class),
+            listOf(
+                String::class,
+                ImageEditProvider::class,
+                String::class,
+                String::class,
+                String::class,
+                String::class,
+                String::class,
+            ),
             tools.single().mcpParamClassifiers(),
         )
     }
@@ -207,13 +228,20 @@ class SubscriptionUsageMcpToolsetTest {
 
         assertEquals(listOf("subscription_vision"), tools.map { it.mcpName() })
         assertEquals(
-            listOf(String::class, VisionProvider::class, String::class, String::class, String::class),
+            listOf(
+                String::class,
+                VisionProvider::class,
+                String::class,
+                String::class,
+                String::class,
+            ),
             tools.single().mcpParamClassifiers(),
         )
     }
 
     private fun mcpTools(name: String? = null): List<KFunction<*>> {
-        return SubscriptionUsageMcpToolset::class.functions
+        return SubscriptionUsageMcpToolset::class
+            .functions
             .filter { it.findAnnotation<McpTool>() != null }
             .filter { name == null || it.mcpName() == name }
     }

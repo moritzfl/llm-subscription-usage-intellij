@@ -34,8 +34,11 @@ class KimiSubscriptionProxyProviderTest {
                 val response = get(proxy.port, "/v1/models")
 
                 assertEquals(200, response.statusCode())
-                val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
-                    .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                val ids =
+                    JsonHelper.JSON.parseToJsonElement(response.body())
+                        .jsonObject["data"]!!
+                        .jsonArray
+                        .map { it.jsonObject["id"]!!.jsonPrimitive.content }
                 assertEquals(listOf("ki-kimi-for-coding", "ki-kimi-k2.5"), ids)
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/coding/v1/models", request.path)
@@ -56,22 +59,35 @@ class KimiSubscriptionProxyProviderTest {
                     val response = get(proxy.port, "/v1/models")
 
                     assertEquals(200, response.statusCode())
-                    val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
-                        .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                    assertEquals(listOf("ki-k2p7", "ki-kimi-k2-thinking", "ki-kimi-for-coding"), ids)
-                    assertEquals("/coding/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
-                    assertEquals("/api.json", assertNotNull(catalog.requests.poll(2, TimeUnit.SECONDS)).path)
+                    val ids =
+                        JsonHelper.JSON.parseToJsonElement(response.body())
+                            .jsonObject["data"]!!
+                            .jsonArray
+                            .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                    assertEquals(
+                        listOf("ki-k2p7", "ki-kimi-k2-thinking", "ki-kimi-for-coding"),
+                        ids,
+                    )
+                    assertEquals(
+                        "/coding/v1/models",
+                        assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path,
+                    )
+                    assertEquals(
+                        "/api.json",
+                        assertNotNull(catalog.requests.poll(2, TimeUnit.SECONDS)).path,
+                    )
 
                     val models = proxy.provider.models()
                     assertTrue(models.single { it.localId == "ki-kimi-for-coding" }.isDefault)
                     assertTrue(!models.single { it.localId == "ki-k2p7" }.isDefault)
                     assertTrue(models.single { it.localId == "ki-kimi-k2-thinking" }.supportsVision)
 
-                    val chat = post(
-                        proxy.port,
-                        "/v1/chat/completions",
-                        "{\"model\":\"ki-k2p7\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":16}",
-                    )
+                    val chat =
+                        post(
+                            proxy.port,
+                            "/v1/chat/completions",
+                            "{\"model\":\"ki-k2p7\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":16}",
+                        )
 
                     assertEquals(200, chat.statusCode())
                     val chatRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
@@ -95,10 +111,22 @@ class KimiSubscriptionProxyProviderTest {
                 val response = get(proxy.port, "/v1/models")
 
                 assertEquals(200, response.statusCode())
-                val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
-                    .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertEquals(listOf(KimiSubscriptionProxyProvider.PREFIX + KimiSubscriptionProxyProvider.MODEL_ID), ids)
-                assertEquals("/coding/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
+                val ids =
+                    JsonHelper.JSON.parseToJsonElement(response.body())
+                        .jsonObject["data"]!!
+                        .jsonArray
+                        .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                assertEquals(
+                    listOf(
+                        KimiSubscriptionProxyProvider.PREFIX +
+                            KimiSubscriptionProxyProvider.MODEL_ID
+                    ),
+                    ids,
+                )
+                assertEquals(
+                    "/coding/v1/models",
+                    assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path,
+                )
 
                 val cachedResponse = get(proxy.port, "/v1/models")
                 assertEquals(200, cachedResponse.statusCode())
@@ -119,11 +147,20 @@ class KimiSubscriptionProxyProviderTest {
                     val response = get(proxy.port, "/v1/models")
 
                     assertEquals(200, response.statusCode())
-                    val ids = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
-                        .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                    val ids =
+                        JsonHelper.JSON.parseToJsonElement(response.body())
+                            .jsonObject["data"]!!
+                            .jsonArray
+                            .map { it.jsonObject["id"]!!.jsonPrimitive.content }
                     assertEquals(listOf("ki-kimi-for-coding"), ids)
-                    assertEquals("/coding/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
-                    assertEquals("/api.json", assertNotNull(catalog.requests.poll(2, TimeUnit.SECONDS)).path)
+                    assertEquals(
+                        "/coding/v1/models",
+                        assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path,
+                    )
+                    assertEquals(
+                        "/api.json",
+                        assertNotNull(catalog.requests.poll(2, TimeUnit.SECONDS)).path,
+                    )
                 } finally {
                     proxy.server.stop()
                 }
@@ -137,14 +174,18 @@ class KimiSubscriptionProxyProviderTest {
             val proxy = newProxy(upstream)
             try {
                 proxy.server.start()
-                val response = post(
-                    proxy.port,
-                    "/v1/messages",
-                    "{\"model\":\"ki-kimi-for-coding\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":16}",
-                )
+                val response =
+                    post(
+                        proxy.port,
+                        "/v1/messages",
+                        "{\"model\":\"ki-kimi-for-coding\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":16}",
+                    )
 
                 assertEquals(200, response.statusCode())
-                assertEquals("/coding/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
+                assertEquals(
+                    "/coding/v1/models",
+                    assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path,
+                )
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/coding/v1/messages", request.path)
                 assertEquals("Bearer kimi-token", request.firstHeader("Authorization"))
@@ -161,14 +202,18 @@ class KimiSubscriptionProxyProviderTest {
             val proxy = newProxy(upstream)
             try {
                 proxy.server.start()
-                val response = post(
-                    proxy.port,
-                    "/v1/messages",
-                    "{\"model\":\"ki-k2p6\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":16}",
-                )
+                val response =
+                    post(
+                        proxy.port,
+                        "/v1/messages",
+                        "{\"model\":\"ki-k2p6\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":16}",
+                    )
 
                 assertEquals(200, response.statusCode())
-                assertEquals("/coding/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
+                assertEquals(
+                    "/coding/v1/models",
+                    assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path,
+                )
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/coding/v1/messages", request.path)
                 assertTrue(request.body.contains("\"model\":\"k2p6\""), request.body)
@@ -185,14 +230,18 @@ class KimiSubscriptionProxyProviderTest {
             val proxy = newProxy(upstream)
             try {
                 proxy.server.start()
-                val response = post(
-                    proxy.port,
-                    "/v1/chat/completions",
-                    "{\"model\":\"ki-k2p6\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":16}",
-                )
+                val response =
+                    post(
+                        proxy.port,
+                        "/v1/chat/completions",
+                        "{\"model\":\"ki-k2p6\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":16}",
+                    )
 
                 assertEquals(200, response.statusCode())
-                assertEquals("/coding/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
+                assertEquals(
+                    "/coding/v1/models",
+                    assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path,
+                )
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/coding/v1/chat/completions", request.path)
                 assertTrue(request.body.contains("\"model\":\"k2p6\""), request.body)
@@ -209,25 +258,30 @@ class KimiSubscriptionProxyProviderTest {
             val proxy = newProxy(upstream)
             try {
                 proxy.server.start()
-                val response = post(
-                    proxy.port,
-                    "/v1/chat/completions",
-                    "{\"model\":\"ki-kimi-for-coding\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"temperature\":0}",
-                )
+                val response =
+                    post(
+                        proxy.port,
+                        "/v1/chat/completions",
+                        "{\"model\":\"ki-kimi-for-coding\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"temperature\":0}",
+                    )
 
                 assertEquals(200, response.statusCode())
-                assertEquals("/coding/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
+                assertEquals(
+                    "/coding/v1/models",
+                    assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path,
+                )
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/coding/v1/chat/completions", request.path)
                 assertTrue(request.body.contains("\"model\":\"kimi-for-coding\""), request.body)
                 assertTrue(!request.body.contains("temperature"), request.body)
 
-                val k27 = post(
-                    proxy.port,
-                    "/v1/chat/completions",
-                    "{\"model\":\"ki-kimi-k2.7-code\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]," +
-                        "\"reasoning_effort\":\"low\",\"stop\":[\"</COMMAND>\"]}",
-                )
+                val k27 =
+                    post(
+                        proxy.port,
+                        "/v1/chat/completions",
+                        "{\"model\":\"ki-kimi-k2.7-code\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]," +
+                            "\"reasoning_effort\":\"low\",\"stop\":[\"</COMMAND>\"]}",
+                    )
                 assertEquals(200, k27.statusCode(), k27.body())
                 val k27Request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertFalse(k27Request.body.contains("reasoning_effort"), k27Request.body)
@@ -244,16 +298,20 @@ class KimiSubscriptionProxyProviderTest {
             val proxy = newProxy(upstream)
             try {
                 proxy.server.start()
-                val response = post(
-                    proxy.port,
-                    "/v1/chat/completions",
-                    "{\"model\":\"ki-kimi-for-coding\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]," +
-                        "\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"submit\",\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]," +
-                        "\"tool_choice\":{\"type\":\"function\",\"function\":{\"name\":\"submit\"}}}",
-                )
+                val response =
+                    post(
+                        proxy.port,
+                        "/v1/chat/completions",
+                        "{\"model\":\"ki-kimi-for-coding\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]," +
+                            "\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"submit\",\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]," +
+                            "\"tool_choice\":{\"type\":\"function\",\"function\":{\"name\":\"submit\"}}}",
+                    )
 
                 assertEquals(200, response.statusCode())
-                assertEquals("/coding/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
+                assertEquals(
+                    "/coding/v1/models",
+                    assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path,
+                )
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 val upstreamBody = JsonHelper.JSON.parseToJsonElement(request.body).jsonObject
                 assertEquals("auto", upstreamBody["tool_choice"]!!.jsonPrimitive.content)
@@ -269,16 +327,20 @@ class KimiSubscriptionProxyProviderTest {
             val proxy = newProxy(upstream)
             try {
                 proxy.server.start()
-                val response = post(
-                    proxy.port,
-                    "/v1/chat/completions",
-                    "{\"model\":\"ki-kimi-for-coding\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]," +
-                        "\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"submit\",\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]," +
-                        "\"tool_choice\":\"required\"}",
-                )
+                val response =
+                    post(
+                        proxy.port,
+                        "/v1/chat/completions",
+                        "{\"model\":\"ki-kimi-for-coding\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]," +
+                            "\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"submit\",\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]," +
+                            "\"tool_choice\":\"required\"}",
+                    )
 
                 assertEquals(200, response.statusCode())
-                assertEquals("/coding/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
+                assertEquals(
+                    "/coding/v1/models",
+                    assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path,
+                )
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 val upstreamBody = JsonHelper.JSON.parseToJsonElement(request.body).jsonObject
                 assertEquals("auto", upstreamBody["tool_choice"]!!.jsonPrimitive.content)
@@ -290,13 +352,15 @@ class KimiSubscriptionProxyProviderTest {
 
     private fun newProxy(upstream: TestUpstream, modelsDevCatalogUri: URI? = null): TestProxy {
         val port = freePort()
-        val provider = KimiSubscriptionProxyProvider(
-            credentialsProvider = { KimiCredentials(accessToken = "kimi-token") },
-            openAiCompatibleBaseUri = upstream.openAiBaseUri,
-            anthropicCompatibleBaseUri = upstream.anthropicBaseUri,
-            modelsDevCatalogUri = modelsDevCatalogUri,
-            requestLogDir = Files.createTempDirectory("kimi-subscription-proxy-test-logs").toString(),
-        )
+        val provider =
+            KimiSubscriptionProxyProvider(
+                credentialsProvider = { KimiCredentials(accessToken = "kimi-token") },
+                openAiCompatibleBaseUri = upstream.openAiBaseUri,
+                anthropicCompatibleBaseUri = upstream.anthropicBaseUri,
+                modelsDevCatalogUri = modelsDevCatalogUri,
+                requestLogDir =
+                    Files.createTempDirectory("kimi-subscription-proxy-test-logs").toString(),
+            )
         return TestProxy(
             port,
             provider,
@@ -304,7 +368,8 @@ class KimiSubscriptionProxyProviderTest {
                 port = port,
                 localApiKeyProvider = { "local-key" },
                 providers = { listOf(provider) },
-                requestLogDir = Files.createTempDirectory("subscription-proxy-test-logs").toString(),
+                requestLogDir =
+                    Files.createTempDirectory("subscription-proxy-test-logs").toString(),
             ),
         )
     }
@@ -341,27 +406,33 @@ class KimiSubscriptionProxyProviderTest {
         private val modelsBody: String = managedModelsBody("kimi-for-coding", "kimi-k2.5"),
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val openAiBaseUri: URI
         val anthropicBaseUri: URI
 
         init {
             server.createContext("/") { exchange ->
                 val body = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
-                requests += CapturedRequest(
-                    path = exchange.requestURI.rawPath,
-                    headers = exchange.requestHeaders.mapValues { it.value.toList() },
-                    body = body,
-                )
+                requests +=
+                    CapturedRequest(
+                        path = exchange.requestURI.rawPath,
+                        headers = exchange.requestHeaders.mapValues { it.value.toList() },
+                        body = body,
+                    )
                 val isModelsRequest = exchange.requestURI.rawPath.endsWith("/models")
-                val responseBody = if (isModelsRequest) {
-                    modelsBody
-                } else {
-                    "{\"id\":\"msg_1\",\"content\":[]}"
-                }
+                val responseBody =
+                    if (isModelsRequest) {
+                        modelsBody
+                    } else {
+                        "{\"id\":\"msg_1\",\"content\":[]}"
+                    }
                 val response = responseBody.toByteArray(Charsets.UTF_8)
                 exchange.responseHeaders.set("Content-Type", "application/json")
-                exchange.sendResponseHeaders(if (isModelsRequest) modelsStatus else 200, response.size.toLong())
+                exchange.sendResponseHeaders(
+                    if (isModelsRequest) modelsStatus else 200,
+                    response.size.toLong(),
+                )
                 exchange.responseBody.use { output -> output.write(response) }
             }
             server.start()
@@ -376,21 +447,24 @@ class KimiSubscriptionProxyProviderTest {
     }
 
     private class TestModelsDevCatalog(
-        private val providerApi: String = "https://api.kimi.com/coding/v1",
+        private val providerApi: String = "https://api.kimi.com/coding/v1"
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val uri: URI
 
         init {
             server.createContext("/") { exchange ->
                 val body = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
-                requests += CapturedRequest(
-                    path = exchange.requestURI.rawPath,
-                    headers = exchange.requestHeaders.mapValues { it.value.toList() },
-                    body = body,
-                )
-                val responseBody = """
+                requests +=
+                    CapturedRequest(
+                        path = exchange.requestURI.rawPath,
+                        headers = exchange.requestHeaders.mapValues { it.value.toList() },
+                        body = body,
+                    )
+                val responseBody =
+                    """
                 {
                   "kimi-for-coding": {
                     "id": "kimi-for-coding",
@@ -428,7 +502,8 @@ class KimiSubscriptionProxyProviderTest {
                     }
                   }
                 }
-                """.trimIndent()
+                """
+                        .trimIndent()
                 val response = responseBody.toByteArray(Charsets.UTF_8)
                 exchange.responseHeaders.set("Content-Type", "application/json")
                 exchange.sendResponseHeaders(200, response.size.toLong())
@@ -449,7 +524,8 @@ class KimiSubscriptionProxyProviderTest {
         val body: String,
     ) {
         fun firstHeader(name: String): String? {
-            return headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }
+            return headers.entries
+                .firstOrNull { it.key.equals(name, ignoreCase = true) }
                 ?.value
                 ?.firstOrNull()
         }
@@ -466,9 +542,10 @@ class KimiSubscriptionProxyProviderTest {
         private val httpClient: HttpClient = HttpClient.newHttpClient()
 
         private fun managedModelsBody(vararg ids: String): String {
-            val models = ids.joinToString(",\n") { id ->
-                val contextLength = if (id == "kimi-k2.5") 250_000 else 262_144
-                """
+            val models =
+                ids.joinToString(",\n") { id ->
+                    val contextLength = if (id == "kimi-k2.5") 250_000 else 262_144
+                    """
                 {
                   "id": "$id",
                   "context_length": $contextLength,
@@ -477,8 +554,9 @@ class KimiSubscriptionProxyProviderTest {
                   "supports_video_in": true,
                   "supports_tool_use": true
                 }
-                """.trimIndent()
-            }
+                """
+                        .trimIndent()
+                }
             return """
             {
               "data": [
@@ -492,7 +570,8 @@ class KimiSubscriptionProxyProviderTest {
                 }
               ]
             }
-            """.trimIndent()
+            """
+                .trimIndent()
         }
     }
 }

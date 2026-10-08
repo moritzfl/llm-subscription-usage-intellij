@@ -22,17 +22,20 @@ import org.apache.pdfbox.rendering.PDFRenderer
  * model-estimated boxes are clamped; degenerate boxes are skipped. Output is always the requested
  * rectangle, never a whole-page image.
  */
-internal class PdfRegionImageExtractor private constructor(
-    private val document: PDDocument,
-) : Closeable {
+internal class PdfRegionImageExtractor private constructor(private val document: PDDocument) :
+    Closeable {
 
     private val renderer = PDFRenderer(document)
-    private val pageCache = object : LinkedHashMap<Int, BufferedImage>(8, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, BufferedImage>?): Boolean {
-            return size > MAX_CACHED_PAGES
+    private val pageCache =
+        object : LinkedHashMap<Int, BufferedImage>(8, 0.75f, true) {
+            override fun removeEldestEntry(
+                eldest: MutableMap.MutableEntry<Int, BufferedImage>?
+            ): Boolean {
+                return size > MAX_CACHED_PAGES
+            }
         }
-    }
-    val pageCount: Int get() = document.numberOfPages
+    val pageCount: Int
+        get() = document.numberOfPages
 
     fun renderRegion(region: PageRegion, targetFile: Path, dpi: Float = DEFAULT_DPI): Boolean {
         val pageIndex = region.page - 1
@@ -52,18 +55,23 @@ internal class PdfRegionImageExtractor private constructor(
         if (width < MIN_REGION_PX || height < MIN_REGION_PX) return false
 
         return runCatching {
-            val crop = pageImage.getSubimage(x0, y0, width, height)
-            val parent = targetFile.parent
-            if (parent != null) Files.createDirectories(parent)
-            ImageIO.write(crop, "png", targetFile.toFile())
-        }.getOrDefault(false)
+                val crop = pageImage.getSubimage(x0, y0, width, height)
+                val parent = targetFile.parent
+                if (parent != null) Files.createDirectories(parent)
+                ImageIO.write(crop, "png", targetFile.toFile())
+            }
+            .getOrDefault(false)
     }
 
     private fun pageImage(pageIndex: Int, dpi: Float): BufferedImage? {
-        pageCache[pageIndex]?.let { return it }
-        val image = runCatching {
-            renderer.renderImageWithDPI(pageIndex, dpi, ImageType.RGB)
-        }.getOrNull() ?: return null
+        pageCache[pageIndex]?.let {
+            return it
+        }
+        val image =
+            runCatching {
+                renderer.renderImageWithDPI(pageIndex, dpi, ImageType.RGB)
+            }
+                .getOrNull() ?: return null
         pageCache[pageIndex] = image
         return image
     }
@@ -86,7 +94,8 @@ internal class PdfRegionImageExtractor private constructor(
             val top = min(y0, y1).coerceIn(0f, 1f)
             val right = max(x0, x1).coerceIn(0f, 1f)
             val bottom = max(y0, y1).coerceIn(0f, 1f)
-            if (right - left < MIN_NORMALIZED_SIZE || bottom - top < MIN_NORMALIZED_SIZE) return null
+            if (right - left < MIN_NORMALIZED_SIZE || bottom - top < MIN_NORMALIZED_SIZE)
+                return null
             return Box(left, top, right, bottom)
         }
     }
@@ -100,13 +109,14 @@ internal class PdfRegionImageExtractor private constructor(
         private const val MIN_NORMALIZED_SIZE = 0.01f
 
         /**
-         * Opens [pdfFile] for region extraction. Returns null when the file cannot be read as a PDF,
-         * so callers keep the descriptive markdown without extracted image files.
+         * Opens [pdfFile] for region extraction. Returns null when the file cannot be read as a
+         * PDF, so callers keep the descriptive markdown without extracted image files.
          */
         fun open(pdfFile: Path): PdfRegionImageExtractor? {
             if (!Files.isRegularFile(pdfFile)) return null
             PdfImageIoPlugins.ensureRegistered()
-            return runCatching { PdfRegionImageExtractor(Loader.loadPDF(pdfFile.toFile())) }.getOrNull()
+            return runCatching { PdfRegionImageExtractor(Loader.loadPDF(pdfFile.toFile())) }
+                .getOrNull()
         }
     }
 }

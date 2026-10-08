@@ -32,11 +32,21 @@ class OpenAiProxyService(
     },
     private val apiKeyStore: OpenAiProxyApiKeyStore = OpenAiProxyApiKeyStore.getInstance(),
     private val authServiceProvider: () -> QuotaAuthService = { QuotaAuthService.getInstance() },
-    private val githubCredentialsStoreProvider: () -> GitHubCredentialsStore = { GitHubCredentialsStore.getInstance() },
-    private val kimiCredentialsStoreProvider: () -> KimiCredentialsStore = { KimiCredentialsStore.getInstance() },
-    private val miniMaxApiKeyStoreProvider: () -> MiniMaxApiKeyStore = { MiniMaxApiKeyStore.getInstance() },
-    private val ollamaApiKeyStoreProvider: () -> OllamaApiKeyStore = { OllamaApiKeyStore.getInstance() },
-    private val openCodeAuthServiceProvider: () -> OpenCodeAuthService = { OpenCodeAuthService.getInstance() },
+    private val githubCredentialsStoreProvider: () -> GitHubCredentialsStore = {
+        GitHubCredentialsStore.getInstance()
+    },
+    private val kimiCredentialsStoreProvider: () -> KimiCredentialsStore = {
+        KimiCredentialsStore.getInstance()
+    },
+    private val miniMaxApiKeyStoreProvider: () -> MiniMaxApiKeyStore = {
+        MiniMaxApiKeyStore.getInstance()
+    },
+    private val ollamaApiKeyStoreProvider: () -> OllamaApiKeyStore = {
+        OllamaApiKeyStore.getInstance()
+    },
+    private val openCodeAuthServiceProvider: () -> OpenCodeAuthService = {
+        OpenCodeAuthService.getInstance()
+    },
     private val zaiApiKeyStoreProvider: () -> ZaiApiKeyStore = { ZaiApiKeyStore.getInstance() },
     private val executor: Executor = AppExecutorUtil.getAppExecutorService(),
     subscribeToSettings: Boolean = true,
@@ -52,8 +62,13 @@ class OpenAiProxyService(
 
     init {
         if (subscribeToSettings) {
-            ApplicationManager.getApplication().messageBus.connect(this)
-                .subscribe(QuotaSettingsListener.TOPIC, QuotaSettingsListener { reloadFromSettings() })
+            ApplicationManager.getApplication()
+                .messageBus
+                .connect(this)
+                .subscribe(
+                    QuotaSettingsListener.TOPIC,
+                    QuotaSettingsListener { reloadFromSettings() },
+                )
             reloadFromSettings()
         }
     }
@@ -81,7 +96,10 @@ class OpenAiProxyService(
 
     fun advertisedModelsSnapshot(): List<SubscriptionProxyModel> {
         val settings = settingsProvider() ?: return emptyList()
-        return SubscriptionModelCatalog(createProviders(settings, false, requestLogDir().toString())).models
+        return SubscriptionModelCatalog(
+                createProviders(settings, false, requestLogDir().toString())
+            )
+            .models
     }
 
     fun requestLogDir(): Path = DEFAULT_REQUEST_LOG_DIR
@@ -91,7 +109,8 @@ class OpenAiProxyService(
         val enabled = settings?.openAiProxyEnabled == true
         val port = sanitizePort(settings?.openAiProxyPort ?: DEFAULT_PORT)
         val logRequests = settings?.openAiProxyLogRequests == true
-        val providerIds = settings?.enabledSubscriptionProxyProviders().orEmpty().map { it.id }.toSet()
+        val providerIds =
+            settings?.enabledSubscriptionProxyProviders().orEmpty().map { it.id }.toSet()
 
         synchronized(lock) {
             if (disposed) {
@@ -106,9 +125,12 @@ class OpenAiProxyService(
             try {
                 val localApiKey = apiKeyStore.ensureApiKeyBlocking()
                 val localApiKeyFingerprint = ApiKeyUtils.fingerprint(localApiKey)
-                if (server?.isRunning == true && runningPort == port &&
-                    runningApiKeyFingerprint == localApiKeyFingerprint && runningLogRequests == logRequests &&
-                    runningProviderIds == providerIds
+                if (
+                    server?.isRunning == true &&
+                        runningPort == port &&
+                        runningApiKeyFingerprint == localApiKeyFingerprint &&
+                        runningLogRequests == logRequests &&
+                        runningProviderIds == providerIds
                 ) {
                     lastError = null
                     return
@@ -117,15 +139,18 @@ class OpenAiProxyService(
                 stopLocked()
                 // Build providers once per proxy lifetime so in-memory model caches stay warm.
                 val providers = createProviders(settings, logRequests, requestLogDir().toString())
-                val proxyServer = SubscriptionProxyServer(
-                    port = port,
-                    localApiKeyProvider = { localApiKey },
-                    providers = { providers },
-                    fullRequestLogging = logRequests,
-                    requestLogDir = requestLogDir().toString(),
-                    completionsConfig = { settingsProvider()?.completionsConfig() ?: CompletionsConfig.DISABLED },
-                    mediaOperations = IdeMediaOperations(),
-                )
+                val proxyServer =
+                    SubscriptionProxyServer(
+                        port = port,
+                        localApiKeyProvider = { localApiKey },
+                        providers = { providers },
+                        fullRequestLogging = logRequests,
+                        requestLogDir = requestLogDir().toString(),
+                        completionsConfig = {
+                            settingsProvider()?.completionsConfig() ?: CompletionsConfig.DISABLED
+                        },
+                        mediaOperations = IdeMediaOperations(),
+                    )
                 proxyServer.start()
                 server = proxyServer
                 runningPort = port
@@ -147,18 +172,19 @@ class OpenAiProxyService(
         logRequests: Boolean,
         requestLogDir: String,
     ): List<SubscriptionProxyProvider> {
-        val context = IdeProxyBuildContext(
-            settings = settings,
-            logRequests = logRequests,
-            requestLogDir = requestLogDir,
-            authService = authServiceProvider,
-            githubCredentials = githubCredentialsStoreProvider,
-            kimiCredentials = kimiCredentialsStoreProvider,
-            miniMaxApiKey = miniMaxApiKeyStoreProvider,
-            ollamaApiKey = ollamaApiKeyStoreProvider,
-            openCodeAuth = openCodeAuthServiceProvider,
-            zaiApiKey = zaiApiKeyStoreProvider,
-        )
+        val context =
+            IdeProxyBuildContext(
+                settings = settings,
+                logRequests = logRequests,
+                requestLogDir = requestLogDir,
+                authService = authServiceProvider,
+                githubCredentials = githubCredentialsStoreProvider,
+                kimiCredentials = kimiCredentialsStoreProvider,
+                miniMaxApiKey = miniMaxApiKeyStoreProvider,
+                ollamaApiKey = ollamaApiKeyStoreProvider,
+                openCodeAuth = openCodeAuthServiceProvider,
+                zaiApiKey = zaiApiKeyStoreProvider,
+            )
         return ProviderCatalog.createIdeProxyProviders(
             context = context,
             enabled = settings.enabledSubscriptionProxyProviders().toSet(),
@@ -183,11 +209,12 @@ class OpenAiProxyService(
 
     companion object {
         const val DEFAULT_PORT = 14621
-        private val DEFAULT_REQUEST_LOG_DIR: Path = Path.of(
-            System.getProperty("java.io.tmpdir"),
-            "openai-usage-quota-intellij",
-            "subscription-proxy-requests",
-        )
+        private val DEFAULT_REQUEST_LOG_DIR: Path =
+            Path.of(
+                System.getProperty("java.io.tmpdir"),
+                "openai-usage-quota-intellij",
+                "subscription-proxy-requests",
+            )
         private val LOG = Logger.getInstance(OpenAiProxyService::class.java)
 
         @JvmStatic

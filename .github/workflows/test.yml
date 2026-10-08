@@ -26,8 +26,8 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
 
-      - name: Run tests
-        run: ./gradlew test --no-daemon --console=plain
+      - name: Check formatting and run tests
+        run: ./gradlew ktfmtCheck test --no-daemon --console=plain
         env:
           GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx4g
 

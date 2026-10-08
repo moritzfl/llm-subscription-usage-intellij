@@ -9,23 +9,23 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.AlignY
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
-import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.auth.LoginResult
+import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
-import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.DocumentModels
+import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.supergrok.SuperGrokQuota
 import de.moritzf.quota.supergrok.proxy.SuperGrokSubscriptionProxyProvider
+import java.awt.Color
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
-import java.awt.Color
-import java.awt.Toolkit
-import java.awt.datatransfer.StringSelection
 import javax.swing.JButton
 import javax.swing.JComponent
 
@@ -43,10 +43,11 @@ internal class SuperGrokSettingsPanel(
     private val deviceLoginPanel = DeviceLoginPanel()
     private val cancelLoginButton = createActionLink("Cancel Login")
     private val logoutButton = createActionLink("Log Out")
-    private val copyUrlButton = JButton("Copy URL", AllIcons.Actions.Copy).apply {
-        isVisible = false
-        toolTipText = "Copy login URL to clipboard"
-    }
+    private val copyUrlButton =
+        JButton("Copy URL", AllIcons.Actions.Copy).apply {
+            isVisible = false
+            toolTipText = "Copy login URL to clipboard"
+        }
     private val jsonViewer = createResponseViewer()
     private var authUrl: String? = null
     private var authStatusMessage: AuthStatusMessage? = null
@@ -63,18 +64,32 @@ internal class SuperGrokSettingsPanel(
             val authService = QuotaAuthService.getInstance()
             val accountId = accountId()
             loginButton.isEnabled = false
-            authStatusMessage = AuthStatusMessage("Opening browser...", false, AuthStatusKind.PENDING)
+            authStatusMessage =
+                AuthStatusMessage("Opening browser...", false, AuthStatusKind.PENDING)
             updateAuthUi()
             authService.startLoginFlow(
                 accountId = accountId,
                 type = QuotaProviderType.SUPERGROK,
                 callback = { finishLogin(accountId, it) },
                 onAuthUrl = { url ->
-                    ApplicationManager.getApplication().invokeLater({
-                        if (accountId() != accountId || !authService.isLoginInProgress(accountId, QuotaProviderType.SUPERGROK)) return@invokeLater
-                        authUrl = url
-                        copyUrlButton.isVisible = true
-                    }, ModalityState.stateForComponent(modalityComponentProvider() ?: this@SuperGrokSettingsPanel))
+                    ApplicationManager.getApplication()
+                        .invokeLater(
+                            {
+                                if (
+                                    accountId() != accountId ||
+                                        !authService.isLoginInProgress(
+                                            accountId,
+                                            QuotaProviderType.SUPERGROK,
+                                        )
+                                )
+                                    return@invokeLater
+                                authUrl = url
+                                copyUrlButton.isVisible = true
+                            },
+                            ModalityState.stateForComponent(
+                                modalityComponentProvider() ?: this@SuperGrokSettingsPanel
+                            ),
+                        )
                 },
             )
             updateAuthUi()
@@ -82,38 +97,56 @@ internal class SuperGrokSettingsPanel(
 
         deviceLoginButton.addActionListener {
             val accountId = accountId()
-            authStatusMessage = AuthStatusMessage("Requesting device code...", kind = AuthStatusKind.PENDING)
-            QuotaAuthService.getInstance().startDeviceLoginFlow(
-                accountId, QuotaProviderType.SUPERGROK, { finishLogin(accountId, it) },
-                onPrompt = {
-                    ApplicationManager.getApplication().invokeLater({
-                        if (accountId() == accountId) updateAuthUi()
-                    }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
-                },
-            )
+            authStatusMessage =
+                AuthStatusMessage("Requesting device code...", kind = AuthStatusKind.PENDING)
+            QuotaAuthService.getInstance()
+                .startDeviceLoginFlow(
+                    accountId,
+                    QuotaProviderType.SUPERGROK,
+                    { finishLogin(accountId, it) },
+                    onPrompt = {
+                        ApplicationManager.getApplication()
+                            .invokeLater(
+                                { if (accountId() == accountId) updateAuthUi() },
+                                ModalityState.stateForComponent(
+                                    modalityComponentProvider() ?: this
+                                ),
+                            )
+                    },
+                )
             updateAuthUi()
         }
 
         cancelLoginButton.addActionListener {
-            val aborted = QuotaAuthService.getInstance().abortLogin(accountId(), QuotaProviderType.SUPERGROK, "Login canceled")
-            authStatusMessage = AuthStatusMessage(
-                if (aborted) "Login canceled" else "No login in progress",
-                false,
-                if (aborted) AuthStatusKind.PENDING else AuthStatusKind.DISCONNECTED,
-            )
+            val aborted =
+                QuotaAuthService.getInstance()
+                    .abortLogin(accountId(), QuotaProviderType.SUPERGROK, "Login canceled")
+            authStatusMessage =
+                AuthStatusMessage(
+                    if (aborted) "Login canceled" else "No login in progress",
+                    false,
+                    if (aborted) AuthStatusKind.PENDING else AuthStatusKind.DISCONNECTED,
+                )
             updateAuthUi()
         }
 
         logoutButton.addActionListener {
-            val cleared = QuotaAuthService.getInstance().clearCredentials(accountId(), QuotaProviderType.SUPERGROK)
+            val cleared =
+                QuotaAuthService.getInstance()
+                    .clearCredentials(accountId(), QuotaProviderType.SUPERGROK)
             if (cleared) {
                 QuotaUsageService.getInstance().clearUsageData(accountId())
             }
-            authStatusMessage = if (cleared) {
-                AuthStatusMessage("Logged out of xAI/Grok", false, AuthStatusKind.DISCONNECTED)
-            } else {
-                AuthStatusMessage("Could not remove xAI/Grok login from Password Safe", true, AuthStatusKind.CONNECTED)
-            }
+            authStatusMessage =
+                if (cleared) {
+                    AuthStatusMessage("Logged out of xAI/Grok", false, AuthStatusKind.DISCONNECTED)
+                } else {
+                    AuthStatusMessage(
+                        "Could not remove xAI/Grok login from Password Safe",
+                        true,
+                        AuthStatusKind.CONNECTED,
+                    )
+                }
             updateAuthUi()
         }
 
@@ -127,23 +160,41 @@ internal class SuperGrokSettingsPanel(
                 cell(cancelLoginButton).gap(RightGap.SMALL)
                 cell(logoutButton)
             }
-            row {
-                cell(deviceLoginButton)
-            }
+            row { cell(deviceLoginButton) }
             row { cell(deviceLoginPanel.component).align(AlignX.FILL).resizableColumn() }
             row {
-                text("Uses plugin-managed xAI OAuth with the Grok CLI billing API. No local Grok CLI auth file is required.")
+                text(
+                    "Uses plugin-managed xAI OAuth with the Grok CLI billing API. No local Grok CLI auth file is required."
+                )
             }
             row("Document model:") {
-                cell(documentModelCombo.combo).align(AlignX.FILL).resizableColumn().gap(RightGap.SMALL)
+                cell(documentModelCombo.combo)
+                    .align(AlignX.FILL)
+                    .resizableColumn()
+                    .gap(RightGap.SMALL)
                     .comment(DocumentModels.OFF_COMMENT)
                 cell(documentModelCombo.warning).align(AlignY.TOP)
-                cell(DocumentTestButton(de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.SUPERGROK, { documentModelCombo.selected().orEmpty() }, modalityComponentProvider, documentModelCombo.combo))
+                cell(
+                    DocumentTestButton(
+                        de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.SUPERGROK,
+                        { documentModelCombo.selected().orEmpty() },
+                        modalityComponentProvider,
+                        documentModelCombo.combo,
+                    )
+                )
             }
             row("Vision model:") {
-                cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
+                cell(visionModelCombo.combo)
+                    .align(AlignX.FILL)
+                    .resizableColumn()
                     .comment("Used by subscription_vision. '-' keeps vision off.")
-                cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.SUPERGROK, visionModelCombo, modalityComponentProvider))
+                cell(
+                    VisionTestButton(
+                        de.moritzf.quota.idea.mcp.VisionProvider.SUPERGROK,
+                        visionModelCombo,
+                        modalityComponentProvider,
+                    )
+                )
             }
         }
 
@@ -167,11 +218,17 @@ internal class SuperGrokSettingsPanel(
 
     fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
 
-    private fun showDocumentModels(discovered: List<String>, selection: String? = boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)) {
+    private fun showDocumentModels(
+        discovered: List<String>,
+        selection: String? = boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL),
+    ) {
         documentModelCombo.show(selection, DocumentModels.superGrokChoices(discovered, selection))
     }
 
-    private fun showVisionModels(discovered: List<String>, selection: String? = boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL)) {
+    private fun showVisionModels(
+        discovered: List<String>,
+        selection: String? = boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL),
+    ) {
         visionModelCombo.show(selection, DocumentModels.superGrokChoices(discovered, selection))
     }
 
@@ -179,13 +236,29 @@ internal class SuperGrokSettingsPanel(
         val accountId = accountId()
         val generation = ++modelRefreshGeneration
         ApplicationManager.getApplication().executeOnPooledThread {
-            val token = QuotaAuthService.getInstance().getAccessTokenBlocking(accountId, QuotaProviderType.SUPERGROK)
-            val discovered = if (token.isNullOrBlank()) emptyList() else fetchSuperGrokModelIds(token)
-            ApplicationManager.getApplication().invokeLater({
-                if (generation != modelRefreshGeneration || accountId() != accountId) return@invokeLater
-                showDocumentModels(discovered, documentModelCombo.selected() ?: boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
-                showVisionModels(discovered, visionModelCombo.selected() ?: boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL))
-            }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
+            val token =
+                QuotaAuthService.getInstance()
+                    .getAccessTokenBlocking(accountId, QuotaProviderType.SUPERGROK)
+            val discovered =
+                if (token.isNullOrBlank()) emptyList() else fetchSuperGrokModelIds(token)
+            ApplicationManager.getApplication()
+                .invokeLater(
+                    {
+                        if (generation != modelRefreshGeneration || accountId() != accountId)
+                            return@invokeLater
+                        showDocumentModels(
+                            discovered,
+                            documentModelCombo.selected()
+                                ?: boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL),
+                        )
+                        showVisionModels(
+                            discovered,
+                            visionModelCombo.selected()
+                                ?: boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL),
+                        )
+                    },
+                    ModalityState.stateForComponent(modalityComponentProvider() ?: this),
+                )
         }
     }
 
@@ -200,11 +273,19 @@ internal class SuperGrokSettingsPanel(
         val prompt = authService.deviceLoginPrompt(accountId(), QuotaProviderType.SUPERGROK)
         deviceLoginPanel.show(prompt)
         val error = QuotaUsageService.getInstance().getLastError(accountId())
-        val uiState = QuotaSettingsAuthUiState.create(
-            loggedIn, inProgress,
-            if (prompt != null) AuthStatusMessage("Waiting for device authorization...", kind = AuthStatusKind.PENDING) else authStatusMessage,
-            authService.connectionState(accountId(), QuotaProviderType.SUPERGROK), error,
-        )
+        val uiState =
+            QuotaSettingsAuthUiState.create(
+                loggedIn,
+                inProgress,
+                if (prompt != null)
+                    AuthStatusMessage(
+                        "Waiting for device authorization...",
+                        kind = AuthStatusKind.PENDING,
+                    )
+                else authStatusMessage,
+                authService.connectionState(accountId(), QuotaProviderType.SUPERGROK),
+                error,
+            )
         loginButton.isEnabled = uiState.loginEnabled
         deviceLoginButton.isEnabled = uiState.loginEnabled
         cancelLoginButton.isEnabled = uiState.cancelEnabled
@@ -220,34 +301,47 @@ internal class SuperGrokSettingsPanel(
     }
 
     private fun finishLogin(accountId: String, result: LoginResult) {
-        ApplicationManager.getApplication().invokeLater({
-            if (result.success) QuotaUsageService.getInstance().refreshAsync(accountId)
-            if (accountId() != accountId) return@invokeLater
-            authStatusMessage = if (result.success) {
-                AuthStatusMessage("Connected to xAI/Grok", kind = AuthStatusKind.CONNECTED)
-            } else {
-                AuthStatusMessage(result.message ?: "Login failed", true, AuthStatusKind.DISCONNECTED)
-            }
-            updateAuthUi()
-        }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
+        ApplicationManager.getApplication()
+            .invokeLater(
+                {
+                    if (result.success) QuotaUsageService.getInstance().refreshAsync(accountId)
+                    if (accountId() != accountId) return@invokeLater
+                    authStatusMessage =
+                        if (result.success) {
+                            AuthStatusMessage(
+                                "Connected to xAI/Grok",
+                                kind = AuthStatusKind.CONNECTED,
+                            )
+                        } else {
+                            AuthStatusMessage(
+                                result.message ?: "Login failed",
+                                true,
+                                AuthStatusKind.DISCONNECTED,
+                            )
+                        }
+                    updateAuthUi()
+                },
+                ModalityState.stateForComponent(modalityComponentProvider() ?: this),
+            )
     }
 
     override fun updateResponseArea() {
         val quota = QuotaUsageService.getInstance().getLastQuota(accountId()) as? SuperGrokQuota
         val error = QuotaUsageService.getInstance().getLastError(accountId())
         val rawJson = QuotaUsageService.getInstance().getLastResponseJson(accountId())
-        jsonViewer.text = when {
-            error != null && !rawJson.isNullOrBlank() -> "Error: $error\n\n$rawJson"
-            error != null -> "Error: $error"
-            quota == null -> "No SuperGrok response yet."
-            !rawJson.isNullOrBlank() -> rawJson
-            else -> runCatching { JsonSupport.json.encodeToString(SuperGrokQuota.serializer(), quota) }
-                .getOrElse { "Could not serialize response: ${it.message}" }
-        }
+        jsonViewer.text =
+            when {
+                error != null && !rawJson.isNullOrBlank() -> "Error: $error\n\n$rawJson"
+                error != null -> "Error: $error"
+                quota == null -> "No SuperGrok response yet."
+                !rawJson.isNullOrBlank() -> rawJson
+                else -> runCatching {
+                        JsonSupport.json.encodeToString(SuperGrokQuota.serializer(), quota)
+                    }
+                        .getOrElse { "Could not serialize response: ${it.message}" }
+            }
         jsonViewer.setCaretPosition(0)
     }
-
-
 
     private var shownAccountId: String? = null
 
@@ -271,27 +365,35 @@ internal class SuperGrokSettingsPanel(
     }
 
     private fun formatStatusText(text: String, kind: AuthStatusKind): String {
-        val color = when (kind) {
-            AuthStatusKind.CONNECTED -> "#4CAF50"
-            AuthStatusKind.DISCONNECTED -> "#F44336"
-            AuthStatusKind.PENDING -> "#FFC107"
-        }
+        val color =
+            when (kind) {
+                AuthStatusKind.CONNECTED -> "#4CAF50"
+                AuthStatusKind.DISCONNECTED -> "#F44336"
+                AuthStatusKind.PENDING -> "#FFC107"
+            }
         return "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
     }
 }
 
 private fun fetchSuperGrokModelIds(token: String): List<String> {
-    val request = HttpRequest.newBuilder(URI.create("${SuperGrokSubscriptionProxyProvider.DEFAULT_UPSTREAM_BASE_URI}/models"))
-        .timeout(Duration.ofSeconds(30))
-        .header("Authorization", "Bearer $token")
-        .header("Accept", "application/json")
-        .header("User-Agent", "openai-usage-quota-intellij")
-        .GET()
-        .build()
-    val response = runCatching {
-        HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build()
-            .send(request, HttpResponse.BodyHandlers.ofString())
-    }.getOrNull() ?: return emptyList()
+    val request =
+        HttpRequest.newBuilder(
+                URI.create("${SuperGrokSubscriptionProxyProvider.DEFAULT_UPSTREAM_BASE_URI}/models")
+            )
+            .timeout(Duration.ofSeconds(30))
+            .header("Authorization", "Bearer $token")
+            .header("Accept", "application/json")
+            .header("User-Agent", "openai-usage-quota-intellij")
+            .GET()
+            .build()
+    val response =
+        runCatching {
+            HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(30))
+                .build()
+                .send(request, HttpResponse.BodyHandlers.ofString())
+        }
+            .getOrNull() ?: return emptyList()
     if (response.statusCode() !in 200..299) return emptyList()
     return DocumentModels.parseSuperGrokDocumentModelIds(response.body())
 }

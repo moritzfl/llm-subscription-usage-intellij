@@ -33,8 +33,8 @@ internal data class AzureCliAccount(
 )
 
 /**
- * Azure-only CLI boundary. Microsoft owns the login. This runs documented `az account` commands
- * and reads stdout. It does not read `~/.azure` or change the CLI's active subscription.
+ * Azure-only CLI boundary. Microsoft owns the login. This runs documented `az account` commands and
+ * reads stdout. It does not read `~/.azure` or change the CLI's active subscription.
  */
 internal class AzureCli(
     private val executable: Path,
@@ -50,7 +50,9 @@ internal class AzureCli(
             if (subscriptionId.isNullOrBlank()) account.isDefault
             else account.subscriptionId.equals(subscriptionId, ignoreCase = true)
         }
-            ?: throw AzureCliException("Azure CLI did not return a subscription. Run az login, then retry.")
+            ?: throw AzureCliException(
+                "Azure CLI did not return a subscription. Run az login, then retry."
+            )
     }
 
     // Azure CLI owns token caching. A plugin-side cache would outlive az login/logout or
@@ -66,18 +68,19 @@ internal class AzureCli(
         return parseAzureCliToken(raw, clock())
     }
 
-    private fun tokenArgs(flag: String, value: String, subscriptionId: String?): List<String> = buildList {
-        add("account")
-        add("get-access-token")
-        if (!subscriptionId.isNullOrBlank()) {
-            add("--subscription")
-            add(subscriptionId)
+    private fun tokenArgs(flag: String, value: String, subscriptionId: String?): List<String> =
+        buildList {
+            add("account")
+            add("get-access-token")
+            if (!subscriptionId.isNullOrBlank()) {
+                add("--subscription")
+                add(subscriptionId)
+            }
+            add(flag)
+            add(value)
+            add("--output")
+            add("json")
         }
-        add(flag)
-        add(value)
-        add("--output")
-        add("json")
-    }
 
     private fun runJson(args: List<String>): String {
         return try {
@@ -85,7 +88,10 @@ internal class AzureCli(
         } catch (exception: AzureCliException) {
             throw exception
         } catch (_: Exception) {
-            throw AzureCliException("Could not run Azure CLI. Check the executable path, then retry.", transient = true)
+            throw AzureCliException(
+                "Could not run Azure CLI. Check the executable path, then retry.",
+                transient = true,
+            )
         }
     }
 
@@ -97,27 +103,39 @@ internal class AzureCli(
             configuredPath: String? = null,
             environment: Map<String, String> = System.getenv(),
             home: String = System.getProperty("user.home"),
-            windows: Boolean = System.getProperty("os.name").startsWith("Windows", ignoreCase = true),
+            windows: Boolean =
+                System.getProperty("os.name").startsWith("Windows", ignoreCase = true),
         ): Path? {
             fun executable(value: String): Path? = runCatching {
                 val path = Path.of(value)
-                if (!path.isAbsolute || !Files.isRegularFile(path) || !Files.isExecutable(path)) return@runCatching null
+                if (!path.isAbsolute || !Files.isRegularFile(path) || !Files.isExecutable(path))
+                    return@runCatching null
                 // Credentials live under ~/.azure. Never treat that tree as an install location.
-                if (path.normalize().toString().replace('\\', '/').contains("/.azure/")) return@runCatching null
+                if (path.normalize().toString().replace('\\', '/').contains("/.azure/"))
+                    return@runCatching null
                 path
-            }.getOrNull()
+            }
+                .getOrNull()
             if (!configuredPath.isNullOrBlank()) return executable(configuredPath.trim())
             val name = if (windows) "az.cmd" else "az"
-            val searchPath = environment.entries.firstOrNull { it.key.equals("PATH", ignoreCase = windows) }?.value.orEmpty()
+            val searchPath =
+                environment.entries
+                    .firstOrNull { it.key.equals("PATH", ignoreCase = windows) }
+                    ?.value
+                    .orEmpty()
             val candidates = buildList {
-                searchPath.split(if (windows) ';' else File.pathSeparatorChar).filter { it.isNotBlank() }.forEach { dir ->
-                    add("$dir/$name")
-                    if (windows) add("$dir/az.exe")
-                }
+                searchPath
+                    .split(if (windows) ';' else File.pathSeparatorChar)
+                    .filter { it.isNotBlank() }
+                    .forEach { dir ->
+                        add("$dir/$name")
+                        if (windows) add("$dir/az.exe")
+                    }
                 add("$home/.local/bin/$name")
                 if (windows) {
                     val programFiles = environment["ProgramFiles"] ?: "C:/Program Files"
-                    val programFilesX86 = environment["ProgramFiles(x86)"] ?: "C:/Program Files (x86)"
+                    val programFilesX86 =
+                        environment["ProgramFiles(x86)"] ?: "C:/Program Files (x86)"
                     add("$programFiles/Microsoft SDKs/Azure/CLI2/wbin/$name")
                     add("$programFilesX86/Microsoft SDKs/Azure/CLI2/wbin/$name")
                 } else {
@@ -130,22 +148,33 @@ internal class AzureCli(
     }
 }
 
-internal fun runAzure(executable: Path, args: List<String>, timeoutMillis: Long, maxBytes: Int): String {
-    val process = try {
-        ProcessBuilder(listOf(executable.toString()) + args)
-            .redirectError(ProcessBuilder.Redirect.DISCARD)
-            .start()
-    } catch (_: IOException) {
-        throw AzureCliException("Could not start Azure CLI. Check the executable path in settings.")
-    }
+internal fun runAzure(
+    executable: Path,
+    args: List<String>,
+    timeoutMillis: Long,
+    maxBytes: Int,
+): String {
+    val process =
+        try {
+            ProcessBuilder(listOf(executable.toString()) + args)
+                .redirectError(ProcessBuilder.Redirect.DISCARD)
+                .start()
+        } catch (_: IOException) {
+            throw AzureCliException(
+                "Could not start Azure CLI. Check the executable path in settings."
+            )
+        }
     val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
     val output = FutureTask { process.inputStream.readNBytes(maxBytes + 1) }
     try {
         process.outputStream.close()
         Thread(output, "azure-cli-output").apply { isDaemon = true }.start()
         val bytes = output.get(timeoutMillis, TimeUnit.MILLISECONDS)
-        if (bytes.size > maxBytes) throw AzureCliException("Azure CLI output exceeded the size limit.", transient = true)
-        if (!process.waitFor((deadline - System.nanoTime()).coerceAtLeast(0), TimeUnit.NANOSECONDS)) {
+        if (bytes.size > maxBytes)
+            throw AzureCliException("Azure CLI output exceeded the size limit.", transient = true)
+        if (
+            !process.waitFor((deadline - System.nanoTime()).coerceAtLeast(0), TimeUnit.NANOSECONDS)
+        ) {
             throw TimeoutException()
         }
         if (process.exitValue() != 0) {
@@ -155,7 +184,10 @@ internal fun runAzure(executable: Path, args: List<String>, timeoutMillis: Long,
     } catch (exception: AzureCliException) {
         throw exception
     } catch (_: TimeoutException) {
-        throw AzureCliException("Azure CLI command timed out. Check az login, then retry.", transient = true)
+        throw AzureCliException(
+            "Azure CLI command timed out. Check az login, then retry.",
+            transient = true,
+        )
     } catch (_: ExecutionException) {
         throw AzureCliException("Could not read Azure CLI output.", transient = true)
     } finally {
@@ -169,33 +201,52 @@ internal fun runAzure(executable: Path, args: List<String>, timeoutMillis: Long,
 }
 
 internal fun parseAzureCliToken(raw: String, nowMillis: Long): AzureAccessToken {
-    val json = azureJsonObject(raw)
-        ?: throw AzureCliException("Azure CLI did not return token JSON. Run az login, then retry.")
-    val token = json.text("accessToken")
-        ?: throw AzureCliException("Azure CLI did not return an access token. Run az login, then retry.")
-    val expires = tokenExpiryMillis(json, nowMillis)
-        ?: throw AzureCliException("Azure CLI returned an invalid token expiration.")
+    val json =
+        azureJsonObject(raw)
+            ?: throw AzureCliException(
+                "Azure CLI did not return token JSON. Run az login, then retry."
+            )
+    val token =
+        json.text("accessToken")
+            ?: throw AzureCliException(
+                "Azure CLI did not return an access token. Run az login, then retry."
+            )
+    val expires =
+        tokenExpiryMillis(json, nowMillis)
+            ?: throw AzureCliException("Azure CLI returned an invalid token expiration.")
     return AzureAccessToken(token, expires)
 }
 
 internal fun selectedAzureAccountElement(raw: String, subscriptionId: String?): JsonObject? {
-    val array = runCatching { JsonSupport.json.parseToJsonElement(extractJson(raw)) as? JsonArray }.getOrNull() ?: return null
-    return array.mapNotNull { it as? JsonObject }.firstOrNull { item ->
-        val id = item.text("id") ?: return@firstOrNull false
-        if (subscriptionId.isNullOrBlank()) {
-            (item["isDefault"] as? JsonPrimitive)?.contentOrNull.equals("true", ignoreCase = true)
-        } else {
-            id.equals(subscriptionId, ignoreCase = true)
+    val array =
+        runCatching { JsonSupport.json.parseToJsonElement(extractJson(raw)) as? JsonArray }
+            .getOrNull() ?: return null
+    return array
+        .mapNotNull { it as? JsonObject }
+        .firstOrNull { item ->
+            val id = item.text("id") ?: return@firstOrNull false
+            if (subscriptionId.isNullOrBlank()) {
+                (item["isDefault"] as? JsonPrimitive)
+                    ?.contentOrNull
+                    .equals("true", ignoreCase = true)
+            } else {
+                id.equals(subscriptionId, ignoreCase = true)
+            }
         }
-    }
 }
 
 internal fun parseAzureAccountList(raw: String): List<AzureCliAccount> {
-    val element = runCatching { JsonSupport.json.parseToJsonElement(extractJson(raw)) }.getOrNull() ?: return emptyList()
+    val element =
+        runCatching { JsonSupport.json.parseToJsonElement(extractJson(raw)) }.getOrNull()
+            ?: return emptyList()
     val array = element as? kotlinx.serialization.json.JsonArray ?: return emptyList()
-    return array.mapNotNull { item -> parseAzureAccount(item as? JsonObject) }
+    return array
+        .mapNotNull { item -> parseAzureAccount(item as? JsonObject) }
         .filter { it.subscriptionId.isNotEmpty() }
-        .sortedWith(compareByDescending<AzureCliAccount> { it.userType.equals("user", ignoreCase = true) }.thenBy { it.subscriptionName })
+        .sortedWith(
+            compareByDescending<AzureCliAccount> { it.userType.equals("user", ignoreCase = true) }
+                .thenBy { it.subscriptionName }
+        )
 }
 
 private fun parseAzureAccount(json: JsonObject?): AzureCliAccount? {
@@ -207,7 +258,8 @@ private fun parseAzureAccount(json: JsonObject?): AzureCliAccount? {
         tenantId = json.text("tenantId"),
         userName = user?.text("name"),
         userType = user?.text("type"),
-        isDefault = (json["isDefault"] as? JsonPrimitive)?.contentOrNull.equals("true", ignoreCase = true),
+        isDefault =
+            (json["isDefault"] as? JsonPrimitive)?.contentOrNull.equals("true", ignoreCase = true),
     )
 }
 
@@ -218,21 +270,29 @@ private fun tokenExpiryMillis(json: JsonObject, nowMillis: Long): Long? {
         return millis.toLong().takeIf { it > nowMillis - 86_400_000L }
     }
     val text = json.text("expiresOn") ?: return null
-    runCatching { Instant.parse(text) }.getOrNull()?.let { return it.toEpochMilliseconds() }
-    for (pattern in listOf("yyyy-MM-dd HH:mm:ss.SSSSSS", "yyyy-MM-dd HH:mm:ss.SSS", "yyyy-MM-dd HH:mm:ss")) {
+    runCatching { Instant.parse(text) }
+        .getOrNull()
+        ?.let {
+            return it.toEpochMilliseconds()
+        }
+    for (pattern in
+        listOf("yyyy-MM-dd HH:mm:ss.SSSSSS", "yyyy-MM-dd HH:mm:ss.SSS", "yyyy-MM-dd HH:mm:ss")) {
         val parsed = runCatching {
             LocalDateTime.parse(text, DateTimeFormatter.ofPattern(pattern))
                 .atZone(ZoneId.systemDefault())
                 .toInstant()
                 .toEpochMilli()
-        }.getOrNull()
+        }
+            .getOrNull()
         if (parsed != null) return parsed
     }
     return null
 }
 
-private fun azureJsonObject(raw: String): JsonObject? =
-    runCatching { JsonSupport.json.parseToJsonElement(extractJson(raw)) as? JsonObject }.getOrNull()
+private fun azureJsonObject(raw: String): JsonObject? = runCatching {
+    JsonSupport.json.parseToJsonElement(extractJson(raw)) as? JsonObject
+}
+    .getOrNull()
 
 private fun extractJson(raw: String): String {
     val trimmed = raw.trim().removePrefix("\uFEFF")

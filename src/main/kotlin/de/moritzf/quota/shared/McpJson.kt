@@ -18,7 +18,7 @@ internal object McpJson {
             McpWebSearchStatusResponse(
                 availableTools = statuses.filter { it.available }.map { it.tool },
                 tools = statuses,
-            ),
+            )
         )
     }
 
@@ -40,7 +40,7 @@ internal object McpJson {
                 model = model,
                 resolvedAccountId = resolvedAccountId,
                 fallbackReason = fallbackReason,
-            ),
+            )
         )
     }
 
@@ -48,7 +48,6 @@ internal object McpJson {
     fun visionResult(provider: String, model: String, content: String): String {
         return JsonSupport.json.encodeToString(McpVisionResultResponse(provider, model, content))
     }
-
 }
 
 @Serializable
@@ -103,10 +102,7 @@ internal data class McpProviderToolStatus(
     val reason: String? = null,
 )
 
-@Serializable
-private data class McpErrorResponse(
-    val error: String,
-)
+@Serializable private data class McpErrorResponse(val error: String)
 
 @Serializable
 internal data class McpVisionResultResponse(
@@ -116,9 +112,7 @@ internal data class McpVisionResultResponse(
 )
 
 @Serializable
-private data class McpRawProviderResponse(
-    @SerialName("raw_response") val rawResponse: String,
-)
+private data class McpRawProviderResponse(@SerialName("raw_response") val rawResponse: String)
 
 @Serializable
 private data class McpWebSearchStatusResponse(

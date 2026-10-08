@@ -26,24 +26,48 @@ object OpenAiCodexQuotaSerializer : KSerializer<OpenAiCodexQuota> {
      * instead of failing the whole usage payload.
      */
     override fun deserialize(decoder: Decoder): OpenAiCodexQuota {
-        val jsonDecoder = decoder as? JsonDecoder
-            ?: return decoder.decodeSerializableValue(UsageResponseDto.serializer()).toQuota()
-        val root = jsonDecoder.decodeJsonElement() as? JsonObject
-            ?: throw SerializationException("Usage response is not a JSON object")
+        val jsonDecoder =
+            decoder as? JsonDecoder
+                ?: return decoder.decodeSerializableValue(UsageResponseDto.serializer()).toQuota()
+        val root =
+            jsonDecoder.decodeJsonElement() as? JsonObject
+                ?: throw SerializationException("Usage response is not a JSON object")
 
-        val dto = UsageResponseDto(
-            userId = root.stringOrNull("user_id"),
-            accountId = root.stringOrNull("account_id"),
-            email = root.stringOrNull("email"),
-            rateLimit = JsonSupport.decodeSectionOrNull(root["rate_limit"], RateLimitDto.serializer()),
-            codeReviewRateLimit = JsonSupport.decodeSectionOrNull(root["code_review_rate_limit"], RateLimitDto.serializer()),
-            planType = root.stringOrNull("plan_type"),
-            credits = JsonSupport.decodeSectionOrNull(root["credits"], CreditsDto.serializer()),
-            spendControl = JsonSupport.decodeSectionOrNull(root["spend_control"], SpendControlDto.serializer()),
-            rateLimitReachedType = JsonSupport.decodeSectionOrNull(root["rate_limit_reached_type"], RateLimitReachedTypeDto.serializer()),
-            rateLimitResetCredits = JsonSupport.decodeSectionOrNull(root["rate_limit_reset_credits"], RateLimitResetCredits.serializer()),
-            additionalRateLimits = JsonSupport.decodeListItemsLeniently(root["additional_rate_limits"], AdditionalRateLimitDto.serializer()),
-        )
+        val dto =
+            UsageResponseDto(
+                userId = root.stringOrNull("user_id"),
+                accountId = root.stringOrNull("account_id"),
+                email = root.stringOrNull("email"),
+                rateLimit =
+                    JsonSupport.decodeSectionOrNull(root["rate_limit"], RateLimitDto.serializer()),
+                codeReviewRateLimit =
+                    JsonSupport.decodeSectionOrNull(
+                        root["code_review_rate_limit"],
+                        RateLimitDto.serializer(),
+                    ),
+                planType = root.stringOrNull("plan_type"),
+                credits = JsonSupport.decodeSectionOrNull(root["credits"], CreditsDto.serializer()),
+                spendControl =
+                    JsonSupport.decodeSectionOrNull(
+                        root["spend_control"],
+                        SpendControlDto.serializer(),
+                    ),
+                rateLimitReachedType =
+                    JsonSupport.decodeSectionOrNull(
+                        root["rate_limit_reached_type"],
+                        RateLimitReachedTypeDto.serializer(),
+                    ),
+                rateLimitResetCredits =
+                    JsonSupport.decodeSectionOrNull(
+                        root["rate_limit_reset_credits"],
+                        RateLimitResetCredits.serializer(),
+                    ),
+                additionalRateLimits =
+                    JsonSupport.decodeListItemsLeniently(
+                        root["additional_rate_limits"],
+                        AdditionalRateLimitDto.serializer(),
+                    ),
+            )
         return dto.toQuota()
     }
 

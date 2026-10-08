@@ -23,9 +23,9 @@ import de.moritzf.quota.supergrok.SuperGrokUsageWindow
 import de.moritzf.quota.zai.ZaiCountUsageWindow
 import de.moritzf.quota.zai.ZaiQuota
 import de.moritzf.quota.zai.ZaiUsageWindow
+import java.time.Duration
 import kotlin.time.Clock
 import kotlin.time.Instant
-import java.time.Duration
 
 internal object QuotaPeriodDurations {
     val ROLLING_5H: Duration = Duration.ofHours(5)
@@ -81,7 +81,10 @@ internal fun OpenCodeUsageWindow.periodElapsedFraction(periodDuration: Duration)
     return (1.0 - resetInSec.toDouble() / periodDurationSec).coerceIn(0.0, 1.0)
 }
 
-internal fun OllamaUsageWindow.periodElapsedFraction(periodDuration: Duration, now: Instant = Clock.System.now()): Double? {
+internal fun OllamaUsageWindow.periodElapsedFraction(
+    periodDuration: Duration,
+    now: Instant = Clock.System.now(),
+): Double? {
     val resetAt = resetsAt ?: return null
     val startedAt = periodStartedAt
     if (startedAt != null) {
@@ -90,12 +93,18 @@ internal fun OllamaUsageWindow.periodElapsedFraction(periodDuration: Duration, n
     return computePeriodElapsedFraction(periodDuration.toMillis(), resetAt, now)
 }
 
-internal fun ZaiUsageWindow.periodElapsedFraction(periodDuration: Duration, now: Instant = Clock.System.now()): Double? {
+internal fun ZaiUsageWindow.periodElapsedFraction(
+    periodDuration: Duration,
+    now: Instant = Clock.System.now(),
+): Double? {
     val resetAt = resetsAt ?: return null
     return computePeriodElapsedFraction(periodDuration.toMillis(), resetAt, now)
 }
 
-internal fun ZaiCountUsageWindow.periodElapsedFraction(periodDuration: Duration, now: Instant = Clock.System.now()): Double? {
+internal fun ZaiCountUsageWindow.periodElapsedFraction(
+    periodDuration: Duration,
+    now: Instant = Clock.System.now(),
+): Double? {
     val resetAt = resetsAt ?: return null
     return computePeriodElapsedFraction(periodDuration.toMillis(), resetAt, now)
 }
@@ -127,7 +136,9 @@ internal fun GitHubUsageWindow.periodElapsedFraction(now: Instant = Clock.System
     return computePeriodElapsedFraction(durationMs, resetAt, now)
 }
 
-internal fun SuperGrokUsageWindow.periodElapsedFraction(now: Instant = Clock.System.now()): Double? {
+internal fun SuperGrokUsageWindow.periodElapsedFraction(
+    now: Instant = Clock.System.now()
+): Double? {
     val durationMs = periodDurationMs ?: return null
     val resetAt = resetsAt ?: return null
     return computePeriodElapsedFraction(durationMs, resetAt, now)
@@ -165,11 +176,12 @@ internal fun openCodePeriodElapsedFraction(quota: OpenCodeQuota?, error: String?
     if (error != null || quota == null) {
         return null
     }
-    val windows = listOfNotNull(
-        quota.rollingUsage?.let { it to QuotaPeriodDurations.ROLLING_5H },
-        quota.weeklyUsage?.let { it to QuotaPeriodDurations.WEEKLY },
-        quota.monthlyUsage?.let { it to QuotaPeriodDurations.MONTHLY },
-    )
+    val windows =
+        listOfNotNull(
+            quota.rollingUsage?.let { it to QuotaPeriodDurations.ROLLING_5H },
+            quota.weeklyUsage?.let { it to QuotaPeriodDurations.WEEKLY },
+            quota.monthlyUsage?.let { it to QuotaPeriodDurations.MONTHLY },
+        )
     if (windows.isEmpty()) {
         return null
     }
@@ -192,18 +204,22 @@ internal fun ollamaPeriodElapsedFraction(quota: OllamaQuota?, error: String?): D
     if (error != null || quota == null) {
         return null
     }
-    val windows = listOfNotNull(
-        quota.sessionUsage?.let { it to QuotaPeriodDurations.ROLLING_5H },
-        quota.weeklyUsage?.let { it to QuotaPeriodDurations.WEEKLY },
-        quota.monthlyUsage?.let { it to QuotaPeriodDurations.MONTHLY },
-    )
+    val windows =
+        listOfNotNull(
+            quota.sessionUsage?.let { it to QuotaPeriodDurations.ROLLING_5H },
+            quota.weeklyUsage?.let { it to QuotaPeriodDurations.WEEKLY },
+            quota.monthlyUsage?.let { it to QuotaPeriodDurations.MONTHLY },
+        )
     if (windows.isEmpty()) {
         return null
     }
 
     val exhausted = windows.filter { (window, _) -> window.usagePercent >= 100.0 }
     if (exhausted.isNotEmpty()) {
-        val (window, duration) = exhausted.maxBy { (window, _) -> window.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE }
+        val (window, duration) =
+            exhausted.maxBy { (window, _) ->
+                window.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE
+            }
         return window.periodElapsedFraction(duration)
     }
 
@@ -215,17 +231,21 @@ internal fun zaiPeriodElapsedFraction(quota: ZaiQuota?, error: String?): Double?
     if (error != null || quota == null) {
         return null
     }
-    val windows = listOfNotNull(
-        quota.sessionUsage?.let { it to QuotaPeriodDurations.ROLLING_5H },
-        quota.weeklyUsage?.let { it to QuotaPeriodDurations.WEEKLY },
-    )
+    val windows =
+        listOfNotNull(
+            quota.sessionUsage?.let { it to QuotaPeriodDurations.ROLLING_5H },
+            quota.weeklyUsage?.let { it to QuotaPeriodDurations.WEEKLY },
+        )
     if (windows.isEmpty()) {
         return quota.webSearchUsage?.periodElapsedFraction(QuotaPeriodDurations.MONTHLY)
     }
 
     val exhausted = windows.filter { (window, _) -> window.usagePercent >= 100.0 }
     if (exhausted.isNotEmpty()) {
-        val (window, duration) = exhausted.maxBy { (window, _) -> window.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE }
+        val (window, duration) =
+            exhausted.maxBy { (window, _) ->
+                window.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE
+            }
         return window.periodElapsedFraction(duration)
     }
 
@@ -237,17 +257,21 @@ internal fun miniMaxPeriodElapsedFraction(quota: MiniMaxQuota?, error: String?):
     if (error != null || quota == null) {
         return null
     }
-    val windows = listOfNotNull(
-        quota.sessionUsage?.let { it to QuotaPeriodDurations.ROLLING_5H },
-        quota.weeklyUsage?.let { it to QuotaPeriodDurations.WEEKLY },
-    )
+    val windows =
+        listOfNotNull(
+            quota.sessionUsage?.let { it to QuotaPeriodDurations.ROLLING_5H },
+            quota.weeklyUsage?.let { it to QuotaPeriodDurations.WEEKLY },
+        )
     if (windows.isEmpty()) {
         return null
     }
 
     val exhausted = windows.filter { (window, _) -> window.usagePercent >= 100.0 }
     if (exhausted.isNotEmpty()) {
-        val (window, duration) = exhausted.maxBy { (window, _) -> window.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE }
+        val (window, duration) =
+            exhausted.maxBy { (window, _) ->
+                window.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE
+            }
         return window.periodElapsedFraction(duration)
     }
 

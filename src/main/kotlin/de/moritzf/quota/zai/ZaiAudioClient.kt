@@ -22,9 +22,10 @@ open class ZaiAudioClient(
         localFile: Path? = null,
         model: String = DEFAULT_MODEL,
     ): String {
-        val token = apiKey.trim().ifBlank {
-            throw ZaiQuotaException("Z.ai API key missing. Add a Z.ai API key in settings.")
-        }
+        val token =
+            apiKey.trim().ifBlank {
+                throw ZaiQuotaException("Z.ai API key missing. Add a Z.ai API key in settings.")
+            }
         val path = localFile
         if (path == null || !Files.isRegularFile(path)) {
             if (audioUrl.isNullOrBlank()) {
@@ -33,28 +34,33 @@ open class ZaiAudioClient(
             throw ZaiQuotaException("Z.ai speech-to-text requires a local audio file.")
         }
         val boundary = "----ZaiAudio${UUID.randomUUID().toString().replace("-", "")}"
-        val response = send(
-            HttpRequest.newBuilder()
-                .uri(transcriptionsUri)
-                .timeout(Duration.ofSeconds(120))
-                .header("Authorization", "Bearer $token")
-                .header("Content-Type", "multipart/form-data; boundary=$boundary")
-                .POST(
-                    MultipartFilePublisher.of(
-                        boundary,
-                        listOf("model" to model.trim().ifBlank { DEFAULT_MODEL }),
-                        path,
-                    ),
-                )
-                .build(),
-        )
+        val response =
+            send(
+                HttpRequest.newBuilder()
+                    .uri(transcriptionsUri)
+                    .timeout(Duration.ofSeconds(120))
+                    .header("Authorization", "Bearer $token")
+                    .header("Content-Type", "multipart/form-data; boundary=$boundary")
+                    .POST(
+                        MultipartFilePublisher.of(
+                            boundary,
+                            listOf("model" to model.trim().ifBlank { DEFAULT_MODEL }),
+                            path,
+                        )
+                    )
+                    .build()
+            )
         val status = response.statusCode()
         val body = response.body()
         if (status == 401 || status == 403) {
             throw ZaiQuotaException("API key invalid. Check your Z.ai API key.", status, body)
         }
         if (status !in 200..299) {
-            throw ZaiQuotaException("Z.ai speech-to-text failed (HTTP $status). Try again later.", status, body)
+            throw ZaiQuotaException(
+                "Z.ai speech-to-text failed (HTTP $status). Try again later.",
+                status,
+                body,
+            )
         }
         return McpJson.providerJsonOrRaw(body)
     }
@@ -72,7 +78,8 @@ open class ZaiAudioClient(
 
     companion object {
         const val DEFAULT_MODEL = "glm-asr-2512"
-        private val TRANSCRIPTIONS_URI = URI.create("https://api.z.ai/api/paas/v4/audio/transcriptions")
+        private val TRANSCRIPTIONS_URI =
+            URI.create("https://api.z.ai/api/paas/v4/audio/transcriptions")
 
         fun createDefault(): ZaiAudioClient = ZaiAudioClient()
 

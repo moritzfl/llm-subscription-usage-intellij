@@ -1,11 +1,14 @@
 package de.moritzf.proxy.model
+
 import java.util.Locale
 import java.util.regex.Pattern
+
 class ModelAliasResolver {
     data class ResolvedModel(
         val model: String?,
         val reasoningEffort: String?,
     )
+
     fun resolve(model: String?): ResolvedModel {
         if (model == null) {
             return ResolvedModel(null, null)
@@ -19,6 +22,7 @@ class ModelAliasResolver {
         }
         return ResolvedModel(model, null)
     }
+
     fun clampReasoningEffort(model: String?, requestedEffort: String?): String? {
         if (requestedEffort.isNullOrBlank()) {
             return null
@@ -30,7 +34,8 @@ class ModelAliasResolver {
             // medium/high reasoning. Keep the request-time clamp even if unsupported aliases
             // are not advertised, because clients can send stale or manual reasoning_effort values.
             return when (effort) {
-                "high", "xhigh" -> "high"
+                "high",
+                "xhigh" -> "high"
                 else -> "medium"
             }
         }
@@ -52,17 +57,21 @@ class ModelAliasResolver {
         }
         return effort
     }
+
     private fun isMiniModel(modelName: String): Boolean {
         return modelName.endsWith("-mini") || modelName.contains("codex-mini")
     }
+
     private fun isCodexModel(modelName: String): Boolean {
         return modelName.contains("codex")
     }
+
     private fun isLunaModel(modelName: String): Boolean {
         return modelName.startsWith("gpt-6-luna") ||
             modelName.startsWith("gpt-5.6-luna") ||
             modelName.startsWith("gpt-reserve")
     }
+
     private fun supportsXHigh(modelName: String): Boolean {
         // Codex models.json: gpt-5.2+ , the 5.6 family, gpt-6, and gpt-reserve accept xhigh.
         return modelName.startsWith("gpt-5.2") ||
@@ -73,18 +82,21 @@ class ModelAliasResolver {
             modelName.startsWith("gpt-6") ||
             modelName.startsWith("gpt-reserve")
     }
+
     private fun supportsMaxUltra(modelName: String): Boolean {
         return modelName.startsWith("gpt-5.6") ||
             modelName.startsWith("gpt-6") ||
             modelName.startsWith("gpt-reserve")
     }
+
     companion object {
         // Junie selects a reasoning tier by sending the model name with a "<base> (<level>)"
         // suffix. Strip the suffix back into base model + effort; the suffix is the user's
         // explicit tier choice, so it takes precedence over separate reasoning_effort.
-        private val REASONING_SUFFIX = Pattern.compile(
-            "^(.*?)\\s*\\((low|medium|high|xhigh|max|ultra|minimal|none)\\)$",
-            Pattern.CASE_INSENSITIVE,
-        )
+        private val REASONING_SUFFIX =
+            Pattern.compile(
+                "^(.*?)\\s*\\((low|medium|high|xhigh|max|ultra|minimal|none)\\)$",
+                Pattern.CASE_INSENSITIVE,
+            )
     }
 }

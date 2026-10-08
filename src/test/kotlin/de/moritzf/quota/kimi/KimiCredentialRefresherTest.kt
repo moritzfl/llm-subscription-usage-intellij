@@ -19,19 +19,21 @@ class KimiCredentialRefresherTest {
         val tokenHits = AtomicInteger(0)
         TestTokenServer(tokenHits).use { server ->
             val refresher = KimiCredentialRefresher(HttpClient.newHttpClient(), server.uri)
-            val credentials = KimiCredentials(
-                accessToken = "stale",
-                refreshToken = "refresh-1",
-                expiresAtEpochSeconds = 1.0,
-            )
+            val credentials =
+                KimiCredentials(
+                    accessToken = "stale",
+                    refreshToken = "refresh-1",
+                    expiresAtEpochSeconds = 1.0,
+                )
             val start = CountDownLatch(1)
             val executor = Executors.newFixedThreadPool(4)
-            val futures = (1..4).map {
-                executor.submit<KimiCredentials?> {
-                    start.await()
-                    refresher.refresh(credentials)
+            val futures =
+                (1..4).map {
+                    executor.submit<KimiCredentials?> {
+                        start.await()
+                        refresher.refresh(credentials)
+                    }
                 }
-            }
             start.countDown()
             val results = futures.map { it.get(5, TimeUnit.SECONDS) }
             executor.shutdownNow()
@@ -42,15 +44,17 @@ class KimiCredentialRefresherTest {
     }
 
     private class TestTokenServer(private val tokenHits: AtomicInteger) : AutoCloseable {
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val uri: URI
 
         init {
             server.createContext("/") { exchange ->
                 tokenHits.incrementAndGet()
                 Thread.sleep(150)
-                val body = """{"access_token":"fresh-token","refresh_token":"refresh-2","expires_in":3600}"""
-                    .toByteArray()
+                val body =
+                    """{"access_token":"fresh-token","refresh_token":"refresh-2","expires_in":3600}"""
+                        .toByteArray()
                 exchange.responseHeaders.set("Content-Type", "application/json")
                 exchange.sendResponseHeaders(200, body.size.toLong())
                 exchange.responseBody.use { it.write(body) }

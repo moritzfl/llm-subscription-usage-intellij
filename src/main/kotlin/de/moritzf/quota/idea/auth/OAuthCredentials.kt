@@ -2,9 +2,7 @@ package de.moritzf.quota.idea.auth
 
 import kotlinx.serialization.Serializable
 
-/**
- * DTO for persisted OAuth credentials stored in PasswordSafe.
- */
+/** DTO for persisted OAuth credentials stored in PasswordSafe. */
 @Serializable
 class OAuthCredentials(
     var accessToken: String? = null,

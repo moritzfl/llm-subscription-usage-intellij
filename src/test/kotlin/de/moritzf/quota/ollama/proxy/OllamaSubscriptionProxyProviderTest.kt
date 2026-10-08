@@ -4,8 +4,6 @@ import com.sun.net.httpserver.HttpServer
 import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.subscription.SubscriptionProxyServer
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -21,9 +19,11 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 class OllamaSubscriptionProxyProviderTest {
     @Test
@@ -35,16 +35,23 @@ class OllamaSubscriptionProxyProviderTest {
 
                 val modelsResponse = get(proxy.port, "/v1/models")
                 assertEquals(200, modelsResponse.statusCode())
-                val ids = JsonHelper.JSON.parseToJsonElement(modelsResponse.body()).jsonObject["data"]!!.jsonArray
-                    .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                val ids =
+                    JsonHelper.JSON.parseToJsonElement(modelsResponse.body())
+                        .jsonObject["data"]!!
+                        .jsonArray
+                        .map { it.jsonObject["id"]!!.jsonPrimitive.content }
                 assertEquals(listOf("ol-llama3.3", "ol-gemma3:4b", "ol-qwen3-coder-next"), ids)
-                assertEquals("/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
-
-                val chatResponse = post(
-                    proxy.port,
-                    "/v1/chat/completions",
-                    "{\"model\":\"ol-llama3.3\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                assertEquals(
+                    "/v1/models",
+                    assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path,
                 )
+
+                val chatResponse =
+                    post(
+                        proxy.port,
+                        "/v1/chat/completions",
+                        "{\"model\":\"ol-llama3.3\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    )
 
                 assertEquals(200, chatResponse.statusCode())
                 val chatRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
@@ -67,14 +74,29 @@ class OllamaSubscriptionProxyProviderTest {
                 val response = get(proxy.port, "/v1/model/info")
 
                 assertEquals(200, response.statusCode())
-                val data = JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject["data"]!!.jsonArray
-                val gemmaInfo = data.first { it.jsonObject["id"]!!.jsonPrimitive.content == "ol-gemma3:4b" }
-                    .jsonObject["model_info"]!!.jsonObject
-                val qwenInfo = data.first { it.jsonObject["id"]!!.jsonPrimitive.content == "ol-qwen3-coder-next" }
-                    .jsonObject["model_info"]!!.jsonObject
-                assertFalse(gemmaInfo["supports_function_calling"]!!.jsonPrimitive.content.toBoolean())
+                val data =
+                    JsonHelper.JSON.parseToJsonElement(response.body())
+                        .jsonObject["data"]!!
+                        .jsonArray
+                val gemmaInfo =
+                    data
+                        .first { it.jsonObject["id"]!!.jsonPrimitive.content == "ol-gemma3:4b" }
+                        .jsonObject["model_info"]!!
+                        .jsonObject
+                val qwenInfo =
+                    data
+                        .first {
+                            it.jsonObject["id"]!!.jsonPrimitive.content == "ol-qwen3-coder-next"
+                        }
+                        .jsonObject["model_info"]!!
+                        .jsonObject
+                assertFalse(
+                    gemmaInfo["supports_function_calling"]!!.jsonPrimitive.content.toBoolean()
+                )
                 assertFalse(gemmaInfo["supports_tool_choice"]!!.jsonPrimitive.content.toBoolean())
-                assertTrue(qwenInfo["supports_function_calling"]!!.jsonPrimitive.content.toBoolean())
+                assertTrue(
+                    qwenInfo["supports_function_calling"]!!.jsonPrimitive.content.toBoolean()
+                )
                 assertTrue(qwenInfo["supports_tool_choice"]!!.jsonPrimitive.content.toBoolean())
             } finally {
                 proxy.server.stop()
@@ -89,14 +111,18 @@ class OllamaSubscriptionProxyProviderTest {
             try {
                 proxy.server.start()
 
-                val chatResponse = post(
-                    proxy.port,
-                    "/v1/chat/completions",
-                    "{\"model\":\"ol-llama4\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
-                )
+                val chatResponse =
+                    post(
+                        proxy.port,
+                        "/v1/chat/completions",
+                        "{\"model\":\"ol-llama4\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                    )
 
                 assertEquals(200, chatResponse.statusCode())
-                assertEquals("/v1/models", assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path)
+                assertEquals(
+                    "/v1/models",
+                    assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path,
+                )
                 val chatRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/v1/chat/completions", chatRequest.path)
                 assertTrue(chatRequest.body.contains("\"model\":\"llama4\""), chatRequest.body)
@@ -121,43 +147,50 @@ class OllamaSubscriptionProxyProviderTest {
 
     @Test
     fun convertsCompletionsBodyToGenerateRequest() {
-        val body = OllamaSubscriptionProxyProvider.toGenerateRequest(
-            buildJsonObject {
-                put("model", "qwen3-coder-next")
-                put("prompt", "fun add() {\n    return ")
-                put("suffix", "\n}")
-                put("max_tokens", 48)
-                put("stream", true)
-            },
-        )
+        val body =
+            OllamaSubscriptionProxyProvider.toGenerateRequest(
+                buildJsonObject {
+                    put("model", "qwen3-coder-next")
+                    put("prompt", "fun add() {\n    return ")
+                    put("suffix", "\n}")
+                    put("max_tokens", 48)
+                    put("stream", true)
+                }
+            )
         assertEquals("qwen3-coder-next", body.jsonObject["model"]!!.jsonPrimitive.content)
         assertEquals("fun add() {\n    return ", body.jsonObject["prompt"]!!.jsonPrimitive.content)
         assertEquals("\n}", body.jsonObject["suffix"]!!.jsonPrimitive.content)
         assertFalse(body.jsonObject["stream"]!!.jsonPrimitive.content.toBoolean())
-        assertEquals(48, body.jsonObject["options"]!!.jsonObject["num_predict"]!!.jsonPrimitive.content.toInt())
+        assertEquals(
+            48,
+            body.jsonObject["options"]!!.jsonObject["num_predict"]!!.jsonPrimitive.content.toInt(),
+        )
     }
 
     @Test
     fun routesNativeCompletionsToGenerate() {
         TestUpstream().use { upstream ->
-            val proxy = newProxy(
-                upstream.baseUri,
-                completionsConfig = CompletionsConfig(
-                    enabled = true,
-                    modelLocalId = "ol-qwen3-coder-next",
-                    useChatAdapter = false,
-                ),
-            )
+            val proxy =
+                newProxy(
+                    upstream.baseUri,
+                    completionsConfig =
+                        CompletionsConfig(
+                            enabled = true,
+                            modelLocalId = "ol-qwen3-coder-next",
+                            useChatAdapter = false,
+                        ),
+                )
             try {
                 proxy.server.start()
                 get(proxy.port, "/v1/models")
                 assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
 
-                val response = post(
-                    proxy.port,
-                    "/v1/completions",
-                    "{\"model\":\"qwen2.5-coder\",\"prompt\":\"fun add(a: Int, b: Int): Int {\\n    return \",\"suffix\":\"\\n}\\n\",\"stream\":false,\"max_tokens\":48}",
-                )
+                val response =
+                    post(
+                        proxy.port,
+                        "/v1/completions",
+                        "{\"model\":\"qwen2.5-coder\",\"prompt\":\"fun add(a: Int, b: Int): Int {\\n    return \",\"suffix\":\"\\n}\\n\",\"stream\":false,\"max_tokens\":48}",
+                    )
 
                 assertEquals(200, response.statusCode(), response.body())
                 val generate = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
@@ -177,18 +210,21 @@ class OllamaSubscriptionProxyProviderTest {
         completionsConfig: CompletionsConfig = CompletionsConfig.DISABLED,
     ): TestProxy {
         val port = freePort()
-        val provider = OllamaSubscriptionProxyProvider(
-            apiKeyProvider = { "ollama-key" },
-            upstreamBaseUri = upstreamBaseUri,
-            requestLogDir = Files.createTempDirectory("ollama-subscription-proxy-test-logs").toString(),
-        )
+        val provider =
+            OllamaSubscriptionProxyProvider(
+                apiKeyProvider = { "ollama-key" },
+                upstreamBaseUri = upstreamBaseUri,
+                requestLogDir =
+                    Files.createTempDirectory("ollama-subscription-proxy-test-logs").toString(),
+            )
         return TestProxy(
             port,
             SubscriptionProxyServer(
                 port = port,
                 localApiKeyProvider = { "local-key" },
                 providers = { listOf(provider) },
-                requestLogDir = Files.createTempDirectory("subscription-proxy-test-logs").toString(),
+                requestLogDir =
+                    Files.createTempDirectory("subscription-proxy-test-logs").toString(),
                 completionsConfig = { completionsConfig },
             ),
         )
@@ -219,30 +255,33 @@ class OllamaSubscriptionProxyProviderTest {
 
     private class TestUpstream : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
 
         init {
             server.createContext("/") { exchange ->
                 val body = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
-                requests += CapturedRequest(
-                    path = exchange.requestURI.rawPath,
-                    headers = exchange.requestHeaders.mapValues { it.value.toList() },
-                    body = body,
-                )
+                requests +=
+                    CapturedRequest(
+                        path = exchange.requestURI.rawPath,
+                        headers = exchange.requestHeaders.mapValues { it.value.toList() },
+                        body = body,
+                    )
                 val path = exchange.requestURI.rawPath
-                val responseBody = if (path.endsWith("/models")) {
-                    "{\"object\":\"list\",\"data\":[" +
-                        "{\"id\":\"llama3.3\",\"object\":\"model\"}," +
-                        "{\"id\":\"gemma3:4b\",\"object\":\"model\"}," +
-                        "{\"id\":\"qwen3-coder-next\",\"object\":\"model\"}," +
-                        "{\"id\":\"nomic-embed-text\",\"object\":\"embedding\"}" +
-                        "]}"
-                } else if (path.endsWith("/api/generate")) {
-                    "{\"model\":\"qwen3-coder-next\",\"response\":\"a + b\",\"done\":true}"
-                } else {
-                    "{\"id\":\"chatcmpl_1\",\"choices\":[]}"
-                }
+                val responseBody =
+                    if (path.endsWith("/models")) {
+                        "{\"object\":\"list\",\"data\":[" +
+                            "{\"id\":\"llama3.3\",\"object\":\"model\"}," +
+                            "{\"id\":\"gemma3:4b\",\"object\":\"model\"}," +
+                            "{\"id\":\"qwen3-coder-next\",\"object\":\"model\"}," +
+                            "{\"id\":\"nomic-embed-text\",\"object\":\"embedding\"}" +
+                            "]}"
+                    } else if (path.endsWith("/api/generate")) {
+                        "{\"model\":\"qwen3-coder-next\",\"response\":\"a + b\",\"done\":true}"
+                    } else {
+                        "{\"id\":\"chatcmpl_1\",\"choices\":[]}"
+                    }
                 val response = responseBody.toByteArray(Charsets.UTF_8)
                 exchange.responseHeaders.set("Content-Type", "application/json")
                 exchange.sendResponseHeaders(200, response.size.toLong())
@@ -263,7 +302,8 @@ class OllamaSubscriptionProxyProviderTest {
         val body: String,
     ) {
         fun firstHeader(name: String): String? {
-            return headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }
+            return headers.entries
+                .firstOrNull { it.key.equals(name, ignoreCase = true) }
                 ?.value
                 ?.firstOrNull()
         }

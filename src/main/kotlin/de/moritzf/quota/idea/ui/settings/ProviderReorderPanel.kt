@@ -54,12 +54,11 @@ internal class ProviderReorderPanel(
     private val onProviderSelected: (QuotaProviderType?) -> Unit,
 ) : JPanel(BorderLayout()) {
 
-    private val providers = ProviderUiRegistry.all.values
-        .map { ProviderInfo(it.type, it.icon) }
+    private val providers = ProviderUiRegistry.all.values.map { ProviderInfo(it.type, it.icon) }
 
     private var currentOrder: List<QuotaProviderType> =
         QuotaProviderRegistry.mergeProviderOrder(
-            initialOrder.filter { type -> providers.any { it.type == type } },
+            initialOrder.filter { type -> providers.any { it.type == type } }
         )
 
     private var selectedProvider: QuotaProviderType =
@@ -70,27 +69,27 @@ internal class ProviderReorderPanel(
     private var draggedType: QuotaProviderType? = null
 
     private val listModel = CollectionListModel<QuotaProviderType>()
-    private val list = object : JBList<QuotaProviderType>(listModel) {
-        override fun paint(g: Graphics) {
-            super.paint(g)
-            paintInsertLine(g)
-        }
-    }.apply {
-        selectionMode = ListSelectionModel.SINGLE_SELECTION
-        cellRenderer = ProviderListCellRenderer()
-        emptyText.text = "No matching providers"
-        if (!GraphicsEnvironment.isHeadless()) {
-            dragEnabled = true
-        }
-        dropMode = DropMode.INSERT
-        transferHandler = ProviderTransferHandler()
-        border = JBUI.Borders.empty(2, 0)
-        accessibleContext.accessibleName = "Providers"
-    }
+    private val list =
+        object : JBList<QuotaProviderType>(listModel) {
+                override fun paint(g: Graphics) {
+                    super.paint(g)
+                    paintInsertLine(g)
+                }
+            }
+            .apply {
+                selectionMode = ListSelectionModel.SINGLE_SELECTION
+                cellRenderer = ProviderListCellRenderer()
+                emptyText.text = "No matching providers"
+                if (!GraphicsEnvironment.isHeadless()) {
+                    dragEnabled = true
+                }
+                dropMode = DropMode.INSERT
+                transferHandler = ProviderTransferHandler()
+                border = JBUI.Borders.empty(2, 0)
+                accessibleContext.accessibleName = "Providers"
+            }
 
-    private val filterField = JBTextField().apply {
-        emptyText.text = "Filter providers..."
-    }
+    private val filterField = JBTextField().apply { emptyText.text = "Filter providers..." }
 
     init {
         isOpaque = false
@@ -98,27 +97,32 @@ internal class ProviderReorderPanel(
         preferredSize = Dimension(JBUI.scale(LIST_WIDTH), JBUI.scale(200))
         minimumSize = Dimension(JBUI.scale(200), JBUI.scale(80))
 
-        val header = JBLabel("Providers (drag to reorder)").apply {
-            foreground = JBColor.GRAY
-            border = JBUI.Borders.emptyBottom(6)
-        }
+        val header =
+            JBLabel("Providers (drag to reorder)").apply {
+                foreground = JBColor.GRAY
+                border = JBUI.Borders.emptyBottom(6)
+            }
 
-        val north = JPanel(BorderLayout(0, JBUI.scale(6))).apply {
-            isOpaque = false
-            add(header, BorderLayout.NORTH)
-            add(filterField, BorderLayout.CENTER)
-        }
+        val north =
+            JPanel(BorderLayout(0, JBUI.scale(6))).apply {
+                isOpaque = false
+                add(header, BorderLayout.NORTH)
+                add(filterField, BorderLayout.CENTER)
+            }
 
         add(north, BorderLayout.NORTH)
-        add(JBScrollPane(list).apply {
-            border = JBUI.Borders.empty()
-        }, BorderLayout.CENTER)
+        add(
+            JBScrollPane(list).apply { border = JBUI.Borders.empty() },
+            BorderLayout.CENTER,
+        )
 
-        filterField.document.addDocumentListener(object : DocumentAdapter() {
-            override fun textChanged(e: DocumentEvent) {
-                rebuildList(notifySelection = true)
+        filterField.document.addDocumentListener(
+            object : DocumentAdapter() {
+                override fun textChanged(e: DocumentEvent) {
+                    rebuildList(notifySelection = true)
+                }
             }
-        })
+        )
 
         list.addListSelectionListener {
             if (updatingList || list.valueIsAdjusting) {
@@ -131,18 +135,30 @@ internal class ProviderReorderPanel(
 
         val inputMap = list.inputMap
         val actionMap = list.actionMap
-        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_UP, InputEvent.ALT_DOWN_MASK), "moveProviderUp")
-        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, InputEvent.ALT_DOWN_MASK), "moveProviderDown")
-        actionMap.put("moveProviderUp", object : AbstractAction() {
-            override fun actionPerformed(e: ActionEvent) {
-                moveSelected(-1)
-            }
-        })
-        actionMap.put("moveProviderDown", object : AbstractAction() {
-            override fun actionPerformed(e: ActionEvent) {
-                moveSelected(1)
-            }
-        })
+        inputMap.put(
+            KeyStroke.getKeyStroke(KeyEvent.VK_UP, InputEvent.ALT_DOWN_MASK),
+            "moveProviderUp",
+        )
+        inputMap.put(
+            KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, InputEvent.ALT_DOWN_MASK),
+            "moveProviderDown",
+        )
+        actionMap.put(
+            "moveProviderUp",
+            object : AbstractAction() {
+                override fun actionPerformed(e: ActionEvent) {
+                    moveSelected(-1)
+                }
+            },
+        )
+        actionMap.put(
+            "moveProviderDown",
+            object : AbstractAction() {
+                override fun actionPerformed(e: ActionEvent) {
+                    moveSelected(1)
+                }
+            },
+        )
 
         rebuildList(notifySelection = false)
         list.setSelectedValue(selectedProvider, true)
@@ -165,9 +181,10 @@ internal class ProviderReorderPanel(
     }
 
     fun setOrder(order: List<QuotaProviderType>) {
-        currentOrder = QuotaProviderRegistry.mergeProviderOrder(
-            order.filter { type -> providers.any { it.type == type } },
-        )
+        currentOrder =
+            QuotaProviderRegistry.mergeProviderOrder(
+                order.filter { type -> providers.any { it.type == type } }
+            )
         selectedProvider = currentOrder.firstOrNull() ?: selectedProvider
         if (filterField.text.isNotEmpty()) {
             filterField.text = ""
@@ -276,19 +293,25 @@ internal class ProviderReorderPanel(
 
     private fun createDragPreview(type: QuotaProviderType): Image? {
         val info = providers.find { it.type == type } ?: return null
-        val chip = JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.X_AXIS)
-            isOpaque = true
-            background = list.selectionBackground
-            border = JBUI.Borders.empty(3, 8)
-            add(JBLabel(scaleToSize(info.icon, JBUI.scale(ICON_SIZE), list)))
-            add(Box.createHorizontalStrut(JBUI.scale(6)))
-            add(JBLabel(type.displayName).apply { foreground = list.selectionForeground })
-        }
+        val chip =
+            JPanel().apply {
+                layout = BoxLayout(this, BoxLayout.X_AXIS)
+                isOpaque = true
+                background = list.selectionBackground
+                border = JBUI.Borders.empty(3, 8)
+                add(JBLabel(scaleToSize(info.icon, JBUI.scale(ICON_SIZE), list)))
+                add(Box.createHorizontalStrut(JBUI.scale(6)))
+                add(JBLabel(type.displayName).apply { foreground = list.selectionForeground })
+            }
         val size = chip.preferredSize
         chip.size = size
         chip.doLayout()
-        val image = BufferedImage(size.width.coerceAtLeast(1), size.height.coerceAtLeast(1), BufferedImage.TYPE_INT_ARGB)
+        val image =
+            BufferedImage(
+                size.width.coerceAtLeast(1),
+                size.height.coerceAtLeast(1),
+                BufferedImage.TYPE_INT_ARGB,
+            )
         val g2 = image.createGraphics()
         try {
             g2.composite = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.85f)
@@ -308,8 +331,11 @@ internal class ProviderReorderPanel(
         if (draggedIndex < 0) {
             return
         }
-        val adjusted = (if (insertIndex > draggedIndex) insertIndex - 1 else insertIndex)
-            .coerceIn(0, currentOrder.size - 1)
+        val adjusted =
+            (if (insertIndex > draggedIndex) insertIndex - 1 else insertIndex).coerceIn(
+                0,
+                currentOrder.size - 1,
+            )
         if (adjusted == draggedIndex) {
             return
         }
@@ -364,16 +390,19 @@ internal class ProviderReorderPanel(
 
         override fun importData(support: TransferSupport): Boolean {
             if (!canImport(support)) return false
-            val draggedId = try {
-                support.transferable.getTransferData(DataFlavor.stringFlavor) as String
-            } catch (_: Exception) {
-                clearDragVisuals()
-                return false
-            }
-            val insertIndex = (support.dropLocation as? JList.DropLocation)?.index ?: run {
-                clearDragVisuals()
-                return false
-            }
+            val draggedId =
+                try {
+                    support.transferable.getTransferData(DataFlavor.stringFlavor) as String
+                } catch (_: Exception) {
+                    clearDragVisuals()
+                    return false
+                }
+            val insertIndex =
+                (support.dropLocation as? JList.DropLocation)?.index
+                    ?: run {
+                        clearDragVisuals()
+                        return false
+                    }
             moveProvider(draggedId, insertIndex)
             clearDragVisuals()
             return true
@@ -381,27 +410,30 @@ internal class ProviderReorderPanel(
     }
 
     private inner class ProviderListCellRenderer : ListCellRenderer<QuotaProviderType> {
-        private val handle = JBLabel("⋮⋮").apply {
-            foreground = JBColor.GRAY
-            horizontalAlignment = SwingConstants.CENTER
-            border = JBUI.Borders.emptyRight(6)
-        }
+        private val handle =
+            JBLabel("⋮⋮").apply {
+                foreground = JBColor.GRAY
+                horizontalAlignment = SwingConstants.CENTER
+                border = JBUI.Borders.emptyRight(6)
+            }
         private val iconLabel = JBLabel()
         private val nameLabel = JBLabel()
-        private val statusLabel = JBLabel("●").apply {
-            horizontalAlignment = SwingConstants.CENTER
-            border = JBUI.Borders.emptyLeft(8)
-        }
-        private val row = JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.X_AXIS)
-            border = JBUI.Borders.empty(4, 8)
-            add(handle)
-            add(iconLabel)
-            add(Box.createHorizontalStrut(JBUI.scale(8)))
-            add(nameLabel)
-            add(Box.createHorizontalGlue())
-            add(statusLabel)
-        }
+        private val statusLabel =
+            JBLabel("●").apply {
+                horizontalAlignment = SwingConstants.CENTER
+                border = JBUI.Borders.emptyLeft(8)
+            }
+        private val row =
+            JPanel().apply {
+                layout = BoxLayout(this, BoxLayout.X_AXIS)
+                border = JBUI.Borders.empty(4, 8)
+                add(handle)
+                add(iconLabel)
+                add(Box.createHorizontalStrut(JBUI.scale(8)))
+                add(nameLabel)
+                add(Box.createHorizontalGlue())
+                add(statusLabel)
+            }
 
         override fun getListCellRendererComponent(
             list: JList<out QuotaProviderType>,
@@ -458,24 +490,34 @@ internal class ProviderReorderPanel(
             return statusSnapshot(type, type.id)
         }
 
-        internal fun statusSnapshot(account: de.moritzf.quota.idea.settings.ProviderAccount): ProviderListStatusSnapshot {
-            val type = account.providerType() ?: return ProviderListStatusSnapshot(
-                ProviderListStatus.NEVER_CONFIGURED,
-                ProviderListStatus.explain(ProviderListStatus.NEVER_CONFIGURED, null),
-            )
+        internal fun statusSnapshot(
+            account: de.moritzf.quota.idea.settings.ProviderAccount
+        ): ProviderListStatusSnapshot {
+            val type =
+                account.providerType()
+                    ?: return ProviderListStatusSnapshot(
+                        ProviderListStatus.NEVER_CONFIGURED,
+                        ProviderListStatus.explain(ProviderListStatus.NEVER_CONFIGURED, null),
+                    )
             return statusSnapshot(type, account.id)
         }
 
-        private fun statusSnapshot(type: QuotaProviderType, accountId: String): ProviderListStatusSnapshot {
-            val auth = runCatching { ProviderUiRegistry.forType(type).authState(accountId) }
+        private fun statusSnapshot(
+            type: QuotaProviderType,
+            accountId: String,
+        ): ProviderListStatusSnapshot {
+            val auth = runCatching {
+                ProviderUiRegistry.forType(type).authState(accountId)
+            }
                 .getOrDefault(ProviderAuthState.UNKNOWN)
             val service = runCatching { QuotaUsageService.getInstance() }.getOrNull()
             val error = service?.getLastError(accountId)
-            val status = ProviderListStatus.resolve(
-                auth = auth,
-                hasQuota = service?.getLastQuota(accountId) != null,
-                hasError = !error.isNullOrBlank(),
-            )
+            val status =
+                ProviderListStatus.resolve(
+                    auth = auth,
+                    hasQuota = service?.getLastQuota(accountId) != null,
+                    hasError = !error.isNullOrBlank(),
+                )
             return ProviderListStatusSnapshot(status, ProviderListStatus.explain(status, error))
         }
 
@@ -487,7 +529,6 @@ internal class ProviderReorderPanel(
                 ProviderListStatus.NEVER_CONFIGURED -> JBColor.GRAY
             }
         }
-
     }
 }
 

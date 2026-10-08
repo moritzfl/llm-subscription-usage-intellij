@@ -1,6 +1,8 @@
 package de.moritzf.proxy.config
+
 import java.nio.file.Path
 import java.util.Locale
+
 class ServerConfig(
     host: String?,
     port: Int,
@@ -34,7 +36,9 @@ class ServerConfig(
     val allowedCorsOrigins: List<String> = normalizeCorsOrigins(allowedCorsOrigins)
     val requestLogDir: String = normalizeRequestLogDir(requestLogDir)
     val codexInstructionsMode: String = normalizeCodexInstructionsMode(codexInstructionsMode)
-    val codexInstructionsCacheDir: String = normalizeCodexInstructionsCacheDir(codexInstructionsCacheDir)
+    val codexInstructionsCacheDir: String =
+        normalizeCodexInstructionsCacheDir(codexInstructionsCacheDir)
+
     constructor(
         host: String?,
         port: Int,
@@ -71,6 +75,7 @@ class ServerConfig(
         false,
         true,
     )
+
     constructor(
         host: String?,
         port: Int,
@@ -109,6 +114,7 @@ class ServerConfig(
         false,
         true,
     )
+
     constructor(
         host: String?,
         port: Int,
@@ -150,17 +156,20 @@ class ServerConfig(
         false,
         true,
     )
+
     init {
         if (port !in 1..65535) {
             throw IllegalArgumentException("Port must be in range 1-65535, got: $port")
         }
         if (!HostBinding.isLocalOnlyHost(this.host) && this.apiKeys.isEmpty() && adminKey == null) {
             throw IllegalArgumentException(
-                "API key enforcement is required when binding to a non-loopback host: ${this.host}",
+                "API key enforcement is required when binding to a non-loopback host: ${this.host}"
             )
         }
     }
+
     fun requiresApiKeyEnforcement(): Boolean = !HostBinding.isLocalOnlyHost(host)
+
     companion object {
         const val DEFAULT_HOST: String = "127.0.0.1"
         const val DEFAULT_PORT: Int = 10531
@@ -169,38 +178,37 @@ class ServerConfig(
         const val DEFAULT_ISSUER: String = "https://auth.openai.com"
         const val DEFAULT_INSTRUCTIONS: String = ""
         const val DEFAULT_MODEL: String = "gpt-6-astra"
-        val DEFAULT_REQUEST_LOG_DIR: String = Path.of("logs", "requests")
-            .toAbsolutePath()
-            .normalize()
-            .toString()
+        val DEFAULT_REQUEST_LOG_DIR: String =
+            Path.of("logs", "requests").toAbsolutePath().normalize().toString()
         const val DEFAULT_CODEX_INSTRUCTIONS_MODE: String = "configured"
-        val DEFAULT_CODEX_INSTRUCTIONS_CACHE_DIR: String = Path.of("cache", "codex-instructions")
-            .toAbsolutePath()
-            .normalize()
-            .toString()
+        val DEFAULT_CODEX_INSTRUCTIONS_CACHE_DIR: String =
+            Path.of("cache", "codex-instructions").toAbsolutePath().normalize().toString()
         const val KEY_PREFIX: String = "sk-proxy-"
+
         private fun normalizeCorsOrigins(origins: List<String>?): List<String> {
-            return origins
-                ?.map { it.trim() }
-                ?.filter { it.isNotEmpty() }
-                .orEmpty()
+            return origins?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
         }
+
         private fun normalizeRequestLogDir(requestLogDir: String?): String {
             if (requestLogDir.isNullOrBlank()) {
                 return DEFAULT_REQUEST_LOG_DIR
             }
             return Path.of(requestLogDir).toAbsolutePath().normalize().toString()
         }
+
         private fun normalizeCodexInstructionsMode(mode: String?): String {
             if (mode.isNullOrBlank()) {
                 return DEFAULT_CODEX_INSTRUCTIONS_MODE
             }
             val normalized = mode.trim().lowercase(Locale.ROOT)
             if (normalized != "configured" && normalized != "latest-codex") {
-                throw IllegalArgumentException("Codex instructions mode must be configured or latest-codex, got: $mode")
+                throw IllegalArgumentException(
+                    "Codex instructions mode must be configured or latest-codex, got: $mode"
+                )
             }
             return normalized
         }
+
         private fun normalizeCodexInstructionsCacheDir(cacheDir: String?): String {
             if (cacheDir.isNullOrBlank()) {
                 return DEFAULT_CODEX_INSTRUCTIONS_CACHE_DIR

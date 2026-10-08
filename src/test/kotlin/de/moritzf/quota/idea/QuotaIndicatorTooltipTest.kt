@@ -28,38 +28,80 @@ class QuotaIndicatorTooltipTest {
     fun formatJoinsProviderPlanPercentAndReset() {
         assertEquals(
             "OpenAI • Plus • 42% Weekly • Resets in 1h",
-            formatIndicatorTooltip(provider = "OpenAI", plan = "Plus", percent = 42, windowKind = "Weekly", reset = "Resets in 1h"),
+            formatIndicatorTooltip(
+                provider = "OpenAI",
+                plan = "Plus",
+                percent = 42,
+                windowKind = "Weekly",
+                reset = "Resets in 1h",
+            ),
         )
     }
 
     @Test
     fun formatOmitsBlankPlanAndPlanMatchingProvider() {
-        assertEquals("Ollama • 8%", formatIndicatorTooltip(provider = "Ollama", plan = "  ", percent = 8))
-        assertEquals("Cursor • 12%", formatIndicatorTooltip(provider = "Cursor", plan = "Cursor", percent = 12))
-        assertEquals("Z.ai • 10%", formatIndicatorTooltip(provider = "Z.ai", plan = "z.ai", percent = 10))
+        assertEquals(
+            "Ollama • 8%",
+            formatIndicatorTooltip(provider = "Ollama", plan = "  ", percent = 8),
+        )
+        assertEquals(
+            "Cursor • 12%",
+            formatIndicatorTooltip(provider = "Cursor", plan = "Cursor", percent = 12),
+        )
+        assertEquals(
+            "Z.ai • 10%",
+            formatIndicatorTooltip(provider = "Z.ai", plan = "z.ai", percent = 10),
+        )
     }
 
     @Test
     fun formatUsesStatusOnlyWhenUsageMissing() {
-        assertEquals("OpenAI • loading", formatIndicatorTooltip(provider = "OpenAI", status = "loading"))
-        assertEquals("OpenAI • timeout", formatIndicatorTooltip(provider = "OpenAI", status = "timeout"))
-        assertEquals("OpenAI • Plus", formatIndicatorTooltip(provider = "OpenAI", plan = "Plus", status = "loading"))
-        assertEquals("OpenAI • 5%", formatIndicatorTooltip(provider = "OpenAI", percent = 5, status = "loading"))
+        assertEquals(
+            "OpenAI • loading",
+            formatIndicatorTooltip(provider = "OpenAI", status = "loading"),
+        )
+        assertEquals(
+            "OpenAI • timeout",
+            formatIndicatorTooltip(provider = "OpenAI", status = "timeout"),
+        )
+        assertEquals(
+            "OpenAI • Plus",
+            formatIndicatorTooltip(provider = "OpenAI", plan = "Plus", status = "loading"),
+        )
+        assertEquals(
+            "OpenAI • 5%",
+            formatIndicatorTooltip(provider = "OpenAI", percent = 5, status = "loading"),
+        )
     }
 
     @Test
     fun buildShowsLoadingErrorAndLoggedOutWhenNoUsage() {
         assertEquals(
             "OpenAI • loading",
-            buildIndicatorTooltip(QuotaProviderType.OPEN_AI, quota = null, error = null, ProviderAuthState.AUTHENTICATED),
+            buildIndicatorTooltip(
+                QuotaProviderType.OPEN_AI,
+                quota = null,
+                error = null,
+                ProviderAuthState.AUTHENTICATED,
+            ),
         )
         assertEquals(
             "OpenAI • Network timeout",
-            buildIndicatorTooltip(QuotaProviderType.OPEN_AI, quota = null, error = "Network timeout", ProviderAuthState.AUTHENTICATED),
+            buildIndicatorTooltip(
+                QuotaProviderType.OPEN_AI,
+                quota = null,
+                error = "Network timeout",
+                ProviderAuthState.AUTHENTICATED,
+            ),
         )
         assertEquals(
             "OpenAI • not logged in",
-            buildIndicatorTooltip(QuotaProviderType.OPEN_AI, quota = null, error = null, ProviderAuthState.UNAUTHENTICATED),
+            buildIndicatorTooltip(
+                QuotaProviderType.OPEN_AI,
+                quota = null,
+                error = null,
+                ProviderAuthState.UNAUTHENTICATED,
+            ),
         )
     }
 
@@ -71,26 +113,32 @@ class QuotaIndicatorTooltipTest {
                 QuotaProviderType.OPEN_AI,
                 OpenAiCodexQuota(
                     planType = "plus",
-                    primary = de.moritzf.quota.openai.UsageWindow(
-                        usedPercent = 1.0,
-                        windowDuration = java.time.Duration.ofHours(5),
-                    ),
+                    primary =
+                        de.moritzf.quota.openai.UsageWindow(
+                            usedPercent = 1.0,
+                            windowDuration = java.time.Duration.ofHours(5),
+                        ),
                 ),
                 error = null,
                 ProviderAuthState.AUTHENTICATED,
             ),
         )
-        assertNull(indicatorPlanName(OpenAiCodexQuota(primary = de.moritzf.quota.openai.UsageWindow(usedPercent = 1.0))))
+        assertNull(
+            indicatorPlanName(
+                OpenAiCodexQuota(primary = de.moritzf.quota.openai.UsageWindow(usedPercent = 1.0))
+            )
+        )
         assertEquals(
             "OpenAI (Work) • Plus • 1% 5-hour",
             buildIndicatorTooltip(
                 QuotaProviderType.OPEN_AI,
                 OpenAiCodexQuota(
                     planType = "plus",
-                    primary = de.moritzf.quota.openai.UsageWindow(
-                        usedPercent = 1.0,
-                        windowDuration = java.time.Duration.ofHours(5),
-                    ),
+                    primary =
+                        de.moritzf.quota.openai.UsageWindow(
+                            usedPercent = 1.0,
+                            windowDuration = java.time.Duration.ofHours(5),
+                        ),
                 ),
                 error = null,
                 ProviderAuthState.AUTHENTICATED,
@@ -124,7 +172,10 @@ class QuotaIndicatorTooltipTest {
             "MiniMax • Coding Plan • 20% Session",
             buildIndicatorTooltip(
                 QuotaProviderType.MINIMAX,
-                MiniMaxQuota(plan = "Coding Plan", sessionUsage = MiniMaxUsageWindow(usagePercent = 20.0)),
+                MiniMaxQuota(
+                    plan = "Coding Plan",
+                    sessionUsage = MiniMaxUsageWindow(usagePercent = 20.0),
+                ),
                 error = null,
                 ProviderAuthState.AUTHENTICATED,
             ),
@@ -164,7 +215,10 @@ class QuotaIndicatorTooltipTest {
             "Cursor • Pro • 12% Included",
             buildIndicatorTooltip(
                 QuotaProviderType.CURSOR,
-                CursorQuota(planName = "Pro", planUsage = de.moritzf.quota.cursor.CursorPlanUsage(totalPercentUsed = 12.0)),
+                CursorQuota(
+                    planName = "Pro",
+                    planUsage = de.moritzf.quota.cursor.CursorPlanUsage(totalPercentUsed = 12.0),
+                ),
                 error = null,
                 ProviderAuthState.AUTHENTICATED,
             ),
@@ -187,14 +241,19 @@ class QuotaIndicatorTooltipTest {
                 ProviderAuthState.AUTHENTICATED,
             ),
         )
-        val ollamaReset = buildIndicatorTooltip(
-            QuotaProviderType.OLLAMA,
-            de.moritzf.quota.ollama.OllamaQuota(
-                sessionUsage = de.moritzf.quota.ollama.OllamaUsageWindow(usagePercent = 8.0, resetsAt = resetsAt),
-            ),
-            error = null,
-            ProviderAuthState.AUTHENTICATED,
-        )
+        val ollamaReset =
+            buildIndicatorTooltip(
+                QuotaProviderType.OLLAMA,
+                de.moritzf.quota.ollama.OllamaQuota(
+                    sessionUsage =
+                        de.moritzf.quota.ollama.OllamaUsageWindow(
+                            usagePercent = 8.0,
+                            resetsAt = resetsAt,
+                        )
+                ),
+                error = null,
+                ProviderAuthState.AUTHENTICATED,
+            )
         assertTrue(ollamaReset.startsWith("Ollama • 8% Session • Resets in "))
     }
 }

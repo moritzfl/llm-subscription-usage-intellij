@@ -27,19 +27,20 @@ class QuotaRefreshButtonTest {
         var completedOnEdt = false
         val button = onEdt {
             QuotaRefreshButton(
-                refresh = { accountId ->
-                    requestedAccounts += accountId
-                    request
-                },
-                onCompleted = { completedOnEdt = SwingUtilities.isEventDispatchThread() },
-                feedbackMillis = 50,
-            ).apply {
-                accountId = "personal"
-                addPropertyChangeListener("icon") { event ->
-                    shownIcons += event.newValue as Icon
-                    if (event.newValue === AllIcons.Actions.Refresh) reset.countDown()
+                    refresh = { accountId ->
+                        requestedAccounts += accountId
+                        request
+                    },
+                    onCompleted = { completedOnEdt = SwingUtilities.isEventDispatchThread() },
+                    feedbackMillis = 50,
+                )
+                .apply {
+                    accountId = "personal"
+                    addPropertyChangeListener("icon") { event ->
+                        shownIcons += event.newValue as Icon
+                        if (event.newValue === AllIcons.Actions.Refresh) reset.countDown()
+                    }
                 }
-            }
         }
         try {
             onEdt {
@@ -56,7 +57,10 @@ class QuotaRefreshButtonTest {
             request.complete(ProviderSnapshot(OpenAiCodexQuota(), null))
             assertTrue(reset.await(5, TimeUnit.SECONDS), "Success feedback did not reset")
             onEdt {
-                assertEquals(listOf(AllIcons.Actions.Checked, AllIcons.Actions.Refresh), shownIcons.drop(1))
+                assertEquals(
+                    listOf(AllIcons.Actions.Checked, AllIcons.Actions.Refresh),
+                    shownIcons.drop(1),
+                )
                 assertTrue(completedOnEdt)
                 assertTrue(button.isEnabled)
                 assertEquals("Refresh quota", button.toolTipText)
@@ -68,14 +72,18 @@ class QuotaRefreshButtonTest {
 
     @Test
     fun showsFailureForErrorsMissingDataAndExceptionalCompletion() {
-        val results = listOf<ProviderSnapshot?>(
-            ProviderSnapshot(OpenAiCodexQuota(), "Refresh failed; cached quota retained"),
-            ProviderSnapshot(null, "Not logged in"),
-            ProviderSnapshot(null, null),
-            null,
-        )
-        val requests = results.map { CompletableFuture.completedFuture(it) } +
-            CompletableFuture.failedFuture<ProviderSnapshot?>(IllegalStateException("Refresh failed"))
+        val results =
+            listOf<ProviderSnapshot?>(
+                ProviderSnapshot(OpenAiCodexQuota(), "Refresh failed; cached quota retained"),
+                ProviderSnapshot(null, "Not logged in"),
+                ProviderSnapshot(null, null),
+                null,
+            )
+        val requests =
+            results.map { CompletableFuture.completedFuture(it) } +
+                CompletableFuture.failedFuture<ProviderSnapshot?>(
+                    IllegalStateException("Refresh failed")
+                )
         requests.forEach { request ->
             var completions = 0
             val button = onEdt {
@@ -105,17 +113,18 @@ class QuotaRefreshButtonTest {
         var completions = 0
         val button = onEdt {
             QuotaRefreshButton(
-                refresh = { if (it == "work") work else personal },
-                onCompleted = { completions++ },
-                feedbackMillis = 60_000,
-            ).apply {
-                accountId = "work"
-                doClick(0)
-                accountId = "personal"
-                assertSame(AllIcons.Actions.Refresh, icon)
-                assertTrue(isEnabled)
-                doClick(0)
-            }
+                    refresh = { if (it == "work") work else personal },
+                    onCompleted = { completions++ },
+                    feedbackMillis = 60_000,
+                )
+                .apply {
+                    accountId = "work"
+                    doClick(0)
+                    accountId = "personal"
+                    assertSame(AllIcons.Actions.Refresh, icon)
+                    assertTrue(isEnabled)
+                    doClick(0)
+                }
         }
         try {
             work.complete(ProviderSnapshot(OpenAiCodexQuota(), null))

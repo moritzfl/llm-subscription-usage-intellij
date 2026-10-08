@@ -5,9 +5,7 @@ import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.StatusBarWidgetFactory
 
-/**
- * Factory that registers and creates the quota status bar widget.
- */
+/** Factory that registers and creates the quota status bar widget. */
 class QuotaStatusBarWidgetFactory : StatusBarWidgetFactory {
     override fun getId(): String = ID
 

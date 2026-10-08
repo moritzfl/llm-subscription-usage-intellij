@@ -10,7 +10,8 @@ import kotlin.test.assertTrue
 class GitHubQuotaClientTest {
     @Test
     fun parseQuotaExtractsPaidPlanSnapshots() {
-        val body = """
+        val body =
+            """
             {
               "copilot_plan": "individual",
               "quota_reset_date": "2026-07-01",
@@ -25,7 +26,8 @@ class GitHubQuotaClientTest {
                 "completions": {"unlimited": true}
               }
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = GitHubQuotaClient.parseQuota(body)
 
@@ -43,7 +45,8 @@ class GitHubQuotaClientTest {
 
     @Test
     fun parseQuotaComputesRemainingFromPercentWhenAbsoluteValueMissing() {
-        val body = """
+        val body =
+            """
             {
               "copilot_plan": "pro",
               "quota_reset_date": "2026-07-01",
@@ -51,7 +54,8 @@ class GitHubQuotaClientTest {
                 "premium_interactions": {"entitlement": 1500, "percent_remaining": 40.0}
               }
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = GitHubQuotaClient.parseQuota(body)
 
@@ -63,14 +67,16 @@ class GitHubQuotaClientTest {
 
     @Test
     fun parseQuotaExtractsFreeTierCounters() {
-        val body = """
+        val body =
+            """
             {
               "copilot_plan": "free",
               "limited_user_reset_date": "2026-06-23",
               "limited_user_quotas": {"chat": 38, "completions": 1600},
               "monthly_quotas": {"chat": 50, "completions": 2000}
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = GitHubQuotaClient.parseQuota(body)
 
@@ -88,14 +94,16 @@ class GitHubQuotaClientTest {
 
     @Test
     fun parseQuotaMarksSubscriptionEndedAccount() {
-        val body = """
+        val body =
+            """
             {
               "access_type_sku": "subscription_ended",
               "chat_enabled": false,
               "cli_enabled": false,
               "copilot_plan": "individual"
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = GitHubQuotaClient.parseQuota(body)
 
@@ -107,13 +115,15 @@ class GitHubQuotaClientTest {
 
     @Test
     fun parseQuotaMarksDisabledAccountWithoutUsageAsInactive() {
-        val body = """
+        val body =
+            """
             {
               "chat_enabled": false,
               "cli_enabled": false,
               "copilot_plan": "individual"
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = GitHubQuotaClient.parseQuota(body)
 
@@ -140,9 +150,7 @@ class GitHubQuotaClientTest {
     fun parseQuotaReportsInvalidPayload() {
         val body = "not json"
 
-        val exception = assertFailsWith<GitHubQuotaException> {
-            GitHubQuotaClient.parseQuota(body)
-        }
+        val exception = assertFailsWith<GitHubQuotaException> { GitHubQuotaClient.parseQuota(body) }
 
         assertEquals("Could not parse usage data.", exception.message)
         assertEquals(body, exception.rawBody)

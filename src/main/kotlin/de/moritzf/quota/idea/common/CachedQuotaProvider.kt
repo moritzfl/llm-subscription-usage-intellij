@@ -1,14 +1,12 @@
 package de.moritzf.quota.idea.common
 
-import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.auth.OAuthConnectionState
+import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.shared.ProviderQuota
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
-/**
- * Shared in-memory state and cache persistence for quota providers.
- */
+/** Shared in-memory state and cache persistence for quota providers. */
 abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
     protected val lastQuotaRef = AtomicReference<Q?>()
     protected val lastErrorRef = AtomicReference<String?>()
@@ -22,14 +20,17 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
     override fun isLastErrorTransient(): Boolean = lastErrorTransientRef.get()
 
     override fun getLastRawJson(): String? {
-        lastRawJsonRef.get()?.let { return it }
+        lastRawJsonRef.get()?.let {
+            return it
+        }
         val quota = lastQuotaRef.get() ?: return null
         return QuotaSnapshotCache.encodePlain(type, quota)
     }
 
     override fun currentUsageFraction(): Double? = lastQuotaRef.get()?.usageFraction()
 
-    override fun cachedUsageFraction(settings: QuotaSettingsState): Double? = decodeCached(settings)?.usageFraction()
+    override fun cachedUsageFraction(settings: QuotaSettingsState): Double? =
+        decodeCached(settings)?.usageFraction()
 
     override fun currentActivityWindows(): Map<String, Double> =
         lastQuotaRef.get()?.activityWindows().orEmpty()
@@ -68,12 +69,16 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
      * be refreshed right now is a transient failure, not a logout, so the login and the last
      * reading are kept instead of reporting the provider as not configured.
      */
-    protected fun storeMissingAccessToken(connectionState: OAuthConnectionState, refreshFailedMessage: String) {
+    protected fun storeMissingAccessToken(
+        connectionState: OAuthConnectionState,
+        refreshFailedMessage: String,
+    ) {
         when (connectionState) {
             OAuthConnectionState.LOGGED_OUT -> clearData(notConfiguredMessage)
-            OAuthConnectionState.RECONNECT_REQUIRED -> storeError(
-                "${type.displayName} login needs to be renewed. Log in again from settings.",
-            )
+            OAuthConnectionState.RECONNECT_REQUIRED ->
+                storeError(
+                    "${type.displayName} login needs to be renewed. Log in again from settings."
+                )
             else -> storeError(refreshFailedMessage, transient = true)
         }
     }

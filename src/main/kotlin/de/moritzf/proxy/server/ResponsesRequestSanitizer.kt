@@ -10,11 +10,12 @@ import kotlinx.serialization.json.booleanOrNull
 class ResponsesRequestSanitizer {
     fun sanitize(body: MutableJsonObject, defaultStore: Boolean): MutableJsonObject {
         val sanitized = body.deepCopy()
-        val store = if (sanitized.get("store") != null) {
-            (sanitized.get("store") as? JsonPrimitive)?.booleanOrNull ?: false
-        } else {
-            defaultStore
-        }
+        val store =
+            if (sanitized.get("store") != null) {
+                (sanitized.get("store") as? JsonPrimitive)?.booleanOrNull ?: false
+            } else {
+                defaultStore
+            }
         if (store) {
             return sanitized
         }
@@ -36,7 +37,10 @@ class ResponsesRequestSanitizer {
             }
             val copy = MutableJsonObject(itemObject)
             copy.remove("id")
-            if (isToolOutput(type) && !validCallIds.contains(copy.get("call_id").textOrNull.orEmpty())) {
+            if (
+                isToolOutput(type) &&
+                    !validCallIds.contains(copy.get("call_id").textOrNull.orEmpty())
+            ) {
                 sanitizedInput.add(toAssistantMessage(copy))
             } else {
                 sanitizedInput.add(copy)
@@ -115,8 +119,11 @@ class ResponsesRequestSanitizer {
 
     companion object {
         private const val MAX_CONVERTED_OUTPUT_CHARS = 16 * 1024
+
         private fun isToolCall(type: String): Boolean {
-            return type == "function_call" || type == "custom_tool_call" || type == "local_shell_call"
+            return type == "function_call" ||
+                type == "custom_tool_call" ||
+                type == "local_shell_call"
         }
 
         private fun isToolOutput(type: String): Boolean {

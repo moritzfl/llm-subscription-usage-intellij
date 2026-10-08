@@ -3,8 +3,8 @@ package de.moritzf.quota.idea.settings
 import de.moritzf.quota.idea.common.QuotaProviderType
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
@@ -14,10 +14,13 @@ class ProviderAccountTest {
         val state = QuotaSettingsState()
         val account = state.addAccount(QuotaProviderType.ANTIGRAVITY)
         account.setExtra(ProviderAccount.EXTRA_AGY_EXECUTABLE, "/opt/agy")
-        assertFailsWith<IllegalArgumentException> { state.addAccount(QuotaProviderType.ANTIGRAVITY) }
+        assertFailsWith<IllegalArgumentException> {
+            state.addAccount(QuotaProviderType.ANTIGRAVITY)
+        }
         assertEquals(listOf(account), state.accounts)
 
-        val restored = QuotaSettingsState.sanitizeAccounts(listOf(account, account.copy(id = "second")))
+        val restored =
+            QuotaSettingsState.sanitizeAccounts(listOf(account, account.copy(id = "second")))
         assertEquals(listOf(account), restored)
         assertFalse(restored.single().allowFailover)
         assertFalse(TypeHasStoredCredentials(QuotaProviderType.ANTIGRAVITY))
@@ -30,7 +33,8 @@ class ProviderAccountTest {
         assertFailsWith<IllegalArgumentException> { state.addAccount(QuotaProviderType.AZURE) }
         assertEquals(listOf(account), state.accounts)
 
-        val restored = QuotaSettingsState.sanitizeAccounts(listOf(account, account.copy(id = "second")))
+        val restored =
+            QuotaSettingsState.sanitizeAccounts(listOf(account, account.copy(id = "second")))
         assertEquals(listOf(account.id), restored.map { it.id })
         assertFalse(restored.single().allowFailover)
         assertFalse(TypeHasStoredCredentials(QuotaProviderType.AZURE))
@@ -57,9 +61,18 @@ class ProviderAccountTest {
         state.setMiniMaxRegionFor(first.id, de.moritzf.quota.minimax.MiniMaxRegionPreference.GLOBAL)
         state.setMiniMaxRegionFor(second.id, de.moritzf.quota.minimax.MiniMaxRegionPreference.CN)
 
-        assertEquals(de.moritzf.quota.minimax.MiniMaxRegionPreference.GLOBAL, state.miniMaxRegionFor(first.id))
-        assertEquals(de.moritzf.quota.minimax.MiniMaxRegionPreference.CN, state.miniMaxRegionFor(second.id))
-        assertEquals(de.moritzf.quota.minimax.MiniMaxRegionPreference.GLOBAL.name, state.minimaxRegionPreference)
+        assertEquals(
+            de.moritzf.quota.minimax.MiniMaxRegionPreference.GLOBAL,
+            state.miniMaxRegionFor(first.id),
+        )
+        assertEquals(
+            de.moritzf.quota.minimax.MiniMaxRegionPreference.CN,
+            state.miniMaxRegionFor(second.id),
+        )
+        assertEquals(
+            de.moritzf.quota.minimax.MiniMaxRegionPreference.GLOBAL.name,
+            state.minimaxRegionPreference,
+        )
     }
 
     @Test
@@ -170,12 +183,18 @@ class ProviderAccountTest {
 
     @Test
     fun sanitizeKeepsUnknownTypeIds() {
-        val kept = QuotaSettingsState.sanitizeAccounts(
-            listOf(
-                ProviderAccount(id = "x", typeId = "future-provider", name = "Future"),
-                ProviderAccount(id = "openai", typeId = "openai", name = "OpenAI", isDefault = true),
-            ),
-        )
+        val kept =
+            QuotaSettingsState.sanitizeAccounts(
+                listOf(
+                    ProviderAccount(id = "x", typeId = "future-provider", name = "Future"),
+                    ProviderAccount(
+                        id = "openai",
+                        typeId = "openai",
+                        name = "OpenAI",
+                        isDefault = true,
+                    ),
+                )
+            )
         assertEquals(listOf("x", "openai"), kept.map { it.id })
     }
 
@@ -208,7 +227,10 @@ class ProviderAccountTest {
         state.lastProviderUpdates[claude.id] = 5L
         state.lastProviderUpdates[extra.id] = 10L
 
-        assertEquals(de.moritzf.quota.idea.ui.indicator.QuotaIndicatorSource.OPEN_AI, state.lastUsedSource())
+        assertEquals(
+            de.moritzf.quota.idea.ui.indicator.QuotaIndicatorSource.OPEN_AI,
+            state.lastUsedSource(),
+        )
     }
 
     @Test

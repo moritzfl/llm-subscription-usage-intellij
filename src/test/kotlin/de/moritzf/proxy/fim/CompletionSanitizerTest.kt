@@ -64,7 +64,8 @@ class CompletionSanitizerTest {
     @Test
     fun keepsKdocProseWhenCursorIsInComment() {
         val prefix = "/**\n * Returns "
-        val raw = "the sum of the two integer addends together.\n *\n * @param int first addend.\n * @param other second addend.\n * @return combined value."
+        val raw =
+            "the sum of the two integer addends together.\n *\n * @param int first addend.\n * @param other second addend.\n * @return combined value."
 
         assertEquals(raw, CompletionSanitizer.sanitize(raw, prefix = prefix))
         assertEquals("", CompletionSanitizer.sanitize(raw))
@@ -137,14 +138,25 @@ class CompletionSanitizerTest {
     fun detectsWhetherCommentContinuesAfterCursor() {
         assertEquals(false, CompletionSanitizer.commentContinuesAfterCursor("\n */\nfun add() {}"))
         assertEquals(false, CompletionSanitizer.commentContinuesAfterCursor("\nfun add() {}"))
-        assertEquals(true, CompletionSanitizer.commentContinuesAfterCursor("\n * the sum of a and b.\n */"))
-        assertEquals(true, CompletionSanitizer.commentContinuesAfterCursor("\n// more\nfun add() {}"))
+        assertEquals(
+            true,
+            CompletionSanitizer.commentContinuesAfterCursor("\n * the sum of a and b.\n */"),
+        )
+        assertEquals(
+            true,
+            CompletionSanitizer.commentContinuesAfterCursor("\n// more\nfun add() {}"),
+        )
     }
 
     @Test
     fun dropsBlankLineStopOutsideCommentsOnly() {
-        val stops = CompletionSanitizer.effectiveStops("fun add() {\n    return ", listOf("\n\n", "<|fim_middle|>"))
-        val commentStops = CompletionSanitizer.effectiveStops("/**\n * Returns ", listOf("\n\n", "<|fim_middle|>"))
+        val stops =
+            CompletionSanitizer.effectiveStops(
+                "fun add() {\n    return ",
+                listOf("\n\n", "<|fim_middle|>"),
+            )
+        val commentStops =
+            CompletionSanitizer.effectiveStops("/**\n * Returns ", listOf("\n\n", "<|fim_middle|>"))
 
         assertEquals(true, "\n\n" in stops)
         assertEquals(false, "\n\n" in commentStops)
@@ -155,8 +167,14 @@ class CompletionSanitizerTest {
     fun stripsRedundantLineCommentMarker() {
         val prefix = "    // "
 
-        assertEquals("TODO: handle this", CompletionSanitizer.sanitize("// TODO: handle this", prefix = prefix))
-        assertEquals("TODO: handle this", CompletionSanitizer.sanitize("TODO: handle this", prefix = prefix))
+        assertEquals(
+            "TODO: handle this",
+            CompletionSanitizer.sanitize("// TODO: handle this", prefix = prefix),
+        )
+        assertEquals(
+            "TODO: handle this",
+            CompletionSanitizer.sanitize("TODO: handle this", prefix = prefix),
+        )
     }
 
     @Test
@@ -174,7 +192,10 @@ class CompletionSanitizerTest {
         val prefix = "val url = \"http://"
 
         assertEquals(false, CompletionSanitizer.isCommentHole(prefix))
-        assertEquals("example.com\"", CompletionSanitizer.sanitize("example.com\"", prefix = prefix))
+        assertEquals(
+            "example.com\"",
+            CompletionSanitizer.sanitize("example.com\"", prefix = prefix),
+        )
     }
 
     @Test
@@ -250,19 +271,28 @@ class CompletionSanitizerTest {
 
     @Test
     fun dropsRepeatedAssignmentEquals() {
-        assertEquals("\"Alice\"", CompletionSanitizer.sanitize("= \"Alice\"", prefix = "val name = "))
+        assertEquals(
+            "\"Alice\"",
+            CompletionSanitizer.sanitize("= \"Alice\"", prefix = "val name = "),
+        )
     }
 
     @Test
     fun dropsRepeatedUrlScheme() {
-        assertEquals("example.com\"", CompletionSanitizer.sanitize("://example.com\"", prefix = "val url = \"http://"))
+        assertEquals(
+            "example.com\"",
+            CompletionSanitizer.sanitize("://example.com\"", prefix = "val url = \"http://"),
+        )
     }
 
     @Test
     fun keepsQuotedOneLineStringInsert() {
         val prefix = "val name = "
 
-        assertEquals("\"hello world\"", CompletionSanitizer.sanitize("\"hello world\"", prefix = prefix))
+        assertEquals(
+            "\"hello world\"",
+            CompletionSanitizer.sanitize("\"hello world\"", prefix = prefix),
+        )
     }
 
     @Test
@@ -288,12 +318,22 @@ class CompletionSanitizerTest {
 
     @Test
     fun keepsNestedCallClosers() {
-        assertEquals("inner(nested())", CompletionSanitizer.sanitize("inner(nested())", prefix = "outer(wrapper(", suffix = "))"))
+        assertEquals(
+            "inner(nested())",
+            CompletionSanitizer.sanitize(
+                "inner(nested())",
+                prefix = "outer(wrapper(",
+                suffix = "))",
+            ),
+        )
     }
 
     @Test
     fun cutsGarbageAfterFimToken() {
-        assertEquals("1", CompletionSanitizer.sanitize("1<|fim_middle|>garbage", prefix = "val n = "))
+        assertEquals(
+            "1",
+            CompletionSanitizer.sanitize("1<|fim_middle|>garbage", prefix = "val n = "),
+        )
     }
 
     @Test
@@ -304,7 +344,10 @@ class CompletionSanitizerTest {
 
     @Test
     fun keepsMarkdownEmphasisInJavadoc() {
-        assertEquals("**Important**", CompletionSanitizer.sanitize("**Important**", prefix = "/**\n * "))
+        assertEquals(
+            "**Important**",
+            CompletionSanitizer.sanitize("**Important**", prefix = "/**\n * "),
+        )
     }
 
     @Test
@@ -320,17 +363,21 @@ class CompletionSanitizerTest {
 
     @Test
     fun keepsXmlSampleTag() {
-        assertEquals("<code_sample>x</code_sample>", CompletionSanitizer.sanitize("<code_sample>x</code_sample>", prefix = "<root>"))
+        assertEquals(
+            "<code_sample>x</code_sample>",
+            CompletionSanitizer.sanitize("<code_sample>x</code_sample>", prefix = "<root>"),
+        )
     }
 
     @Test
     fun streamingHoldsPartialStopToken() {
-        val sanitizer = StreamingCompletionSanitizer(
-            prefix = "fun f() {\n    ",
-            suffix = "\n}",
-            stop = emptyList(),
-            holdChars = 4,
-        )
+        val sanitizer =
+            StreamingCompletionSanitizer(
+                prefix = "fun f() {\n    ",
+                suffix = "\n}",
+                stop = emptyList(),
+                holdChars = 4,
+            )
 
         assertEquals("x", sanitizer.push("x<CUR"))
         assertEquals("", sanitizer.push("SOR>more"))
@@ -339,12 +386,13 @@ class CompletionSanitizerTest {
 
     @Test
     fun streamingStripsRedundantJavadocStar() {
-        val sanitizer = StreamingCompletionSanitizer(
-            prefix = "/**\n * ",
-            suffix = "\n */",
-            stop = emptyList(),
-            holdChars = 4,
-        )
+        val sanitizer =
+            StreamingCompletionSanitizer(
+                prefix = "/**\n * ",
+                suffix = "\n */",
+                stop = emptyList(),
+                holdChars = 4,
+            )
 
         assertEquals("Ak", sanitizer.push("* Ak"))
         assertEquals("tiviert", sanitizer.push("tiviert"))
@@ -353,12 +401,13 @@ class CompletionSanitizerTest {
 
     @Test
     fun streamingHoldsThenEmitsSanitizedText() {
-        val sanitizer = StreamingCompletionSanitizer(
-            prefix = "",
-            suffix = "",
-            stop = emptyList(),
-            holdChars = 8,
-        )
+        val sanitizer =
+            StreamingCompletionSanitizer(
+                prefix = "",
+                suffix = "",
+                stop = emptyList(),
+                holdChars = 8,
+            )
 
         assertEquals("", sanitizer.push("```kt\n"))
         assertEquals("hello", sanitizer.push("hello"))
@@ -368,11 +417,12 @@ class CompletionSanitizerTest {
     @Test
     fun streamingDoesNotLatchWhenSuffixOverlapGrowsPastHoldWindow() {
         val suffix = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\nmore"
-        val sanitizer = StreamingCompletionSanitizer(
-            prefix = "fun f() {\n    ",
-            suffix = suffix,
-            stop = emptyList(),
-        )
+        val sanitizer =
+            StreamingCompletionSanitizer(
+                prefix = "fun f() {\n    ",
+                suffix = suffix,
+                stop = emptyList(),
+            )
 
         sanitizer.push(suffix.take(8))
         val extra = sanitizer.push(suffix.drop(8) + "inserted")

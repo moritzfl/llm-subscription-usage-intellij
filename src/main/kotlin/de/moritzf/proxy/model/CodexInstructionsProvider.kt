@@ -1,4 +1,5 @@
 package de.moritzf.proxy.model
+
 import de.moritzf.proxy.server.createObjectNode
 import de.moritzf.proxy.server.longPath
 import de.moritzf.proxy.server.pathOrNull
@@ -20,6 +21,7 @@ import java.util.concurrent.locks.ReentrantLock
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+
 class CodexInstructionsProvider(
     mode: Mode?,
     configuredInstructions: String?,
@@ -32,6 +34,7 @@ class CodexInstructionsProvider(
         CONFIGURED,
         LATEST_CODEX,
     }
+
     private val mode: Mode = mode ?: Mode.CONFIGURED
     private val configuredInstructions: String = configuredInstructions ?: ""
     private val cacheDir: Path = cacheDir ?: defaultCacheDir()
@@ -40,7 +43,10 @@ class CodexInstructionsProvider(
     private val fetcher: InstructionFetcher = fetcher ?: throw NullPointerException("fetcher")
     private val memoryCache = ConcurrentHashMap<String, CacheEntry>()
     private val lock = ReentrantLock()
-    constructor(configuredInstructions: String?) : this(
+
+    constructor(
+        configuredInstructions: String?
+    ) : this(
         Mode.CONFIGURED,
         configuredInstructions,
         defaultCacheDir(),
@@ -48,13 +54,22 @@ class CodexInstructionsProvider(
         Clock.systemUTC(),
         defaultHttpFetcher(),
     )
+
     constructor(
         mode: Mode?,
         configuredInstructions: String?,
         cacheDir: Path?,
         ttl: Duration?,
         httpClient: HttpClient,
-    ) : this(mode, configuredInstructions, cacheDir, ttl, Clock.systemUTC(), httpFetcher(httpClient))
+    ) : this(
+        mode,
+        configuredInstructions,
+        cacheDir,
+        ttl,
+        Clock.systemUTC(),
+        httpFetcher(httpClient),
+    )
+
     fun instructionsForModel(model: String?): String {
         if (mode == Mode.CONFIGURED) {
             return configuredInstructions
@@ -80,24 +95,27 @@ class CodexInstructionsProvider(
             }
             if (response != null && response.statusCode() in 200..<300) {
                 val instructions = extractInstructions(response.body())
-                val updated = CacheEntry(
-                    modelFamily,
-                    sourceUri(modelFamily).toString(),
-                    etagHeaderValue(response.headers()),
-                    now,
-                    instructions,
-                )
+                val updated =
+                    CacheEntry(
+                        modelFamily,
+                        sourceUri(modelFamily).toString(),
+                        etagHeaderValue(response.headers()),
+                        now,
+                        instructions,
+                    )
                 saveCache(updated)
                 return updated.instructions
             }
         } catch (_: Exception) {
-            // Latest-Codex mode is optional; stale cache or configured instructions are safer than failing requests.
+            // Latest-Codex mode is optional; stale cache or configured instructions are safer than
+            // failing requests.
         } finally {
             lock.unlock()
         }
         val fallback = loadCache(modelFamily)
         return fallback?.instructions ?: configuredInstructions
     }
+
     private fun fetchLatest(modelFamily: String, cached: CacheEntry?): FetchResponse? {
         val headers = HashMap<String, String>()
         if (!cached?.etag.isNullOrBlank()) {
@@ -105,6 +123,7 @@ class CodexInstructionsProvider(
         }
         return fetcher.fetch(FetchRequest(modelFamily, sourceUri(modelFamily), headers.toMap()))
     }
+
     private fun loadCache(modelFamily: String): CacheEntry? {
         val cached = memoryCache[modelFamily]
         if (cached != null) {
@@ -115,14 +134,18 @@ class CodexInstructionsProvider(
             return null
         }
         return try {
-            val node = Files.newBufferedReader(cacheFile).use { reader -> Json.INSTANCE.parseToJsonElement(reader.readText()) }
-            val loaded = CacheEntry(
-                node.stringPath("modelFamily", modelFamily),
-                node.stringPath("sourceUrl", sourceUri(modelFamily).toString()),
-                textOrNull(node.pathOrNull("etag")),
-                parseInstant(node),
-                node.stringPath("instructions", ""),
-            )
+            val node =
+                Files.newBufferedReader(cacheFile).use { reader ->
+                    Json.INSTANCE.parseToJsonElement(reader.readText())
+                }
+            val loaded =
+                CacheEntry(
+                    node.stringPath("modelFamily", modelFamily),
+                    node.stringPath("sourceUrl", sourceUri(modelFamily).toString()),
+                    textOrNull(node.pathOrNull("etag")),
+                    parseInstant(node),
+                    node.stringPath("instructions", ""),
+                )
             memoryCache[modelFamily] = loaded
             loaded
         } catch (_: Exception) {
@@ -148,10 +171,14 @@ class CodexInstructionsProvider(
         }
         memoryCache[entry.modelFamily] = entry
     }
-    private fun cacheFile(modelFamily: String): Path = cacheDir.resolve(safeFileName(modelFamily) + ".json")
+
+    private fun cacheFile(modelFamily: String): Path =
+        cacheDir.resolve(safeFileName(modelFamily) + ".json")
+
     fun interface InstructionFetcher {
         fun fetch(request: FetchRequest): FetchResponse?
     }
+
     @Suppress("unused")
     class FetchRequest(
         private val modelFamily: String,
@@ -159,20 +186,28 @@ class CodexInstructionsProvider(
         headers: Map<String, String>,
     ) {
         private val headers: Map<String, String> = headers.toMap()
+
         fun modelFamily(): String = modelFamily
+
         fun uri(): URI = uri
+
         fun headers(): Map<String, String> = headers
     }
+
     class FetchResponse(
         private val statusCode: Int,
         private val body: String?,
         headers: Map<String, String>?,
     ) {
         private val headers: Map<String, String> = headers?.toMap() ?: emptyMap()
+
         fun statusCode(): Int = statusCode
+
         fun body(): String? = body
+
         fun headers(): Map<String, String> = headers
     }
+
     private data class CacheEntry(
         val modelFamily: String,
         val sourceUrl: String,
@@ -181,16 +216,28 @@ class CodexInstructionsProvider(
         val instructions: String,
     ) {
         fun isFresh(now: Instant, ttl: Duration): Boolean = !fetchedAt.plus(ttl).isBefore(now)
+
         fun withFetchedAt(fetchedAt: Instant): CacheEntry {
             return CacheEntry(modelFamily, sourceUrl, etag, fetchedAt, instructions)
         }
     }
+
     companion object {
         private val DEFAULT_TTL: Duration = Duration.ofMinutes(15)
-        private const val DEFAULT_SOURCE_BASE = "https://chatgpt.com/backend-api/codex/instructions/"
-        private val REASONING_SUFFIXES = arrayOf(
-            "-minimal", "-medium", "-xhigh", "-max", "-ultra", "-none", "-high", "-low",
-        )
+        private const val DEFAULT_SOURCE_BASE =
+            "https://chatgpt.com/backend-api/codex/instructions/"
+        private val REASONING_SUFFIXES =
+            arrayOf(
+                "-minimal",
+                "-medium",
+                "-xhigh",
+                "-max",
+                "-ultra",
+                "-none",
+                "-high",
+                "-low",
+            )
+
         fun modelFamily(model: String?): String {
             if (model.isNullOrBlank()) {
                 return "default"
@@ -204,12 +251,15 @@ class CodexInstructionsProvider(
             }
             return normalized
         }
+
         private fun safeFileName(modelFamily: String): String {
             return modelFamily.replace(Regex("[^A-Za-z0-9._-]"), "_")
         }
+
         private fun sourceUri(modelFamily: String): URI {
             return URI.create(DEFAULT_SOURCE_BASE + safeFileName(modelFamily))
         }
+
         private fun extractInstructions(body: String?): String {
             if (body == null) {
                 return ""
@@ -220,10 +270,10 @@ class CodexInstructionsProvider(
                 if (instructions is JsonPrimitive && instructions.isString) {
                     return instructions.content
                 }
-            } catch (_: Exception) {
-            }
+            } catch (_: Exception) {}
             return body
         }
+
         private fun etagHeaderValue(headers: Map<String, String>?): String? {
             if (headers.isNullOrEmpty()) {
                 return null
@@ -235,9 +285,11 @@ class CodexInstructionsProvider(
             }
             return null
         }
+
         private fun textOrNull(node: JsonElement?): String? {
             return if (node is JsonPrimitive && node.isString) node.content else null
         }
+
         private fun parseInstant(node: JsonElement): Instant {
             var fetchedAt = node.stringPathOrNull("fetchedAt")
             if (fetchedAt.isNullOrBlank()) {
@@ -249,15 +301,19 @@ class CodexInstructionsProvider(
             val epochMillis = node.longPath("fetchedAtEpochMillis", 0L)
             return if (epochMillis > 0) Instant.ofEpochMilli(epochMillis) else Instant.EPOCH
         }
+
         private fun defaultCacheDir(): Path = Path.of("cache", "codex-instructions")
-        private fun defaultHttpFetcher(): InstructionFetcher = httpFetcher(HttpClient.newHttpClient())
+
+        private fun defaultHttpFetcher(): InstructionFetcher =
+            httpFetcher(HttpClient.newHttpClient())
+
         private fun httpFetcher(httpClient: HttpClient): InstructionFetcher {
             return InstructionFetcher { request ->
-                val builder = HttpRequest.newBuilder(request.uri())
-                    .header("Accept", "application/json")
-                    .GET()
+                val builder =
+                    HttpRequest.newBuilder(request.uri()).header("Accept", "application/json").GET()
                 request.headers().forEach(builder::header)
-                val response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString())
+                val response =
+                    httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString())
                 val headers = HashMap<String, String>()
                 response.headers().map().forEach { (key, values) ->
                     if (values.isNotEmpty()) {

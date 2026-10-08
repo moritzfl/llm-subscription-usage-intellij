@@ -15,7 +15,6 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import de.moritzf.quota.idea.action.VisionImageAnalysis
 import de.moritzf.quota.idea.mcp.VisionProvider
-import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.shared.HelloPdf
 import java.awt.BorderLayout
@@ -71,16 +70,18 @@ private class VisionTestDialog(
     private val latencyLabel = JBLabel().apply { foreground = UIUtil.getContextHelpForeground() }
     private val inputSlot = slot()
     private val outputSlot = slot()
-    private val abortAction = object : DialogWrapperAction("Abort") {
-        override fun doAction(event: ActionEvent) {
-            abort()
+    private val abortAction =
+        object : DialogWrapperAction("Abort") {
+            override fun doAction(event: ActionEvent) {
+                abort()
+            }
         }
-    }
-    private val retryAction = object : DialogWrapperAction("Retry") {
-        override fun doAction(event: ActionEvent) {
-            start()
+    private val retryAction =
+        object : DialogWrapperAction("Retry") {
+            override fun doAction(event: ActionEvent) {
+                start()
+            }
         }
-    }
 
     init {
         title = "Test vision"
@@ -97,23 +98,10 @@ private class VisionTestDialog(
                 cell(modelLabel)
                 cell(latencyLabel)
             }
-            group("Input") {
-                row {
-                    cell(inputSlot)
-                        .resizableColumn()
-                        .align(AlignX.FILL)
-                }
-            }
-            group("Answer") {
-                row {
-                    cell(outputSlot)
-                        .resizableColumn()
-                        .align(AlignX.FILL)
-                }
-            }
-        }.apply {
-            preferredSize = Dimension(JBUI.scale(520), JBUI.scale(360))
+            group("Input") { row { cell(inputSlot).resizableColumn().align(AlignX.FILL) } }
+            group("Answer") { row { cell(outputSlot).resizableColumn().align(AlignX.FILL) } }
         }
+            .apply { preferredSize = Dimension(JBUI.scale(520), JBUI.scale(360)) }
     }
 
     override fun createActions(): Array<Action> = arrayOf(abortAction, retryAction, okAction)
@@ -154,14 +142,17 @@ private class VisionTestDialog(
             onEdt(gen) { showPage(icon) }
             checkActive(gen)
             val started = System.nanoTime()
-            val answer = try {
-                VisionImageAnalysis.analyze(provider, image, TEST_PROMPT, model)
-            } catch (exception: Exception) {
-                if (!isActive(gen) || isCancellation(exception)) throw exception
-                val elapsedMs = (System.nanoTime() - started) / 1_000_000L
-                onEdt(gen) { showFailure(exception.message ?: "Vision test failed", preview, elapsedMs) }
-                return@runGeneration
-            }
+            val answer =
+                try {
+                    VisionImageAnalysis.analyze(provider, image, TEST_PROMPT, model)
+                } catch (exception: Exception) {
+                    if (!isActive(gen) || isCancellation(exception)) throw exception
+                    val elapsedMs = (System.nanoTime() - started) / 1_000_000L
+                    onEdt(gen) {
+                        showFailure(exception.message ?: "Vision test failed", preview, elapsedMs)
+                    }
+                    return@runGeneration
+                }
             checkActive(gen)
             val elapsedMs = (System.nanoTime() - started) / 1_000_000L
             onEdt(gen) { showSuccess(icon, answer, elapsedMs) }
@@ -226,7 +217,8 @@ private class VisionTestDialog(
     }
 
     private fun checkActive(gen: Int) {
-        if (!isActive(gen) || Thread.currentThread().isInterrupted) throw CancellationException("Aborted")
+        if (!isActive(gen) || Thread.currentThread().isInterrupted)
+            throw CancellationException("Aborted")
     }
 
     private fun isActive(gen: Int) = generation.get() == gen && !isDisposed
@@ -234,7 +226,11 @@ private class VisionTestDialog(
     private fun isCancellation(exception: Throwable): Boolean {
         var current: Throwable? = exception
         while (current != null) {
-            if (current is CancellationException || current is InterruptedException || current is ProcessCanceledException) {
+            if (
+                current is CancellationException ||
+                    current is InterruptedException ||
+                    current is ProcessCanceledException
+            ) {
                 return true
             }
             current = current.cause
@@ -252,27 +248,30 @@ private class VisionTestDialog(
     private fun pagePreview(image: BufferedImage): JComponent {
         val maxWidth = JBUI.scale(480)
         val maxHeight = JBUI.scale(280)
-        val scale = minOf(1.0, maxWidth.toDouble() / image.width, maxHeight.toDouble() / image.height)
+        val scale =
+            minOf(1.0, maxWidth.toDouble() / image.width, maxHeight.toDouble() / image.height)
         val scaledWidth = (image.width * scale).toInt().coerceAtLeast(1)
         val scaledHeight = (image.height * scale).toInt().coerceAtLeast(1)
         val icon = ImageIcon(image.getScaledInstance(scaledWidth, scaledHeight, Image.SCALE_SMOOTH))
         return JBScrollPane(JBLabel(icon)).apply {
             border = JBUI.Borders.customLine(JBColor.border(), 1)
             horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
-            preferredSize = Dimension(maxWidth, icon.iconHeight.coerceAtMost(maxHeight) + JBUI.scale(4))
+            preferredSize =
+                Dimension(maxWidth, icon.iconHeight.coerceAtMost(maxHeight) + JBUI.scale(4))
         }
     }
 
     private fun codeBlock(text: String): JComponent {
         val scheme = EditorColorsManager.getInstance().globalScheme
-        val area = JBTextArea(text).apply {
-            isEditable = false
-            lineWrap = true
-            wrapStyleWord = true
-            font = Font(scheme.editorFontName, Font.PLAIN, scheme.editorFontSize)
-            background = UIUtil.getTextFieldBackground()
-            border = JBUI.Borders.empty(8)
-        }
+        val area =
+            JBTextArea(text).apply {
+                isEditable = false
+                lineWrap = true
+                wrapStyleWord = true
+                font = Font(scheme.editorFontName, Font.PLAIN, scheme.editorFontSize)
+                background = UIUtil.getTextFieldBackground()
+                border = JBUI.Borders.empty(8)
+            }
         return JBScrollPane(area).apply {
             border = JBUI.Borders.customLine(JBColor.border(), 1)
             horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
@@ -280,7 +279,8 @@ private class VisionTestDialog(
         }
     }
 
-    private fun note(text: String) = JBLabel(text).apply { foreground = UIUtil.getContextHelpForeground() }
+    private fun note(text: String) =
+        JBLabel(text).apply { foreground = UIUtil.getContextHelpForeground() }
 
     private fun slot() = JPanel(BorderLayout()).apply { isOpaque = false }
 

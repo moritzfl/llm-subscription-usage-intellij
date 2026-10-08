@@ -33,9 +33,8 @@ import kotlinx.serialization.json.put
 class GitHubCopilotSubscriptionProxyProvider(
     private val accessTokenProvider: () -> String?,
     private val tokenRefresher: (staleAccessToken: String?) -> String? = { null },
-    private val httpClient: HttpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(30))
-        .build(),
+    private val httpClient: HttpClient =
+        HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build(),
     private val upstreamBaseUri: URI = DEFAULT_UPSTREAM_BASE_URI,
     private val persistentModelCacheProvider: () -> String? = { null },
     private val persistentModelCacheSaver: (String?) -> Unit = {},
@@ -45,56 +44,62 @@ class GitHubCopilotSubscriptionProxyProvider(
     requestLogDir: String = DEFAULT_REQUEST_LOG_DIR,
 ) : SubscriptionProxyProvider {
     private val requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir))
-    private val modelCatalog = GitHubCopilotModelCatalog(
-        accessTokenProvider = accessTokenProvider,
-        httpClient = httpClient,
-        upstreamBaseUri = upstreamBaseUri,
-        persistentModelCacheProvider = persistentModelCacheProvider,
-        persistentModelCacheSaver = persistentModelCacheSaver,
-        missingModelRetryDelays = missingModelRetryDelays,
-        modelCacheTtl = modelCacheTtl,
-    )
+    private val modelCatalog =
+        GitHubCopilotModelCatalog(
+            accessTokenProvider = accessTokenProvider,
+            httpClient = httpClient,
+            upstreamBaseUri = upstreamBaseUri,
+            persistentModelCacheProvider = persistentModelCacheProvider,
+            persistentModelCacheSaver = persistentModelCacheSaver,
+            missingModelRetryDelays = missingModelRetryDelays,
+            modelCacheTtl = modelCacheTtl,
+        )
     private val claudeBridge = GitHubCopilotClaudeChatBridge()
-    private val chatCompletionsHandler = ChatCompletionsHandler(
-        requestLogger = requestLogger,
-        usageTracker = UsageTracker(),
-        responsesRequester = ChatCompletionsHandler.ResponsesRequester(::sendResponsesForChatCompletion),
-        store = false,
-        configuredModels = null,
-        fullRequestLogging = fullRequestLogging,
-        forwardPromptCacheHeaders = false,
-        instructionsProvider = CodexInstructionsProvider(GitHubCopilotProxyIds.DEFAULT_RESPONSES_INSTRUCTIONS),
-        responsesBodyTransformer = ::responsesChatBody,
-    )
-    private val delegate = PassThroughSubscriptionProxyProvider(
-        id = ID,
-        displayName = DISPLAY_NAME,
-        litellmProvider = GitHubCopilotProxyIds.LITELLM_PROVIDER,
-        baseUri = upstreamBaseUri,
-        accessTokenProvider = accessTokenProvider,
-        tokenRefresher = tokenRefresher,
-        modelMappingsProvider = ::modelMappings,
-        defaultHeaders = mapOf(
-            "Accept" to "application/json",
-            "User-Agent" to GitHubCopilotProxyIds.USER_AGENT,
-            "Copilot-Integration-Id" to GitHubCopilotProxyIds.COPILOT_INTEGRATION_ID,
-            "Editor-Version" to GitHubCopilotProxyIds.EDITOR_VERSION,
-            "Editor-Plugin-Version" to GitHubCopilotProxyIds.EDITOR_PLUGIN_VERSION,
-            "X-GitHub-Api-Version" to GitHubCopilotProxyIds.API_VERSION,
-            "Openai-Intent" to "conversation-edits",
-            "x-initiator" to "user",
-        ),
-        forwardedRequestHeadersTransformer = ::forwardedRequestHeaders,
-        requestHeadersProvider = ::requestHeaders,
-        requestBodyTransformer = ::requestBody,
-        upstreamRouteProvider = ::upstreamRoute,
-        jsonResponseTransformer = ::openAiChatJsonResponse,
-        sseDataTransformer = ::openAiChatSseData,
-        sseLineTransformer = ::openAiChatSseLine,
-        sseStreamComplete = { claudeBridge.clearStreamState(it.requestId) },
-        httpClient = httpClient,
-        requestLogger = requestLogger,
-    )
+    private val chatCompletionsHandler =
+        ChatCompletionsHandler(
+            requestLogger = requestLogger,
+            usageTracker = UsageTracker(),
+            responsesRequester =
+                ChatCompletionsHandler.ResponsesRequester(::sendResponsesForChatCompletion),
+            store = false,
+            configuredModels = null,
+            fullRequestLogging = fullRequestLogging,
+            forwardPromptCacheHeaders = false,
+            instructionsProvider =
+                CodexInstructionsProvider(GitHubCopilotProxyIds.DEFAULT_RESPONSES_INSTRUCTIONS),
+            responsesBodyTransformer = ::responsesChatBody,
+        )
+    private val delegate =
+        PassThroughSubscriptionProxyProvider(
+            id = ID,
+            displayName = DISPLAY_NAME,
+            litellmProvider = GitHubCopilotProxyIds.LITELLM_PROVIDER,
+            baseUri = upstreamBaseUri,
+            accessTokenProvider = accessTokenProvider,
+            tokenRefresher = tokenRefresher,
+            modelMappingsProvider = ::modelMappings,
+            defaultHeaders =
+                mapOf(
+                    "Accept" to "application/json",
+                    "User-Agent" to GitHubCopilotProxyIds.USER_AGENT,
+                    "Copilot-Integration-Id" to GitHubCopilotProxyIds.COPILOT_INTEGRATION_ID,
+                    "Editor-Version" to GitHubCopilotProxyIds.EDITOR_VERSION,
+                    "Editor-Plugin-Version" to GitHubCopilotProxyIds.EDITOR_PLUGIN_VERSION,
+                    "X-GitHub-Api-Version" to GitHubCopilotProxyIds.API_VERSION,
+                    "Openai-Intent" to "conversation-edits",
+                    "x-initiator" to "user",
+                ),
+            forwardedRequestHeadersTransformer = ::forwardedRequestHeaders,
+            requestHeadersProvider = ::requestHeaders,
+            requestBodyTransformer = ::requestBody,
+            upstreamRouteProvider = ::upstreamRoute,
+            jsonResponseTransformer = ::openAiChatJsonResponse,
+            sseDataTransformer = ::openAiChatSseData,
+            sseLineTransformer = ::openAiChatSseLine,
+            sseStreamComplete = { claudeBridge.clearStreamState(it.requestId) },
+            httpClient = httpClient,
+            requestLogger = requestLogger,
+        )
 
     override val id: String = ID
     override val displayName: String = DISPLAY_NAME
@@ -103,15 +108,25 @@ class GitHubCopilotSubscriptionProxyProvider(
 
     override fun models() = delegate.models()
 
-    override fun fallbackModel(localId: String, route: SubscriptionProxyRoute) = prefixedFallbackModel(localId, route)
+    override fun fallbackModel(localId: String, route: SubscriptionProxyRoute) =
+        prefixedFallbackModel(localId, route)
 
     override suspend fun handle(ctx: ProxyCall, request: SubscriptionProxyRequest) {
         if (shouldBridgeChatToResponses(request)) {
             if (accessTokenProvider().trimmedOrNull() == null) {
-                JsonHelper.toErrorResponse(ctx, "$DISPLAY_NAME login required.", 401, "authentication_error")
+                JsonHelper.toErrorResponse(
+                    ctx,
+                    "$DISPLAY_NAME login required.",
+                    401,
+                    "authentication_error",
+                )
                 return
             }
-            chatCompletionsHandler.handleParsed(ctx, request.requestId, request.bodyWithUpstreamModel())
+            chatCompletionsHandler.handleParsed(
+                ctx,
+                request.requestId,
+                request.bodyWithUpstreamModel(),
+            )
             return
         }
         delegate.handle(ctx, request)
@@ -123,7 +138,10 @@ class GitHubCopilotSubscriptionProxyProvider(
             shouldBridgeResponsesModel(request.model.upstreamId)
     }
 
-    private fun prefixedFallbackModel(localId: String, route: SubscriptionProxyRoute): SubscriptionProxyModel? {
+    private fun prefixedFallbackModel(
+        localId: String,
+        route: SubscriptionProxyRoute,
+    ): SubscriptionProxyModel? {
         val upstreamId = fallbackUpstreamId(localId) ?: return null
         return SubscriptionProxyModel(
             localId = localId,
@@ -155,9 +173,15 @@ class GitHubCopilotSubscriptionProxyProvider(
     }
 
     private fun localSupportedRoutes(model: GitHubCopilotRemoteModel): Set<SubscriptionProxyRoute> {
-        return if (SubscriptionProxyRoute.RESPONSES in model.supportedRoutes && shouldBridgeResponsesModel(model.id)) {
+        return if (
+            SubscriptionProxyRoute.RESPONSES in model.supportedRoutes &&
+                shouldBridgeResponsesModel(model.id)
+        ) {
             model.supportedRoutes + SubscriptionProxyRoute.CHAT_COMPLETIONS
-        } else if (SubscriptionProxyRoute.ANTHROPIC_MESSAGES in model.supportedRoutes && isClaudeModel(model.id)) {
+        } else if (
+            SubscriptionProxyRoute.ANTHROPIC_MESSAGES in model.supportedRoutes &&
+                isClaudeModel(model.id)
+        ) {
             model.supportedRoutes + SubscriptionProxyRoute.CHAT_COMPLETIONS
         } else {
             model.supportedRoutes
@@ -174,7 +198,8 @@ class GitHubCopilotSubscriptionProxyProvider(
     }
 
     private fun requestHeaders(request: SubscriptionProxyRequest): Map<String, String> {
-        return if (containsImageInput(request.body)) mapOf("Copilot-Vision-Request" to "true") else emptyMap()
+        return if (containsImageInput(request.body)) mapOf("Copilot-Vision-Request" to "true")
+        else emptyMap()
     }
 
     private fun forwardedRequestHeaders(
@@ -197,7 +222,10 @@ class GitHubCopilotSubscriptionProxyProvider(
         if (claudeBridge.shouldBridge(request)) {
             return claudeBridge.openAiChatToAnthropicMessagesBody(request, body)
         }
-        if (request.route == SubscriptionProxyRoute.RESPONSES && request.model.upstreamId.startsWith("gpt-")) {
+        if (
+            request.route == SubscriptionProxyRoute.RESPONSES &&
+                request.model.upstreamId.startsWith("gpt-")
+        ) {
             return body.remove("max_output_tokens")
         }
         if (request.route == SubscriptionProxyRoute.CHAT_COMPLETIONS) {
@@ -212,12 +240,14 @@ class GitHubCopilotSubscriptionProxyProvider(
     }
 
     private fun openAiChatJsonResponse(request: SubscriptionProxyRequest, body: String): String {
-        if (claudeBridge.shouldBridge(request)) return claudeBridge.anthropicMessageToOpenAiChat(request, body)
+        if (claudeBridge.shouldBridge(request))
+            return claudeBridge.anthropicMessageToOpenAiChat(request, body)
         return openAiChatEnvelope(request, body, "chat.completion")
     }
 
     private fun openAiChatSseData(request: SubscriptionProxyRequest, data: String): String {
-        if (claudeBridge.shouldBridge(request)) return claudeBridge.anthropicSseDataToOpenAiChat(request, data)
+        if (claudeBridge.shouldBridge(request))
+            return claudeBridge.anthropicSseDataToOpenAiChat(request, data)
         return openAiChatEnvelope(request, data, "chat.completion.chunk")
     }
 
@@ -225,7 +255,11 @@ class GitHubCopilotSubscriptionProxyProvider(
         return claudeBridge.openAiChatSseLine(request, line)
     }
 
-    private fun openAiChatEnvelope(request: SubscriptionProxyRequest, body: String, objectType: String): String {
+    private fun openAiChatEnvelope(
+        request: SubscriptionProxyRequest,
+        body: String,
+        objectType: String,
+    ): String {
         if (request.route != SubscriptionProxyRoute.CHAT_COMPLETIONS || body.isBlank()) return body
         val root = JsonHelper.parseToJsonElementOrNull(body) as? JsonObject ?: return body
         if ("error" in root) return body
@@ -236,7 +270,8 @@ class GitHubCopilotSubscriptionProxyProvider(
             put("model", root["model"] ?: JsonPrimitive(request.model.upstreamId))
             put("choices", root["choices"] ?: JsonArray(emptyList()))
             root.forEach { (key, value) ->
-                if (key !in GitHubCopilotProxyIds.OPENAI_CHAT_ENVELOPE_FIELDS && value != JsonNull) put(key, value)
+                if (key !in GitHubCopilotProxyIds.OPENAI_CHAT_ENVELOPE_FIELDS && value != JsonNull)
+                    put(key, value)
             }
         }
         return ChatUpstreamCompat.applyStop(JsonHelper.encodeToString(normalized), request.body)
@@ -271,28 +306,35 @@ class GitHubCopilotSubscriptionProxyProvider(
         return response
     }
 
-    private fun sendResponsesRequest(payload: String, requestId: String, accessToken: String): HttpResponse<InputStream> {
-        val headers = linkedMapOf(
-            "Authorization" to "Bearer $accessToken",
-            "Accept" to "application/json",
-            "User-Agent" to GitHubCopilotProxyIds.USER_AGENT,
-            "Copilot-Integration-Id" to GitHubCopilotProxyIds.COPILOT_INTEGRATION_ID,
-            "Editor-Version" to GitHubCopilotProxyIds.EDITOR_VERSION,
-            "Editor-Plugin-Version" to GitHubCopilotProxyIds.EDITOR_PLUGIN_VERSION,
-            "X-GitHub-Api-Version" to GitHubCopilotProxyIds.API_VERSION,
-            "Openai-Intent" to "conversation-edits",
-            "x-initiator" to "user",
-            "Content-Type" to JsonHelper.JSON_CONTENT_TYPE,
-        )
+    private fun sendResponsesRequest(
+        payload: String,
+        requestId: String,
+        accessToken: String,
+    ): HttpResponse<InputStream> {
+        val headers =
+            linkedMapOf(
+                "Authorization" to "Bearer $accessToken",
+                "Accept" to "application/json",
+                "User-Agent" to GitHubCopilotProxyIds.USER_AGENT,
+                "Copilot-Integration-Id" to GitHubCopilotProxyIds.COPILOT_INTEGRATION_ID,
+                "Editor-Version" to GitHubCopilotProxyIds.EDITOR_VERSION,
+                "Editor-Plugin-Version" to GitHubCopilotProxyIds.EDITOR_PLUGIN_VERSION,
+                "X-GitHub-Api-Version" to GitHubCopilotProxyIds.API_VERSION,
+                "Openai-Intent" to "conversation-edits",
+                "x-initiator" to "user",
+                "Content-Type" to JsonHelper.JSON_CONTENT_TYPE,
+            )
         if (containsImageInput(JsonHelper.parseToJsonElementOrNull(payload))) {
             headers["Copilot-Vision-Request"] = "true"
         }
         val targetUrl = UrlResolver.resolveTargetUrl("/responses", upstreamBaseUri.toString())
-        val builder = HttpRequest.newBuilder(URI.create(targetUrl))
-            .timeout(Duration.ofSeconds(30))
+        val builder = HttpRequest.newBuilder(URI.create(targetUrl)).timeout(Duration.ofSeconds(30))
         headers.forEach { (name, value) -> builder.header(name, value) }
         requestLogger.logUpstreamRequest(requestId, "POST", "/responses", headers, payload)
-        return httpClient.send(builder.POST(HttpRequest.BodyPublishers.ofString(payload)).build(), HttpResponse.BodyHandlers.ofInputStream())
+        return httpClient.send(
+            builder.POST(HttpRequest.BodyPublishers.ofString(payload)).build(),
+            HttpResponse.BodyHandlers.ofInputStream(),
+        )
     }
 
     private fun refreshAfterUnauthorized(staleToken: String): String? {
@@ -308,7 +350,8 @@ class GitHubCopilotSubscriptionProxyProvider(
         const val PREFIX = "gh-"
         val DEFAULT_UPSTREAM_BASE_URI: URI = GitHubCopilotProxyIds.DEFAULT_UPSTREAM_BASE_URI
         private val DEFAULT_CACHE_TTL = GitHubCopilotProxyIds.DEFAULT_CACHE_TTL
-        private val DEFAULT_MISSING_MODEL_RETRY_DELAYS = GitHubCopilotProxyIds.DEFAULT_MISSING_MODEL_RETRY_DELAYS
+        private val DEFAULT_MISSING_MODEL_RETRY_DELAYS =
+            GitHubCopilotProxyIds.DEFAULT_MISSING_MODEL_RETRY_DELAYS
         private val DEFAULT_REQUEST_LOG_DIR = GitHubCopilotProxyIds.DEFAULT_REQUEST_LOG_DIR
         private const val DISPLAY_NAME = "GitHub Copilot"
     }

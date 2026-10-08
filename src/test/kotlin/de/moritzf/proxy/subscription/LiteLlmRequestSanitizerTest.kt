@@ -11,22 +11,26 @@ import kotlinx.serialization.json.jsonPrimitive
 class LiteLlmRequestSanitizerTest {
     @Test
     fun leavesBodyUnchangedWhenDropParamsAbsent() {
-        val body = parse(
-            """{"model":"mi-codestral-latest","messages":[],"user":"primary","seed":100000}""",
-        )
-        val sanitized = LiteLlmRequestSanitizer.sanitize(SubscriptionProxyRoute.CHAT_COMPLETIONS, body)
+        val body =
+            parse(
+                """{"model":"mi-codestral-latest","messages":[],"user":"primary","seed":100000}"""
+            )
+        val sanitized =
+            LiteLlmRequestSanitizer.sanitize(SubscriptionProxyRoute.CHAT_COMPLETIONS, body)
         assertEquals(body, sanitized)
     }
 
     @Test
     fun dropsLiteLlmExtrasWhenDropParamsIsTrue() {
-        val body = parse(
-            """{"model":"mi-codestral-latest","messages":[{"role":"user","content":"hi"}],""" +
-                """"user":"capability_filter","seed":100000,"drop_params":true,""" +
-                """"thinking":{"type":"enabled"},"enable_thinking":true,""" +
-                """"chat_template_kwargs":{"x":1},"temperature":0.0,"reasoning_effort":"medium"}""",
-        )
-        val sanitized = LiteLlmRequestSanitizer.sanitize(SubscriptionProxyRoute.CHAT_COMPLETIONS, body)
+        val body =
+            parse(
+                """{"model":"mi-codestral-latest","messages":[{"role":"user","content":"hi"}],""" +
+                    """"user":"capability_filter","seed":100000,"drop_params":true,""" +
+                    """"thinking":{"type":"enabled"},"enable_thinking":true,""" +
+                    """"chat_template_kwargs":{"x":1},"temperature":0.0,"reasoning_effort":"medium"}"""
+            )
+        val sanitized =
+            LiteLlmRequestSanitizer.sanitize(SubscriptionProxyRoute.CHAT_COMPLETIONS, body)
         assertEquals("mi-codestral-latest", sanitized["model"]!!.jsonPrimitive.content)
         assertTrue("messages" in sanitized)
         assertTrue("temperature" in sanitized)
@@ -41,10 +45,12 @@ class LiteLlmRequestSanitizerTest {
 
     @Test
     fun onlyStripsDropParamsFlagOnNonChatRoutes() {
-        val body = parse(
-            """{"model":"codestral-latest","prompt":"fun ","suffix":"}","drop_params":true,"user":"primary"}""",
-        )
-        val sanitized = LiteLlmRequestSanitizer.sanitize(SubscriptionProxyRoute.FIM_COMPLETIONS, body)
+        val body =
+            parse(
+                """{"model":"codestral-latest","prompt":"fun ","suffix":"}","drop_params":true,"user":"primary"}"""
+            )
+        val sanitized =
+            LiteLlmRequestSanitizer.sanitize(SubscriptionProxyRoute.FIM_COMPLETIONS, body)
         assertFalse("drop_params" in sanitized)
         assertTrue("user" in sanitized)
         assertTrue("prompt" in sanitized)

@@ -40,9 +40,10 @@ class ClaudeOAuthSupportTest {
 
     @Test
     fun parseCallbackInputAcceptsUrlCodeHashAndQuery() {
-        val fromUrl = OAuthLoginFlow.parseCallbackInput(
-            "https://platform.claude.com/oauth/code/callback?code=abc123&state=state456",
-        )
+        val fromUrl =
+            OAuthLoginFlow.parseCallbackInput(
+                "https://platform.claude.com/oauth/code/callback?code=abc123&state=state456"
+            )
         assertNotNull(fromUrl)
         assertEquals("abc123", fromUrl.code)
         assertEquals("state456", fromUrl.state)
@@ -58,9 +59,10 @@ class ClaudeOAuthSupportTest {
         assertEquals("state456", fromQuery.state)
 
         // Claude sometimes URL-encodes the hash form inside a full callback URL fragment.
-        val fromEncoded = OAuthLoginFlow.parseCallbackInput(
-            "https://platform.claude.com/oauth/code/callback#code%3Dabc123%26state%3Dstate456",
-        )
+        val fromEncoded =
+            OAuthLoginFlow.parseCallbackInput(
+                "https://platform.claude.com/oauth/code/callback#code%3Dabc123%26state%3Dstate456"
+            )
         assertNotNull(fromEncoded)
         assertEquals("abc123", fromEncoded.code)
         assertEquals("state456", fromEncoded.state)
@@ -72,11 +74,11 @@ class ClaudeOAuthSupportTest {
     fun claudeServiceNameIsDistinctFromOtherOauthProviders() {
         assertFalse(
             OAuthCredentialsStore.serviceNameForProvider(QuotaProviderType.CLAUDE) ==
-                OAuthCredentialsStore.serviceNameForProvider(QuotaProviderType.OPEN_AI),
+                OAuthCredentialsStore.serviceNameForProvider(QuotaProviderType.OPEN_AI)
         )
         assertFalse(
             OAuthCredentialsStore.serviceNameForProvider(QuotaProviderType.CLAUDE) ==
-                OAuthCredentialsStore.serviceNameForProvider(QuotaProviderType.SUPERGROK),
+                OAuthCredentialsStore.serviceNameForProvider(QuotaProviderType.SUPERGROK)
         )
     }
 }

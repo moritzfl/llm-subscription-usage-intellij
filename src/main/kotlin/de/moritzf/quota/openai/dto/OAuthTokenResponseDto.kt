@@ -3,9 +3,7 @@ package de.moritzf.quota.openai.dto
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/**
- * DTO for OAuth token endpoint responses.
- */
+/** DTO for OAuth token endpoint responses. */
 @Serializable
 class OAuthTokenResponseDto(
     @SerialName("access_token") var accessToken: String? = null,

@@ -31,13 +31,16 @@ object FimPromptParser {
         triple(prompt, QWEN_PREFIX, QWEN_SUFFIX, QWEN_MIDDLE)?.let { (prefix, parsedSuffix) ->
             return context(FimSchema.QWEN, prefix, parsedSuffix, prompt)
         }
-        triple(prompt, DEEPSEEK_PREFIX, DEEPSEEK_SUFFIX, DEEPSEEK_MIDDLE)?.let { (prefix, parsedSuffix) ->
+        triple(prompt, DEEPSEEK_PREFIX, DEEPSEEK_SUFFIX, DEEPSEEK_MIDDLE)?.let {
+            (prefix, parsedSuffix) ->
             return context(FimSchema.DEEPSEEK, prefix, parsedSuffix, prompt)
         }
         triple(prompt, CJK_BEGIN, CJK_HOLE, CJK_END)?.let { (prefix, parsedSuffix) ->
             return context(FimSchema.DEEPSEEK_CJK, prefix, parsedSuffix, prompt)
         }
-        codestral(prompt, suffix)?.let { return it }
+        codestral(prompt, suffix)?.let {
+            return it
+        }
         triple(prompt, GENERIC_PRE, GENERIC_SUF, GENERIC_MID)?.let { (prefix, parsedSuffix) ->
             return context(FimSchema.GENERIC_PRE, prefix, parsedSuffix, prompt)
         }
@@ -64,7 +67,12 @@ object FimPromptParser {
         return prompt.contains(CODESTRAL_SUFFIX) || prompt.contains(CODESTRAL_MIDDLE)
     }
 
-    private fun triple(prompt: String, prefixTok: String, suffixTok: String, middleTok: String): Pair<String, String>? {
+    private fun triple(
+        prompt: String,
+        prefixTok: String,
+        suffixTok: String,
+        middleTok: String,
+    ): Pair<String, String>? {
         val prefixAt = prompt.indexOf(prefixTok)
         val suffixAt = prompt.indexOf(suffixTok)
         val middleAt = prompt.indexOf(middleTok)
@@ -128,11 +136,12 @@ object FimPromptParser {
                 slice.content.contains(GENERIC_PRE)
         }
         val current = currentIndex.takeIf { it >= 0 }?.let { files[it] }
-        val extra = if (currentIndex >= 0) {
-            files.filterIndexed { index, _ -> index != currentIndex }
-        } else {
-            files
-        }
+        val extra =
+            if (currentIndex >= 0) {
+                files.filterIndexed { index, _ -> index != currentIndex }
+            } else {
+                files
+            }
         val filePath = current?.path
         return FimContext(
             schema = schema,
@@ -149,11 +158,13 @@ object FimPromptParser {
         val start = prompt.indexOf(REPO_NAME)
         if (start < 0) return null
         val from = start + REPO_NAME.length
-        val endCandidates = listOf(
-            prompt.indexOf('\n', from),
-            prompt.indexOf(FILE_SEP, from),
-            prompt.indexOf(QWEN_PREFIX, from),
-        ).filter { it >= 0 }
+        val endCandidates =
+            listOf(
+                    prompt.indexOf('\n', from),
+                    prompt.indexOf(FILE_SEP, from),
+                    prompt.indexOf(QWEN_PREFIX, from),
+                )
+                .filter { it >= 0 }
         val end = endCandidates.minOrNull() ?: prompt.length
         return prompt.substring(from, end).trim().takeIf { it.isNotEmpty() }
     }

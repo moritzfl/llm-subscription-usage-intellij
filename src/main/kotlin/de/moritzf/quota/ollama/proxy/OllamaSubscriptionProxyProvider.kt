@@ -23,27 +23,32 @@ class OllamaSubscriptionProxyProvider(
     fullRequestLogging: Boolean = false,
     requestLogDir: String = DEFAULT_REQUEST_LOG_DIR,
 ) : SubscriptionProxyProvider {
-    private val delegate = OpenAiCompatibleApiKeySubscriptionProxyProvider(
-        id = ID,
-        displayName = DISPLAY_NAME,
-        litellmProvider = LITELLM_PROVIDER,
-        baseUri = upstreamBaseUri,
-        apiKeyProvider = apiKeyProvider,
-        localIdPrefix = PREFIX,
-        modelTransformer = ::ollamaModelMetadata,
-        upstreamUrlProvider = { request ->
-            if (request.route == SubscriptionProxyRoute.COMPLETIONS) generateUrl(upstreamBaseUri) else null
-        },
-        requestBodyTransformer = { request, body ->
-            if (request.route == SubscriptionProxyRoute.COMPLETIONS) toGenerateRequest(body) else body
-        },
-        jsonResponseTransformer = { request, raw ->
-            if (request.route == SubscriptionProxyRoute.COMPLETIONS) toTextCompletion(raw) else raw
-        },
-        httpClient = httpClient,
-        fullRequestLogging = fullRequestLogging,
-        requestLogDir = requestLogDir,
-    )
+    private val delegate =
+        OpenAiCompatibleApiKeySubscriptionProxyProvider(
+            id = ID,
+            displayName = DISPLAY_NAME,
+            litellmProvider = LITELLM_PROVIDER,
+            baseUri = upstreamBaseUri,
+            apiKeyProvider = apiKeyProvider,
+            localIdPrefix = PREFIX,
+            modelTransformer = ::ollamaModelMetadata,
+            upstreamUrlProvider = { request ->
+                if (request.route == SubscriptionProxyRoute.COMPLETIONS)
+                    generateUrl(upstreamBaseUri)
+                else null
+            },
+            requestBodyTransformer = { request, body ->
+                if (request.route == SubscriptionProxyRoute.COMPLETIONS) toGenerateRequest(body)
+                else body
+            },
+            jsonResponseTransformer = { request, raw ->
+                if (request.route == SubscriptionProxyRoute.COMPLETIONS) toTextCompletion(raw)
+                else raw
+            },
+            httpClient = httpClient,
+            fullRequestLogging = fullRequestLogging,
+            requestLogDir = requestLogDir,
+        )
 
     override val id: String = ID
     override val displayName: String = DISPLAY_NAME
@@ -52,14 +57,18 @@ class OllamaSubscriptionProxyProvider(
 
     override fun models() = delegate.models()
 
-    override fun fallbackModel(localId: String, route: SubscriptionProxyRoute) = delegate.fallbackModel(localId, route)
+    override fun fallbackModel(localId: String, route: SubscriptionProxyRoute) =
+        delegate.fallbackModel(localId, route)
 
-    override suspend fun handle(ctx: de.moritzf.proxy.server.ProxyCall, request: SubscriptionProxyRequest) {
+    override suspend fun handle(
+        ctx: de.moritzf.proxy.server.ProxyCall,
+        request: SubscriptionProxyRequest,
+    ) {
         delegate.handle(ctx, request)
     }
 
     private fun ollamaModelMetadata(
-        model: OpenAiCompatibleApiKeySubscriptionProxyProvider.StaticModel,
+        model: OpenAiCompatibleApiKeySubscriptionProxyProvider.StaticModel
     ): OpenAiCompatibleApiKeySubscriptionProxyProvider.StaticModel {
         return if (model.id in MODELS_WITHOUT_TOOL_CALLS) {
             model.copy(supportsFunctionCalling = false, supportsToolChoice = false)
@@ -74,15 +83,17 @@ class OllamaSubscriptionProxyProvider(
         private const val DISPLAY_NAME = "Ollama"
         private const val LITELLM_PROVIDER = "ollama"
         val DEFAULT_UPSTREAM_BASE_URI: URI = URI.create("https://ollama.com/v1")
-        private val DEFAULT_REQUEST_LOG_DIR = System.getProperty("java.io.tmpdir") +
-            "/openai-usage-quota-intellij/subscription-proxy-ollama-requests"
-        private val MODELS_WITHOUT_TOOL_CALLS = setOf(
-            "deepseek-v3.2",
-            "gemini-3-flash-preview",
-            "gemma3:4b",
-            "nemotron-3-nano:30b",
-            "rnj-1:8b",
-        )
+        private val DEFAULT_REQUEST_LOG_DIR =
+            System.getProperty("java.io.tmpdir") +
+                "/openai-usage-quota-intellij/subscription-proxy-ollama-requests"
+        private val MODELS_WITHOUT_TOOL_CALLS =
+            setOf(
+                "deepseek-v3.2",
+                "gemini-3-flash-preview",
+                "gemma3:4b",
+                "nemotron-3-nano:30b",
+                "rnj-1:8b",
+            )
 
         internal fun generateUrl(openAiV1Base: URI): String {
             val raw = openAiV1Base.toString().trimEnd('/')
@@ -99,7 +110,8 @@ class OllamaSubscriptionProxyProvider(
                 body["temperature"]?.let { put("temperature", it) }
                 val stop = body["stop"]
                 when (stop) {
-                    is JsonPrimitive -> stop.contentOrNull?.takeIf { it.isNotEmpty() }?.let { put("stop", it) }
+                    is JsonPrimitive ->
+                        stop.contentOrNull?.takeIf { it.isNotEmpty() }?.let { put("stop", it) }
                     is JsonArray -> put("stop", stop)
                     else -> Unit
                 }
@@ -123,14 +135,19 @@ class OllamaSubscriptionProxyProvider(
                     put("object", "text_completion")
                     put("created", System.currentTimeMillis() / 1000L)
                     put("model", model)
-                    put("choices", buildJsonArray {
-                        add(buildJsonObject {
-                            put("text", text)
-                            put("index", 0)
-                            put("finish_reason", "stop")
-                        })
-                    })
-                },
+                    put(
+                        "choices",
+                        buildJsonArray {
+                            add(
+                                buildJsonObject {
+                                    put("text", text)
+                                    put("index", 0)
+                                    put("finish_reason", "stop")
+                                }
+                            )
+                        },
+                    )
+                }
             )
         }
     }

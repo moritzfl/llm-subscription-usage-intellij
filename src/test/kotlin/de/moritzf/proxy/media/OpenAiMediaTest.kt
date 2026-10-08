@@ -32,14 +32,20 @@ class OpenAiMediaTest {
 
     @Test
     fun rejectsB64() {
-        assertEquals("response_format=b64_json is not supported. Use url.", OpenAiMedia.rejectB64("b64_json"))
+        assertEquals(
+            "response_format=b64_json is not supported. Use url.",
+            OpenAiMedia.rejectB64("b64_json"),
+        )
         assertNull(OpenAiMedia.rejectB64("url"))
     }
 
     @Test
     fun wrapsImageUrl() {
         val json = OpenAiMedia.imageUrlResponse("https://example.test/a.png", created = 1)
-        assertEquals("https://example.test/a.png", json["data"]!!.jsonArray[0].jsonObject["url"]!!.jsonPrimitive.content)
+        assertEquals(
+            "https://example.test/a.png",
+            json["data"]!!.jsonArray[0].jsonObject["url"]!!.jsonPrimitive.content,
+        )
     }
 
     @Test

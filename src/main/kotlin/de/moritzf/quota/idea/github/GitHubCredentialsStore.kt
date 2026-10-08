@@ -81,9 +81,17 @@ class GitHubCredentialsStore(
     }
 
     private fun loadStoredCredentials(): GitHubCredentials? {
-        val json = try { PasswordSafe.instance.get(attributes)?.getPasswordAsString() } catch (_: Exception) { null }
+        val json =
+            try {
+                PasswordSafe.instance.get(attributes)?.getPasswordAsString()
+            } catch (_: Exception) {
+                null
+            }
         if (json.isNullOrBlank()) return null
-        return runCatching { JsonSupport.json.decodeFromString(GitHubCredentials.serializer(), json) }.getOrNull()
+        return runCatching {
+            JsonSupport.json.decodeFromString(GitHubCredentials.serializer(), json)
+        }
+            .getOrNull()
     }
 
     private fun notifyLoadedCallbacks() {
@@ -96,9 +104,11 @@ class GitHubCredentialsStore(
     companion object {
         private const val SERVICE_NAME = "GitHub Copilot Credentials"
         private const val DEFAULT_USER = "github-copilot-credentials"
-        private val extras = java.util.concurrent.ConcurrentHashMap<String, GitHubCredentialsStore>()
+        private val extras =
+            java.util.concurrent.ConcurrentHashMap<String, GitHubCredentialsStore>()
 
-        fun getInstance(): GitHubCredentialsStore = ApplicationManager.getApplication().getService(GitHubCredentialsStore::class.java)
+        fun getInstance(): GitHubCredentialsStore =
+            ApplicationManager.getApplication().getService(GitHubCredentialsStore::class.java)
 
         fun forAccount(accountId: String): GitHubCredentialsStore =
             de.moritzf.quota.idea.settings.AccountCredentialKeys.store(
@@ -108,6 +118,8 @@ class GitHubCredentialsStore(
                 DEFAULT_USER,
                 extras,
                 ::getInstance,
-            ) { service, user -> GitHubCredentialsStore(userName = user, serviceName = service) }
+            ) { service, user ->
+                GitHubCredentialsStore(userName = user, serviceName = service)
+            }
     }
 }

@@ -1,15 +1,10 @@
 package de.moritzf.proxy.logging
+
+import com.intellij.concurrency.virtualThreads.IntelliJVirtualThreads
 import de.moritzf.proxy.server.MutableJsonObject
 import de.moritzf.proxy.server.ProxyCall
 import de.moritzf.proxy.server.createObjectNode
 import de.moritzf.proxy.util.Json
-import com.intellij.concurrency.virtualThreads.IntelliJVirtualThreads
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -19,6 +14,13 @@ import java.time.Duration
 import java.time.Instant
 import java.util.Locale
 import java.util.UUID
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+
 @Suppress("UnstableApiUsage")
 class RequestLogger(
     private val enabled: Boolean,
@@ -30,8 +32,11 @@ class RequestLogger(
             IntelliJVirtualThreads.ofVirtual().start(::pruneOldLogs)
         }
     }
+
     fun isEnabled(): Boolean = enabled
+
     fun nextRequestId(): String = "req_" + UUID.randomUUID().toString().replace("-", "")
+
     fun logInbound(requestId: String, ctx: ProxyCall, body: String?) {
         if (!enabled) {
             return
@@ -44,6 +49,7 @@ class RequestLogger(
         putBody(entry, body)
         write(entry, requestId, "inbound")
     }
+
     fun logUpstreamRequest(
         requestId: String,
         method: String,
@@ -61,6 +67,7 @@ class RequestLogger(
         putBody(entry, body)
         write(entry, requestId, "upstream_request")
     }
+
     fun logUpstreamResponse(
         requestId: String,
         status: Int,
@@ -76,6 +83,7 @@ class RequestLogger(
         putBody(entry, bodyPreview)
         write(entry, requestId, "upstream_response")
     }
+
     fun logClientResponse(requestId: String, status: Int, body: String?) {
         if (!enabled) {
             return
@@ -85,10 +93,11 @@ class RequestLogger(
         putBody(entry, body)
         write(entry, requestId, "client_response")
     }
+
     /**
-     * Deletes log files older than [MAX_LOG_AGE], then trims the directory to
-     * [MAX_LOG_FILES] newest entries. Best-effort: failures are ignored so a
-     * crowded or unreadable log directory never blocks the proxy.
+     * Deletes log files older than [MAX_LOG_AGE], then trims the directory to [MAX_LOG_FILES]
+     * newest entries. Best-effort: failures are ignored so a crowded or unreadable log directory
+     * never blocks the proxy.
      */
     fun pruneOldLogs() {
         if (!Files.isDirectory(logDir)) {
@@ -96,33 +105,36 @@ class RequestLogger(
         }
         try {
             Files.list(logDir).use { entries ->
-                val files = entries
-                    .filter(Files::isRegularFile)
-                    .filter { it.fileName.toString().endsWith(".json") }
-                    .toList()
-                    .toMutableList()
+                val files =
+                    entries
+                        .filter(Files::isRegularFile)
+                        .filter { it.fileName.toString().endsWith(".json") }
+                        .toList()
+                        .toMutableList()
                 val cutoffMillis = System.currentTimeMillis() - MAX_LOG_AGE.toMillis()
                 files.removeIf { deleteIfOlderThan(it, cutoffMillis) }
                 if (files.size > MAX_LOG_FILES) {
                     // Other cleanup runs may delete files while we sort. Keep comparison
                     // keys stable instead of rereading timestamps inside the comparator.
-                    val oldestFirst = files.map { it to lastModifiedMillis(it) }.sortedBy { it.second }
+                    val oldestFirst =
+                        files.map { it to lastModifiedMillis(it) }.sortedBy { it.second }
                     val excess = files.size - MAX_LOG_FILES
                     for (index in 0 until excess) {
                         deleteQuietly(oldestFirst[index].first)
                     }
                 }
             }
-        } catch (_: IOException) {
-        }
+        } catch (_: IOException) {}
     }
+
     private fun write(entry: MutableJsonObject, requestId: String?, stage: String) {
         try {
             Files.createDirectories(logDir)
             val safeRequestId = safeFilePart(requestId ?: "unknown")
-            val file = logDir.resolve(
-                "$safeRequestId-$stage-${Instant.now().toEpochMilli()}-${UUID.randomUUID()}.json",
-            )
+            val file =
+                logDir.resolve(
+                    "$safeRequestId-$stage-${Instant.now().toEpochMilli()}-${UUID.randomUUID()}.json"
+                )
             Files.writeString(
                 file,
                 Json.INSTANCE.encodeToString(JsonObject.serializer(), entry.build()),
@@ -134,15 +146,18 @@ class RequestLogger(
             System.err.println("Warning: failed to write request log: ${exception.message}")
         }
     }
+
     private data class BodyCapture(
         val body: String,
         val truncated: Boolean,
     )
+
     companion object {
         private const val MAX_BODY_BYTES = 256 * 1024
         private const val REDACTED = "[REDACTED]"
         private const val MAX_LOG_FILES = 2_000
         private val MAX_LOG_AGE: Duration = Duration.ofDays(7)
+
         private fun baseEntry(requestId: String, stage: String): MutableJsonObject {
             val entry = createObjectNode()
             entry.put("request_id", requestId)
@@ -150,6 +165,7 @@ class RequestLogger(
             entry.put("stage", stage)
             return entry
         }
+
         private fun redactStringHeaders(headers: Map<String, String>?): MutableJsonObject {
             val node = createObjectNode()
             headers?.forEach { (name, value) ->
@@ -157,6 +173,7 @@ class RequestLogger(
             }
             return node
         }
+
         private fun redactListHeaders(headers: Map<String, List<String>>?): MutableJsonObject {
             val node = createObjectNode()
             headers?.forEach { (name, values) ->
@@ -168,6 +185,7 @@ class RequestLogger(
             }
             return node
         }
+
         private fun isSensitiveHeader(name: String?): Boolean {
             if (name == null) {
                 return false
@@ -182,6 +200,7 @@ class RequestLogger(
                 normalized.contains("secret") ||
                 normalized.contains("key")
         }
+
         private fun putBody(entry: MutableJsonObject, body: String?) {
             val capture = captureBody(redactBodyForLog(body))
             entry.put("body", capture.body)
@@ -189,63 +208,70 @@ class RequestLogger(
         }
 
         /**
-         * Redacts well-known secret fields in JSON bodies before they are written to disk.
-         * Non-JSON bodies (for example SSE streams) pass through unchanged; their secrets
-         * live in headers, which are redacted separately.
+         * Redacts well-known secret fields in JSON bodies before they are written to disk. Non-JSON
+         * bodies (for example SSE streams) pass through unchanged; their secrets live in headers,
+         * which are redacted separately.
          */
         internal fun redactBodyForLog(body: String?): String? {
             if (body.isNullOrBlank()) {
                 return body
             }
-            val element = runCatching { Json.INSTANCE.parseToJsonElement(body) }.getOrNull() ?: return body
+            val element =
+                runCatching { Json.INSTANCE.parseToJsonElement(body) }.getOrNull() ?: return body
             return runCatching { redactElement(element).toString() }.getOrDefault(body)
         }
 
         private fun redactElement(element: JsonElement): JsonElement {
             return when (element) {
-                is JsonObject -> buildJsonObject {
-                    element.forEach { (key, value) ->
-                        put(key, if (isSensitiveField(key)) JsonPrimitive(REDACTED) else redactElement(value))
+                is JsonObject ->
+                    buildJsonObject {
+                        element.forEach { (key, value) ->
+                            put(
+                                key,
+                                if (isSensitiveField(key)) JsonPrimitive(REDACTED)
+                                else redactElement(value),
+                            )
+                        }
                     }
-                }
-                is JsonArray -> buildJsonArray {
-                    element.forEach { add(redactElement(it)) }
-                }
+                is JsonArray -> buildJsonArray { element.forEach { add(redactElement(it)) } }
                 else -> element
             }
         }
 
-        private val exactSensitiveFields = setOf(
-            "authorization",
-            "proxy_authorization",
-            "cookie",
-            "set_cookie",
-            "access_token",
-            "refresh_token",
-            "id_token",
-            "session_token",
-            "api_key",
-            "apikey",
-            "password",
-            "secret",
-        )
+        private val exactSensitiveFields =
+            setOf(
+                "authorization",
+                "proxy_authorization",
+                "cookie",
+                "set_cookie",
+                "access_token",
+                "refresh_token",
+                "id_token",
+                "session_token",
+                "api_key",
+                "apikey",
+                "password",
+                "secret",
+            )
 
-        private val tokenCountFields = setOf(
-            "max_token",
-            "total_tokens",
-            "input_tokens",
-            "output_tokens",
-            "prompt_tokens",
-            "completion_tokens",
-            "cached_tokens",
-            "reasoning_tokens",
-        )
+        private val tokenCountFields =
+            setOf(
+                "max_token",
+                "total_tokens",
+                "input_tokens",
+                "output_tokens",
+                "prompt_tokens",
+                "completion_tokens",
+                "cached_tokens",
+                "reasoning_tokens",
+            )
 
         private fun isSensitiveField(name: String): Boolean {
-            val normalized = name
-                .replace(Regex("([a-z])([A-Z])"), "$1_$2")
-                .lowercase(Locale.ROOT)
-                .replace('-', '_')
+            val normalized =
+                name
+                    .replace(Regex("([a-z])([A-Z])"), "$1_$2")
+                    .lowercase(Locale.ROOT)
+                    .replace('-', '_')
             if (normalized in tokenCountFields) {
                 return false
             }
@@ -256,6 +282,7 @@ class RequestLogger(
                 normalized.contains("password") ||
                 normalized.contains("cookie")
         }
+
         private fun captureBody(body: String?): BodyCapture {
             if (body == null) {
                 return BodyCapture("", false)
@@ -266,9 +293,11 @@ class RequestLogger(
             }
             return BodyCapture(String(bytes, 0, MAX_BODY_BYTES, StandardCharsets.UTF_8), true)
         }
+
         private fun safeFilePart(value: String): String {
             return value.replace(Regex("[^A-Za-z0-9._-]"), "_")
         }
+
         private fun deleteIfOlderThan(path: Path, cutoffMillis: Long): Boolean {
             if (lastModifiedMillis(path) < cutoffMillis) {
                 deleteQuietly(path)
@@ -276,6 +305,7 @@ class RequestLogger(
             }
             return false
         }
+
         private fun lastModifiedMillis(path: Path): Long {
             return try {
                 Files.getLastModifiedTime(path).toMillis()
@@ -283,11 +313,11 @@ class RequestLogger(
                 Long.MAX_VALUE
             }
         }
+
         private fun deleteQuietly(path: Path) {
             try {
                 Files.deleteIfExists(path)
-            } catch (_: IOException) {
-            }
+            } catch (_: IOException) {}
         }
     }
 }

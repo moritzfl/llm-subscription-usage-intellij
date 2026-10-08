@@ -9,8 +9,12 @@ import de.moritzf.quota.mistral.MistralQuotaException
 class MistralQuotaProvider(
     override val accountId: String = QuotaProviderType.MISTRAL.id,
     private val client: MistralQuotaClient = MistralQuotaClient(),
-    private val cookieProvider: () -> String? = { MistralSessionCookieStore.forAccount(accountId).loadBlocking() },
-    private val apiKeyProvider: () -> String? = { MistralApiKeyStore.forAccount(accountId).loadBlocking() },
+    private val cookieProvider: () -> String? = {
+        MistralSessionCookieStore.forAccount(accountId).loadBlocking()
+    },
+    private val apiKeyProvider: () -> String? = {
+        MistralApiKeyStore.forAccount(accountId).loadBlocking()
+    },
 ) : CachedQuotaProvider<MistralQuota>() {
     override val type = QuotaProviderType.MISTRAL
     override val notConfiguredMessage =

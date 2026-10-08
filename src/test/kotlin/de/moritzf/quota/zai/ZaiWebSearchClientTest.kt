@@ -13,7 +13,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
@@ -24,72 +23,87 @@ class ZaiWebSearchClientTest {
     @Test
     fun postsWebSearchRequestWithApiKeyAndOptions() {
         TestZaiServer(
-            responseBody = """
-                {
-                  "id": "search-1",
-                  "request_id": "request-1",
-                  "search_intent": {"query":"Kimi Code"},
-                  "search_result": [
+                responseBody =
+                    """
                     {
-                      "title": "First",
-                      "link": "https://example.test/first",
-                      "content": "First result content",
-                      "publish_date": "2026-06-13"
-                    },
-                    {
-                      "title": "Second",
-                      "link": "https://example.test/second",
-                      "content": "Second result content"
+                      "id": "search-1",
+                      "request_id": "request-1",
+                      "search_intent": {"query":"Kimi Code"},
+                      "search_result": [
+                        {
+                          "title": "First",
+                          "link": "https://example.test/first",
+                          "content": "First result content",
+                          "publish_date": "2026-06-13"
+                        },
+                        {
+                          "title": "Second",
+                          "link": "https://example.test/second",
+                          "content": "Second result content"
+                        }
+                      ]
                     }
-                  ]
-                }
-            """.trimIndent(),
-        ).use { server ->
-            val client = newClient(server)
+                    """
+                        .trimIndent()
+            )
+            .use { server ->
+                val client = newClient(server)
 
-            val result = client.webSearch("zai-key", "  Kimi Code docs  ", limit = 1, includeContent = false)
+                val result =
+                    client.webSearch(
+                        "zai-key",
+                        "  Kimi Code docs  ",
+                        limit = 1,
+                        includeContent = false,
+                    )
 
-            val response = parseObject(result)
-            assertEquals("search-1", response["id"]!!.jsonPrimitive.content)
-            assertEquals("request-1", response["request_id"]!!.jsonPrimitive.content)
-            val results = response["search_result"]!!.jsonArray
-            assertEquals(2, results.size)
-            val item = results[0].jsonObject
-            assertEquals("First", item["title"]!!.jsonPrimitive.content)
-            assertEquals("https://example.test/first", item["link"]!!.jsonPrimitive.content)
-            assertEquals("First result content", item["content"]!!.jsonPrimitive.content)
-            assertEquals("2026-06-13", item["publish_date"]!!.jsonPrimitive.content)
+                val response = parseObject(result)
+                assertEquals("search-1", response["id"]!!.jsonPrimitive.content)
+                assertEquals("request-1", response["request_id"]!!.jsonPrimitive.content)
+                val results = response["search_result"]!!.jsonArray
+                assertEquals(2, results.size)
+                val item = results[0].jsonObject
+                assertEquals("First", item["title"]!!.jsonPrimitive.content)
+                assertEquals("https://example.test/first", item["link"]!!.jsonPrimitive.content)
+                assertEquals("First result content", item["content"]!!.jsonPrimitive.content)
+                assertEquals("2026-06-13", item["publish_date"]!!.jsonPrimitive.content)
 
-            val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
-            assertEquals("POST", request.method)
-            assertEquals("/web_search", request.path)
-            assertEquals("Bearer zai-key", request.firstHeader("Authorization"))
-            assertEquals("application/json", request.firstHeader("Accept"))
+                val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("POST", request.method)
+                assertEquals("/web_search", request.path)
+                assertEquals("Bearer zai-key", request.firstHeader("Authorization"))
+                assertEquals("application/json", request.firstHeader("Accept"))
 
-            val requestBody = parseObject(request.body)
-            assertEquals("Kimi Code docs", requestBody["search_query"]!!.jsonPrimitive.content)
-            assertEquals(1, requestBody["count"]!!.jsonPrimitive.int)
-            assertEquals("low", requestBody["content_size"]!!.jsonPrimitive.content)
-            assertEquals(false, requestBody["include_image"]!!.jsonPrimitive.boolean)
-        }
+                val requestBody = parseObject(request.body)
+                assertEquals("Kimi Code docs", requestBody["search_query"]!!.jsonPrimitive.content)
+                assertEquals(1, requestBody["count"]!!.jsonPrimitive.int)
+                assertEquals("low", requestBody["content_size"]!!.jsonPrimitive.content)
+                assertEquals(false, requestBody["include_image"]!!.jsonPrimitive.boolean)
+            }
     }
 
     @Test
     fun includesContentWhenRequested() {
         TestZaiServer(
-            responseBody = """
-                {"search_result":{"title":"First","link":"https://example.test/first","content":"Full content"}}
-            """.trimIndent(),
-        ).use { server ->
-            val client = newClient(server)
+                responseBody =
+                    """
+                    {"search_result":{"title":"First","link":"https://example.test/first","content":"Full content"}}
+                    """
+                        .trimIndent()
+            )
+            .use { server ->
+                val client = newClient(server)
 
-            val result = client.webSearch("zai-key", "Kimi Code docs", includeContent = true)
+                val result = client.webSearch("zai-key", "Kimi Code docs", includeContent = true)
 
-            val item = parseObject(result)["search_result"]!!.jsonObject
-            assertEquals("Full content", item["content"]!!.jsonPrimitive.content)
-            val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
-            assertEquals("high", parseObject(request.body)["content_size"]!!.jsonPrimitive.content)
-        }
+                val item = parseObject(result)["search_result"]!!.jsonObject
+                assertEquals("Full content", item["content"]!!.jsonPrimitive.content)
+                val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals(
+                    "high",
+                    parseObject(request.body)["content_size"]!!.jsonPrimitive.content,
+                )
+            }
     }
 
     @Test
@@ -97,9 +111,8 @@ class ZaiWebSearchClientTest {
         TestZaiServer().use { server ->
             val client = newClient(server)
 
-            val exception = assertFailsWith<ZaiQuotaException> {
-                client.webSearch("zai-key", "   ")
-            }
+            val exception =
+                assertFailsWith<ZaiQuotaException> { client.webSearch("zai-key", "   ") }
 
             assertEquals("Search query is required.", exception.message)
             assertNull(server.requests.poll(500, TimeUnit.MILLISECONDS))
@@ -109,31 +122,34 @@ class ZaiWebSearchClientTest {
     @Test
     fun postsWebReaderRequestWithoutImages() {
         TestZaiServer(
-            responseBody = """
-                {
-                  "id": "read-1",
-                  "reader_result": {
-                    "title": "Example",
-                    "content": "# Example",
-                    "url": "https://www.example.com"
-                  }
-                }
-            """.trimIndent(),
-        ).use { server ->
-            val client = newClient(server)
+                responseBody =
+                    """
+                    {
+                      "id": "read-1",
+                      "reader_result": {
+                        "title": "Example",
+                        "content": "# Example",
+                        "url": "https://www.example.com"
+                      }
+                    }
+                    """
+                        .trimIndent()
+            )
+            .use { server ->
+                val client = newClient(server)
 
-            val result = client.webFetch("zai-key", "https://www.example.com")
+                val result = client.webFetch("zai-key", "https://www.example.com")
 
-            val body = parseObject(result)
-            assertEquals("read-1", body["id"]!!.jsonPrimitive.content)
-            val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
-            assertEquals("/reader", request.path)
-            val payload = parseObject(request.body)
-            assertEquals("https://www.example.com", payload["url"]!!.jsonPrimitive.content)
-            assertEquals("markdown", payload["return_format"]!!.jsonPrimitive.content)
-            assertEquals(false, payload["retain_images"]!!.jsonPrimitive.boolean)
-            assertEquals(false, payload["keep_img_data_url"]!!.jsonPrimitive.boolean)
-        }
+                val body = parseObject(result)
+                assertEquals("read-1", body["id"]!!.jsonPrimitive.content)
+                val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/reader", request.path)
+                val payload = parseObject(request.body)
+                assertEquals("https://www.example.com", payload["url"]!!.jsonPrimitive.content)
+                assertEquals("markdown", payload["return_format"]!!.jsonPrimitive.content)
+                assertEquals(false, payload["retain_images"]!!.jsonPrimitive.boolean)
+                assertEquals(false, payload["keep_img_data_url"]!!.jsonPrimitive.boolean)
+            }
     }
 
     private fun newClient(server: TestZaiServer): ZaiWebSearchClient {
@@ -145,18 +161,20 @@ class ZaiWebSearchClientTest {
         private val responseStatus: Int = 200,
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
 
         init {
             server.createContext("/") { exchange ->
                 val body = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
-                requests += CapturedRequest(
-                    method = exchange.requestMethod,
-                    path = exchange.requestURI.rawPath,
-                    headers = exchange.requestHeaders.mapValues { it.value.toList() },
-                    body = body,
-                )
+                requests +=
+                    CapturedRequest(
+                        method = exchange.requestMethod,
+                        path = exchange.requestURI.rawPath,
+                        headers = exchange.requestHeaders.mapValues { it.value.toList() },
+                        body = body,
+                    )
                 val response = responseBody.toByteArray(Charsets.UTF_8)
                 exchange.responseHeaders.set("Content-Type", "application/json")
                 exchange.sendResponseHeaders(responseStatus, response.size.toLong())
@@ -178,7 +196,10 @@ class ZaiWebSearchClientTest {
         val body: String,
     ) {
         fun firstHeader(name: String): String? {
-            return headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }?.value?.firstOrNull()
+            return headers.entries
+                .firstOrNull { it.key.equals(name, ignoreCase = true) }
+                ?.value
+                ?.firstOrNull()
         }
     }
 

@@ -1,21 +1,21 @@
 package de.moritzf.quota.idea.ui.popup
 
+import com.intellij.util.ui.JBUI
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.ui.indicator.clampPercent
 import de.moritzf.quota.kimi.KimiQuota
-import kotlin.math.roundToInt
 import de.moritzf.quota.kimi.KimiUsageWindow
-import com.intellij.openapi.ui.VerticalFlowLayout
-import com.intellij.util.ui.JBUI
 import de.moritzf.quota.shared.ProviderQuota
-import javax.swing.JPanel
+import kotlin.math.roundToInt
 
 internal class KimiPopupSection : ProviderPopupSection() {
     private val separator = createSeparatedBlock()
     private val errorLabel = createWarningLabel("").apply { border = JBUI.Borders.emptyTop(1) }
     private val titleLabel =
-        createSectionTitleLabel("Kimi Code", QuotaIcons.KIMI).apply { border = JBUI.Borders.emptyTop(0) }
+        createSectionTitleLabel("Kimi Code", QuotaIcons.KIMI).apply {
+            border = JBUI.Borders.emptyTop(0)
+        }
     private val sessionBlock = WindowBlockPanel(3)
     private val overallBlock = WindowBlockPanel(5)
 
@@ -55,8 +55,9 @@ internal class KimiPopupSection : ProviderPopupSection() {
             }
 
             else -> {
-                val limitReached = (quota.sessionUsage?.usagePercent ?: 0.0) >= 100.0 ||
-                    (quota.totalUsage?.usagePercent ?: 0.0) >= 100.0
+                val limitReached =
+                    (quota.sessionUsage?.usagePercent ?: 0.0) >= 100.0 ||
+                        (quota.totalUsage?.usagePercent ?: 0.0) >= 100.0
                 errorLabel.isVisible = limitReached
                 if (limitReached) {
                     errorLabel.text = "Kimi limit reached"
@@ -64,8 +65,10 @@ internal class KimiPopupSection : ProviderPopupSection() {
 
                 titleLabel.isVisible = true
                 titleLabel.text = sectionTitle("Kimi Code", quota.plan.takeIf { it.isNotBlank() })
-                quota.sessionUsage?.let { sessionBlock.updateKimi(it, "Session") } ?: sessionBlock.clear()
-                quota.totalUsage?.let { overallBlock.updateKimi(it, "Overall") } ?: overallBlock.clear()
+                quota.sessionUsage?.let { sessionBlock.updateKimi(it, "Session") }
+                    ?: sessionBlock.clear()
+                quota.totalUsage?.let { overallBlock.updateKimi(it, "Overall") }
+                    ?: overallBlock.clear()
             }
         }
     }

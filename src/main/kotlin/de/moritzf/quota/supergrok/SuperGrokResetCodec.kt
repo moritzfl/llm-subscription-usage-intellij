@@ -18,12 +18,15 @@ internal object SuperGrokResetCodec {
     }
 
     fun parseResetTokens(body: ByteArray, now: Instant): List<SuperGrokResetToken> {
-        val payloads = grpcWebDataFrames(body).ifEmpty {
-            if (looksLikeProtobuf(body)) listOf(body) else emptyList()
-        }
-        val tokens = payloads.flatMap { parseTokenList(it) }
-            .filter { it.tokenId.isNotBlank() }
-            .filter { token -> token.expiresAt == null || token.expiresAt > now }
+        val payloads =
+            grpcWebDataFrames(body).ifEmpty {
+                if (looksLikeProtobuf(body)) listOf(body) else emptyList()
+            }
+        val tokens =
+            payloads
+                .flatMap { parseTokenList(it) }
+                .filter { it.tokenId.isNotBlank() }
+                .filter { token -> token.expiresAt == null || token.expiresAt > now }
         return tokens.distinctBy { it.tokenId }
     }
 
@@ -53,9 +56,10 @@ internal object SuperGrokResetCodec {
     }
 
     internal fun encodeTokens(tokens: List<SuperGrokResetToken>): ByteArray {
-        val payload = tokens.fold(ByteArray(0)) { acc, token ->
-            acc + lengthDelimited(FIELD_TOKENS, encodeToken(token))
-        }
+        val payload =
+            tokens.fold(ByteArray(0)) { acc, token ->
+                acc + lengthDelimited(FIELD_TOKENS, encodeToken(token))
+            }
         return grpcWebFrame(payload)
     }
 
@@ -86,19 +90,23 @@ internal object SuperGrokResetCodec {
 
     private fun parseToken(payload: ByteArray): SuperGrokResetToken? {
         val fields = readFields(payload)
-        val tokenId = fields.firstOrNull { it.number == FIELD_TOKEN_ID }?.bytes
-            ?.decodeToString()
-            ?.trim()
-            .orEmpty()
+        val tokenId =
+            fields
+                .firstOrNull { it.number == FIELD_TOKEN_ID }
+                ?.bytes
+                ?.decodeToString()
+                ?.trim()
+                .orEmpty()
         if (tokenId.isEmpty()) return null
-        val expiresAt = fields.firstOrNull { it.number == FIELD_VALIDITY_END }?.bytes
-            ?.let(::parseTimestamp)
+        val expiresAt =
+            fields.firstOrNull { it.number == FIELD_VALIDITY_END }?.bytes?.let(::parseTimestamp)
         return SuperGrokResetToken(tokenId = tokenId, expiresAt = expiresAt)
     }
 
     private fun parseTimestamp(payload: ByteArray): Instant? {
         val fields = readFields(payload)
-        val seconds = fields.firstOrNull { it.number == FIELD_TIMESTAMP_SECONDS }?.varint ?: return null
+        val seconds =
+            fields.firstOrNull { it.number == FIELD_TIMESTAMP_SECONDS }?.varint ?: return null
         val nanos = fields.firstOrNull { it.number == FIELD_TIMESTAMP_NANOS }?.varint ?: 0L
         return runCatching { Instant.fromEpochSeconds(seconds, nanos) }.getOrNull()
     }
@@ -156,7 +164,8 @@ internal object SuperGrokResetCodec {
         val first = data.firstOrNull()?.toInt()?.and(0xff) ?: return false
         val fieldNumber = first ushr 3
         val wireType = first and 0x07
-        return fieldNumber > 0 && (wireType == WIRE_VARINT || wireType == WIRE_LEN || wireType == 1 || wireType == 5)
+        return fieldNumber > 0 &&
+            (wireType == WIRE_VARINT || wireType == WIRE_LEN || wireType == 1 || wireType == 5)
     }
 
     private data class ProtoField(
@@ -245,7 +254,8 @@ internal object SuperGrokResetCodec {
 
     private fun headerValue(headers: Map<String, List<String>>, name: String): String? {
         val expected = name.lowercase()
-        return headers.entries.firstOrNull { it.key.equals(expected, ignoreCase = true) }
+        return headers.entries
+            .firstOrNull { it.key.equals(expected, ignoreCase = true) }
             ?.value
             ?.firstOrNull()
             ?.trim()

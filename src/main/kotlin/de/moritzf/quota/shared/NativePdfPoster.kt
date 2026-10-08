@@ -10,9 +10,7 @@ import java.time.Duration
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 
-internal class NativePdfPoster(
-    private val httpClient: HttpClient = HttpClient.newHttpClient(),
-) {
+internal class NativePdfPoster(private val httpClient: HttpClient = HttpClient.newHttpClient()) {
     fun convert(
         url: URI,
         headers: Map<String, String>,
@@ -27,7 +25,10 @@ internal class NativePdfPoster(
         }
     }
 
-    /** Posts one image plus a question and returns the model's answer text (no markdown output file). */
+    /**
+     * Posts one image plus a question and returns the model's answer text (no markdown output
+     * file).
+     */
     fun askImage(
         url: URI,
         headers: Map<String, String>,
@@ -48,21 +49,27 @@ internal class NativePdfPoster(
         payload: String,
         extraBody: JsonObject,
     ): String {
-        val merged = if (extraBody.isEmpty()) payload else JsonObject(extraBody + JsonSupport.json.parseToJsonElement(payload).jsonObject).toString()
-        val builder = HttpRequest.newBuilder(url)
-            .timeout(Duration.ofSeconds(180))
-            .header("Content-Type", "application/json")
-            .header("Accept", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString(merged))
+        val merged =
+            if (extraBody.isEmpty()) payload
+            else
+                JsonObject(extraBody + JsonSupport.json.parseToJsonElement(payload).jsonObject)
+                    .toString()
+        val builder =
+            HttpRequest.newBuilder(url)
+                .timeout(Duration.ofSeconds(180))
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(merged))
         headers.forEach { (name, value) -> builder.header(name, value) }
-        val response = try {
-            httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString())
-        } catch (exception: IOException) {
-            error("Document request failed. Check your connection.")
-        } catch (exception: InterruptedException) {
-            Thread.currentThread().interrupt()
-            error("Document request failed. Check your connection.")
-        }
+        val response =
+            try {
+                httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString())
+            } catch (exception: IOException) {
+                error("Document request failed. Check your connection.")
+            } catch (exception: InterruptedException) {
+                Thread.currentThread().interrupt()
+                error("Document request failed. Check your connection.")
+            }
         if (response.statusCode() !in 200..299) {
             error("Document request failed (HTTP ${response.statusCode()}).")
         }

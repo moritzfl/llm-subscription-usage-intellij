@@ -6,9 +6,7 @@ import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
-/**
- * Represents OpenCode quota data with Go usage windows and optional Zen credit balance.
- */
+/** Represents OpenCode quota data with Go usage windows and optional Zen credit balance. */
 @Serializable
 data class OpenCodeQuota(
     val rollingUsage: OpenCodeUsageWindow? = null,
@@ -28,11 +26,12 @@ data class OpenCodeQuota(
     }
 
     override fun usageFraction(): Double? {
-        val windows = listOfNotNull(
-            rollingUsage?.usagePercent,
-            weeklyUsage?.usagePercent,
-            monthlyUsage?.usagePercent,
-        )
+        val windows =
+            listOfNotNull(
+                rollingUsage?.usagePercent,
+                weeklyUsage?.usagePercent,
+                monthlyUsage?.usagePercent,
+            )
         return windows.maxOrNull()?.let { it / 100.0 }
     }
 
@@ -49,15 +48,13 @@ data class OpenCodeQuota(
     }
 }
 
-/**
- * Represents a single usage window from the OpenCode Go subscription.
- */
+/** Represents a single usage window from the OpenCode Go subscription. */
 @Serializable
 data class OpenCodeUsageWindow(
     val status: String = "ok",
     val resetInSec: Long = 0,
-    @Serializable(with = LenientDoubleSerializer::class)
-    val usagePercent: Double = 0.0,
+    @Serializable(with = LenientDoubleSerializer::class) val usagePercent: Double = 0.0,
 ) {
-    val isRateLimited: Boolean get() = status == "rate-limited"
+    val isRateLimited: Boolean
+        get() = status == "rate-limited"
 }

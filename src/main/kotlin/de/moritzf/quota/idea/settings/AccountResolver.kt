@@ -49,9 +49,11 @@ internal object AccountResolver {
         val accounts = settings.accountsOf(type)
         val pinned = accountParam?.trim()?.takeIf { it.isNotEmpty() }
         if (pinned != null) {
-            return accounts.firstOrNull { it.id == pinned || it.name.equals(pinned, ignoreCase = true) }
+            return accounts.firstOrNull {
+                it.id == pinned || it.name.equals(pinned, ignoreCase = true)
+            }
                 ?: throw AccountResolveException(
-                    "No ${type.displayName} account named '$pinned'. Available: ${accountNames(accounts)}",
+                    "No ${type.displayName} account named '$pinned'. Available: ${accountNames(accounts)}"
                 )
         }
         if (accounts.isEmpty()) {
@@ -60,15 +62,20 @@ internal object AccountResolver {
         if (accounts.size == 1) {
             return accounts.first()
         }
-        val default = settings.defaultAccount(type)
-            ?: throw AccountResolveException(
-                "Multiple ${type.displayName} accounts; set Default or pass account=. Available: ${accountNames(accounts)}",
-            )
-        if (!allowsFailover(capability) || !isExhausted(default, quotaLookup, capability = capability, model = model)) {
+        val default =
+            settings.defaultAccount(type)
+                ?: throw AccountResolveException(
+                    "Multiple ${type.displayName} accounts; set Default or pass account=. Available: ${accountNames(accounts)}"
+                )
+        if (
+            !allowsFailover(capability) ||
+                !isExhausted(default, quotaLookup, capability = capability, model = model)
+        ) {
             return default
         }
         val failover = accounts.firstOrNull { account ->
-            !account.isDefault && account.allowFailover &&
+            !account.isDefault &&
+                account.allowFailover &&
                 !isExhausted(account, quotaLookup, capability = capability, model = model)
         }
         return failover ?: default
@@ -117,8 +124,7 @@ internal object AccountResolver {
     }
 
     private fun allowsFailover(capability: AccountCapability): Boolean {
-        return capability != AccountCapability.QUOTA &&
-            capability != AccountCapability.LIST_VOICES
+        return capability != AccountCapability.QUOTA && capability != AccountCapability.LIST_VOICES
     }
 
     private fun accountNames(accounts: List<ProviderAccount>): String {

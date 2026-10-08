@@ -11,7 +11,10 @@ class DefaultOutputFilesTest {
     @Test
     fun resolveInsideBaseKeepsRelativePath() {
         val dir = Path.of("/tmp/project").toAbsolutePath().normalize()
-        assertEquals(dir.resolve("out/hi.png"), DefaultOutputFiles.resolveInsideBase("out/hi.png", dir, null))
+        assertEquals(
+            dir.resolve("out/hi.png"),
+            DefaultOutputFiles.resolveInsideBase("out/hi.png", dir, null),
+        )
     }
 
     @Test

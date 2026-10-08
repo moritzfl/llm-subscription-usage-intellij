@@ -9,19 +9,20 @@ class ProviderListIconTest {
     @Test
     fun providerSvgsAreListSized() {
         val iconsDir = Path.of("src/main/resources/icons")
-        val names = listOf(
-            "openai",
-            "opencode",
-            "ollama",
-            "mistral",
-            "supergrok",
-            "claude",
-            "cursor",
-            "github",
-            "kimi",
-            "minimax",
-            "zai",
-        )
+        val names =
+            listOf(
+                "openai",
+                "opencode",
+                "ollama",
+                "mistral",
+                "supergrok",
+                "claude",
+                "cursor",
+                "github",
+                "kimi",
+                "minimax",
+                "zai",
+            )
         for (name in names) {
             for (file in listOf("$name.svg", "${name}_dark.svg")) {
                 val svg = iconsDir.resolve(file).readText()

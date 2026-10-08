@@ -34,50 +34,88 @@ open class ZaiImageClient(
         if (trimmedPrompt.isBlank()) {
             throw ZaiQuotaException("Image prompt is required.")
         }
-        val token = apiKey.trim().ifBlank {
-            throw ZaiQuotaException("Z.ai API key missing. Add a Z.ai API key in settings.")
-        }
-        val body = JsonSupport.json.encodeToString(
-            ZaiImageRequestDto(model = model.trim().ifBlank { DEFAULT_MODEL }, prompt = trimmedPrompt),
-        )
+        val token =
+            apiKey.trim().ifBlank {
+                throw ZaiQuotaException("Z.ai API key missing. Add a Z.ai API key in settings.")
+            }
+        val body =
+            JsonSupport.json.encodeToString(
+                ZaiImageRequestDto(
+                    model = model.trim().ifBlank { DEFAULT_MODEL },
+                    prompt = trimmedPrompt,
+                )
+            )
         val response = sendString(postJson(token, body))
         val status = response.statusCode()
         val responseBody = response.body()
         if (status == 401 || status == 403) {
-            throw ZaiQuotaException("API key invalid. Check your Z.ai API key.", status, responseBody)
+            throw ZaiQuotaException(
+                "API key invalid. Check your Z.ai API key.",
+                status,
+                responseBody,
+            )
         }
         if (status !in 200..299) {
-            throw ZaiQuotaException("Z.ai image generation failed (HTTP $status). Try again later.", status, responseBody)
+            throw ZaiQuotaException(
+                "Z.ai image generation failed (HTTP $status). Try again later.",
+                status,
+                responseBody,
+            )
         }
         val output = resolveOutput(targetFile, baseDirectory)
         if (output == null) {
             return McpJson.providerJsonOrRaw(responseBody)
         }
-        val url = firstImageUrl(responseBody)
-            ?: throw ZaiQuotaException("Z.ai image generation returned no image URL.", status, responseBody)
+        val url =
+            firstImageUrl(responseBody)
+                ?: throw ZaiQuotaException(
+                    "Z.ai image generation returned no image URL.",
+                    status,
+                    responseBody,
+                )
         val bytes = download(url)
         val parent = output.parent
         if (parent != null) {
             Files.createDirectories(parent)
         }
         Files.write(output, bytes)
-        return JsonSupport.json.encodeToString(ZaiImageWriteResult(output.toString(), bytes.size.toLong()))
+        return JsonSupport.json.encodeToString(
+            ZaiImageWriteResult(output.toString(), bytes.size.toLong())
+        )
     }
 
     private fun download(url: String): ByteArray {
-        val response = try {
-            httpClient.send(
-                HttpRequest.newBuilder().uri(URI.create(url)).timeout(Duration.ofSeconds(90)).GET().build(),
-                HttpResponse.BodyHandlers.ofByteArray(),
-            )
-        } catch (exception: IOException) {
-            throw ZaiQuotaException("Request failed. Check your connection.", 0, null, exception)
-        } catch (exception: InterruptedException) {
-            Thread.currentThread().interrupt()
-            throw ZaiQuotaException("Request failed. Check your connection.", 0, null, exception)
-        }
+        val response =
+            try {
+                httpClient.send(
+                    HttpRequest.newBuilder()
+                        .uri(URI.create(url))
+                        .timeout(Duration.ofSeconds(90))
+                        .GET()
+                        .build(),
+                    HttpResponse.BodyHandlers.ofByteArray(),
+                )
+            } catch (exception: IOException) {
+                throw ZaiQuotaException(
+                    "Request failed. Check your connection.",
+                    0,
+                    null,
+                    exception,
+                )
+            } catch (exception: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw ZaiQuotaException(
+                    "Request failed. Check your connection.",
+                    0,
+                    null,
+                    exception,
+                )
+            }
         if (response.statusCode() !in 200..299) {
-            throw ZaiQuotaException("Z.ai image download failed (HTTP ${response.statusCode()}).", response.statusCode())
+            throw ZaiQuotaException(
+                "Z.ai image download failed (HTTP ${response.statusCode()}).",
+                response.statusCode(),
+            )
         }
         return response.body()
     }
@@ -111,7 +149,9 @@ open class ZaiImageClient(
         fun createDefault(): ZaiImageClient = ZaiImageClient()
 
         internal fun firstImageUrl(body: String): String? {
-            val root = runCatching { JsonSupport.json.parseToJsonElement(body) as? JsonObject }.getOrNull() ?: return null
+            val root =
+                runCatching { JsonSupport.json.parseToJsonElement(body) as? JsonObject }.getOrNull()
+                    ?: return null
             val data = root["data"] as? JsonArray ?: return null
             val first = data.firstOrNull() as? JsonObject ?: return null
             return (first["url"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }

@@ -15,62 +15,68 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.settings.QuotaSettingsConfigurable
 import de.moritzf.quota.idea.ui.QuotaUiUtil
-import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.ui.indicator.clampPercent
 import de.moritzf.quota.idea.ui.indicator.scaleIconToQuotaStatusSize
-import de.moritzf.quota.openai.OpenAiCodexQuota
-import de.moritzf.quota.openai.OpenAiCredits
-import de.moritzf.quota.openai.OpenAiSpendControl
-import de.moritzf.quota.openai.creditsLimitWarning
-import de.moritzf.quota.openai.UsageWindow
-import de.moritzf.quota.opencode.OpenCodeUsageWindow
+import de.moritzf.quota.kimi.KimiUsageWindow
+import de.moritzf.quota.minimax.MiniMaxUsageWindow
 import de.moritzf.quota.ollama.OllamaUsageWindow
+import de.moritzf.quota.openai.OpenAiCodexQuota
+import de.moritzf.quota.openai.UsageWindow
+import de.moritzf.quota.openai.creditsLimitWarning
+import de.moritzf.quota.opencode.OpenCodeUsageWindow
 import de.moritzf.quota.zai.ZaiCountUsageWindow
 import de.moritzf.quota.zai.ZaiUsageWindow
-import de.moritzf.quota.minimax.MiniMaxUsageWindow
-import de.moritzf.quota.kimi.KimiUsageWindow
-import org.intellij.lang.annotations.Language
 import java.awt.Component
 import java.awt.Cursor
 import java.awt.Dimension
-import java.awt.Font
 import java.awt.FlowLayout
+import java.awt.Font
 import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
+import java.time.Duration
 import javax.swing.Icon
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.JProgressBar
 import javax.swing.SwingUtilities
 import kotlin.math.roundToInt
-import java.time.Duration
 import kotlin.time.Instant
+import org.intellij.lang.annotations.Language
 
-internal fun resetTokenTooltip(action: String, expirations: List<Instant?>, availableCount: Int = expirations.size): String {
+internal fun resetTokenTooltip(
+    action: String,
+    expirations: List<Instant?>,
+    availableCount: Int = expirations.size,
+): String {
     return buildString {
         append("<html>")
         append(QuotaUiUtil.escapeHtml(action))
         repeat(maxOf(availableCount, expirations.size)) { index ->
             append("<br>Token ${index + 1}: ")
-            append(QuotaUiUtil.escapeHtml(QuotaUiUtil.formatExpiry(expirations.getOrNull(index)) ?: "Expiration unknown"))
+            append(
+                QuotaUiUtil.escapeHtml(
+                    QuotaUiUtil.formatExpiry(expirations.getOrNull(index)) ?: "Expiration unknown"
+                )
+            )
         }
         append("</html>")
     }
 }
 
 internal fun createOpenSettingsButton(onOpenSettings: () -> Unit): ActionLink {
-    return ActionLink("") { onOpenSettings() }.apply {
-        icon = AllIcons.General.Settings
-        autoHideOnDisable = false
-        toolTipText = "Open settings"
-        margin = JBUI.emptyInsets()
-        border = JBUI.Borders.empty()
-        isBorderPainted = false
-        isContentAreaFilled = false
-        isFocusPainted = false
-        isOpaque = false
-        cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-    }
+    return ActionLink("") { onOpenSettings() }
+        .apply {
+            icon = AllIcons.General.Settings
+            autoHideOnDisable = false
+            toolTipText = "Open settings"
+            margin = JBUI.emptyInsets()
+            border = JBUI.Borders.empty()
+            isBorderPainted = false
+            isContentAreaFilled = false
+            isFocusPainted = false
+            isOpaque = false
+            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+        }
 }
 
 internal fun createPopupStack(): NonOpaquePanel {
@@ -113,7 +119,11 @@ internal fun createLoadingWindowBlock(label: String, top: Int): JComponent {
     }
 }
 
-internal fun createOpenCodeWindowBlock(window: OpenCodeUsageWindow, label: String, top: Int): JComponent {
+internal fun createOpenCodeWindowBlock(
+    window: OpenCodeUsageWindow,
+    label: String,
+    top: Int,
+): JComponent {
     val percent = clampPercent(window.usagePercent.roundToInt())
     val resetText = QuotaUiUtil.formatResetInSeconds(window.resetInSec)
     var info = "$percent% used"
@@ -150,13 +160,15 @@ internal fun openSettings(project: Project, component: Component, beforeOpen: ()
     }
 
     val modality = ModalityState.stateForComponent(component)
-    ApplicationManager.getApplication().invokeLater(
-        {
-            beforeOpen()
-            ShowSettingsUtil.getInstance().showSettingsDialog(project, QuotaSettingsConfigurable::class.java)
-        },
-        modality,
-    )
+    ApplicationManager.getApplication()
+        .invokeLater(
+            {
+                beforeOpen()
+                ShowSettingsUtil.getInstance()
+                    .showSettingsDialog(project, QuotaSettingsConfigurable::class.java)
+            },
+            modality,
+        )
 }
 
 internal fun describeWindowLabel(window: UsageWindow, fallbackLabel: String): String {
@@ -185,7 +197,9 @@ internal fun getLimitWarning(quota: OpenAiCodexQuota?): String? {
         return null
     }
 
-    quota.creditsLimitWarning()?.let { return it }
+    quota.creditsLimitWarning()?.let {
+        return it
+    }
 
     return when {
         quota.limitReached == true -> "Codex limit reached"
@@ -194,11 +208,9 @@ internal fun getLimitWarning(quota: OpenAiCodexQuota?): String? {
     }
 }
 
-@Language("RegExp")
-private const val PLAN_WORD_REGEX = "[_\\s]+"
+@Language("RegExp") private const val PLAN_WORD_REGEX = "[_\\s]+"
 
-@Language("RegExp")
-private const val SELF_SERVE_PREFIX_REGEX = "(?i)^self_serve[_\\s]*"
+@Language("RegExp") private const val SELF_SERVE_PREFIX_REGEX = "(?i)^self_serve[_\\s]*"
 
 internal fun String.toDisplayLabel(): String {
     return trim()
@@ -219,9 +231,7 @@ internal fun createPopupTitleLabel(): JBLabel {
 }
 
 internal fun createWindowTitleLabel(text: String): TruncatingPopupLabel {
-    return TruncatingPopupLabel(text).apply {
-        font = font.deriveFont(font.style or Font.BOLD)
-    }
+    return TruncatingPopupLabel(text).apply { font = font.deriveFont(font.style or Font.BOLD) }
 }
 
 internal fun createSectionTitleLabel(text: String, icon: Icon? = null): JBLabel {
@@ -243,9 +253,7 @@ internal fun createWarningLabel(text: String): TruncatingPopupLabel {
 }
 
 internal fun createMutedLabel(text: String): JBLabel {
-    return JBLabel(text).apply {
-        foreground = JBColor.GRAY
-    }
+    return JBLabel(text).apply { foreground = JBColor.GRAY }
 }
 
 internal fun createUpdatedAtRow(items: List<UpdatedAtItem>): JComponent {
@@ -254,10 +262,12 @@ internal fun createUpdatedAtRow(items: List<UpdatedAtItem>): JComponent {
         add(createMutedLabel("Updated:"))
         items.forEachIndexed { index, item ->
             item.icons.forEach { providerIcon ->
-                add(JBLabel().apply {
-                    icon = scaleIconToQuotaStatusSize(providerIcon.icon, this)
-                    toolTipText = providerIcon.label
-                })
+                add(
+                    JBLabel().apply {
+                        icon = scaleIconToQuotaStatusSize(providerIcon.icon, this)
+                        toolTipText = providerIcon.label
+                    }
+                )
             }
             add(createMutedLabel(item.text))
             if (index < items.lastIndex) {
@@ -273,9 +283,9 @@ internal data class UpdatedAtItem(
 )
 
 internal fun groupUpdatedAtItems(items: List<UpdatedAtItem>): List<UpdatedAtItem> {
-    return items.groupBy { it.text }.map { (text, group) ->
-        UpdatedAtItem(icons = group.flatMap { it.icons }, text = text)
-    }
+    return items
+        .groupBy { it.text }
+        .map { (text, group) -> UpdatedAtItem(icons = group.flatMap { it.icons }, text = text) }
 }
 
 internal data class UpdatedAtIcon(
@@ -296,7 +306,11 @@ internal fun parseDisplayMessagePercent(message: String): Int? {
     return match.groupValues[1].toIntOrNull()?.let(::clampPercent)
 }
 
-internal fun createOllamaWindowBlock(window: OllamaUsageWindow, label: String, top: Int): JComponent {
+internal fun createOllamaWindowBlock(
+    window: OllamaUsageWindow,
+    label: String,
+    top: Int,
+): JComponent {
     val percent = clampPercent(window.usagePercent.roundToInt())
     val resetText = QuotaUiUtil.formatReset(window.resetsAt)
     var info = "$percent% used"
@@ -328,7 +342,11 @@ internal fun createZaiWindowBlock(window: ZaiUsageWindow, label: String, top: In
     }
 }
 
-internal fun createZaiCountWindowBlock(window: ZaiCountUsageWindow, label: String, top: Int): JComponent {
+internal fun createZaiCountWindowBlock(
+    window: ZaiCountUsageWindow,
+    label: String,
+    top: Int,
+): JComponent {
     val percent = clampPercent(window.usagePercent.roundToInt())
     val resetText = QuotaUiUtil.formatReset(window.resetsAt)
     var info = "$percent% used"
@@ -344,7 +362,11 @@ internal fun createZaiCountWindowBlock(window: ZaiCountUsageWindow, label: Strin
     }
 }
 
-internal fun createMiniMaxWindowBlock(window: MiniMaxUsageWindow, label: String, top: Int): JComponent {
+internal fun createMiniMaxWindowBlock(
+    window: MiniMaxUsageWindow,
+    label: String,
+    top: Int,
+): JComponent {
     val percent = clampPercent(window.usagePercent.roundToInt())
     val resetText = QuotaUiUtil.formatReset(window.resetsAt)
     var info = "$percent% used"
@@ -376,10 +398,11 @@ internal fun createCompactSeparator(): JComponent {
 }
 
 /**
- * Reusable panel for a single quota window block (title, info, progress bar).
- * Creates its child components once and updates them in-place to avoid popup flicker.
+ * Reusable panel for a single quota window block (title, info, progress bar). Creates its child
+ * components once and updates them in-place to avoid popup flicker.
  */
-internal class WindowBlockPanel(topInset: Int = 3) : JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)) {
+internal class WindowBlockPanel(topInset: Int = 3) :
+    JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)) {
     private val titleLabel = createWindowTitleLabel("")
     private val infoLabel = TruncatingPopupLabel("").apply { border = JBUI.Borders.emptyTop(1) }
     private val progressBar = createUsageProgressBar(0).apply { border = JBUI.Borders.emptyTop(1) }
@@ -423,20 +446,20 @@ internal class WindowBlockPanel(topInset: Int = 3) : JPanel(VerticalFlowLayout(V
     }
 }
 
-/**
- * Shows the full label text as a tooltip when the rendered text is clipped in the popup width.
- */
+/** Shows the full label text as a tooltip when the rendered text is clipped in the popup width. */
 internal class TruncatingPopupLabel(initialText: String = "") : JBLabel(initialText) {
     init {
-        addComponentListener(object : ComponentAdapter() {
-            override fun componentResized(e: ComponentEvent?) {
-                updateTruncationTooltip()
-            }
+        addComponentListener(
+            object : ComponentAdapter() {
+                override fun componentResized(e: ComponentEvent?) {
+                    updateTruncationTooltip()
+                }
 
-            override fun componentShown(e: ComponentEvent?) {
-                updateTruncationTooltip()
+                override fun componentShown(e: ComponentEvent?) {
+                    updateTruncationTooltip()
+                }
             }
-        })
+        )
     }
 
     override fun setText(text: String?) {
@@ -446,7 +469,9 @@ internal class TruncatingPopupLabel(initialText: String = "") : JBLabel(initialT
 
     private fun updateTruncationTooltip() {
         val fullText = text.orEmpty()
-        toolTipText = fullText.takeIf { fullText.isNotBlank() && isLabelTextTruncated(this, fullText) }
+        toolTipText = fullText.takeIf {
+            fullText.isNotBlank() && isLabelTextTruncated(this, fullText)
+        }
     }
 }
 

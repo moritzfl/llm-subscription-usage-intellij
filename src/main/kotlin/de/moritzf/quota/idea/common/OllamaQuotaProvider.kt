@@ -8,13 +8,13 @@ import de.moritzf.quota.ollama.OllamaQuotaException
 import kotlin.time.Clock
 import kotlin.time.Instant
 
-/**
- * Fetches and caches Ollama Cloud quota data via the official usage API.
- */
+/** Fetches and caches Ollama Cloud quota data via the official usage API. */
 class OllamaQuotaProvider(
     override val accountId: String = QuotaProviderType.OLLAMA.id,
     private val ollamaClient: OllamaQuotaClient = OllamaQuotaClient(),
-    private val apiKeyProvider: () -> String? = { OllamaApiKeyStore.forAccount(accountId).loadBlocking() },
+    private val apiKeyProvider: () -> String? = {
+        OllamaApiKeyStore.forAccount(accountId).loadBlocking()
+    },
     private val monthlyResetAnchorProvider: () -> Instant? = { null },
     private val nowProvider: () -> Instant = { Clock.System.now() },
 ) : CachedQuotaProvider<OllamaQuota>() {
@@ -57,5 +57,9 @@ class OllamaQuotaProvider(
     }
 
     private fun applyConfiguredMonthlyReset(quota: OllamaQuota): OllamaQuota =
-        OllamaQuotaClient.applyConfiguredMonthlyReset(quota, monthlyResetAnchorProvider(), nowProvider())
+        OllamaQuotaClient.applyConfiguredMonthlyReset(
+            quota,
+            monthlyResetAnchorProvider(),
+            nowProvider(),
+        )
 }

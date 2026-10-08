@@ -6,8 +6,7 @@ internal enum class ProviderListStatus {
     OK,
     ERROR,
     WARNING,
-    NEVER_CONFIGURED,
-    ;
+    NEVER_CONFIGURED;
 
     companion object {
         fun resolve(
@@ -18,12 +17,13 @@ internal enum class ProviderListStatus {
             return when (auth) {
                 ProviderAuthState.UNKNOWN,
                 ProviderAuthState.UNAUTHENTICATED -> NEVER_CONFIGURED
-                ProviderAuthState.AUTHENTICATED -> when {
-                    hasQuota && !hasError -> OK
-                    hasError && hasQuota -> WARNING
-                    hasError -> ERROR
-                    else -> WARNING
-                }
+                ProviderAuthState.AUTHENTICATED ->
+                    when {
+                        hasQuota && !hasError -> OK
+                        hasError && hasQuota -> WARNING
+                        hasError -> ERROR
+                        else -> WARNING
+                    }
             }
         }
 
@@ -33,10 +33,11 @@ internal enum class ProviderListStatus {
                 ProviderListStatus.OK -> "Configured"
                 ProviderListStatus.NEVER_CONFIGURED -> "Not configured"
                 ProviderListStatus.ERROR -> detail.ifBlank { "Quota fetch failed" }
-                ProviderListStatus.WARNING -> when {
-                    detail.isNotEmpty() -> "Using last good quota. $detail"
-                    else -> "Configured, waiting for first quota"
-                }
+                ProviderListStatus.WARNING ->
+                    when {
+                        detail.isNotEmpty() -> "Using last good quota. $detail"
+                        else -> "Configured, waiting for first quota"
+                    }
             }
         }
     }

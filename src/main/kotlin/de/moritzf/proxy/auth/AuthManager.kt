@@ -1,19 +1,21 @@
 package de.moritzf.proxy.auth
-import de.moritzf.proxy.server.hasKey
+
 import de.moritzf.proxy.config.ServerConfig
+import de.moritzf.proxy.server.hasKey
 import de.moritzf.proxy.util.JwtParser
+import java.net.http.HttpClient
+import java.util.concurrent.locks.ReentrantLock
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.longOrNull
-import java.net.http.HttpClient
-import java.util.concurrent.locks.ReentrantLock
+
 class AuthManager(
     private val config: ServerConfig,
     private val httpClient: HttpClient,
 ) : CredentialsProvider {
     private val lock = ReentrantLock()
-    @Volatile
-    private var current: AuthLoader.AuthResult? = null
+    @Volatile private var current: AuthLoader.AuthResult? = null
+
     fun ensureFresh(): AuthLoader.AuthResult {
         lock.lock()
         try {
@@ -22,37 +24,39 @@ class AuthManager(
             if (existing != null && !isTokenExpiringSoon(existing.accessToken)) {
                 return existing
             }
-            val loaded = AuthLoader.loadAuthTokens(
-                config.oauthFilePath,
-                config.oauthClientId,
-                null, // issuer derived from defaults
-                config.oauthTokenUrl,
-                httpClient,
-            )
+            val loaded =
+                AuthLoader.loadAuthTokens(
+                    config.oauthFilePath,
+                    config.oauthClientId,
+                    null, // issuer derived from defaults
+                    config.oauthTokenUrl,
+                    httpClient,
+                )
             current = loaded
             return loaded
         } finally {
             lock.unlock()
         }
     }
+
     /**
-     * Drops the cached token and reloads from the auth file. Returns true only when the
-     * reload produced a different access token than the rejected one: reloading the same
+     * Drops the cached token and reloads from the auth file. Returns true only when the reload
+     * produced a different access token than the rejected one: reloading the same
      * locally-valid-but-upstream-rejected token would make a retry pointless.
      */
-
     override fun refreshAfterUnauthorized(rejectedAuthorizationHeader: String?): Boolean {
         lock.lock()
         try {
             current = null
-            val loaded = AuthLoader.loadAuthTokens(
-                config.oauthFilePath,
-                config.oauthClientId,
-                null,
-                config.oauthTokenUrl,
-                httpClient,
-                forceRefresh = true,
-            )
+            val loaded =
+                AuthLoader.loadAuthTokens(
+                    config.oauthFilePath,
+                    config.oauthClientId,
+                    null,
+                    config.oauthTokenUrl,
+                    httpClient,
+                    forceRefresh = true,
+                )
             current = loaded
             if (loaded.accessToken.isEmpty()) {
                 return false
@@ -76,17 +80,21 @@ class AuthManager(
             "chatgpt-account-id" to auth.accountId,
         )
     }
-    @Suppress("unused")
-    fun getCurrent(): AuthLoader.AuthResult? = current
+
+    @Suppress("unused") fun getCurrent(): AuthLoader.AuthResult? = current
+
     companion object {
         private const val REFRESH_EXPIRY_MARGIN_MS = 5 * 60 * 1000L
+
         private fun stripBearer(authorizationHeader: String?): String? {
             if (authorizationHeader == null) {
                 return null
             }
             val value = authorizationHeader.trim()
-            return if (value.startsWith("Bearer ", ignoreCase = true)) value.substring(7).trim() else value
+            return if (value.startsWith("Bearer ", ignoreCase = true)) value.substring(7).trim()
+            else value
         }
+
         private fun isTokenExpiringSoon(accessToken: String?): Boolean {
             if (accessToken.isNullOrEmpty()) {
                 return true

@@ -1,8 +1,7 @@
 package de.moritzf.quota.openai
 
-import kotlin.time.Clock
-import kotlin.time.Instant
-import org.intellij.lang.annotations.Language
+import de.moritzf.quota.idea.ui.popup.getLimitWarning
+import de.moritzf.quota.shared.JsonSupport
 import java.net.Authenticator
 import java.net.CookieHandler
 import java.net.ProxySelector
@@ -12,9 +11,6 @@ import java.net.http.HttpHeaders
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
-import de.moritzf.quota.shared.JsonSupport
-import de.moritzf.quota.idea.ui.popup.getLimitWarning
-import de.moritzf.quota.openai.creditsLimitWarning
 import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
@@ -22,12 +18,16 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLParameters
 import javax.net.ssl.SSLSession
 import kotlin.test.*
+import kotlin.time.Clock
+import kotlin.time.Instant
+import org.intellij.lang.annotations.Language
 
 class OpenAiCodexQuotaClientTest {
     @Test
     fun customDeserializationMapsTopLevelAndWindowFields() {
         @Language("JSON")
-        val json = """
+        val json =
+            """
             {
               "user_id": "user-1",
               "account_id": "account-1",
@@ -48,7 +48,8 @@ class OpenAiCodexQuotaClientTest {
                 }
               }
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = deserializeQuota(json)
 
@@ -72,14 +73,16 @@ class OpenAiCodexQuotaClientTest {
     @Test
     fun usedPercentAcceptsIntegerAndNumericString() {
         @Language("JSON")
-        val json = """
+        val json =
+            """
             {
               "rate_limit": {
                 "primary_window": { "used_percent": 12, "limit_window_seconds": 18000 },
                 "secondary_window": { "used_percent": "45.6", "limit_window_seconds": 604800 }
               }
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = deserializeQuota(json)
 
@@ -90,14 +93,16 @@ class OpenAiCodexQuotaClientTest {
     @Test
     fun customDeserializationClampsPercentValuesAndAllowsMissingOptionalWindowFields() {
         @Language("JSON")
-        val json = """
+        val json =
+            """
             {
               "rate_limit": {
                 "primary_window": { "used_percent": -5.0 },
                 "secondary_window": { "used_percent": 101.0 }
               }
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = deserializeQuota(json)
 
@@ -115,14 +120,16 @@ class OpenAiCodexQuotaClientTest {
     @Test
     fun fetchQuotaAcceptsStateOnlyResponsesWhenUsageFlagsArePresent() {
         @Language("JSON")
-        val json = """
+        val json =
+            """
             {
               "rate_limit": {
                 "allowed": false,
                 "limit_reached": true
               }
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val client = newClientReturning(200, json)
         val quota = client.fetchQuota("token", "account-1")
@@ -136,7 +143,8 @@ class OpenAiCodexQuotaClientTest {
     @Test
     fun fetchQuotaKeepsParsableSectionsWhenOtherBlocksAreMalformed() {
         @Language("JSON")
-        val json = """
+        val json =
+            """
             {
               "plan_type": "plus",
               "rate_limit": {
@@ -152,7 +160,8 @@ class OpenAiCodexQuotaClientTest {
                 { "limit_name": "broken_entry", "rate_limit": { "primary_window": { "used_percent": "not-a-number" } } }
               ]
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val client = newClientReturning(200, json)
         val quota = client.fetchQuota("token", "account-1")
@@ -170,16 +179,17 @@ class OpenAiCodexQuotaClientTest {
     @Test
     fun fetchQuotaThrowsWhenNoUsageStateIsPresent() {
         @Language("JSON")
-        val json = """
+        val json =
+            """
             {
               "rate_limit": {}
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val client = newClientReturning(200, json)
-        val exception = assertFailsWith<OpenAiCodexQuotaException> {
-            client.fetchQuota("token", "account-1")
-        }
+        val exception =
+            assertFailsWith<OpenAiCodexQuotaException> { client.fetchQuota("token", "account-1") }
 
         assertEquals(200, exception.statusCode)
         assertTrue(exception.message.orEmpty().contains("did not include usable quota state"))
@@ -189,7 +199,8 @@ class OpenAiCodexQuotaClientTest {
     fun fetchQuotaAddsClientMetadata() {
         val before = Clock.System.now()
         @Language("JSON")
-        val json = """
+        val json =
+            """
             {
               "rate_limit": {
                 "primary_window": {
@@ -199,7 +210,8 @@ class OpenAiCodexQuotaClientTest {
                 }
               }
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val client = newClientReturning(200, json)
         val quota = client.fetchQuota("token", "account-1")
@@ -214,7 +226,8 @@ class OpenAiCodexQuotaClientTest {
     @Test
     fun customDeserializationMapsCodeReviewRateLimitFromAnonymizedPayload() {
         @Language("JSON")
-        val json = """
+        val json =
+            """
             {
               "user_id": "user-anon-1",
               "account_id": "account-anon-1",
@@ -246,7 +259,8 @@ class OpenAiCodexQuotaClientTest {
               "credits": null,
               "promo": null
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = deserializeQuota(json)
 
@@ -271,7 +285,11 @@ class OpenAiCodexQuotaClientTest {
 
     @Test
     fun fetchQuotaParsesBusinessMemberWithAssignedCreditsFixture() {
-        val client = newClientReturning(200, OpenAiUsageResponseFixtures.BUSINESS_MEMBER_WITH_ASSIGNED_CREDITS)
+        val client =
+            newClientReturning(
+                200,
+                OpenAiUsageResponseFixtures.BUSINESS_MEMBER_WITH_ASSIGNED_CREDITS,
+            )
         val quota = client.fetchQuota("token", OpenAiUsageResponseFixtures.WORKSPACE_ACCOUNT_ID)
 
         assertEquals("self_serve_business_usage_based", quota.planType)
@@ -283,7 +301,11 @@ class OpenAiCodexQuotaClientTest {
 
     @Test
     fun fetchQuotaParsesBusinessMemberAssignedCreditsDepletedFixture() {
-        val client = newClientReturning(200, OpenAiUsageResponseFixtures.BUSINESS_MEMBER_ASSIGNED_CREDITS_DEPLETED)
+        val client =
+            newClientReturning(
+                200,
+                OpenAiUsageResponseFixtures.BUSINESS_MEMBER_ASSIGNED_CREDITS_DEPLETED,
+            )
         val quota = client.fetchQuota("token", OpenAiUsageResponseFixtures.WORKSPACE_ACCOUNT_ID)
 
         assertEquals(false, quota.credits?.hasCredits)
@@ -293,7 +315,11 @@ class OpenAiCodexQuotaClientTest {
 
     @Test
     fun fetchQuotaParsesPlusWithMessageRangeCreditsFixture() {
-        val client = newClientReturning(200, OpenAiUsageResponseFixtures.PLUS_WITH_RATE_LIMITS_AND_ZERO_PURCHASED_CREDITS)
+        val client =
+            newClientReturning(
+                200,
+                OpenAiUsageResponseFixtures.PLUS_WITH_RATE_LIMITS_AND_ZERO_PURCHASED_CREDITS,
+            )
         val quota = client.fetchQuota("token", "user-anon-plus-1")
 
         assertEquals("plus", quota.planType)
@@ -307,7 +333,8 @@ class OpenAiCodexQuotaClientTest {
 
     @Test
     fun fetchQuotaParsesFreeWeeklyRateLimitFixture() {
-        val client = newClientReturning(200, OpenAiUsageResponseFixtures.FREE_WITH_WEEKLY_RATE_LIMIT)
+        val client =
+            newClientReturning(200, OpenAiUsageResponseFixtures.FREE_WITH_WEEKLY_RATE_LIMIT)
         val quota = client.fetchQuota("token", "user-anon-free-1")
 
         assertEquals("free", quota.planType)
@@ -325,7 +352,8 @@ class OpenAiCodexQuotaClientTest {
 
     @Test
     fun fetchQuotaParsesProliteWithAdditionalRateLimitsFixture() {
-        val client = newClientReturning(200, OpenAiUsageResponseFixtures.PROLITE_WITH_ADDITIONAL_RATE_LIMITS)
+        val client =
+            newClientReturning(200, OpenAiUsageResponseFixtures.PROLITE_WITH_ADDITIONAL_RATE_LIMITS)
         val quota = client.fetchQuota("token", "user-anon-prolite-1")
 
         assertEquals("prolite", quota.planType)
@@ -354,7 +382,11 @@ class OpenAiCodexQuotaClientTest {
 
     @Test
     fun fetchQuotaParsesTeamObjectIndividualSpendLimit() {
-        val client = newClientReturning(200, OpenAiUsageResponseFixtures.TEAM_WITH_OBJECT_INDIVIDUAL_SPEND_LIMIT)
+        val client =
+            newClientReturning(
+                200,
+                OpenAiUsageResponseFixtures.TEAM_WITH_OBJECT_INDIVIDUAL_SPEND_LIMIT,
+            )
         val quota = client.fetchQuota("token", "account-anon-team-1")
 
         assertEquals("team", quota.planType)
@@ -374,7 +406,8 @@ class OpenAiCodexQuotaClientTest {
 
     @Test
     fun fetchQuotaParsesWorkspaceOwnerCreditsDepletedFixture() {
-        val client = newClientReturning(200, OpenAiUsageResponseFixtures.BUSINESS_OWNER_CREDITS_DEPLETED)
+        val client =
+            newClientReturning(200, OpenAiUsageResponseFixtures.BUSINESS_OWNER_CREDITS_DEPLETED)
         val quota = client.fetchQuota("token", OpenAiUsageResponseFixtures.WORKSPACE_ACCOUNT_ID)
 
         assertEquals("self_serve_business_usage_based", quota.planType)
@@ -385,7 +418,8 @@ class OpenAiCodexQuotaClientTest {
 
     @Test
     fun fetchQuotaParsesWorkspaceOwnerUsageLimitReachedFixture() {
-        val client = newClientReturning(200, OpenAiUsageResponseFixtures.BUSINESS_OWNER_USAGE_LIMIT_REACHED)
+        val client =
+            newClientReturning(200, OpenAiUsageResponseFixtures.BUSINESS_OWNER_USAGE_LIMIT_REACHED)
         val quota = client.fetchQuota("token", OpenAiUsageResponseFixtures.WORKSPACE_ACCOUNT_ID)
 
         assertEquals(true, quota.credits?.hasCredits)
@@ -395,7 +429,8 @@ class OpenAiCodexQuotaClientTest {
 
     @Test
     fun fetchQuotaParsesWorkspaceMemberUsageLimitReachedFixture() {
-        val client = newClientReturning(200, OpenAiUsageResponseFixtures.BUSINESS_MEMBER_USAGE_LIMIT_REACHED)
+        val client =
+            newClientReturning(200, OpenAiUsageResponseFixtures.BUSINESS_MEMBER_USAGE_LIMIT_REACHED)
         val quota = client.fetchQuota("token", OpenAiUsageResponseFixtures.WORKSPACE_ACCOUNT_ID)
 
         assertEquals(true, quota.credits?.hasCredits)
@@ -405,7 +440,11 @@ class OpenAiCodexQuotaClientTest {
 
     @Test
     fun fetchQuotaParsesBusinessMemberWithAssignedCreditsAndBalanceFixture() {
-        val client = newClientReturning(200, OpenAiUsageResponseFixtures.BUSINESS_MEMBER_WITH_ASSIGNED_CREDITS_AND_BALANCE)
+        val client =
+            newClientReturning(
+                200,
+                OpenAiUsageResponseFixtures.BUSINESS_MEMBER_WITH_ASSIGNED_CREDITS_AND_BALANCE,
+            )
         val quota = client.fetchQuota("token", OpenAiUsageResponseFixtures.WORKSPACE_ACCOUNT_ID)
 
         assertEquals("self_serve_business_usage_based", quota.planType)
@@ -418,7 +457,11 @@ class OpenAiCodexQuotaClientTest {
 
     @Test
     fun fetchQuotaParsesBusinessMemberWithUnlimitedCreditsFixture() {
-        val client = newClientReturning(200, OpenAiUsageResponseFixtures.BUSINESS_MEMBER_WITH_UNLIMITED_CREDITS)
+        val client =
+            newClientReturning(
+                200,
+                OpenAiUsageResponseFixtures.BUSINESS_MEMBER_WITH_UNLIMITED_CREDITS,
+            )
         val quota = client.fetchQuota("token", OpenAiUsageResponseFixtures.WORKSPACE_ACCOUNT_ID)
 
         assertEquals(true, quota.credits?.unlimited)
@@ -428,7 +471,11 @@ class OpenAiCodexQuotaClientTest {
 
     @Test
     fun fetchQuotaParsesBusinessMemberIndividualSpendLimitReachedFixture() {
-        val client = newClientReturning(200, OpenAiUsageResponseFixtures.BUSINESS_MEMBER_INDIVIDUAL_SPEND_LIMIT_REACHED)
+        val client =
+            newClientReturning(
+                200,
+                OpenAiUsageResponseFixtures.BUSINESS_MEMBER_INDIVIDUAL_SPEND_LIMIT_REACHED,
+            )
         val quota = client.fetchQuota("token", OpenAiUsageResponseFixtures.WORKSPACE_ACCOUNT_ID)
 
         assertEquals(true, quota.spendControl?.reached)
@@ -439,7 +486,11 @@ class OpenAiCodexQuotaClientTest {
 
     @Test
     fun fetchQuotaParsesBusinessOwnerOverageLimitReachedFixture() {
-        val client = newClientReturning(200, OpenAiUsageResponseFixtures.BUSINESS_OWNER_OVERAGE_LIMIT_REACHED)
+        val client =
+            newClientReturning(
+                200,
+                OpenAiUsageResponseFixtures.BUSINESS_OWNER_OVERAGE_LIMIT_REACHED,
+            )
         val quota = client.fetchQuota("token", OpenAiUsageResponseFixtures.WORKSPACE_ACCOUNT_ID)
 
         assertEquals(true, quota.credits?.overageLimitReached)
@@ -449,7 +500,11 @@ class OpenAiCodexQuotaClientTest {
 
     @Test
     fun fetchQuotaParsesBusinessMemberOmittingOptionalFieldsFixture() {
-        val client = newClientReturning(200, OpenAiUsageResponseFixtures.BUSINESS_MEMBER_OMITTING_OPTIONAL_FIELDS)
+        val client =
+            newClientReturning(
+                200,
+                OpenAiUsageResponseFixtures.BUSINESS_MEMBER_OMITTING_OPTIONAL_FIELDS,
+            )
         val quota = client.fetchQuota("token", OpenAiUsageResponseFixtures.WORKSPACE_ACCOUNT_ID)
 
         assertEquals("self_serve_business_usage_based", quota.planType)
@@ -463,7 +518,8 @@ class OpenAiCodexQuotaClientTest {
     @Test
     fun fetchQuotaAcceptsAssignedCreditsOnlyResponses() {
         @Language("JSON")
-        val json = """
+        val json =
+            """
             {
               "plan_type": "self_serve_business_usage_based",
               "credits": {
@@ -471,7 +527,8 @@ class OpenAiCodexQuotaClientTest {
                 "unlimited": false
               }
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val client = newClientReturning(200, json)
         val quota = client.fetchQuota("token", "account-1")
@@ -483,7 +540,8 @@ class OpenAiCodexQuotaClientTest {
     @Test
     fun customDeserializationMapsEmbeddedResetCreditsCount() {
         @Language("JSON")
-        val json = """
+        val json =
+            """
             {
               "rate_limit": {
                 "primary_window": { "used_percent": 12.3 }
@@ -492,7 +550,8 @@ class OpenAiCodexQuotaClientTest {
                 "available_count": 2
               }
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = deserializeQuota(json)
 
@@ -503,7 +562,8 @@ class OpenAiCodexQuotaClientTest {
     @Test
     fun customDeserializationMapsAdditionalRateLimitsGenerically() {
         @Language("JSON")
-        val json = """
+        val json =
+            """
             {
               "additional_rate_limits": [
                 {
@@ -531,7 +591,8 @@ class OpenAiCodexQuotaClientTest {
                 }
               ]
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = deserializeQuota(json)
 
@@ -550,15 +611,18 @@ class OpenAiCodexQuotaClientTest {
     @Test
     fun fetchQuotaLoadsAvailableResetCredits() {
         @Language("JSON")
-        val usageJson = """
+        val usageJson =
+            """
             {
               "rate_limit": {
                 "primary_window": { "used_percent": 12.3 }
               }
             }
-        """.trimIndent()
+            """
+                .trimIndent()
         @Language("JSON")
-        val resetsJson = """
+        val resetsJson =
+            """
             {
               "available_count": 2,
               "total_earned_count": 5,
@@ -581,16 +645,19 @@ class OpenAiCodexQuotaClientTest {
                 { "id": "credit-unknown", "status": "future_status" }
               ]
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
-        val client = OpenAiCodexQuotaClient(
-            RoutingStubHttpClient(
-                mapOf(
-                    "/backend-api/wham/usage" to StubResponse(200, usageJson),
-                    "/backend-api/wham/rate-limit-reset-credits" to StubResponse(200, resetsJson),
-                ),
-            ),
-        )
+        val client =
+            OpenAiCodexQuotaClient(
+                RoutingStubHttpClient(
+                    mapOf(
+                        "/backend-api/wham/usage" to StubResponse(200, usageJson),
+                        "/backend-api/wham/rate-limit-reset-credits" to
+                            StubResponse(200, resetsJson),
+                    )
+                )
+            )
         val quota = client.fetchQuota("token", "account-1")
 
         assertEquals(2, quota.resetCreditsAvailableCount)
@@ -602,7 +669,8 @@ class OpenAiCodexQuotaClientTest {
     @Test
     fun customDeserializationMapsEmbeddedAvailableResetExpirations() {
         @Language("JSON")
-        val json = """
+        val json =
+            """
             {
               "rate_limit": { "primary_window": { "used_percent": 12.3 } },
               "rate_limit_reset_credits": {
@@ -612,7 +680,8 @@ class OpenAiCodexQuotaClientTest {
                 ]
               }
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val quota = deserializeQuota(json)
 
@@ -624,22 +693,25 @@ class OpenAiCodexQuotaClientTest {
     @Test
     fun fetchQuotaIgnoresUnavailableResetCreditsEndpoint() {
         @Language("JSON")
-        val usageJson = """
+        val usageJson =
+            """
             {
               "rate_limit": {
                 "primary_window": { "used_percent": 12.3 }
               }
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
-        val client = OpenAiCodexQuotaClient(
-            RoutingStubHttpClient(
-                mapOf(
-                    "/backend-api/wham/usage" to StubResponse(200, usageJson),
-                    "/backend-api/wham/rate-limit-reset-credits" to StubResponse(404, "{}"),
-                ),
-            ),
-        )
+        val client =
+            OpenAiCodexQuotaClient(
+                RoutingStubHttpClient(
+                    mapOf(
+                        "/backend-api/wham/usage" to StubResponse(200, usageJson),
+                        "/backend-api/wham/rate-limit-reset-credits" to StubResponse(404, "{}"),
+                    )
+                )
+            )
         val quota = client.fetchQuota("token", "account-1")
 
         assertEquals(0, quota.resetCreditsAvailableCount)
@@ -649,7 +721,8 @@ class OpenAiCodexQuotaClientTest {
     @Test
     fun fetchQuotaKeepsEmbeddedResetCreditsWhenSeparateEndpointUnavailable() {
         @Language("JSON")
-        val usageJson = """
+        val usageJson =
+            """
             {
               "rate_limit": {
                 "primary_window": { "used_percent": 12.3 }
@@ -658,16 +731,18 @@ class OpenAiCodexQuotaClientTest {
                 "available_count": 2
               }
             }
-        """.trimIndent()
+            """
+                .trimIndent()
 
-        val client = OpenAiCodexQuotaClient(
-            RoutingStubHttpClient(
-                mapOf(
-                    "/backend-api/wham/usage" to StubResponse(200, usageJson),
-                    "/backend-api/wham/rate-limit-reset-credits" to StubResponse(404, "{}"),
-                ),
-            ),
-        )
+        val client =
+            OpenAiCodexQuotaClient(
+                RoutingStubHttpClient(
+                    mapOf(
+                        "/backend-api/wham/usage" to StubResponse(200, usageJson),
+                        "/backend-api/wham/rate-limit-reset-credits" to StubResponse(404, "{}"),
+                    )
+                )
+            )
         val quota = client.fetchQuota("token", "account-1")
 
         assertEquals(2, quota.resetCreditsAvailableCount)
@@ -676,26 +751,32 @@ class OpenAiCodexQuotaClientTest {
 
     @Test
     fun consumeResetCreditPostsCreditAndRedeemRequest() {
-        @Language("JSON")
-        val responseJson = """{ "code": "reset", "windows_reset": 1 }"""
+        @Language("JSON") val responseJson = """{ "code": "reset", "windows_reset": 1 }"""
         var capturedRequest: HttpRequest? = null
-        val client = OpenAiCodexQuotaClient(
-            object : StubHttpClient(200, responseJson) {
-                override fun <T> send(
-                    request: HttpRequest,
-                    responseBodyHandler: HttpResponse.BodyHandler<T>
-                ): HttpResponse<T> {
-                    capturedRequest = request
-                    return super.send(request, responseBodyHandler)
+        val client =
+            OpenAiCodexQuotaClient(
+                object : StubHttpClient(200, responseJson) {
+                    override fun <T> send(
+                        request: HttpRequest,
+                        responseBodyHandler: HttpResponse.BodyHandler<T>,
+                    ): HttpResponse<T> {
+                        capturedRequest = request
+                        return super.send(request, responseBodyHandler)
+                    }
                 }
-            },
-        )
+            )
 
         val response = client.consumeResetCredit("token", "account-1", "credit-1")
 
-        assertEquals("/backend-api/wham/rate-limit-reset-credits/consume", capturedRequest?.uri()?.path)
+        assertEquals(
+            "/backend-api/wham/rate-limit-reset-credits/consume",
+            capturedRequest?.uri()?.path,
+        )
         assertEquals("POST", capturedRequest?.method())
-        assertEquals("application/json", capturedRequest?.headers()?.firstValue("Content-Type")?.orElse(null))
+        assertEquals(
+            "application/json",
+            capturedRequest?.headers()?.firstValue("Content-Type")?.orElse(null),
+        )
         assertEquals("reset", response.code)
         assertEquals(1, response.windowsReset)
     }
@@ -704,11 +785,18 @@ class OpenAiCodexQuotaClientTest {
         return JsonSupport.json.decodeFromString(json)
     }
 
-    private fun newClientReturning(statusCode: Int, @Language("JSON") body: String): OpenAiCodexQuotaClient {
-        return OpenAiCodexQuotaClient(StubHttpClient(statusCode, body), URI.create("https://example.com/usage"))
+    private fun newClientReturning(
+        statusCode: Int,
+        @Language("JSON") body: String,
+    ): OpenAiCodexQuotaClient {
+        return OpenAiCodexQuotaClient(
+            StubHttpClient(statusCode, body),
+            URI.create("https://example.com/usage"),
+        )
     }
 
-    private open class StubHttpClient(private val statusCode: Int, private val body: String) : HttpClient() {
+    private open class StubHttpClient(private val statusCode: Int, private val body: String) :
+        HttpClient() {
         override fun cookieHandler(): Optional<CookieHandler> = Optional.empty()
 
         override fun connectTimeout(): Optional<Duration> = Optional.empty()
@@ -729,7 +817,7 @@ class OpenAiCodexQuotaClientTest {
 
         override fun <T> send(
             request: HttpRequest,
-            responseBodyHandler: HttpResponse.BodyHandler<T>
+            responseBodyHandler: HttpResponse.BodyHandler<T>,
         ): HttpResponse<T> {
             @Suppress("UNCHECKED_CAST")
             return StubHttpResponse(request, statusCode, body) as HttpResponse<T>
@@ -775,10 +863,11 @@ class OpenAiCodexQuotaClientTest {
 
     private data class StubResponse(val statusCode: Int, val body: String)
 
-    private class RoutingStubHttpClient(private val responses: Map<String, StubResponse>) : StubHttpClient(404, "{}") {
+    private class RoutingStubHttpClient(private val responses: Map<String, StubResponse>) :
+        StubHttpClient(404, "{}") {
         override fun <T> send(
             request: HttpRequest,
-            responseBodyHandler: HttpResponse.BodyHandler<T>
+            responseBodyHandler: HttpResponse.BodyHandler<T>,
         ): HttpResponse<T> {
             val response = responses[request.uri().path] ?: StubResponse(404, "{}")
             @Suppress("UNCHECKED_CAST")

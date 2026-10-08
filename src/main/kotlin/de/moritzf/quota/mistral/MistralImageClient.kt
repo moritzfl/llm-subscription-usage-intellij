@@ -3,13 +3,6 @@ package de.moritzf.quota.mistral
 import de.moritzf.quota.shared.DefaultOutputFiles
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
@@ -18,6 +11,13 @@ import java.net.http.HttpResponse
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 open class MistralImageClient(
     private val httpClient: HttpClient = defaultHttpClient(),
@@ -35,31 +35,48 @@ open class MistralImageClient(
         if (trimmedPrompt.isBlank()) {
             throw MistralQuotaException("Image prompt is required.")
         }
-        val token = apiKey.trim().ifBlank {
-            throw MistralQuotaException("Mistral API key missing. Add a Mistral API key in settings.")
-        }
-        val body = JsonSupport.json.encodeToString(
-            MistralConversationRequestDto(
-                model = model.trim().ifBlank { DEFAULT_MODEL },
-                inputs = trimmedPrompt,
-                tools = listOf(MistralBuiltInToolDto("image_generation")),
-            ),
-        )
+        val token =
+            apiKey.trim().ifBlank {
+                throw MistralQuotaException(
+                    "Mistral API key missing. Add a Mistral API key in settings."
+                )
+            }
+        val body =
+            JsonSupport.json.encodeToString(
+                MistralConversationRequestDto(
+                    model = model.trim().ifBlank { DEFAULT_MODEL },
+                    inputs = trimmedPrompt,
+                    tools = listOf(MistralBuiltInToolDto("image_generation")),
+                )
+            )
         val response = sendString(postJson(token, conversationsUri, body))
         val status = response.statusCode()
         val responseBody = response.body()
         if (status == 401 || status == 403) {
-            throw MistralQuotaException("Session expired. Check your Mistral API key.", status, responseBody)
+            throw MistralQuotaException(
+                "Session expired. Check your Mistral API key.",
+                status,
+                responseBody,
+            )
         }
         if (status !in 200..299) {
-            throw MistralQuotaException("Mistral image generation failed (HTTP $status). Try again later.", status, responseBody)
+            throw MistralQuotaException(
+                "Mistral image generation failed (HTTP $status). Try again later.",
+                status,
+                responseBody,
+            )
         }
         val output = resolveOutput(targetFile, baseDirectory)
         if (output == null) {
             return McpJson.providerJsonOrRaw(responseBody)
         }
-        val fileId = firstToolFileId(responseBody)
-            ?: throw MistralQuotaException("Mistral image generation returned no file.", status, responseBody)
+        val fileId =
+            firstToolFileId(responseBody)
+                ?: throw MistralQuotaException(
+                    "Mistral image generation returned no file.",
+                    status,
+                    responseBody,
+                )
         val bytes = downloadFile(token, fileId)
         val parent = output.parent
         if (parent != null) {
@@ -67,25 +84,37 @@ open class MistralImageClient(
         }
         Files.write(output, bytes)
         return JsonSupport.json.encodeToString(
-            MistralImageWriteResult(output.toString(), fileId, bytes.size.toLong()),
+            MistralImageWriteResult(output.toString(), fileId, bytes.size.toLong())
         )
     }
 
     private fun downloadFile(apiKey: String, fileId: String): ByteArray {
-        val request = HttpRequest.newBuilder()
-            .uri(filesBaseUri.resolve("$fileId/content"))
-            .timeout(Duration.ofSeconds(90))
-            .header("Authorization", "Bearer $apiKey")
-            .GET()
-            .build()
-        val response = try {
-            httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray())
-        } catch (exception: IOException) {
-            throw MistralQuotaException("Request failed. Check your connection.", 0, null, exception)
-        } catch (exception: InterruptedException) {
-            Thread.currentThread().interrupt()
-            throw MistralQuotaException("Request failed. Check your connection.", 0, null, exception)
-        }
+        val request =
+            HttpRequest.newBuilder()
+                .uri(filesBaseUri.resolve("$fileId/content"))
+                .timeout(Duration.ofSeconds(90))
+                .header("Authorization", "Bearer $apiKey")
+                .GET()
+                .build()
+        val response =
+            try {
+                httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray())
+            } catch (exception: IOException) {
+                throw MistralQuotaException(
+                    "Request failed. Check your connection.",
+                    0,
+                    null,
+                    exception,
+                )
+            } catch (exception: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw MistralQuotaException(
+                    "Request failed. Check your connection.",
+                    0,
+                    null,
+                    exception,
+                )
+            }
         if (response.statusCode() !in 200..299) {
             throw MistralQuotaException(
                 "Mistral file download failed (HTTP ${response.statusCode()}).",
@@ -99,10 +128,20 @@ open class MistralImageClient(
         return try {
             httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         } catch (exception: IOException) {
-            throw MistralQuotaException("Request failed. Check your connection.", 0, null, exception)
+            throw MistralQuotaException(
+                "Request failed. Check your connection.",
+                0,
+                null,
+                exception,
+            )
         } catch (exception: InterruptedException) {
             Thread.currentThread().interrupt()
-            throw MistralQuotaException("Request failed. Check your connection.", 0, null, exception)
+            throw MistralQuotaException(
+                "Request failed. Check your connection.",
+                0,
+                null,
+                exception,
+            )
         }
     }
 
@@ -114,11 +153,16 @@ open class MistralImageClient(
         fun createDefault(): MistralImageClient = MistralImageClient()
 
         internal fun resolveOutput(targetFile: String?, baseDirectory: Path?): Path? {
-            return DefaultOutputFiles.resolveInsideBase(targetFile, baseDirectory, DefaultOutputFiles.image())
+            return DefaultOutputFiles.resolveInsideBase(
+                targetFile,
+                baseDirectory,
+                DefaultOutputFiles.image(),
+            )
         }
 
         internal fun firstToolFileId(body: String): String? {
-            val root = runCatching { JsonSupport.json.parseToJsonElement(body) }.getOrNull() ?: return null
+            val root =
+                runCatching { JsonSupport.json.parseToJsonElement(body) }.getOrNull() ?: return null
             return findFileId(root)
         }
 

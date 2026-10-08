@@ -4,5 +4,6 @@ data class ServerSentEvent(
     val data: String?,
 ) {
     fun event(): String? = event
+
     fun data(): String? = data
 }

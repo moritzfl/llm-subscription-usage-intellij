@@ -43,20 +43,23 @@ internal class QuotaRefreshButton(
         val requestedAccount = accountId
         resetTimer.stop()
         icon = spinningIcon
-        disabledIcon = spinningIcon // JButton must paint the animation while repeat clicks are disabled.
+        disabledIcon =
+            spinningIcon // JButton must paint the animation while repeat clicks are disabled.
         isEnabled = false
         setDescription("Refreshing quota...")
-        val request = try {
-            refresh(requestedAccount)
-        } catch (exception: Exception) {
-            CompletableFuture.failedFuture(exception)
-        }
+        val request =
+            try {
+                refresh(requestedAccount)
+            } catch (exception: Exception) {
+                CompletableFuture.failedFuture(exception)
+            }
         pending = request
         request.whenComplete { result, failure ->
             SwingUtilities.invokeLater {
                 if (pending !== request || accountId != requestedAccount) return@invokeLater
                 pending = null
-                val success = failure == null && result?.quota != null && result.error.isNullOrBlank()
+                val success =
+                    failure == null && result?.quota != null && result.error.isNullOrBlank()
                 disabledIcon = null
                 icon = if (success) AllIcons.Actions.Checked else AllIcons.Actions.Cancel
                 isEnabled = true
@@ -93,24 +96,38 @@ internal class QuotaRefreshButton(
     private companion object {
         val spinningIcon: Icon by lazy {
             val base = AllIcons.Actions.Refresh
-            AnimatedIcon(50, *Array(24) { frame ->
-                object : Icon {
-                    override fun getIconWidth(): Int = base.iconWidth
-                    override fun getIconHeight(): Int = base.iconHeight
+            AnimatedIcon(
+                50,
+                *Array(24) { frame ->
+                    object : Icon {
+                        override fun getIconWidth(): Int = base.iconWidth
 
-                    override fun paintIcon(component: Component?, graphics: Graphics, x: Int, y: Int) {
-                        val rotated = graphics.create() as Graphics2D
-                        try {
-                            // Positive Graphics2D angles are clockwise in Y-down space. The refresh
-                            // arrowheads face the other way, so advance frames backward.
-                            rotated.rotate(-frame * 2.0 * Math.PI / 24, x + iconWidth / 2.0, y + iconHeight / 2.0)
-                            base.paintIcon(component, rotated, x, y)
-                        } finally {
-                            rotated.dispose()
+                        override fun getIconHeight(): Int = base.iconHeight
+
+                        override fun paintIcon(
+                            component: Component?,
+                            graphics: Graphics,
+                            x: Int,
+                            y: Int,
+                        ) {
+                            val rotated = graphics.create() as Graphics2D
+                            try {
+                                // Positive Graphics2D angles are clockwise in Y-down space. The
+                                // refresh
+                                // arrowheads face the other way, so advance frames backward.
+                                rotated.rotate(
+                                    -frame * 2.0 * Math.PI / 24,
+                                    x + iconWidth / 2.0,
+                                    y + iconHeight / 2.0,
+                                )
+                                base.paintIcon(component, rotated, x, y)
+                            } finally {
+                                rotated.dispose()
+                            }
                         }
                     }
-                }
-            })
+                },
+            )
         }
     }
 }

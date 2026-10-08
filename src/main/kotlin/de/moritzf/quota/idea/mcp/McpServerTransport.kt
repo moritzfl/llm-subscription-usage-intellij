@@ -1,22 +1,20 @@
 package de.moritzf.quota.idea.mcp
 
-/**
- * URL variants commonly used by MCP clients.
- */
+/** URL variants commonly used by MCP clients. */
 enum class McpServerTransport(
     val displayName: String,
     private val pathSuffix: String,
 ) {
     SSE("SSE", "/sse"),
     // JetBrains mounts streamable HTTP at /stream, not the spec's usual /mcp.
-    STREAMABLE_HTTP("Streamable HTTP", "/stream"),
-    ;
+    STREAMABLE_HTTP("Streamable HTTP", "/stream");
 
     fun urlFor(endpoints: McpServerEndpoints): String {
         return when (this) {
             SSE -> endpoints.sseUrl
-            STREAMABLE_HTTP -> endpoints.streamUrl?.takeUnless { it.isBlank() }
-                ?: endpoints.serverBaseUrl + pathSuffix
+            STREAMABLE_HTTP ->
+                endpoints.streamUrl?.takeUnless { it.isBlank() }
+                    ?: endpoints.serverBaseUrl + pathSuffix
         }
     }
 
@@ -31,7 +29,8 @@ enum class McpServerTransport(
             return entries.firstOrNull { transport ->
                 transport.name.equals(normalized, ignoreCase = true) ||
                     transport.displayName.equals(value, ignoreCase = true) ||
-                    (transport == STREAMABLE_HTTP && value.equals("http streaming", ignoreCase = true))
+                    (transport == STREAMABLE_HTTP &&
+                        value.equals("http streaming", ignoreCase = true))
             } ?: SSE
         }
     }

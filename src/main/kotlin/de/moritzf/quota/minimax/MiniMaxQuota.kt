@@ -1,10 +1,10 @@
 package de.moritzf.quota.minimax
 
 import de.moritzf.quota.shared.ProviderQuota
+import java.time.Duration
 import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
-import java.time.Duration
 
 @Serializable
 data class MiniMaxQuota(
@@ -36,8 +36,7 @@ data class MiniMaxUsageWindow(
     val resetsAt: Instant? = null,
     val periodDurationMs: Long? = null,
 ) {
-    @Transient
-    val periodDuration: Duration? = periodDurationMs?.let(Duration::ofMillis)
+    @Transient val periodDuration: Duration? = periodDurationMs?.let(Duration::ofMillis)
 }
 
 @Serializable

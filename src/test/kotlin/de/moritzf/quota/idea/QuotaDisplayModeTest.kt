@@ -18,8 +18,14 @@ class QuotaDisplayModeTest {
     @Test
     fun fromStorageValueParsesAllModesCaseInsensitively() {
         assertEquals(QuotaDisplayMode.ICON_ONLY, QuotaDisplayMode.fromStorageValue("ICON_ONLY"))
-        assertEquals(QuotaDisplayMode.PERCENTAGE_BAR, QuotaDisplayMode.fromStorageValue("percentage_bar"))
-        assertEquals(QuotaDisplayMode.CAKE_DIAGRAM, QuotaDisplayMode.fromStorageValue("cake_diagram"))
+        assertEquals(
+            QuotaDisplayMode.PERCENTAGE_BAR,
+            QuotaDisplayMode.fromStorageValue("percentage_bar"),
+        )
+        assertEquals(
+            QuotaDisplayMode.CAKE_DIAGRAM,
+            QuotaDisplayMode.fromStorageValue("cake_diagram"),
+        )
     }
 
     @Test
@@ -34,7 +40,10 @@ class QuotaDisplayModeTest {
     fun sanitizeForMainToolbarFallsBackFromPercentageBar() {
         assertEquals(
             QuotaDisplayMode.ICON_ONLY,
-            QuotaDisplayMode.sanitizeFor(QuotaIndicatorLocation.MAIN_TOOLBAR, QuotaDisplayMode.PERCENTAGE_BAR),
+            QuotaDisplayMode.sanitizeFor(
+                QuotaIndicatorLocation.MAIN_TOOLBAR,
+                QuotaDisplayMode.PERCENTAGE_BAR,
+            ),
         )
     }
 }

@@ -45,7 +45,10 @@ class MiniMaxApiKeyStore(
 
     fun save(apiKey: String?) {
         loadGeneration.incrementAndGet()
-        PasswordSafe.instance.set(attributes, apiKey?.takeIf { it.isNotBlank() }?.let { Credentials(userName, it) })
+        PasswordSafe.instance.set(
+            attributes,
+            apiKey?.takeIf { it.isNotBlank() }?.let { Credentials(userName, it) },
+        )
         cachedApiKey.set(apiKey?.ifBlank { null })
         loaded.set(true)
         loading.set(false)
@@ -78,7 +81,11 @@ class MiniMaxApiKeyStore(
     }
 
     private fun loadKey(attributes: CredentialAttributes): String? {
-        return try { PasswordSafe.instance.get(attributes)?.getPasswordAsString()?.ifBlank { null } } catch (_: Exception) { null }
+        return try {
+            PasswordSafe.instance.get(attributes)?.getPasswordAsString()?.ifBlank { null }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun notifyLoadedCallbacks() {
@@ -94,7 +101,8 @@ class MiniMaxApiKeyStore(
         private val extras = java.util.concurrent.ConcurrentHashMap<String, MiniMaxApiKeyStore>()
 
         @JvmStatic
-        fun getInstance(): MiniMaxApiKeyStore = ApplicationManager.getApplication().getService(MiniMaxApiKeyStore::class.java)
+        fun getInstance(): MiniMaxApiKeyStore =
+            ApplicationManager.getApplication().getService(MiniMaxApiKeyStore::class.java)
 
         fun forAccount(accountId: String): MiniMaxApiKeyStore =
             de.moritzf.quota.idea.settings.AccountCredentialKeys.store(
@@ -104,6 +112,8 @@ class MiniMaxApiKeyStore(
                 DEFAULT_USER,
                 extras,
                 ::getInstance,
-            ) { service, user -> MiniMaxApiKeyStore(userName = user, serviceName = service) }
+            ) { service, user ->
+                MiniMaxApiKeyStore(userName = user, serviceName = service)
+            }
     }
 }

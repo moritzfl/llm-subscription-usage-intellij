@@ -16,17 +16,18 @@ class MiniMaxSubscriptionProxyProvider(
     fullRequestLogging: Boolean = false,
     requestLogDir: String = DEFAULT_REQUEST_LOG_DIR,
 ) : SubscriptionProxyProvider {
-    private val delegate = OpenAiCompatibleApiKeySubscriptionProxyProvider(
-        id = ID,
-        displayName = DISPLAY_NAME,
-        litellmProvider = LITELLM_PROVIDER,
-        baseUri = upstreamBaseUri ?: baseUriFor(regionProvider()),
-        apiKeyProvider = apiKeyProvider,
-        localIdPrefix = PREFIX,
-        httpClient = httpClient,
-        fullRequestLogging = fullRequestLogging,
-        requestLogDir = requestLogDir,
-    )
+    private val delegate =
+        OpenAiCompatibleApiKeySubscriptionProxyProvider(
+            id = ID,
+            displayName = DISPLAY_NAME,
+            litellmProvider = LITELLM_PROVIDER,
+            baseUri = upstreamBaseUri ?: baseUriFor(regionProvider()),
+            apiKeyProvider = apiKeyProvider,
+            localIdPrefix = PREFIX,
+            httpClient = httpClient,
+            fullRequestLogging = fullRequestLogging,
+            requestLogDir = requestLogDir,
+        )
 
     override val id: String = ID
     override val displayName: String = DISPLAY_NAME
@@ -35,9 +36,13 @@ class MiniMaxSubscriptionProxyProvider(
 
     override fun models() = delegate.models()
 
-    override fun fallbackModel(localId: String, route: SubscriptionProxyRoute) = delegate.fallbackModel(localId, route)
+    override fun fallbackModel(localId: String, route: SubscriptionProxyRoute) =
+        delegate.fallbackModel(localId, route)
 
-    override suspend fun handle(ctx: de.moritzf.proxy.server.ProxyCall, request: SubscriptionProxyRequest) {
+    override suspend fun handle(
+        ctx: de.moritzf.proxy.server.ProxyCall,
+        request: SubscriptionProxyRequest,
+    ) {
         delegate.handle(ctx, request)
     }
 
@@ -48,12 +53,14 @@ class MiniMaxSubscriptionProxyProvider(
         private const val LITELLM_PROVIDER = "minimax"
         private val GLOBAL_BASE_URI = URI.create("https://api.minimax.io/v1")
         private val CN_BASE_URI = URI.create("https://api.minimaxi.com/v1")
-        private val DEFAULT_REQUEST_LOG_DIR = System.getProperty("java.io.tmpdir") +
-            "/openai-usage-quota-intellij/subscription-proxy-minimax-requests"
+        private val DEFAULT_REQUEST_LOG_DIR =
+            System.getProperty("java.io.tmpdir") +
+                "/openai-usage-quota-intellij/subscription-proxy-minimax-requests"
 
-        fun baseUriFor(region: MiniMaxRegion): URI = when (region) {
-            MiniMaxRegion.GLOBAL -> GLOBAL_BASE_URI
-            MiniMaxRegion.CN -> CN_BASE_URI
-        }
+        fun baseUriFor(region: MiniMaxRegion): URI =
+            when (region) {
+                MiniMaxRegion.GLOBAL -> GLOBAL_BASE_URI
+                MiniMaxRegion.CN -> CN_BASE_URI
+            }
     }
 }

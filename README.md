@@ -206,3 +206,15 @@ Settings is an account list: add or remove logins, including more than one of th
 **"Not logged in"** — open the plugin settings and start the sign-in flow for that provider again.
 
 **Quota fetch errors or wrong numbers** — providers occasionally change their API responses. Check `Last quota response` in the provider's settings page to see what the API actually returned, and please [open an issue](https://github.com/moritzfl/llm-subscription-usage-intellij/issues/new/choose) with that response attached (redact anything you consider sensitive first). This is usually all that is needed to fix a parsing problem.
+
+## Development
+
+Use JDK 21 and the Gradle wrapper. Kotlin sources and Gradle Kotlin scripts use ktfmt's KotlinLang style (four-space indentation).
+
+```sh
+./gradlew ktfmtFormat  # Format Kotlin sources and scripts
+./gradlew check        # Check formatting and run tests
+./gradlew verifyPlugin buildPlugin
+```
+
+CI runs `ktfmtCheck` and the test suite.

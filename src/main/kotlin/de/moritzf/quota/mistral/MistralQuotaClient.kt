@@ -2,17 +2,6 @@ package de.moritzf.quota.mistral
 
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.LenientDoubleOrNullSerializer
-import kotlin.time.Clock
-import kotlin.time.Instant
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
@@ -22,6 +11,17 @@ import java.net.http.HttpResponse
 import java.time.Duration
 import java.time.YearMonth
 import java.time.ZoneOffset
+import kotlin.time.Clock
+import kotlin.time.Instant
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.put
 
 open class MistralQuotaClient(
     private val httpClient: HttpClient = HttpClient.newHttpClient(),
@@ -30,10 +30,14 @@ open class MistralQuotaClient(
     open fun fetchQuota(cookieHeader: String, apiKey: String? = null): MistralQuota {
         val session = parseSessionCookies(cookieHeader)
         val now = clock()
-        val month = YearMonth.from(java.time.Instant.ofEpochMilli(now.toEpochMilliseconds()).atZone(ZoneOffset.UTC))
-        val billingUrl = URI.create(
-            "https://admin.mistral.ai/api/billing/v2/usage?month=${month.monthValue}&year=${month.year}",
-        )
+        val month =
+            YearMonth.from(
+                java.time.Instant.ofEpochMilli(now.toEpochMilliseconds()).atZone(ZoneOffset.UTC)
+            )
+        val billingUrl =
+            URI.create(
+                "https://admin.mistral.ai/api/billing/v2/usage?month=${month.monthValue}&year=${month.year}"
+            )
         // Each source can be temporarily unavailable; preserve the other usable readings.
         val billingAttempt = runCatching {
             getAdminJson(
@@ -45,88 +49,115 @@ open class MistralQuotaClient(
             )
         }
         val billingBody = billingAttempt.getOrNull()
-        val billingError = billingAttempt.exceptionOrNull() as? MistralQuotaException
-            ?: billingAttempt.exceptionOrNull()?.let { MistralQuotaException(it.message ?: "Request failed.", 0, null, it) }
+        val billingError =
+            billingAttempt.exceptionOrNull() as? MistralQuotaException
+                ?: billingAttempt.exceptionOrNull()?.let {
+                    MistralQuotaException(it.message ?: "Request failed.", 0, null, it)
+                }
         val billing = billingBody?.let(::parseBilling) ?: MistralBillingDto()
-        val vibeBody = session.csrfToken?.let { csrf ->
-            runCatching {
-                getAdminJson(
-                    url = VIBE_USAGE_URI,
-                    cookieHeader = session.consoleCookieHeader(),
-                    csrfToken = csrf,
-                    origin = "https://console.mistral.ai",
-                    referer = "https://console.mistral.ai/",
-                    csrfHeaderName = "X-CSRFToken",
-                )
-            }.getOrNull()
-        }
+        val vibeBody =
+            session.csrfToken?.let { csrf ->
+                runCatching {
+                    getAdminJson(
+                        url = VIBE_USAGE_URI,
+                        cookieHeader = session.consoleCookieHeader(),
+                        csrfToken = csrf,
+                        origin = "https://console.mistral.ai",
+                        referer = "https://console.mistral.ai/",
+                        csrfHeaderName = "X-CSRFToken",
+                    )
+                }
+                    .getOrNull()
+            }
         val vibe = vibeBody?.let(::parseVibeUsage)
         val subscriptionAttempt = runCatching {
-            val html = getAdminJson(
-                url = SUBSCRIPTION_URI,
-                cookieHeader = session.cookieHeader,
-                csrfToken = session.csrfToken,
-                origin = "https://admin.mistral.ai",
-                referer = SUBSCRIPTION_URI.toString(),
-                accept = "text/html",
-            )
+            val html =
+                getAdminJson(
+                    url = SUBSCRIPTION_URI,
+                    cookieHeader = session.cookieHeader,
+                    csrfToken = session.csrfToken,
+                    origin = "https://admin.mistral.ai",
+                    referer = SUBSCRIPTION_URI.toString(),
+                    accept = "text/html",
+                )
             MistralSubscriptionBudgets.parse(html)
-                ?: throw MistralQuotaException("Included usage allowances were not found on the Mistral subscription page.")
+                ?: throw MistralQuotaException(
+                    "Included usage allowances were not found on the Mistral subscription page."
+                )
         }
         val budgets = subscriptionAttempt.getOrNull()
         val includedApi = MistralSubscriptionBudgets.window(budgets?.get("api_budget"))
-        val monthly = MistralSubscriptionBudgets.window(budgets?.get("vibe_budget")) ?: monthlyWindow(vibe, billing)
+        val monthly =
+            MistralSubscriptionBudgets.window(budgets?.get("vibe_budget"))
+                ?: monthlyWindow(vibe, billing)
         if (billingError != null && monthly == null && includedApi == null) throw billingError
         val apiUsage = billingBody?.let { body -> runCatching { parseApiUsage(body) }.getOrNull() }
-        val identityBody = apiKey?.takeIf { it.isNotBlank() }?.let { key ->
-            runCatching { getJson(key, IDENTITY_URI) }.getOrNull()
-        }
+        val identityBody =
+            apiKey
+                ?.takeIf { it.isNotBlank() }
+                ?.let { key -> runCatching { getJson(key, IDENTITY_URI) }.getOrNull() }
         val identity = identityBody?.let { runCatching { parseIdentity(it) }.getOrNull() }
-        val probe = apiKey?.takeIf { it.isNotBlank() }?.let { key ->
-            runCatching { probeRateLimits(key) }.getOrNull()
+        val probe =
+            apiKey
+                ?.takeIf { it.isNotBlank() }
+                ?.let { key -> runCatching { probeRateLimits(key) }.getOrNull() }
+        val tokenUsage = probe?.let {
+            windowFromHeaders(it, HEADER_LIMIT_TOKENS, HEADER_REMAINING_TOKENS, now)
         }
-        val tokenUsage = probe?.let { windowFromHeaders(it, HEADER_LIMIT_TOKENS, HEADER_REMAINING_TOKENS, now) }
-        val requestUsage = probe?.let { windowFromHeaders(it, HEADER_LIMIT_REQUESTS, HEADER_REMAINING_REQUESTS, now) }
-        val quota = MistralQuota(
-            email = identity?.email.orEmpty(),
-            organization = identity?.organization?.name.orEmpty(),
-            workspace = identity?.workspace?.name.orEmpty(),
-            apiKeyName = identity?.apiKey?.name.orEmpty(),
-            monthlyUsage = monthly,
-            includedApiUsage = includedApi,
-            tokenUsage = tokenUsage,
-            requestUsage = requestUsage,
-            apiUsage = apiUsage,
-            fetchedAt = now,
-        )
-        quota.rawJson = buildRawResponse(
-            billingBody,
-            vibeBody,
-            identityBody,
-            probe?.let(::rateLimitHeaders),
-            billingError?.message,
-            budgets,
-            subscriptionAttempt.exceptionOrNull()?.message,
-        )
+        val requestUsage = probe?.let {
+            windowFromHeaders(it, HEADER_LIMIT_REQUESTS, HEADER_REMAINING_REQUESTS, now)
+        }
+        val quota =
+            MistralQuota(
+                email = identity?.email.orEmpty(),
+                organization = identity?.organization?.name.orEmpty(),
+                workspace = identity?.workspace?.name.orEmpty(),
+                apiKeyName = identity?.apiKey?.name.orEmpty(),
+                monthlyUsage = monthly,
+                includedApiUsage = includedApi,
+                tokenUsage = tokenUsage,
+                requestUsage = requestUsage,
+                apiUsage = apiUsage,
+                fetchedAt = now,
+            )
+        quota.rawJson =
+            buildRawResponse(
+                billingBody,
+                vibeBody,
+                identityBody,
+                probe?.let(::rateLimitHeaders),
+                billingError?.message,
+                budgets,
+                subscriptionAttempt.exceptionOrNull()?.message,
+            )
         return quota
     }
 
     private fun probeRateLimits(apiKey: String): HttpHeaders {
-        val request = HttpRequest.newBuilder()
-            .uri(CHAT_URI)
-            .timeout(Duration.ofSeconds(30))
-            .header("Authorization", "Bearer $apiKey")
-            .header("Content-Type", "application/json")
-            .header("Accept", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString(PROBE_BODY))
-            .build()
+        val request =
+            HttpRequest.newBuilder()
+                .uri(CHAT_URI)
+                .timeout(Duration.ofSeconds(30))
+                .header("Authorization", "Bearer $apiKey")
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(PROBE_BODY))
+                .build()
         val response = send(request)
         val status = response.statusCode()
         if (status == 401 || status == 403) {
-            throw MistralQuotaException("Session expired. Check your Mistral API key.", status, response.body())
+            throw MistralQuotaException(
+                "Session expired. Check your Mistral API key.",
+                status,
+                response.body(),
+            )
         }
         if (status !in 200..299 && status != 429) {
-            throw MistralQuotaException("Request failed (HTTP $status). Try again later.", status, response.body())
+            throw MistralQuotaException(
+                "Request failed (HTTP $status). Try again later.",
+                status,
+                response.body(),
+            )
         }
         return response.headers()
     }
@@ -140,15 +171,16 @@ open class MistralQuotaClient(
         csrfHeaderName: String = "X-CSRFTOKEN",
         accept: String = "*/*",
     ): String {
-        val builder = HttpRequest.newBuilder()
-            .uri(url)
-            .timeout(Duration.ofSeconds(30))
-            .header("Accept", accept)
-            .header("Cookie", cookieHeader)
-            .header("Origin", origin)
-            .header("Referer", referer)
-            .header("User-Agent", BROWSER_USER_AGENT)
-            .GET()
+        val builder =
+            HttpRequest.newBuilder()
+                .uri(url)
+                .timeout(Duration.ofSeconds(30))
+                .header("Accept", accept)
+                .header("Cookie", cookieHeader)
+                .header("Origin", origin)
+                .header("Referer", referer)
+                .header("User-Agent", BROWSER_USER_AGENT)
+                .GET()
         if (!csrfToken.isNullOrBlank()) {
             builder.header(csrfHeaderName, csrfToken)
         }
@@ -156,30 +188,47 @@ open class MistralQuotaClient(
         val status = response.statusCode()
         val body = response.body()
         if (status == 401 || status == 403) {
-            throw MistralQuotaException("Session expired. Paste a fresh Mistral admin cookie from settings.", status, body)
+            throw MistralQuotaException(
+                "Session expired. Paste a fresh Mistral admin cookie from settings.",
+                status,
+                body,
+            )
         }
         if (status !in 200..299) {
-            throw MistralQuotaException("Request failed (HTTP $status). Try again later.", status, body)
+            throw MistralQuotaException(
+                "Request failed (HTTP $status). Try again later.",
+                status,
+                body,
+            )
         }
         return body
     }
 
     private fun getJson(apiKey: String, endpoint: URI): String {
-        val request = HttpRequest.newBuilder()
-            .uri(endpoint)
-            .timeout(Duration.ofSeconds(30))
-            .header("Authorization", "Bearer $apiKey")
-            .header("Accept", "application/json")
-            .GET()
-            .build()
+        val request =
+            HttpRequest.newBuilder()
+                .uri(endpoint)
+                .timeout(Duration.ofSeconds(30))
+                .header("Authorization", "Bearer $apiKey")
+                .header("Accept", "application/json")
+                .GET()
+                .build()
         val response = send(request)
         val status = response.statusCode()
         val body = response.body()
         if (status == 401 || status == 403) {
-            throw MistralQuotaException("Session expired. Check your Mistral API key.", status, body)
+            throw MistralQuotaException(
+                "Session expired. Check your Mistral API key.",
+                status,
+                body,
+            )
         }
         if (status !in 200..299) {
-            throw MistralQuotaException("Request failed (HTTP $status). Try again later.", status, body)
+            throw MistralQuotaException(
+                "Request failed (HTTP $status). Try again later.",
+                status,
+                body,
+            )
         }
         return body
     }
@@ -188,10 +237,20 @@ open class MistralQuotaClient(
         return try {
             httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         } catch (exception: IOException) {
-            throw MistralQuotaException("Request failed. Check your connection.", 0, null, exception)
+            throw MistralQuotaException(
+                "Request failed. Check your connection.",
+                0,
+                null,
+                exception,
+            )
         } catch (exception: InterruptedException) {
             Thread.currentThread().interrupt()
-            throw MistralQuotaException("Request failed. Check your connection.", 0, null, exception)
+            throw MistralQuotaException(
+                "Request failed. Check your connection.",
+                0,
+                null,
+                exception,
+            )
         }
     }
 
@@ -199,9 +258,10 @@ open class MistralQuotaClient(
         private val IDENTITY_URI: URI = URI.create("https://api.mistral.ai/v1/users/me")
         private val CHAT_URI: URI = URI.create("https://api.mistral.ai/v1/chat/completions")
         private val SUBSCRIPTION_URI: URI = URI.create("https://admin.mistral.ai/subscription")
-        private val VIBE_USAGE_URI: URI = URI.create(
-            "https://console.mistral.ai/api-ui/trpc/billing.vibeUsage?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D",
-        )
+        private val VIBE_USAGE_URI: URI =
+            URI.create(
+                "https://console.mistral.ai/api-ui/trpc/billing.vibeUsage?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D"
+            )
         private const val BROWSER_USER_AGENT =
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         private const val HEADER_LIMIT_TOKENS = "x-ratelimit-limit-tokens-minute"
@@ -231,9 +291,12 @@ open class MistralQuotaClient(
             val apiKey = buildJsonObject {
                 jsonOrRaw(identityBody)?.let { put("identity", it) }
                 if (!rateLimits.isNullOrEmpty()) {
-                    put("rate_limits", buildJsonObject {
-                        rateLimits.forEach { (name, value) -> put(name, value) }
-                    })
+                    put(
+                        "rate_limits",
+                        buildJsonObject {
+                            rateLimits.forEach { (name, value) -> put(name, value) }
+                        },
+                    )
                 }
             }
             return JsonSupport.json.encodeToString(
@@ -246,10 +309,14 @@ open class MistralQuotaClient(
         }
 
         internal fun rateLimitHeaders(headers: HttpHeaders): Map<String, String> {
-            return headers.map().entries
+            return headers
+                .map()
+                .entries
                 .filter { it.key.startsWith("x-ratelimit-", ignoreCase = true) }
                 .mapNotNull { entry ->
-                    val value = entry.value.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                    val value =
+                        entry.value.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+                            ?: return@mapNotNull null
                     entry.key.lowercase() to value
                 }
                 .toMap()
@@ -257,10 +324,15 @@ open class MistralQuotaClient(
 
         private fun jsonOrRaw(body: String?): JsonElement? {
             val value = body?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-            return runCatching { JsonSupport.json.parseToJsonElement(value) }.getOrElse { JsonPrimitive(value) }
+            return runCatching { JsonSupport.json.parseToJsonElement(value) }
+                .getOrElse { JsonPrimitive(value) }
         }
 
-        internal fun encodeStoredSession(sessionName: String, sessionValue: String, csrfToken: String?): String {
+        internal fun encodeStoredSession(
+            sessionName: String,
+            sessionValue: String,
+            csrfToken: String?,
+        ): String {
             val session = sessionFromFields(sessionName, sessionValue, csrfToken)
             return JsonSupport.json.encodeToString(
                 MistralStoredSessionDto.serializer(),
@@ -274,7 +346,9 @@ open class MistralQuotaClient(
 
         internal fun storedSessionFields(raw: String?): MistralStoredSessionDto? {
             val value = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-            decodeStoredSession(value)?.let { return it }
+            decodeStoredSession(value)?.let {
+                return it
+            }
             return runCatching { parseSessionCookies(value) }.getOrNull()?.toStoredFields()
         }
 
@@ -287,26 +361,42 @@ open class MistralQuotaClient(
                 return sessionFromFields(stored.sessionName, stored.sessionValue, stored.csrfToken)
             }
             val header = trimmed.removePrefix("Cookie:").trim()
-            val pairs = header.split(';').mapNotNull { part ->
-                val item = part.trim()
-                val eq = item.indexOf('=')
-                if (eq <= 0) return@mapNotNull null
-                item.substring(0, eq).trim() to stripCookieQuotes(item.substring(eq + 1).trim())
+            val pairs =
+                header.split(';').mapNotNull { part ->
+                    val item = part.trim()
+                    val eq = item.indexOf('=')
+                    if (eq <= 0) return@mapNotNull null
+                    item.substring(0, eq).trim() to stripCookieQuotes(item.substring(eq + 1).trim())
+                }
+            val sessionPairs = pairs.filter {
+                it.first.startsWith("ory_session_") && it.second.isNotBlank()
             }
-            val sessionPairs = pairs.filter { it.first.startsWith("ory_session_") && it.second.isNotBlank() }
             if (sessionPairs.isEmpty()) {
-                throw MistralQuotaException("Mistral cookie must include an ory_session_* name and value.")
+                throw MistralQuotaException(
+                    "Mistral cookie must include an ory_session_* name and value."
+                )
             }
-            val csrf = pairs.firstOrNull { it.first == "csrftoken" }?.second?.takeIf { it.isNotBlank() }
+            val csrf =
+                pairs.firstOrNull { it.first == "csrftoken" }?.second?.takeIf { it.isNotBlank() }
             val cookieHeader = pairs.joinToString("; ") { "${it.first}=${it.second}" }
-            return MistralSessionCookies(cookieHeader = cookieHeader, csrfToken = csrf, sessionPairs = sessionPairs)
+            return MistralSessionCookies(
+                cookieHeader = cookieHeader,
+                csrfToken = csrf,
+                sessionPairs = sessionPairs,
+            )
         }
 
-        private fun sessionFromFields(sessionName: String, sessionValue: String, csrfToken: String?): MistralSessionCookies {
+        private fun sessionFromFields(
+            sessionName: String,
+            sessionValue: String,
+            csrfToken: String?,
+        ): MistralSessionCookies {
             val name = sessionName.trim()
             val value = stripCookieQuotes(sessionValue)
             if (!name.startsWith("ory_session_") || value.isBlank()) {
-                throw MistralQuotaException("Need the ory_session_* cookie name and value from admin.mistral.ai.")
+                throw MistralQuotaException(
+                    "Need the ory_session_* cookie name and value from admin.mistral.ai."
+                )
             }
             val csrf = csrfToken?.let(::stripCookieQuotes)?.takeIf { it.isNotBlank() }
             val pairs = buildList {
@@ -322,7 +412,8 @@ open class MistralQuotaClient(
 
         private fun decodeStoredSession(raw: String): MistralStoredSessionDto? {
             if (!raw.startsWith("{")) return null
-            return runCatching { JsonSupport.json.decodeFromString<MistralStoredSessionDto>(raw) }.getOrNull()
+            return runCatching { JsonSupport.json.decodeFromString<MistralStoredSessionDto>(raw) }
+                .getOrNull()
                 ?.takeIf { it.sessionName.isNotBlank() && it.sessionValue.isNotBlank() }
         }
 
@@ -336,9 +427,11 @@ open class MistralQuotaClient(
         }
 
         internal fun parseVibeUsage(body: String): MistralVibeUsage? {
-            val items = runCatching {
-                JsonSupport.json.decodeFromString<List<MistralVibeBatchItemDto>>(body)
-            }.getOrNull() ?: return null
+            val items =
+                runCatching {
+                    JsonSupport.json.decodeFromString<List<MistralVibeBatchItemDto>>(body)
+                }
+                    .getOrNull() ?: return null
             val json = items.firstOrNull()?.result?.data?.json ?: return null
             val percent = json.usagePercentage ?: return null
             if (!percent.isFinite() || percent !in 0.0..100.0) return null
@@ -351,8 +444,11 @@ open class MistralQuotaClient(
          * subscriptions, not API billing, and stay out.
          */
         internal fun parseApiUsage(body: String): MistralApiUsage? {
-            val root = runCatching { JsonSupport.json.parseToJsonElement(body) }.getOrNull() as? JsonObject ?: return null
-            val prices = (root["prices"] as? JsonArray)?.mapNotNull { entry -> priceEntry(entry) }?.toMap()
+            val root =
+                runCatching { JsonSupport.json.parseToJsonElement(body) }.getOrNull() as? JsonObject
+                    ?: return null
+            val prices =
+                (root["prices"] as? JsonArray)?.mapNotNull { entry -> priceEntry(entry) }?.toMap()
             var spend = 0.0
             var tokens = 0L
             var ocrPages = 0L
@@ -364,13 +460,17 @@ open class MistralQuotaClient(
                 collectBillingEvents(node) { event ->
                     val eventType = event.string("event_type") ?: return@collectBillingEvents
                     if (!eventType.startsWith("api_")) return@collectBillingEvents
-                    val value = event.string("value_paid")?.toLongOrNull() ?: return@collectBillingEvents
+                    val value =
+                        event.string("value_paid")?.toLongOrNull() ?: return@collectBillingEvents
                     prices?.get(priceKey(event))?.let { spend += value * it }
                     when (eventType) {
-                        "api_tokens", "api_libraries_tokens" -> tokens += value
-                        "api_pages", "api_libraries_pages" -> ocrPages += value
+                        "api_tokens",
+                        "api_libraries_tokens" -> tokens += value
+                        "api_pages",
+                        "api_libraries_pages" -> ocrPages += value
                         "api_connectors" -> connectorCalls += value
-                        "api_audio_seconds", "api_libraries_audio" -> audioSeconds += value
+                        "api_audio_seconds",
+                        "api_libraries_audio" -> audioSeconds += value
                         "api_audio_characters" -> ttsCharacters += value
                     }
                 }
@@ -385,9 +485,15 @@ open class MistralQuotaClient(
             )
         }
 
-        private val API_BILLING_SECTIONS = listOf(
-            "completion", "ocr", "connectors", "audio", "audio_characters", "libraries_api",
-        )
+        private val API_BILLING_SECTIONS =
+            listOf(
+                "completion",
+                "ocr",
+                "connectors",
+                "audio",
+                "audio_characters",
+                "libraries_api",
+            )
 
         private fun collectBillingEvents(element: JsonElement, visit: (JsonObject) -> Unit) {
             when (element) {
@@ -407,7 +513,13 @@ open class MistralQuotaClient(
         }
 
         private fun priceKey(item: JsonObject): String {
-            return listOf("event_type", "billing_metric", "billing_group", "api_zone", "service_tier")
+            return listOf(
+                    "event_type",
+                    "billing_metric",
+                    "billing_group",
+                    "api_zone",
+                    "service_tier",
+                )
                 .joinToString("|") { name -> item.string(name).orEmpty() }
         }
 
@@ -423,17 +535,26 @@ open class MistralQuotaClient(
             }
         }
 
-        internal fun monthlyWindow(vibe: MistralVibeUsage?, billing: MistralBillingDto): MistralUsageWindow? {
-            val percent = vibe?.usagePercent
-                ?: billing.vibeUsage?.takeIf { it.isFinite() && it in 0.0..100.0 }
-                ?: return null
+        internal fun monthlyWindow(
+            vibe: MistralVibeUsage?,
+            billing: MistralBillingDto,
+        ): MistralUsageWindow? {
+            val percent =
+                vibe?.usagePercent
+                    ?: billing.vibeUsage?.takeIf { it.isFinite() && it in 0.0..100.0 }
+                    ?: return null
             val start = parseInstant(billing.startDate)
             val end = vibe?.resetsAt ?: parseInstant(billing.endDate)
-            val periodMs = if (start != null && end != null && end.toEpochMilliseconds() > start.toEpochMilliseconds()) {
-                end.toEpochMilliseconds() - start.toEpochMilliseconds()
-            } else {
-                Duration.ofDays(30).toMillis()
-            }
+            val periodMs =
+                if (
+                    start != null &&
+                        end != null &&
+                        end.toEpochMilliseconds() > start.toEpochMilliseconds()
+                ) {
+                    end.toEpochMilliseconds() - start.toEpochMilliseconds()
+                } else {
+                    Duration.ofDays(30).toMillis()
+                }
             return MistralUsageWindow(
                 usagePercent = percent,
                 resetsAt = end,
@@ -477,7 +598,11 @@ open class MistralQuotaClient(
             )
         }
 
-        internal fun windowFromValues(limit: Long, remaining: Long, now: Instant): MistralUsageWindow? {
+        internal fun windowFromValues(
+            limit: Long,
+            remaining: Long,
+            now: Instant,
+        ): MistralUsageWindow? {
             if (limit <= 0L) return null
             val used = (limit - remaining).coerceAtLeast(0L)
             return MistralUsageWindow(
@@ -557,20 +682,11 @@ internal data class MistralBillingDto(
     @SerialName("end_date") val endDate: String? = null,
 )
 
-@Serializable
-private data class MistralVibeBatchItemDto(
-    val result: MistralVibeResultDto? = null,
-)
+@Serializable private data class MistralVibeBatchItemDto(val result: MistralVibeResultDto? = null)
 
-@Serializable
-private data class MistralVibeResultDto(
-    val data: MistralVibeDataDto? = null,
-)
+@Serializable private data class MistralVibeResultDto(val data: MistralVibeDataDto? = null)
 
-@Serializable
-private data class MistralVibeDataDto(
-    val json: MistralVibeJsonDto? = null,
-)
+@Serializable private data class MistralVibeDataDto(val json: MistralVibeJsonDto? = null)
 
 @Serializable
 private data class MistralVibeJsonDto(

@@ -1,17 +1,13 @@
 package de.moritzf.quota.idea
 
-import de.moritzf.quota.idea.auth.QuotaAuthService
-import de.moritzf.quota.idea.auth.OAuthClientConfig
-import de.moritzf.quota.idea.auth.OAuthCredentialStore
-import de.moritzf.quota.idea.auth.OAuthCredentialCoordinator
-import de.moritzf.quota.idea.auth.OAuthCredentials
 import de.moritzf.quota.idea.auth.LoginResult
-import de.moritzf.quota.idea.auth.OAuthTokenRequestException
+import de.moritzf.quota.idea.auth.OAuthCredentialCoordinator
+import de.moritzf.quota.idea.auth.OAuthCredentialStore
+import de.moritzf.quota.idea.auth.OAuthCredentials
 import de.moritzf.quota.idea.auth.OAuthTokenOperations
+import de.moritzf.quota.idea.auth.OAuthTokenRequestException
+import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaProviderType
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import java.net.URI
 import java.net.http.HttpClient
 import java.util.concurrent.CountDownLatch
@@ -25,6 +21,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 class QuotaAuthServiceConcurrencyTest {
     @Test
@@ -33,22 +32,28 @@ class QuotaAuthServiceConcurrencyTest {
         val refreshStarted = CountDownLatch(1)
         val allowRefreshToFinish = CountDownLatch(1)
         val refreshCalls = AtomicInteger(0)
-        val refreshedCredentials = validCredentials(accessToken = "new-token", refreshToken = "new-refresh-token")
-        val service = createService(
-            store = store,
-            tokenOperations = TestTokenOperations(
-                onRefresh = {
-                    refreshCalls.incrementAndGet()
-                    refreshStarted.countDown()
-                    assertTrue(allowRefreshToFinish.await(5, TimeUnit.SECONDS))
-                    refreshedCredentials
-                },
-            ),
-        )
+        val refreshedCredentials =
+            validCredentials(accessToken = "new-token", refreshToken = "new-refresh-token")
+        val service =
+            createService(
+                store = store,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = {
+                            refreshCalls.incrementAndGet()
+                            refreshStarted.countDown()
+                            assertTrue(allowRefreshToFinish.await(5, TimeUnit.SECONDS))
+                            refreshedCredentials
+                        }
+                    ),
+            )
         val executor = Executors.newSingleThreadExecutor()
 
         try {
-            val tokenFuture = executor.submit<String?> { service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI) }
+            val tokenFuture =
+                executor.submit<String?> {
+                    service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI)
+                }
 
             assertTrue(refreshStarted.await(5, TimeUnit.SECONDS))
             service.clearCredentials(QuotaProviderType.OPEN_AI)
@@ -70,23 +75,35 @@ class QuotaAuthServiceConcurrencyTest {
         val firstRefreshStarted = CountDownLatch(1)
         val allowFirstRefreshToFail = CountDownLatch(1)
         val refreshCalls = AtomicInteger(0)
-        val service = createService(
-            store = store,
-            tokenOperations = TestTokenOperations(
-                onRefresh = {
-                    if (refreshCalls.incrementAndGet() == 1) {
-                        firstRefreshStarted.countDown()
-                        assertTrue(allowFirstRefreshToFail.await(5, TimeUnit.SECONDS))
-                        throw OAuthTokenRequestException("invalid grant", 400, "invalid_grant")
-                    }
-                    validCredentials(accessToken = "new-token", refreshToken = "new-refresh-token")
-                },
-            ),
-        )
+        val service =
+            createService(
+                store = store,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = {
+                            if (refreshCalls.incrementAndGet() == 1) {
+                                firstRefreshStarted.countDown()
+                                assertTrue(allowFirstRefreshToFail.await(5, TimeUnit.SECONDS))
+                                throw OAuthTokenRequestException(
+                                    "invalid grant",
+                                    400,
+                                    "invalid_grant",
+                                )
+                            }
+                            validCredentials(
+                                accessToken = "new-token",
+                                refreshToken = "new-refresh-token",
+                            )
+                        }
+                    ),
+            )
         val executor = Executors.newSingleThreadExecutor()
 
         try {
-            val tokenFuture = executor.submit<String?> { service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI) }
+            val tokenFuture =
+                executor.submit<String?> {
+                    service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI)
+                }
 
             assertTrue(firstRefreshStarted.await(5, TimeUnit.SECONDS))
             service.clearCredentials(QuotaProviderType.OPEN_AI)
@@ -108,25 +125,34 @@ class QuotaAuthServiceConcurrencyTest {
         val refreshStarted = CountDownLatch(1)
         val allowRefreshToFinish = CountDownLatch(1)
         val refreshCalls = AtomicInteger(0)
-        val refreshedCredentials = validCredentials(accessToken = "shared-token", refreshToken = "shared-refresh-token")
-        val service = createService(
-            store = store,
-            tokenOperations = TestTokenOperations(
-                onRefresh = {
-                    refreshCalls.incrementAndGet()
-                    refreshStarted.countDown()
-                    assertTrue(allowRefreshToFinish.await(5, TimeUnit.SECONDS))
-                    refreshedCredentials
-                },
-            ),
-        )
+        val refreshedCredentials =
+            validCredentials(accessToken = "shared-token", refreshToken = "shared-refresh-token")
+        val service =
+            createService(
+                store = store,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = {
+                            refreshCalls.incrementAndGet()
+                            refreshStarted.countDown()
+                            assertTrue(allowRefreshToFinish.await(5, TimeUnit.SECONDS))
+                            refreshedCredentials
+                        }
+                    ),
+            )
         val executor = Executors.newFixedThreadPool(2)
 
         try {
-            val firstToken = executor.submit<String?> { service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI) }
+            val firstToken =
+                executor.submit<String?> {
+                    service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI)
+                }
             assertTrue(refreshStarted.await(5, TimeUnit.SECONDS))
 
-            val secondToken = executor.submit<String?> { service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI) }
+            val secondToken =
+                executor.submit<String?> {
+                    service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI)
+                }
             allowRefreshToFinish.countDown()
 
             assertEquals("shared-token", firstToken.get(5, TimeUnit.SECONDS))
@@ -145,28 +171,40 @@ class QuotaAuthServiceConcurrencyTest {
         val refreshStarted = CountDownLatch(1)
         val allowRefreshToFail = CountDownLatch(1)
         val refreshCalls = AtomicInteger(0)
-        val service = createService(
-            store = store,
-            tokenOperations = TestTokenOperations(
-                onRefresh = {
-                    refreshCalls.incrementAndGet()
-                    refreshStarted.countDown()
-                    assertTrue(allowRefreshToFail.await(5, TimeUnit.SECONDS))
-                    throw IllegalStateException("connection reset")
-                },
-            ),
-        )
+        val service =
+            createService(
+                store = store,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = {
+                            refreshCalls.incrementAndGet()
+                            refreshStarted.countDown()
+                            assertTrue(allowRefreshToFail.await(5, TimeUnit.SECONDS))
+                            throw IllegalStateException("connection reset")
+                        }
+                    ),
+            )
         val executor = Executors.newFixedThreadPool(2)
 
         try {
-            val firstToken = executor.submit<String?> { service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI) }
+            val firstToken =
+                executor.submit<String?> {
+                    service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI)
+                }
             assertTrue(refreshStarted.await(5, TimeUnit.SECONDS))
-            val secondToken = executor.submit<String?> { service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI) }
+            val secondToken =
+                executor.submit<String?> {
+                    service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI)
+                }
             allowRefreshToFail.countDown()
 
             assertNull(firstToken.get(5, TimeUnit.SECONDS))
             assertNull(secondToken.get(5, TimeUnit.SECONDS))
-            assertEquals(1, refreshCalls.get(), "waiting callers must share a failed refresh outcome")
+            assertEquals(
+                1,
+                refreshCalls.get(),
+                "waiting callers must share a failed refresh outcome",
+            )
             assertEquals("old-token", store.current()?.accessToken)
         } finally {
             executor.shutdownNow()
@@ -178,14 +216,12 @@ class QuotaAuthServiceConcurrencyTest {
     fun transientRefreshFailureKeepsStoredCredentials() {
         val existing = expiredCredentials()
         val store = InMemoryCredentialStore(existing)
-        val service = createService(
-            store = store,
-            tokenOperations = TestTokenOperations(
-                onRefresh = {
-                    throw IllegalStateException("timeout")
-                },
-            ),
-        )
+        val service =
+            createService(
+                store = store,
+                tokenOperations =
+                    TestTokenOperations(onRefresh = { throw IllegalStateException("timeout") }),
+            )
 
         try {
             assertNull(service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
@@ -200,26 +236,36 @@ class QuotaAuthServiceConcurrencyTest {
     fun credentialSaveFailureKeepsRotatedTokenInMemory() {
         val store = InMemoryCredentialStore(expiredCredentials())
         val refreshCalls = AtomicInteger(0)
-        val failingStore = object : OAuthCredentialStore by store {
-            override fun save(credentials: OAuthCredentials) {
-                throw IllegalStateException("Password Safe unavailable")
+        val failingStore =
+            object : OAuthCredentialStore by store {
+                override fun save(credentials: OAuthCredentials) {
+                    throw IllegalStateException("Password Safe unavailable")
+                }
             }
-        }
-        val service = createService(
-            store = failingStore,
-            tokenOperations = TestTokenOperations(
-                onRefresh = {
-                    refreshCalls.incrementAndGet()
-                    validCredentials(accessToken = "new-token", refreshToken = "new-refresh-token")
-                },
-            ),
-        )
+        val service =
+            createService(
+                store = failingStore,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = {
+                            refreshCalls.incrementAndGet()
+                            validCredentials(
+                                accessToken = "new-token",
+                                refreshToken = "new-refresh-token",
+                            )
+                        }
+                    ),
+            )
 
         try {
             assertEquals("new-token", service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
             assertEquals("new-token", service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
             assertEquals(1, refreshCalls.get(), "the stale stored refresh token must not be reused")
-            assertEquals("old-token", store.current()?.accessToken, "store stays stale when Password Safe fails")
+            assertEquals(
+                "old-token",
+                store.current()?.accessToken,
+                "store stays stale when Password Safe fails",
+            )
             assertTrue(service.isLoggedIn(QuotaProviderType.OPEN_AI))
         } finally {
             service.dispose()
@@ -230,29 +276,41 @@ class QuotaAuthServiceConcurrencyTest {
     fun chainedMemoryOnlyRotationsKeepNewestCredentials() {
         val store = InMemoryCredentialStore(expiredCredentials())
         val refreshCalls = AtomicInteger(0)
-        val failingStore = object : OAuthCredentialStore by store {
-            override fun save(credentials: OAuthCredentials) {
-                throw IllegalStateException("Password Safe unavailable")
+        val failingStore =
+            object : OAuthCredentialStore by store {
+                override fun save(credentials: OAuthCredentials) {
+                    throw IllegalStateException("Password Safe unavailable")
+                }
             }
-        }
-        val service = createService(
-            store = failingStore,
-            tokenOperations = TestTokenOperations(
-                onRefresh = {
-                    if (refreshCalls.incrementAndGet() == 1) {
-                        validCredentials(accessToken = "token-a", refreshToken = "refresh-a")
-                    } else {
-                        validCredentials(accessToken = "token-b", refreshToken = "refresh-b")
-                    }
-                },
-            ),
-        )
+        val service =
+            createService(
+                store = failingStore,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = {
+                            if (refreshCalls.incrementAndGet() == 1) {
+                                validCredentials(
+                                    accessToken = "token-a",
+                                    refreshToken = "refresh-a",
+                                )
+                            } else {
+                                validCredentials(
+                                    accessToken = "token-b",
+                                    refreshToken = "refresh-b",
+                                )
+                            }
+                        }
+                    ),
+            )
 
         try {
             assertEquals("token-a", service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
             assertEquals(
                 "token-b",
-                service.forceRefreshBlocking(QuotaProviderType.OPEN_AI, staleAccessToken = "token-a"),
+                service.forceRefreshBlocking(
+                    QuotaProviderType.OPEN_AI,
+                    staleAccessToken = "token-a",
+                ),
             )
             assertEquals("token-b", service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
             assertEquals(2, refreshCalls.get())
@@ -266,43 +324,57 @@ class QuotaAuthServiceConcurrencyTest {
     fun pendingRotationTracksExternallyAdoptedPersistedAncestor() {
         val store = InMemoryCredentialStore(expiredCredentials())
         val refreshCalls = AtomicInteger(0)
-        val failingStore = object : OAuthCredentialStore by store {
-            override fun save(credentials: OAuthCredentials) {
-                throw IllegalStateException("Password Safe unavailable")
+        val failingStore =
+            object : OAuthCredentialStore by store {
+                override fun save(credentials: OAuthCredentials) {
+                    throw IllegalStateException("Password Safe unavailable")
+                }
             }
-        }
-        val service = createService(
-            store = failingStore,
-            tokenOperations = TestTokenOperations(
-                onRefresh = { existing ->
-                    when (refreshCalls.incrementAndGet()) {
-                        1 -> validCredentials(accessToken = "token-a", refreshToken = "refresh-a")
-                        2 -> {
-                            store.save(
-                                OAuthCredentials(
-                                    accessToken = "token-x",
-                                    refreshToken = "refresh-x",
-                                    expiresAt = System.currentTimeMillis() - 60_000,
-                                    accountId = "account-1",
-                                )
-                            )
-                            throw OAuthTokenRequestException(
-                                "invalid grant for ${existing.refreshToken}",
-                                400,
-                                "invalid_grant",
-                            )
+        val service =
+            createService(
+                store = failingStore,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = { existing ->
+                            when (refreshCalls.incrementAndGet()) {
+                                1 ->
+                                    validCredentials(
+                                        accessToken = "token-a",
+                                        refreshToken = "refresh-a",
+                                    )
+                                2 -> {
+                                    store.save(
+                                        OAuthCredentials(
+                                            accessToken = "token-x",
+                                            refreshToken = "refresh-x",
+                                            expiresAt = System.currentTimeMillis() - 60_000,
+                                            accountId = "account-1",
+                                        )
+                                    )
+                                    throw OAuthTokenRequestException(
+                                        "invalid grant for ${existing.refreshToken}",
+                                        400,
+                                        "invalid_grant",
+                                    )
+                                }
+                                else ->
+                                    validCredentials(
+                                        accessToken = "token-b",
+                                        refreshToken = "refresh-b",
+                                    )
+                            }
                         }
-                        else -> validCredentials(accessToken = "token-b", refreshToken = "refresh-b")
-                    }
-                },
-            ),
-        )
+                    ),
+            )
 
         try {
             assertEquals("token-a", service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
             assertEquals(
                 "token-b",
-                service.forceRefreshBlocking(QuotaProviderType.OPEN_AI, staleAccessToken = "token-a"),
+                service.forceRefreshBlocking(
+                    QuotaProviderType.OPEN_AI,
+                    staleAccessToken = "token-a",
+                ),
             )
             assertEquals("token-b", service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
             assertEquals(3, refreshCalls.get())
@@ -318,36 +390,43 @@ class QuotaAuthServiceConcurrencyTest {
         val failNextLoad = AtomicBoolean(false)
         val pendingLoadStarted = CountDownLatch(1)
         val allowPendingLoadToFail = CountDownLatch(1)
-        val failingStore = object : OAuthCredentialStore by store {
-            override fun load(): OAuthCredentials? {
-                if (failNextLoad.compareAndSet(true, false)) {
-                    pendingLoadStarted.countDown()
-                    assertTrue(allowPendingLoadToFail.await(5, TimeUnit.SECONDS))
+        val failingStore =
+            object : OAuthCredentialStore by store {
+                override fun load(): OAuthCredentials? {
+                    if (failNextLoad.compareAndSet(true, false)) {
+                        pendingLoadStarted.countDown()
+                        assertTrue(allowPendingLoadToFail.await(5, TimeUnit.SECONDS))
+                        throw IllegalStateException("Password Safe unavailable")
+                    }
+                    return store.load()
+                }
+
+                override fun save(credentials: OAuthCredentials) {
                     throw IllegalStateException("Password Safe unavailable")
                 }
-                return store.load()
             }
-
-            override fun save(credentials: OAuthCredentials) {
-                throw IllegalStateException("Password Safe unavailable")
-            }
-        }
-        val service = createService(
-            store = failingStore,
-            tokenOperations = TestTokenOperations(
-                onRefresh = {
-                    validCredentials(accessToken = "new-token", refreshToken = "new-refresh-token")
-                },
-            ),
-        )
+        val service =
+            createService(
+                store = failingStore,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = {
+                            validCredentials(
+                                accessToken = "new-token",
+                                refreshToken = "new-refresh-token",
+                            )
+                        }
+                    ),
+            )
         val executor = Executors.newSingleThreadExecutor()
 
         try {
             assertEquals("new-token", service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
             failNextLoad.set(true)
-            val pendingToken = executor.submit<String?> {
-                service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI)
-            }
+            val pendingToken =
+                executor.submit<String?> {
+                    service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI)
+                }
             assertTrue(pendingLoadStarted.await(5, TimeUnit.SECONDS))
 
             assertTrue(service.clearCredentials(QuotaProviderType.OPEN_AI))
@@ -365,20 +444,26 @@ class QuotaAuthServiceConcurrencyTest {
     @Test
     fun loginPersistenceFailureReturnsErrorAndKeepsLoginDisconnected() {
         val store = InMemoryCredentialStore(null)
-        val failingStore = object : OAuthCredentialStore by store {
-            override fun save(credentials: OAuthCredentials) {
-                throw IllegalStateException("Password Safe unavailable")
+        val failingStore =
+            object : OAuthCredentialStore by store {
+                override fun save(credentials: OAuthCredentials) {
+                    throw IllegalStateException("Password Safe unavailable")
+                }
             }
-        }
-        val service = createService(
-            store = failingStore,
-            tokenOperations = TestTokenOperations(
-                onRefresh = { error("Refresh must not run") },
-                onExchange = { _, _, _ ->
-                    validCredentials(accessToken = "new-token", refreshToken = "new-refresh-token")
-                },
-            ),
-        )
+        val service =
+            createService(
+                store = failingStore,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = { error("Refresh must not run") },
+                        onExchange = { _, _, _ ->
+                            validCredentials(
+                                accessToken = "new-token",
+                                refreshToken = "new-refresh-token",
+                            )
+                        },
+                    ),
+            )
         val authUrl = AtomicReference<String>()
         val result = AtomicReference<LoginResult>()
         val completed = CountDownLatch(1)
@@ -392,7 +477,8 @@ class QuotaAuthServiceConcurrencyTest {
                 },
                 onAuthUrl = authUrl::set,
             )
-            val state = QuotaAuthService.parseQuery(URI.create(authUrl.get()).rawQuery).getValue("state")
+            val state =
+                QuotaAuthService.parseQuery(URI.create(authUrl.get()).rawQuery).getValue("state")
             assertNull(service.completePastedCallback(QuotaProviderType.CLAUDE, "code#$state"))
 
             assertTrue(completed.await(5, TimeUnit.SECONDS))
@@ -409,17 +495,22 @@ class QuotaAuthServiceConcurrencyTest {
         val store = InMemoryCredentialStore(null)
         val exchangeStarted = CountDownLatch(1)
         val allowExchangeToFinish = CountDownLatch(1)
-        val service = createService(
-            store = store,
-            tokenOperations = TestTokenOperations(
-                onRefresh = { error("Refresh must not run") },
-                onExchange = { _, _, _ ->
-                    exchangeStarted.countDown()
-                    assertTrue(allowExchangeToFinish.await(5, TimeUnit.SECONDS))
-                    validCredentials(accessToken = "new-token", refreshToken = "new-refresh-token")
-                },
-            ),
-        )
+        val service =
+            createService(
+                store = store,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = { error("Refresh must not run") },
+                        onExchange = { _, _, _ ->
+                            exchangeStarted.countDown()
+                            assertTrue(allowExchangeToFinish.await(5, TimeUnit.SECONDS))
+                            validCredentials(
+                                accessToken = "new-token",
+                                refreshToken = "new-refresh-token",
+                            )
+                        },
+                    ),
+            )
         val authUrl = AtomicReference<String>()
         val executor = Executors.newSingleThreadExecutor()
 
@@ -429,10 +520,12 @@ class QuotaAuthServiceConcurrencyTest {
                 callback = {},
                 onAuthUrl = authUrl::set,
             )
-            val state = QuotaAuthService.parseQuery(URI.create(authUrl.get()).rawQuery).getValue("state")
-            val completion = executor.submit<String?> {
-                service.completePastedCallback(QuotaProviderType.CLAUDE, "code#$state")
-            }
+            val state =
+                QuotaAuthService.parseQuery(URI.create(authUrl.get()).rawQuery).getValue("state")
+            val completion =
+                executor.submit<String?> {
+                    service.completePastedCallback(QuotaProviderType.CLAUDE, "code#$state")
+                }
             assertTrue(exchangeStarted.await(5, TimeUnit.SECONDS))
 
             assertTrue(service.abortLogin(QuotaProviderType.CLAUDE, "Login canceled"))
@@ -452,15 +545,17 @@ class QuotaAuthServiceConcurrencyTest {
     fun terminalRefreshFailureKeepsStoredCredentials() {
         val store = InMemoryCredentialStore(expiredCredentials())
         val refreshCalls = AtomicInteger(0)
-        val service = createService(
-            store = store,
-            tokenOperations = TestTokenOperations(
-                onRefresh = {
-                    refreshCalls.incrementAndGet()
-                    throw OAuthTokenRequestException("invalid grant", 400, "invalid_grant")
-                },
-            ),
-        )
+        val service =
+            createService(
+                store = store,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = {
+                            refreshCalls.incrementAndGet()
+                            throw OAuthTokenRequestException("invalid grant", 400, "invalid_grant")
+                        }
+                    ),
+            )
 
         try {
             assertNull(service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
@@ -474,18 +569,24 @@ class QuotaAuthServiceConcurrencyTest {
 
     @Test
     fun credentialLoadFailureKeepsCachedCredentials() {
-        val store = InMemoryCredentialStore(validCredentials(accessToken = "stored-token", refreshToken = "stored-refresh"))
+        val store =
+            InMemoryCredentialStore(
+                validCredentials(accessToken = "stored-token", refreshToken = "stored-refresh")
+            )
         val failLoads = AtomicBoolean(false)
-        val failingStore = object : OAuthCredentialStore by store {
-            override fun load(): OAuthCredentials? {
-                if (failLoads.get()) throw IllegalStateException("Password Safe unavailable")
-                return store.load()
+        val failingStore =
+            object : OAuthCredentialStore by store {
+                override fun load(): OAuthCredentials? {
+                    if (failLoads.get()) throw IllegalStateException("Password Safe unavailable")
+                    return store.load()
+                }
             }
-        }
-        val service = createService(
-            store = failingStore,
-            tokenOperations = TestTokenOperations(onRefresh = { error("Refresh must not run") }),
-        )
+        val service =
+            createService(
+                store = failingStore,
+                tokenOperations =
+                    TestTokenOperations(onRefresh = { error("Refresh must not run") }),
+            )
 
         try {
             assertEquals("stored-token", service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
@@ -499,30 +600,39 @@ class QuotaAuthServiceConcurrencyTest {
 
     @Test
     fun logoutWinsWhenCredentialLoadFailsConcurrently() {
-        val store = InMemoryCredentialStore(validCredentials(accessToken = "stored-token", refreshToken = "stored-refresh"))
+        val store =
+            InMemoryCredentialStore(
+                validCredentials(accessToken = "stored-token", refreshToken = "stored-refresh")
+            )
         val failNextLoad = AtomicBoolean(false)
         val loadStarted = CountDownLatch(1)
         val allowLoadToFail = CountDownLatch(1)
-        val failingStore = object : OAuthCredentialStore by store {
-            override fun load(): OAuthCredentials? {
-                if (failNextLoad.compareAndSet(true, false)) {
-                    loadStarted.countDown()
-                    assertTrue(allowLoadToFail.await(5, TimeUnit.SECONDS))
-                    throw IllegalStateException("Password Safe unavailable")
+        val failingStore =
+            object : OAuthCredentialStore by store {
+                override fun load(): OAuthCredentials? {
+                    if (failNextLoad.compareAndSet(true, false)) {
+                        loadStarted.countDown()
+                        assertTrue(allowLoadToFail.await(5, TimeUnit.SECONDS))
+                        throw IllegalStateException("Password Safe unavailable")
+                    }
+                    return store.load()
                 }
-                return store.load()
             }
-        }
-        val service = createService(
-            store = failingStore,
-            tokenOperations = TestTokenOperations(onRefresh = { error("Refresh must not run") }),
-        )
+        val service =
+            createService(
+                store = failingStore,
+                tokenOperations =
+                    TestTokenOperations(onRefresh = { error("Refresh must not run") }),
+            )
         val executor = Executors.newSingleThreadExecutor()
 
         try {
             assertEquals("stored-token", service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
             failNextLoad.set(true)
-            val token = executor.submit<String?> { service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI) }
+            val token =
+                executor.submit<String?> {
+                    service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI)
+                }
             assertTrue(loadStarted.await(5, TimeUnit.SECONDS))
 
             assertTrue(service.clearCredentials(QuotaProviderType.OPEN_AI))
@@ -539,16 +649,22 @@ class QuotaAuthServiceConcurrencyTest {
 
     @Test
     fun credentialClearFailureKeepsLogin() {
-        val store = InMemoryCredentialStore(validCredentials(accessToken = "stored-token", refreshToken = "stored-refresh"))
-        val failingStore = object : OAuthCredentialStore by store {
-            override fun clear() {
-                throw IllegalStateException("Password Safe unavailable")
+        val store =
+            InMemoryCredentialStore(
+                validCredentials(accessToken = "stored-token", refreshToken = "stored-refresh")
+            )
+        val failingStore =
+            object : OAuthCredentialStore by store {
+                override fun clear() {
+                    throw IllegalStateException("Password Safe unavailable")
+                }
             }
-        }
-        val service = createService(
-            store = failingStore,
-            tokenOperations = TestTokenOperations(onRefresh = { error("Refresh must not run") }),
-        )
+        val service =
+            createService(
+                store = failingStore,
+                tokenOperations =
+                    TestTokenOperations(onRefresh = { error("Refresh must not run") }),
+            )
 
         try {
             assertEquals("stored-token", service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
@@ -567,19 +683,29 @@ class QuotaAuthServiceConcurrencyTest {
         // Adopt the usable snapshot instead of burning the other IDE's refresh token again.
         val store = InMemoryCredentialStore(expiredCredentials())
         val refreshCalls = AtomicInteger(0)
-        val service = createService(
-            store = store,
-            tokenOperations = TestTokenOperations(
-                onRefresh = {
-                    refreshCalls.incrementAndGet()
-                    store.save(validCredentials(accessToken = "other-ide-token", refreshToken = "other-ide-refresh"))
-                    throw OAuthTokenRequestException("invalid grant", 400, "invalid_grant")
-                },
-            ),
-        )
+        val service =
+            createService(
+                store = store,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = {
+                            refreshCalls.incrementAndGet()
+                            store.save(
+                                validCredentials(
+                                    accessToken = "other-ide-token",
+                                    refreshToken = "other-ide-refresh",
+                                )
+                            )
+                            throw OAuthTokenRequestException("invalid grant", 400, "invalid_grant")
+                        }
+                    ),
+            )
 
         try {
-            assertEquals("other-ide-token", service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
+            assertEquals(
+                "other-ide-token",
+                service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI),
+            )
             assertEquals(1, refreshCalls.get(), "must not second-refresh a usable other-IDE login")
             assertEquals("other-ide-token", store.current()?.accessToken)
             assertTrue(service.isLoggedIn(QuotaProviderType.OPEN_AI))
@@ -592,14 +718,20 @@ class QuotaAuthServiceConcurrencyTest {
     fun nonTerminalOauthRefreshFailureKeepsStoredCredentials() {
         val existing = expiredCredentials()
         val store = InMemoryCredentialStore(existing)
-        val service = createService(
-            store = store,
-            tokenOperations = TestTokenOperations(
-                onRefresh = {
-                    throw OAuthTokenRequestException("invalid request", 400, "invalid_request")
-                },
-            ),
-        )
+        val service =
+            createService(
+                store = store,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = {
+                            throw OAuthTokenRequestException(
+                                "invalid request",
+                                400,
+                                "invalid_request",
+                            )
+                        }
+                    ),
+            )
 
         try {
             assertNull(service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
@@ -612,13 +744,21 @@ class QuotaAuthServiceConcurrencyTest {
 
     @Test
     fun isLoggedInLoadsPersistedCredentialsOnFirstAccess() {
-        val store = InMemoryCredentialStore(validCredentials(accessToken = "persisted-token", refreshToken = "persisted-refresh-token"))
-        val service = createService(
-            store = store,
-            tokenOperations = TestTokenOperations(
-                onRefresh = { error("Refresh should not be called for valid credentials") },
-            ),
-        )
+        val store =
+            InMemoryCredentialStore(
+                validCredentials(
+                    accessToken = "persisted-token",
+                    refreshToken = "persisted-refresh-token",
+                )
+            )
+        val service =
+            createService(
+                store = store,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = { error("Refresh should not be called for valid credentials") }
+                    ),
+            )
 
         try {
             assertTrue(service.isLoggedIn(QuotaProviderType.OPEN_AI))
@@ -630,18 +770,29 @@ class QuotaAuthServiceConcurrencyTest {
 
     @Test
     fun clearingSuperGrokCredentialsDoesNotClearOpenAiCredentials() {
-        val openAiStore = InMemoryCredentialStore(validCredentials(accessToken = "openai-token", refreshToken = "openai-refresh"))
-        val superGrokStore = InMemoryCredentialStore(validCredentials(accessToken = "grok-token", refreshToken = "grok-refresh"))
-        val stores = mapOf(
-            QuotaProviderType.OPEN_AI to openAiStore,
-            QuotaProviderType.SUPERGROK to superGrokStore,
-        )
-        val service = createService(
-            credentialStoreFactory = { _, type -> stores[type] ?: InMemoryCredentialStore(null) },
-            tokenOperations = TestTokenOperations(
-                onRefresh = { error("Refresh should not be called for valid credentials") },
-            ),
-        )
+        val openAiStore =
+            InMemoryCredentialStore(
+                validCredentials(accessToken = "openai-token", refreshToken = "openai-refresh")
+            )
+        val superGrokStore =
+            InMemoryCredentialStore(
+                validCredentials(accessToken = "grok-token", refreshToken = "grok-refresh")
+            )
+        val stores =
+            mapOf(
+                QuotaProviderType.OPEN_AI to openAiStore,
+                QuotaProviderType.SUPERGROK to superGrokStore,
+            )
+        val service =
+            createService(
+                credentialStoreFactory = { _, type ->
+                    stores[type] ?: InMemoryCredentialStore(null)
+                },
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = { error("Refresh should not be called for valid credentials") }
+                    ),
+            )
 
         try {
             assertEquals("openai-token", service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
@@ -661,34 +812,48 @@ class QuotaAuthServiceConcurrencyTest {
     @Test
     fun concurrentForceRefreshForSameRejectedTokenRefreshesOnlyOnce() {
         // Upstream-401 scenario: credentials are locally valid, but Codex rejected them.
-        val store = InMemoryCredentialStore(validCredentials(accessToken = "old-token", refreshToken = "refresh-token"))
+        val store =
+            InMemoryCredentialStore(
+                validCredentials(accessToken = "old-token", refreshToken = "refresh-token")
+            )
         val refreshStarted = CountDownLatch(1)
         val allowRefreshToFinish = CountDownLatch(1)
         val refreshCalls = AtomicInteger(0)
-        val refreshedCredentials = validCredentials(accessToken = "new-token", refreshToken = "new-refresh-token")
-        val service = createService(
-            store = store,
-            tokenOperations = TestTokenOperations(
-                onRefresh = {
-                    refreshCalls.incrementAndGet()
-                    refreshStarted.countDown()
-                    assertTrue(allowRefreshToFinish.await(5, TimeUnit.SECONDS))
-                    refreshedCredentials
-                },
-            ),
-        )
+        val refreshedCredentials =
+            validCredentials(accessToken = "new-token", refreshToken = "new-refresh-token")
+        val service =
+            createService(
+                store = store,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = {
+                            refreshCalls.incrementAndGet()
+                            refreshStarted.countDown()
+                            assertTrue(allowRefreshToFinish.await(5, TimeUnit.SECONDS))
+                            refreshedCredentials
+                        }
+                    ),
+            )
         val executor = Executors.newFixedThreadPool(2)
 
         try {
             // Both requests were rejected while carrying the same token, so both report
             // the same stale value; only the first may trigger an actual refresh.
-            val first = executor.submit<String?> {
-                service.forceRefreshBlocking(QuotaProviderType.OPEN_AI, staleAccessToken = "old-token")
-            }
+            val first =
+                executor.submit<String?> {
+                    service.forceRefreshBlocking(
+                        QuotaProviderType.OPEN_AI,
+                        staleAccessToken = "old-token",
+                    )
+                }
             assertTrue(refreshStarted.await(5, TimeUnit.SECONDS))
-            val second = executor.submit<String?> {
-                service.forceRefreshBlocking(QuotaProviderType.OPEN_AI, staleAccessToken = "old-token")
-            }
+            val second =
+                executor.submit<String?> {
+                    service.forceRefreshBlocking(
+                        QuotaProviderType.OPEN_AI,
+                        staleAccessToken = "old-token",
+                    )
+                }
             allowRefreshToFinish.countDown()
 
             assertEquals("new-token", first.get(5, TimeUnit.SECONDS))
@@ -705,15 +870,17 @@ class QuotaAuthServiceConcurrencyTest {
     fun invalidGrantWithUnchangedStoredCredentialsDoesNotReplayOrLogout() {
         val store = InMemoryCredentialStore(expiredCredentials())
         val refreshCalls = AtomicInteger(0)
-        val service = createService(
-            store = store,
-            tokenOperations = TestTokenOperations(
-                onRefresh = {
-                    refreshCalls.incrementAndGet()
-                    throw OAuthTokenRequestException("invalid grant", 400, "invalid_grant")
-                },
-            ),
-        )
+        val service =
+            createService(
+                store = store,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = {
+                            refreshCalls.incrementAndGet()
+                            throw OAuthTokenRequestException("invalid grant", 400, "invalid_grant")
+                        }
+                    ),
+            )
 
         try {
             assertNull(service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
@@ -729,18 +896,27 @@ class QuotaAuthServiceConcurrencyTest {
     fun missingSharedCredentialsAbortInvalidGrantRetry() {
         val store = InMemoryCredentialStore(expiredCredentials())
         val refreshCalls = AtomicInteger(0)
-        val service = createService(
-            store = store,
-            tokenOperations = TestTokenOperations(
-                onRefresh = {
-                    if (refreshCalls.incrementAndGet() == 1) {
-                        store.clear()
-                        throw OAuthTokenRequestException("invalid grant", 400, "invalid_grant")
-                    }
-                    validCredentials(accessToken = "new-token", refreshToken = "new-refresh-token")
-                },
-            ),
-        )
+        val service =
+            createService(
+                store = store,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = {
+                            if (refreshCalls.incrementAndGet() == 1) {
+                                store.clear()
+                                throw OAuthTokenRequestException(
+                                    "invalid grant",
+                                    400,
+                                    "invalid_grant",
+                                )
+                            }
+                            validCredentials(
+                                accessToken = "new-token",
+                                refreshToken = "new-refresh-token",
+                            )
+                        }
+                    ),
+            )
 
         try {
             assertNull(service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
@@ -756,15 +932,21 @@ class QuotaAuthServiceConcurrencyTest {
     fun serverErrorLabeledInvalidGrantKeepsLoginWithoutRetry() {
         val store = InMemoryCredentialStore(expiredCredentials())
         val refreshCalls = AtomicInteger(0)
-        val service = createService(
-            store = store,
-            tokenOperations = TestTokenOperations(
-                onRefresh = {
-                    refreshCalls.incrementAndGet()
-                    throw OAuthTokenRequestException("upstream failure", 503, "invalid_grant")
-                },
-            ),
-        )
+        val service =
+            createService(
+                store = store,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = {
+                            refreshCalls.incrementAndGet()
+                            throw OAuthTokenRequestException(
+                                "upstream failure",
+                                503,
+                                "invalid_grant",
+                            )
+                        }
+                    ),
+            )
 
         try {
             assertNull(service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
@@ -780,20 +962,26 @@ class QuotaAuthServiceConcurrencyTest {
     fun recentInvalidGrantSuppressesImmediateRefreshRetry() {
         val store = InMemoryCredentialStore(expiredCredentials())
         val refreshCalls = AtomicInteger(0)
-        val service = createService(
-            store = store,
-            tokenOperations = TestTokenOperations(
-                onRefresh = {
-                    refreshCalls.incrementAndGet()
-                    throw OAuthTokenRequestException("invalid grant", 400, "invalid_grant")
-                },
-            ),
-        )
+        val service =
+            createService(
+                store = store,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = {
+                            refreshCalls.incrementAndGet()
+                            throw OAuthTokenRequestException("invalid grant", 400, "invalid_grant")
+                        }
+                    ),
+            )
 
         try {
             assertNull(service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
             assertNull(service.getAccessTokenBlocking(QuotaProviderType.OPEN_AI))
-            assertEquals(1, refreshCalls.get(), "a recent failed refresh must be shared by immediate callers")
+            assertEquals(
+                1,
+                refreshCalls.get(),
+                "a recent failed refresh must be shared by immediate callers",
+            )
             assertEquals("old-token", store.current()?.accessToken)
             assertTrue(service.isLoggedIn(QuotaProviderType.OPEN_AI))
         } finally {
@@ -803,16 +991,29 @@ class QuotaAuthServiceConcurrencyTest {
 
     @Test
     fun forceRefreshSkipsWhenAnotherRequestAlreadyRotatedTheToken() {
-        val store = InMemoryCredentialStore(validCredentials(accessToken = "current-token", refreshToken = "refresh-token"))
-        val service = createService(
-            store = store,
-            tokenOperations = TestTokenOperations(
-                onRefresh = { error("Refresh must not run when the rejected token is already rotated away") },
-            ),
-        )
+        val store =
+            InMemoryCredentialStore(
+                validCredentials(accessToken = "current-token", refreshToken = "refresh-token")
+            )
+        val service =
+            createService(
+                store = store,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = {
+                            error(
+                                "Refresh must not run when the rejected token is already rotated away"
+                            )
+                        }
+                    ),
+            )
 
         try {
-            val token = service.forceRefreshBlocking(QuotaProviderType.OPEN_AI, staleAccessToken = "rotated-away-token")
+            val token =
+                service.forceRefreshBlocking(
+                    QuotaProviderType.OPEN_AI,
+                    staleAccessToken = "rotated-away-token",
+                )
             assertEquals("current-token", token)
             assertEquals("current-token", store.current()?.accessToken)
         } finally {
@@ -822,20 +1023,32 @@ class QuotaAuthServiceConcurrencyTest {
 
     @Test
     fun forceRefreshRefreshesLocallyValidCredentialsThatUpstreamRejected() {
-        val store = InMemoryCredentialStore(validCredentials(accessToken = "old-token", refreshToken = "refresh-token"))
+        val store =
+            InMemoryCredentialStore(
+                validCredentials(accessToken = "old-token", refreshToken = "refresh-token")
+            )
         val refreshCalls = AtomicInteger(0)
-        val service = createService(
-            store = store,
-            tokenOperations = TestTokenOperations(
-                onRefresh = {
-                    refreshCalls.incrementAndGet()
-                    validCredentials(accessToken = "new-token", refreshToken = "new-refresh-token")
-                },
-            ),
-        )
+        val service =
+            createService(
+                store = store,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = {
+                            refreshCalls.incrementAndGet()
+                            validCredentials(
+                                accessToken = "new-token",
+                                refreshToken = "new-refresh-token",
+                            )
+                        }
+                    ),
+            )
 
         try {
-            val token = service.forceRefreshBlocking(QuotaProviderType.OPEN_AI, staleAccessToken = "old-token")
+            val token =
+                service.forceRefreshBlocking(
+                    QuotaProviderType.OPEN_AI,
+                    staleAccessToken = "old-token",
+                )
             assertEquals("new-token", token)
             assertEquals(1, refreshCalls.get())
             assertEquals("new-token", store.current()?.accessToken)
@@ -848,20 +1061,29 @@ class QuotaAuthServiceConcurrencyTest {
     fun forceRefreshWithUnknownStaleTokenStillRefreshes() {
         // When the rejected Authorization header could not be parsed, the conservative
         // fallback is to refresh anyway rather than retry with a doomed token.
-        val store = InMemoryCredentialStore(validCredentials(accessToken = "current-token", refreshToken = "refresh-token"))
+        val store =
+            InMemoryCredentialStore(
+                validCredentials(accessToken = "current-token", refreshToken = "refresh-token")
+            )
         val refreshCalls = AtomicInteger(0)
-        val service = createService(
-            store = store,
-            tokenOperations = TestTokenOperations(
-                onRefresh = {
-                    refreshCalls.incrementAndGet()
-                    validCredentials(accessToken = "new-token", refreshToken = "new-refresh-token")
-                },
-            ),
-        )
+        val service =
+            createService(
+                store = store,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = {
+                            refreshCalls.incrementAndGet()
+                            validCredentials(
+                                accessToken = "new-token",
+                                refreshToken = "new-refresh-token",
+                            )
+                        }
+                    ),
+            )
 
         try {
-            val token = service.forceRefreshBlocking(QuotaProviderType.OPEN_AI, staleAccessToken = null)
+            val token =
+                service.forceRefreshBlocking(QuotaProviderType.OPEN_AI, staleAccessToken = null)
             assertEquals("new-token", token)
             assertEquals(1, refreshCalls.get())
         } finally {
@@ -871,20 +1093,30 @@ class QuotaAuthServiceConcurrencyTest {
 
     @Test
     fun forceRefreshInvalidGrantDoesNotReplayOrLogout() {
-        val store = InMemoryCredentialStore(validCredentials(accessToken = "old-token", refreshToken = "refresh-token"))
+        val store =
+            InMemoryCredentialStore(
+                validCredentials(accessToken = "old-token", refreshToken = "refresh-token")
+            )
         val refreshCalls = AtomicInteger(0)
-        val service = createService(
-            store = store,
-            tokenOperations = TestTokenOperations(
-                onRefresh = {
-                    refreshCalls.incrementAndGet()
-                    throw OAuthTokenRequestException("invalid grant", 400, "invalid_grant")
-                },
-            ),
-        )
+        val service =
+            createService(
+                store = store,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = {
+                            refreshCalls.incrementAndGet()
+                            throw OAuthTokenRequestException("invalid grant", 400, "invalid_grant")
+                        }
+                    ),
+            )
 
         try {
-            assertNull(service.forceRefreshBlocking(QuotaProviderType.OPEN_AI, staleAccessToken = "old-token"))
+            assertNull(
+                service.forceRefreshBlocking(
+                    QuotaProviderType.OPEN_AI,
+                    staleAccessToken = "old-token",
+                )
+            )
             assertEquals(1, refreshCalls.get())
             assertEquals("old-token", store.current()?.accessToken)
             assertTrue(service.isLoggedIn(QuotaProviderType.OPEN_AI))
@@ -895,21 +1127,36 @@ class QuotaAuthServiceConcurrencyTest {
 
     @Test
     fun repeatedForceRefreshFailureKeepsCredentialsAndUsesBackoff() {
-        val store = InMemoryCredentialStore(validCredentials(accessToken = "old-token", refreshToken = "refresh-token"))
+        val store =
+            InMemoryCredentialStore(
+                validCredentials(accessToken = "old-token", refreshToken = "refresh-token")
+            )
         val refreshCalls = AtomicInteger(0)
-        val service = createService(
-            store = store,
-            tokenOperations = TestTokenOperations(
-                onRefresh = {
-                    refreshCalls.incrementAndGet()
-                    throw OAuthTokenRequestException("invalid grant", 400, "invalid_grant")
-                },
-            ),
-        )
+        val service =
+            createService(
+                store = store,
+                tokenOperations =
+                    TestTokenOperations(
+                        onRefresh = {
+                            refreshCalls.incrementAndGet()
+                            throw OAuthTokenRequestException("invalid grant", 400, "invalid_grant")
+                        }
+                    ),
+            )
 
         try {
-            assertNull(service.forceRefreshBlocking(QuotaProviderType.OPEN_AI, staleAccessToken = "old-token"))
-            assertNull(service.forceRefreshBlocking(QuotaProviderType.OPEN_AI, staleAccessToken = "old-token"))
+            assertNull(
+                service.forceRefreshBlocking(
+                    QuotaProviderType.OPEN_AI,
+                    staleAccessToken = "old-token",
+                )
+            )
+            assertNull(
+                service.forceRefreshBlocking(
+                    QuotaProviderType.OPEN_AI,
+                    staleAccessToken = "old-token",
+                )
+            )
             assertEquals(1, refreshCalls.get())
             assertEquals("old-token", store.current()?.accessToken)
             assertTrue(service.isLoggedIn(QuotaProviderType.OPEN_AI))
@@ -920,12 +1167,12 @@ class QuotaAuthServiceConcurrencyTest {
 
     @Test
     fun secondAccountOfSameTypeCannotStartLoginWhileFirstRuns() {
-        val service = createService(
-            store = InMemoryCredentialStore(null),
-            tokenOperations = TestTokenOperations(
-                onRefresh = { error("Refresh must not run") },
-            ),
-        )
+        val service =
+            createService(
+                store = InMemoryCredentialStore(null),
+                tokenOperations =
+                    TestTokenOperations(onRefresh = { error("Refresh must not run") }),
+            )
         val second = AtomicReference<LoginResult>()
         try {
             service.startLoginFlow(
@@ -934,7 +1181,9 @@ class QuotaAuthServiceConcurrencyTest {
                 callback = {},
                 onAuthUrl = {},
             )
-            assertTrue(service.isLoginInProgress(QuotaProviderType.CLAUDE.id, QuotaProviderType.CLAUDE))
+            assertTrue(
+                service.isLoginInProgress(QuotaProviderType.CLAUDE.id, QuotaProviderType.CLAUDE)
+            )
             service.startLoginFlow(
                 accountId = "extra-claude",
                 type = QuotaProviderType.CLAUDE,

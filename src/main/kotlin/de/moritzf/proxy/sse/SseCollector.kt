@@ -1,4 +1,5 @@
 package de.moritzf.proxy.sse
+
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.server.MutableJsonArray
 import de.moritzf.proxy.server.MutableJsonObject
@@ -10,6 +11,7 @@ import java.io.IOException
 import java.io.InputStream
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+
 object SseCollector {
     fun collectCompletedResponse(input: InputStream): JsonObject {
         var latestResponse: JsonObject? = null
@@ -48,15 +50,15 @@ object SseCollector {
                             latestResponse = response
                         }
                     }
-                    "response.failed", "response.cancelled" -> {
+                    "response.failed",
+                    "response.cancelled" -> {
                         val response = parsed["response"]
                         if (response is JsonObject) {
                             failedResponse = response
                         }
                     }
                 }
-            } catch (_: Exception) {
-            }
+            } catch (_: Exception) {}
         }
         if (latestResponse == null) {
             latestResponse = failedResponse
@@ -79,31 +81,37 @@ object SseCollector {
         val errorInfo = latestError?.let { " Last error: $it" }.orEmpty()
         throw IOException("No completed response found in SSE stream.$errorInfo")
     }
+
     private fun hasOutputItems(response: JsonObject): Boolean {
         val output = response["output"] as? JsonArray
         return output != null && output.isNotEmpty()
     }
+
     private fun containsOutputText(response: JsonObject): Boolean {
         val output = response["output"] as? JsonArray ?: return false
         for (item in output) {
             val content = (item as? JsonObject)?.get("content") as? JsonArray ?: continue
             for (part in content) {
                 val partObject = part as? JsonObject ?: continue
-                if (partObject.stringPath("type") == "output_text" && partObject.hasNonNull("text")) {
+                if (
+                    partObject.stringPath("type") == "output_text" && partObject.hasNonNull("text")
+                ) {
                     return true
                 }
             }
         }
         return false
     }
+
     private fun appendOutputText(response: JsonObject, text: String): JsonObject {
         val copy = MutableJsonObject(response)
         val existingOutput = copy.get("output")
-        val output: MutableJsonArray = if (existingOutput is JsonArray) {
-            MutableJsonArray(existingOutput)
-        } else {
-            createArrayNode()
-        }
+        val output: MutableJsonArray =
+            if (existingOutput is JsonArray) {
+                MutableJsonArray(existingOutput)
+            } else {
+                createArrayNode()
+            }
         val message = createObjectNode()
         message.put("type", "message")
         message.put("role", "assistant")

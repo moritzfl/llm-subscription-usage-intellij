@@ -3,21 +3,20 @@ package de.moritzf.quota.opencode.proxy
 import de.moritzf.proxy.subscription.SubscriptionProxyModel
 import de.moritzf.proxy.subscription.SubscriptionProxyRoute
 import de.moritzf.quota.shared.JsonSupport
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.time.Duration
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
-import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
-import java.time.Duration
 
 /** Only the Console fields needed to route models; credentials come from the active OAuth login. */
-@Serializable
-internal data class OpenCodeConsoleConfig(val providers: Map<String, ConsoleProvider>)
+@Serializable internal data class OpenCodeConsoleConfig(val providers: Map<String, ConsoleProvider>)
 
 @Serializable
 internal data class ConsoleProvider(
@@ -28,8 +27,7 @@ internal data class ConsoleProvider(
     val models: Map<String, ConsoleModel> = emptyMap(),
 )
 
-@Serializable
-internal data class ConsoleSettings(val baseURL: String? = null)
+@Serializable internal data class ConsoleSettings(val baseURL: String? = null)
 
 @Serializable
 internal data class ConsoleModel(
@@ -44,10 +42,17 @@ internal data class ConsoleModel(
 )
 
 @Serializable
-internal data class ConsoleCapabilities(val tools: Boolean = true, val input: List<String> = emptyList())
+internal data class ConsoleCapabilities(
+    val tools: Boolean = true,
+    val input: List<String> = emptyList(),
+)
 
 @Serializable
-internal data class ConsoleLimit(val context: Int? = null, val input: Int? = null, val output: Int? = null)
+internal data class ConsoleLimit(
+    val context: Int? = null,
+    val input: Int? = null,
+    val output: Int? = null,
+)
 
 internal enum class OpenCodePool {
     GO,
@@ -68,7 +73,8 @@ internal data class OpenCodeConsoleModel(
     val supportsPdf: Boolean = false,
     val pdfCapabilityKnown: Boolean = false,
 ) {
-    val targetUri: URI get() = URI.create(baseUri.toString().trimEnd('/') + nativeRoute.normalizedPath)
+    val targetUri: URI
+        get() = URI.create(baseUri.toString().trimEnd('/') + nativeRoute.normalizedPath)
 
     companion object {
         fun documentModelIds(models: List<OpenCodeConsoleModel>): List<String> =
@@ -85,19 +91,28 @@ internal data class OpenCodeConsoleModel(
         const val GO_MODELS_URL = "https://opencode.ai/zen/go/v1/models"
         const val ZEN_MODELS_URL = "https://opencode.ai/zen/v1/models"
 
-        fun parse(body: String, pools: OpenCodePools = OpenCodePools()): List<OpenCodeConsoleModel> {
+        fun parse(
+            body: String,
+            pools: OpenCodePools = OpenCodePools(),
+        ): List<OpenCodeConsoleModel> {
             val providers = JsonSupport.json.decodeFromString<OpenCodeConsoleConfig>(body).providers
-            // Console Zen is provider "opencode" (/inference/…). Go is "opencode-go" (/inference/go/…).
+            // Console Zen is provider "opencode" (/inference/…). Go is "opencode-go"
+            // (/inference/go/…).
             // Do not invent the other pool's URL when that provider is already in the config.
             val configured = providers.keys.mapNotNull(::providerPool).toSet()
             val parsed = providers.flatMap { (providerId, provider) ->
-                provider.models.mapNotNull { (id, model) -> toModel(providerId, provider, id, model) }
+                provider.models.mapNotNull { (id, model) ->
+                    toModel(providerId, provider, id, model)
+                }
             }
             return withPoolTwins(parsed, pools, configured)
         }
 
         fun fetchPools(httpClient: HttpClient = HttpClient.newHttpClient()): OpenCodePools {
-            return OpenCodePools(fetchIds(httpClient, GO_MODELS_URL), fetchIds(httpClient, ZEN_MODELS_URL))
+            return OpenCodePools(
+                fetchIds(httpClient, GO_MODELS_URL),
+                fetchIds(httpClient, ZEN_MODELS_URL),
+            )
         }
 
         internal fun poolOf(uri: URI): OpenCodePool? {
@@ -109,70 +124,100 @@ internal data class OpenCodeConsoleModel(
             }
         }
 
-        private fun providerPool(providerId: String): OpenCodePool? = when (providerId) {
-            "opencode-go" -> OpenCodePool.GO
-            "opencode" -> OpenCodePool.ZEN
-            else -> null
-        }
+        private fun providerPool(providerId: String): OpenCodePool? =
+            when (providerId) {
+                "opencode-go" -> OpenCodePool.GO
+                "opencode" -> OpenCodePool.ZEN
+                else -> null
+            }
 
-        private fun poolFor(providerId: String, uri: URI): OpenCodePool? = poolOf(uri) ?: providerPool(providerId)
+        private fun poolFor(providerId: String, uri: URI): OpenCodePool? =
+            poolOf(uri) ?: providerPool(providerId)
 
         private fun isGoPath(path: String): Boolean {
-            return path.contains("/zen/go/") || path.endsWith("/zen/go") ||
-                path.contains("/inference/go/") || path.endsWith("/inference/go")
+            return path.contains("/zen/go/") ||
+                path.endsWith("/zen/go") ||
+                path.contains("/inference/go/") ||
+                path.endsWith("/inference/go")
         }
 
         private fun isZenPath(path: String): Boolean {
             if (isGoPath(path)) return false
-            return path.contains("/zen/") || path.endsWith("/zen") ||
-                path.contains("/inference/") || path.endsWith("/inference")
+            return path.contains("/zen/") ||
+                path.endsWith("/zen") ||
+                path.contains("/inference/") ||
+                path.endsWith("/inference")
         }
 
-        internal fun localId(pool: OpenCodePool?, modelId: String): String = when (pool) {
-            OpenCodePool.GO -> "oc-go-$modelId"
-            OpenCodePool.ZEN -> "oc-zen-$modelId"
-            null -> "oc-$modelId"
-        }
+        internal fun localId(pool: OpenCodePool?, modelId: String): String =
+            when (pool) {
+                OpenCodePool.GO -> "oc-go-$modelId"
+                OpenCodePool.ZEN -> "oc-zen-$modelId"
+                null -> "oc-$modelId"
+            }
 
         internal fun rewritePoolBase(uri: URI, target: OpenCodePool): URI? {
             val raw = uri.toString().trimEnd('/')
             val path = uri.path.trimEnd('/')
-            val rewritten = when (target) {
-                OpenCodePool.GO -> if (isGoPath(path)) {
-                    return null
-                } else if (raw.contains("/zen/")) {
-                    raw.replace("/zen/", "/zen/go/")
-                } else if (raw.contains("/inference/")) {
-                    raw.replace("/inference/", "/inference/go/")
-                } else {
-                    return null
+            val rewritten =
+                when (target) {
+                    OpenCodePool.GO ->
+                        if (isGoPath(path)) {
+                            return null
+                        } else if (raw.contains("/zen/")) {
+                            raw.replace("/zen/", "/zen/go/")
+                        } else if (raw.contains("/inference/")) {
+                            raw.replace("/inference/", "/inference/go/")
+                        } else {
+                            return null
+                        }
+                    OpenCodePool.ZEN ->
+                        if (raw.contains("/zen/go/")) {
+                            raw.replace("/zen/go/", "/zen/")
+                        } else if (raw.endsWith("/zen/go")) {
+                            raw.removeSuffix("/go")
+                        } else if (raw.contains("/inference/go/")) {
+                            raw.replace("/inference/go/", "/inference/")
+                        } else if (raw.endsWith("/inference/go")) {
+                            raw.removeSuffix("/go")
+                        } else {
+                            return null
+                        }
                 }
-                OpenCodePool.ZEN -> if (raw.contains("/zen/go/")) {
-                    raw.replace("/zen/go/", "/zen/")
-                } else if (raw.endsWith("/zen/go")) {
-                    raw.removeSuffix("/go")
-                } else if (raw.contains("/inference/go/")) {
-                    raw.replace("/inference/go/", "/inference/")
-                } else if (raw.endsWith("/inference/go")) {
-                    raw.removeSuffix("/go")
-                } else {
-                    return null
-                }
-            }
             return runCatching { URI.create(rewritten) }.getOrNull()
         }
 
-        private fun toModel(providerId: String, provider: ConsoleProvider, id: String, model: ConsoleModel): OpenCodeConsoleModel? {
+        private fun toModel(
+            providerId: String,
+            provider: ConsoleProvider,
+            id: String,
+            model: ConsoleModel,
+        ): OpenCodeConsoleModel? {
             if (model.disabled) return null
-            val nativeRoute = when (model.packageName ?: provider.packageName) {
-                "aisdk:@ai-sdk/openai-compatible", "@opencode/ai/providers/openai-compatible" -> SubscriptionProxyRoute.CHAT_COMPLETIONS
-                "aisdk:@ai-sdk/openai", "@opencode/ai/providers/openai", "@opencode/ai/providers/openai-compatible-responses" -> SubscriptionProxyRoute.RESPONSES
-                "aisdk:@ai-sdk/anthropic", "@opencode/ai/providers/anthropic", "@opencode/ai/providers/anthropic-compatible" -> SubscriptionProxyRoute.ANTHROPIC_MESSAGES
-                else -> return null
-            }
+            val nativeRoute =
+                when (model.packageName ?: provider.packageName) {
+                    "aisdk:@ai-sdk/openai-compatible",
+                    "@opencode/ai/providers/openai-compatible" ->
+                        SubscriptionProxyRoute.CHAT_COMPLETIONS
+                    "aisdk:@ai-sdk/openai",
+                    "@opencode/ai/providers/openai",
+                    "@opencode/ai/providers/openai-compatible-responses" ->
+                        SubscriptionProxyRoute.RESPONSES
+                    "aisdk:@ai-sdk/anthropic",
+                    "@opencode/ai/providers/anthropic",
+                    "@opencode/ai/providers/anthropic-compatible" ->
+                        SubscriptionProxyRoute.ANTHROPIC_MESSAGES
+                    else -> return null
+                }
             val base = model.settings?.baseURL ?: provider.settings?.baseURL ?: return null
             val uri = URI.create(base)
-            require(uri.scheme in setOf("https", "http") && uri.host != null && uri.userInfo == null && uri.query == null && uri.fragment == null) {
+            require(
+                uri.scheme in setOf("https", "http") &&
+                    uri.host != null &&
+                    uri.userInfo == null &&
+                    uri.query == null &&
+                    uri.fragment == null
+            ) {
                 "Invalid OpenCode inference URL"
             }
             val pool = poolFor(providerId, uri) ?: return null
@@ -189,19 +234,21 @@ internal data class OpenCodeConsoleModel(
             pool: OpenCodePool,
         ): OpenCodeConsoleModel {
             return OpenCodeConsoleModel(
-                model = SubscriptionProxyModel(
-                    localId = localId(pool, id),
-                    upstreamId = upstreamId,
-                    providerId = OpenCodeZenSubscriptionProxyProvider.ID,
-                    providerName = poolLabel(pool),
-                    litellmProvider = "opencode",
-                    supportedRoutes = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, nativeRoute),
-                    supportsFunctionCalling = model.capabilities?.tools ?: true,
-                    supportsToolChoice = model.capabilities?.tools ?: true,
-                    supportsVision = model.capabilities?.input?.contains("image") == true,
-                    maxInputTokens = model.limit?.input ?: model.limit?.context,
-                    maxOutputTokens = model.limit?.output,
-                ),
+                model =
+                    SubscriptionProxyModel(
+                        localId = localId(pool, id),
+                        upstreamId = upstreamId,
+                        providerId = OpenCodeZenSubscriptionProxyProvider.ID,
+                        providerName = poolLabel(pool),
+                        litellmProvider = "opencode",
+                        supportedRoutes =
+                            setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, nativeRoute),
+                        supportsFunctionCalling = model.capabilities?.tools ?: true,
+                        supportsToolChoice = model.capabilities?.tools ?: true,
+                        supportsVision = model.capabilities?.input?.contains("image") == true,
+                        maxInputTokens = model.limit?.input ?: model.limit?.context,
+                        maxOutputTokens = model.limit?.output,
+                    ),
                 nativeRoute = nativeRoute,
                 baseUri = uri,
                 headers = provider.headers + model.headers,
@@ -245,25 +292,36 @@ internal data class OpenCodeConsoleModel(
             }
         }
 
-        private fun poolLabel(pool: OpenCodePool?): String = when (pool) {
-            OpenCodePool.GO -> "OpenCode Go"
-            OpenCodePool.ZEN -> "OpenCode Zen"
-            null -> "OpenCode"
-        }
+        private fun poolLabel(pool: OpenCodePool?): String =
+            when (pool) {
+                OpenCodePool.GO -> "OpenCode Go"
+                OpenCodePool.ZEN -> "OpenCode Zen"
+                null -> "OpenCode"
+            }
 
         private fun fetchIds(httpClient: HttpClient, url: String): Set<String> {
             return runCatching {
-                val request = HttpRequest.newBuilder(URI.create(url))
-                    .timeout(Duration.ofSeconds(8))
-                    .header("Accept", "application/json")
-                    .GET()
-                    .build()
-                val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-                if (response.statusCode() !in 200..299) return emptySet()
-                val data = (JsonSupport.json.parseToJsonElement(response.body()) as? JsonObject)?.get("data") as? JsonArray
-                    ?: return emptySet()
-                data.mapNotNull { (it as? JsonObject)?.get("id")?.let { id -> (id as? JsonPrimitive)?.contentOrNull } }.toSet()
-            }.getOrDefault(emptySet())
+                    val request =
+                        HttpRequest.newBuilder(URI.create(url))
+                            .timeout(Duration.ofSeconds(8))
+                            .header("Accept", "application/json")
+                            .GET()
+                            .build()
+                    val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+                    if (response.statusCode() !in 200..299) return emptySet()
+                    val data =
+                        (JsonSupport.json.parseToJsonElement(response.body()) as? JsonObject)?.get(
+                            "data"
+                        ) as? JsonArray ?: return emptySet()
+                    data
+                        .mapNotNull {
+                            (it as? JsonObject)?.get("id")?.let { id ->
+                                (id as? JsonPrimitive)?.contentOrNull
+                            }
+                        }
+                        .toSet()
+                }
+                .getOrDefault(emptySet())
         }
     }
 }

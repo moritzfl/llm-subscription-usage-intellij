@@ -7,7 +7,8 @@ internal data class FimCommentContext(
 ) {
     companion object {
         fun detect(prefix: String, languageHint: String? = null): FimCommentContext? {
-            val language = languageHint?.trim()?.lowercase()?.removePrefix(".")?.takeIf { it.isNotEmpty() }
+            val language =
+                languageHint?.trim()?.lowercase()?.removePrefix(".")?.takeIf { it.isNotEmpty() }
             val hashComments = language in HASH_LANGUAGES
             val dashComments = language == "sql" || language == "lua"
             val markup = language in MARKUP_LANGUAGES
@@ -64,34 +65,43 @@ internal data class FimCommentContext(
                 }
 
                 val separatedBefore = index == 0 || prefix[index - 1].isWhitespace()
-                val marker = when {
-                    prefix.startsWith("<!--", index) -> "<!--"
-                    blockComments && prefix.startsWith("/**", index) -> "/**"
-                    blockComments && prefix.startsWith("/*", index) -> "/*"
-                    slashComments && prefix.startsWith("//", index) && prefix.getOrNull(index - 1) != ':' -> when {
-                        prefix.startsWith("///", index) -> "///"
-                        prefix.startsWith("//!", index) -> "//!"
-                        else -> "//"
+                val marker =
+                    when {
+                        prefix.startsWith("<!--", index) -> "<!--"
+                        blockComments && prefix.startsWith("/**", index) -> "/**"
+                        blockComments && prefix.startsWith("/*", index) -> "/*"
+                        slashComments &&
+                            prefix.startsWith("//", index) &&
+                            prefix.getOrNull(index - 1) != ':' ->
+                            when {
+                                prefix.startsWith("///", index) -> "///"
+                                prefix.startsWith("//!", index) -> "//!"
+                                else -> "//"
+                            }
+                        character == '#' &&
+                            (hashComments &&
+                                (language in INLINE_HASH_LANGUAGES || separatedBefore) ||
+                                language == null &&
+                                    separatedBefore &&
+                                    (prefix.getOrNull(index + 1)?.isWhitespace() != false)) -> "#"
+                        prefix.startsWith("--", index) &&
+                            (dashComments ||
+                                language == null &&
+                                    separatedBefore &&
+                                    (prefix.getOrNull(index + 2)?.isWhitespace() != false)) -> "--"
+                        else -> null
                     }
-                    character == '#' && (
-                        hashComments && (language in INLINE_HASH_LANGUAGES || separatedBefore) ||
-                            language == null && separatedBefore && (prefix.getOrNull(index + 1)?.isWhitespace() != false)
-                        ) -> "#"
-                    prefix.startsWith("--", index) && (
-                        dashComments || language == null && separatedBefore &&
-                            (prefix.getOrNull(index + 2)?.isWhitespace() != false)
-                        ) -> "--"
-                    else -> null
-                }
                 if (marker == null) {
                     index++
                     continue
                 }
-                val closer = when (marker) {
-                    "/*", "/**" -> "*/"
-                    "<!--" -> "-->"
-                    else -> null
-                }
+                val closer =
+                    when (marker) {
+                        "/*",
+                        "/**" -> "*/"
+                        "<!--" -> "-->"
+                        else -> null
+                    }
                 comments.addLast(FimCommentContext(marker, index, closer))
                 index += if (closer == "*/") 2 else marker.length
             }
@@ -99,20 +109,44 @@ internal data class FimCommentContext(
             val comment = comments.lastOrNull() ?: return null
             if (comment.closer == "*/") {
                 val lineStart = maxOf(prefix.lastIndexOf('\n'), prefix.lastIndexOf('\r')) + 1
-                val firstText = (lineStart until prefix.length).firstOrNull { !prefix[it].isWhitespace() }
-                if (lineStart > comment.markerOffset && firstText != null && prefix[firstText] == '*') {
+                val firstText =
+                    (lineStart until prefix.length).firstOrNull { !prefix[it].isWhitespace() }
+                if (
+                    lineStart > comment.markerOffset &&
+                        firstText != null &&
+                        prefix[firstText] == '*'
+                ) {
                     return comment.copy(marker = "*", markerOffset = firstText)
                 }
             }
             return comment
         }
 
-        private val HASH_LANGUAGES = setOf(
-            "py", "pyw", "python", "sh", "shell", "bash", "zsh", "fish",
-            "yaml", "yml", "rb", "ruby", "toml", "ini", "conf", "properties", "ps1", "r", "jl",
-        )
+        private val HASH_LANGUAGES =
+            setOf(
+                "py",
+                "pyw",
+                "python",
+                "sh",
+                "shell",
+                "bash",
+                "zsh",
+                "fish",
+                "yaml",
+                "yml",
+                "rb",
+                "ruby",
+                "toml",
+                "ini",
+                "conf",
+                "properties",
+                "ps1",
+                "r",
+                "jl",
+            )
         private val INLINE_HASH_LANGUAGES = setOf("py", "pyw", "python", "rb", "ruby")
         private val MARKUP_LANGUAGES = setOf("md", "markdown", "mdx", "html", "htm", "xml", "svg")
-        private val NESTED_BLOCK_LANGUAGES = setOf("kt", "kts", "kotlin", "rs", "rust", "scala", "sc", "swift", "sql")
+        private val NESTED_BLOCK_LANGUAGES =
+            setOf("kt", "kts", "kotlin", "rs", "rust", "scala", "sc", "swift", "sql")
     }
 }

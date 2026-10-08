@@ -1,19 +1,17 @@
 package de.moritzf.quota.openai
 
 import de.moritzf.quota.shared.JsonSupport
-import kotlin.time.Clock
 import java.io.IOException
-import java.time.Duration
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
-import kotlinx.serialization.SerializationException
+import java.time.Duration
 import java.util.UUID
+import kotlin.time.Clock
+import kotlinx.serialization.SerializationException
 
-/**
- * HTTP client for fetching and parsing OpenAI Codex usage quota responses.
- */
+/** HTTP client for fetching and parsing OpenAI Codex usage quota responses. */
 class OpenAiCodexQuotaClient(
     private val httpClient: HttpClient = HttpClient.newHttpClient(),
     private val endpoint: URI = DEFAULT_ENDPOINT,
@@ -22,12 +20,13 @@ class OpenAiCodexQuotaClient(
     fun fetchQuota(accessToken: String, accountId: String?): OpenAiCodexQuota {
         require(accessToken.isNotBlank()) { "accessToken must not be null or blank" }
 
-        val requestBuilder = HttpRequest.newBuilder()
-            .uri(endpoint)
-            .timeout(Duration.ofSeconds(30))
-            .header("Authorization", "Bearer $accessToken")
-            .header("Accept", "application/json")
-            .GET()
+        val requestBuilder =
+            HttpRequest.newBuilder()
+                .uri(endpoint)
+                .timeout(Duration.ofSeconds(30))
+                .header("Authorization", "Bearer $accessToken")
+                .header("Accept", "application/json")
+                .GET()
 
         if (!accountId.isNullOrBlank()) {
             requestBuilder.header("ChatGPT-Account-Id", accountId.trim())
@@ -41,15 +40,30 @@ class OpenAiCodexQuotaClient(
             throw OpenAiCodexQuotaException("Usage request failed: $status $body", status, body)
         }
 
-        val quota = try {
-            JsonSupport.json.decodeFromString<OpenAiCodexQuota>(body)
-        } catch (exception: SerializationException) {
-            throw OpenAiCodexQuotaException("Usage response could not be parsed", status, body, exception)
-        } catch (exception: IllegalArgumentException) {
-            throw OpenAiCodexQuotaException("Usage response could not be parsed", status, body, exception)
-        }
+        val quota =
+            try {
+                JsonSupport.json.decodeFromString<OpenAiCodexQuota>(body)
+            } catch (exception: SerializationException) {
+                throw OpenAiCodexQuotaException(
+                    "Usage response could not be parsed",
+                    status,
+                    body,
+                    exception,
+                )
+            } catch (exception: IllegalArgumentException) {
+                throw OpenAiCodexQuotaException(
+                    "Usage response could not be parsed",
+                    status,
+                    body,
+                    exception,
+                )
+            }
         if (!quota.hasUsageState()) {
-            throw OpenAiCodexQuotaException("Usage response did not include usable quota state", status, body)
+            throw OpenAiCodexQuotaException(
+                "Usage response did not include usable quota state",
+                status,
+                body,
+            )
         }
 
         quota.fetchedAt = Clock.System.now()
@@ -63,22 +77,28 @@ class OpenAiCodexQuotaClient(
     }
 
     @Throws(IOException::class, InterruptedException::class)
-    fun consumeResetCredit(accessToken: String, accountId: String?, creditId: String?): ConsumeRateLimitResetCreditResponse {
+    fun consumeResetCredit(
+        accessToken: String,
+        accountId: String?,
+        creditId: String?,
+    ): ConsumeRateLimitResetCreditResponse {
         require(accessToken.isNotBlank()) { "accessToken must not be null or blank" }
 
-        val body = JsonSupport.json.encodeToString(
-            ConsumeRateLimitResetCreditRequest(
-                creditId = creditId,
-                redeemRequestId = UUID.randomUUID().toString(),
-            ),
-        )
-        val requestBuilder = HttpRequest.newBuilder()
-            .uri(resetConsumeEndpoint)
-            .timeout(Duration.ofSeconds(30))
-            .header("Authorization", "Bearer $accessToken")
-            .header("Accept", "application/json")
-            .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString(body))
+        val body =
+            JsonSupport.json.encodeToString(
+                ConsumeRateLimitResetCreditRequest(
+                    creditId = creditId,
+                    redeemRequestId = UUID.randomUUID().toString(),
+                )
+            )
+        val requestBuilder =
+            HttpRequest.newBuilder()
+                .uri(resetConsumeEndpoint)
+                .timeout(Duration.ofSeconds(30))
+                .header("Authorization", "Bearer $accessToken")
+                .header("Accept", "application/json")
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
 
         if (!accountId.isNullOrBlank()) {
             requestBuilder.header("ChatGPT-Account-Id", accountId.trim())
@@ -88,24 +108,42 @@ class OpenAiCodexQuotaClient(
         val status = response.statusCode()
         val responseBody = response.body()
         if (status !in 200..299) {
-            throw OpenAiCodexQuotaException("Reset request failed: $status $responseBody", status, responseBody)
+            throw OpenAiCodexQuotaException(
+                "Reset request failed: $status $responseBody",
+                status,
+                responseBody,
+            )
         }
         return try {
             JsonSupport.json.decodeFromString<ConsumeRateLimitResetCreditResponse>(responseBody)
         } catch (exception: SerializationException) {
-            throw OpenAiCodexQuotaException("Reset response could not be parsed", status, responseBody, exception)
+            throw OpenAiCodexQuotaException(
+                "Reset response could not be parsed",
+                status,
+                responseBody,
+                exception,
+            )
         } catch (exception: IllegalArgumentException) {
-            throw OpenAiCodexQuotaException("Reset response could not be parsed", status, responseBody, exception)
+            throw OpenAiCodexQuotaException(
+                "Reset response could not be parsed",
+                status,
+                responseBody,
+                exception,
+            )
         }
     }
 
-    private fun fetchResetCredits(accessToken: String, accountId: String?): RateLimitResetCreditsResponse? {
-        val requestBuilder = HttpRequest.newBuilder()
-            .uri(resetCreditsEndpoint)
-            .timeout(Duration.ofSeconds(30))
-            .header("Authorization", "Bearer $accessToken")
-            .header("Accept", "application/json")
-            .GET()
+    private fun fetchResetCredits(
+        accessToken: String,
+        accountId: String?,
+    ): RateLimitResetCreditsResponse? {
+        val requestBuilder =
+            HttpRequest.newBuilder()
+                .uri(resetCreditsEndpoint)
+                .timeout(Duration.ofSeconds(30))
+                .header("Authorization", "Bearer $accessToken")
+                .header("Accept", "application/json")
+                .GET()
 
         if (!accountId.isNullOrBlank()) {
             requestBuilder.header("ChatGPT-Account-Id", accountId.trim())
@@ -119,7 +157,8 @@ class OpenAiCodexQuotaClient(
         }
         return runCatching {
             JsonSupport.json.decodeFromString<RateLimitResetCreditsResponse>(body)
-        }.getOrNull()
+        }
+            .getOrNull()
     }
 
     companion object {

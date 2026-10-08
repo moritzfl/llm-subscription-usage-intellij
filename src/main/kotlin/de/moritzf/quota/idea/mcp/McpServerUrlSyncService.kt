@@ -17,9 +17,11 @@ class McpServerUrlSyncService(
     private val settingsProvider: () -> QuotaSettingsState? = {
         runCatching { QuotaSettingsState.getInstance() }.getOrNull()
     },
-    private val endpointProvider: () -> McpServerEndpoints? = McpServerUrlResolver::currentEndpoints,
+    private val endpointProvider: () -> McpServerEndpoints? =
+        McpServerUrlResolver::currentEndpoints,
     private val updater: McpJsonTargetUpdater = McpJsonTargetUpdater(),
-    private val scheduler: ScheduledExecutorService = AppExecutorUtil.getAppScheduledExecutorService(),
+    private val scheduler: ScheduledExecutorService =
+        AppExecutorUtil.getAppScheduledExecutorService(),
     subscribeToSettings: Boolean = true,
 ) : Disposable {
     private val logger = Logger.getInstance(McpServerUrlSyncService::class.java)
@@ -28,15 +30,23 @@ class McpServerUrlSyncService(
 
     init {
         if (subscribeToSettings) {
-            ApplicationManager.getApplication().messageBus.connect(this)
-                .subscribe(QuotaSettingsListener.TOPIC, QuotaSettingsListener { reloadFromSettings() })
+            ApplicationManager.getApplication()
+                .messageBus
+                .connect(this)
+                .subscribe(
+                    QuotaSettingsListener.TOPIC,
+                    QuotaSettingsListener { reloadFromSettings() },
+                )
             reloadFromSettings()
         }
     }
 
     fun reloadFromSettings() {
         val settings = settingsProvider()
-        if (settings?.syncIntellijMcpServerUrl == true && settings.mcpServerSyncTargets.any { it.isConfigured() }) {
+        if (
+            settings?.syncIntellijMcpServerUrl == true &&
+                settings.mcpServerSyncTargets.any { it.isConfigured() }
+        ) {
             startSyncing()
         } else {
             stopSyncing()
@@ -52,7 +62,13 @@ class McpServerUrlSyncService(
         if (current != null && !current.isCancelled) {
             return
         }
-        scheduled = scheduler.scheduleWithFixedDelay(::syncSafely, 0, SYNC_INTERVAL_SECONDS, TimeUnit.SECONDS)
+        scheduled =
+            scheduler.scheduleWithFixedDelay(
+                ::syncSafely,
+                0,
+                SYNC_INTERVAL_SECONDS,
+                TimeUnit.SECONDS,
+            )
     }
 
     private fun stopSyncing() {
@@ -80,17 +96,20 @@ class McpServerUrlSyncService(
             return
         }
         val endpoints = endpointProvider() ?: return
-        val targets = settings.mcpServerSyncTargets
-            .map { it.normalized() }
-            .filter { it.isConfigured() }
+        val targets =
+            settings.mcpServerSyncTargets.map { it.normalized() }.filter { it.isConfigured() }
 
         targets.forEach { target ->
             val url = target.transport().urlFor(endpoints)
             runCatching {
                 updater.updateFile(target.jsonFilePath, target.jsonPropertyPath, url)
-            }.onFailure { error ->
-                logger.warn("Failed to sync IntelliJ MCP server URL to ${target.jsonFilePath}", error)
             }
+                .onFailure { error ->
+                    logger.warn(
+                        "Failed to sync IntelliJ MCP server URL to ${target.jsonFilePath}",
+                        error,
+                    )
+                }
         }
     }
 
@@ -103,7 +122,8 @@ class McpServerUrlSyncService(
 
         @JvmStatic
         fun getInstance(): McpServerUrlSyncService {
-            return ApplicationManager.getApplication().getService(McpServerUrlSyncService::class.java)
+            return ApplicationManager.getApplication()
+                .getService(McpServerUrlSyncService::class.java)
         }
     }
 }

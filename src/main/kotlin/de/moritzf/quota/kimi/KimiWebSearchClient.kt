@@ -2,15 +2,15 @@ package de.moritzf.quota.kimi
 
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
 
 open class KimiWebSearchClient(
     private val httpClient: HttpClient = defaultHttpClient(),
@@ -31,27 +31,42 @@ open class KimiWebSearchClient(
         }
 
         var usableCredentials = credentialRefresher.refreshIfNeeded(credentials)
-        var accessToken = usableCredentials.accessToken.ifBlank {
-            throw KimiQuotaException("Kimi login required. Log in from settings.")
-        }
+        var accessToken =
+            usableCredentials.accessToken.ifBlank {
+                throw KimiQuotaException("Kimi login required. Log in from settings.")
+            }
 
         val resultLimit = limit.coerceIn(MIN_LIMIT, MAX_LIMIT)
         var response = send(searchRequest(accessToken, trimmedQuery, resultLimit, includeContent))
         if (response.statusCode().isUnauthorized()) {
-            usableCredentials = credentialRefresher.refresh(usableCredentials)
-                ?: throw KimiQuotaException("Session expired. Log in to Kimi again from settings.", response.statusCode(), response.body())
-            accessToken = usableCredentials.accessToken.ifBlank {
-                throw KimiQuotaException("Kimi login required. Log in from settings.")
-            }
+            usableCredentials =
+                credentialRefresher.refresh(usableCredentials)
+                    ?: throw KimiQuotaException(
+                        "Session expired. Log in to Kimi again from settings.",
+                        response.statusCode(),
+                        response.body(),
+                    )
+            accessToken =
+                usableCredentials.accessToken.ifBlank {
+                    throw KimiQuotaException("Kimi login required. Log in from settings.")
+                }
             response = send(searchRequest(accessToken, trimmedQuery, resultLimit, includeContent))
         }
         val status = response.statusCode()
         val body = response.body()
         if (status == 401 || status == 403) {
-            throw KimiQuotaException("Session expired. Log in to Kimi again from settings.", status, body)
+            throw KimiQuotaException(
+                "Session expired. Log in to Kimi again from settings.",
+                status,
+                body,
+            )
         }
         if (status !in 200..299) {
-            throw KimiQuotaException("Kimi web search failed (HTTP $status). Try again later.", status, body)
+            throw KimiQuotaException(
+                "Kimi web search failed (HTTP $status). Try again later.",
+                status,
+                body,
+            )
         }
 
         return KimiWebSearchFetchResult(McpJson.providerJsonOrRaw(body), usableCredentials)
@@ -63,22 +78,24 @@ open class KimiWebSearchClient(
         limit: Int,
         includeContent: Boolean,
     ): HttpRequest {
-        val body = JsonSupport.json.encodeToString(
-            KimiSearchRequestDto(
-                textQuery = query,
-                limit = limit,
-                enablePageCrawling = includeContent,
-                timeoutSeconds = SEARCH_TIMEOUT_SECONDS,
-            ),
-        )
+        val body =
+            JsonSupport.json.encodeToString(
+                KimiSearchRequestDto(
+                    textQuery = query,
+                    limit = limit,
+                    enablePageCrawling = includeContent,
+                    timeoutSeconds = SEARCH_TIMEOUT_SECONDS,
+                )
+            )
 
-        val builder = HttpRequest.newBuilder()
-            .uri(searchEndpoint)
-            .timeout(Duration.ofSeconds(180))
-            .header("Authorization", "Bearer $accessToken")
-            .header("Content-Type", "application/json")
-            .header("Accept", "application/json")
-            .header("User-Agent", USER_AGENT)
+        val builder =
+            HttpRequest.newBuilder()
+                .uri(searchEndpoint)
+                .timeout(Duration.ofSeconds(180))
+                .header("Authorization", "Bearer $accessToken")
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .header("User-Agent", USER_AGENT)
         KimiDeviceHeaders.all().forEach { (key, value) -> builder.header(key, value) }
         return builder.POST(HttpRequest.BodyPublishers.ofString(body)).build()
     }
@@ -113,9 +130,7 @@ open class KimiWebSearchClient(
         fun createDefault(): KimiWebSearchClient = KimiWebSearchClient()
 
         private fun defaultHttpClient(): HttpClient {
-            return HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(30))
-                .build()
+            return HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build()
         }
     }
 }

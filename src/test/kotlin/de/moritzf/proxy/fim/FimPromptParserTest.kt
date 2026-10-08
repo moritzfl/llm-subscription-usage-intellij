@@ -7,7 +7,8 @@ import kotlin.test.assertTrue
 class FimPromptParserTest {
     @Test
     fun parsesQwenCaptureFromLlm20422() {
-        val prompt = """
+        val prompt =
+            """
             <|repo_name|>test-java
             <|file_sep|>src/Main.java
             <|fim_prefix|>class Main {
@@ -17,7 +18,8 @@ class FimPromptParserTest {
               }
             }
             <|fim_middle|>
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val parsed = FimPromptParser.parse(prompt, null)
 
@@ -43,7 +45,8 @@ class FimPromptParserTest {
 
     @Test
     fun parsesJetbrainsQwenSuffixBeforePrefixWithSuffixBody() {
-        val prompt = "<|fim_suffix|>\n}\n<|fim_prefix|>fun add(a: Int, b: Int): Int {\n    return <|fim_middle|>"
+        val prompt =
+            "<|fim_suffix|>\n}\n<|fim_prefix|>fun add(a: Int, b: Int): Int {\n    return <|fim_middle|>"
 
         val parsed = FimPromptParser.parse(prompt)
 
@@ -94,7 +97,8 @@ class FimPromptParserTest {
 
     @Test
     fun extractsExtraFileSepHunks() {
-        val prompt = """
+        val prompt =
+            """
             <|file_sep|>src/Util.kt
             fun util() = 1
             <|file_sep|>src/Main.kt
@@ -102,7 +106,8 @@ class FimPromptParserTest {
             <|fim_suffix|>
             }
             <|fim_middle|>
-        """.trimIndent()
+            """
+                .trimIndent()
 
         val parsed = FimPromptParser.parse(prompt)
 
@@ -142,7 +147,8 @@ class FimPromptParserTest {
 
     @Test
     fun prefersFimTokensOverSuffixField() {
-        val parsed = FimPromptParser.parse("<|fim_prefix|>pre<|fim_suffix|>suf<|fim_middle|>", "ignored")
+        val parsed =
+            FimPromptParser.parse("<|fim_prefix|>pre<|fim_suffix|>suf<|fim_middle|>", "ignored")
 
         assertEquals(FimSchema.QWEN, parsed.schema)
         assertEquals("pre", parsed.prefix)

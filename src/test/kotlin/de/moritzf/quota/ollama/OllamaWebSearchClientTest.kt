@@ -13,7 +13,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -23,61 +22,73 @@ class OllamaWebSearchClientTest {
     @Test
     fun postsWebSearchRequestWithApiKeyAndOptions() {
         TestOllamaServer(
-            responseBody = """
-                {
-                  "results": [
+                responseBody =
+                    """
                     {
-                      "title": "First",
-                      "url": "https://example.test/first",
-                      "content": "First result content"
-                    },
-                    {
-                      "title": "Second",
-                      "url": "https://example.test/second",
-                      "content": "Second result content"
+                      "results": [
+                        {
+                          "title": "First",
+                          "url": "https://example.test/first",
+                          "content": "First result content"
+                        },
+                        {
+                          "title": "Second",
+                          "url": "https://example.test/second",
+                          "content": "Second result content"
+                        }
+                      ]
                     }
-                  ]
-                }
-            """.trimIndent(),
-        ).use { server ->
-            val client = newClient(server)
+                    """
+                        .trimIndent()
+            )
+            .use { server ->
+                val client = newClient(server)
 
-            val result = client.webSearch("ollama-key", "  Ollama docs  ", limit = 50, includeContent = false)
+                val result =
+                    client.webSearch(
+                        "ollama-key",
+                        "  Ollama docs  ",
+                        limit = 50,
+                        includeContent = false,
+                    )
 
-            val response = parseObject(result)
-            val results = response["results"]!!.jsonArray
-            assertEquals(2, results.size)
-            val item = results[0].jsonObject
-            assertEquals("First", item["title"]!!.jsonPrimitive.content)
-            assertEquals("https://example.test/first", item["url"]!!.jsonPrimitive.content)
-            assertEquals("First result content", item["content"]!!.jsonPrimitive.content)
+                val response = parseObject(result)
+                val results = response["results"]!!.jsonArray
+                assertEquals(2, results.size)
+                val item = results[0].jsonObject
+                assertEquals("First", item["title"]!!.jsonPrimitive.content)
+                assertEquals("https://example.test/first", item["url"]!!.jsonPrimitive.content)
+                assertEquals("First result content", item["content"]!!.jsonPrimitive.content)
 
-            val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
-            assertEquals("POST", request.method)
-            assertEquals("/api/web_search", request.path)
-            assertEquals("Bearer ollama-key", request.firstHeader("Authorization"))
-            assertEquals("application/json", request.firstHeader("Accept"))
+                val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("POST", request.method)
+                assertEquals("/api/web_search", request.path)
+                assertEquals("Bearer ollama-key", request.firstHeader("Authorization"))
+                assertEquals("application/json", request.firstHeader("Accept"))
 
-            val requestBody = parseObject(request.body)
-            assertEquals("Ollama docs", requestBody["query"]!!.jsonPrimitive.content)
-            assertEquals(10, requestBody["max_results"]!!.jsonPrimitive.int)
-        }
+                val requestBody = parseObject(request.body)
+                assertEquals("Ollama docs", requestBody["query"]!!.jsonPrimitive.content)
+                assertEquals(10, requestBody["max_results"]!!.jsonPrimitive.int)
+            }
     }
 
     @Test
     fun includesContentWhenRequested() {
         TestOllamaServer(
-            responseBody = """
-                {"results":[{"title":"First","url":"https://example.test/first","content":"Full content"}]}
-            """.trimIndent(),
-        ).use { server ->
-            val client = newClient(server)
+                responseBody =
+                    """
+                    {"results":[{"title":"First","url":"https://example.test/first","content":"Full content"}]}
+                    """
+                        .trimIndent()
+            )
+            .use { server ->
+                val client = newClient(server)
 
-            val result = client.webSearch("ollama-key", "Ollama docs", includeContent = true)
+                val result = client.webSearch("ollama-key", "Ollama docs", includeContent = true)
 
-            val item = parseObject(result)["results"]!!.jsonArray[0].jsonObject
-            assertEquals("Full content", item["content"]!!.jsonPrimitive.content)
-        }
+                val item = parseObject(result)["results"]!!.jsonArray[0].jsonObject
+                assertEquals("Full content", item["content"]!!.jsonPrimitive.content)
+            }
     }
 
     @Test
@@ -85,9 +96,8 @@ class OllamaWebSearchClientTest {
         TestOllamaServer().use { server ->
             val client = newClient(server)
 
-            val exception = assertFailsWith<OllamaQuotaException> {
-                client.webSearch("ollama-key", "   ")
-            }
+            val exception =
+                assertFailsWith<OllamaQuotaException> { client.webSearch("ollama-key", "   ") }
 
             assertEquals("Search query is required.", exception.message)
             assertNull(server.requests.poll(500, TimeUnit.MILLISECONDS))
@@ -97,34 +107,41 @@ class OllamaWebSearchClientTest {
     @Test
     fun postsWebFetchRequestAndReturnsProviderJson() {
         TestOllamaServer(
-            responseBody = """
-                {
-                  "title": "Ollama",
-                  "content": "Cloud models are now available",
-                  "links": ["https://ollama.com/", "https://github.com/ollama/ollama"]
-                }
-            """.trimIndent(),
-        ).use { server ->
-            val client = newClient(server)
+                responseBody =
+                    """
+                    {
+                      "title": "Ollama",
+                      "content": "Cloud models are now available",
+                      "links": ["https://ollama.com/", "https://github.com/ollama/ollama"]
+                    }
+                    """
+                        .trimIndent()
+            )
+            .use { server ->
+                val client = newClient(server)
 
-            val result = client.webFetch("ollama-key", "ollama.com")
+                val result = client.webFetch("ollama-key", "ollama.com")
 
-            val body = parseObject(result)
-            assertEquals("Ollama", body["title"]!!.jsonPrimitive.content)
-            val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
-            assertEquals("POST", request.method)
-            assertEquals("/api/web_fetch", request.path)
-            assertEquals("https://ollama.com", parseObject(request.body)["url"]!!.jsonPrimitive.content)
-        }
+                val body = parseObject(result)
+                assertEquals("Ollama", body["title"]!!.jsonPrimitive.content)
+                val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("POST", request.method)
+                assertEquals("/api/web_fetch", request.path)
+                assertEquals(
+                    "https://ollama.com",
+                    parseObject(request.body)["url"]!!.jsonPrimitive.content,
+                )
+            }
     }
 
     @Test
     fun rejectsNonHttpFetchUrl() {
         TestOllamaServer().use { server ->
             val client = newClient(server)
-            val exception = assertFailsWith<OllamaQuotaException> {
-                client.webFetch("ollama-key", "ftp://example.test")
-            }
+            val exception =
+                assertFailsWith<OllamaQuotaException> {
+                    client.webFetch("ollama-key", "ftp://example.test")
+                }
             assertEquals("URL must be http or https.", exception.message)
             assertNull(server.requests.poll(500, TimeUnit.MILLISECONDS))
         }
@@ -139,18 +156,20 @@ class OllamaWebSearchClientTest {
         private val responseStatus: Int = 200,
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
 
         init {
             server.createContext("/") { exchange ->
                 val body = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
-                requests += CapturedRequest(
-                    method = exchange.requestMethod,
-                    path = exchange.requestURI.rawPath,
-                    headers = exchange.requestHeaders.mapValues { it.value.toList() },
-                    body = body,
-                )
+                requests +=
+                    CapturedRequest(
+                        method = exchange.requestMethod,
+                        path = exchange.requestURI.rawPath,
+                        headers = exchange.requestHeaders.mapValues { it.value.toList() },
+                        body = body,
+                    )
                 val response = responseBody.toByteArray(Charsets.UTF_8)
                 exchange.responseHeaders.set("Content-Type", "application/json")
                 exchange.sendResponseHeaders(responseStatus, response.size.toLong())
@@ -172,7 +191,10 @@ class OllamaWebSearchClientTest {
         val body: String,
     ) {
         fun firstHeader(name: String): String? {
-            return headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }?.value?.firstOrNull()
+            return headers.entries
+                .firstOrNull { it.key.equals(name, ignoreCase = true) }
+                ?.value
+                ?.firstOrNull()
         }
     }
 

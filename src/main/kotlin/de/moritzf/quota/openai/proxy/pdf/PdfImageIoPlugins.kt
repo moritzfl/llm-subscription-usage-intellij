@@ -12,8 +12,7 @@ import javax.imageio.spi.ImageReaderSpi
 internal object PdfImageIoPlugins {
     private val lock = Any()
 
-    @Volatile
-    private var registered = false
+    @Volatile private var registered = false
 
     fun ensureRegistered() {
         if (registered) return
@@ -21,7 +20,11 @@ internal object PdfImageIoPlugins {
             if (registered) return
             val pluginLoader = PdfImageIoPlugins::class.java.classLoader
             val registry = IIORegistry.getDefaultInstance()
-            registerReader(registry, pluginLoader, "com.github.jaiimageio.jpeg2000.impl.J2KImageReaderSpi")
+            registerReader(
+                registry,
+                pluginLoader,
+                "com.github.jaiimageio.jpeg2000.impl.J2KImageReaderSpi",
+            )
             registerReader(registry, pluginLoader, "org.apache.pdfbox.jbig2.JBIG2ImageReaderSpi")
             val previous = Thread.currentThread().contextClassLoader
             try {
@@ -35,9 +38,11 @@ internal object PdfImageIoPlugins {
     }
 
     private fun registerReader(registry: IIORegistry, loader: ClassLoader, className: String) {
-        val spi = runCatching {
-            loader.loadClass(className).getDeclaredConstructor().newInstance() as ImageReaderSpi
-        }.getOrNull() ?: return
+        val spi =
+            runCatching {
+                loader.loadClass(className).getDeclaredConstructor().newInstance() as ImageReaderSpi
+            }
+                .getOrNull() ?: return
         registry.registerServiceProvider(spi)
     }
 }

@@ -15,7 +15,8 @@ class DocumentLimitsTest {
 
     @Test
     fun rejectsDocumentsOverOneGigabyte() {
-        val message = assertNotNull(DocumentLimits.inlineOverflowMessage(DocumentLimits.MAX_INLINE_BYTES + 1))
+        val message =
+            assertNotNull(DocumentLimits.inlineOverflowMessage(DocumentLimits.MAX_INLINE_BYTES + 1))
         assertTrue(message.contains("too large"))
         assertTrue(message.contains("1 GB"))
         assertTrue(message.contains("documentUrl"))

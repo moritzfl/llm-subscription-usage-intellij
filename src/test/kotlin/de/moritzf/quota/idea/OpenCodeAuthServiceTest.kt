@@ -29,12 +29,25 @@ class OpenCodeAuthServiceTest {
         val store = Store(null)
         val prompt = AtomicReference<Pair<String, String>>()
         val completed = java.util.concurrent.CompletableFuture<LoginResult>()
-        val service = OpenCodeAuthService(oauthClient = object : OpenCodeOAuthClient() {
-            override fun requestDeviceAuthorization() = OpenCodeDeviceAuthorization("device", "CODE", "/console/device", 30, 1)
-            override fun pollDeviceToken(deviceCode: String) = OpenCodeDeviceTokenResult.Authorized(valid())
-        }, credentialStoreFactory = { store }, browserOpener = { throw IllegalStateException("No desktop browser") })
+        val service =
+            OpenCodeAuthService(
+                oauthClient =
+                    object : OpenCodeOAuthClient() {
+                        override fun requestDeviceAuthorization() =
+                            OpenCodeDeviceAuthorization("device", "CODE", "/console/device", 30, 1)
+
+                        override fun pollDeviceToken(deviceCode: String) =
+                            OpenCodeDeviceTokenResult.Authorized(valid())
+                    },
+                credentialStoreFactory = { store },
+                browserOpener = { throw IllegalStateException("No desktop browser") },
+            )
         try {
-            service.startLoginFlow("a", { completed.complete(it) }, { url, code -> prompt.set(url to code) })
+            service.startLoginFlow(
+                "a",
+                { completed.complete(it) },
+                { url, code -> prompt.set(url to code) },
+            )
             assertTrue(completed.get(5, TimeUnit.SECONDS).success)
             assertEquals("CODE", prompt.get().second)
             assertTrue(prompt.get().first.contains("/console/device"))
@@ -51,21 +64,25 @@ class OpenCodeAuthServiceTest {
             val entered = CountDownLatch(1)
             val release = CountDownLatch(1)
             val calls = AtomicInteger()
-            val client = object : OpenCodeOAuthClient() {
-                override fun refreshCredentials(existing: OAuthCredentials): OAuthCredentials {
-                    calls.incrementAndGet()
-                    entered.countDown()
-                    assertTrue(release.await(5, TimeUnit.SECONDS))
-                    return valid("rotated")
+            val client =
+                object : OpenCodeOAuthClient() {
+                    override fun refreshCredentials(existing: OAuthCredentials): OAuthCredentials {
+                        calls.incrementAndGet()
+                        entered.countDown()
+                        assertTrue(release.await(5, TimeUnit.SECONDS))
+                        return valid("rotated")
+                    }
                 }
-            }
-            val service = OpenCodeAuthService(oauthClient = client, credentialStoreFactory = { store })
+            val service =
+                OpenCodeAuthService(oauthClient = client, credentialStoreFactory = { store })
             val executor = Executors.newFixedThreadPool(2)
             try {
                 val rejected = if (expired) null else "access"
-                val first = executor.submit<OAuthCredentials?> { service.credentials("a", rejected) }
+                val first =
+                    executor.submit<OAuthCredentials?> { service.credentials("a", rejected) }
                 assertTrue(entered.await(5, TimeUnit.SECONDS))
-                val second = executor.submit<OAuthCredentials?> { service.credentials("a", rejected) }
+                val second =
+                    executor.submit<OAuthCredentials?> { service.credentials("a", rejected) }
                 release.countDown()
                 assertEquals("rotated", first.get(5, TimeUnit.SECONDS)?.accessToken)
                 assertSame(first.get(), second.get(5, TimeUnit.SECONDS))
@@ -84,13 +101,20 @@ class OpenCodeAuthServiceTest {
         val store = Store(valid().apply { expiresAt = 0 })
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)
-        val service = OpenCodeAuthService(oauthClient = object : OpenCodeOAuthClient() {
-            override fun refreshCredentials(existing: OAuthCredentials): OAuthCredentials {
-                entered.countDown()
-                assertTrue(release.await(5, TimeUnit.SECONDS))
-                return valid("rotated")
-            }
-        }, credentialStoreFactory = { store })
+        val service =
+            OpenCodeAuthService(
+                oauthClient =
+                    object : OpenCodeOAuthClient() {
+                        override fun refreshCredentials(
+                            existing: OAuthCredentials
+                        ): OAuthCredentials {
+                            entered.countDown()
+                            assertTrue(release.await(5, TimeUnit.SECONDS))
+                            return valid("rotated")
+                        }
+                    },
+                credentialStoreFactory = { store },
+            )
         val executor = Executors.newSingleThreadExecutor()
         try {
             val refresh = executor.submit<OAuthCredentials?> { service.credentials("a") }
@@ -115,22 +139,41 @@ class OpenCodeAuthServiceTest {
         val oldCallback = AtomicInteger()
         val complete = CountDownLatch(1)
         val result = AtomicReference<LoginResult>()
-        val service = OpenCodeAuthService(oauthClient = object : OpenCodeOAuthClient() {
-            override fun requestDeviceAuthorization() = OpenCodeDeviceAuthorization("device", "CODE", "/console/device", 30, 1)
-            override fun pollDeviceToken(deviceCode: String): OpenCodeDeviceTokenResult {
-                val call = polls.incrementAndGet()
-                if (call == 1) {
-                    entered.countDown()
-                    assertTrue(release.await(5, TimeUnit.SECONDS))
-                }
-                return OpenCodeDeviceTokenResult.Authorized(valid(if (call == 1) "stale" else "new"))
-            }
-        }, credentialStoreFactory = { store }, browserOpener = {})
+        val service =
+            OpenCodeAuthService(
+                oauthClient =
+                    object : OpenCodeOAuthClient() {
+                        override fun requestDeviceAuthorization() =
+                            OpenCodeDeviceAuthorization("device", "CODE", "/console/device", 30, 1)
+
+                        override fun pollDeviceToken(
+                            deviceCode: String
+                        ): OpenCodeDeviceTokenResult {
+                            val call = polls.incrementAndGet()
+                            if (call == 1) {
+                                entered.countDown()
+                                assertTrue(release.await(5, TimeUnit.SECONDS))
+                            }
+                            return OpenCodeDeviceTokenResult.Authorized(
+                                valid(if (call == 1) "stale" else "new")
+                            )
+                        }
+                    },
+                credentialStoreFactory = { store },
+                browserOpener = {},
+            )
         try {
             service.startLoginFlow("a", { oldCallback.incrementAndGet() }, { _, _ -> })
             assertTrue(entered.await(5, TimeUnit.SECONDS))
             service.abortLogin("a")
-            service.startLoginFlow("a", { result.set(it); complete.countDown() }, { _, _ -> })
+            service.startLoginFlow(
+                "a",
+                {
+                    result.set(it)
+                    complete.countDown()
+                },
+                { _, _ -> },
+            )
             release.countDown()
             assertTrue(complete.await(5, TimeUnit.SECONDS))
             assertTrue(result.get().success)
@@ -145,23 +188,43 @@ class OpenCodeAuthServiceTest {
 
     @Test
     fun refreshIsPersistedBeforeFailedDiscoveryAndAccountScopesStayIsolated() {
-        val first = Store(valid().apply { expiresAt = 0; accountId = "org_a" })
+        val first =
+            Store(
+                valid().apply {
+                    expiresAt = 0
+                    accountId = "org_a"
+                }
+            )
         val second = Store(valid("other").apply { accountId = "org_b" })
-        val service = OpenCodeAuthService(oauthClient = object : OpenCodeOAuthClient() {
-            override fun refreshCredentials(existing: OAuthCredentials) = valid("rotated").apply { accountId = existing.accountId }
-        }, credentialStoreFactory = { if (it == "a") first else second })
+        val service =
+            OpenCodeAuthService(
+                oauthClient =
+                    object : OpenCodeOAuthClient() {
+                        override fun refreshCredentials(existing: OAuthCredentials) =
+                            valid("rotated").apply { accountId = existing.accountId }
+                    },
+                credentialStoreFactory = { if (it == "a") first else second },
+            )
         try {
             assertFailsWith<OpenCodeQuotaException> {
-                service.workspaces("a", object : OpenCodeQuotaClient() {
-                    override fun fetchWorkspaces(accessToken: String): List<OpenCodeWorkspace> {
-                        assertEquals("rotated-refresh", first.value?.refreshToken)
-                        throw OpenCodeQuotaException("Unavailable", 503)
-                    }
-                })
+                service.workspaces(
+                    "a",
+                    object : OpenCodeQuotaClient() {
+                        override fun fetchWorkspaces(accessToken: String): List<OpenCodeWorkspace> {
+                            assertEquals("rotated-refresh", first.value?.refreshToken)
+                            throw OpenCodeQuotaException("Unavailable", 503)
+                        }
+                    },
+                )
             }
-            val orgs = service.workspaces("b", object : OpenCodeQuotaClient() {
-                override fun fetchWorkspaces(accessToken: String) = listOf(OpenCodeWorkspace("org_a"), OpenCodeWorkspace("org_b"))
-            })
+            val orgs =
+                service.workspaces(
+                    "b",
+                    object : OpenCodeQuotaClient() {
+                        override fun fetchWorkspaces(accessToken: String) =
+                            listOf(OpenCodeWorkspace("org_a"), OpenCodeWorkspace("org_b"))
+                    },
+                )
             assertEquals(listOf("org_b"), orgs.map { it.id })
             service.clearCredentials("a")
             assertEquals("other", service.credentials("b")?.accessToken)
@@ -172,10 +235,18 @@ class OpenCodeAuthServiceTest {
 
     private class Store(@Volatile var value: OAuthCredentials?) : OAuthCredentialStore {
         override val coordinator = de.moritzf.quota.idea.auth.OAuthCredentialCoordinator()
+
         override fun load() = value
-        override fun save(credentials: OAuthCredentials) { value = credentials }
-        override fun clear() { value = null }
+
+        override fun save(credentials: OAuthCredentials) {
+            value = credentials
+        }
+
+        override fun clear() {
+            value = null
+        }
     }
 
-    private fun valid(token: String = "access") = OAuthCredentials(token, "$token-refresh", System.currentTimeMillis() + 600_000, "org_test")
+    private fun valid(token: String = "access") =
+        OAuthCredentials(token, "$token-refresh", System.currentTimeMillis() + 600_000, "org_test")
 }

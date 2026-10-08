@@ -56,7 +56,10 @@ class OllamaApiKeyStore(
     fun save(apiKey: String?) {
         loadGeneration.incrementAndGet()
         try {
-            PasswordSafe.instance.set(attributes, apiKey?.takeIf { it.isNotBlank() }?.let { Credentials(userName, it) })
+            PasswordSafe.instance.set(
+                attributes,
+                apiKey?.takeIf { it.isNotBlank() }?.let { Credentials(userName, it) },
+            )
         } catch (exception: Exception) {
             throw IllegalStateException("Could not persist Ollama API key", exception)
         }
@@ -106,9 +109,7 @@ class OllamaApiKeyStore(
         }
         val callbacks = loadCallbacks.toList()
         loadCallbacks.clear()
-        callbacks.forEach { callback ->
-            ApplicationManager.getApplication().invokeLater(callback)
-        }
+        callbacks.forEach { callback -> ApplicationManager.getApplication().invokeLater(callback) }
     }
 
     companion object {
@@ -131,6 +132,8 @@ class OllamaApiKeyStore(
                 USER_NAME,
                 extras,
                 ::getInstance,
-            ) { service, user -> OllamaApiKeyStore(userName = user, serviceName = service) }
+            ) { service, user ->
+                OllamaApiKeyStore(userName = user, serviceName = service)
+            }
     }
 }

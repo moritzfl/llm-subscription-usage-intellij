@@ -15,7 +15,9 @@ class OpenAiProxyApiKeyStore {
     private val cachedApiKey = AtomicReference<String?>()
 
     fun loadBlocking(): String? {
-        cachedApiKey.get()?.let { return it }
+        cachedApiKey.get()?.let {
+            return it
+        }
         val apiKey = readPasswordSafe()
         cachedApiKey.set(apiKey)
         return apiKey
@@ -32,7 +34,9 @@ class OpenAiProxyApiKeyStore {
     }
 
     fun ensureApiKeyBlocking(): String {
-        loadBlocking()?.let { return it }
+        loadBlocking()?.let {
+            return it
+        }
         return regenerateBlocking()
     }
 
@@ -73,7 +77,8 @@ class OpenAiProxyApiKeyStore {
 
         @JvmStatic
         fun getInstance(): OpenAiProxyApiKeyStore {
-            return ApplicationManager.getApplication().getService(OpenAiProxyApiKeyStore::class.java)
+            return ApplicationManager.getApplication()
+                .getService(OpenAiProxyApiKeyStore::class.java)
         }
     }
 }

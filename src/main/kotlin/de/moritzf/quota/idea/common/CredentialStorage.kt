@@ -18,8 +18,10 @@ object CredentialStorage {
      * look to the user like every provider revoked its login on restart.
      */
     @JvmStatic
-    fun isMemoryOnly(): Boolean = runCatching { PasswordSafe.instance.isMemoryOnly }.getOrDefault(false)
+    fun isMemoryOnly(): Boolean = runCatching {
+        PasswordSafe.instance.isMemoryOnly
+    }
+        .getOrDefault(false)
 
-    @JvmStatic
-    fun describe(): String = if (isMemoryOnly()) "memory-only" else "persistent"
+    @JvmStatic fun describe(): String = if (isMemoryOnly()) "memory-only" else "persistent"
 }

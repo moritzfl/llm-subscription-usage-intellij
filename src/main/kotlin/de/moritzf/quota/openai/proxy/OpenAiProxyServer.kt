@@ -16,12 +16,10 @@ import java.time.Duration
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
 
-/**
- * Loopback-only OpenAI-compatible proxy backed by AIProxyOauth.
- */
+/** Loopback-only OpenAI-compatible proxy backed by AIProxyOauth. */
 class OpenAiProxyServer(
     private val port: Int,
     private val localApiKeyProvider: () -> String?,
@@ -32,9 +30,8 @@ class OpenAiProxyServer(
     // proxy only signals that a refresh is needed. Returns the access token in effect
     // after the refresh, or null when refreshing failed or is unsupported (default).
     private val tokenRefresher: (staleAccessToken: String?) -> String? = { null },
-    private val httpClient: HttpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(30))
-        .build(),
+    private val httpClient: HttpClient =
+        HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build(),
     private val upstreamBaseUri: URI = DEFAULT_UPSTREAM_BASE_URI,
     private val debugLogger: ((String) -> Unit)? = null,
     private val fullRequestLogging: Boolean = false,
@@ -63,19 +60,21 @@ class OpenAiProxyServer(
         try {
             val models = advertisedModels()
             val config = serverConfig(localApiKey, models)
-            val credentialsProvider = QuotaCodexCredentialsProvider(
-                accessTokenProvider,
-                accountIdProvider,
-                tokenRefresher,
-            )
+            val credentialsProvider =
+                QuotaCodexCredentialsProvider(
+                    accessTokenProvider,
+                    accountIdProvider,
+                    tokenRefresher,
+                )
             val client = SanitizingCodexHttpClient(config, httpClient, credentialsProvider)
-            val proxyServer = ProxyServer(
-                config,
-                client,
-                ModelResolver(client, models, null),
-                UsageTracker(),
-                ApiKeyStore(mapOf(localApiKey to LOCAL_KEY_NAME), null, null),
-            )
+            val proxyServer =
+                ProxyServer(
+                    config,
+                    client,
+                    ModelResolver(client, models, null),
+                    UsageTracker(),
+                    ApiKeyStore(mapOf(localApiKey to LOCAL_KEY_NAME), null, null),
+                )
             proxyServer.start()
             server = proxyServer
             debugLog("AIProxyOauth proxy started at http://127.0.0.1:$port")
@@ -149,7 +148,14 @@ class OpenAiProxyServer(
             requestId: String?,
             promptCacheKey: String?,
         ): HttpResponse<InputStream> {
-            return super.request(path, method, sanitizeResponsesBody(path, body), extraHeaders, requestId, promptCacheKey)
+            return super.request(
+                path,
+                method,
+                sanitizeResponsesBody(path, body),
+                extraHeaders,
+                requestId,
+                promptCacheKey,
+            )
         }
 
         @Throws(Exception::class)
@@ -159,7 +165,12 @@ class OpenAiProxyServer(
             body: String?,
             extraHeaders: Map<String, String>?,
         ): HttpResponse<String> {
-            return super.requestString(path, method, sanitizeResponsesBody(path, body), extraHeaders)
+            return super.requestString(
+                path,
+                method,
+                sanitizeResponsesBody(path, body),
+                extraHeaders,
+            )
         }
 
         private fun sanitizeResponsesBody(path: String, body: String?): String? {
@@ -170,7 +181,10 @@ class OpenAiProxyServer(
                 val root = JsonSupport.json.parseToJsonElement(body).jsonObject
                 val sanitized = buildJsonObject {
                     root.forEach { (key, value) ->
-                        if (key !in CODEX_OVERRIDDEN_RESPONSE_FIELDS && key !in CODEX_UNSUPPORTED_RESPONSE_FIELDS) {
+                        if (
+                            key !in CODEX_OVERRIDDEN_RESPONSE_FIELDS &&
+                                key !in CODEX_UNSUPPORTED_RESPONSE_FIELDS
+                        ) {
                             put(key, value)
                         }
                     }
@@ -178,7 +192,8 @@ class OpenAiProxyServer(
                     put("stream", true)
                 }
                 JsonSupport.json.encodeToString(JsonObject.serializer(), sanitized)
-            }.getOrElse { body }
+            }
+                .getOrElse { body }
         }
     }
 
@@ -189,29 +204,33 @@ class OpenAiProxyServer(
         private const val HOST = "127.0.0.1"
         private const val LOCAL_KEY_NAME = "local"
         private const val DEFAULT_CODEX_INSTRUCTIONS = "You are a coding assistant."
-        private val REQUEST_LOG_DIR = System.getProperty("java.io.tmpdir") + "/openai-usage-quota-intellij/openai-proxy-requests"
+        private val REQUEST_LOG_DIR =
+            System.getProperty("java.io.tmpdir") +
+                "/openai-usage-quota-intellij/openai-proxy-requests"
         private val CODEX_OVERRIDDEN_RESPONSE_FIELDS = setOf("store", "stream")
-        private val CODEX_UNSUPPORTED_RESPONSE_FIELDS = setOf(
-            "max_output_tokens",
-            "temperature",
-        )
+        private val CODEX_UNSUPPORTED_RESPONSE_FIELDS =
+            setOf(
+                "max_output_tokens",
+                "temperature",
+            )
         // Curated Codex models for /v1/models and /v1/model/info.
         // Align with the Codex UI menu for ChatGPT subscriptions, using models.json
         // visibility/priority as a guide (not the incomplete ChatGPT /models endpoint).
         // ChatGPT accounts reject gpt-5.4, gpt-5.4-mini, gpt-5.2, gpt-5.3-codex, and gpt-5.5-pro.
         // Those are not advertised and are not forwarded. Other unlisted oa- slugs still
         // forward via fallbackModel. Advertise base ids only; harnesses send reasoning_effort.
-        private val ADVERTISED_BASE_MODELS = listOf(
-            "gpt-6.1-sol",
-            "gpt-6-astra",
-            "gpt-6-sol",
-            "gpt-6-luna",
-            "gpt-5.6-sol",
-            "gpt-5.6-terra",
-            "gpt-5.6-luna",
-            "gpt-reserve",
-            "gpt-5.5",
-        )
+        private val ADVERTISED_BASE_MODELS =
+            listOf(
+                "gpt-6.1-sol",
+                "gpt-6-astra",
+                "gpt-6-sol",
+                "gpt-6-luna",
+                "gpt-5.6-sol",
+                "gpt-5.6-terra",
+                "gpt-5.6-luna",
+                "gpt-reserve",
+                "gpt-5.5",
+            )
 
         fun advertisedModels(): List<String> = ADVERTISED_BASE_MODELS
 

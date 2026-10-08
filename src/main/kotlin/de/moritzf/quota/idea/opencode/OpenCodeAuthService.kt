@@ -15,6 +15,7 @@ import de.moritzf.quota.opencode.OpenCodeOAuthClient
 import de.moritzf.quota.opencode.OpenCodeQuotaClient
 import de.moritzf.quota.opencode.OpenCodeQuotaException
 import de.moritzf.quota.opencode.OpenCodeWorkspace
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,7 +24,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.util.concurrent.ConcurrentHashMap
 
 /** Owns only this plugin's Console credentials, independently for each provider account. */
 @Service(Service.Level.APP)
@@ -47,7 +47,9 @@ class OpenCodeAuthService(
     }
 
     private val states = ConcurrentHashMap<String, State>()
-    private fun state(accountId: String) = states.computeIfAbsent(accountId) { State(credentialStoreFactory(it)) }
+
+    private fun state(accountId: String) =
+        states.computeIfAbsent(accountId) { State(credentialStoreFactory(it)) }
 
     fun load(accountId: String, onLoaded: (() -> Unit)? = null): OAuthCredentials? {
         val state = state(accountId)
@@ -56,7 +58,8 @@ class OpenCodeAuthService(
             try {
                 loadBlocking(accountId)
             } catch (_: Exception) {
-                // Report storage failures in settings; never let a background load escape the scope.
+                // Report storage failures in settings; never let a background load escape the
+                // scope.
             } finally {
                 onLoaded?.invoke()
             }
@@ -65,7 +68,9 @@ class OpenCodeAuthService(
     }
 
     fun isLoaded(accountId: String): Boolean = state(accountId).loaded
+
     fun loadError(accountId: String): String? = state(accountId).loadError?.message
+
     fun isLoginInProgress(accountId: String): Boolean = state(accountId).loginInProgress
 
     fun loadBlocking(accountId: String): OAuthCredentials? {
@@ -90,7 +95,11 @@ class OpenCodeAuthService(
         synchronized(state.refreshLock) {
             val existing = loadBlocking(accountId) ?: return null
             if (existing.accessToken.isNullOrBlank()) return null
-            if (existing.expiresAt > System.currentTimeMillis() + 60_000 && existing.accessToken != rejectedAccessToken) return existing
+            if (
+                existing.expiresAt > System.currentTimeMillis() + 60_000 &&
+                    existing.accessToken != rejectedAccessToken
+            )
+                return existing
             val refreshed = oauthClient.refreshCredentials(existing)
             synchronized(state.lock) {
                 if (state.credentials !== existing) return state.credentials
@@ -102,16 +111,23 @@ class OpenCodeAuthService(
         }
     }
 
-    fun workspaces(accountId: String, client: OpenCodeQuotaClient = OpenCodeQuotaClient()): List<OpenCodeWorkspace> {
+    fun workspaces(
+        accountId: String,
+        client: OpenCodeQuotaClient = OpenCodeQuotaClient(),
+    ): List<OpenCodeWorkspace> {
         var credentials = credentials(accountId) ?: error("Not signed in to OpenCode")
-        val organizations = try {
-            client.fetchWorkspaces(checkNotNull(credentials.accessToken))
-        } catch (exception: OpenCodeQuotaException) {
-            if (exception.statusCode != 401) throw exception
-            credentials = credentials(accountId, credentials.accessToken) ?: error("Not signed in to OpenCode")
-            client.fetchWorkspaces(checkNotNull(credentials.accessToken))
-        }
-        // New device grants are scoped in the browser. Never offer an organization outside that grant.
+        val organizations =
+            try {
+                client.fetchWorkspaces(checkNotNull(credentials.accessToken))
+            } catch (exception: OpenCodeQuotaException) {
+                if (exception.statusCode != 401) throw exception
+                credentials =
+                    credentials(accountId, credentials.accessToken)
+                        ?: error("Not signed in to OpenCode")
+                client.fetchWorkspaces(checkNotNull(credentials.accessToken))
+            }
+        // New device grants are scoped in the browser. Never offer an organization outside that
+        // grant.
         val orgId = credentials.accountId
         return if (orgId == null) organizations.sortedWith(compareBy({ it.name }, { it.id }))
         else listOf(organizations.find { it.id == orgId } ?: OpenCodeWorkspace(orgId))
@@ -131,50 +147,56 @@ class OpenCodeAuthService(
             val generation = ++state.generation
             state.loginInProgress = true
             state.loginJob = scope.launch {
-                val result = try {
-                    val authorization = oauthClient.requestDeviceAuthorization()
-                    val url = oauthClient.verificationUrl(authorization)
-                    synchronized(state.lock) {
-                        if (state.generation != generation) return@launch
-                        onVerificationUrl(url, authorization.userCode)
-                        try {
-                            browserOpener(url)
-                        } catch (exception: CancellationException) {
-                            throw exception
-                        } catch (_: Exception) {
-                            Logger.getInstance(OpenCodeAuthService::class.java)
-                                .info("Could not open OpenCode login browser; use the verification URL and code in settings")
-                        }
-                    }
-                    var interval = authorization.intervalSeconds.coerceAtLeast(1) * 1000
-                    val started = System.nanoTime()
-                    val expiresAfter = authorization.expiresInSeconds * 1_000_000_000
-                    var authorized = false
-                    while (System.nanoTime() - started < expiresAfter) {
-                        delay(interval)
-                        if (System.nanoTime() - started >= expiresAfter) break
-                        when (val polled = oauthClient.pollDeviceToken(authorization.deviceCode)) {
-                            is OpenCodeDeviceTokenResult.Authorized -> {
-                                synchronized(state.lock) {
-                                    if (state.generation != generation) return@launch
-                                    state.store.save(polled.credentials)
-                                    state.credentials = polled.credentials
-                                    state.loadError = null
-                                    state.loaded = true
-                                }
-                                authorized = true
-                                break
+                val result =
+                    try {
+                        val authorization = oauthClient.requestDeviceAuthorization()
+                        val url = oauthClient.verificationUrl(authorization)
+                        synchronized(state.lock) {
+                            if (state.generation != generation) return@launch
+                            onVerificationUrl(url, authorization.userCode)
+                            try {
+                                browserOpener(url)
+                            } catch (exception: CancellationException) {
+                                throw exception
+                            } catch (_: Exception) {
+                                Logger.getInstance(OpenCodeAuthService::class.java)
+                                    .info(
+                                        "Could not open OpenCode login browser; use the verification URL and code in settings"
+                                    )
                             }
-                            OpenCodeDeviceTokenResult.Pending -> Unit
-                            OpenCodeDeviceTokenResult.SlowDown -> interval += 5_000
                         }
+                        var interval = authorization.intervalSeconds.coerceAtLeast(1) * 1000
+                        val started = System.nanoTime()
+                        val expiresAfter = authorization.expiresInSeconds * 1_000_000_000
+                        var authorized = false
+                        while (System.nanoTime() - started < expiresAfter) {
+                            delay(interval)
+                            if (System.nanoTime() - started >= expiresAfter) break
+                            when (
+                                val polled = oauthClient.pollDeviceToken(authorization.deviceCode)
+                            ) {
+                                is OpenCodeDeviceTokenResult.Authorized -> {
+                                    synchronized(state.lock) {
+                                        if (state.generation != generation) return@launch
+                                        state.store.save(polled.credentials)
+                                        state.credentials = polled.credentials
+                                        state.loadError = null
+                                        state.loaded = true
+                                    }
+                                    authorized = true
+                                    break
+                                }
+                                OpenCodeDeviceTokenResult.Pending -> Unit
+                                OpenCodeDeviceTokenResult.SlowDown -> interval += 5_000
+                            }
+                        }
+                        if (authorized) LoginResult.success()
+                        else LoginResult.error("OpenCode login timed out. Try again.")
+                    } catch (_: CancellationException) {
+                        return@launch
+                    } catch (exception: Exception) {
+                        LoginResult.error(exception.message ?: "OpenCode login failed")
                     }
-                    if (authorized) LoginResult.success() else LoginResult.error("OpenCode login timed out. Try again.")
-                } catch (_: CancellationException) {
-                    return@launch
-                } catch (exception: Exception) {
-                    LoginResult.error(exception.message ?: "OpenCode login failed")
-                }
                 synchronized(state.lock) {
                     if (state.generation == generation) {
                         state.loginInProgress = false
@@ -213,6 +235,7 @@ class OpenCodeAuthService(
     }
 
     companion object {
-        fun getInstance(): OpenCodeAuthService = ApplicationManager.getApplication().getService(OpenCodeAuthService::class.java)
+        fun getInstance(): OpenCodeAuthService =
+            ApplicationManager.getApplication().getService(OpenCodeAuthService::class.java)
     }
 }

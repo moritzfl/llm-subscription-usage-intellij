@@ -18,10 +18,13 @@ internal object MultipartFilePublisher {
             }
             if (file != null) {
                 append("--").append(boundary).append("\r\n")
-                append("Content-Disposition: form-data; name=\"file\"; filename=\"").append(filename).append("\"\r\n")
+                append("Content-Disposition: form-data; name=\"file\"; filename=\"")
+                    .append(filename)
+                    .append("\"\r\n")
                 append("Content-Type: application/octet-stream\r\n\r\n")
             }
-        }.toByteArray()
+        }
+            .toByteArray()
         val closing = "\r\n--$boundary--\r\n".toByteArray()
         return if (file != null) {
             HttpRequest.BodyPublishers.concat(

@@ -23,26 +23,28 @@ import java.awt.event.FocusEvent
 import java.util.concurrent.atomic.AtomicLong
 import javax.swing.JComponent
 
-/**
- * Ollama Cloud settings tab — API key only (quota, web search, and proxy).
- */
+/** Ollama Cloud settings tab — API key only (quota, web search, and proxy). */
 internal class OllamaSettingsPanel(
     private val modalityComponentProvider: () -> JComponent?,
     private val statusLabelDefaultForeground: Color? = null,
 ) : ProviderSettingsPanel() {
-    val monthlyResetField = JBTextField().apply {
-        columns = 40
-        toolTipText = "Optional ISO-8601 UTC reset, or a paste of the ollama.com/settings page"
-        addFocusListener(object : FocusAdapter() {
-            override fun focusLost(e: FocusEvent) {
-                collapsePastedReset()
-            }
-        })
-    }
-    private val apiKeyField = JBPasswordField().apply {
-        columns = 40
-        toolTipText = "Ollama API key from ollama.com/settings/keys"
-    }
+    val monthlyResetField =
+        JBTextField().apply {
+            columns = 40
+            toolTipText = "Optional ISO-8601 UTC reset, or a paste of the ollama.com/settings page"
+            addFocusListener(
+                object : FocusAdapter() {
+                    override fun focusLost(e: FocusEvent) {
+                        collapsePastedReset()
+                    }
+                }
+            )
+        }
+    private val apiKeyField =
+        JBPasswordField().apply {
+            columns = 40
+            toolTipText = "Ollama API key from ollama.com/settings/keys"
+        }
     private val ollamaStatusLabel = JBLabel().apply { isVisible = false }
     private val visionModelCombo = VisionModelCombo()
     private val ollamaJsonViewer = createResponseViewer()
@@ -51,17 +53,13 @@ internal class OllamaSettingsPanel(
 
     init {
         val ollamaConfigPanel = panel {
+            row { cell(ollamaStatusLabel) }
             row {
-                cell(ollamaStatusLabel)
+                text(
+                    "Create an API key at ollama.com/settings/keys. Used for quota, MCP web search, and the local proxy."
+                )
             }
-            row {
-                text("Create an API key at ollama.com/settings/keys. Used for quota, MCP web search, and the local proxy.")
-            }
-            row("API key:") {
-                cell(apiKeyField)
-                    .resizableColumn()
-                    .align(AlignX.FILL)
-            }
+            row("API key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
             row("Monthly reset:") {
                 cell(monthlyResetField)
                     .resizableColumn()
@@ -69,21 +67,27 @@ internal class OllamaSettingsPanel(
                     .comment(
                         "Optional. Paste an ISO-8601 UTC time, or the ollama.com/settings page HTML. " +
                             "The Monthly usage Resets data-time is kept; other timestamps are ignored. " +
-                            "Fallback only when the API omits the monthly reset. Same day and clock each calendar month.",
+                            "Fallback only when the API omits the monthly reset. Same day and clock each calendar month."
                     )
             }
             row("Vision model:") {
-                cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
-                    .comment("Cloud models that report vision support. Used by subscription_vision; '-' keeps vision off.")
-                cell(VisionTestButton(de.moritzf.quota.idea.mcp.VisionProvider.OLLAMA, visionModelCombo, modalityComponentProvider))
+                cell(visionModelCombo.combo)
+                    .align(AlignX.FILL)
+                    .resizableColumn()
+                    .comment(
+                        "Cloud models that report vision support. Used by subscription_vision; '-' keeps vision off."
+                    )
+                cell(
+                    VisionTestButton(
+                        de.moritzf.quota.idea.mcp.VisionProvider.OLLAMA,
+                        visionModelCombo,
+                        modalityComponentProvider,
+                    )
+                )
             }
             row {
-                button("Save API Key") {
-                    saveApiKeyNow()
-                }
-                button("Clear API Key") {
-                    clearApiKeyNow()
-                }
+                button("Save API Key") { saveApiKeyNow() }
+                button("Clear API Key") { clearApiKeyNow() }
             }
         }
 
@@ -96,7 +100,7 @@ internal class OllamaSettingsPanel(
         if (raw.isEmpty()) return null
         return OllamaResetSchedule.parseMonthlyAnchor(raw)?.toString()
             ?: throw ConfigurationException(
-                "Ollama monthly reset must be ISO-8601 UTC, or ollama.com/settings HTML containing the Monthly usage Resets data-time.",
+                "Ollama monthly reset must be ISO-8601 UTC, or ollama.com/settings HTML containing the Monthly usage Resets data-time."
             )
     }
 
@@ -112,9 +116,15 @@ internal class OllamaSettingsPanel(
     override fun updateFields() {
         val id = accountKey(QuotaProviderType.OLLAMA)
         val apiKeyStore = OllamaApiKeyStore.forAccount(id)
-        val apiKey = apiKeyStore.load(onLoaded = { if (accountKey(QuotaProviderType.OLLAMA) == id) refreshAfterCredentialLoad() })
+        val apiKey =
+            apiKeyStore.load(
+                onLoaded = {
+                    if (accountKey(QuotaProviderType.OLLAMA) == id) refreshAfterCredentialLoad()
+                }
+            )
         apiKeyField.text = if (apiKey.isNullOrBlank()) "" else API_KEY_PLACEHOLDER
-        monthlyResetField.text = boundAccount?.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET).orEmpty()
+        monthlyResetField.text =
+            boundAccount?.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET).orEmpty()
         showVisionModels(emptyMap())
         updateStatus()
         refreshVisionModels()
@@ -124,7 +134,10 @@ internal class OllamaSettingsPanel(
 
     fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
 
-    private fun showVisionModels(discovered: Map<String, Boolean?>, selection: String? = boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL)) {
+    private fun showVisionModels(
+        discovered: Map<String, Boolean?>,
+        selection: String? = boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL),
+    ) {
         visionModelCombo.show(selection, OllamaVisionModels.choices(discovered, selection))
     }
 
@@ -133,44 +146,69 @@ internal class OllamaSettingsPanel(
         val generation = ++modelRefreshGeneration
         ApplicationManager.getApplication().executeOnPooledThread {
             val key = OllamaApiKeyStore.forAccount(accountId).loadBlocking()
-            val discovered = if (key.isNullOrBlank()) {
-                emptyMap()
-            } else {
-                runCatching { OllamaVisionModels().discover(key) }.getOrDefault(emptyMap())
-            }
-            ApplicationManager.getApplication().invokeLater({
-                if (generation != modelRefreshGeneration || accountKey(QuotaProviderType.OLLAMA) != accountId) return@invokeLater
-                showVisionModels(discovered, visionModelCombo.selected() ?: boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL))
-            }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
+            val discovered =
+                if (key.isNullOrBlank()) {
+                    emptyMap()
+                } else {
+                    runCatching { OllamaVisionModels().discover(key) }.getOrDefault(emptyMap())
+                }
+            ApplicationManager.getApplication()
+                .invokeLater(
+                    {
+                        if (
+                            generation != modelRefreshGeneration ||
+                                accountKey(QuotaProviderType.OLLAMA) != accountId
+                        )
+                            return@invokeLater
+                        showVisionModels(
+                            discovered,
+                            visionModelCombo.selected()
+                                ?: boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL),
+                        )
+                    },
+                    ModalityState.stateForComponent(modalityComponentProvider() ?: this),
+                )
         }
     }
 
     override fun updateStatus() {
         val apiKeyStore = OllamaApiKeyStore.forAccount(accountKey(QuotaProviderType.OLLAMA))
         val apiKey = apiKeyStore.load(onLoaded = ::refreshAfterCredentialLoad)
-        val ollamaQuota = QuotaUsageService.getInstance().getLastQuota(accountKey(QuotaProviderType.OLLAMA)) as? OllamaQuota
-        val ollamaError = QuotaUsageService.getInstance().getLastError(accountKey(QuotaProviderType.OLLAMA))
+        val ollamaQuota =
+            QuotaUsageService.getInstance().getLastQuota(accountKey(QuotaProviderType.OLLAMA))
+                as? OllamaQuota
+        val ollamaError =
+            QuotaUsageService.getInstance().getLastError(accountKey(QuotaProviderType.OLLAMA))
 
         when {
             !apiKeyStore.isLoaded() -> {
-                ollamaStatusLabel.text = formatStatusText("Loading Ollama credentials...", AuthStatusKind.PENDING)
-                ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
+                ollamaStatusLabel.text =
+                    formatStatusText("Loading Ollama credentials...", AuthStatusKind.PENDING)
+                ollamaStatusLabel.foreground =
+                    statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
             apiKey.isNullOrBlank() -> {
-                ollamaStatusLabel.text = formatStatusText("No API key configured", AuthStatusKind.DISCONNECTED)
-                ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
+                ollamaStatusLabel.text =
+                    formatStatusText("No API key configured", AuthStatusKind.DISCONNECTED)
+                ollamaStatusLabel.foreground =
+                    statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
             ollamaError != null -> {
-                ollamaStatusLabel.text = formatStatusText("Error: $ollamaError", AuthStatusKind.DISCONNECTED)
-                ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
+                ollamaStatusLabel.text =
+                    formatStatusText("Error: $ollamaError", AuthStatusKind.DISCONNECTED)
+                ollamaStatusLabel.foreground =
+                    statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
             ollamaQuota != null -> {
                 ollamaStatusLabel.text = formatStatusText("Connected", AuthStatusKind.CONNECTED)
-                ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
+                ollamaStatusLabel.foreground =
+                    statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
             else -> {
-                ollamaStatusLabel.text = formatStatusText("API key stored securely", AuthStatusKind.CONNECTED)
-                ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
+                ollamaStatusLabel.text =
+                    formatStatusText("API key stored securely", AuthStatusKind.CONNECTED)
+                ollamaStatusLabel.foreground =
+                    statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
         }
         ollamaStatusLabel.isVisible = true
@@ -198,26 +236,36 @@ internal class OllamaSettingsPanel(
         val generation = validationGeneration.incrementAndGet()
         ApplicationManager.getApplication().executeOnPooledThread {
             val result = runCatching { OllamaQuotaClient().fetchQuota(apiKey) }
-            ApplicationManager.getApplication().invokeLater({
-                if (generation != validationGeneration.get()) {
-                    return@invokeLater
-                }
-                result.fold(
-                    onSuccess = {
-                        ollamaStatusLabel.text = formatStatusText("Connected", AuthStatusKind.CONNECTED)
-                        ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
-                        ollamaStatusLabel.isVisible = true
-                    },
-                    onFailure = { error ->
-                        ollamaStatusLabel.text = formatStatusText(
-                            "Error: ${error.message ?: "Validation failed"}",
-                            AuthStatusKind.DISCONNECTED,
+            ApplicationManager.getApplication()
+                .invokeLater(
+                    {
+                        if (generation != validationGeneration.get()) {
+                            return@invokeLater
+                        }
+                        result.fold(
+                            onSuccess = {
+                                ollamaStatusLabel.text =
+                                    formatStatusText("Connected", AuthStatusKind.CONNECTED)
+                                ollamaStatusLabel.foreground =
+                                    statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
+                                ollamaStatusLabel.isVisible = true
+                            },
+                            onFailure = { error ->
+                                ollamaStatusLabel.text =
+                                    formatStatusText(
+                                        "Error: ${error.message ?: "Validation failed"}",
+                                        AuthStatusKind.DISCONNECTED,
+                                    )
+                                ollamaStatusLabel.foreground =
+                                    statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
+                                ollamaStatusLabel.isVisible = true
+                            },
                         )
-                        ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
-                        ollamaStatusLabel.isVisible = true
                     },
+                    ModalityState.stateForComponent(
+                        modalityComponentProvider() ?: this@OllamaSettingsPanel
+                    ),
                 )
-            }, ModalityState.stateForComponent(modalityComponentProvider() ?: this@OllamaSettingsPanel))
         }
     }
 
@@ -233,34 +281,39 @@ internal class OllamaSettingsPanel(
     }
 
     override fun updateResponseArea() {
-        val quota = QuotaUsageService.getInstance().getLastQuota(accountKey(QuotaProviderType.OLLAMA)) as? OllamaQuota
-        val error = QuotaUsageService.getInstance().getLastError(accountKey(QuotaProviderType.OLLAMA))
-        val rawJson = QuotaUsageService.getInstance().getLastResponseJson(accountKey(QuotaProviderType.OLLAMA))
+        val quota =
+            QuotaUsageService.getInstance().getLastQuota(accountKey(QuotaProviderType.OLLAMA))
+                as? OllamaQuota
+        val error =
+            QuotaUsageService.getInstance().getLastError(accountKey(QuotaProviderType.OLLAMA))
+        val rawJson =
+            QuotaUsageService.getInstance()
+                .getLastResponseJson(accountKey(QuotaProviderType.OLLAMA))
 
-        ollamaJsonViewer.text = when {
-            error != null && !rawJson.isNullOrBlank() -> "Error: $error\n\n$rawJson"
-            error != null -> "Error: $error"
-            quota == null -> "No Ollama response yet."
-            !rawJson.isNullOrBlank() -> rawJson
-            else -> {
-                try {
-                    JsonSupport.json.encodeToString(OllamaQuota.serializer(), quota)
-                } catch (exception: Exception) {
-                    "Could not serialize response: ${exception.message}"
+        ollamaJsonViewer.text =
+            when {
+                error != null && !rawJson.isNullOrBlank() -> "Error: $error\n\n$rawJson"
+                error != null -> "Error: $error"
+                quota == null -> "No Ollama response yet."
+                !rawJson.isNullOrBlank() -> rawJson
+                else -> {
+                    try {
+                        JsonSupport.json.encodeToString(OllamaQuota.serializer(), quota)
+                    } catch (exception: Exception) {
+                        "Could not serialize response: ${exception.message}"
+                    }
                 }
             }
-        }
         ollamaJsonViewer.setCaretPosition(0)
     }
 
-
-
     private fun formatStatusText(text: String, kind: AuthStatusKind): String {
-        val color = when (kind) {
-            AuthStatusKind.CONNECTED -> "#4CAF50"
-            AuthStatusKind.DISCONNECTED -> "#F44336"
-            AuthStatusKind.PENDING -> "#FFC107"
-        }
+        val color =
+            when (kind) {
+                AuthStatusKind.CONNECTED -> "#4CAF50"
+                AuthStatusKind.DISCONNECTED -> "#F44336"
+                AuthStatusKind.PENDING -> "#FFC107"
+            }
         return "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
     }
 

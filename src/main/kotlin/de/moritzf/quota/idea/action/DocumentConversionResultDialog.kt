@@ -2,8 +2,8 @@ package de.moritzf.quota.idea.action
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
-import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.panel
@@ -33,39 +33,58 @@ internal class DocumentConversionResultDialog(
     override fun createCenterPanel(): JComponent = panel {
         row {
             cell(
-                JBLabel(
-                    "<html><body style='width: 460px'>${
+                    JBLabel(
+                        "<html><body style='width: 460px'>${
                         QuotaUiUtil.escapeHtml(summary).replace("\n", "<br>")
                     }</body></html>"
+                    )
                 )
-            )
                 .align(Align.FILL)
         }
         collapsibleGroup("Details") {
-            row {
-                cell(JBScrollPane(JBTextArea(details).apply {
-                    isEditable = false
-                    font = Font(Font.MONOSPACED, Font.PLAIN, UIUtil.getLabelFont().size)
-                    caretPosition = 0
-                }).apply {
-                    preferredSize = Dimension(JBUI.scale(620), JBUI.scale(280))
-                }).align(Align.FILL)
-            }.resizableRow()
-        }.apply {
-            expanded = false
-            packWindowHeight = true
-        }
+                row {
+                    cell(
+                            JBScrollPane(
+                                    JBTextArea(details).apply {
+                                        isEditable = false
+                                        font =
+                                            Font(
+                                                Font.MONOSPACED,
+                                                Font.PLAIN,
+                                                UIUtil.getLabelFont().size,
+                                            )
+                                        caretPosition = 0
+                                    }
+                                )
+                                .apply {
+                                    preferredSize = Dimension(JBUI.scale(620), JBUI.scale(280))
+                                }
+                        )
+                        .align(Align.FILL)
+                }
+                    .resizableRow()
+            }
+            .apply {
+                expanded = false
+                packWindowHeight = true
+            }
     }
 }
 
 internal fun documentConversionSummary(result: DocumentConversionResult): String {
-    val images = result.imageExport ?: return "Markdown saved with warnings. Expand Details for more information."
+    val images =
+        result.imageExport
+            ?: return "Markdown saved with warnings. Expand Details for more information."
     return buildString {
-        append("Markdown saved.\nImages: ${images.succeeded} of ${images.total} saved; ${images.failed} failed.\n\n")
+        append(
+            "Markdown saved.\nImages: ${images.succeeded} of ${images.total} saved; ${images.failed} failed.\n\n"
+        )
         when (images.requestedFormat) {
             DocumentImageFormat.SVG -> {
                 append("Requested SVG: ${images.svg} saved.\n")
-                append("Fallbacks used: ${images.png} PNG at ${images.dpi} DPI; ${images.provider} provider images.")
+                append(
+                    "Fallbacks used: ${images.png} PNG at ${images.dpi} DPI; ${images.provider} provider images."
+                )
             }
 
             DocumentImageFormat.PNG -> {
@@ -88,4 +107,5 @@ internal fun documentConversionDetails(result: DocumentConversionResult): String
         appendLine("\nImage export log (requested ${images.requestedFormat}, ${images.dpi} DPI)")
         append(images.diagnostics.joinToString("\n\n"))
     }
-}.trim()
+}
+    .trim()

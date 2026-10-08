@@ -17,34 +17,38 @@ class GitHubOAuthClientTest {
     @Test
     fun requestDeviceAuthorizationUsesCopilotCliClientId() {
         TestOAuthServer(
-            """
-            {"device_code":"device-123","user_code":"ABCD-1234","verification_uri":"https://github.com/login/device","expires_in":900,"interval":5}
-            """.trimIndent(),
-        ).use { server ->
-            val client = GitHubOAuthClient(
-                deviceCodeEndpoint = server.uri("/login/device/code"),
-                accessTokenEndpoint = server.uri("/login/oauth/access_token"),
+                """
+                {"device_code":"device-123","user_code":"ABCD-1234","verification_uri":"https://github.com/login/device","expires_in":900,"interval":5}
+                """
+                    .trimIndent()
             )
+            .use { server ->
+                val client =
+                    GitHubOAuthClient(
+                        deviceCodeEndpoint = server.uri("/login/device/code"),
+                        accessTokenEndpoint = server.uri("/login/oauth/access_token"),
+                    )
 
-            val authorization = client.requestDeviceAuthorization()
+                val authorization = client.requestDeviceAuthorization()
 
-            assertEquals("device-123", authorization.deviceCode)
-            assertEquals("ABCD-1234", authorization.userCode)
-            val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
-            assertEquals("/login/device/code", request.path)
-            assertEquals(GitHubOAuthClient.CLIENT_ID, request.form["client_id"])
-            assertEquals("read:user", request.form["scope"])
-            assertEquals("openai-usage-quota-intellij", request.headers["User-agent"])
-        }
+                assertEquals("device-123", authorization.deviceCode)
+                assertEquals("ABCD-1234", authorization.userCode)
+                val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/login/device/code", request.path)
+                assertEquals(GitHubOAuthClient.CLIENT_ID, request.form["client_id"])
+                assertEquals("read:user", request.form["scope"])
+                assertEquals("openai-usage-quota-intellij", request.headers["User-agent"])
+            }
     }
 
     @Test
     fun pollDeviceTokenUsesCopilotCliClientIdAndStoresItWithCredentials() {
         TestOAuthServer("""{"access_token":"github-token"}""").use { server ->
-            val client = GitHubOAuthClient(
-                deviceCodeEndpoint = server.uri("/login/device/code"),
-                accessTokenEndpoint = server.uri("/login/oauth/access_token"),
-            )
+            val client =
+                GitHubOAuthClient(
+                    deviceCodeEndpoint = server.uri("/login/device/code"),
+                    accessTokenEndpoint = server.uri("/login/oauth/access_token"),
+                )
 
             val result = client.pollDeviceToken("device-123")
 
@@ -61,17 +65,24 @@ class GitHubOAuthClientTest {
 
     private class TestOAuthServer(private val responseBody: String) : AutoCloseable {
         val requests = LinkedBlockingQueue<RecordedRequest>()
-        private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        private val server =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
 
         init {
             server.createContext("/") { exchange ->
-                val body = exchange.requestBody.use { input -> String(input.readAllBytes(), StandardCharsets.UTF_8) }
+                val body =
+                    exchange.requestBody.use { input ->
+                        String(input.readAllBytes(), StandardCharsets.UTF_8)
+                    }
                 requests.add(
                     RecordedRequest(
                         path = exchange.requestURI.path,
-                        headers = exchange.requestHeaders.entries.associate { it.key to it.value.joinToString(",") },
+                        headers =
+                            exchange.requestHeaders.entries.associate {
+                                it.key to it.value.joinToString(",")
+                            },
                         form = parseForm(body),
-                    ),
+                    )
                 )
                 val bytes = responseBody.toByteArray(StandardCharsets.UTF_8)
                 exchange.responseHeaders.add("Content-Type", "application/json")

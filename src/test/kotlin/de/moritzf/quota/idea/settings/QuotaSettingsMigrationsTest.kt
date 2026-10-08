@@ -97,14 +97,16 @@ class QuotaSettingsMigrationsTest {
     @Test
     fun settingsWrittenBeforeMigrationsExistedStartAtVersionZero() {
         // Settings file from a plugin version that did not know settingsVersion yet.
-        val legacy = deserialize(
-            """
-            <component name="OpenAiUsageQuotaSettings">
-              <option name="refreshMinutes" value="7" />
-              <option name="githubEnterpriseHost" value="ghe.example.com" />
-            </component>
-            """.trimIndent(),
-        )
+        val legacy =
+            deserialize(
+                """
+                <component name="OpenAiUsageQuotaSettings">
+                  <option name="refreshMinutes" value="7" />
+                  <option name="githubEnterpriseHost" value="ghe.example.com" />
+                </component>
+                """
+                    .trimIndent()
+            )
 
         assertEquals(0, legacy.settingsVersion)
 
@@ -117,7 +119,8 @@ class QuotaSettingsMigrationsTest {
 
     @Test
     fun recordedVersionSurvivesASettingsRoundTrip() {
-        val state = QuotaSettingsState().apply { settingsVersion = QuotaSettingsMigrations.CURRENT_VERSION }
+        val state =
+            QuotaSettingsState().apply { settingsVersion = QuotaSettingsMigrations.CURRENT_VERSION }
 
         val reloaded = deserialize(JDOMUtil.write(XmlSerializer.serialize(state.state)))
 
@@ -138,18 +141,21 @@ class QuotaSettingsMigrationsTest {
         val ids = QuotaSettingsMigrations.ALL.map { it.id }
         assertEquals(ids.size, ids.distinct().size)
         assertTrue(
-            QuotaSettingsMigrations.ALL.all { it.version in 1..QuotaSettingsMigrations.CURRENT_VERSION },
+            QuotaSettingsMigrations.ALL.all {
+                it.version in 1..QuotaSettingsMigrations.CURRENT_VERSION
+            },
             "every migration needs a version that CURRENT_VERSION covers",
         )
     }
 
     @Test
     fun normalizeIndicatorSourceStorageIdsRewritesEnumNamesToProviderIds() {
-        val state = QuotaSettingsState().apply {
-            settingsVersion = 1
-            indicatorSource = "OPEN_CODE"
-            lastActiveSource = "OPEN_AI"
-        }
+        val state =
+            QuotaSettingsState().apply {
+                settingsVersion = 1
+                indicatorSource = "OPEN_CODE"
+                lastActiveSource = "OPEN_AI"
+            }
 
         QuotaSettingsMigrations.run(state)
 
@@ -161,34 +167,37 @@ class QuotaSettingsMigrationsTest {
 
     @Test
     fun normalizeIndicatorSourceStorageIdsKeepsCanonicalIdsAndClearsJunk() {
-        val state = QuotaSettingsState().apply {
-            settingsVersion = 1
-            indicatorSource = "last_used"
-            lastActiveSource = "opencode"
-        }
+        val state =
+            QuotaSettingsState().apply {
+                settingsVersion = 1
+                indicatorSource = "last_used"
+                lastActiveSource = "opencode"
+            }
         QuotaSettingsMigrations.run(state)
         assertEquals(QuotaIndicatorSource.LAST_USED_ID, state.indicatorSource)
         assertEquals(QuotaProviderType.OPEN_CODE.id, state.lastActiveSource)
 
-        val junk = QuotaSettingsState().apply {
-            settingsVersion = 1
-            lastActiveSource = "not-a-provider"
-        }
+        val junk =
+            QuotaSettingsState().apply {
+                settingsVersion = 1
+                lastActiveSource = "not-a-provider"
+            }
         QuotaSettingsMigrations.run(junk)
         assertNull(junk.lastActiveSource)
     }
 
     @Test
     fun createProviderAccountsMigratesConfiguredTypesOnly() {
-        val state = QuotaSettingsState().apply {
-            settingsVersion = 2
-            providerOrder = "openai,claude,mistral"
-            hiddenFromQuotaPopup = mutableListOf("claude")
-            cachedQuotaJsons = mutableMapOf("openai" to """{"ok":true}""")
-            githubEnterpriseHost = "ghe.example.com"
-            openCodeWorkspaceId = "ws-1"
-            minimaxRegionPreference = "CN"
-        }
+        val state =
+            QuotaSettingsState().apply {
+                settingsVersion = 2
+                providerOrder = "openai,claude,mistral"
+                hiddenFromQuotaPopup = mutableListOf("claude")
+                cachedQuotaJsons = mutableMapOf("openai" to """{"ok":true}""")
+                githubEnterpriseHost = "ghe.example.com"
+                openCodeWorkspaceId = "ws-1"
+                minimaxRegionPreference = "CN"
+            }
 
         CreateProviderAccounts.apply(state) { type ->
             type == QuotaProviderType.CLAUDE || type == QuotaProviderType.GITHUB
@@ -202,16 +211,23 @@ class QuotaSettingsMigrationsTest {
         assertTrue(state.accounts[0].isDefault)
         assertTrue(state.account("claude")!!.hiddenFromPopup)
         assertTrue(state.hiddenFromQuotaPopup.isEmpty())
-        assertEquals("ghe.example.com", state.account("github")!!.extra(ProviderAccount.EXTRA_GITHUB_HOST))
+        assertEquals(
+            "ghe.example.com",
+            state.account("github")!!.extra(ProviderAccount.EXTRA_GITHUB_HOST),
+        )
         assertTrue(state.accounts.none { it.typeId == QuotaProviderType.MISTRAL.id })
     }
 
     @Test
     fun createProviderAccountsIsIdempotentWhenAccountsExist() {
-        val state = QuotaSettingsState().apply {
-            settingsVersion = 2
-            accounts = mutableListOf(ProviderAccount.create(QuotaProviderType.ZAI, "Keep", isFirstOfType = true))
-        }
+        val state =
+            QuotaSettingsState().apply {
+                settingsVersion = 2
+                accounts =
+                    mutableListOf(
+                        ProviderAccount.create(QuotaProviderType.ZAI, "Keep", isFirstOfType = true)
+                    )
+            }
 
         CreateProviderAccounts.apply(state) { true }
 

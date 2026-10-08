@@ -9,7 +9,8 @@ import kotlin.test.assertTrue
 class CompletionsFimTesterTest {
     @Test
     fun readsChoicesText() {
-        val raw = """{"id":"cmpl-1","object":"text_completion","choices":[{"text":"a + b","index":0}]}"""
+        val raw =
+            """{"id":"cmpl-1","object":"text_completion","choices":[{"text":"a + b","index":0}]}"""
         assertEquals("a + b", CompletionsFimTester.completionText(raw))
     }
 

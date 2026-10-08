@@ -40,8 +40,9 @@ data class SpendControlDto(
             individualLimit = limit?.amount,
             used = limit?.used,
             remaining = limit?.remaining,
-            usedPercent = limit?.usedPercent?.coerceIn(0.0, 100.0)
-                ?: limit?.remainingPercent?.let { (100.0 - it).coerceIn(0.0, 100.0) },
+            usedPercent =
+                limit?.usedPercent?.coerceIn(0.0, 100.0)
+                    ?: limit?.remainingPercent?.let { (100.0 - it).coerceIn(0.0, 100.0) },
             resetAtEpochSeconds = limit?.resetAtEpochSeconds,
         )
     }

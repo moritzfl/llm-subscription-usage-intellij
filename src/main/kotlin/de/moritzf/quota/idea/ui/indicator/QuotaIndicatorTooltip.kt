@@ -1,7 +1,7 @@
 package de.moritzf.quota.idea.ui.indicator
 
-import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.antigravity.AntigravityQuota
+import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.cursor.CursorQuota
 import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.idea.common.QuotaProviderType
@@ -53,9 +53,9 @@ internal fun buildIndicatorTooltip(
     authState: ProviderAuthState,
     accountName: String? = null,
 ): String {
-    val providerLabel = accountName?.trim()?.takeIf { it.isNotEmpty() }
-        ?.let { "${type.displayName} ($it)" }
-        ?: type.displayName
+    val providerLabel =
+        accountName?.trim()?.takeIf { it.isNotEmpty() }?.let { "${type.displayName} ($it)" }
+            ?: type.displayName
     val plan = indicatorPlanName(quota)
     val usage = indicatorTooltipUsage(quota)
     if (plan != null || usage.percent != null || usage.reset != null) {
@@ -69,27 +69,29 @@ internal fun buildIndicatorTooltip(
     }
     return formatIndicatorTooltip(
         provider = providerLabel,
-        status = when {
-            error != null -> error
-            authState == ProviderAuthState.UNAUTHENTICATED -> "not logged in"
-            quota == null -> "loading"
-            else -> null
-        },
+        status =
+            when {
+                error != null -> error
+                authState == ProviderAuthState.UNAUTHENTICATED -> "not logged in"
+                quota == null -> "loading"
+                else -> null
+            },
     )
 }
 
 internal fun indicatorPlanName(quota: ProviderQuota?): String? {
-    val raw = when (quota) {
-        is OpenAiCodexQuota -> quota.planType?.toDisplayLabel()
-        is ClaudeQuota -> quota.plan
-        is CursorQuota -> quota.planName.ifBlank { quota.membershipType }
-        is GitHubQuota -> quota.plan
-        is KimiQuota -> quota.plan
-        is MiniMaxQuota -> quota.plan
-        is SuperGrokQuota -> quota.plan
-        is ZaiQuota -> quota.plan
-        else -> null
-    }
+    val raw =
+        when (quota) {
+            is OpenAiCodexQuota -> quota.planType?.toDisplayLabel()
+            is ClaudeQuota -> quota.plan
+            is CursorQuota -> quota.planName.ifBlank { quota.membershipType }
+            is GitHubQuota -> quota.plan
+            is KimiQuota -> quota.plan
+            is MiniMaxQuota -> quota.plan
+            is SuperGrokQuota -> quota.plan
+            is ZaiQuota -> quota.plan
+            else -> null
+        }
     return raw?.trim()?.takeIf { it.isNotEmpty() }
 }
 
@@ -110,7 +112,11 @@ private fun indicatorTooltipUsage(quota: ProviderQuota?): IndicatorTooltipUsage 
         is AntigravityQuota -> {
             val window = quota.primaryWindow() ?: return IndicatorTooltipUsage(null, null)
             val kind = listOfNotNull(window.group, window.window).joinToString(" / ")
-            IndicatorTooltipUsage(window.usagePercent?.roundToInt(), compactReset(window.resetsAt), "used ($kind)")
+            IndicatorTooltipUsage(
+                window.usagePercent?.roundToInt(),
+                compactReset(window.resetsAt),
+                "used ($kind)",
+            )
         }
         is OpenAiCodexQuota -> openAiTooltipUsage(quota)
         is OpenCodeQuota -> {
@@ -135,22 +141,31 @@ private fun indicatorTooltipUsage(quota: ProviderQuota?): IndicatorTooltipUsage 
         }
         is MiniMaxQuota -> {
             val state = miniMaxIndicatorState(quota) ?: return IndicatorTooltipUsage(null, null)
-            IndicatorTooltipUsage(state.percent, compactReset(state.resetsAt), miniMaxWindowKind(quota))
+            IndicatorTooltipUsage(
+                state.percent,
+                compactReset(state.resetsAt),
+                miniMaxWindowKind(quota),
+            )
         }
         is MistralQuota -> {
             val window = mistralDisplayWindow(quota)
             val apiUsage = quota.apiUsage?.takeIf { it.hasAnyUsage() }
-            if (quota.includedApiUsage == null && apiUsage != null && (window == null || clampPercent(window.usagePercent.roundToInt()) == 0)) {
+            if (
+                quota.includedApiUsage == null &&
+                    apiUsage != null &&
+                    (window == null || clampPercent(window.usagePercent.roundToInt()) == 0)
+            ) {
                 return IndicatorTooltipUsage(null, null, "API usage")
             }
             val resolved = window ?: return IndicatorTooltipUsage(null, null)
-            val kind = when {
-                resolved === quota.includedApiUsage -> "Included API usage"
-                resolved === quota.monthlyUsage -> "Vibe Code"
-                resolved === quota.tokenUsage -> "Tokens / min"
-                resolved === quota.requestUsage -> "Requests / min"
-                else -> null
-            }
+            val kind =
+                when {
+                    resolved === quota.includedApiUsage -> "Included API usage"
+                    resolved === quota.monthlyUsage -> "Vibe Code"
+                    resolved === quota.tokenUsage -> "Tokens / min"
+                    resolved === quota.requestUsage -> "Requests / min"
+                    else -> null
+                }
             IndicatorTooltipUsage(
                 clampPercent(resolved.usagePercent.roundToInt()),
                 if (isMistralPerMinuteWindow(resolved)) null else compactReset(resolved.resetsAt),
@@ -159,11 +174,12 @@ private fun indicatorTooltipUsage(quota: ProviderQuota?): IndicatorTooltipUsage 
         }
         is KimiQuota -> {
             val window = kimiDisplayWindow(quota) ?: return IndicatorTooltipUsage(null, null)
-            val kind = when {
-                window === quota.sessionUsage -> "Session"
-                window === quota.totalUsage -> "Overall"
-                else -> null
-            }
+            val kind =
+                when {
+                    window === quota.sessionUsage -> "Session"
+                    window === quota.totalUsage -> "Overall"
+                    else -> null
+                }
             IndicatorTooltipUsage(
                 clampPercent(window.usagePercent.roundToInt()),
                 compactReset(window.resetsAt),
@@ -180,7 +196,11 @@ private fun indicatorTooltipUsage(quota: ProviderQuota?): IndicatorTooltipUsage 
         }
         is CursorQuota -> {
             val state = cursorIndicatorState(quota) ?: return IndicatorTooltipUsage(null, null)
-            IndicatorTooltipUsage(state.percent, compactReset(state.resetsAt), cursorWindowKind(quota))
+            IndicatorTooltipUsage(
+                state.percent,
+                compactReset(state.resetsAt),
+                cursorWindowKind(quota),
+            )
         }
         is SuperGrokQuota -> {
             val state = superGrokIndicatorState(quota) ?: return IndicatorTooltipUsage(null, null)
@@ -192,7 +212,11 @@ private fun indicatorTooltipUsage(quota: ProviderQuota?): IndicatorTooltipUsage 
         }
         is ClaudeQuota -> {
             val state = claudeIndicatorState(quota) ?: return IndicatorTooltipUsage(null, null)
-            IndicatorTooltipUsage(state.percent, compactReset(state.resetsAt), claudeWindowKind(quota))
+            IndicatorTooltipUsage(
+                state.percent,
+                compactReset(state.resetsAt),
+                claudeWindowKind(quota),
+            )
         }
         else -> IndicatorTooltipUsage(null, null)
     }
@@ -200,26 +224,29 @@ private fun indicatorTooltipUsage(quota: ProviderQuota?): IndicatorTooltipUsage 
 
 private fun openAiTooltipUsage(quota: OpenAiCodexQuota): IndicatorTooltipUsage {
     val state = indicatorQuotaState(quota) ?: return IndicatorTooltipUsage(null, null)
-    val display = openAiIndicatorDisplayState(quota, state) ?: return IndicatorTooltipUsage(null, null)
+    val display =
+        openAiIndicatorDisplayState(quota, state) ?: return IndicatorTooltipUsage(null, null)
     if (display.creditsBalanceLabel != null) {
         return IndicatorTooltipUsage(null, null)
     }
-    val window = if (state.limitReached || display.percent >= 100) {
-        limitingWindow(quota, state.kind) ?: state.window
-    } else {
-        state.window
-    }
-    val kind = windowKindFromDuration(window?.windowDuration)
-        ?: if (state.kind == IndicatorQuotaKind.REVIEW) "Review" else null
+    val window =
+        if (state.limitReached || display.percent >= 100) {
+            limitingWindow(quota, state.kind) ?: state.window
+        } else {
+            state.window
+        }
+    val kind =
+        windowKindFromDuration(window?.windowDuration)
+            ?: if (state.kind == IndicatorQuotaKind.REVIEW) "Review" else null
     return IndicatorTooltipUsage(display.percent, compactReset(display.resetsAt), kind)
 }
 
 private fun openCodeWindowKind(quota: OpenCodeQuota): String? {
     val windows = listOfNotNull(quota.rollingUsage, quota.weeklyUsage, quota.monthlyUsage)
-    val selected = windows.filter { it.isRateLimited || it.usagePercent >= 100 }
-        .maxByOrNull { it.resetInSec }
-        ?: windows.firstOrNull()
-        ?: return null
+    val selected =
+        windows.filter { it.isRateLimited || it.usagePercent >= 100 }.maxByOrNull { it.resetInSec }
+            ?: windows.firstOrNull()
+            ?: return null
     return when {
         selected === quota.rollingUsage -> "5-hour"
         selected === quota.weeklyUsage -> "Weekly"
@@ -238,29 +265,35 @@ private fun ollamaWindowKind(period: Duration): String? {
 }
 
 private fun miniMaxWindowKind(quota: MiniMaxQuota): String? {
-    val windows = listOfNotNull(
-        quota.sessionUsage?.let { it to "Session" },
-        quota.weeklyUsage?.let { it to "Weekly" },
-    )
+    val windows =
+        listOfNotNull(
+            quota.sessionUsage?.let { it to "Session" },
+            quota.weeklyUsage?.let { it to "Weekly" },
+        )
     if (windows.isEmpty()) return null
     val exhausted = windows.filter { (window, _) -> window.usagePercent >= 100.0 }
     if (exhausted.isNotEmpty()) {
-        return exhausted.maxBy { (window, _) -> window.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE }.second
+        return exhausted
+            .maxBy { (window, _) -> window.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE }
+            .second
     }
     return windows.first().second
 }
 
 private fun zaiWindowKind(quota: ZaiQuota): String? {
-    val windows = listOfNotNull(
-        quota.sessionUsage?.let { it to "Session" },
-        quota.weeklyUsage?.let { it to "Weekly" },
-    )
+    val windows =
+        listOfNotNull(
+            quota.sessionUsage?.let { it to "Session" },
+            quota.weeklyUsage?.let { it to "Weekly" },
+        )
     if (windows.isEmpty()) {
         return if (quota.webSearchUsage != null) "Search" else null
     }
     val exhausted = windows.filter { (window, _) -> window.usagePercent >= 100.0 }
     if (exhausted.isNotEmpty()) {
-        return exhausted.maxBy { (window, _) -> window.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE }.second
+        return exhausted
+            .maxBy { (window, _) -> window.resetsAt?.toEpochMilliseconds() ?: Long.MIN_VALUE }
+            .second
     }
     return windows.first().second
 }
@@ -310,7 +343,8 @@ internal fun windowKindFromDuration(duration: Duration?): String? {
     }
 }
 
-private fun compactReset(resetsAt: Instant?): String? = resetLabel(QuotaUiUtil.formatResetCompact(resetsAt))
+private fun compactReset(resetsAt: Instant?): String? =
+    resetLabel(QuotaUiUtil.formatResetCompact(resetsAt))
 
 private fun resetLabel(compact: String?): String? {
     val text = compact?.trim()?.takeIf { it.isNotEmpty() } ?: return null

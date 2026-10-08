@@ -9,8 +9,8 @@ import org.apache.pdfbox.Loader
 import org.apache.pdfbox.tools.PDFText2Markdown
 
 /**
- * Local PDF text extraction via Apache PDFBox [PDFText2Markdown]
- * (the `export:text -md` converter, since 3.0.4). Not OCR.
+ * Local PDF text extraction via Apache PDFBox [PDFText2Markdown] (the `export:text -md` converter,
+ * since 3.0.4). Not OCR.
  */
 internal object PdfBoxMarkdown {
     const val IMAGES_IGNORED = "PDFBox does not export figures. includeImages was ignored."
@@ -27,15 +27,20 @@ internal object PdfBoxMarkdown {
         progress: DocumentConversionProgress = DocumentConversionProgress.NONE,
     ): String {
         require(PdfPages.isPdf(source)) { "PDFBox only extracts embedded text from a local PDF." }
-        val destination = outputFile ?: DocumentMarkdown.defaultOutput(source)
-            ?: error("PDFBox needs a local PDF.")
+        val destination =
+            outputFile
+                ?: DocumentMarkdown.defaultOutput(source)
+                ?: error("PDFBox needs a local PDF.")
         Loader.loadPDF(source.toFile()).use { document ->
             if (!document.currentAccessPermission.canExtractContent()) {
                 throw IllegalStateException("This PDF does not allow text extraction.")
             }
             val pageCount = document.numberOfPages
-            val range = PdfPages.resolve(pageCount, pageFrom, pageTo)
-                ?: throw IllegalArgumentException("Page range is outside this PDF ($pageCount pages).")
+            val range =
+                PdfPages.resolve(pageCount, pageFrom, pageTo)
+                    ?: throw IllegalArgumentException(
+                        "Page range is outside this PDF ($pageCount pages)."
+                    )
             val total = range.to - range.from + 1
             val writer = StringWriter()
             val stripper = PDFText2Markdown()

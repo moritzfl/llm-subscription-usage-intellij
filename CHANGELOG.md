@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Adopt ktfmt's KotlinLang style for Kotlin sources and Gradle Kotlin scripts, with formatting checks in Gradle and CI.
 - Replace deprecated Ktor request-body calls and use suspending multipart cleanup on newer IDEs while retaining IntelliJ 2026.1 compatibility.
 - Keep document and vision test buttons in sync when settings load or refresh model lists, without requiring a manual model switch.
 - Show Azure's disabled document-model choice as `-` at the top of the dropdown.

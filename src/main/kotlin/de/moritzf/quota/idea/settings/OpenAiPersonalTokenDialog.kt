@@ -18,11 +18,19 @@ internal class OpenAiPersonalTokenDialog(parent: JComponent) : DialogWrapper(par
 
     override fun createCenterPanel(): JComponent = panel {
         row { text("For ChatGPT Business and Enterprise workspaces.") }
-        row { text("Create a personal access token in <a href=\"https://chatgpt.com/admin/access-tokens\">ChatGPT workspace settings</a>.") }
+        row {
+            text(
+                "Create a personal access token in <a href=\"https://chatgpt.com/admin/access-tokens\">ChatGPT workspace settings</a>."
+            )
+        }
         row { text("Select the Codex scope when offered.") }
         row("Access token:") {
-            cell(tokenField).align(AlignX.FILL).resizableColumn()
-                .comment("Starts with at-. Stored in IntelliJ Password Safe. Replace it when it expires or is revoked.")
+            cell(tokenField)
+                .align(AlignX.FILL)
+                .resizableColumn()
+                .comment(
+                    "Starts with at-. Stored in IntelliJ Password Safe. Replace it when it expires or is revoked."
+                )
         }
     }
 
@@ -31,7 +39,9 @@ internal class OpenAiPersonalTokenDialog(parent: JComponent) : DialogWrapper(par
     override fun doValidate(): ValidationInfo? {
         val password = tokenField.password
         return try {
-            if (password.isEmpty()) ValidationInfo("Enter a Codex personal access token.", tokenField) else null
+            if (password.isEmpty())
+                ValidationInfo("Enter a Codex personal access token.", tokenField)
+            else null
         } finally {
             password.fill('\u0000')
         }

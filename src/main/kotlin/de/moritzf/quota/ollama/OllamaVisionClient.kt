@@ -21,21 +21,44 @@ open class OllamaVisionClient(
         prompt: String,
         model: String,
     ): String {
-        val token = apiKey.trim().ifBlank {
-            throw OllamaQuotaException("Ollama API key missing. Add an Ollama API key in settings.")
-        }
-        val trimmedPrompt = prompt.trim().ifBlank { throw OllamaQuotaException("Image prompt is required.") }
-        val imageContent = VisionChat.chatImageContent(imageUrl, localFile)
-            ?: throw OllamaQuotaException("Provide an image URL or a local image file.")
-        val selectedModel = model.trim().ifBlank { throw OllamaQuotaException("Select an Ollama vision model in settings.") }
-        val response = send(postJson(token, chatCompletionsUri, VisionChat.chatRequestJson(selectedModel, imageContent, trimmedPrompt)))
+        val token =
+            apiKey.trim().ifBlank {
+                throw OllamaQuotaException(
+                    "Ollama API key missing. Add an Ollama API key in settings."
+                )
+            }
+        val trimmedPrompt =
+            prompt.trim().ifBlank { throw OllamaQuotaException("Image prompt is required.") }
+        val imageContent =
+            VisionChat.chatImageContent(imageUrl, localFile)
+                ?: throw OllamaQuotaException("Provide an image URL or a local image file.")
+        val selectedModel =
+            model.trim().ifBlank {
+                throw OllamaQuotaException("Select an Ollama vision model in settings.")
+            }
+        val response =
+            send(
+                postJson(
+                    token,
+                    chatCompletionsUri,
+                    VisionChat.chatRequestJson(selectedModel, imageContent, trimmedPrompt),
+                )
+            )
         val status = response.statusCode()
         val body = response.body()
         if (status == 401 || status == 403) {
-            throw OllamaQuotaException("Ollama API key invalid. Check your Ollama API key.", status, body)
+            throw OllamaQuotaException(
+                "Ollama API key invalid. Check your Ollama API key.",
+                status,
+                body,
+            )
         }
         if (status !in 200..299) {
-            throw OllamaQuotaException("Ollama image analysis failed (HTTP $status). Try again later.", status, body)
+            throw OllamaQuotaException(
+                "Ollama image analysis failed (HTTP $status). Try again later.",
+                status,
+                body,
+            )
         }
         return VisionChat.chatAnswer(body)
             ?: throw OllamaQuotaException("Ollama image analysis returned no output.", status, body)

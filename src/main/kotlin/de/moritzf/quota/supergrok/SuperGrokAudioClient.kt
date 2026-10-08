@@ -36,8 +36,11 @@ open class SuperGrokAudioClient(
         if (hasFile && !Files.isRegularFile(localFile)) {
             throw SuperGrokQuotaException("Local audio file was not found.")
         }
-        val request = multipartStt(token, localFile, url.takeIf { it.isNotEmpty() }, language, diarize)
-        return parseOk(sendString(request), "Grok speech-to-text failed") { McpJson.providerJsonOrRaw(it) }
+        val request =
+            multipartStt(token, localFile, url.takeIf { it.isNotEmpty() }, language, diarize)
+        return parseOk(sendString(request), "Grok speech-to-text failed") {
+            McpJson.providerJsonOrRaw(it)
+        }
     }
 
     open fun synthesize(
@@ -56,14 +59,19 @@ open class SuperGrokAudioClient(
         }
         val format = responseFormat.trim().ifBlank { DEFAULT_SPEECH_FORMAT }
         val bytes = requestSpeechBytes(token, input, voiceId, language, format)
-        val output = resolveSpeechOutput(targetFile, baseDirectory, format)
-            ?: throw SuperGrokQuotaException("Provide targetFile so the audio is written to disk.")
+        val output =
+            resolveSpeechOutput(targetFile, baseDirectory, format)
+                ?: throw SuperGrokQuotaException(
+                    "Provide targetFile so the audio is written to disk."
+                )
         val parent = output.parent
         if (parent != null) {
             Files.createDirectories(parent)
         }
         Files.write(output, bytes)
-        return JsonSupport.json.encodeToString(GrokSpeechWriteResult(output.toString(), bytes.size.toLong()))
+        return JsonSupport.json.encodeToString(
+            GrokSpeechWriteResult(output.toString(), bytes.size.toLong())
+        )
     }
 
     open fun synthesizeBytes(
@@ -89,37 +97,42 @@ open class SuperGrokAudioClient(
         language: String?,
         format: String,
     ): ByteArray {
-        val body = JsonSupport.json.encodeToString(
-            GrokTtsRequestDto(
-                text = input,
-                voiceId = voiceId?.trim()?.ifBlank { null } ?: DEFAULT_VOICE,
-                language = language?.trim()?.ifBlank { null } ?: DEFAULT_LANGUAGE,
-                outputFormat = GrokTtsOutputFormatDto(codec = format),
-            ),
-        )
-        val request = HttpRequest.newBuilder()
-            .uri(baseUri.resolve(TTS_PATH))
-            .timeout(Duration.ofSeconds(180))
-            .header("Authorization", "Bearer $token")
-            .header("Content-Type", "application/json")
-            .header("Accept", "application/octet-stream")
-            .header("User-Agent", USER_AGENT)
-            .POST(HttpRequest.BodyPublishers.ofString(body))
-            .build()
+        val body =
+            JsonSupport.json.encodeToString(
+                GrokTtsRequestDto(
+                    text = input,
+                    voiceId = voiceId?.trim()?.ifBlank { null } ?: DEFAULT_VOICE,
+                    language = language?.trim()?.ifBlank { null } ?: DEFAULT_LANGUAGE,
+                    outputFormat = GrokTtsOutputFormatDto(codec = format),
+                )
+            )
+        val request =
+            HttpRequest.newBuilder()
+                .uri(baseUri.resolve(TTS_PATH))
+                .timeout(Duration.ofSeconds(180))
+                .header("Authorization", "Bearer $token")
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/octet-stream")
+                .header("User-Agent", USER_AGENT)
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build()
         return sendBytes(request, "Grok text-to-speech failed")
     }
 
     open fun listVoices(accessToken: String): String {
         val token = requireToken(accessToken)
-        val request = HttpRequest.newBuilder()
-            .uri(baseUri.resolve(VOICES_PATH))
-            .timeout(Duration.ofSeconds(30))
-            .header("Authorization", "Bearer $token")
-            .header("Accept", "application/json")
-            .header("User-Agent", USER_AGENT)
-            .GET()
-            .build()
-        return parseOk(sendString(request), "Grok voice list failed") { McpJson.providerJsonOrRaw(it) }
+        val request =
+            HttpRequest.newBuilder()
+                .uri(baseUri.resolve(VOICES_PATH))
+                .timeout(Duration.ofSeconds(30))
+                .header("Authorization", "Bearer $token")
+                .header("Accept", "application/json")
+                .header("User-Agent", USER_AGENT)
+                .GET()
+                .build()
+        return parseOk(sendString(request), "Grok voice list failed") {
+            McpJson.providerJsonOrRaw(it)
+        }
     }
 
     private fun multipartStt(
@@ -149,25 +162,49 @@ open class SuperGrokAudioClient(
         return try {
             httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         } catch (exception: IOException) {
-            throw SuperGrokQuotaException("Grok voice request failed. Check your connection.", 0, null, exception)
+            throw SuperGrokQuotaException(
+                "Grok voice request failed. Check your connection.",
+                0,
+                null,
+                exception,
+            )
         } catch (exception: InterruptedException) {
             Thread.currentThread().interrupt()
-            throw SuperGrokQuotaException("Grok voice request failed. Check your connection.", 0, null, exception)
+            throw SuperGrokQuotaException(
+                "Grok voice request failed. Check your connection.",
+                0,
+                null,
+                exception,
+            )
         }
     }
 
     private fun sendBytes(request: HttpRequest, failure: String): ByteArray {
-        val response = try {
-            httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray())
-        } catch (exception: IOException) {
-            throw SuperGrokQuotaException("Grok voice request failed. Check your connection.", 0, null, exception)
-        } catch (exception: InterruptedException) {
-            Thread.currentThread().interrupt()
-            throw SuperGrokQuotaException("Grok voice request failed. Check your connection.", 0, null, exception)
-        }
+        val response =
+            try {
+                httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray())
+            } catch (exception: IOException) {
+                throw SuperGrokQuotaException(
+                    "Grok voice request failed. Check your connection.",
+                    0,
+                    null,
+                    exception,
+                )
+            } catch (exception: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw SuperGrokQuotaException(
+                    "Grok voice request failed. Check your connection.",
+                    0,
+                    null,
+                    exception,
+                )
+            }
         val status = response.statusCode()
         if (status == 401 || status == 403) {
-            throw SuperGrokQuotaException("Grok auth expired. Log in to SuperGrok again from settings.", status)
+            throw SuperGrokQuotaException(
+                "Grok auth expired. Log in to SuperGrok again from settings.",
+                status,
+            )
         }
         if (status !in 200..299) {
             throw SuperGrokQuotaException("$failure (HTTP $status). Try again later.", status)
@@ -175,11 +212,19 @@ open class SuperGrokAudioClient(
         return response.body()
     }
 
-    private fun parseOk(response: HttpResponse<String>, failure: String, map: (String) -> String): String {
+    private fun parseOk(
+        response: HttpResponse<String>,
+        failure: String,
+        map: (String) -> String,
+    ): String {
         val status = response.statusCode()
         val body = response.body()
         if (status == 401 || status == 403) {
-            throw SuperGrokQuotaException("Grok auth expired. Log in to SuperGrok again from settings.", status, body)
+            throw SuperGrokQuotaException(
+                "Grok auth expired. Log in to SuperGrok again from settings.",
+                status,
+                body,
+            )
         }
         if (status !in 200..299) {
             throw SuperGrokQuotaException("$failure (HTTP $status). Try again later.", status, body)
@@ -205,8 +250,16 @@ open class SuperGrokAudioClient(
 
         fun createDefault(): SuperGrokAudioClient = SuperGrokAudioClient()
 
-        internal fun resolveSpeechOutput(targetFile: String?, baseDirectory: Path?, format: String): Path? {
-            return DefaultOutputFiles.resolveInsideBase(targetFile, baseDirectory, DefaultOutputFiles.speech(format))
+        internal fun resolveSpeechOutput(
+            targetFile: String?,
+            baseDirectory: Path?,
+            format: String,
+        ): Path? {
+            return DefaultOutputFiles.resolveInsideBase(
+                targetFile,
+                baseDirectory,
+                DefaultOutputFiles.speech(format),
+            )
         }
 
         private fun defaultHttpClient(): HttpClient =
@@ -222,10 +275,7 @@ internal data class GrokTtsRequestDto(
     @SerialName("output_format") val outputFormat: GrokTtsOutputFormatDto? = null,
 )
 
-@Serializable
-internal data class GrokTtsOutputFormatDto(
-    val codec: String,
-)
+@Serializable internal data class GrokTtsOutputFormatDto(val codec: String)
 
 @Serializable
 internal data class GrokSpeechWriteResult(
