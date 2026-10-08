@@ -36,12 +36,12 @@ Track and use your LLM subscriptions directly in IntelliJ IDEA.
 
 | Provider | Sign-in | Quota | Web search | Images | Video | Voice | Docs | Vision | Proxy |
 |---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| OpenAI (ChatGPT / Codex) | Browser login | ✓ | ✓ | ✓ | — | ✓ | (✓) | ✓ | ✓ |
+| OpenAI (ChatGPT / Codex) | Browser / device code / access token | ✓ | ✓ | ✓ | — | ✓ | (✓) | ✓ | ✓ |
 | Claude (Anthropic) | Browser login | ✓ | — | — | — | — | — | — | — |
-| SuperGrok / xAI | Browser login | ✓ | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ | ✓ |
+| SuperGrok / xAI | Browser / device code | ✓ | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ | ✓ |
 | GitHub Copilot | Device code | ✓ | — | — | — | — | — | ✓ | ✓ |
 | Cursor | Session cookie | ✓ | — | — | — | — | — | — | — |
-| OpenCode (Go / Zen) | Browser login | ✓ | — | — | — | — | — | ✓ | ✓ |
+| OpenCode (Go / Zen) | Device code | ✓ | — | — | — | — | — | ✓ | ✓ |
 | Ollama Cloud | API key | ✓ | ✓ | — | — | — | — | ✓ | ✓ |
 | Z.ai | API key | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ | ✓ | ✓ |
 | MiniMax | Subscription key | ✓ | ✓ | ✓ | — | ✓ | — | — | ✓ |
@@ -71,6 +71,14 @@ Open IntelliJ IDEA `Settings` > `Plugins` > `Marketplace`, search for **LLM Subs
 3. Done — the status bar widget now shows your quota. Click it for the detail popup.
 
 Everything else is optional and lives in the same settings page: MCP tools, MCP server URL sync, and the local proxy.
+
+### Headless sign-in and browser-login fallbacks
+
+- **OpenAI and SuperGrok:** select **Log In with Device Code**. Copy the displayed URL and code into any browser, including one on another device. The plugin waits for approval without opening a local browser or listening on a callback port. Use **Cancel Login** to stop. OpenAI may require enabling device-code login in [ChatGPT security settings](https://chatgpt.com/#settings/Security), or approval from your workspace admin.
+- **OpenAI access tokens:** select **Use Access Token...** and paste a Codex personal access token starting with `at-`, created in [ChatGPT workspace settings](https://chatgpt.com/admin/access-tokens). Select the **Codex** scope when offered. These tokens are available for Business and Enterprise workspaces. The plugin validates the workspace identity before storing the token in IntelliJ Password Safe. Expired or revoked tokens require a replacement; they do not refresh automatically. Workspace permissions determine which Codex operations are available. Platform API keys, legacy agent-identity JWTs, and FedRAMP endpoints are not supported by this option.
+- **GitHub Copilot, Kimi and OpenCode:** their existing sign-in already uses device authorization. Copy the URL/code shown in settings if the browser cannot open; authorization continues while you approve elsewhere.
+
+Credentials are managed by this plugin. It does not import other tools' login files.
 
 ## Quota tracking
 

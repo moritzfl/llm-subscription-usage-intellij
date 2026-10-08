@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Add device-code login for OpenAI/Codex and SuperGrok, with copyable URL/code, cancellation and expiration handling, without a local browser or callback port.
+- Accept Codex personal access tokens (`at-…`) for ChatGPT Business/Enterprise workspaces, validate them before Password Safe storage, and request replacement instead of trying to refresh rejected tokens.
+- Keep GitHub, Kimi and OpenCode device authorization running when opening the browser fails, so the displayed URL/code can be used on another device.
+
 ## [1.17.4] - 2026-10-08
 
 - Codex and SuperGrok Reset links list every available token's expiration on hover, with relative time remaining or an explicit unknown date. Codex reset details now decode the provider's `id` field and exclude non-available credits.
