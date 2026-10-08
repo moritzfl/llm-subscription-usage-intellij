@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-10-08
+
 - Add device-code login for OpenAI/Codex and SuperGrok, with copyable URL/code, cancellation and expiration handling, without a local browser or callback port.
 - Accept Codex personal access tokens (`at-…`) for ChatGPT Business/Enterprise workspaces, validate them before Password Safe storage, and request replacement instead of trying to refresh rejected tokens.
 - Keep GitHub, Kimi and OpenCode device authorization running when opening the browser fails, so the displayed URL/code can be used on another device.
@@ -642,7 +644,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.4...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.18.0...HEAD
+[1.18.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.4...1.18.0
 [1.17.4]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.3...1.17.4
 [1.17.3]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.2...1.17.3
 [1.17.2]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.1...1.17.2
