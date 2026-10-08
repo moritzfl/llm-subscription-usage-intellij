@@ -46,6 +46,8 @@ internal class DocumentTestButton(
     init {
         toolTipText = "Convert a one-page hello PDF with the selected model"
         watch?.addItemListener { updateEnabled() }
+        // Replacing the model can change the selection without firing an item event.
+        watch?.addPropertyChangeListener("model") { updateEnabled() }
         updateEnabled()
         addActionListener { runTest() }
     }

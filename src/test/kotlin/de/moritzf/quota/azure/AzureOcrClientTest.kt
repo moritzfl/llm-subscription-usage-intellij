@@ -111,7 +111,7 @@ class AzureOcrClientTest {
         assertFalse(azureDocumentSelectionUsesVision(AZURE_DOCUMENT_INTELLIGENCE_LAYOUT))
         assertFalse(azureDocumentSelectionUsesVision("-"))
         assertEquals(
-            listOf("mistral-ocr-4", "cohere:parse", AZURE_DOCUMENT_INTELLIGENCE_LAYOUT, "native:gpt", "-"),
+            listOf("-", "mistral-ocr-4", "cohere:parse", AZURE_DOCUMENT_INTELLIGENCE_LAYOUT, "native:gpt"),
             azureDocumentComboChoices("-", listOf("native:gpt"), listOf("mistral-ocr-4", "cohere:parse", AZURE_DOCUMENT_INTELLIGENCE_LAYOUT)),
         )
     }

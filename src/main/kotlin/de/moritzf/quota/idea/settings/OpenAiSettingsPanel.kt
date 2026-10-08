@@ -146,7 +146,6 @@ internal class OpenAiSettingsPanel(
             }
             row {
                 cell(deviceLoginButton).gap(RightGap.SMALL)
-                    .comment("Authorize in any browser; no localhost callback.")
                 cell(tokenLoginButton)
             }
             row { cell(deviceLoginPanel.component).align(AlignX.FILL).resizableColumn() }

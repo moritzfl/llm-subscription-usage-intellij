@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Replace deprecated Ktor request-body calls and use suspending multipart cleanup on newer IDEs while retaining IntelliJ 2026.1 compatibility.
+- Keep document and vision test buttons in sync when settings load or refresh model lists, without requiring a manual model switch.
+- Show Azure's disabled document-model choice as `-` at the top of the dropdown.
+- Remove the browser-authorization explanation beneath OpenAI/Codex and SuperGrok device-code login buttons.
+
 ## [1.18.0] - 2026-10-08
 
 - Add device-code login for OpenAI/Codex and SuperGrok, with copyable URL/code, cancellation and expiration handling, without a local browser or callback port.

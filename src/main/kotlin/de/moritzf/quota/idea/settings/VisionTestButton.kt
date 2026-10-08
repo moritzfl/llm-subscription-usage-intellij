@@ -45,6 +45,7 @@ internal class VisionTestButton(
     init {
         toolTipText = "Ask the selected vision model to describe the plugin icon"
         combo.combo.addItemListener { updateEnabled() }
+        combo.combo.addPropertyChangeListener("model") { updateEnabled() }
         updateEnabled()
         addActionListener {
             VisionTestDialog(modality() ?: this, provider) { combo.selected().orEmpty() }.show()

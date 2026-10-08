@@ -7,9 +7,10 @@ import de.moritzf.proxy.server.ProxyCall
 import de.moritzf.proxy.server.RequestValidator
 import de.moritzf.proxy.server.stringPath
 import io.ktor.http.ContentType
+import io.ktor.http.content.MultiPartData
 import io.ktor.http.content.PartData
 import io.ktor.http.content.forEachPart
-import io.ktor.server.request.receiveMultipart
+import io.ktor.server.request.receive
 import io.ktor.server.response.respondBytes
 import io.ktor.utils.io.toByteArray
 import kotlinx.serialization.json.JsonObject
@@ -84,19 +85,22 @@ internal class MediaProxyHandler(
         var language: String? = null
         var filename = "audio.wav"
         var audio: ByteArray? = null
-        ctx.call.receiveMultipart().forEachPart { part ->
-            when (part) {
-                is PartData.FormItem -> when (part.name) {
-                    "model" -> model = part.value
-                    "language" -> language = part.value
+        ctx.call.receive(MultiPartData::class).forEachPart { part ->
+            try {
+                when (part) {
+                    is PartData.FormItem -> when (part.name) {
+                        "model" -> model = part.value
+                        "language" -> language = part.value
+                    }
+                    is PartData.FileItem -> {
+                        filename = part.originalFileName?.ifBlank { filename } ?: filename
+                        audio = part.provider().toByteArray()
+                    }
+                    else -> Unit
                 }
-                is PartData.FileItem -> {
-                    filename = part.originalFileName?.ifBlank { filename } ?: filename
-                    audio = part.provider().toByteArray()
-                }
-                else -> Unit
+            } finally {
+                releaseMultipartPart(part)
             }
-            part.dispose()
         }
         val bytes = audio
         if (bytes == null || bytes.isEmpty()) {

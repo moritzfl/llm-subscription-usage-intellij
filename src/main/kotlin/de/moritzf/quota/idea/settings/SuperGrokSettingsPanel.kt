@@ -128,7 +128,7 @@ internal class SuperGrokSettingsPanel(
                 cell(logoutButton)
             }
             row {
-                cell(deviceLoginButton).comment("Authorize in any browser; no localhost callback.")
+                cell(deviceLoginButton)
             }
             row { cell(deviceLoginPanel.component).align(AlignX.FILL).resizableColumn() }
             row {

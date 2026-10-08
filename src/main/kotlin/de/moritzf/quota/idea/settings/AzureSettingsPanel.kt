@@ -64,7 +64,6 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
         accountCombo.renderer = AzureAccountRenderer()
         ocrDeploymentCombo.renderer = object : GroupedComboBoxRenderer<String>(ocrDeploymentCombo) {
             override fun getText(item: String): String = when {
-                item == NO_OCR -> "Off"
                 item == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT -> "Azure Document Intelligence · prebuilt-layout"
                 isAzureCohereSelection(item) -> azureOcrDeploymentId(item)
                 isAzureNativePdfSelection(item) -> azureNativePdfDeploymentId(item)
@@ -151,8 +150,8 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                     "For text recognition and layout, choose a model from Documents & text recognition.")
             }.visible(false)
             row {
-                comment("Newest Mistral OCR deployment is selected automatically, otherwise Off. " +
-                    "Off disables conversion. Change the resource to choose again.")
+                comment("Newest Mistral OCR deployment is selected automatically, otherwise -. " +
+                    "- disables conversion. Change the resource to choose again.")
             }
             row {
                 browserLink(
@@ -316,7 +315,6 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
             choices.firstOrNull(::isAzureNativePdfSelection)?.let {
                 put(it, ListSeparator("General-purpose AI models"))
             }
-            if (choices.size > 1) put(NO_OCR, ListSeparator())
         }
         val preferred = preferredAzureOcrSelection(quotaForTarget, deploymentNames(), resourceName())
         val catalogRead = quotaForTarget?.modelCatalogRead == true

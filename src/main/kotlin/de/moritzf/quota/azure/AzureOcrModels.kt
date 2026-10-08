@@ -109,14 +109,14 @@ internal fun azureNativePdfChoices(quota: AzureQuota?, resourceName: String?): L
 }
 
 /**
- * Document or OCR models first, then general-purpose models, then off.
+ * Off first, then document or OCR models, then general-purpose models.
  * Group headings belong to the renderer, not the selectable model list.
  */
 internal fun azureDocumentComboChoices(off: String, general: List<String>, document: List<String>): List<String> {
     val documentRows = document.map { it.trim() }.filter { it.isNotEmpty() && it != off }.distinct()
     val generalRows = general.map { it.trim() }
         .filter { it.isNotEmpty() && it != off && it !in documentRows }.distinct().sorted()
-    return documentRows + generalRows + off
+    return listOf(off) + documentRows + generalRows
 }
 
 /**
