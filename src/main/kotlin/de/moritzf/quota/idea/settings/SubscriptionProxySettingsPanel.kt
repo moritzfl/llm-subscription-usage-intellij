@@ -3,7 +3,6 @@ package de.moritzf.quota.idea.settings
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
-import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
@@ -14,7 +13,6 @@ import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
-import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
@@ -33,7 +31,6 @@ import de.moritzf.quota.idea.openai.CompletionsFimTester
 import de.moritzf.quota.idea.openai.OpenAiProxyApiKeyStore
 import de.moritzf.quota.idea.openai.OpenAiProxyService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
-import java.awt.BorderLayout
 import java.awt.Desktop
 import java.awt.Dimension
 import java.awt.Font
@@ -42,7 +39,6 @@ import java.awt.datatransfer.StringSelection
 import java.awt.event.ActionEvent
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import javax.swing.Action
 import javax.swing.DefaultComboBoxModel
@@ -52,7 +48,6 @@ import javax.swing.JPanel
 import javax.swing.JScrollPane
 import javax.swing.JToggleButton
 import javax.swing.ScrollPaneConstants
-import javax.swing.SwingUtilities
 import javax.swing.Timer
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
@@ -978,8 +973,7 @@ private class FimTestDialog(
     private val baseUrl: String,
     private val apiKey: String,
 ) : DialogWrapper(parent, true) {
-    private val generation = AtomicInteger()
-    private var worker: Thread? = null
+    private val task = TestDialogTask { isDisposed }
     private val statusIcon = JBLabel()
     private val statusLabel = JBLabel().apply { font = font.deriveFont(Font.BOLD) }
     private val latencyLabel = JBLabel().apply { foreground = UIUtil.getContextHelpForeground() }
@@ -1025,36 +1019,24 @@ private class FimTestDialog(
     override fun createActions(): Array<Action> = arrayOf(abortAction, retryAction, okAction)
 
     override fun dispose() {
-        generation.incrementAndGet()
-        worker?.interrupt()
-        worker = null
+        task.cancel()
         super.dispose()
     }
 
     private fun start() {
-        val gen = generation.incrementAndGet()
-        worker?.interrupt()
         showRunning()
-        val thread = Thread({ runGeneration(gen) }, "fim-test")
-        thread.isDaemon = true
-        worker = thread
-        thread.start()
+        task.start(::runGeneration)
     }
 
     private fun abort() {
-        generation.incrementAndGet()
-        worker?.interrupt()
-        worker = null
+        task.cancel()
         showAborted()
     }
 
     private fun runGeneration(gen: Int) {
         val result = CompletionsFimTester.test(baseUrl, apiKey)
         if (!isActive(gen) || Thread.currentThread().isInterrupted) return
-        SwingUtilities.invokeLater {
-            if (!isActive(gen)) return@invokeLater
-            showResult(result)
-        }
+        task.onEdt(gen) { showResult(result) }
     }
 
     private fun showRunning() {
@@ -1105,41 +1087,16 @@ private class FimTestDialog(
         replace(detailSlot, JBLabel("<html><body style='width: 460px'>$html</body></html>"))
     }
 
-    private fun isActive(gen: Int) = generation.get() == gen && !isDisposed
+    private fun isActive(gen: Int) = task.isActive(gen)
 
-    private fun codeBlock(text: String): JComponent {
-        val scheme = EditorColorsManager.getInstance().globalScheme
-        val area =
-            JBTextArea(text).apply {
-                isEditable = false
-                lineWrap = true
-                wrapStyleWord = false
-                font = Font(scheme.editorFontName, Font.PLAIN, scheme.editorFontSize)
-                background = UIUtil.getTextFieldBackground()
-                border = JBUI.Borders.empty(8)
-            }
-        return JBScrollPane(area).apply {
-            border = JBUI.Borders.customLine(JBColor.border(), 1)
-            horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
-            preferredSize = Dimension(JBUI.scale(480), JBUI.scale(72))
-        }
-    }
+    private fun codeBlock(text: String): JComponent =
+        TestDialogUi.codeBlock(text, height = 72, wrapWords = false)
 
-    private fun note(text: String) =
-        JBLabel(text).apply { foreground = UIUtil.getContextHelpForeground() }
+    private fun note(text: String) = TestDialogUi.note(text)
 
-    private fun replace(slot: JPanel, component: JComponent) {
-        slot.removeAll()
-        slot.add(component, BorderLayout.NORTH)
-        slot.revalidate()
-        slot.repaint()
-    }
+    private fun replace(slot: JPanel, component: JComponent) = TestDialogUi.replace(slot, component)
 
-    private fun clear(slot: JPanel) {
-        slot.removeAll()
-        slot.revalidate()
-        slot.repaint()
-    }
+    private fun clear(slot: JPanel) = TestDialogUi.clear(slot)
 
-    private fun slot() = JPanel(BorderLayout()).apply { isOpaque = false }
+    private fun slot() = TestDialogUi.slot()
 }

@@ -1,14 +1,12 @@
 package de.moritzf.quota.idea.settings
 
 import com.intellij.icons.AllIcons
-import com.intellij.openapi.editor.colors.EditorColorsManager
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.AnimatedIcon
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
-import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
@@ -17,15 +15,12 @@ import de.moritzf.quota.idea.action.VisionImageAnalysis
 import de.moritzf.quota.idea.mcp.VisionProvider
 import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.shared.HelloPdf
-import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.Font
 import java.awt.Image
 import java.awt.event.ActionEvent
 import java.awt.image.BufferedImage
 import java.nio.file.Files
-import java.util.concurrent.CancellationException
-import java.util.concurrent.atomic.AtomicInteger
 import javax.imageio.ImageIO
 import javax.swing.Action
 import javax.swing.ImageIcon
@@ -33,7 +28,6 @@ import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.ScrollPaneConstants
-import javax.swing.SwingUtilities
 
 /** Runs the selected vision model against the plugin icon rendered as a PNG. */
 internal class VisionTestButton(
@@ -62,8 +56,7 @@ private class VisionTestDialog(
     private val provider: VisionProvider,
     private val selectedModel: () -> String,
 ) : DialogWrapper(parent, true) {
-    private val generation = AtomicInteger()
-    private var worker: Thread? = null
+    private val task = TestDialogTask { isDisposed }
     private val statusIcon = JBLabel()
     private val statusLabel = JBLabel().apply { font = font.deriveFont(Font.BOLD) }
     private val modelLabel = JBLabel().apply { foreground = UIUtil.getContextHelpForeground() }
@@ -107,27 +100,18 @@ private class VisionTestDialog(
     override fun createActions(): Array<Action> = arrayOf(abortAction, retryAction, okAction)
 
     override fun dispose() {
-        generation.incrementAndGet()
-        worker?.interrupt()
-        worker = null
+        task.cancel()
         super.dispose()
     }
 
     private fun start() {
         val model = selectedModel()
-        val gen = generation.incrementAndGet()
-        worker?.interrupt()
         showRunning(model)
-        val thread = Thread({ runGeneration(gen, model) }, "vision-test")
-        thread.isDaemon = true
-        worker = thread
-        thread.start()
+        task.start { gen -> runGeneration(gen, model) }
     }
 
     private fun abort() {
-        generation.incrementAndGet()
-        worker?.interrupt()
-        worker = null
+        task.cancel()
         showAborted()
     }
 
@@ -216,34 +200,13 @@ private class VisionTestDialog(
         latencyLabel.isVisible = elapsedMs != null
     }
 
-    private fun checkActive(gen: Int) {
-        if (!isActive(gen) || Thread.currentThread().isInterrupted)
-            throw CancellationException("Aborted")
-    }
+    private fun checkActive(gen: Int) = task.checkActive(gen)
 
-    private fun isActive(gen: Int) = generation.get() == gen && !isDisposed
+    private fun isActive(gen: Int) = task.isActive(gen)
 
-    private fun isCancellation(exception: Throwable): Boolean {
-        var current: Throwable? = exception
-        while (current != null) {
-            if (
-                current is CancellationException ||
-                    current is InterruptedException ||
-                    current is ProcessCanceledException
-            ) {
-                return true
-            }
-            current = current.cause
-        }
-        return false
-    }
+    private fun isCancellation(failure: Throwable) = TestDialogTask.isCancellation(failure)
 
-    private fun onEdt(gen: Int, update: () -> Unit) {
-        SwingUtilities.invokeLater {
-            if (!isActive(gen)) return@invokeLater
-            update()
-        }
-    }
+    private fun onEdt(gen: Int, update: () -> Unit) = task.onEdt(gen, update)
 
     private fun pagePreview(image: BufferedImage): JComponent {
         val maxWidth = JBUI.scale(480)
@@ -261,35 +224,13 @@ private class VisionTestDialog(
         }
     }
 
-    private fun codeBlock(text: String): JComponent {
-        val scheme = EditorColorsManager.getInstance().globalScheme
-        val area =
-            JBTextArea(text).apply {
-                isEditable = false
-                lineWrap = true
-                wrapStyleWord = true
-                font = Font(scheme.editorFontName, Font.PLAIN, scheme.editorFontSize)
-                background = UIUtil.getTextFieldBackground()
-                border = JBUI.Borders.empty(8)
-            }
-        return JBScrollPane(area).apply {
-            border = JBUI.Borders.customLine(JBColor.border(), 1)
-            horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
-            preferredSize = Dimension(JBUI.scale(480), JBUI.scale(96))
-        }
-    }
+    private fun codeBlock(text: String): JComponent = TestDialogUi.codeBlock(text)
 
-    private fun note(text: String) =
-        JBLabel(text).apply { foreground = UIUtil.getContextHelpForeground() }
+    private fun note(text: String) = TestDialogUi.note(text)
 
-    private fun slot() = JPanel(BorderLayout()).apply { isOpaque = false }
+    private fun slot() = TestDialogUi.slot()
 
-    private fun replace(slot: JPanel, component: JComponent) {
-        slot.removeAll()
-        slot.add(component, BorderLayout.NORTH)
-        slot.revalidate()
-        slot.repaint()
-    }
+    private fun replace(slot: JPanel, component: JComponent) = TestDialogUi.replace(slot, component)
 
     private companion object {
         const val TEST_PROMPT = "Describe this image."
