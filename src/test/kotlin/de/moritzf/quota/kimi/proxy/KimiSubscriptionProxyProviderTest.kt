@@ -44,7 +44,7 @@ class KimiSubscriptionProxyProviderTest {
                 assertEquals("/coding/v1/models", request.path)
                 assertEquals("Bearer kimi-token", request.firstHeader("Authorization"))
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }
@@ -96,7 +96,7 @@ class KimiSubscriptionProxyProviderTest {
                     assertEquals("KimiCLI/1.40.0", chatRequest.firstHeader("User-Agent"))
                     assertEquals("kimi_cli", chatRequest.firstHeader("X-Msh-Platform"))
                 } finally {
-                    proxy.server.stop()
+                    proxy.server.stop(gracePeriodMillis = 0)
                 }
             }
         }
@@ -132,7 +132,7 @@ class KimiSubscriptionProxyProviderTest {
                 assertEquals(200, cachedResponse.statusCode())
                 assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }
@@ -162,7 +162,7 @@ class KimiSubscriptionProxyProviderTest {
                         assertNotNull(catalog.requests.poll(2, TimeUnit.SECONDS)).path,
                     )
                 } finally {
-                    proxy.server.stop()
+                    proxy.server.stop(gracePeriodMillis = 0)
                 }
             }
         }
@@ -191,7 +191,7 @@ class KimiSubscriptionProxyProviderTest {
                 assertEquals("Bearer kimi-token", request.firstHeader("Authorization"))
                 assertTrue(request.body.contains("\"model\":\"kimi-for-coding\""), request.body)
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }
@@ -219,7 +219,7 @@ class KimiSubscriptionProxyProviderTest {
                 assertTrue(request.body.contains("\"model\":\"k2p6\""), request.body)
                 assertTrue(!request.body.contains("ki-k2p6"), request.body)
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }
@@ -247,7 +247,7 @@ class KimiSubscriptionProxyProviderTest {
                 assertTrue(request.body.contains("\"model\":\"k2p6\""), request.body)
                 assertTrue(!request.body.contains("ki-k2p6"), request.body)
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }
@@ -287,7 +287,7 @@ class KimiSubscriptionProxyProviderTest {
                 assertFalse(k27Request.body.contains("reasoning_effort"), k27Request.body)
                 assertFalse(k27Request.body.contains("\"stop\""), k27Request.body)
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }
@@ -316,7 +316,7 @@ class KimiSubscriptionProxyProviderTest {
                 val upstreamBody = JsonHelper.JSON.parseToJsonElement(request.body).jsonObject
                 assertEquals("auto", upstreamBody["tool_choice"]!!.jsonPrimitive.content)
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }
@@ -345,7 +345,7 @@ class KimiSubscriptionProxyProviderTest {
                 val upstreamBody = JsonHelper.JSON.parseToJsonElement(request.body).jsonObject
                 assertEquals("auto", upstreamBody["tool_choice"]!!.jsonPrimitive.content)
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }

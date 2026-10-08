@@ -95,7 +95,7 @@ class SubscriptionProxyServerTest {
 
                 assertEquals(400, response.statusCode())
                 assertTrue(response.body().contains("Unknown proxy model"))
-                assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
+                assertNull(upstream.requests.poll())
             } finally {
                 server.stop()
             }
@@ -139,7 +139,7 @@ class SubscriptionProxyServerTest {
                         )
 
                     assertEquals(200, response.statusCode())
-                    assertNull(grokUpstream.requests.poll(500, TimeUnit.MILLISECONDS))
+                    assertNull(grokUpstream.requests.poll())
                     val githubRequest =
                         assertNotNull(githubUpstream.requests.poll(2, TimeUnit.SECONDS))
                     assertEquals("/v1/chat/completions", githubRequest.path)
@@ -449,7 +449,7 @@ class SubscriptionProxyServerTest {
                     )
 
                 assertEquals(401, response.statusCode())
-                assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
+                assertNull(upstream.requests.poll())
             } finally {
                 server.stop()
             }
@@ -482,7 +482,7 @@ class SubscriptionProxyServerTest {
                         "{\"model\":\"grok-4.3\",\"prompt\":\"fun \"}",
                     )
                 assertEquals(404, response.statusCode())
-                assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
+                assertNull(upstream.requests.poll())
             } finally {
                 server.stop()
             }
@@ -577,7 +577,7 @@ class SubscriptionProxyServerTest {
                     )
                 assertEquals(400, response.statusCode())
                 assertTrue(response.body().contains("Unknown proxy model"))
-                assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
+                assertNull(upstream.requests.poll())
             } finally {
                 server.stop()
             }
@@ -896,7 +896,7 @@ class SubscriptionProxyServerTest {
     private data class TestServer(val port: Int, val server: SubscriptionProxyServer) {
         fun start() = server.start()
 
-        fun stop() = server.stop()
+        fun stop() = server.stop(gracePeriodMillis = 0)
     }
 
     private class TestUpstream(

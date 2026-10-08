@@ -1205,7 +1205,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
             port = runBlocking { server.boundPort() }
         }
 
-        fun stop() = server.stop()
+        fun stop() = server.stop(gracePeriodMillis = 0)
     }
 
     private class TestUpstream(

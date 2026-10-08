@@ -233,7 +233,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
             proxy.start()
             block(port)
         } finally {
-            proxy.stop()
+            proxy.stop(gracePeriodMillis = 0)
         }
     }
 

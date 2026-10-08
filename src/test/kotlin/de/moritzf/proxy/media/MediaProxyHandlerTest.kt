@@ -88,7 +88,7 @@ class MediaProxyHandlerTest {
             server.start()
             block(runBlocking { server.boundPort() }, operations)
         } finally {
-            server.stop()
+            server.stop(gracePeriodMillis = 0)
         }
     }
 

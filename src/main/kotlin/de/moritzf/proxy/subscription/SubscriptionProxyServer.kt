@@ -126,12 +126,13 @@ class SubscriptionProxyServer(
         }
     }
 
-    fun stop() {
+    @JvmOverloads
+    fun stop(gracePeriodMillis: Long = 1_000) {
         val current = app
         app = null
         apiKeyStore = null
         running.set(false)
-        current?.stop(1_000, 5_000)
+        current?.stop(gracePeriodMillis, 5_000)
     }
 
     private fun Routing.getProxy(path: String, handler: suspend (ProxyCall) -> Unit) {

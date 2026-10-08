@@ -64,7 +64,7 @@ class MiniMaxSubscriptionProxyProviderTest {
                     chatRequest.body,
                 )
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }
@@ -96,7 +96,7 @@ class MiniMaxSubscriptionProxyProviderTest {
                 )
                 assertTrue(!chatRequest.body.contains("mm-MiniMax-M2.7"), chatRequest.body)
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }

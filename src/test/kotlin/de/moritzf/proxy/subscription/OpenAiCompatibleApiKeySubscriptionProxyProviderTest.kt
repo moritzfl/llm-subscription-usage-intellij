@@ -73,7 +73,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProviderTest {
                     assertEquals("Bearer provider-key", chatRequest.firstHeader("Authorization"))
                     assertTrue(chatRequest.body.contains("\"model\":\"model-a\""), chatRequest.body)
                 } finally {
-                    proxy.server.stop()
+                    proxy.server.stop(gracePeriodMillis = 0)
                 }
             }
     }
@@ -119,7 +119,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProviderTest {
                 assertEquals("/v1/chat/completions", request.path)
                 assertTrue(request.body.contains("\"model\":\"glm-5.2\""), request.body)
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }
@@ -167,7 +167,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProviderTest {
                             .map { it.jsonObject["id"]!!.jsonPrimitive.content },
                     )
                 } finally {
-                    proxy.server.stop()
+                    proxy.server.stop(gracePeriodMillis = 0)
                 }
             }
     }

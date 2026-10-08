@@ -54,7 +54,7 @@ class OpenAiProxyServerTest {
                     "Invalid or missing API key.",
                     error["message"]?.jsonPrimitive?.content,
                 )
-                assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
+                assertNull(upstream.requests.poll())
             } finally {
                 proxy.stop()
             }
@@ -134,7 +134,7 @@ class OpenAiProxyServerTest {
                     "Malformed JSON request body.",
                     error["message"]?.jsonPrimitive?.content,
                 )
-                assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
+                assertNull(upstream.requests.poll())
             } finally {
                 proxy.stop()
             }
@@ -1664,7 +1664,7 @@ class OpenAiProxyServerTest {
                 )
                 // gpt-5.5-pro is not advertised: the Codex backend rejects it for ChatGPT accounts.
                 assertFalse(models.any { it.startsWith("gpt-5.5-pro") })
-                assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
+                assertNull(upstream.requests.poll())
             } finally {
                 proxy.stop()
             }
@@ -1701,7 +1701,7 @@ class OpenAiProxyServerTest {
                     "chat",
                     firstModel["model_info"]!!.jsonObject["mode"]!!.jsonPrimitive.content,
                 )
-                assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
+                assertNull(upstream.requests.poll())
             } finally {
                 proxy.stop()
             }
@@ -1752,7 +1752,7 @@ class OpenAiProxyServerTest {
                     "I'm alive!",
                     JsonSupport.json.parseToJsonElement(liveliness.body()).jsonPrimitive.content,
                 )
-                assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
+                assertNull(upstream.requests.poll())
             } finally {
                 proxy.stop()
             }
@@ -1791,7 +1791,7 @@ class OpenAiProxyServerTest {
                     "authorization,x-smoke",
                     response.headers().firstValue("Access-Control-Allow-Headers").orElse(null),
                 )
-                assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
+                assertNull(upstream.requests.poll())
             } finally {
                 proxy.stop()
             }
@@ -1821,7 +1821,7 @@ class OpenAiProxyServerTest {
                     null,
                     response.headers().firstValue("Access-Control-Allow-Origin").orElse(null),
                 )
-                assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
+                assertNull(upstream.requests.poll())
             } finally {
                 proxy.stop()
             }
@@ -1852,7 +1852,7 @@ class OpenAiProxyServerTest {
                     "https://client.example",
                     response.headers().firstValue("Access-Control-Allow-Origin").orElse(null),
                 )
-                assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
+                assertNull(upstream.requests.poll())
             } finally {
                 proxy.stop()
             }
@@ -1895,7 +1895,7 @@ class OpenAiProxyServerTest {
                 val error = parseObject(response.body())["error"]!!.jsonObject
                 assertEquals("not_found_error", error["type"]!!.jsonPrimitive.content)
                 assertEquals("Route not found.", error["message"]!!.jsonPrimitive.content)
-                assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
+                assertNull(upstream.requests.poll())
             } finally {
                 proxy.stop()
             }
@@ -1989,7 +1989,7 @@ class OpenAiProxyServerTest {
                     root["total"]!!.jsonObject["total_tokens"]!!.jsonPrimitive.content,
                 )
                 assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-                assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
+                assertNull(upstream.requests.poll())
             } finally {
                 proxy.stop()
             }
@@ -2014,7 +2014,7 @@ class OpenAiProxyServerTest {
                     )
 
                 assertEquals(401, response.statusCode())
-                assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
+                assertNull(upstream.requests.poll())
             } finally {
                 proxy.stop()
             }
@@ -2306,7 +2306,7 @@ class OpenAiProxyServerTest {
                     assertEquals("insufficient_quota", error["code"]!!.jsonPrimitive.content)
                     assertTrue(error["message"]!!.jsonPrimitive.content.contains("usage limit"))
                     assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-                    assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
+                    assertNull(upstream.requests.poll())
                 } finally {
                     proxy.stop()
                 }
@@ -2389,7 +2389,7 @@ class OpenAiProxyServerTest {
                 val error = parseObject(response.body())["error"]!!.jsonObject
                 assertEquals("authentication_error", error["type"]!!.jsonPrimitive.content)
                 assertTrue(error["message"]!!.jsonPrimitive.content.contains("login required"))
-                assertNull(upstream.requests.poll(200, TimeUnit.MILLISECONDS))
+                assertNull(upstream.requests.poll())
             } finally {
                 proxy.stop()
             }
@@ -2565,7 +2565,7 @@ class OpenAiProxyServerTest {
                     // A bare 500 may be post-metering, so it is surfaced rather than retried.
                     assertEquals(500, response.statusCode())
                     assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-                    assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
+                    assertNull(upstream.requests.poll())
                 } finally {
                     proxy.stop()
                 }
@@ -2698,7 +2698,7 @@ class OpenAiProxyServerTest {
                     // immediately instead of burning a doomed retry with the same token.
                     assertEquals(401, response.statusCode())
                     assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-                    assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
+                    assertNull(upstream.requests.poll())
                 } finally {
                     proxy.stop()
                 }
@@ -2728,7 +2728,7 @@ class OpenAiProxyServerTest {
     private data class TestProxy(val port: Int, val server: OpenAiProxyServer) {
         fun start() = server.start()
 
-        fun stop() = server.stop()
+        fun stop() = server.stop(gracePeriodMillis = 0)
     }
 
     private class TestUpstream(

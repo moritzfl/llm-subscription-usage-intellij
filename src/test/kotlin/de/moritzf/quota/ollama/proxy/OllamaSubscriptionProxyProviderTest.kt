@@ -59,7 +59,7 @@ class OllamaSubscriptionProxyProviderTest {
                 assertEquals("Bearer ollama-key", chatRequest.firstHeader("Authorization"))
                 assertTrue(chatRequest.body.contains("\"model\":\"llama3.3\""), chatRequest.body)
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }
@@ -99,7 +99,7 @@ class OllamaSubscriptionProxyProviderTest {
                 )
                 assertTrue(qwenInfo["supports_tool_choice"]!!.jsonPrimitive.content.toBoolean())
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }
@@ -128,7 +128,7 @@ class OllamaSubscriptionProxyProviderTest {
                 assertTrue(chatRequest.body.contains("\"model\":\"llama4\""), chatRequest.body)
                 assertFalse(chatRequest.body.contains("ol-llama4"), chatRequest.body)
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }
@@ -200,7 +200,7 @@ class OllamaSubscriptionProxyProviderTest {
                 assertTrue(response.body().contains("\"text\""), response.body())
                 assertTrue(response.body().contains("a + b"), response.body())
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }

@@ -122,8 +122,9 @@ class ProxyServer(
         app.start(wait = false)
     }
 
-    fun stop() {
-        app.stop(1_000, 5_000)
+    @JvmOverloads
+    fun stop(gracePeriodMillis: Long = 1_000) {
+        app.stop(gracePeriodMillis, 5_000)
     }
 
     @Suppress("unused")

@@ -64,7 +64,7 @@ class MistralSubscriptionProxyProviderTest {
                     chatRequest.body,
                 )
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }
@@ -96,7 +96,7 @@ class MistralSubscriptionProxyProviderTest {
                 )
                 assertTrue(!chatRequest.body.contains("mi-mistral-large-latest"), chatRequest.body)
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }
@@ -140,7 +140,7 @@ class MistralSubscriptionProxyProviderTest {
                 assertTrue(!chatRequest.body.contains("thinking"), chatRequest.body)
                 assertTrue(!chatRequest.body.contains("reasoning_effort"), chatRequest.body)
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }
@@ -172,7 +172,7 @@ class MistralSubscriptionProxyProviderTest {
                 assertEquals("none", small["fim_mode"]!!.jsonPrimitive.content)
                 assertTrue(!small["supports_native_fim"]!!.jsonPrimitive.content.toBoolean())
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }
@@ -230,7 +230,7 @@ class MistralSubscriptionProxyProviderTest {
                 assertTrue(response.body().contains("\"text\""), response.body())
                 assertTrue(response.body().contains("a + b"), response.body())
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }

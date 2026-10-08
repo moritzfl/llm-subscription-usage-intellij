@@ -262,7 +262,7 @@ class AzureProxyRequestTest {
             server.start()
             action(port)
         } finally {
-            server.stop()
+            server.stop(gracePeriodMillis = 0)
         }
     }
 

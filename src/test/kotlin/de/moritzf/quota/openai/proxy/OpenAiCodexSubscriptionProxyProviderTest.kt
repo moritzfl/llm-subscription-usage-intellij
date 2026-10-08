@@ -207,7 +207,7 @@ class OpenAiCodexSubscriptionProxyProviderTest {
     private data class TestProxy(val port: Int, val server: SubscriptionProxyServer) {
         fun start() = server.start()
 
-        fun stop() = server.stop()
+        fun stop() = server.stop(gracePeriodMillis = 0)
     }
 
     private class TestUpstream(

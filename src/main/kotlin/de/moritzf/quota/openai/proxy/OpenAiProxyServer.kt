@@ -85,11 +85,12 @@ class OpenAiProxyServer(
         }
     }
 
-    fun stop() {
+    @JvmOverloads
+    fun stop(gracePeriodMillis: Long = 1_000) {
         val current = server
         server = null
         running.set(false)
-        current?.stop()
+        current?.stop(gracePeriodMillis)
     }
 
     private fun serverConfig(localApiKey: String, models: List<String>): ServerConfig {

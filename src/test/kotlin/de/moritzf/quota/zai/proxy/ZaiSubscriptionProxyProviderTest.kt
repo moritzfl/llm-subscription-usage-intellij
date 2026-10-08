@@ -52,7 +52,7 @@ class ZaiSubscriptionProxyProviderTest {
                 assertEquals("Bearer zai-key", chatRequest.firstHeader("Authorization"))
                 assertTrue(chatRequest.body.contains("\"model\":\"glm-5.2\""), chatRequest.body)
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }
@@ -77,7 +77,7 @@ class ZaiSubscriptionProxyProviderTest {
                 assertTrue(chatRequest.body.contains("\"model\":\"glm-5.3\""), chatRequest.body)
                 assertTrue(!chatRequest.body.contains("za-glm-5.3"), chatRequest.body)
             } finally {
-                proxy.server.stop()
+                proxy.server.stop(gracePeriodMillis = 0)
             }
         }
     }
