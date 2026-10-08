@@ -13,9 +13,11 @@ changelog = "2.5.0"
 kover = "0.9.11"
 ktfmt = "0.27.0"
 junit-platform-launcher = "6.1.3"
+archunit = "1.5.1"
 picocli = "4.7.7"
 
 [libraries]
+archunit-junit5 = { group = "com.tngtech.archunit", name = "archunit-junit5", version.ref = "archunit" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test-jvm", version.ref = "kotlinx-coroutines-test" }
 junit4 = { group = "junit", name = "junit", version.ref = "junit4" }
 junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform-launcher", version.ref = "junit-platform-launcher" }
