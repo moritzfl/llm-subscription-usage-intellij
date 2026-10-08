@@ -4,20 +4,18 @@ import dev.onvoid.webrtc.*
 import dev.onvoid.webrtc.logging.Logging
 import dev.onvoid.webrtc.media.MediaStream
 import dev.onvoid.webrtc.media.audio.*
-import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.http.WebSocket
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.CancellationException
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.math.abs
 
 /** Finite Codex v3 voice renderer. No microphone or local speaker is opened. */
 object RealtimeSpeechSession {
@@ -44,7 +42,6 @@ object RealtimeSpeechSession {
         fun accept(pcm: Pcm)
     }
 
-    private const val MAX_AUDIO = 8 * 1024 * 1024
     private val CALL_ID = Regex("(?:rtc_[A-Za-z0-9_-]{1,200}|[a-fA-F0-9-]{36})")
 
     fun synthesize(text: String, protocol: Protocol, chunks: Chunks): Pcm {
@@ -61,7 +58,7 @@ object RealtimeSpeechSession {
                 val connection = protocol.connect(call.id, peer.listener())
                 try {
                     val socket = await(connection, deadline)
-                    peer.socket = socket
+                    peer.attachSocket(socket)
                     peer.check()
                     peer.audio.clear()
                     peer.completed.set(0)
@@ -69,6 +66,8 @@ object RealtimeSpeechSession {
                     await(socket.sendText(protocol.speak(text), true), deadline)
                     return peer.collect(chunks, deadline)
                 } catch (failure: Exception) {
+                    if (failure is InterruptedException || failure is CancellationException)
+                        throw failure
                     peer.check()
                     throw failure
                 } finally {
@@ -92,103 +91,122 @@ object RealtimeSpeechSession {
         )
 
     private class Peer(private val protocol: Protocol) : AutoCloseable {
-        private val closed = AtomicBoolean()
         val armed = AtomicBoolean()
         private val failure = AtomicReference<IOException?>()
         val audio = ArrayBlockingQueue<Pcm>(1000)
         private val ice = CompletableFuture<Void>()
         private val opened = CompletableFuture<Void>()
         val completed = AtomicLong()
-        private val module: HeadlessAudioDeviceModule
-        private val factory: PeerConnectionFactory
-        private val connection: RTCPeerConnection
-        private val source: AudioTrackSource
-        private val input: AudioTrack
-        private val sender: RTCRtpSender
-        private val channel: RTCDataChannel
+        private lateinit var module: HeadlessAudioDeviceModule
+        private lateinit var factory: PeerConnectionFactory
+        private lateinit var connection: RTCPeerConnection
+        private lateinit var source: AudioTrackSource
+        private lateinit var input: AudioTrack
+        private lateinit var sender: RTCRtpSender
+        private lateinit var channel: RTCDataChannel
         private var output: AudioTrack? = null
         private var sink: AudioTrackSink? = null
-        @Volatile var socket: WebSocket? = null
+        private var socket: WebSocket? = null
+        private val resources =
+            RealtimeSpeechResources(
+                { socket?.abort() },
+                { if (::channel.isInitialized) channel.unregisterObserver() },
+                { if (::channel.isInitialized) channel.close() },
+                { sink?.let { output?.removeSink(it) } },
+                { if (::sender.isInitialized) sender.dispose() },
+                { if (::connection.isInitialized) connection.close() },
+                { if (::channel.isInitialized) channel.dispose() },
+                // Receiver tracks are borrowed handles; closing the peer releases them.
+                { if (::input.isInitialized) input.dispose() },
+                { if (::source.isInitialized) source.dispose() },
+                { if (::factory.isInitialized) factory.dispose() },
+                { if (::module.isInitialized) module.dispose() },
+            )
+        private val closed
+            get() = resources.closed
 
         init {
-            Logging.logToDebug(Logging.Severity.NONE)
-            module = HeadlessAudioDeviceModule()
-            factory = PeerConnectionFactory(module)
-            connection =
-                factory.createPeerConnection(
-                    RTCConfiguration(),
-                    object : PeerConnectionObserver {
-                        override fun onIceCandidate(candidate: RTCIceCandidate) {}
+            resources.initialize {
+                Logging.logToDebug(Logging.Severity.NONE)
+                module = HeadlessAudioDeviceModule()
+                factory = PeerConnectionFactory(module)
+                connection =
+                    factory.createPeerConnection(
+                        RTCConfiguration(),
+                        object : PeerConnectionObserver {
+                            override fun onIceCandidate(candidate: RTCIceCandidate) {}
 
-                        override fun onIceGatheringChange(state: RTCIceGatheringState) {
-                            if (state == RTCIceGatheringState.COMPLETE) ice.complete(null)
-                        }
-
-                        override fun onConnectionChange(state: RTCPeerConnectionState) {
-                            if (
-                                state == RTCPeerConnectionState.FAILED ||
-                                    state == RTCPeerConnectionState.DISCONNECTED
-                            ) {
-                                fail("Realtime audio connection was interrupted.")
+                            override fun onIceGatheringChange(state: RTCIceGatheringState) {
+                                if (state == RTCIceGatheringState.COMPLETE) ice.complete(null)
                             }
-                        }
 
-                        override fun onAddTrack(
-                            receiver: RTCRtpReceiver,
-                            streams: Array<MediaStream>,
-                        ) {
-                            try {
-                                val track = receiver.track
-                                if (track is AudioTrack) {
-                                    output = track
-                                    val trackSink =
-                                        AudioTrackSink { data, bits, rate, channels, frames ->
-                                            if (closed.get() || !armed.get()) return@AudioTrackSink
-                                            if (
-                                                bits != 16 ||
-                                                    rate !in 8000..48000 ||
-                                                    channels !in 1..2 ||
-                                                    data.size != frames * channels * 2
-                                            ) {
-                                                fail("Unsupported realtime audio format.")
-                                            } else if (
-                                                !audio.offer(Pcm(data.copyOf(), rate, channels))
-                                            ) {
-                                                fail("Realtime audio consumer is too slow.")
-                                            }
-                                        }
-                                    sink = trackSink
-                                    track.addSink(trackSink)
+                            override fun onConnectionChange(state: RTCPeerConnectionState) {
+                                if (
+                                    state == RTCPeerConnectionState.FAILED ||
+                                        state == RTCPeerConnectionState.DISCONNECTED
+                                ) {
+                                    fail("Realtime audio connection was interrupted.")
                                 }
-                            } finally {
-                                receiver.dispose()
+                            }
+
+                            override fun onAddTrack(
+                                receiver: RTCRtpReceiver,
+                                streams: Array<MediaStream>,
+                            ) {
+                                try {
+                                    val track = receiver.track
+                                    if (track is AudioTrack) {
+                                        output = track
+                                        val trackSink =
+                                            AudioTrackSink { data, bits, rate, channels, frames ->
+                                                if (closed.get() || !armed.get())
+                                                    return@AudioTrackSink
+                                                if (
+                                                    bits != 16 ||
+                                                        rate !in 8000..48000 ||
+                                                        channels !in 1..2 ||
+                                                        data.size != frames * channels * 2
+                                                ) {
+                                                    fail("Unsupported realtime audio format.")
+                                                } else if (
+                                                    !audio.offer(Pcm(data.copyOf(), rate, channels))
+                                                ) {
+                                                    fail("Realtime audio consumer is too slow.")
+                                                }
+                                            }
+                                        sink = trackSink
+                                        track.addSink(trackSink)
+                                    }
+                                } finally {
+                                    receiver.dispose()
+                                }
+                            }
+
+                            override fun onTrack(transceiver: RTCRtpTransceiver) {
+                                transceiver.dispose()
+                            }
+                        },
+                    )
+                source = factory.createAudioSource(AudioOptions())
+                input = factory.createAudioTrack("silence", source)
+                sender = connection.addTrack(input, listOf("speech"))
+                channel = connection.createDataChannel("oai-events", RTCDataChannelInit())
+                channel.registerObserver(
+                    object : RTCDataChannelObserver {
+                        override fun onBufferedAmountChange(size: Long) {}
+
+                        override fun onStateChange() {
+                            if (channel.state == RTCDataChannelState.OPEN) opened.complete(null)
+                        }
+
+                        override fun onMessage(message: RTCDataChannelBuffer) {
+                            if (!message.binary && message.data.remaining() <= 65536) {
+                                event(StandardCharsets.UTF_8.decode(message.data).toString())
                             }
                         }
-
-                        override fun onTrack(transceiver: RTCRtpTransceiver) {
-                            transceiver.dispose()
-                        }
-                    },
+                    }
                 )
-            source = factory.createAudioSource(AudioOptions())
-            input = factory.createAudioTrack("silence", source)
-            sender = connection.addTrack(input, listOf("speech"))
-            channel = connection.createDataChannel("oai-events", RTCDataChannelInit())
-            channel.registerObserver(
-                object : RTCDataChannelObserver {
-                    override fun onBufferedAmountChange(size: Long) {}
-
-                    override fun onStateChange() {
-                        if (channel.state == RTCDataChannelState.OPEN) opened.complete(null)
-                    }
-
-                    override fun onMessage(message: RTCDataChannelBuffer) {
-                        if (!message.binary && message.data.remaining() <= 65536) {
-                            event(StandardCharsets.UTF_8.decode(message.data).toString())
-                        }
-                    }
-                }
-            )
+            }
         }
 
         private fun fail(message: String) {
@@ -266,6 +284,7 @@ object RealtimeSpeechSession {
                 private val buffer = StringBuilder()
 
                 override fun onOpen(ws: WebSocket) {
+                    attachSocket(ws)
                     if (closed.get()) ws.abort() else ws.request(1)
                 }
 
@@ -304,85 +323,23 @@ object RealtimeSpeechSession {
                 }
             }
 
-        fun collect(chunks: Chunks, deadline: Long): Pcm {
-            val result = ByteArrayOutputStream()
-            val preroll = ArrayDeque<Pcm>()
-            var rate = 0
-            var channels = 0
-            var prerollBytes = 0
-            var lastSignal = 0L
-            while (System.nanoTime() < deadline) {
-                check()
-                val frame = audio.poll(50, TimeUnit.MILLISECONDS)
-                val now = System.nanoTime()
-                if (frame != null) {
-                    if (rate != 0 && (rate != frame.rate || channels != frame.channels)) {
-                        throw IOException("Realtime audio format changed.")
-                    }
-                    rate = frame.rate
-                    channels = frame.channels
-                    var signal = false
-                    for (i in 0 until frame.bytes.size - 1 step 2) {
-                        val sample =
-                            ((frame.bytes[i].toInt() and 255) or (frame.bytes[i + 1].toInt() shl 8))
-                                .toShort()
-                        if (abs(sample.toInt()) >= 128) {
-                            signal = true
-                            break
-                        }
-                    }
-                    if (signal) lastSignal = now
-                    if (result.size() == 0) {
-                        preroll.addLast(frame)
-                        prerollBytes += frame.bytes.size
-                        while (preroll.size > 1 && prerollBytes > rate * channels * 2 / 5) {
-                            prerollBytes -= preroll.removeFirst().bytes.size
-                        }
-                        if (!signal) continue
-                        for (start in preroll) {
-                            result.writeBytes(start.bytes)
-                            chunks.accept(start)
-                        }
-                        preroll.clear()
-                    } else {
-                        if (result.size() + frame.bytes.size > MAX_AUDIO) {
-                            throw IOException("Realtime speech exceeds the audio size limit.")
-                        }
-                        result.writeBytes(frame.bytes)
-                        chunks.accept(frame)
-                    }
-                }
-                // RTP and sideband completion travel separately. Drain the playout tail before
-                // closing.
-                if (
-                    completed.get() != 0L &&
-                        result.size() > 0 &&
-                        now - completed.get() > TimeUnit.SECONDS.toNanos(1) &&
-                        now - lastSignal > TimeUnit.MILLISECONDS.toNanos(400)
-                ) {
-                    return Pcm(result.toByteArray(), rate, channels)
-                }
-            }
-            throw TimeoutException("Realtime speech timed out.")
+        fun collect(chunks: Chunks, deadline: Long): Pcm =
+            collectRealtimeSpeechAudio(
+                chunks,
+                deadline,
+                ::check,
+                completed::get,
+                { audio.poll(50, TimeUnit.MILLISECONDS) },
+            )
+
+        @Synchronized
+        fun attachSocket(ws: WebSocket) {
+            if (closed.get()) ws.abort() else socket = ws
         }
 
+        @Synchronized
         override fun close() {
-            closed.set(true)
-            socket?.abort()
-            channel.unregisterObserver()
-            channel.close()
-            sink?.let { output?.removeSink(it) }
-            sender.dispose()
-            connection.close()
-            channel.dispose()
-            try {
-                // Receiver tracks are borrowed handles; closing the peer releases them.
-                input.dispose()
-                source.dispose()
-            } finally {
-                factory.dispose()
-                module.dispose()
-            }
+            resources.close()
         }
 
         private fun observer(result: CompletableFuture<Void>): SetSessionDescriptionObserver =

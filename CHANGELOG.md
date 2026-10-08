@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Release all realtime speech resources after partial initialization or teardown failures, preserving cancellation and the original error.
 - Port the realtime speech transport to Kotlin, making all project source code Kotlin-only.
 - Move shared OAuth data/codecs and document image extraction out of IDE/provider-specific packages, removing five architecture exceptions.
 - Use SLF4J for SuperGrok quota logging and inject Kimi device identity from IDE persistence, keeping standalone identity stable for the process.
