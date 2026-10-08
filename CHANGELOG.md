@@ -2,24 +2,16 @@
 
 ## [Unreleased]
 
-- Move remaining provider-independent PDF helpers into shared document code and enforce shared-only project dependencies with ArchUnit.
-- Release all realtime speech resources after partial initialization or teardown failures, preserving cancellation and the original error.
-- Port the realtime speech transport to Kotlin, making all project source code Kotlin-only.
-- Move shared OAuth data/codecs and document image extraction out of IDE/provider-specific packages, removing five architecture exceptions.
-- Use SLF4J for SuperGrok quota logging and inject Kimi device identity from IDE persistence, keeping standalone identity stable for the process.
-- Replace import-scanning architecture tests with ArchUnit bytecode rules for provider, proxy, operations, and MCP facade boundaries.
-- Bind proxy requests, credential refreshes, and rate-limit attribution to one account for the entire operation.
-- Synchronize quota cache snapshots and discard refresh results after account removal, clearing, or service disposal.
-- Separate MCP schemas from capability-specific operations, share media authentication policy, and preserve cancellation across blocking requests and retries.
-- Centralize settings validation and apply actions, preserving live quota updates and avoiding duplicate service reloads.
-- Share test-dialog task lifecycles and rendering helpers, with regression tests for stale callbacks and architecture boundaries.
-- Verify OAuth polling intervals with virtual time instead of real waits.
-- Speed up proxy tests by skipping shutdown grace periods and unnecessary post-response waits.
-- Adopt ktfmt's KotlinLang style for Kotlin sources and Gradle Kotlin scripts, with formatting checks in Gradle and CI.
-- Replace deprecated Ktor request-body calls and use suspending multipart cleanup on newer IDEs while retaining IntelliJ 2026.1 compatibility.
-- Keep document and vision test buttons in sync when settings load or refresh model lists, without requiring a manual model switch.
-- Show Azure's disabled document-model choice as `-` at the top of the dropdown.
-- Remove the browser-authorization explanation beneath OpenAI/Codex and SuperGrok device-code login buttons.
+## [1.18.1] - 2026-10-08
+
+- Fix multi-account proxy handling so login renewals and usage limits stay associated with the account serving the request.
+- Prevent outdated quota results from reappearing after an account is removed or its data is cleared.
+- Apply settings without unnecessary reloads or overwriting newer quota information.
+- Improve cancellation and cleanup for experimental Codex speech and MCP requests, including when a request fails.
+- Prevent cancelled or older test runs from overwriting newer results in settings dialogs.
+- Fix document and vision test buttons remaining disabled after model lists load or refresh.
+- Make Azure document conversion easier to turn off by placing `-` at the top of the model list, and simplify OpenAI/Codex and SuperGrok device-login instructions.
+- Improve request and file-upload handling on newer IntelliJ versions while retaining IntelliJ 2026.1 support.
 
 ## [1.18.0] - 2026-10-08
 
@@ -663,7 +655,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.18.0...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.18.1...HEAD
+[1.18.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.18.0...1.18.1
 [1.18.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.4...1.18.0
 [1.17.4]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.3...1.17.4
 [1.17.3]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.2...1.17.3
