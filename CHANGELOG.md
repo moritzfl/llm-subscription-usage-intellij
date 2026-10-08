@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Replace import-scanning architecture tests with ArchUnit bytecode rules for provider, proxy, operations, and MCP facade boundaries.
 - Bind proxy requests, credential refreshes, and rate-limit attribution to one account for the entire operation.
 - Synchronize quota cache snapshots and discard refresh results after account removal, clearing, or service disposal.
 - Separate MCP schemas from capability-specific operations, share media authentication policy, and preserve cancellation across blocking requests and retries.

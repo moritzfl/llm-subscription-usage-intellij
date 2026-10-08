@@ -1,81 +1,145 @@
 package de.moritzf.quota
 
-import java.nio.file.Files
-import java.nio.file.Path
-import kotlin.io.path.readText
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
+import com.intellij.concurrency.virtualThreads.IntelliJVirtualThreads
+import com.intellij.ide.util.PropertiesComponent
+import com.intellij.mcpserver.McpToolset
+import com.intellij.openapi.diagnostic.Logger
+import com.tngtech.archunit.base.DescribedPredicate
+import com.tngtech.archunit.core.domain.Dependency
+import com.tngtech.archunit.core.domain.JavaClass.Predicates.belongToAnyOf
+import com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage
+import com.tngtech.archunit.core.domain.JavaClasses
+import com.tngtech.archunit.core.domain.JavaMethodCall
+import com.tngtech.archunit.core.importer.Location
+import com.tngtech.archunit.junit.AnalyzeClasses
+import com.tngtech.archunit.junit.ArchTest
+import com.tngtech.archunit.junit.LocationProvider
+import com.tngtech.archunit.lang.conditions.ArchConditions.onlyHaveDependenciesWhere
+import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
+import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
+import de.moritzf.proxy.logging.RequestLogger
+import de.moritzf.proxy.server.ApiKeyStore
+import de.moritzf.quota.github.GitHubOAuthClient
+import de.moritzf.quota.idea.auth.OAuthCredentials
+import de.moritzf.quota.idea.auth.OAuthUrlCodec
+import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.idea.mcp.DocumentImageGrounding
+import de.moritzf.quota.idea.mcp.SubscriptionUsageMcpToolset
+import de.moritzf.quota.kimi.KimiCredentialRefresher
+import de.moritzf.quota.kimi.KimiDeviceHeaders
+import de.moritzf.quota.opencode.OpenCodeDeviceTokenResult
+import de.moritzf.quota.opencode.OpenCodeOAuthClient
+import de.moritzf.quota.shared.RealtimeSpeechSession
+import de.moritzf.quota.supergrok.SuperGrokDocumentClient
+import de.moritzf.quota.supergrok.SuperGrokQuotaClient
+import java.net.URI
 
+@AnalyzeClasses(locations = [ArchitectureBoundariesTest.ProductionClasses::class])
 class ArchitectureBoundariesTest {
-    private val root = Path.of("src/main/kotlin/de/moritzf")
-
-    @Test
-    fun proxyAndProviderClientsDoNotAcquireNewIdeDependencies() {
-        // Intentional platform runtime bindings and existing small auth value/codec dependencies.
-        val allowed =
-            mapOf(
-                "proxy/server/ApiKeyStore.kt" to
-                    setOf("com.intellij.concurrency.virtualThreads.IntelliJVirtualThreads"),
-                "proxy/logging/RequestLogger.kt" to
-                    setOf("com.intellij.concurrency.virtualThreads.IntelliJVirtualThreads"),
-                "quota/supergrok/SuperGrokQuotaClient.kt" to
-                    setOf("com.intellij.openapi.diagnostic.Logger"),
-                "quota/kimi/KimiDeviceHeaders.kt" to
-                    setOf("com.intellij.ide.util.PropertiesComponent"),
-                "quota/github/GitHubOAuthClient.kt" to
-                    setOf("de.moritzf.quota.idea.auth.OAuthUrlCodec"),
-                "quota/kimi/KimiCredentialRefresher.kt" to
-                    setOf("de.moritzf.quota.idea.auth.OAuthUrlCodec"),
-                "quota/opencode/OpenCodeOAuthClient.kt" to
-                    setOf("de.moritzf.quota.idea.auth.OAuthCredentials"),
-            )
-        val violations = mutableListOf<String>()
-        sources()
-            .filterNot { root.relativize(it).toString().startsWith("quota/idea/") }
-            .forEach { file ->
-                val relative = root.relativize(file).toString()
-                imports(file)
-                    .filter {
-                        it.startsWith("com.intellij.") || it.startsWith("de.moritzf.quota.idea.")
-                    }
-                    .filterNot { it in allowed[relative].orEmpty() }
-                    .forEach { violations += "$relative: $it" }
-            }
-        assertEquals(emptyList(), violations)
-    }
-
-    @Test
-    fun applicationOperationsDoNotDeclareMcpToolsOrDependOnSettingsWidgets() {
-        val files =
-            sources().filter { root.relativize(it).toString().startsWith("quota/idea/operations/") }
-        assertTrue(files.isNotEmpty())
-        val violations = files.flatMap { file ->
-            imports(file)
-                .filter {
-                    it.startsWith("com.intellij.mcpserver.annotations.") ||
-                        it.contains("SettingsPanel") ||
-                        it.contains("SettingsConfigurable") ||
-                        it == "com.intellij.mcpserver.McpToolset"
+    /** Use the production artifact, including in IntelliJ's instrumented Gradle test sandbox. */
+    class ProductionClasses : LocationProvider {
+        override fun get(testClass: Class<*>): Set<Location> =
+            setOf(QuotaProviderType::class.java, RealtimeSpeechSession::class.java)
+                .map { anchor ->
+                    // IntelliJ's PathClassLoader supplies resource URLs but no CodeSource location.
+                    val classFile = anchor.name.replace('.', '/') + ".class"
+                    val resource = checkNotNull(anchor.getResource("/$classFile")).toExternalForm()
+                    check(resource.endsWith(classFile))
+                    Location.of(URI.create(resource.removeSuffix(classFile)))
                 }
-                .map { "$file: $it" }
-        }
-        assertEquals(emptyList(), violations)
-        val facade = root.resolve("quota/idea/mcp/SubscriptionUsageMcpToolset.kt").readText()
-        assertTrue(
-            !facade.contains("getInstance()"),
-            "MCP facade must delegate service lookup and orchestration",
-        )
+                .toSet()
     }
 
-    private fun sources(): List<Path> =
-        Files.walk(root).use { paths -> paths.filter { it.toString().endsWith(".kt") }.toList() }
+    @ArchTest
+    fun productionImportExcludesTestFixtures(classes: JavaClasses) {
+        check(classes.contain(QuotaProviderType::class.java))
+        check(classes.contain(RealtimeSpeechSession::class.java))
+        check(classes.contain("de.moritzf.quota.idea.operations.SubscriptionSearchOperationsKt"))
+        check(!classes.contain(ArchitectureBoundariesTest::class.java))
+    }
 
-    private fun imports(file: Path) =
-        file
-            .readText()
-            .lineSequence()
-            .filter { it.startsWith("import ") }
-            .map { it.removePrefix("import ").trim() }
-            .toList()
+    companion object {
+        // Exact runtime bindings and existing shared auth value/codec dependencies. Including
+        // nested classes covers Kotlin companions without exempting whole provider/IDE packages.
+        private val allowedIdeDependencies =
+            listOf(
+                    ApiKeyStore::class.java to IntelliJVirtualThreads::class.java,
+                    RequestLogger::class.java to IntelliJVirtualThreads::class.java,
+                    SuperGrokQuotaClient::class.java to Logger::class.java,
+                    KimiDeviceHeaders::class.java to PropertiesComponent::class.java,
+                    GitHubOAuthClient::class.java to OAuthUrlCodec::class.java,
+                    KimiCredentialRefresher::class.java to OAuthUrlCodec::class.java,
+                    OpenCodeOAuthClient::class.java to OAuthCredentials::class.java,
+                    OpenCodeDeviceTokenResult.Authorized::class.java to
+                        OAuthCredentials::class.java,
+                    // Existing document image grounding helper is still located in the MCP package.
+                    SuperGrokDocumentClient::class.java to DocumentImageGrounding::class.java,
+                )
+                .map { (origin, target) ->
+                    Dependency.Predicates.dependencyOrigin(belongToAnyOf(origin))
+                        .and(Dependency.Predicates.dependencyTarget(belongToAnyOf(target)))
+                }
+
+        @ArchTest
+        @JvmField
+        val providerAndProxyBoundaries =
+            classes()
+                .that()
+                .resideOutsideOfPackage("de.moritzf.quota.idea..")
+                .should(
+                    onlyHaveDependenciesWhere(
+                        DescribedPredicate.describe<Dependency>(
+                            "stay outside IDE code except documented class pairs"
+                        ) { dependency ->
+                            !resideInAnyPackage("com.intellij..", "de.moritzf.quota.idea..")
+                                .test(dependency.targetClass) ||
+                                allowedIdeDependencies.any { it.test(dependency) }
+                        }
+                    )
+                )
+                .because(
+                    "provider clients and proxy transport must stay independent of IDE orchestration"
+                )
+
+        @ArchTest
+        @JvmField
+        val operationBoundaries =
+            noClasses()
+                .that()
+                .resideInAPackage("de.moritzf.quota.idea.operations..")
+                .should()
+                .dependOnClassesThat()
+                .resideInAnyPackage(
+                    "com.intellij.mcpserver.annotations..",
+                    "de.moritzf.quota.idea.ui..",
+                    "javax.swing..",
+                )
+                .orShould()
+                .dependOnClassesThat()
+                .areAssignableTo(McpToolset::class.java)
+                .orShould()
+                .dependOnClassesThat()
+                .haveSimpleNameEndingWith("SettingsPanel")
+                .orShould()
+                .dependOnClassesThat()
+                .haveSimpleNameEndingWith("SettingsConfigurable")
+                .because(
+                    "operations execute capabilities; MCP annotations and settings widgets belong at the boundary"
+                )
+
+        @ArchTest
+        @JvmField
+        val facadeDelegatesServiceLookup =
+            noClasses()
+                .that(belongToAnyOf(SubscriptionUsageMcpToolset::class.java))
+                .should()
+                .callMethodWhere(
+                    DescribedPredicate.describe<JavaMethodCall>("look up an IDE service") { call ->
+                        call.target.name == "getInstance" &&
+                            resideInAnyPackage("de.moritzf.quota.idea..", "com.intellij..")
+                                .test(call.target.owner)
+                    }
+                )
+                .because("the subscription MCP facade must delegate service lookup to operations")
+    }
 }

@@ -15,6 +15,7 @@
 
 - Format Kotlin sources and Gradle Kotlin scripts with `./gradlew ktfmtFormat` (KotlinLang style). `./gradlew ktfmtCheck` verifies formatting and is included in `check` and CI.
 - Use focused tests during edits, for example `./gradlew test --tests some.TestName`.
+- Architecture boundaries use ArchUnit/JUnit 5 against production bytecode (`ArchitectureBoundariesTest`), including Kotlin-generated classes. Keep exceptions to documented class pairs; do not replace rules with source/import scans.
 - In proxy tests, stop servers with `gracePeriodMillis = 0` after request assertions; retain bounded waits for genuinely concurrent work.
 - Use coroutine virtual time for polling/timeout tests instead of real waits.
 - Before committing broad changes, run `./gradlew test`, `./gradlew verifyPlugin`, `./gradlew buildPlugin`, and `rtk git diff --check`.
