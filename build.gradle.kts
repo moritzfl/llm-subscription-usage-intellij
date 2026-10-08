@@ -93,6 +93,8 @@ dependencies {
     }
 
     testImplementation(libs.kotlin.test.junit5)
+    // Match the IDE's coroutines runtime without adding another core/stdlib to the test classpath.
+    testImplementation(libs.kotlinx.coroutines.test) { isTransitive = false }
     testRuntimeOnly(libs.junit4)
     testRuntimeOnly(libs.junit.platform.launcher)
 

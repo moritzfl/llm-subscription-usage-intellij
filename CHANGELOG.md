@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Verify OAuth polling intervals with virtual time instead of real waits.
 - Speed up proxy tests by skipping shutdown grace periods and unnecessary post-response waits.
 - Adopt ktfmt's KotlinLang style for Kotlin sources and Gradle Kotlin scripts, with formatting checks in Gradle and CI.
 - Replace deprecated Ktor request-body calls and use suspending multipart cleanup on newer IDEs while retaining IntelliJ 2026.1 compatibility.

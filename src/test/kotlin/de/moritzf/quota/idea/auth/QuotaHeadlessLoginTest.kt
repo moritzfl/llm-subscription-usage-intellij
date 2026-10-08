@@ -10,30 +10,40 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class QuotaHeadlessLoginTest {
     @Test
-    fun deviceLoginPollsWithoutBrowserAndKeepsAccountCredentialsIsolated() {
+    fun deviceLoginPollsWithoutBrowserAndKeepsAccountCredentialsIsolated() = runTest {
         val client = DeviceClient()
-        val fixture = Fixture(client)
+        val fixture = Fixture(client, dispatcher = StandardTestDispatcher(testScheduler))
         try {
             val completed = CompletableFuture<LoginResult>()
             fixture.service.startDeviceLoginFlow("second", OPEN_AI, { completed.complete(it) })
+            runCurrent()
             assertEquals("CODE", fixture.service.deviceLoginPrompt("second", OPEN_AI)?.userCode)
             assertNull(fixture.service.deviceLoginPrompt(OPEN_AI.id, OPEN_AI))
             assertTrue(fixture.service.isLoginInProgress("second", OPEN_AI))
-            assertTrue(completed.get(5, TimeUnit.SECONDS).success)
+            advanceUntilIdle()
+            assertTrue(assertNotNull(completed.getNow(null)).success)
             assertEquals("device-access", fixture.store("second").load()?.accessToken)
             assertNull(fixture.store(OPEN_AI.id).load())
             assertNull(fixture.service.deviceLoginPrompt("second", OPEN_AI))
@@ -70,7 +80,7 @@ class QuotaHeadlessLoginTest {
     }
 
     @Test
-    fun pendingAndSlowDownRespectPollingIntervals() {
+    fun pendingAndSlowDownRespectPollingIntervals() = runTest {
         val polls = mutableListOf<Long>()
         val fixture =
             Fixture(
@@ -78,35 +88,33 @@ class QuotaHeadlessLoginTest {
                     override suspend fun poll(
                         authorization: OAuthDeviceAuthorization
                     ): OAuthDevicePollResult {
-                        polls += System.nanoTime()
+                        polls += testScheduler.currentTime
                         return when (polls.size) {
                             1 -> OAuthDevicePollResult.Pending
                             2 -> OAuthDevicePollResult.SlowDown
                             else -> OAuthDevicePollResult.Authorized(oauth())
                         }
                     }
-                }
+                },
+                dispatcher = StandardTestDispatcher(testScheduler),
             )
         try {
             val completed = CompletableFuture<LoginResult>()
-            val start = System.nanoTime()
             fixture.service.startDeviceLoginFlow(
                 "a",
                 QuotaProviderType.SUPERGROK,
                 { completed.complete(it) },
             )
-            assertTrue(completed.get(15, TimeUnit.SECONDS).success)
-            assertEquals(3, polls.size)
-            assertTrue(polls[0] - start >= 1_000_000_000)
-            assertTrue(polls[1] - polls[0] >= 1_000_000_000)
-            assertTrue(polls[2] - polls[1] >= 6_000_000_000)
+            advanceUntilIdle()
+            assertTrue(assertNotNull(completed.getNow(null)).success)
+            assertEquals(listOf(1_000L, 2_000L, 8_000L), polls)
         } finally {
             fixture.service.dispose()
         }
     }
 
     @Test
-    fun deviceExpiryClearsPromptAndDoesNotReplaceExistingCredentials() {
+    fun deviceExpiryClearsPromptAndDoesNotReplaceExistingCredentials() = runTest {
         val polls = AtomicInteger()
         val fixture =
             Fixture(
@@ -120,13 +128,15 @@ class QuotaHeadlessLoginTest {
                         polls.incrementAndGet()
                         return super.poll(authorization)
                     }
-                }
+                },
+                dispatcher = StandardTestDispatcher(testScheduler),
             )
         try {
             fixture.store("a").save(oauth("existing"))
             val completed = CompletableFuture<LoginResult>()
             fixture.service.startDeviceLoginFlow("a", OPEN_AI, { completed.complete(it) })
-            val result = completed.get(5, TimeUnit.SECONDS)
+            advanceUntilIdle()
+            val result = assertNotNull(completed.getNow(null))
             assertFalse(result.success)
             assertTrue(result.message!!.contains("expired"))
             assertEquals(0, polls.get())
@@ -302,6 +312,7 @@ class QuotaHeadlessLoginTest {
     private class Fixture(
         device: OAuthDeviceLoginOperations = DeviceClient(),
         validator: suspend (String) -> OAuthCredentials = { personal(it) },
+        dispatcher: CoroutineDispatcher = Dispatchers.Unconfined,
     ) {
         private val stores = ConcurrentHashMap<String, Store>()
 
@@ -309,7 +320,7 @@ class QuotaHeadlessLoginTest {
 
         val service =
             QuotaAuthService(
-                scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
+                scope = CoroutineScope(SupervisorJob() + dispatcher),
                 credentialStoreFactory = { id, _ -> store(id) },
                 tokenOperationsFactory = { _, _ ->
                     object : OAuthTokenOperations {
