@@ -38,6 +38,7 @@
 - If a provider response is not JSON, wrap it as plugin-owned JSON such as `{"raw_response":"..."}` so MCP tools still return valid JSON text.
 - Use Kotlin serialization for plugin-owned MCP JSON, including tool status, plugin errors, raw-response wrappers, and request payload DTOs.
 - Keep upstream response parsing minimal. Parse only for required error detection, authentication retry decisions, documented non-JSON formats, or unusable responses.
+- Keep MCP annotations in the toolset facade and execution in `idea.operations`. Share account/auth policy through `AccountOperations`; preserve cancellation before adapting errors to JSON.
 
 ## Providers
 
@@ -58,10 +59,13 @@
 - `models.dev` may be used as a model catalog only when it explicitly separates subscription providers from API-key providers and the subscription provider has no usable first-party endpoint for discovering current subscription model IDs.
 - When no provider-declared default exists, choose a default from advertised models by taking the alphabetically latest model id rather than hardcoding a recommendation.
 - Proxy enablement defaults come from `ProviderCapabilities.subscriptionProxy` via the catalog; IDE construction uses `ideProxyFactory` / `ProviderCatalog.createIdeProxyProviders` (`IdeProxyFactories`). Standalone CLI proxy wiring stays env-based in `StandaloneSubscriptionProxy` (no IntelliJ services).
+- IDE proxy delegates are account-bound. Resolve once per request; keep token refresh/save, endpoint/region, and rate-limit attribution on that account.
 
 ## Settings And Releases
 
 - Provider state is mostly map/list based in `QuotaSettingsState`; avoid adding per-provider fields unless persistence or migration requires them.
+- Quota cache writes use synchronized snapshot methods. Settings UI builds `QuotaSettingsDraft`; `SettingsApplyCoordinator` owns commit/follow-up actions and publishes one settings event.
+- Document, vision, and FIM test dialogs share `TestDialogTask` and `TestDialogUi`; queued UI results must be generation-checked.
 - Do not keep backwards-compat decode paths just to revive old cached quota snapshots. If the cache shape changes, drop unreadable entries and wait for the next live refresh.
 - Add changelog entries under `## [Unreleased]`. Do not edit released changelog sections unless explicitly requested.
 - Keep this file concise and update it when project-level agent guidance changes.

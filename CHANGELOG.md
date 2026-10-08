@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Bind proxy requests, credential refreshes, and rate-limit attribution to one account for the entire operation.
+- Synchronize quota cache snapshots and discard refresh results after account removal, clearing, or service disposal.
+- Separate MCP schemas from capability-specific operations, share media authentication policy, and preserve cancellation across blocking requests and retries.
+- Centralize settings validation and apply actions, preserving live quota updates and avoiding duplicate service reloads.
+- Share test-dialog task lifecycles and rendering helpers, with regression tests for stale callbacks and architecture boundaries.
 - Verify OAuth polling intervals with virtual time instead of real waits.
 - Speed up proxy tests by skipping shutdown grace periods and unnecessary post-response waits.
 - Adopt ktfmt's KotlinLang style for Kotlin sources and Gradle Kotlin scripts, with formatting checks in Gradle and CI.
