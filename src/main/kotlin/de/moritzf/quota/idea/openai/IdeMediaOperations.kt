@@ -4,21 +4,16 @@ import de.moritzf.proxy.media.MediaOperationException
 import de.moritzf.proxy.media.MediaOperations
 import de.moritzf.proxy.media.OpenAiMedia
 import de.moritzf.proxy.media.SpeechAudio
-import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.idea.common.rethrowIfCancellation
 import de.moritzf.quota.idea.mcp.CodexMcpClient
-import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
 import de.moritzf.quota.idea.mistral.MistralApiKeyStore
 import de.moritzf.quota.idea.settings.AccountCapability
 import de.moritzf.quota.idea.settings.AccountResolveException
 import de.moritzf.quota.idea.settings.AccountResolver
-import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 import de.moritzf.quota.minimax.MiniMaxAudioClient
 import de.moritzf.quota.minimax.MiniMaxImageClient
-import de.moritzf.quota.minimax.MiniMaxQuotaException
-import de.moritzf.quota.minimax.MiniMaxRegion
-import de.moritzf.quota.minimax.MiniMaxRegionPreference
 import de.moritzf.quota.mistral.MistralAudioClient
 import de.moritzf.quota.supergrok.SuperGrokAudioClient
 import de.moritzf.quota.supergrok.SuperGrokImagineClient
@@ -26,11 +21,14 @@ import de.moritzf.quota.zai.ZaiAudioClient
 import de.moritzf.quota.zai.ZaiImageClient
 import java.nio.file.Files
 import java.nio.file.Path
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
 internal class IdeMediaOperations(
+    private val accounts: de.moritzf.quota.idea.operations.AccountOperations =
+        de.moritzf.quota.idea.operations.AccountOperations(),
     private val superGrokImages: SuperGrokImagineClient = SuperGrokImagineClient.createDefault(),
     private val superGrokAudio: SuperGrokAudioClient = SuperGrokAudioClient.createDefault(),
     private val miniMaxImages: MiniMaxImageClient = MiniMaxImageClient.createDefault(),
@@ -38,16 +36,19 @@ internal class IdeMediaOperations(
     private val zaiImages: ZaiImageClient = ZaiImageClient.createDefault(),
     private val zaiAudio: ZaiAudioClient = ZaiAudioClient.createDefault(),
     private val mistralAudio: MistralAudioClient = MistralAudioClient.createDefault(),
-    private val codex: CodexMcpClient = CodexMcpClient.createDefault(),
+    private val codex: (AccountCapability) -> CodexMcpClient = CodexMcpClient::createDefault,
 ) : MediaOperations {
     override fun generateImageUrl(providerId: String, model: String, prompt: String): String {
         val body = runMedia {
             when (providerId) {
-                "supergrok" -> superGrokImages.generateImage(superGrokToken(), prompt, model)
+                "supergrok" ->
+                    accounts.withSuperGrok(AccountCapability.IMAGE_GENERATION) { token ->
+                        superGrokImages.generateImage(token, prompt, model)
+                    }
                 "minimax" ->
-                    withMiniMaxRegions(AccountCapability.IMAGE_GENERATION) { region ->
+                    accounts.withMiniMax(AccountCapability.IMAGE_GENERATION) { key, region ->
                         miniMaxImages.generateImage(
-                            miniMaxKey(AccountCapability.IMAGE_GENERATION),
+                            key,
                             region,
                             prompt,
                             model = model,
@@ -79,12 +80,14 @@ internal class IdeMediaOperations(
         val bytes = runMedia {
             when (providerId) {
                 "supergrok" ->
-                    superGrokAudio.synthesizeBytes(
-                        superGrokToken(),
-                        input,
-                        voice,
-                        responseFormat = format,
-                    )
+                    accounts.withSuperGrok(AccountCapability.TEXT_TO_SPEECH) { token ->
+                        superGrokAudio.synthesizeBytes(
+                            token,
+                            input,
+                            voice,
+                            responseFormat = format,
+                        )
+                    }
                 "mistral" ->
                     withTempAudio("proxy-tts-", ".$format") { path ->
                         mistralAudio.synthesize(
@@ -99,9 +102,9 @@ internal class IdeMediaOperations(
                     }
                 "minimax" ->
                     withTempAudio("proxy-tts-", ".$format") { path ->
-                        withMiniMaxRegions(AccountCapability.TEXT_TO_SPEECH) { region ->
+                        accounts.withMiniMax(AccountCapability.TEXT_TO_SPEECH) { key, region ->
                             miniMaxAudio.synthesize(
-                                apiKey = miniMaxKey(AccountCapability.TEXT_TO_SPEECH),
+                                apiKey = key,
                                 region = region,
                                 text = input,
                                 targetFile = path.toString(),
@@ -116,13 +119,14 @@ internal class IdeMediaOperations(
                 "openai" ->
                     withTempAudio("proxy-tts-", ".$format") { path ->
                         requireCodex(
-                            codex.synthesize(
-                                text = input,
-                                targetFile = path.toString(),
-                                voiceId = voice,
-                                model = model,
-                                responseFormat = format,
-                            )
+                            codex(AccountCapability.TEXT_TO_SPEECH)
+                                .synthesize(
+                                    text = input,
+                                    targetFile = path.toString(),
+                                    voiceId = voice,
+                                    model = model,
+                                    responseFormat = format,
+                                )
                         )
                         Files.readAllBytes(path)
                     }
@@ -147,11 +151,13 @@ internal class IdeMediaOperations(
                 Files.write(path, audio)
                 when (providerId) {
                     "supergrok" ->
-                        superGrokAudio.transcribe(
-                            superGrokToken(),
-                            localFile = path,
-                            language = language,
-                        )
+                        accounts.withSuperGrok(AccountCapability.SPEECH_TO_TEXT) { token ->
+                            superGrokAudio.transcribe(
+                                token,
+                                localFile = path,
+                                language = language,
+                            )
+                        }
                     "mistral" ->
                         mistralAudio.transcribe(
                             apiKey = mistralKey(AccountCapability.SPEECH_TO_TEXT),
@@ -160,9 +166,9 @@ internal class IdeMediaOperations(
                             model = model,
                         )
                     "minimax" ->
-                        withMiniMaxRegions(AccountCapability.SPEECH_TO_TEXT) { region ->
+                        accounts.withMiniMax(AccountCapability.SPEECH_TO_TEXT) { key, region ->
                             miniMaxAudio.transcribe(
-                                apiKey = miniMaxKey(AccountCapability.SPEECH_TO_TEXT),
+                                apiKey = key,
                                 region = region,
                                 localFile = path,
                                 language = language,
@@ -177,11 +183,12 @@ internal class IdeMediaOperations(
                         )
                     "openai" ->
                         requireCodex(
-                            codex.transcribe(
-                                localFile = path,
-                                language = language,
-                                model = model,
-                            )
+                            codex(AccountCapability.SPEECH_TO_TEXT)
+                                .transcribe(
+                                    localFile = path,
+                                    language = language,
+                                    model = model,
+                                )
                         )
                     else ->
                         throw MediaOperationException(
@@ -190,19 +197,6 @@ internal class IdeMediaOperations(
                 }
             }
         }
-    }
-
-    private fun superGrokToken(): String {
-        val account = resolve(QuotaProviderType.SUPERGROK, AccountCapability.PROXY)
-        return QuotaAuthService.getInstance()
-            .peekAccessToken(account.id, QuotaProviderType.SUPERGROK)
-            ?: throw MediaOperationException("SuperGrok login required.")
-    }
-
-    private fun miniMaxKey(capability: AccountCapability): String {
-        val account = resolve(QuotaProviderType.MINIMAX, capability)
-        return MiniMaxApiKeyStore.forAccount(account.id).loadBlocking()
-            ?: throw MediaOperationException("MiniMax subscription key missing.")
     }
 
     private fun mistralKey(capability: AccountCapability): String {
@@ -221,38 +215,9 @@ internal class IdeMediaOperations(
         try {
             AccountResolver.resolve(type, capability = capability)
         } catch (exception: AccountResolveException) {
+            exception.rethrowIfCancellation()
             throw MediaOperationException(exception.message ?: "Account not configured.")
         }
-
-    private fun <T> withMiniMaxRegions(
-        capability: AccountCapability,
-        block: (MiniMaxRegion) -> T,
-    ): T {
-        var lastException: Exception? = null
-        for (region in miniMaxRegions(capability)) {
-            try {
-                return block(region)
-            } catch (exception: MiniMaxQuotaException) {
-                lastException = exception
-            } catch (exception: Exception) {
-                lastException = exception
-            }
-        }
-        throw lastException ?: MediaOperationException("MiniMax request failed.")
-    }
-
-    private fun miniMaxRegions(capability: AccountCapability): List<MiniMaxRegion> {
-        val settings = QuotaSettingsState.getInstance()
-        val account =
-            AccountResolver.resolveOrNull(QuotaProviderType.MINIMAX, capability = capability)
-        return when (
-            account?.let { settings.miniMaxRegionFor(it.id) } ?: MiniMaxRegionPreference.AUTO
-        ) {
-            MiniMaxRegionPreference.CN -> listOf(MiniMaxRegion.CN)
-            MiniMaxRegionPreference.GLOBAL -> listOf(MiniMaxRegion.GLOBAL)
-            MiniMaxRegionPreference.AUTO -> listOf(MiniMaxRegion.GLOBAL, MiniMaxRegion.CN)
-        }
-    }
 
     private fun requireCodex(result: CodexMcpClient.CodexMcpResponse): String {
         if (!result.isError) return result.body
@@ -265,17 +230,19 @@ internal class IdeMediaOperations(
         return error.ifEmpty { "OpenAI media request failed." }
     }
 
-    private fun <T> runMedia(block: () -> T): T {
+    private fun <T> runMedia(block: suspend () -> T): T {
         return try {
-            block()
+            runBlocking { block() }
         } catch (exception: MediaOperationException) {
+            exception.rethrowIfCancellation()
             throw exception
         } catch (exception: Exception) {
+            exception.rethrowIfCancellation()
             throw MediaOperationException(exception.message ?: "Media request failed.")
         }
     }
 
-    private fun <T> withTempAudio(prefix: String, suffix: String, block: (Path) -> T): T {
+    private inline fun <T> withTempAudio(prefix: String, suffix: String, block: (Path) -> T): T {
         val temp = Files.createTempFile(prefix, suffix)
         return try {
             block(temp)

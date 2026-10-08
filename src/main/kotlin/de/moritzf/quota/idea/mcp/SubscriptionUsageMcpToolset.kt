@@ -3,105 +3,18 @@ package de.moritzf.quota.idea.mcp
 import com.intellij.mcpserver.McpToolset
 import com.intellij.mcpserver.annotations.McpDescription
 import com.intellij.mcpserver.annotations.McpTool
-import com.intellij.mcpserver.projectOrNull
-import com.intellij.mcpserver.util.projectDirectory
-import com.intellij.mcpserver.util.resolveInProject
-import de.moritzf.quota.azure.AZURE_DOCUMENT_INTELLIGENCE_LAYOUT
-import de.moritzf.quota.azure.AzureCli
-import de.moritzf.quota.azure.AzureCohereParseClient
-import de.moritzf.quota.azure.AzureDocumentIntelligenceClient
-import de.moritzf.quota.azure.AzureOcrClient
-import de.moritzf.quota.azure.AzureOcrException
-import de.moritzf.quota.azure.azureDocumentSelection
-import de.moritzf.quota.azure.azureOcrDeploymentId
-import de.moritzf.quota.azure.isAzureCohereSelection
-import de.moritzf.quota.idea.auth.QuotaAuthService
-import de.moritzf.quota.idea.common.AzureQuotaProvider
-import de.moritzf.quota.idea.common.ProviderCatalog
 import de.moritzf.quota.idea.common.QuotaProviderType
-import de.moritzf.quota.idea.common.QuotaUsageService
-import de.moritzf.quota.idea.kimi.KimiCredentialsStore
-import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
-import de.moritzf.quota.idea.mistral.MistralApiKeyStore
-import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
+import de.moritzf.quota.idea.common.interruptibleOperation
+import de.moritzf.quota.idea.operations.*
 import de.moritzf.quota.idea.settings.AccountCapability
-import de.moritzf.quota.idea.settings.QuotaSettingsState
-import de.moritzf.quota.idea.zai.ZaiApiKeyStore
-import de.moritzf.quota.kimi.KimiQuotaException
-import de.moritzf.quota.kimi.KimiVisionClient
-import de.moritzf.quota.kimi.KimiWebSearchClient
-import de.moritzf.quota.minimax.MiniMaxAudioClient
-import de.moritzf.quota.minimax.MiniMaxImageClient
-import de.moritzf.quota.minimax.MiniMaxQuotaException
-import de.moritzf.quota.minimax.MiniMaxRegion
-import de.moritzf.quota.minimax.MiniMaxRegionPreference
-import de.moritzf.quota.minimax.MiniMaxWebSearchClient
-import de.moritzf.quota.mistral.MistralAudioClient
-import de.moritzf.quota.mistral.MistralImageClient
-import de.moritzf.quota.mistral.MistralOcrClient
-import de.moritzf.quota.mistral.MistralQuotaException
-import de.moritzf.quota.mistral.MistralVisionClient
 import de.moritzf.quota.mistral.MistralWebSearchClient
-import de.moritzf.quota.ollama.OllamaQuotaException
-import de.moritzf.quota.ollama.OllamaVisionClient
-import de.moritzf.quota.ollama.OllamaWebSearchClient
 import de.moritzf.quota.shared.DocumentImageFormat
-import de.moritzf.quota.shared.DocumentImageOptions
-import de.moritzf.quota.shared.JsonSupport
-import de.moritzf.quota.shared.McpAccountToolStatus
-import de.moritzf.quota.shared.McpJson
-import de.moritzf.quota.supergrok.SuperGrokAudioClient
-import de.moritzf.quota.supergrok.SuperGrokDocumentClient
 import de.moritzf.quota.supergrok.SuperGrokImagineClient
-import de.moritzf.quota.supergrok.SuperGrokQuotaException
 import de.moritzf.quota.supergrok.SuperGrokWebSearchClient
-import de.moritzf.quota.zai.ZaiAudioClient
-import de.moritzf.quota.zai.ZaiImageClient
-import de.moritzf.quota.zai.ZaiOcrClient
-import de.moritzf.quota.zai.ZaiQuotaException
-import de.moritzf.quota.zai.ZaiVideoClient
-import de.moritzf.quota.zai.ZaiVisionClient
-import de.moritzf.quota.zai.ZaiWebSearchClient
-import java.nio.file.Path
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
 
 /** Exposes subscription usage JSON and hosted subscription tools through IntelliJ's MCP server. */
-class SubscriptionUsageMcpToolset(
-    private val codexClient: CodexMcpClient = CodexMcpClient.createDefault(),
-    private val kimiSearchClient: KimiWebSearchClient = KimiWebSearchClient.createDefault(),
-    private val zaiSearchClient: ZaiWebSearchClient = ZaiWebSearchClient.createDefault(),
-    private val miniMaxSearchClient: MiniMaxWebSearchClient =
-        MiniMaxWebSearchClient.createDefault(),
-    private val miniMaxImageClient: MiniMaxImageClient = MiniMaxImageClient.createDefault(),
-    private val miniMaxAudioClient: MiniMaxAudioClient = MiniMaxAudioClient.createDefault(),
-    private val ollamaSearchClient: OllamaWebSearchClient = OllamaWebSearchClient.createDefault(),
-    private val superGrokSearchClient: SuperGrokWebSearchClient =
-        SuperGrokWebSearchClient.createDefault(),
-    private val superGrokImagineClient: SuperGrokImagineClient =
-        SuperGrokImagineClient.createDefault(),
-    private val superGrokAudioClient: SuperGrokAudioClient = SuperGrokAudioClient.createDefault(),
-    private val superGrokDocumentClient: SuperGrokDocumentClient =
-        SuperGrokDocumentClient.createDefault(),
-    private val mistralSearchClient: MistralWebSearchClient =
-        MistralWebSearchClient.createDefault(),
-    private val mistralImageClient: MistralImageClient = MistralImageClient.createDefault(),
-    private val mistralOcrClient: MistralOcrClient = MistralOcrClient.createDefault(),
-    private val mistralAudioClient: MistralAudioClient = MistralAudioClient.createDefault(),
-    private val mistralVisionClient: MistralVisionClient = MistralVisionClient.createDefault(),
-    private val zaiOcrClient: ZaiOcrClient = ZaiOcrClient.createDefault(),
-    private val zaiImageClient: ZaiImageClient = ZaiImageClient.createDefault(),
-    private val zaiAudioClient: ZaiAudioClient = ZaiAudioClient.createDefault(),
-    private val zaiVideoClient: ZaiVideoClient = ZaiVideoClient.createDefault(),
-    private val zaiVisionClient: ZaiVisionClient = ZaiVisionClient.createDefault(),
-    private val ollamaVisionClient: OllamaVisionClient = OllamaVisionClient.createDefault(),
-    private val kimiVisionClient: KimiVisionClient = KimiVisionClient.createDefault(),
-) : McpToolset {
-    private val azureOcrClient = AzureOcrClient()
-    private val azureCohereParseClient = AzureCohereParseClient()
-    private val azureDocumentIntelligenceClient = AzureDocumentIntelligenceClient()
+class SubscriptionUsageMcpToolset : McpToolset {
+    private val operations = SubscriptionOperations()
 
     @McpTool(name = "subscription_quota")
     @McpDescription(
@@ -120,7 +33,7 @@ class SubscriptionUsageMcpToolset(
         )
         account: String? = null,
     ): String {
-        return quotaResult(provider, account)
+        return interruptibleOperation { operations.subscription_quota(provider, account) }
     }
 
     @McpTool(name = "subscription_tools_status")
@@ -140,47 +53,7 @@ class SubscriptionUsageMcpToolset(
         )
         model: String? = null,
     ): String {
-        val settings = runCatching { QuotaSettingsState.getInstance() }.getOrNull()
-        val accounts = settings?.accounts.orEmpty()
-        val requestedCapability =
-            capability ?: de.moritzf.quota.idea.settings.AccountCapability.QUOTA
-        val statuses =
-            if (accounts.isEmpty() || settings == null) {
-                ProviderCatalog.all.map { descriptor ->
-                    accountStatus(
-                        id = descriptor.type.id,
-                        type = descriptor.type,
-                        name = descriptor.type.displayName,
-                        label = descriptor.type.displayName,
-                        isDefault = true,
-                        allowFailover = false,
-                        descriptor = descriptor,
-                        capability = requestedCapability,
-                        model = model,
-                    )
-                }
-            } else {
-                accounts.mapNotNull { account ->
-                    val type = account.providerType() ?: return@mapNotNull null
-                    val descriptor = ProviderCatalog.get(type)
-                    accountStatus(
-                        id = account.id,
-                        type = type,
-                        name = account.name,
-                        label = settings.accountListLabel(account),
-                        isDefault = account.isDefault,
-                        allowFailover = account.allowFailover,
-                        descriptor = descriptor,
-                        capability = requestedCapability,
-                        model = model,
-                    )
-                }
-            }
-        return McpJson.accountToolsStatus(
-            statuses,
-            capability = capability?.name,
-            model = model?.trim()?.takeIf { it.isNotEmpty() },
-        )
+        return interruptibleOperation { operations.subscription_tools_status(capability, model) }
     }
 
     @McpTool(name = "codex_web_search")
@@ -216,8 +89,8 @@ class SubscriptionUsageMcpToolset(
         )
         blockedDomains: String? = null,
     ): String {
-        val response =
-            codexClient.webSearch(
+        return interruptibleOperation {
+            operations.codex_web_search(
                 query,
                 searchContextSize,
                 includeSources,
@@ -225,8 +98,7 @@ class SubscriptionUsageMcpToolset(
                 allowedDomains,
                 blockedDomains,
             )
-        return if (response.isError) searchError(extractErrorMessage(response.body))
-        else response.body
+        }
     }
 
     @McpTool(name = "supergrok_web_search")
@@ -254,7 +126,15 @@ class SubscriptionUsageMcpToolset(
         )
         maxOutputTokens: Int = SuperGrokWebSearchClient.DEFAULT_MAX_OUTPUT_TOKENS,
     ): String {
-        return supergrokWebSearch(query, model, allowedDomains, excludedDomains, maxOutputTokens)
+        return interruptibleOperation {
+            operations.supergrok_web_search(
+                query,
+                model,
+                allowedDomains,
+                excludedDomains,
+                maxOutputTokens,
+            )
+        }
     }
 
     @McpTool(name = "subscription_web_search")
@@ -280,11 +160,8 @@ class SubscriptionUsageMcpToolset(
         )
         includeContent: Boolean = false,
     ): String {
-        return when (provider) {
-            ListSearchProvider.KIMI -> kimiWebSearch(query, limit, includeContent)
-            ListSearchProvider.ZAI -> zaiWebSearch(query, limit, includeContent)
-            ListSearchProvider.MINIMAX -> miniMaxWebSearch(query, limit, includeContent)
-            ListSearchProvider.OLLAMA -> ollamaWebSearch(query, limit, includeContent)
+        return interruptibleOperation {
+            operations.subscription_web_search(provider, query, limit, includeContent)
         }
     }
 
@@ -301,10 +178,7 @@ class SubscriptionUsageMcpToolset(
         provider: WebFetchProvider = WebFetchProvider.OLLAMA,
         @McpDescription(description = "Page URL to fetch.") url: String,
     ): String {
-        return when (provider) {
-            WebFetchProvider.OLLAMA -> ollamaWebFetch(url)
-            WebFetchProvider.ZAI -> zaiWebFetch(url)
-        }
+        return interruptibleOperation { operations.subscription_web_fetch(provider, url) }
     }
 
     @McpTool(name = "subscription_image_edit")
@@ -329,12 +203,16 @@ class SubscriptionUsageMcpToolset(
         @McpDescription(description = "Image model id. Leave blank for the provider default.")
         model: String = "",
     ): String {
-        if (!maskUrl.isNullOrBlank()) {
-            return errorResult("xAI image edits do not support masks. Send the source image only.")
-        }
-        return when (provider) {
-            ImageEditProvider.SUPERGROK ->
-                superGrokImageEdit(prompt, imageUrl, localFile, targetFile, model)
+        return interruptibleOperation {
+            operations.subscription_image_edit(
+                prompt,
+                provider,
+                imageUrl,
+                localFile,
+                maskUrl,
+                targetFile,
+                model,
+            )
         }
     }
 
@@ -356,17 +234,8 @@ class SubscriptionUsageMcpToolset(
         )
         targetFile: String? = null,
     ): String {
-        return when (provider) {
-            ImageGenerationProvider.OPEN_AI ->
-                codexResult(codexClient.imageGeneration(prompt, targetFile, projectBaseDirectory()))
-
-            ImageGenerationProvider.SUPERGROK -> superGrokImageGeneration(prompt, targetFile)
-
-            ImageGenerationProvider.MISTRAL -> mistralImageGeneration(prompt, targetFile)
-
-            ImageGenerationProvider.ZAI -> zaiImageGeneration(prompt, targetFile)
-
-            ImageGenerationProvider.MINIMAX -> miniMaxImageGeneration(prompt, targetFile)
+        return interruptibleOperation {
+            operations.subscription_image_generation(prompt, provider, targetFile)
         }
     }
 
@@ -382,7 +251,7 @@ class SubscriptionUsageMcpToolset(
         @McpDescription(description = "When true, use web_search_premium instead of web_search.")
         premium: Boolean = false,
     ): String {
-        return mistralWebSearch(query, model, premium)
+        return interruptibleOperation { operations.mistral_web_search(query, model, premium) }
     }
 
     @McpTool(name = "subscription_document_to_markdown")
@@ -438,109 +307,20 @@ class SubscriptionUsageMcpToolset(
         )
         imagePaddingPoints: Double = 2.0,
     ): String {
-        val imageOptions =
-            try {
-                DocumentImageOptions(imageFormat, imageDpi, imagePaddingPoints)
-            } catch (exception: IllegalArgumentException) {
-                return errorResult(exception.message ?: "Invalid image export options.")
-            }
-        if (
-            provider != DocumentToMarkdownProvider.PDFBOX &&
-                provider != DocumentToMarkdownProvider.AZURE
-        ) {
-            val chosen = model.ifBlank { documentModel(provider) }
-            if (chosen == "-" || chosen.isBlank()) {
-                return errorResult("Document conversion is off. Pick a model in settings.")
-            }
-        }
-        return when (provider) {
-            DocumentToMarkdownProvider.AZURE ->
-                azureDocumentToMarkdown(
-                    documentUrl,
-                    localFile,
-                    outputFile,
-                    includeImages,
-                    model,
-                    pageFrom,
-                    pageTo,
-                    imageOptions,
-                )
-
-            DocumentToMarkdownProvider.MISTRAL ->
-                mistralDocumentToMarkdown(
-                    documentUrl,
-                    localFile,
-                    outputFile,
-                    includeImages,
-                    model.ifBlank { documentModel(DocumentToMarkdownProvider.MISTRAL) },
-                    imageOptions,
-                )
-
-            DocumentToMarkdownProvider.ZAI ->
-                zaiDocumentToMarkdown(
-                    documentUrl,
-                    localFile,
-                    outputFile,
-                    includeImages,
-                    model.ifBlank { documentModel(DocumentToMarkdownProvider.ZAI) },
-                    imageOptions,
-                )
-
-            DocumentToMarkdownProvider.OPEN_AI ->
-                codexResult(
-                    codexClient.documentToMarkdown(
-                        documentUrl,
-                        resolveOptionalPath(localFile),
-                        resolveOptionalPath(outputFile),
-                        includeImages,
-                        model.ifBlank { documentModel(DocumentToMarkdownProvider.OPEN_AI) },
-                        pageFrom.takeIf { it > 0 },
-                        pageTo.takeIf { it > 0 },
-                    )
-                )
-
-            DocumentToMarkdownProvider.SUPERGROK ->
-                superGrokDocumentToMarkdown(
-                    documentUrl,
-                    localFile,
-                    outputFile,
-                    includeImages,
-                    model.ifBlank { documentModel(DocumentToMarkdownProvider.SUPERGROK) },
-                    pageFrom.takeIf { it > 0 },
-                    pageTo.takeIf { it > 0 },
-                )
-
-            DocumentToMarkdownProvider.GITHUB ->
-                nativePdfDocument(
-                    DocumentToMarkdownProvider.GITHUB,
-                    documentUrl,
-                    localFile,
-                    outputFile,
-                    model,
-                    pageFrom,
-                    pageTo,
-                )
-
-            DocumentToMarkdownProvider.OPEN_CODE ->
-                nativePdfDocument(
-                    DocumentToMarkdownProvider.OPEN_CODE,
-                    documentUrl,
-                    localFile,
-                    outputFile,
-                    model,
-                    pageFrom,
-                    pageTo,
-                )
-
-            DocumentToMarkdownProvider.PDFBOX ->
-                pdfBoxDocumentToMarkdown(
-                    documentUrl,
-                    localFile,
-                    outputFile,
-                    includeImages,
-                    pageFrom.takeIf { it > 0 },
-                    pageTo.takeIf { it > 0 },
-                )
+        return interruptibleOperation {
+            operations.subscription_document_to_markdown(
+                provider,
+                documentUrl,
+                localFile,
+                outputFile,
+                includeImages,
+                model,
+                pageFrom,
+                pageTo,
+                imageFormat,
+                imageDpi,
+                imagePaddingPoints,
+            )
         }
     }
 
@@ -573,56 +353,8 @@ class SubscriptionUsageMcpToolset(
         )
         model: String = "",
     ): String {
-        val chosen = model.trim().ifBlank { visionModel(provider) }
-        if (chosen == "-" || chosen.isBlank()) {
-            return errorResult(
-                "Vision is off for ${provider.providerType.displayName}. Pick a vision model in settings, or pass model="
-            )
-        }
-        val trimmedPrompt = prompt.trim()
-        if (trimmedPrompt.isBlank()) {
-            return errorResult("Image prompt is required.")
-        }
-        return when (provider) {
-            VisionProvider.OPEN_AI -> {
-                val response =
-                    codexClient.analyzeImage(
-                        imageUrl,
-                        resolveOptionalPath(localFile),
-                        trimmedPrompt,
-                        chosen,
-                    )
-                if (response.isError) response.body
-                else McpJson.visionResult(provider.name, chosen, response.body)
-            }
-
-            VisionProvider.SUPERGROK ->
-                withSuperGrokAuth("Grok image analysis failed.", error = ::errorResult) {
-                    accessToken ->
-                    McpJson.visionResult(
-                        provider.name,
-                        chosen,
-                        superGrokDocumentClient.analyzeImage(
-                            accessToken,
-                            imageUrl,
-                            resolveOptionalPath(localFile),
-                            trimmedPrompt,
-                            chosen,
-                        ),
-                    )
-                }
-
-            VisionProvider.MISTRAL -> mistralVision(trimmedPrompt, imageUrl, localFile, chosen)
-
-            VisionProvider.ZAI -> zaiVision(trimmedPrompt, imageUrl, localFile, chosen)
-
-            VisionProvider.OLLAMA -> ollamaVision(trimmedPrompt, imageUrl, localFile, chosen)
-
-            VisionProvider.GITHUB -> githubVision(trimmedPrompt, localFile, chosen)
-
-            VisionProvider.OPEN_CODE -> openCodeVision(trimmedPrompt, localFile, chosen)
-
-            VisionProvider.KIMI -> kimiVision(trimmedPrompt, imageUrl, localFile, chosen)
+        return interruptibleOperation {
+            operations.subscription_vision(prompt, provider, imageUrl, localFile, model)
         }
     }
 
@@ -634,19 +366,8 @@ class SubscriptionUsageMcpToolset(
         outputFile: String? = null,
         @McpDescription(description = "72-600. Default 300.") dpi: Int = 300,
     ): String {
-        val source =
-            resolveOptionalPath(localFile)
-                ?: return errorResult("Pass a local SVG path in localFile.")
-        return try {
-            de.moritzf.quota.shared.SvgRasterizer.toPng(
-                source,
-                resolveOptionalPath(outputFile),
-                dpi,
-            )
-        } catch (exception: kotlinx.coroutines.CancellationException) {
-            throw exception
-        } catch (exception: Exception) {
-            errorResult(exception.message ?: "SVG rasterization failed.")
+        return interruptibleOperation {
+            operations.subscription_svg_to_png(localFile, outputFile, dpi)
         }
     }
 
@@ -676,40 +397,15 @@ class SubscriptionUsageMcpToolset(
         )
         model: String = "",
     ): String {
-        return when (provider) {
-            SpeechToTextProvider.OPEN_AI ->
-                codexResult(
-                    codexClient.transcribe(
-                        audioUrl,
-                        resolveOptionalPath(localFile),
-                        language,
-                        diarize,
-                        model,
-                    )
-                )
-
-            SpeechToTextProvider.SUPERGROK ->
-                superGrokSpeechToText(audioUrl, localFile, language, diarize)
-
-            SpeechToTextProvider.MISTRAL ->
-                mistralSpeechToText(
-                    audioUrl,
-                    localFile,
-                    language,
-                    diarize,
-                    model.ifBlank { MistralAudioClient.DEFAULT_TRANSCRIBE_MODEL },
-                )
-
-            SpeechToTextProvider.ZAI ->
-                zaiSpeechToText(localFile, model.ifBlank { ZaiAudioClient.DEFAULT_MODEL })
-
-            SpeechToTextProvider.MINIMAX ->
-                miniMaxSpeechToText(
-                    localFile,
-                    language,
-                    diarize,
-                    model.ifBlank { MiniMaxAudioClient.DEFAULT_TRANSCRIBE_MODEL },
-                )
+        return interruptibleOperation {
+            operations.subscription_speech_to_text(
+                provider,
+                audioUrl,
+                localFile,
+                language,
+                diarize,
+                model,
+            )
         }
     }
 
@@ -742,40 +438,16 @@ class SubscriptionUsageMcpToolset(
         @McpDescription(description = "Audio format: mp3, wav, flac, opus, or pcm.")
         responseFormat: String = "mp3",
     ): String {
-        return when (provider) {
-            TextToSpeechProvider.OPEN_AI ->
-                codexResult(
-                    codexClient.synthesize(
-                        text,
-                        targetFile,
-                        projectBaseDirectory(),
-                        voiceId,
-                        model,
-                        responseFormat,
-                    )
-                )
-
-            TextToSpeechProvider.SUPERGROK ->
-                superGrokTextToSpeech(text, targetFile, voiceId, language = null, responseFormat)
-
-            TextToSpeechProvider.MISTRAL ->
-                mistralTextToSpeech(
-                    text,
-                    targetFile,
-                    voiceId,
-                    refAudioFile,
-                    model.ifBlank { MistralAudioClient.DEFAULT_SPEECH_MODEL },
-                    responseFormat,
-                )
-
-            TextToSpeechProvider.MINIMAX ->
-                miniMaxTextToSpeech(
-                    text,
-                    targetFile,
-                    voiceId,
-                    model.ifBlank { MiniMaxAudioClient.DEFAULT_SPEECH_MODEL },
-                    responseFormat,
-                )
+        return interruptibleOperation {
+            operations.subscription_text_to_speech(
+                text,
+                provider,
+                targetFile,
+                voiceId,
+                refAudioFile,
+                model,
+                responseFormat,
+            )
         }
     }
 
@@ -791,12 +463,7 @@ class SubscriptionUsageMcpToolset(
         )
         provider: TextToSpeechProvider = TextToSpeechProvider.OPEN_AI
     ): String {
-        return when (provider) {
-            TextToSpeechProvider.OPEN_AI -> codexResult(codexClient.listVoices())
-            TextToSpeechProvider.SUPERGROK -> superGrokListVoices()
-            TextToSpeechProvider.MISTRAL -> mistralListVoices()
-            TextToSpeechProvider.MINIMAX -> miniMaxListVoices()
-        }
+        return interruptibleOperation { operations.subscription_list_voices(provider) }
     }
 
     @McpTool(name = "subscription_video_generation")
@@ -832,27 +499,17 @@ class SubscriptionUsageMcpToolset(
         )
         targetFile: String? = null,
     ): String {
-        return when (provider) {
-            VideoGenerationProvider.SUPERGROK ->
-                superGrokVideoGeneration(
-                    prompt,
-                    model.ifBlank { SuperGrokImagineClient.DEFAULT_VIDEO_MODEL },
-                    duration,
-                    imageUrl,
-                    waitForCompletion,
-                    pollTimeoutSeconds,
-                    targetFile,
-                )
-
-            VideoGenerationProvider.ZAI ->
-                zaiVideoGeneration(
-                    prompt,
-                    model.ifBlank { ZaiVideoClient.DEFAULT_MODEL },
-                    imageUrl,
-                    waitForCompletion,
-                    pollTimeoutSeconds,
-                    targetFile,
-                )
+        return interruptibleOperation {
+            operations.subscription_video_generation(
+                prompt,
+                provider,
+                model,
+                duration,
+                imageUrl,
+                waitForCompletion,
+                pollTimeoutSeconds,
+                targetFile,
+            )
         }
     }
 
@@ -887,1275 +544,16 @@ class SubscriptionUsageMcpToolset(
         )
         targetFile: String? = null,
     ): String {
-        return superGrokVideoGeneration(
-            prompt,
-            model,
-            duration,
-            imageUrl,
-            waitForCompletion,
-            pollTimeoutSeconds,
-            targetFile,
-        )
-    }
-
-    private fun quotaResult(type: QuotaProviderType, accountParam: String? = null): String {
-        val account =
-            try {
-                de.moritzf.quota.idea.settings.AccountResolver.resolve(
-                    type,
-                    accountParam,
-                    de.moritzf.quota.idea.settings.AccountCapability.QUOTA,
-                )
-            } catch (exception: de.moritzf.quota.idea.settings.AccountResolveException) {
-                return errorResult(exception.message ?: "Account not found")
-            }
-        val registration = UsageQuotaMcpRegistry.get(type)
-        val usageService = QuotaUsageService.getInstance()
-        usageService.refreshBlocking(account.id)
-
-        val error = usageService.getLastError(account.id)
-        if (!error.isNullOrBlank()) {
-            return errorResult(error)
-        }
-
-        val payload =
-            usageService.getLastResponseJson(account.id) ?: registration.json(usageService, type)
-        if (payload.isNullOrBlank()) {
-            return errorResult(registration.emptyMessage)
-        }
-        return payload
-    }
-
-    private fun accountStatus(
-        id: String,
-        type: QuotaProviderType,
-        name: String,
-        label: String,
-        isDefault: Boolean,
-        allowFailover: Boolean,
-        descriptor: de.moritzf.quota.idea.common.ProviderDescriptor,
-        capability: de.moritzf.quota.idea.settings.AccountCapability,
-        model: String?,
-    ): McpAccountToolStatus {
-        val caps = descriptor.capabilities
-        val searchType = descriptor.webSearchType
-        val webSearchAvailable =
-            searchType != null && descriptor.isWebSearchConfiguredForAccount(id)
-        val quotaConfigured = descriptor.isQuotaConfiguredForAccount(id)
-        val reason =
-            if (searchType == null) {
-                "Web search is not offered for this provider."
-            } else if (!webSearchAvailable) {
-                descriptor.webSearchMissingReason
-            } else {
-                null
-            }
-        val quota = runCatching { QuotaUsageService.getInstance().getLastQuota(id) }.getOrNull()
-        val op = de.moritzf.quota.idea.settings.OperationQuota.status(quota, capability, model)
-        val now = kotlin.time.Clock.System.now()
-        val snapshotAgeMs =
-            op.fetchedAt?.let { fetched -> (now - fetched).inWholeMilliseconds.coerceAtLeast(0) }
-        return McpAccountToolStatus(
-            id = id,
-            type = type.id,
-            name = name,
-            label = label,
-            isDefault = isDefault,
-            allowFailover = allowFailover,
-            quotaConfigured = quotaConfigured,
-            webSearchAvailable = webSearchAvailable,
-            webSearchType = searchType,
-            webFetchAvailable = caps.webFetch && webSearchAvailable,
-            imageGenerationAvailable =
-                caps.imageGeneration && descriptor.isImageGenerationConfiguredForAccount(id),
-            videoGenerationAvailable = caps.videoGeneration && quotaConfigured,
-            speechToTextAvailable = caps.speechToText && descriptor.isVoiceConfiguredForAccount(id),
-            textToSpeechAvailable = caps.textToSpeech && descriptor.isVoiceConfiguredForAccount(id),
-            documentToMarkdownAvailable =
-                caps.documentToMarkdown && descriptor.isDocumentConfiguredForAccount(id),
-            visionAvailable = caps.vision && descriptor.isVisionConfiguredForAccount(id),
-            reason = reason,
-            snapshotAgeMs = snapshotAgeMs,
-            fetchedAt = op.fetchedAt?.toString(),
-            quotaAvailable = if (quota == null) null else !op.exhausted,
-            limitingPool = op.limitingPool,
-            usagePercent = op.usagePercent,
-            resetsAt = op.resetsAt?.toString(),
-            exhaustionReason = op.reason,
-        )
-    }
-
-    private fun codexResult(response: CodexMcpClient.CodexMcpResponse): String {
-        return response.body
-    }
-
-    private suspend fun supergrokWebSearch(
-        query: String,
-        model: String,
-        allowedDomains: String?,
-        blockedDomains: String?,
-        maxOutputTokens: Int,
-    ): String {
-        return withSuperGrokAuth("Grok web search failed.") { accessToken ->
-            superGrokSearchClient.webSearch(
-                accessToken,
-                query,
-                model,
-                allowedDomains,
-                blockedDomains,
-                maxOutputTokens,
-            )
-        }
-    }
-
-    private suspend fun superGrokSpeechToText(
-        audioUrl: String?,
-        localFile: String?,
-        language: String?,
-        diarize: Boolean,
-    ): String {
-        return withSuperGrokAuth("Grok speech-to-text failed.") { accessToken ->
-            superGrokAudioClient.transcribe(
-                accessToken,
-                audioUrl,
-                resolveOptionalPath(localFile),
-                language,
-                diarize,
-            )
-        }
-    }
-
-    private suspend fun superGrokTextToSpeech(
-        text: String,
-        targetFile: String?,
-        voiceId: String?,
-        language: String?,
-        responseFormat: String,
-    ): String {
-        return withSuperGrokAuth("Grok text-to-speech failed.") { accessToken ->
-            superGrokAudioClient.synthesize(
-                accessToken,
-                text,
-                targetFile,
-                projectBaseDirectory(),
-                voiceId,
-                language,
-                responseFormat,
-            )
-        }
-    }
-
-    private suspend fun superGrokListVoices(): String {
-        return withSuperGrokAuth("Grok voice list failed.") { accessToken ->
-            superGrokAudioClient.listVoices(accessToken)
-        }
-    }
-
-    private suspend fun superGrokDocumentToMarkdown(
-        documentUrl: String?,
-        localFile: String?,
-        outputFile: String?,
-        includeImages: Boolean,
-        model: String,
-        pageFrom: Int? = null,
-        pageTo: Int? = null,
-    ): String {
-        return withSuperGrokAuth("Grok document conversion failed.") { accessToken ->
-            superGrokDocumentClient.convertDocument(
-                accessToken = accessToken,
-                documentUrl = documentUrl,
-                localFile = resolveOptionalPath(localFile),
-                outputFile = resolveOptionalPath(outputFile),
-                includeImages = includeImages,
-                model = model,
-                pageFrom = pageFrom,
-                pageTo = pageTo,
-            )
-        }
-    }
-
-    private suspend fun superGrokImageGeneration(prompt: String, targetFile: String?): String {
-        return withSuperGrokAuth("Grok image generation failed.") { accessToken ->
-            superGrokImagineClient.generateImage(
-                accessToken = accessToken,
-                prompt = prompt,
-                targetFile = targetFile,
-                baseDirectory = projectBaseDirectory(),
-            )
-        }
-    }
-
-    private suspend fun superGrokImageEdit(
-        prompt: String,
-        imageUrl: String?,
-        localFile: String?,
-        targetFile: String?,
-        model: String,
-    ): String {
-        return withSuperGrokAuth("Grok image edit failed.") { accessToken ->
-            superGrokImagineClient.editImage(
-                accessToken = accessToken,
-                prompt = prompt,
-                imageUrl = imageUrl,
-                localFile = resolveOptionalPath(localFile),
-                model = model,
-                targetFile = targetFile,
-                baseDirectory = projectBaseDirectory(),
-            )
-        }
-    }
-
-    private suspend fun superGrokVideoGeneration(
-        prompt: String,
-        model: String,
-        duration: Int,
-        imageUrl: String?,
-        waitForCompletion: Boolean,
-        pollTimeoutSeconds: Int,
-        targetFile: String? = null,
-    ): String {
-        return withSuperGrokAuth("Grok video generation failed.") { accessToken ->
-            superGrokImagineClient.generateVideo(
-                accessToken = accessToken,
-                prompt = prompt,
-                model = model,
-                duration = duration,
-                imageUrl = imageUrl,
-                waitForCompletion = waitForCompletion,
-                pollTimeoutSeconds = pollTimeoutSeconds,
-                targetFile = targetFile,
-                baseDirectory = projectBaseDirectory(),
-            )
-        }
-    }
-
-    private suspend fun withSuperGrokAuth(
-        failureLabel: String,
-        error: (String) -> String = ::searchError,
-        block: suspend (String) -> String,
-    ): String {
-        val authService = QuotaAuthService.getInstance()
-        val account =
-            try {
-                de.moritzf.quota.idea.settings.AccountResolver.resolve(
-                    QuotaProviderType.SUPERGROK,
-                    capability = de.moritzf.quota.idea.settings.AccountCapability.WEB_SEARCH,
-                )
-            } catch (exception: de.moritzf.quota.idea.settings.AccountResolveException) {
-                return error(
-                    exception.message ?: "Grok login required. Log in from SuperGrok settings."
-                )
-            }
-        val token = authService.getAccessTokenBlocking(account.id, QuotaProviderType.SUPERGROK)
-        if (token.isNullOrBlank()) {
-            return error("Grok login required. Log in from SuperGrok settings.")
-        }
-        return try {
-            block(token)
-        } catch (exception: SuperGrokQuotaException) {
-            noteSpendRateLimit(account.id, exception.statusCode)
-            if (exception.statusCode == 401 || exception.statusCode == 403) {
-                val refreshed =
-                    authService.forceRefreshBlocking(account.id, QuotaProviderType.SUPERGROK, token)
-                if (!refreshed.isNullOrBlank()) {
-                    return try {
-                        block(refreshed)
-                    } catch (retryException: SuperGrokQuotaException) {
-                        noteSpendRateLimit(account.id, retryException.statusCode)
-                        error(retryException.message ?: failureLabel)
-                    } catch (retryException: Exception) {
-                        error(retryException.message ?: failureLabel)
-                    }
-                }
-            }
-            error(exception.message ?: failureLabel)
-        } catch (exception: Exception) {
-            error(exception.message ?: failureLabel)
-        }
-    }
-
-    private suspend fun kimiWebSearch(query: String, limit: Int, includeContent: Boolean): String {
-        val account =
-            try {
-                de.moritzf.quota.idea.settings.AccountResolver.resolve(
-                    QuotaProviderType.KIMI,
-                    capability = de.moritzf.quota.idea.settings.AccountCapability.WEB_SEARCH,
-                )
-            } catch (exception: de.moritzf.quota.idea.settings.AccountResolveException) {
-                return searchError(
-                    exception.message ?: "Kimi login required. Log in from settings."
-                )
-            }
-        val store = KimiCredentialsStore.forAccount(account.id)
-        val credentials = store.loadBlocking()
-        if (credentials?.isUsable() != true) {
-            return searchError("Kimi login required. Log in from settings.")
-        }
-        return try {
-            val result = kimiSearchClient.webSearch(credentials, query, limit, includeContent)
-            if (result.credentials != credentials) {
-                store.save(result.credentials)
-            }
-            result.body
-        } catch (exception: KimiQuotaException) {
-            noteSpendRateLimit(account.id, exception.statusCode)
-            searchError(exception.message ?: "Kimi web search failed.")
-        } catch (exception: Exception) {
-            searchError(exception.message ?: "Kimi web search failed.")
-        }
-    }
-
-    private suspend fun zaiWebSearch(query: String, limit: Int, includeContent: Boolean): String {
-        val apiKey =
-            resolvedApiKey(QuotaProviderType.ZAI, AccountCapability.WEB_SEARCH) {
-                ZaiApiKeyStore.forAccount(it).loadBlocking()
-            }
-        if (apiKey.isNullOrBlank()) {
-            return searchError("Z.ai API key missing. Add a Z.ai API key in settings.")
-        }
-        return try {
-            zaiSearchClient.webSearch(apiKey, query, limit, includeContent)
-        } catch (exception: ZaiQuotaException) {
-            searchError(exception.message ?: "Z.ai web search failed.")
-        } catch (exception: Exception) {
-            searchError(exception.message ?: "Z.ai web search failed.")
-        }
-    }
-
-    private suspend fun miniMaxWebSearch(
-        query: String,
-        limit: Int,
-        includeContent: Boolean,
-    ): String {
-        val apiKey =
-            resolvedApiKey(QuotaProviderType.MINIMAX, AccountCapability.WEB_SEARCH) {
-                MiniMaxApiKeyStore.forAccount(it).loadBlocking()
-            }
-        if (apiKey.isNullOrBlank()) {
-            return searchError("MiniMax API key missing. Add a MiniMax API key in settings.")
-        }
-        var lastException: Exception? = null
-        for (region in miniMaxSearchRegions(AccountCapability.WEB_SEARCH)) {
-            try {
-                return miniMaxSearchClient.webSearch(apiKey, region, query, limit, includeContent)
-            } catch (exception: MiniMaxQuotaException) {
-                lastException = exception
-            } catch (exception: Exception) {
-                lastException = exception
-            }
-        }
-        return searchError(lastException?.message ?: "MiniMax web search failed.")
-    }
-
-    private suspend fun mistralWebSearch(query: String, model: String, premium: Boolean): String {
-        val apiKey =
-            resolvedApiKey(QuotaProviderType.MISTRAL, AccountCapability.WEB_SEARCH) {
-                MistralApiKeyStore.forAccount(it).loadBlocking()
-            }
-        if (apiKey.isNullOrBlank()) {
-            return searchError("Mistral API key missing. Add a Mistral API key in settings.")
-        }
-        return try {
-            mistralSearchClient.webSearch(apiKey, query, model, premium)
-        } catch (exception: MistralQuotaException) {
-            searchError(exception.message ?: "Mistral web search failed.")
-        } catch (exception: Exception) {
-            searchError(exception.message ?: "Mistral web search failed.")
-        }
-    }
-
-    private suspend fun miniMaxImageGeneration(prompt: String, targetFile: String?): String {
-        return withMiniMaxKey(
-            "MiniMax image generation failed.",
-            AccountCapability.IMAGE_GENERATION,
-        ) { apiKey, region ->
-            miniMaxImageClient.generateImage(
-                apiKey,
-                region,
-                prompt,
-                targetFile,
-                projectBaseDirectory(),
-            )
-        }
-    }
-
-    private suspend fun miniMaxTextToSpeech(
-        text: String,
-        targetFile: String?,
-        voiceId: String?,
-        model: String,
-        responseFormat: String,
-    ): String {
-        return withMiniMaxKey("MiniMax text-to-speech failed.", AccountCapability.TEXT_TO_SPEECH) {
-            apiKey,
-            region ->
-            miniMaxAudioClient.synthesize(
-                apiKey,
-                region,
-                text,
-                targetFile,
-                projectBaseDirectory(),
-                voiceId,
-                model,
-                responseFormat,
-            )
-        }
-    }
-
-    private suspend fun miniMaxListVoices(): String {
-        return withMiniMaxKey("MiniMax voice list failed.", AccountCapability.LIST_VOICES) {
-            apiKey,
-            region ->
-            miniMaxAudioClient.listVoices(apiKey, region)
-        }
-    }
-
-    private suspend fun miniMaxSpeechToText(
-        localFile: String?,
-        language: String?,
-        diarize: Boolean,
-        model: String,
-    ): String {
-        return withMiniMaxKey("MiniMax speech-to-text failed.", AccountCapability.SPEECH_TO_TEXT) {
-            apiKey,
-            region ->
-            miniMaxAudioClient.transcribe(
-                apiKey,
-                region,
-                resolveOptionalPath(localFile),
-                language,
-                diarize,
-                model,
-            )
-        }
-    }
-
-    private suspend fun zaiSpeechToText(localFile: String?, model: String): String {
-        val apiKey =
-            resolvedApiKey(QuotaProviderType.ZAI, AccountCapability.SPEECH_TO_TEXT) {
-                ZaiApiKeyStore.forAccount(it).loadBlocking()
-            }
-        if (apiKey.isNullOrBlank()) {
-            return errorResult("Z.ai API key missing. Add a Z.ai API key in settings.")
-        }
-        return try {
-            zaiAudioClient.transcribe(
-                apiKey,
-                localFile = resolveOptionalPath(localFile),
-                model = model,
-            )
-        } catch (exception: ZaiQuotaException) {
-            errorResult(exception.message ?: "Z.ai speech-to-text failed.")
-        } catch (exception: Exception) {
-            errorResult(exception.message ?: "Z.ai speech-to-text failed.")
-        }
-    }
-
-    private suspend fun zaiVideoGeneration(
-        prompt: String,
-        model: String,
-        imageUrl: String?,
-        waitForCompletion: Boolean,
-        pollTimeoutSeconds: Int,
-        targetFile: String? = null,
-    ): String {
-        val apiKey =
-            resolvedApiKey(QuotaProviderType.ZAI, AccountCapability.VIDEO_GENERATION) {
-                ZaiApiKeyStore.forAccount(it).loadBlocking()
-            }
-        if (apiKey.isNullOrBlank()) {
-            return errorResult("Z.ai API key missing. Add a Z.ai API key in settings.")
-        }
-        return try {
-            zaiVideoClient.generateVideo(
-                apiKey,
+        return interruptibleOperation {
+            operations.supergrok_video_generation(
                 prompt,
                 model,
+                duration,
                 imageUrl,
                 waitForCompletion,
                 pollTimeoutSeconds,
                 targetFile,
-                projectBaseDirectory(),
-            )
-        } catch (exception: ZaiQuotaException) {
-            errorResult(exception.message ?: "Z.ai video generation failed.")
-        } catch (exception: Exception) {
-            errorResult(exception.message ?: "Z.ai video generation failed.")
-        }
-    }
-
-    private suspend fun withMiniMaxKey(
-        failureLabel: String,
-        capability: AccountCapability,
-        block: suspend (String, MiniMaxRegion) -> String,
-    ): String {
-        val apiKey =
-            resolvedApiKey(QuotaProviderType.MINIMAX, capability) {
-                MiniMaxApiKeyStore.forAccount(it).loadBlocking()
-            }
-        if (apiKey.isNullOrBlank()) {
-            return errorResult("MiniMax API key missing. Add a MiniMax API key in settings.")
-        }
-        var lastException: Exception? = null
-        for (region in miniMaxSearchRegions(capability)) {
-            try {
-                return block(apiKey, region)
-            } catch (exception: MiniMaxQuotaException) {
-                lastException = exception
-            } catch (exception: Exception) {
-                lastException = exception
-            }
-        }
-        return errorResult(lastException?.message ?: failureLabel)
-    }
-
-    private suspend fun zaiImageGeneration(prompt: String, targetFile: String?): String {
-        val apiKey =
-            resolvedApiKey(QuotaProviderType.ZAI, AccountCapability.IMAGE_GENERATION) {
-                ZaiApiKeyStore.forAccount(it).loadBlocking()
-            }
-        if (apiKey.isNullOrBlank()) {
-            return errorResult("Z.ai API key missing. Add a Z.ai API key in settings.")
-        }
-        return try {
-            zaiImageClient.generateImage(apiKey, prompt, targetFile, projectBaseDirectory())
-        } catch (exception: ZaiQuotaException) {
-            errorResult(exception.message ?: "Z.ai image generation failed.")
-        } catch (exception: Exception) {
-            errorResult(exception.message ?: "Z.ai image generation failed.")
-        }
-    }
-
-    private suspend fun mistralImageGeneration(prompt: String, targetFile: String?): String {
-        val apiKey =
-            resolvedApiKey(QuotaProviderType.MISTRAL, AccountCapability.IMAGE_GENERATION) {
-                MistralApiKeyStore.forAccount(it).loadBlocking()
-            }
-        if (apiKey.isNullOrBlank()) {
-            return errorResult("Mistral API key missing. Add a Mistral API key in settings.")
-        }
-        return try {
-            mistralImageClient.generateImage(apiKey, prompt, targetFile, projectBaseDirectory())
-        } catch (exception: MistralQuotaException) {
-            errorResult(exception.message ?: "Mistral image generation failed.")
-        } catch (exception: Exception) {
-            errorResult(exception.message ?: "Mistral image generation failed.")
-        }
-    }
-
-    private suspend fun mistralDocumentToMarkdown(
-        documentUrl: String?,
-        localFile: String?,
-        outputFile: String?,
-        includeImages: Boolean,
-        model: String,
-        imageOptions: DocumentImageOptions,
-    ): String {
-        val apiKey =
-            resolvedApiKey(
-                QuotaProviderType.MISTRAL,
-                AccountCapability.DOCUMENT_TO_MARKDOWN,
-            ) {
-                MistralApiKeyStore.forAccount(it).loadBlocking()
-            }
-        if (apiKey.isNullOrBlank()) {
-            return errorResult("Mistral API key missing. Add a Mistral API key in settings.")
-        }
-        return try {
-            mistralOcrClient.convertDocument(
-                apiKey = apiKey,
-                documentUrl = documentUrl,
-                localFile = resolveOptionalPath(localFile),
-                outputFile = resolveOptionalPath(outputFile),
-                includeImages = includeImages,
-                model = model,
-                imageOptions = imageOptions,
-            )
-        } catch (exception: MistralQuotaException) {
-            errorResult(exception.message ?: "Mistral OCR failed.")
-        } catch (exception: Exception) {
-            errorResult(exception.message ?: "Mistral OCR failed.")
-        }
-    }
-
-    private suspend fun azureDocumentToMarkdown(
-        documentUrl: String?,
-        localFile: String?,
-        outputFile: String?,
-        includeImages: Boolean,
-        model: String,
-        pageFrom: Int,
-        pageTo: Int,
-        imageOptions: DocumentImageOptions,
-    ): String {
-        val accountId =
-            try {
-                de.moritzf.quota.idea.settings.AccountResolver.resolve(
-                        QuotaProviderType.AZURE,
-                        capability = AccountCapability.DOCUMENT_TO_MARKDOWN,
-                    )
-                    .id
-            } catch (_: de.moritzf.quota.idea.settings.AccountResolveException) {
-                return errorResult("Add an Azure account in settings to use OCR.")
-            }
-        val deployment =
-            azureDocumentSelection(model, AzureQuotaProvider.ocrDeploymentForAccount(accountId))
-                ?: return errorResult(
-                    "Select an Azure document model in settings, or pass model. '-' disables the settings default."
-                )
-        val deploymentId = azureOcrDeploymentId(deployment)
-        if (
-            de.moritzf.quota.azure.isAzureNativePdfSelection(deployment) &&
-                (pageFrom > 0 || pageTo > 0)
-        ) {
-            return errorResult("pageFrom/pageTo are not supported for Azure native PDF.")
-        }
-        if (
-            deployment != AZURE_DOCUMENT_INTELLIGENCE_LAYOUT &&
-                !isAzureCohereSelection(deployment) &&
-                !de.moritzf.quota.azure.isAzureNativePdfSelection(deployment) &&
-                (pageFrom > 0 || pageTo > 0)
-        )
-            return errorResult("pageFrom/pageTo are not supported for Azure Mistral OCR.")
-        if (deployment == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT && (pageFrom > 0 || pageTo > 0)) {
-            return errorResult("pageFrom/pageTo are not supported for Azure Document Intelligence.")
-        }
-        val executable =
-            AzureQuotaProvider.executableForAccount(accountId)
-                ?: return errorResult("Azure CLI not found. Set its path in Azure settings.")
-        return try {
-            val cli = AzureCli(executable)
-            val config = AzureQuotaProvider.configForAccount(accountId)
-            val sourceFile = resolveOptionalPath(localFile)
-            val destination = resolveOptionalPath(outputFile)
-            when {
-                de.moritzf.quota.azure.isAzureNativePdfSelection(deployment) -> {
-                    val source =
-                        sourceFile
-                            ?: return errorResult("Azure native PDF conversion needs a local PDF.")
-                    val nativeOutput =
-                        destination
-                            ?: de.moritzf.quota.shared.DocumentMarkdown.defaultOutput(source)
-                            ?: return errorResult(
-                                "Azure native PDF conversion needs an output path."
-                            )
-                    de.moritzf.quota.idea.action.NativeDocumentConversion.azure(
-                        accountId,
-                        deployment,
-                        source,
-                        nativeOutput,
-                    )
-                }
-                deployment == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT ->
-                    azureDocumentIntelligenceClient.convertDocument(
-                        cli,
-                        config,
-                        documentUrl,
-                        sourceFile,
-                        destination,
-                        includeImages,
-                        imageOptions,
-                    )
-                isAzureCohereSelection(deployment) ->
-                    azureCohereParseClient.convertDocument(
-                        cli,
-                        config,
-                        deploymentId,
-                        documentUrl,
-                        sourceFile,
-                        destination,
-                        includeImages,
-                        pageFrom.takeIf { it > 0 },
-                        pageTo.takeIf { it > 0 },
-                        imageOptions,
-                    )
-                else ->
-                    azureOcrClient.convertDocument(
-                        cli,
-                        config,
-                        deploymentId,
-                        documentUrl,
-                        sourceFile,
-                        destination,
-                        includeImages,
-                        imageOptions = imageOptions,
-                    )
-            }
-        } catch (exception: AzureOcrException) {
-            errorResult(exception.message ?: "Azure OCR failed.")
-        } catch (exception: Exception) {
-            errorResult(exception.message ?: "Azure OCR failed.")
-        }
-    }
-
-    private suspend fun zaiDocumentToMarkdown(
-        documentUrl: String?,
-        localFile: String?,
-        outputFile: String?,
-        includeImages: Boolean,
-        model: String,
-        imageOptions: DocumentImageOptions,
-    ): String {
-        val apiKey =
-            resolvedApiKey(QuotaProviderType.ZAI, AccountCapability.DOCUMENT_TO_MARKDOWN) {
-                ZaiApiKeyStore.forAccount(it).loadBlocking()
-            }
-        if (apiKey.isNullOrBlank()) {
-            return errorResult("Z.ai API key missing. Add a Z.ai API key in settings.")
-        }
-        return try {
-            zaiOcrClient.convertDocument(
-                apiKey = apiKey,
-                documentUrl = documentUrl,
-                localFile = resolveOptionalPath(localFile),
-                outputFile = resolveOptionalPath(outputFile),
-                includeImages = includeImages,
-                model = model,
-                imageOptions = imageOptions,
-            )
-        } catch (exception: ZaiQuotaException) {
-            errorResult(exception.message ?: "Z.ai OCR failed.")
-        } catch (exception: Exception) {
-            errorResult(exception.message ?: "Z.ai OCR failed.")
-        }
-    }
-
-    private suspend fun mistralSpeechToText(
-        audioUrl: String?,
-        localFile: String?,
-        language: String?,
-        diarize: Boolean,
-        model: String,
-    ): String {
-        val apiKey =
-            resolvedApiKey(QuotaProviderType.MISTRAL, AccountCapability.SPEECH_TO_TEXT) {
-                MistralApiKeyStore.forAccount(it).loadBlocking()
-            }
-        if (apiKey.isNullOrBlank()) {
-            return errorResult("Mistral API key missing. Add a Mistral API key in settings.")
-        }
-        return try {
-            mistralAudioClient.transcribe(
-                apiKey = apiKey,
-                audioUrl = audioUrl,
-                localFile = resolveOptionalPath(localFile),
-                language = language,
-                diarize = diarize,
-                model = model,
-            )
-        } catch (exception: MistralQuotaException) {
-            errorResult(exception.message ?: "Mistral speech-to-text failed.")
-        } catch (exception: Exception) {
-            errorResult(exception.message ?: "Mistral speech-to-text failed.")
-        }
-    }
-
-    private suspend fun mistralTextToSpeech(
-        text: String,
-        targetFile: String?,
-        voiceId: String?,
-        refAudioFile: String?,
-        model: String,
-        responseFormat: String,
-    ): String {
-        val apiKey =
-            resolvedApiKey(QuotaProviderType.MISTRAL, AccountCapability.TEXT_TO_SPEECH) {
-                MistralApiKeyStore.forAccount(it).loadBlocking()
-            }
-        if (apiKey.isNullOrBlank()) {
-            return errorResult("Mistral API key missing. Add a Mistral API key in settings.")
-        }
-        return try {
-            mistralAudioClient.synthesize(
-                apiKey = apiKey,
-                text = text,
-                targetFile = targetFile,
-                baseDirectory = projectBaseDirectory(),
-                voiceId = voiceId,
-                refAudioFile = resolveOptionalPath(refAudioFile),
-                model = model,
-                responseFormat = responseFormat,
-            )
-        } catch (exception: MistralQuotaException) {
-            errorResult(exception.message ?: "Mistral text-to-speech failed.")
-        } catch (exception: Exception) {
-            errorResult(exception.message ?: "Mistral text-to-speech failed.")
-        }
-    }
-
-    private fun mistralListVoices(): String {
-        val apiKey =
-            resolvedApiKey(QuotaProviderType.MISTRAL, AccountCapability.LIST_VOICES) {
-                MistralApiKeyStore.forAccount(it).loadBlocking()
-            }
-        if (apiKey.isNullOrBlank()) {
-            return errorResult("Mistral API key missing. Add a Mistral API key in settings.")
-        }
-        return try {
-            mistralAudioClient.listVoices(apiKey)
-        } catch (exception: MistralQuotaException) {
-            errorResult(exception.message ?: "Mistral voice list failed.")
-        } catch (exception: Exception) {
-            errorResult(exception.message ?: "Mistral voice list failed.")
-        }
-    }
-
-    private suspend fun resolveOptionalPath(value: String?): Path? {
-        val trimmed = value?.trim()?.takeIf { it.isNotBlank() } ?: return null
-        val path = Path.of(trimmed)
-        if (path.isAbsolute) return path.normalize()
-        val project = currentCoroutineContext().projectOrNull ?: return path.normalize()
-        return project.resolveInProject(trimmed, throwWhenOutside = false)
-    }
-
-    private fun ollamaWebFetch(url: String): String {
-        val apiKey =
-            resolvedApiKey(QuotaProviderType.OLLAMA, AccountCapability.WEB_SEARCH) {
-                OllamaApiKeyStore.forAccount(it).loadBlocking()
-            }
-        if (apiKey.isNullOrBlank()) {
-            return errorResult("Ollama API key missing. Add an Ollama API key in settings.")
-        }
-        return try {
-            ollamaSearchClient.webFetch(apiKey, url)
-        } catch (exception: OllamaQuotaException) {
-            errorResult(exception.message ?: "Ollama web fetch failed.")
-        } catch (exception: Exception) {
-            errorResult(exception.message ?: "Ollama web fetch failed.")
-        }
-    }
-
-    private fun zaiWebFetch(url: String): String {
-        val apiKey =
-            resolvedApiKey(QuotaProviderType.ZAI, AccountCapability.WEB_SEARCH) {
-                ZaiApiKeyStore.forAccount(it).loadBlocking()
-            }
-        if (apiKey.isNullOrBlank()) {
-            return errorResult("Z.ai API key missing. Add a Z.ai API key in settings.")
-        }
-        return try {
-            zaiSearchClient.webFetch(apiKey, url)
-        } catch (exception: ZaiQuotaException) {
-            errorResult(exception.message ?: "Z.ai web fetch failed.")
-        } catch (exception: Exception) {
-            errorResult(exception.message ?: "Z.ai web fetch failed.")
-        }
-    }
-
-    private suspend fun ollamaWebSearch(
-        query: String,
-        limit: Int,
-        includeContent: Boolean,
-    ): String {
-        val apiKey =
-            resolvedApiKey(QuotaProviderType.OLLAMA, AccountCapability.WEB_SEARCH) {
-                OllamaApiKeyStore.forAccount(it).loadBlocking()
-            }
-        if (apiKey.isNullOrBlank()) {
-            return searchError("Ollama API key missing. Add an Ollama API key in settings.")
-        }
-        return try {
-            ollamaSearchClient.webSearch(apiKey, query, limit, includeContent)
-        } catch (exception: OllamaQuotaException) {
-            searchError(exception.message ?: "Ollama web search failed.")
-        } catch (exception: Exception) {
-            searchError(exception.message ?: "Ollama web search failed.")
-        }
-    }
-
-    private fun noteSpendRateLimit(accountId: String, statusCode: Int?) {
-        if (statusCode == 429) {
-            de.moritzf.quota.idea.settings.AccountResolver.markRateLimited(accountId)
-        }
-    }
-
-    private suspend fun nativePdfDocument(
-        provider: DocumentToMarkdownProvider,
-        documentUrl: String?,
-        localFile: String?,
-        outputFile: String?,
-        model: String,
-        pageFrom: Int,
-        pageTo: Int,
-    ): String {
-        if (pageFrom > 0 || pageTo > 0)
-            return errorResult("pageFrom/pageTo are not supported for native PDF.")
-        if (!documentUrl.isNullOrBlank())
-            return errorResult("This provider needs a local PDF in localFile.")
-        val source =
-            resolveOptionalPath(localFile)
-                ?: return errorResult("Pass a local PDF path in localFile.")
-        val output =
-            resolveOptionalPath(outputFile)
-                ?: de.moritzf.quota.shared.DocumentMarkdown.defaultOutput(source)
-                ?: return errorResult("Could not choose an output path.")
-        val type = provider.providerType ?: return errorResult("Unknown document provider.")
-        val account =
-            try {
-                de.moritzf.quota.idea.settings.AccountResolver.resolve(
-                        type,
-                        capability = AccountCapability.DOCUMENT_TO_MARKDOWN,
-                    )
-                    .id
-            } catch (_: de.moritzf.quota.idea.settings.AccountResolveException) {
-                return errorResult("Sign in to ${type.displayName} in settings.")
-            }
-        val selected = model.ifBlank { documentModel(provider) }
-        return try {
-            when (provider) {
-                DocumentToMarkdownProvider.GITHUB ->
-                    de.moritzf.quota.idea.action.NativeDocumentConversion.github(
-                        account,
-                        selected,
-                        source,
-                        output,
-                    )
-                DocumentToMarkdownProvider.OPEN_CODE ->
-                    de.moritzf.quota.idea.action.NativeDocumentConversion.openCode(
-                        account,
-                        selected,
-                        source,
-                        output,
-                    )
-                else -> errorResult("Unsupported native PDF provider.")
-            }
-        } catch (exception: kotlinx.coroutines.CancellationException) {
-            throw exception
-        } catch (exception: Exception) {
-            errorResult(exception.message ?: "Document conversion failed.")
-        }
-    }
-
-    private suspend fun pdfBoxDocumentToMarkdown(
-        documentUrl: String?,
-        localFile: String?,
-        outputFile: String?,
-        includeImages: Boolean,
-        pageFrom: Int?,
-        pageTo: Int?,
-    ): String {
-        if (!documentUrl.isNullOrBlank()) {
-            return errorResult(
-                "PDFBox only reads a local PDF. Pass localFile, or use an OCR provider for a URL."
             )
         }
-        val source =
-            resolveOptionalPath(localFile)
-                ?: return errorResult("PDFBox needs a local PDF path in localFile.")
-        return try {
-            de.moritzf.quota.openai.proxy.pdf.PdfBoxMarkdown.convert(
-                source,
-                resolveOptionalPath(outputFile),
-                includeImages,
-                pageFrom,
-                pageTo,
-            )
-        } catch (exception: kotlinx.coroutines.CancellationException) {
-            throw exception
-        } catch (exception: Exception) {
-            errorResult(exception.message ?: "PDFBox text extraction failed.")
-        }
-    }
-
-    private fun documentModel(provider: DocumentToMarkdownProvider): String {
-        val type = provider.providerType ?: return ""
-        val accountId =
-            runCatching {
-                de.moritzf.quota.idea.settings.AccountResolver.resolve(
-                        type,
-                        capability =
-                            de.moritzf.quota.idea.settings.AccountCapability.DOCUMENT_TO_MARKDOWN,
-                    )
-                    .id
-            }
-                .getOrNull() ?: return ""
-        return de.moritzf.quota.idea.settings.DocumentModelSelection.forAccount(type, accountId)
-    }
-
-    private fun visionModel(provider: VisionProvider): String {
-        val accountId =
-            runCatching {
-                de.moritzf.quota.idea.settings.AccountResolver.resolve(
-                        provider.providerType,
-                        capability = AccountCapability.VISION,
-                    )
-                    .id
-            }
-                .getOrNull() ?: return ""
-        return de.moritzf.quota.idea.settings.VisionModelSelection.forAccount(
-            provider.providerType,
-            accountId,
-        )
-    }
-
-    private suspend fun mistralVision(
-        prompt: String,
-        imageUrl: String?,
-        localFile: String?,
-        model: String,
-    ): String {
-        val apiKey =
-            resolvedApiKey(QuotaProviderType.MISTRAL, AccountCapability.VISION) {
-                MistralApiKeyStore.forAccount(it).loadBlocking()
-            }
-        if (apiKey.isNullOrBlank()) {
-            return errorResult("Mistral API key missing. Add a Mistral API key in settings.")
-        }
-        return try {
-            val answer =
-                mistralVisionClient.ask(
-                    apiKey,
-                    imageUrl,
-                    resolveOptionalPath(localFile),
-                    prompt,
-                    model,
-                )
-            McpJson.visionResult(VisionProvider.MISTRAL.name, model, answer)
-        } catch (exception: MistralQuotaException) {
-            errorResult(exception.message ?: "Mistral image analysis failed.")
-        } catch (exception: Exception) {
-            errorResult(exception.message ?: "Mistral image analysis failed.")
-        }
-    }
-
-    private suspend fun zaiVision(
-        prompt: String,
-        imageUrl: String?,
-        localFile: String?,
-        model: String,
-    ): String {
-        val apiKey =
-            resolvedApiKey(QuotaProviderType.ZAI, AccountCapability.VISION) {
-                ZaiApiKeyStore.forAccount(it).loadBlocking()
-            }
-        if (apiKey.isNullOrBlank()) {
-            return errorResult("Z.ai API key missing. Add a Z.ai API key in settings.")
-        }
-        return try {
-            val answer =
-                zaiVisionClient.ask(apiKey, imageUrl, resolveOptionalPath(localFile), prompt, model)
-            McpJson.visionResult(VisionProvider.ZAI.name, model, answer)
-        } catch (exception: ZaiQuotaException) {
-            errorResult(exception.message ?: "Z.ai image analysis failed.")
-        } catch (exception: Exception) {
-            errorResult(exception.message ?: "Z.ai image analysis failed.")
-        }
-    }
-
-    private suspend fun ollamaVision(
-        prompt: String,
-        imageUrl: String?,
-        localFile: String?,
-        model: String,
-    ): String {
-        val apiKey =
-            resolvedApiKey(QuotaProviderType.OLLAMA, AccountCapability.VISION) {
-                OllamaApiKeyStore.forAccount(it).loadBlocking()
-            }
-        if (apiKey.isNullOrBlank()) {
-            return errorResult("Ollama API key missing. Add an Ollama API key in settings.")
-        }
-        return try {
-            val answer =
-                ollamaVisionClient.ask(
-                    apiKey,
-                    imageUrl,
-                    resolveOptionalPath(localFile),
-                    prompt,
-                    model,
-                )
-            McpJson.visionResult(VisionProvider.OLLAMA.name, model, answer)
-        } catch (exception: OllamaQuotaException) {
-            errorResult(exception.message ?: "Ollama image analysis failed.")
-        } catch (exception: Exception) {
-            errorResult(exception.message ?: "Ollama image analysis failed.")
-        }
-    }
-
-    private suspend fun kimiVision(
-        prompt: String,
-        imageUrl: String?,
-        localFile: String?,
-        model: String,
-    ): String {
-        val account =
-            try {
-                de.moritzf.quota.idea.settings.AccountResolver.resolve(
-                    QuotaProviderType.KIMI,
-                    capability = AccountCapability.VISION,
-                )
-            } catch (exception: de.moritzf.quota.idea.settings.AccountResolveException) {
-                return errorResult(
-                    exception.message ?: "Kimi login required. Log in from settings."
-                )
-            }
-        val store = KimiCredentialsStore.forAccount(account.id)
-        val credentials = store.loadBlocking()
-        if (credentials?.isUsable() != true) {
-            return errorResult("Kimi login required. Log in from settings.")
-        }
-        return try {
-            val result =
-                kimiVisionClient.ask(
-                    credentials,
-                    imageUrl,
-                    resolveOptionalPath(localFile),
-                    prompt,
-                    model,
-                )
-            if (result.credentials != credentials) {
-                store.save(result.credentials)
-            }
-            McpJson.visionResult(VisionProvider.KIMI.name, model, result.answer)
-        } catch (exception: KimiQuotaException) {
-            noteSpendRateLimit(account.id, exception.statusCode)
-            errorResult(exception.message ?: "Kimi image analysis failed.")
-        } catch (exception: Exception) {
-            errorResult(exception.message ?: "Kimi image analysis failed.")
-        }
-    }
-
-    private suspend fun githubVision(prompt: String, localFile: String?, model: String): String {
-        val source =
-            resolveOptionalPath(localFile)
-                ?: return errorResult(
-                    "GitHub Copilot vision needs a local image file in localFile."
-                )
-        val account =
-            try {
-                de.moritzf.quota.idea.settings.AccountResolver.resolve(
-                        QuotaProviderType.GITHUB,
-                        capability = AccountCapability.VISION,
-                    )
-                    .id
-            } catch (_: de.moritzf.quota.idea.settings.AccountResolveException) {
-                return errorResult("Sign in to GitHub Copilot in settings.")
-            }
-        return try {
-            val answer =
-                de.moritzf.quota.idea.action.NativeDocumentConversion.githubVision(
-                    account,
-                    model,
-                    source,
-                    prompt,
-                )
-            McpJson.visionResult(VisionProvider.GITHUB.name, model, answer)
-        } catch (exception: kotlinx.coroutines.CancellationException) {
-            throw exception
-        } catch (exception: Exception) {
-            errorResult(exception.message ?: "GitHub Copilot image analysis failed.")
-        }
-    }
-
-    private suspend fun openCodeVision(prompt: String, localFile: String?, model: String): String {
-        val source =
-            resolveOptionalPath(localFile)
-                ?: return errorResult("OpenCode vision needs a local image file in localFile.")
-        val account =
-            try {
-                de.moritzf.quota.idea.settings.AccountResolver.resolve(
-                        QuotaProviderType.OPEN_CODE,
-                        capability = AccountCapability.VISION,
-                    )
-                    .id
-            } catch (_: de.moritzf.quota.idea.settings.AccountResolveException) {
-                return errorResult("Sign in to OpenCode in settings.")
-            }
-        return try {
-            val answer =
-                de.moritzf.quota.idea.action.NativeDocumentConversion.openCodeVision(
-                    account,
-                    model,
-                    source,
-                    prompt,
-                )
-            McpJson.visionResult(VisionProvider.OPEN_CODE.name, model, answer)
-        } catch (exception: kotlinx.coroutines.CancellationException) {
-            throw exception
-        } catch (exception: Exception) {
-            errorResult(exception.message ?: "OpenCode image analysis failed.")
-        }
-    }
-
-    private fun resolvedApiKey(
-        type: QuotaProviderType,
-        capability: AccountCapability,
-        load: (String) -> String?,
-    ): String? {
-        val account =
-            try {
-                de.moritzf.quota.idea.settings.AccountResolver.resolve(
-                    type,
-                    capability = capability,
-                )
-            } catch (_: de.moritzf.quota.idea.settings.AccountResolveException) {
-                return null
-            }
-        return load(account.id)
-    }
-
-    private suspend fun projectBaseDirectory(): Path? {
-        return currentCoroutineContext().projectOrNull?.projectDirectory
-    }
-
-    private fun miniMaxSearchRegions(capability: AccountCapability): List<MiniMaxRegion> {
-        val settings = runCatching { QuotaSettingsState.getInstance() }.getOrNull()
-        val accountId = runCatching {
-            de.moritzf.quota.idea.settings.AccountResolver.resolve(
-                    QuotaProviderType.MINIMAX,
-                    capability = capability,
-                )
-                .id
-        }
-            .getOrNull()
-        val preference =
-            when {
-                settings == null -> MiniMaxRegionPreference.AUTO
-                accountId != null -> settings.miniMaxRegionFor(accountId)
-                else -> settings.miniMaxRegionPreference()
-            }
-        return when (preference) {
-            MiniMaxRegionPreference.GLOBAL -> listOf(MiniMaxRegion.GLOBAL)
-            MiniMaxRegionPreference.CN -> listOf(MiniMaxRegion.CN)
-            MiniMaxRegionPreference.AUTO -> listOf(MiniMaxRegion.GLOBAL, MiniMaxRegion.CN)
-        }
-    }
-
-    private fun searchError(message: String): String {
-        val settings = runCatching { QuotaSettingsState.getInstance() }.getOrNull()
-        val available = mutableListOf<String>()
-        for (descriptor in ProviderCatalog.all) {
-            val accounts = settings?.accountsOf(descriptor.type).orEmpty()
-            val configured =
-                if (accounts.isEmpty()) {
-                    descriptor.isWebSearchConfigured()
-                } else {
-                    accounts.any { descriptor.isWebSearchConfiguredForAccount(it.id) }
-                }
-            if (configured) {
-                available.add(descriptor.type.displayName)
-            }
-        }
-        val hint =
-            if (available.isEmpty()) {
-                " No search providers are currently configured."
-            } else {
-                " Currently configured search providers: ${available.joinToString(", ")}."
-            }
-        return errorResult(message + hint)
-    }
-
-    private fun extractErrorMessage(body: String): String {
-        val root = runCatching {
-            JsonSupport.json.parseToJsonElement(body) as? JsonObject
-        }
-            .getOrNull()
-        val message =
-            (root?.get("error") as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
-        return message ?: body
-    }
-
-    private fun errorResult(errorMessage: String): String {
-        return McpJson.error(errorMessage)
     }
 }

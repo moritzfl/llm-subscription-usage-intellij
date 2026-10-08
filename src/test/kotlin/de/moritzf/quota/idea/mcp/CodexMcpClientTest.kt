@@ -29,6 +29,22 @@ import org.junit.jupiter.api.io.TempDir
 
 class CodexMcpClientTest {
     @Test
+    fun cancellationIsNotConvertedToAnErrorResponse() {
+        val cancelled = java.util.concurrent.CancellationException("cancelled")
+        val client =
+            CodexMcpClient(
+                accessTokenProvider = { throw cancelled },
+                accountIdProvider = { null },
+            )
+        kotlin.test.assertSame(
+            cancelled,
+            kotlin.test.assertFailsWith<java.util.concurrent.CancellationException> {
+                client.webSearch("test")
+            },
+        )
+    }
+
+    @Test
     fun postsWebSearchToCodexResponsesEndpointWithQuotaAuth() {
         TestUpstream(
                 responseBody =

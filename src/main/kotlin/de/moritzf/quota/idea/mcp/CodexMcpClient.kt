@@ -6,6 +6,7 @@ import de.moritzf.proxy.server.UpstreamErrorMapper
 import de.moritzf.proxy.transport.CodexHttpClient
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.idea.common.rethrowIfCancellation
 import de.moritzf.quota.openai.proxy.OpenAiProxyServer
 import de.moritzf.quota.openai.proxy.QuotaCodexCredentialsProvider
 import de.moritzf.quota.openai.proxy.pdf.PdfPages
@@ -283,6 +284,7 @@ class CodexMcpClient(
         } catch (exception: AuthRequiredException) {
             CodexMcpResponse(errorJson(exception.message ?: "OpenAI login required."), true)
         } catch (exception: Exception) {
+            exception.rethrowIfCancellation()
             val message =
                 exception.message?.takeIf { it.isNotBlank() } ?: exception::class.java.simpleName
             CodexMcpResponse(errorJson(message), true)
@@ -337,9 +339,10 @@ class CodexMcpClient(
                     false,
                 )
             } catch (e: InterruptedException) {
-                Thread.currentThread().interrupt()
-                CodexMcpResponse(errorJson("Experimental realtime speech cancelled."), true)
+                e.rethrowIfCancellation()
+                throw e
             } catch (e: Exception) {
+                e.rethrowIfCancellation()
                 val detail =
                     e.message?.takeIf {
                         it.startsWith("ChatGPT denied access") ||
@@ -407,6 +410,7 @@ class CodexMcpClient(
         } catch (exception: AuthRequiredException) {
             CodexMcpResponse(errorJson(exception.message ?: "OpenAI login required."), true)
         } catch (exception: Exception) {
+            exception.rethrowIfCancellation()
             val message =
                 exception.message?.takeIf { it.isNotBlank() } ?: exception::class.java.simpleName
             CodexMcpResponse(errorJson(message), true)
@@ -446,6 +450,7 @@ class CodexMcpClient(
                 .takeIf { it.statusCode() in 200..299 }
                 ?.body()
         }
+            .onFailure { it.rethrowIfCancellation() }
             .getOrNull()
     }
 
@@ -473,6 +478,7 @@ class CodexMcpClient(
         } catch (exception: AuthRequiredException) {
             CodexMcpResponse(errorJson(exception.message ?: "OpenAI login required."), true)
         } catch (exception: Exception) {
+            exception.rethrowIfCancellation()
             val message =
                 exception.message?.takeIf { it.isNotBlank() } ?: exception::class.java.simpleName
             CodexMcpResponse(errorJson(message), true)
@@ -695,6 +701,7 @@ class CodexMcpClient(
                 false,
             )
         } catch (exception: Exception) {
+            exception.rethrowIfCancellation()
             CodexMcpResponse(errorJson(exception.message ?: "Could not write markdown."), true)
         }
     }
@@ -1112,44 +1119,36 @@ class CodexMcpClient(
         private val SUPPORTED_IMAGE_FORMATS =
             ImageIO.getWriterFormatNames().map { it.lowercase(Locale.ROOT) }.toSet()
 
-        fun createDefault(): CodexMcpClient {
+        fun createDefault(
+            capability: de.moritzf.quota.idea.settings.AccountCapability =
+                de.moritzf.quota.idea.settings.AccountCapability.WEB_SEARCH
+        ): CodexMcpClient {
+            val account =
+                de.moritzf.quota.idea.settings.AccountResolver.resolveOrNull(
+                        QuotaProviderType.OPEN_AI,
+                        capability = capability,
+                    )
+                    ?.snapshot()
             return CodexMcpClient(
                 accessTokenProvider = {
-                    resolvedOpenAiAccount()?.let { account ->
+                    account?.let { account ->
                         QuotaAuthService.getInstance()
                             .getAccessTokenBlocking(account.id, QuotaProviderType.OPEN_AI)
                     }
                 },
                 accountIdProvider = {
-                    resolvedOpenAiAccount()?.let { account ->
+                    account?.let { account ->
                         QuotaAuthService.getInstance()
                             .getAccountId(account.id, QuotaProviderType.OPEN_AI)
                     }
                 },
-                tokenRefresher = { staleToken -> refreshOpenAiToken(staleToken) },
+                tokenRefresher = { staleToken ->
+                    account?.let {
+                        QuotaAuthService.getInstance()
+                            .forceRefreshBlocking(it.id, QuotaProviderType.OPEN_AI, staleToken)
+                    }
+                },
             )
-        }
-
-        private fun resolvedOpenAiAccount(): de.moritzf.quota.idea.settings.ProviderAccount? {
-            return de.moritzf.quota.idea.settings.AccountResolver.resolveOrNull(
-                QuotaProviderType.OPEN_AI,
-                capability = de.moritzf.quota.idea.settings.AccountCapability.WEB_SEARCH,
-            )
-        }
-
-        private fun refreshOpenAiToken(staleToken: String?): String? {
-            val auth = QuotaAuthService.getInstance()
-            val settings = runCatching {
-                de.moritzf.quota.idea.settings.QuotaSettingsState.getInstance()
-            }
-                .getOrNull()
-            val owner = staleToken?.let { token ->
-                settings?.accountsOf(QuotaProviderType.OPEN_AI)?.firstOrNull { account ->
-                    auth.peekAccessToken(account.id, QuotaProviderType.OPEN_AI) == token
-                }
-            }
-            val account = owner ?: resolvedOpenAiAccount() ?: return null
-            return auth.forceRefreshBlocking(account.id, QuotaProviderType.OPEN_AI, staleToken)
         }
 
         private fun defaultHttpClient(): HttpClient {

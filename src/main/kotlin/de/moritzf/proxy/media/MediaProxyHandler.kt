@@ -13,6 +13,8 @@ import io.ktor.http.content.forEachPart
 import io.ktor.server.request.receive
 import io.ktor.server.response.respondBytes
 import io.ktor.utils.io.toByteArray
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
 
 internal class MediaProxyHandler(
     private val operations: MediaOperations,
@@ -44,7 +46,13 @@ internal class MediaProxyHandler(
         }
         try {
             val url =
-                operations.generateImageUrl(providerId, OpenAiMedia.upstreamModel(model), prompt)
+                runInterruptible(Dispatchers.IO) {
+                    operations.generateImageUrl(
+                        providerId,
+                        OpenAiMedia.upstreamModel(model),
+                        prompt,
+                    )
+                }
             JsonHelper.toJsonResponse(ctx, OpenAiMedia.imageUrlResponse(url))
         } catch (exception: MediaOperationException) {
             JsonHelper.toErrorResponse(
@@ -80,13 +88,15 @@ internal class MediaProxyHandler(
         val voice = body.stringPath("voice").trim().takeIf { it.isNotEmpty() }
         try {
             val audio =
-                operations.synthesizeSpeech(
-                    providerId,
-                    OpenAiMedia.upstreamModel(model),
-                    input,
-                    voice,
-                    format,
-                )
+                runInterruptible(Dispatchers.IO) {
+                    operations.synthesizeSpeech(
+                        providerId,
+                        OpenAiMedia.upstreamModel(model),
+                        input,
+                        voice,
+                        format,
+                    )
+                }
             ctx.call.respondBytes(audio.bytes, ContentType.parse(audio.contentType))
         } catch (exception: MediaOperationException) {
             JsonHelper.toErrorResponse(
@@ -148,13 +158,15 @@ internal class MediaProxyHandler(
         }
         try {
             val json =
-                operations.transcribe(
-                    providerId,
-                    OpenAiMedia.upstreamModel(model),
-                    bytes,
-                    filename,
-                    language,
-                )
+                runInterruptible(Dispatchers.IO) {
+                    operations.transcribe(
+                        providerId,
+                        OpenAiMedia.upstreamModel(model),
+                        bytes,
+                        filename,
+                        language,
+                    )
+                }
             JsonHelper.toJsonResponse(ctx, JsonHelper.JSON.parseToJsonElement(json))
         } catch (exception: MediaOperationException) {
             JsonHelper.toErrorResponse(
