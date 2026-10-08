@@ -92,21 +92,21 @@ internal class CodexRealtimeSpeech(private val client: CodexHttpClient) {
                 }
             }
         val pcm = RealtimeSpeechSession.synthesize(text, protocol) {}
-        return ByteBuffer.allocate(44 + pcm.bytes().size)
+        return ByteBuffer.allocate(44 + pcm.bytes.size)
             .order(ByteOrder.LITTLE_ENDIAN)
             .put("RIFF".toByteArray())
-            .putInt(36 + pcm.bytes().size)
+            .putInt(36 + pcm.bytes.size)
             .put("WAVEfmt ".toByteArray())
             .putInt(16)
             .putShort(1)
-            .putShort(pcm.channels().toShort())
-            .putInt(pcm.rate())
-            .putInt(pcm.rate() * pcm.channels() * 2)
-            .putShort((pcm.channels() * 2).toShort())
+            .putShort(pcm.channels.toShort())
+            .putInt(pcm.rate)
+            .putInt(pcm.rate * pcm.channels * 2)
+            .putShort((pcm.channels * 2).toShort())
             .putShort(16)
             .put("data".toByteArray())
-            .putInt(pcm.bytes().size)
-            .put(pcm.bytes())
+            .putInt(pcm.bytes.size)
+            .put(pcm.bytes)
             .array()
     }
 }

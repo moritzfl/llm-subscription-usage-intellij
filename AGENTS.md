@@ -4,6 +4,7 @@
 
 - This is an IntelliJ Platform plugin named `LLM Subscription Usage`.
 - Main code is Kotlin under `src/main/kotlin`; tests are under `src/test/kotlin`.
+- Keep production and test sources Kotlin-only; Java libraries remain usable through JVM interop.
 - The plugin tracks LLM subscription quotas, exposes MCP tools, syncs IntelliJ MCP server URLs, and runs a local OpenAI-compatible subscription proxy.
 - Build target is JVM 21 with Kotlin API/language version 2.3 to match IntelliJ 2026.1 bundled Kotlin.
 - Credentials and API keys belong in IntelliJ Password Safe. Never add secrets, raw tokens, or generated logs to git.

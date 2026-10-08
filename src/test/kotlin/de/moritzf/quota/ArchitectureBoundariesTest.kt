@@ -27,7 +27,7 @@ class ArchitectureBoundariesTest {
     /** Use the production artifact, including in IntelliJ's instrumented Gradle test sandbox. */
     class ProductionClasses : LocationProvider {
         override fun get(testClass: Class<*>): Set<Location> =
-            setOf(QuotaProviderType::class.java, RealtimeSpeechSession::class.java)
+            setOf(QuotaProviderType::class.java)
                 .map { anchor ->
                     // IntelliJ's PathClassLoader supplies resource URLs but no CodeSource location.
                     val classFile = anchor.name.replace('.', '/') + ".class"
