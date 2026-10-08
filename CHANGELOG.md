@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - Move shared OAuth data/codecs and document image extraction out of IDE/provider-specific packages, removing five architecture exceptions.
+- Use SLF4J for SuperGrok quota logging and inject Kimi device identity from IDE persistence, keeping standalone identity stable for the process.
 - Replace import-scanning architecture tests with ArchUnit bytecode rules for provider, proxy, operations, and MCP facade boundaries.
 - Bind proxy requests, credential refreshes, and rate-limit attribution to one account for the entire operation.
 - Synchronize quota cache snapshots and discard refresh results after account removal, clearing, or service disposal.

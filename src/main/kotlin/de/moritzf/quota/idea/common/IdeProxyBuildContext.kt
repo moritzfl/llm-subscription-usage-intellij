@@ -8,6 +8,7 @@ import de.moritzf.quota.github.proxy.GitHubCopilotSubscriptionProxyProvider
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.github.GitHubCredentialsStore
 import de.moritzf.quota.idea.kimi.KimiCredentialsStore
+import de.moritzf.quota.idea.kimi.KimiDeviceIdStore
 import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
 import de.moritzf.quota.idea.mistral.MistralApiKeyStore
 import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
@@ -131,6 +132,7 @@ internal object IdeProxyFactories {
 
     fun kimi(ctx: IdeProxyBuildContext): SubscriptionProxyProvider {
         return KimiSubscriptionProxyProvider(
+            deviceId = KimiDeviceIdStore.get(),
             credentialsProvider = {
                 resolvedAccount(ctx, QuotaProviderType.KIMI)?.let { account ->
                     KimiCredentialsStore.forAccount(account.id).loadBlocking()

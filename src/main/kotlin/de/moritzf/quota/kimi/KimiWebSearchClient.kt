@@ -16,8 +16,9 @@ open class KimiWebSearchClient(
     private val httpClient: HttpClient = defaultHttpClient(),
     private val searchEndpoint: URI = SEARCH_ENDPOINT,
     tokenEndpoint: URI = TOKEN_ENDPOINT,
+    private val deviceId: String = KimiDeviceHeaders.processDeviceId,
 ) {
-    private val credentialRefresher = KimiCredentialRefresher(httpClient, tokenEndpoint)
+    private val credentialRefresher = KimiCredentialRefresher(httpClient, tokenEndpoint, deviceId)
 
     open fun webSearch(
         credentials: KimiCredentials,
@@ -96,7 +97,7 @@ open class KimiWebSearchClient(
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
                 .header("User-Agent", USER_AGENT)
-        KimiDeviceHeaders.all().forEach { (key, value) -> builder.header(key, value) }
+        KimiDeviceHeaders.all(deviceId).forEach { (key, value) -> builder.header(key, value) }
         return builder.POST(HttpRequest.BodyPublishers.ofString(body)).build()
     }
 
@@ -127,7 +128,9 @@ open class KimiWebSearchClient(
         private val SEARCH_ENDPOINT = URI.create("https://api.kimi.com/coding/v1/search")
         private val TOKEN_ENDPOINT = URI.create("https://auth.kimi.com/api/oauth/token")
 
-        fun createDefault(): KimiWebSearchClient = KimiWebSearchClient()
+        fun createDefault(
+            deviceId: String = KimiDeviceHeaders.processDeviceId
+        ): KimiWebSearchClient = KimiWebSearchClient(deviceId = deviceId)
 
         private fun defaultHttpClient(): HttpClient {
             return HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build()

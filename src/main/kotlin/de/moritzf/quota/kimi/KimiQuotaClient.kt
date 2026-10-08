@@ -15,8 +15,9 @@ open class KimiQuotaClient(
     private val httpClient: HttpClient = HttpClient.newHttpClient(),
     private val usageEndpoint: URI = USAGE_ENDPOINT,
     tokenEndpoint: URI = TOKEN_ENDPOINT,
+    deviceId: String = KimiDeviceHeaders.processDeviceId,
 ) {
-    private val credentialRefresher = KimiCredentialRefresher(httpClient, tokenEndpoint)
+    private val credentialRefresher = KimiCredentialRefresher(httpClient, tokenEndpoint, deviceId)
 
     open fun fetchQuota(credentials: KimiCredentials): KimiFetchResult {
         var usableCredentials = credentialRefresher.refreshIfNeeded(credentials)

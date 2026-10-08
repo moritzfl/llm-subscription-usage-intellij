@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 @Service(Service.Level.APP)
 class KimiAuthService(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-    private val oauthClient: KimiOAuthClient = KimiOAuthClient(),
+    private val oauthClient: KimiOAuthClient = KimiOAuthClient(deviceId = KimiDeviceIdStore.get()),
     private val credentialsStore: KimiCredentialsStore = KimiCredentialsStore.getInstance(),
     private val browserOpener: (String) -> Unit = BrowserUtil::browse,
 ) : Disposable, AuthService {

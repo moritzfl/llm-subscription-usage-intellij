@@ -15,6 +15,7 @@ import kotlinx.serialization.Serializable
 class KimiOAuthClient(
     private val httpClient: HttpClient = HttpClient.newHttpClient(),
     private val oauthHost: String = OAUTH_HOST,
+    private val deviceId: String = KimiDeviceHeaders.processDeviceId,
 ) {
     fun requestDeviceAuthorization(): KimiDeviceAuthorization {
         val response =
@@ -108,7 +109,7 @@ class KimiOAuthClient(
                 .timeout(Duration.ofSeconds(30))
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .header("Accept", "application/json")
-        KimiDeviceHeaders.all().forEach { (key, value) -> builder.header(key, value) }
+        KimiDeviceHeaders.all(deviceId).forEach { (key, value) -> builder.header(key, value) }
         val request =
             builder.POST(HttpRequest.BodyPublishers.ofString(formEncode(parameters))).build()
         return try {

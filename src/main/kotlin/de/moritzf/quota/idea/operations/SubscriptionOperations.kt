@@ -9,6 +9,7 @@ import de.moritzf.quota.azure.AzureOcrClient
 import de.moritzf.quota.idea.common.ProviderCatalog
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.rethrowIfCancellation
+import de.moritzf.quota.idea.kimi.KimiDeviceIdStore
 import de.moritzf.quota.idea.mcp.*
 import de.moritzf.quota.idea.settings.AccountCapability
 import de.moritzf.quota.idea.settings.QuotaSettingsState
@@ -46,7 +47,8 @@ import kotlinx.serialization.json.contentOrNull
 internal class SubscriptionOperations(
     val accounts: AccountOperations = AccountOperations(),
     val codexClient: (AccountCapability) -> CodexMcpClient = CodexMcpClient::createDefault,
-    val kimiSearchClient: KimiWebSearchClient = KimiWebSearchClient.createDefault(),
+    val kimiSearchClient: KimiWebSearchClient =
+        KimiWebSearchClient.createDefault(KimiDeviceIdStore.get()),
     val zaiSearchClient: ZaiWebSearchClient = ZaiWebSearchClient.createDefault(),
     val miniMaxSearchClient: MiniMaxWebSearchClient = MiniMaxWebSearchClient.createDefault(),
     val miniMaxImageClient: MiniMaxImageClient = MiniMaxImageClient.createDefault(),
@@ -67,7 +69,8 @@ internal class SubscriptionOperations(
     val zaiVideoClient: ZaiVideoClient = ZaiVideoClient.createDefault(),
     val zaiVisionClient: ZaiVisionClient = ZaiVisionClient.createDefault(),
     val ollamaVisionClient: OllamaVisionClient = OllamaVisionClient.createDefault(),
-    val kimiVisionClient: KimiVisionClient = KimiVisionClient.createDefault(),
+    val kimiVisionClient: KimiVisionClient =
+        KimiVisionClient.createDefault(KimiDeviceIdStore.get()),
 ) {
     val azureOcrClient = AzureOcrClient()
     val azureCohereParseClient = AzureCohereParseClient()

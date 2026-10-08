@@ -67,6 +67,7 @@ class KimiWebSearchClientTest {
                 assertEquals("KimiCLI/1.40.0", request.firstHeader("User-Agent"))
                 assertEquals("kimi_cli", request.firstHeader("X-Msh-Platform"))
                 assertEquals("1.40.0", request.firstHeader("X-Msh-Version"))
+                assertEquals("search-device", request.firstHeader("X-Msh-Device-Id"))
 
                 val body = parseObject(request.body)
                 assertEquals("Kimi Code news", body["text_query"]!!.jsonPrimitive.content)
@@ -111,12 +112,14 @@ class KimiWebSearchClientTest {
 
                 val tokenRequest = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/token", tokenRequest.path)
+                assertEquals("search-device", tokenRequest.firstHeader("X-Msh-Device-Id"))
                 assertTrue(tokenRequest.body.contains("grant_type=refresh_token"))
                 assertTrue(tokenRequest.body.contains("refresh_token=refresh-1"))
 
                 val searchRequest = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/search", searchRequest.path)
                 assertEquals("Bearer fresh-token", searchRequest.firstHeader("Authorization"))
+                assertEquals("search-device", searchRequest.firstHeader("X-Msh-Device-Id"))
             }
     }
 
@@ -254,6 +257,7 @@ class KimiWebSearchClientTest {
 
     private fun newClient(server: TestKimiServer): KimiWebSearchClient {
         return KimiWebSearchClient(
+            deviceId = "search-device",
             httpClient = httpClient,
             searchEndpoint = server.baseUri.resolve("/search"),
             tokenEndpoint = server.baseUri.resolve("/token"),

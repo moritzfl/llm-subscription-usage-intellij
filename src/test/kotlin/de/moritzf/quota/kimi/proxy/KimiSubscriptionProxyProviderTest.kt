@@ -95,6 +95,7 @@ class KimiSubscriptionProxyProviderTest {
                     assertTrue(chatRequest.body.contains("\"model\":\"k2p7\""), chatRequest.body)
                     assertEquals("KimiCLI/1.40.0", chatRequest.firstHeader("User-Agent"))
                     assertEquals("kimi_cli", chatRequest.firstHeader("X-Msh-Platform"))
+                    assertEquals("proxy-device", chatRequest.firstHeader("X-Msh-Device-Id"))
                 } finally {
                     proxy.server.stop(gracePeriodMillis = 0)
                 }
@@ -354,6 +355,7 @@ class KimiSubscriptionProxyProviderTest {
         val port = freePort()
         val provider =
             KimiSubscriptionProxyProvider(
+                deviceId = "proxy-device",
                 credentialsProvider = { KimiCredentials(accessToken = "kimi-token") },
                 openAiCompatibleBaseUri = upstream.openAiBaseUri,
                 anthropicCompatibleBaseUri = upstream.anthropicBaseUri,

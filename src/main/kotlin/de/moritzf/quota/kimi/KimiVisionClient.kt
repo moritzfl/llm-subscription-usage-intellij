@@ -14,8 +14,9 @@ open class KimiVisionClient(
     private val httpClient: HttpClient = defaultHttpClient(),
     private val chatEndpoint: URI = CHAT_ENDPOINT,
     tokenEndpoint: URI = TOKEN_ENDPOINT,
+    private val deviceId: String = KimiDeviceHeaders.processDeviceId,
 ) {
-    private val credentialRefresher = KimiCredentialRefresher(httpClient, tokenEndpoint)
+    private val credentialRefresher = KimiCredentialRefresher(httpClient, tokenEndpoint, deviceId)
 
     open fun ask(
         credentials: KimiCredentials,
@@ -91,7 +92,7 @@ open class KimiVisionClient(
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
                 .header("User-Agent", USER_AGENT)
-        KimiDeviceHeaders.all().forEach { (key, value) -> builder.header(key, value) }
+        KimiDeviceHeaders.all(deviceId).forEach { (key, value) -> builder.header(key, value) }
         return builder
             .POST(
                 HttpRequest.BodyPublishers.ofString(
@@ -124,7 +125,8 @@ open class KimiVisionClient(
         private val TOKEN_ENDPOINT = URI.create("https://auth.kimi.com/api/oauth/token")
         private const val USER_AGENT = "KimiCLI/1.40.0"
 
-        fun createDefault(): KimiVisionClient = KimiVisionClient()
+        fun createDefault(deviceId: String = KimiDeviceHeaders.processDeviceId): KimiVisionClient =
+            KimiVisionClient(deviceId = deviceId)
 
         private fun defaultHttpClient(): HttpClient {
             return HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build()

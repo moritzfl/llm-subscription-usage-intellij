@@ -19,7 +19,8 @@ class KimiVisionClientTest {
     @Test
     fun postsImageQuestionAndReturnsAnswerWithCredentials() {
         TestUpstream("""{"choices":[{"message":{"content":"A sunset."}}]}""").use { upstream ->
-            val client = KimiVisionClient(chatEndpoint = upstream.baseUri)
+            val client =
+                KimiVisionClient(chatEndpoint = upstream.baseUri, deviceId = "vision-device")
             val credentials =
                 KimiCredentials(
                     accessToken = "kimi-token",
@@ -41,6 +42,7 @@ class KimiVisionClientTest {
             assertEquals("/coding/v1/chat/completions", request.path)
             assertTrue(request.authorization.contains("Bearer kimi-token"))
             assertTrue(request.userAgent.contains("KimiCLI"))
+            assertEquals("vision-device", request.deviceId)
             val body = JsonSupport.json.parseToJsonElement(request.body) as JsonObject
             assertEquals("kimi-vision", body["model"]!!.jsonPrimitive.content)
             val content = body["messages"]!!.jsonArray[0].jsonObject["content"]!!.jsonArray
@@ -63,6 +65,7 @@ class KimiVisionClientTest {
                         body,
                         exchange.requestHeaders.getFirst("Authorization").orEmpty(),
                         exchange.requestHeaders.getFirst("User-Agent").orEmpty(),
+                        exchange.requestHeaders.getFirst("X-Msh-Device-Id").orEmpty(),
                     )
                 val payload = responseBody.toByteArray()
                 exchange.sendResponseHeaders(200, payload.size.toLong())
@@ -85,5 +88,6 @@ class KimiVisionClientTest {
         val body: String,
         val authorization: String,
         val userAgent: String,
+        val deviceId: String,
     )
 }

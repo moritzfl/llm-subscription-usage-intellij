@@ -35,8 +35,9 @@ class KimiSubscriptionProxyProvider(
     private val modelsDevCatalogUri: URI? = MODELS_DEV_CATALOG_URI,
     fullRequestLogging: Boolean = false,
     requestLogDir: String = DEFAULT_REQUEST_LOG_DIR,
+    deviceId: String = KimiDeviceHeaders.processDeviceId,
 ) : SubscriptionProxyProvider {
-    private val credentialRefresher = KimiCredentialRefresher(httpClient)
+    private val credentialRefresher = KimiCredentialRefresher(httpClient, deviceId = deviceId)
     private val requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir))
     private val chatDelegate =
         PassThroughSubscriptionProxyProvider(
@@ -47,7 +48,7 @@ class KimiSubscriptionProxyProvider(
             accessTokenProvider = ::accessToken,
             tokenRefresher = ::refreshAfterUnauthorized,
             modelMappingsProvider = ::modelMappings,
-            defaultHeaders = defaultHeaders(),
+            defaultHeaders = defaultHeaders(deviceId),
             requestBodyTransformer = ::chatRequestBody,
             httpClient = httpClient,
             requestLogger = requestLogger,
@@ -61,7 +62,7 @@ class KimiSubscriptionProxyProvider(
             accessTokenProvider = ::accessToken,
             tokenRefresher = ::refreshAfterUnauthorized,
             modelMappingsProvider = ::modelMappings,
-            defaultHeaders = defaultHeaders(),
+            defaultHeaders = defaultHeaders(deviceId),
             httpClient = httpClient,
             requestLogger = requestLogger,
         )
@@ -366,12 +367,12 @@ class KimiSubscriptionProxyProvider(
             System.getProperty("java.io.tmpdir") +
                 "/openai-usage-quota-intellij/subscription-proxy-kimi-requests"
 
-        private fun defaultHeaders(): Map<String, String> =
+        private fun defaultHeaders(deviceId: String): Map<String, String> =
             mapOf(
                 "Accept" to "application/json",
                 "Content-Type" to "application/json",
                 "User-Agent" to "KimiCLI/1.40.0",
-            ) + KimiDeviceHeaders.all()
+            ) + KimiDeviceHeaders.all(deviceId)
 
         private fun intField(item: JsonObject, name: String): Int? {
             return (item[name] as? JsonPrimitive)?.contentOrNull?.toIntOrNull()

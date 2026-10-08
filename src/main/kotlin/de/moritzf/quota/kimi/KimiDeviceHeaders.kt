@@ -1,23 +1,23 @@
 package de.moritzf.quota.kimi
 
-import com.intellij.ide.util.PropertiesComponent
 import java.net.InetAddress
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 object KimiDeviceHeaders {
-    private const val KEY_DEVICE_ID = "kimi.oauth.device.id"
+    /** Stable for standalone clients during this process; IDE callers inject a persisted ID. */
+    val processDeviceId: String = UUID.randomUUID().toString().replace("-", "")
     private const val PLATFORM = "kimi_cli"
     private const val VERSION = "1.40.0"
 
-    fun all(): Map<String, String> =
+    fun all(deviceId: String = processDeviceId): Map<String, String> =
         mapOf(
             "X-Msh-Platform" to PLATFORM,
             "X-Msh-Version" to VERSION,
             "X-Msh-Device-Name" to deviceName(),
             "X-Msh-Device-Model" to deviceModel(),
             "X-Msh-Os-Version" to osVersion(),
-            "X-Msh-Device-Id" to deviceId(),
+            "X-Msh-Device-Id" to deviceId,
         )
 
     private fun sanitize(value: String): String {
@@ -48,19 +48,6 @@ object KimiDeviceHeaders {
 
     private fun osVersion(): String {
         return sanitize(System.getProperty("os.version") ?: "unknown")
-    }
-
-    private fun deviceId(): String {
-        return try {
-            val props = PropertiesComponent.getInstance()
-            val existing = props.getValue(KEY_DEVICE_ID)
-            if (!existing.isNullOrBlank()) return existing
-            val newId = UUID.randomUUID().toString().replace("-", "")
-            props.setValue(KEY_DEVICE_ID, newId)
-            newId
-        } catch (_: Exception) {
-            UUID.randomUUID().toString().replace("-", "")
-        }
     }
 
     private val cachedMacProductVersion: String? by lazy { macProductVersion() }

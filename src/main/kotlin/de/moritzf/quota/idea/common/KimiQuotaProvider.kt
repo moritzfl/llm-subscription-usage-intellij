@@ -1,13 +1,14 @@
 package de.moritzf.quota.idea.common
 
 import de.moritzf.quota.idea.kimi.KimiCredentialsStore
+import de.moritzf.quota.idea.kimi.KimiDeviceIdStore
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.kimi.KimiQuotaClient
 import de.moritzf.quota.kimi.KimiQuotaException
 
 class KimiQuotaProvider(
     override val accountId: String = QuotaProviderType.KIMI.id,
-    private val client: KimiQuotaClient = KimiQuotaClient(),
+    private val client: KimiQuotaClient = KimiQuotaClient(deviceId = KimiDeviceIdStore.get()),
 ) : CachedQuotaProvider<KimiQuota>() {
     override val type = QuotaProviderType.KIMI
     override val notConfiguredMessage = "Kimi login required. Log in from settings."

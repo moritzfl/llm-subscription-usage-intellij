@@ -18,6 +18,7 @@ import kotlinx.serialization.Serializable
 internal class KimiCredentialRefresher(
     private val httpClient: HttpClient,
     private val tokenEndpoint: URI = TOKEN_ENDPOINT,
+    private val deviceId: String = KimiDeviceHeaders.processDeviceId,
 ) {
     fun refreshIfNeeded(credentials: KimiCredentials): KimiCredentials {
         val expiresAt = credentials.expiresAtEpochSeconds
@@ -70,7 +71,7 @@ internal class KimiCredentialRefresher(
                 .timeout(Duration.ofSeconds(30))
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .header("Accept", "application/json")
-        KimiDeviceHeaders.all().forEach { (key, value) -> builder.header(key, value) }
+        KimiDeviceHeaders.all(deviceId).forEach { (key, value) -> builder.header(key, value) }
         val request = builder.POST(HttpRequest.BodyPublishers.ofString(form)).build()
         val response = send(request)
         val status = response.statusCode()

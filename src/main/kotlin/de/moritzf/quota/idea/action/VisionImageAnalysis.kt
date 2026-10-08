@@ -2,6 +2,7 @@ package de.moritzf.quota.idea.action
 
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.kimi.KimiCredentialsStore
+import de.moritzf.quota.idea.kimi.KimiDeviceIdStore
 import de.moritzf.quota.idea.mcp.CodexMcpClient
 import de.moritzf.quota.idea.mcp.VisionProvider
 import de.moritzf.quota.idea.mistral.MistralApiKeyStore
@@ -113,7 +114,7 @@ internal object VisionImageAnalysis {
                 val credentials = store.loadBlocking()
                 if (credentials?.isUsable() != true) error("Kimi login required.")
                 val result =
-                    KimiVisionClient.createDefault()
+                    KimiVisionClient.createDefault(KimiDeviceIdStore.get())
                         .ask(credentials, localFile = image, prompt = trimmedPrompt, model = chosen)
                 if (result.credentials != credentials) store.save(result.credentials)
                 result.answer

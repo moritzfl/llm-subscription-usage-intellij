@@ -61,6 +61,7 @@
 - When no provider-declared default exists, choose a default from advertised models by taking the alphabetically latest model id rather than hardcoding a recommendation.
 - Proxy enablement defaults come from `ProviderCapabilities.subscriptionProxy` via the catalog; IDE construction uses `ideProxyFactory` / `ProviderCatalog.createIdeProxyProviders` (`IdeProxyFactories`). Standalone CLI proxy wiring stays env-based in `StandaloneSubscriptionProxy` (no IntelliJ services).
 - IDE proxy delegates are account-bound. Resolve once per request; keep token refresh/save, endpoint/region, and rate-limit attribution on that account.
+- Kimi clients receive device identity from `KimiDeviceIdStore` in IDE wiring; standalone clients share a process-stable ID. Keep IntelliJ persistence out of provider clients.
 
 ## Settings And Releases
 
