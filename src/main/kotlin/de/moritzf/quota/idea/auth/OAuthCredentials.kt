@@ -12,4 +12,5 @@ class OAuthCredentials(
     var expiresAt: Long = 0,
     var accountId: String? = null,
     var hd: String? = null,
+    var personalAccessToken: Boolean = false,
 )

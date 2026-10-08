@@ -9,12 +9,18 @@ import de.moritzf.quota.idea.common.CredentialStorage
 import de.moritzf.quota.idea.common.QuotaProviderType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.coroutineContext
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
@@ -40,6 +46,10 @@ class QuotaAuthService(
     },
     private val browserOpener: (String) -> Unit = BrowserUtil::browse,
     private val nowMs: () -> Long = System::currentTimeMillis,
+    private val deviceLoginFactory: (QuotaProviderType, OAuthClientConfig) -> OAuthDeviceLoginOperations = { type, config ->
+        OAuthDeviceLoginClient(httpClient, type, config, nowMs)
+    },
+    private val personalTokenValidator: suspend (String) -> OAuthCredentials = OpenAiPersonalTokenClient(httpClient)::validate,
 ) : Disposable {
     private val providerStates = ConcurrentHashMap<String, ProviderAuthState>()
     private val typeLoginLocks = ConcurrentHashMap<QuotaProviderType, Any>()
@@ -73,6 +83,8 @@ class QuotaAuthService(
         val cacheLoaded = AtomicBoolean(false)
         val authInProgress = AtomicBoolean(false)
         val pendingFlow = AtomicReference<OAuthLoginFlow?>()
+        val loginJob = AtomicReference<Job?>()
+        val devicePrompt = AtomicReference<DeviceLoginPrompt?>()
         val credentialClearCounter = AtomicLong(0)
         val loginGeneration = AtomicLong(0)
         val pendingCredentials = AtomicReference<PendingCredentials?>()
@@ -99,6 +111,61 @@ class QuotaAuthService(
         callback: (LoginResult) -> Unit,
         onAuthUrl: ((String) -> Unit)? = null,
     ) {
+        startLoginOperation(accountId, type, callback) { state, generation -> runLoginFlow(state, generation, onAuthUrl) }
+    }
+
+    fun startDeviceLoginFlow(
+        accountId: String,
+        type: QuotaProviderType,
+        callback: (LoginResult) -> Unit,
+        onPrompt: (DeviceLoginPrompt) -> Unit = {},
+    ) {
+        if (type != QuotaProviderType.OPEN_AI && type != QuotaProviderType.SUPERGROK) {
+            callback(LoginResult.error("Device-code login is not supported for ${type.displayName}"))
+            return
+        }
+        startLoginOperation(accountId, type, callback) { state, generation ->
+            val client = deviceLoginFactory(type, state.config)
+            val authorization = client.requestAuthorization()
+            synchronized(state.credentialsLock) {
+                if (state.loginGeneration.get() != generation) return@startLoginOperation LoginResult.error("Login canceled")
+                state.devicePrompt.set(authorization.prompt)
+                onPrompt(authorization.prompt)
+            }
+            val remaining = authorization.prompt.expiresAtMs - nowMs()
+            if (remaining <= 0) return@startLoginOperation LoginResult.error("Device code expired. Start a new login.")
+            val credentials = withTimeoutOrNull(remaining) {
+                var interval = authorization.intervalSeconds.coerceIn(1, 86_400) * 1000
+                var authorized: OAuthCredentials? = null
+                while (authorized == null) {
+                    delay(interval)
+                    when (val result = client.poll(authorization)) {
+                        is OAuthDevicePollResult.Authorized -> authorized = result.credentials
+                        OAuthDevicePollResult.Pending -> Unit
+                        OAuthDevicePollResult.SlowDown -> interval += 5_000
+                    }
+                }
+                authorized
+            } ?: return@startLoginOperation LoginResult.error("Device code expired. Start a new login.")
+            completeLogin(state, generation, credentials)
+        }
+    }
+
+    fun deviceLoginPrompt(accountId: String, type: QuotaProviderType): DeviceLoginPrompt? =
+        stateFor(accountId, type).devicePrompt.get()
+
+    fun startPersonalTokenLogin(accountId: String, token: String, callback: (LoginResult) -> Unit) {
+        startLoginOperation(accountId, QuotaProviderType.OPEN_AI, callback) { state, generation ->
+            completeLogin(state, generation, personalTokenValidator(token))
+        }
+    }
+
+    private fun startLoginOperation(
+        accountId: String,
+        type: QuotaProviderType,
+        callback: (LoginResult) -> Unit,
+        operation: suspend (ProviderAuthState, Long) -> LoginResult,
+    ) {
         val typeLock = typeLoginLocks.computeIfAbsent(type) { Any() }
         val loginGeneration: Long?
         val state: ProviderAuthState
@@ -123,10 +190,12 @@ class QuotaAuthService(
             return
         }
 
-        scope.launch {
+        val job = scope.launch(start = CoroutineStart.LAZY) {
             var deliverResult: Boolean
             val result = try {
-                runLoginFlow(state, loginGeneration, onAuthUrl)
+                operation(state, loginGeneration)
+            } catch (_: CancellationException) {
+                LoginResult.error("Login canceled")
             } catch (exception: Exception) {
                 LOG.warn("Login flow failed for ${type.displayName}", exception)
                 var message = exception.message
@@ -138,6 +207,8 @@ class QuotaAuthService(
                 deliverResult = synchronized(state.credentialsLock) {
                     if (state.loginGeneration.get() == loginGeneration) {
                         state.authInProgress.compareAndSet(true, false)
+                        state.devicePrompt.set(null)
+                        state.loginJob.set(null)
                         true
                     } else {
                         false
@@ -148,6 +219,14 @@ class QuotaAuthService(
                 callback(result)
             }
         }
+        synchronized(state.credentialsLock) {
+            if (state.loginGeneration.get() == loginGeneration) {
+                state.loginJob.set(job)
+            } else {
+                job.cancel()
+            }
+        }
+        job.start()
     }
 
     fun isLoginInProgress(type: QuotaProviderType): Boolean =
@@ -179,6 +258,8 @@ class QuotaAuthService(
                 return false
             }
             state.loginGeneration.incrementAndGet()
+            state.devicePrompt.set(null)
+            state.loginJob.getAndSet(null)?.cancel()
             state.pendingFlow.getAndSet(null)
         }
         val message = if (reason.isNullOrBlank()) "Login canceled" else reason
@@ -298,6 +379,11 @@ class QuotaAuthService(
                 return@withRefreshCoordination latestCredentials.accessToken
             }
 
+            if (latestCredentials.personalAccessToken) {
+                state.lastRefreshFailure.set(RefreshFailure(latestCredentials, nowMs(), reconnectRequired = true, accessTokenUnusable = true))
+                return@withRefreshCoordination null
+            }
+
             logRefreshAttempt(state, latestCredentials, "upstream rejected the access token")
             refreshWithFailureBackoff(state, clearMarker, latestCredentials, "force-refresh", rejected)
                 ?.takeIf { nowMs() < it.expiresAt }?.accessToken
@@ -315,6 +401,7 @@ class QuotaAuthService(
     }
 
     fun forgetAccount(accountId: String) {
+        providerStates[accountId]?.let { abortLogin(accountId, it.type, "Account removed") }
         providerStates.remove(accountId)
     }
 
@@ -383,28 +470,27 @@ class QuotaAuthService(
                 return LoginResult.error("Login canceled")
             }
 
-            val clearMarker = currentCredentialClearMarker(state)
             val credentials = state.tokenOperations.exchangeAuthorizationCode(
                 callback.code,
                 flow.codeVerifier,
                 callback.state ?: flow.expectedState,
             )
-            if (persistCredentialsIfCurrent(
-                    state = state,
-                    clearMarker = clearMarker,
-                    credentials = credentials,
-                    operation = "login",
-                    loginGeneration = loginGeneration,
-                ) == null
-            ) {
-                return LoginResult.error("Login canceled")
-            }
-            state.lastRefreshFailure.set(null)
-            LoginResult.success()
+            completeLogin(state, loginGeneration, credentials)
         } finally {
             state.pendingFlow.compareAndSet(flow, null)
             flow.stopServerNow()
         }
+    }
+
+    private suspend fun completeLogin(state: ProviderAuthState, generation: Long, credentials: OAuthCredentials): LoginResult {
+        coroutineContext.ensureActive()
+        if (persistCredentialsIfCurrent(
+                state = state, clearMarker = currentCredentialClearMarker(state), credentials = credentials,
+                operation = "login", loginGeneration = generation,
+            ) == null
+        ) return LoginResult.error("Login canceled")
+        state.lastRefreshFailure.set(null)
+        return LoginResult.success()
     }
 
     private suspend fun pingCallbackEndpoint(config: OAuthClientConfig): String? {
@@ -559,6 +645,7 @@ class QuotaAuthService(
         return withRefreshCoordination(state) {
             val clearMarker = currentCredentialClearMarker(state)
             val latestCredentials = getCredentialsBlocking(state) ?: return@withRefreshCoordination null
+            if (latestCredentials.personalAccessToken) return@withRefreshCoordination latestCredentials
             if (!isExpired(latestCredentials) && matchingFailure(state, latestCredentials)?.accessTokenUnusable != true) {
                 return@withRefreshCoordination latestCredentials
             }
@@ -856,6 +943,7 @@ class QuotaAuthService(
     }
 
     override fun dispose() {
+        providerStates.values.forEach { abortLogin(it.accountId, it.type, "Service disposed") }
         scope.cancel()
     }
 
@@ -890,7 +978,8 @@ class QuotaAuthService(
                 left.refreshToken == right.refreshToken &&
                 left.expiresAt == right.expiresAt &&
                 left.accountId == right.accountId &&
-                left.hd == right.hd
+                left.hd == right.hd &&
+                left.personalAccessToken == right.personalAccessToken
         }
 
         private fun createHttpClient(): HttpClient {

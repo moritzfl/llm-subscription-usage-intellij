@@ -14,6 +14,8 @@ import java.net.http.HttpResponse
 import java.nio.channels.UnresolvedAddressException
 import java.time.Duration
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -48,7 +50,11 @@ class OAuthTokenClient(
             throw createRequestException("Token exchange failed", response)
         }
 
-        val tokenResponse = parseResponse(response.body())
+        return readLoginCredentials(response.body())
+    }
+
+    internal fun readLoginCredentials(body: String): OAuthCredentials {
+        val tokenResponse = parseResponse(body)
         if (tokenResponse.refreshToken.isNullOrBlank()) {
             throw IOException("Token exchange did not return a refresh token")
         }
@@ -59,6 +65,7 @@ class OAuthTokenClient(
     }
 
     override suspend fun refreshCredentials(existing: OAuthCredentials): OAuthCredentials {
+        check(!existing.personalAccessToken) { "Personal access tokens cannot be refreshed. Enter a replacement token." }
         LOG.info(
             "Refreshing OAuth token (access=${QuotaTokenUtil.fingerprint(existing.accessToken)}," +
                 " refresh=${QuotaTokenUtil.fingerprint(existing.refreshToken)})"
@@ -135,7 +142,7 @@ class OAuthTokenClient(
         return false
     }
 
-    private fun postToken(parameters: Map<String, String>): HttpResponse<String> {
+    private suspend fun postToken(parameters: Map<String, String>): HttpResponse<String> {
         val (contentType, body) = when (config.tokenBodyFormat) {
             OAuthTokenBodyFormat.FORM ->
                 "application/x-www-form-urlencoded" to OAuthUrlCodec.formEncode(parameters)
@@ -151,7 +158,7 @@ class OAuthTokenClient(
             .header("Accept", "application/json, text/plain, */*")
             .POST(HttpRequest.BodyPublishers.ofString(body))
             .build()
-        return httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        return runInterruptible(Dispatchers.IO) { httpClient.send(request, HttpResponse.BodyHandlers.ofString()) }
     }
 
     private fun createCredentials(tokenResponse: OAuthTokenResponseDto): OAuthCredentials {
@@ -175,7 +182,11 @@ class OAuthTokenClient(
     }
 
     private fun parseResponse(body: String): OAuthTokenResponseDto {
-        return JsonSupport.json.decodeFromString(body)
+        return try {
+            JsonSupport.json.decodeFromString(body)
+        } catch (_: Exception) {
+            throw IOException("Could not parse OAuth token response")
+        }
     }
 
     private fun createRequestException(prefix: String, response: HttpResponse<String>): OAuthTokenRequestException {

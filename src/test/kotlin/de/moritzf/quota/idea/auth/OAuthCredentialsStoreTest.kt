@@ -9,8 +9,24 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class OAuthCredentialsStoreTest {
+    @Test
+    fun personalTokenModeSurvivesPasswordSafeReload() {
+        val passwordSafe = FakePasswordSafe()
+        storeFor(QuotaProviderType.OPEN_AI, passwordSafe).save(
+            OAuthCredentials("at-personal", expiresAt = Long.MAX_VALUE, accountId = "workspace", personalAccessToken = true),
+        )
+
+        val restored = storeFor(QuotaProviderType.OPEN_AI, passwordSafe).load()!!
+        assertTrue(restored.personalAccessToken)
+        assertEquals("at-personal", restored.accessToken)
+        assertEquals("workspace", restored.accountId)
+        assertEquals(Long.MAX_VALUE, restored.expiresAt)
+        assertNull(restored.refreshToken)
+    }
+
     @Test
     fun providerServiceNamesAreDistinct() {
         assertNotEquals(

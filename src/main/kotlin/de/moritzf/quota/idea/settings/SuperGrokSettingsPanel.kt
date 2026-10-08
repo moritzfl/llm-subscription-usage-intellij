@@ -10,6 +10,7 @@ import com.intellij.ui.dsl.builder.AlignY
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.idea.auth.QuotaAuthService
+import de.moritzf.quota.idea.auth.LoginResult
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
@@ -38,6 +39,8 @@ internal class SuperGrokSettingsPanel(
     private val statusLabel = JBLabel().apply { isVisible = false }
     private var modelRefreshGeneration = 0
     private val loginButton = createActionLink("Log In with xAI/Grok")
+    private val deviceLoginButton = createActionLink("Log In with Device Code")
+    private val deviceLoginPanel = DeviceLoginPanel()
     private val cancelLoginButton = createActionLink("Cancel Login")
     private val logoutButton = createActionLink("Log Out")
     private val copyUrlButton = JButton("Copy URL", AllIcons.Actions.Copy).apply {
@@ -58,31 +61,36 @@ internal class SuperGrokSettingsPanel(
 
         loginButton.addActionListener {
             val authService = QuotaAuthService.getInstance()
+            val accountId = accountId()
             loginButton.isEnabled = false
             authStatusMessage = AuthStatusMessage("Opening browser...", false, AuthStatusKind.PENDING)
             updateAuthUi()
             authService.startLoginFlow(
-                accountId = accountId(),
+                accountId = accountId,
                 type = QuotaProviderType.SUPERGROK,
-                callback = { result ->
-                ApplicationManager.getApplication().invokeLater({
-                    authStatusMessage = if (result.success) {
-                        AuthStatusMessage("Connected to xAI/Grok", false, AuthStatusKind.CONNECTED)
-                    } else {
-                        AuthStatusMessage(result.message ?: "Login failed", true, AuthStatusKind.DISCONNECTED)
-                    }
-                    loginButton.isEnabled = true
-                    updateAuthUi()
-                    if (result.success) {
-                        QuotaUsageService.getInstance().refreshAsync(accountId())
-                    }
-                }, ModalityState.stateForComponent(modalityComponentProvider() ?: this@SuperGrokSettingsPanel))
-            }, onAuthUrl = { url ->
-                ApplicationManager.getApplication().invokeLater({
-                    authUrl = url
-                    copyUrlButton.isVisible = true
-                }, ModalityState.stateForComponent(modalityComponentProvider() ?: this@SuperGrokSettingsPanel))
-            })
+                callback = { finishLogin(accountId, it) },
+                onAuthUrl = { url ->
+                    ApplicationManager.getApplication().invokeLater({
+                        if (accountId() != accountId || !authService.isLoginInProgress(accountId, QuotaProviderType.SUPERGROK)) return@invokeLater
+                        authUrl = url
+                        copyUrlButton.isVisible = true
+                    }, ModalityState.stateForComponent(modalityComponentProvider() ?: this@SuperGrokSettingsPanel))
+                },
+            )
+            updateAuthUi()
+        }
+
+        deviceLoginButton.addActionListener {
+            val accountId = accountId()
+            authStatusMessage = AuthStatusMessage("Requesting device code...", kind = AuthStatusKind.PENDING)
+            QuotaAuthService.getInstance().startDeviceLoginFlow(
+                accountId, QuotaProviderType.SUPERGROK, { finishLogin(accountId, it) },
+                onPrompt = {
+                    ApplicationManager.getApplication().invokeLater({
+                        if (accountId() == accountId) updateAuthUi()
+                    }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
+                },
+            )
             updateAuthUi()
         }
 
@@ -119,6 +127,10 @@ internal class SuperGrokSettingsPanel(
                 cell(cancelLoginButton).gap(RightGap.SMALL)
                 cell(logoutButton)
             }
+            row {
+                cell(deviceLoginButton).comment("Authorize in any browser; no localhost callback.")
+            }
+            row { cell(deviceLoginPanel.component).align(AlignX.FILL).resizableColumn() }
             row {
                 text("Uses plugin-managed xAI OAuth with the Grok CLI billing API. No local Grok CLI auth file is required.")
             }
@@ -185,12 +197,16 @@ internal class SuperGrokSettingsPanel(
         val authService = QuotaAuthService.getInstance()
         val loggedIn = authService.isLoggedIn(accountId(), QuotaProviderType.SUPERGROK)
         val inProgress = authService.isLoginInProgress(accountId(), QuotaProviderType.SUPERGROK)
+        val prompt = authService.deviceLoginPrompt(accountId(), QuotaProviderType.SUPERGROK)
+        deviceLoginPanel.show(prompt)
         val error = QuotaUsageService.getInstance().getLastError(accountId())
         val uiState = QuotaSettingsAuthUiState.create(
-            loggedIn, inProgress, authStatusMessage,
+            loggedIn, inProgress,
+            if (prompt != null) AuthStatusMessage("Waiting for device authorization...", kind = AuthStatusKind.PENDING) else authStatusMessage,
             authService.connectionState(accountId(), QuotaProviderType.SUPERGROK), error,
         )
         loginButton.isEnabled = uiState.loginEnabled
+        deviceLoginButton.isEnabled = uiState.loginEnabled
         cancelLoginButton.isEnabled = uiState.cancelEnabled
         logoutButton.isEnabled = uiState.logoutEnabled
         val status = requireNotNull(uiState.visibleStatusMessage)
@@ -201,6 +217,19 @@ internal class SuperGrokSettingsPanel(
             copyUrlButton.isVisible = false
             authUrl = null
         }
+    }
+
+    private fun finishLogin(accountId: String, result: LoginResult) {
+        ApplicationManager.getApplication().invokeLater({
+            if (result.success) QuotaUsageService.getInstance().refreshAsync(accountId)
+            if (accountId() != accountId) return@invokeLater
+            authStatusMessage = if (result.success) {
+                AuthStatusMessage("Connected to xAI/Grok", kind = AuthStatusKind.CONNECTED)
+            } else {
+                AuthStatusMessage(result.message ?: "Login failed", true, AuthStatusKind.DISCONNECTED)
+            }
+            updateAuthUi()
+        }, ModalityState.stateForComponent(modalityComponentProvider() ?: this))
     }
 
     override fun updateResponseArea() {
