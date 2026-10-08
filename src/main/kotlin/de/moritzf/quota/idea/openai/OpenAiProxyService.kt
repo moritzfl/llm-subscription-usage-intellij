@@ -14,14 +14,9 @@ import de.moritzf.proxy.util.ApiKeyUtils
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.IdeProxyBuildContext
 import de.moritzf.quota.idea.common.ProviderCatalog
-import de.moritzf.quota.idea.github.GitHubCredentialsStore
-import de.moritzf.quota.idea.kimi.KimiCredentialsStore
-import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
-import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
 import de.moritzf.quota.idea.opencode.OpenCodeAuthService
 import de.moritzf.quota.idea.settings.QuotaSettingsListener
 import de.moritzf.quota.idea.settings.QuotaSettingsState
-import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 import java.nio.file.Path
 import java.util.concurrent.Executor
 
@@ -32,22 +27,9 @@ class OpenAiProxyService(
     },
     private val apiKeyStore: OpenAiProxyApiKeyStore = OpenAiProxyApiKeyStore.getInstance(),
     private val authServiceProvider: () -> QuotaAuthService = { QuotaAuthService.getInstance() },
-    private val githubCredentialsStoreProvider: () -> GitHubCredentialsStore = {
-        GitHubCredentialsStore.getInstance()
-    },
-    private val kimiCredentialsStoreProvider: () -> KimiCredentialsStore = {
-        KimiCredentialsStore.getInstance()
-    },
-    private val miniMaxApiKeyStoreProvider: () -> MiniMaxApiKeyStore = {
-        MiniMaxApiKeyStore.getInstance()
-    },
-    private val ollamaApiKeyStoreProvider: () -> OllamaApiKeyStore = {
-        OllamaApiKeyStore.getInstance()
-    },
     private val openCodeAuthServiceProvider: () -> OpenCodeAuthService = {
         OpenCodeAuthService.getInstance()
     },
-    private val zaiApiKeyStoreProvider: () -> ZaiApiKeyStore = { ZaiApiKeyStore.getInstance() },
     private val executor: Executor = AppExecutorUtil.getAppExecutorService(),
     subscribeToSettings: Boolean = true,
 ) : Disposable {
@@ -178,12 +160,7 @@ class OpenAiProxyService(
                 logRequests = logRequests,
                 requestLogDir = requestLogDir,
                 authService = authServiceProvider,
-                githubCredentials = githubCredentialsStoreProvider,
-                kimiCredentials = kimiCredentialsStoreProvider,
-                miniMaxApiKey = miniMaxApiKeyStoreProvider,
-                ollamaApiKey = ollamaApiKeyStoreProvider,
                 openCodeAuth = openCodeAuthServiceProvider,
-                zaiApiKey = zaiApiKeyStoreProvider,
             )
         return ProviderCatalog.createIdeProxyProviders(
             context = context,

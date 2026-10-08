@@ -719,7 +719,19 @@ internal object ProviderCatalog {
         return all.mapNotNull { descriptor ->
             if (descriptor.type !in enabled) return@mapNotNull null
             val factory = descriptor.ideProxyFactory ?: return@mapNotNull null
-            IdeProxyFactories.withProxyRateLimit(context, descriptor.type, factory(context))
+            AccountBoundProxyProvider(
+                descriptor.type,
+                accounts = { context.settings.accountsOf(descriptor.type) },
+                resolve = { model ->
+                    de.moritzf.quota.idea.settings.AccountResolver.resolveOrNull(
+                        descriptor.type,
+                        capability = de.moritzf.quota.idea.settings.AccountCapability.PROXY,
+                        settings = context.settings,
+                        model = model,
+                    )
+                },
+                create = { account -> factory(context.copy(account = account)) },
+            )
         }
     }
 
