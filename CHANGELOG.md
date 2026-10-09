@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Add native DeepSeek V4.1 Flash FIM through Ollama using raw infill tokens with thinking disabled. Advertise it in the native FIM model group; OpenCode Go continues to use the chat adapter.
+
 ## [1.18.1] - 2026-10-08
 
 - Fix multi-account proxy handling so login renewals and usage limits stay associated with the account serving the request.

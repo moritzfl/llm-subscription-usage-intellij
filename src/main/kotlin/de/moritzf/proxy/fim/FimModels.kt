@@ -19,7 +19,10 @@ object FimModels {
     }
 
     fun isNativeFimId(model: SubscriptionProxyModel): Boolean {
-        return isNativeFimId(model.localId) || isNativeFimId(model.upstreamId)
+        return SubscriptionProxyRoute.COMPLETIONS in model.supportedRoutes ||
+            SubscriptionProxyRoute.FIM_COMPLETIONS in model.supportedRoutes ||
+            isNativeFimId(model.localId) ||
+            isNativeFimId(model.upstreamId)
     }
 
     fun isNativeFimId(id: String): Boolean {

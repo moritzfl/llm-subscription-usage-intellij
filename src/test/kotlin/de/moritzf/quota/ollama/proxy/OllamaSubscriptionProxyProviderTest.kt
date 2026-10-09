@@ -40,7 +40,15 @@ class OllamaSubscriptionProxyProviderTest {
                         .jsonObject["data"]!!
                         .jsonArray
                         .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-                assertEquals(listOf("ol-llama3.3", "ol-gemma3:4b", "ol-qwen3-coder-next"), ids)
+                assertEquals(
+                    listOf(
+                        "ol-llama3.3",
+                        "ol-gemma3:4b",
+                        "ol-qwen3-coder-next",
+                        "ol-deepseek-v4.1-flash",
+                    ),
+                    ids,
+                )
                 assertEquals(
                     "/v1/models",
                     assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path,
@@ -205,6 +213,141 @@ class OllamaSubscriptionProxyProviderTest {
         }
     }
 
+    @Test
+    fun convertsDeepSeekFlashCompletionsToRawFimWithoutThinking() {
+        for (model in listOf("deepseek-v4.1-flash", "deepseek-v4.1-flash:cloud")) {
+            for (suffix in listOf("\n}", "")) {
+                val body =
+                    OllamaSubscriptionProxyProvider.toGenerateRequest(
+                        buildJsonObject {
+                            put("model", model)
+                            put("prompt", "return ")
+                            put("suffix", suffix)
+                            put("max_tokens", 48)
+                            put("temperature", 0.2)
+                            put("stop", "\n")
+                        }
+                    )
+                assertEquals(model, body["model"]!!.jsonPrimitive.content)
+                assertEquals(
+                    "<｜fim▁begin｜>return <｜fim▁hole｜>$suffix<｜fim▁end｜>",
+                    body["prompt"]!!.jsonPrimitive.content,
+                )
+                assertEquals("true", body["raw"]!!.jsonPrimitive.content)
+                assertEquals("false", body["think"]!!.jsonPrimitive.content)
+                assertEquals("false", body["stream"]!!.jsonPrimitive.content)
+                assertFalse("suffix" in body)
+                val options = body["options"]!!.jsonObject
+                assertEquals("48", options["num_predict"]!!.jsonPrimitive.content)
+                assertEquals("0.2", options["temperature"]!!.jsonPrimitive.content)
+                assertEquals("\n", options["stop"]!!.jsonPrimitive.content)
+            }
+        }
+    }
+
+    @Test
+    fun leavesUnverifiedDeepSeekModelsOnOrdinaryGeneratePath() {
+        for (model in
+            listOf("deepseek-v4-pro:0813", "deepseek-v3.2", "deepseek-v4.1-flash-other")) {
+            val body =
+                OllamaSubscriptionProxyProvider.toGenerateRequest(
+                    buildJsonObject {
+                        put("model", model)
+                        put("prompt", "return ")
+                        put("suffix", "\n}")
+                    }
+                )
+            assertEquals("return ", body["prompt"]!!.jsonPrimitive.content)
+            assertEquals("\n}", body["suffix"]!!.jsonPrimitive.content)
+            assertFalse("raw" in body)
+            assertFalse("think" in body)
+        }
+    }
+
+    @Test
+    fun advertisesAndRoutesDeepSeekNativeFimForJsonAndSse() {
+        for (stream in listOf(false, true)) {
+            TestUpstream().use { upstream ->
+                val proxy =
+                    newProxy(
+                        upstream.baseUri,
+                        CompletionsConfig(
+                            enabled = true,
+                            modelLocalId = "ol-deepseek-v4.1-flash",
+                            useChatAdapter = false,
+                        ),
+                    )
+                try {
+                    proxy.server.start()
+                    val info = get(proxy.port, "/v1/model/info")
+                    val modelInfo =
+                        JsonHelper.JSON.parseToJsonElement(info.body())
+                            .jsonObject["data"]!!
+                            .jsonArray
+                            .first {
+                                it.jsonObject["id"]!!.jsonPrimitive.content ==
+                                    "ol-deepseek-v4.1-flash"
+                            }
+                            .jsonObject["model_info"]!!
+                            .jsonObject
+                    assertEquals("true", modelInfo["supports_native_fim"]!!.jsonPrimitive.content)
+                    assertEquals("native", modelInfo["fim_mode"]!!.jsonPrimitive.content)
+                    assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+
+                    val response =
+                        post(
+                            proxy.port,
+                            "/v1/completions",
+                            JsonHelper.encodeToString(
+                                buildJsonObject {
+                                    put("model", "qwen2.5-coder")
+                                    put("prompt", "<｜fim▁begin｜>return <｜fim▁hole｜>\n}<｜fim▁end｜>")
+                                    put("stream", stream)
+                                    put("max_tokens", 48)
+                                }
+                            ),
+                        )
+                    assertEquals(200, response.statusCode(), response.body())
+                    val generate = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                    assertEquals("/api/generate", generate.path)
+                    assertEquals("Bearer ollama-key", generate.firstHeader("Authorization"))
+                    val body = JsonHelper.JSON.parseToJsonElement(generate.body).jsonObject
+                    assertEquals("deepseek-v4.1-flash", body["model"]!!.jsonPrimitive.content)
+                    assertEquals(
+                        "<｜fim▁begin｜>return <｜fim▁hole｜>\n}<｜fim▁end｜>",
+                        body["prompt"]!!.jsonPrimitive.content,
+                    )
+                    assertEquals("true", body["raw"]!!.jsonPrimitive.content)
+                    assertEquals("false", body["think"]!!.jsonPrimitive.content)
+                    assertEquals("false", body["stream"]!!.jsonPrimitive.content)
+                    assertFalse("suffix" in body)
+                    assertTrue(response.body().contains("a + b"), response.body())
+                    if (stream) {
+                        assertTrue(
+                            response
+                                .headers()
+                                .firstValue("Content-Type")
+                                .orElse("")
+                                .startsWith("text/event-stream")
+                        )
+                        assertTrue(response.body().contains("data: [DONE]"), response.body())
+                    } else {
+                        val text =
+                            JsonHelper.JSON.parseToJsonElement(response.body())
+                                .jsonObject["choices"]!!
+                                .jsonArray[0]
+                                .jsonObject["text"]!!
+                                .jsonPrimitive
+                                .content
+                        assertEquals("a + b", text)
+                    }
+                } finally {
+                    proxy.server.stop(gracePeriodMillis = 0)
+                }
+            }
+        }
+    }
+
     private fun newProxy(
         upstreamBaseUri: URI,
         completionsConfig: CompletionsConfig = CompletionsConfig.DISABLED,
@@ -275,6 +418,7 @@ class OllamaSubscriptionProxyProviderTest {
                             "{\"id\":\"llama3.3\",\"object\":\"model\"}," +
                             "{\"id\":\"gemma3:4b\",\"object\":\"model\"}," +
                             "{\"id\":\"qwen3-coder-next\",\"object\":\"model\"}," +
+                            "{\"id\":\"deepseek-v4.1-flash\",\"object\":\"model\"}," +
                             "{\"id\":\"nomic-embed-text\",\"object\":\"embedding\"}" +
                             "]}"
                     } else if (path.endsWith("/api/generate")) {

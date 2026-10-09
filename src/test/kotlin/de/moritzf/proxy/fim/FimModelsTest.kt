@@ -70,6 +70,21 @@ class FimModelsTest {
         assertNull(FimModels.fimReasoningEffort("ol-kimi-k3", "kimi-k3", "ollama"))
     }
 
+    @Test
+    fun nativeCompletionRoutesAreProviderScoped() {
+        val ollama = model("ol-deepseek-v4.1-flash", "ollama")
+        assertTrue(
+            FimModels.isNativeFimId(
+                ollama.copy(
+                    supportedRoutes = ollama.supportedRoutes + SubscriptionProxyRoute.COMPLETIONS
+                )
+            )
+        )
+        assertFalse(FimModels.isNativeFimId(ollama))
+        assertFalse(FimModels.isNativeFimId(model("oc-go-deepseek-v4.1-flash", "opencode")))
+        assertFalse(FimModels.isNativeFimId("deepseek-v4.1-flash"))
+    }
+
     private fun model(localId: String, providerId: String): SubscriptionProxyModel {
         return SubscriptionProxyModel(
             localId = localId,

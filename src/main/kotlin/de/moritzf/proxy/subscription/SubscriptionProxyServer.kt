@@ -458,7 +458,8 @@ class SubscriptionProxyServer(
                 "supports_vision" to model.supportsVision,
                 "supports_prompt_caching" to model.supportsPromptCaching,
                 "supports_native_fim" to
-                    (SubscriptionProxyRoute.FIM_COMPLETIONS in model.supportedRoutes),
+                    (SubscriptionProxyRoute.COMPLETIONS in model.supportedRoutes ||
+                        SubscriptionProxyRoute.FIM_COMPLETIONS in model.supportedRoutes),
                 "supports_fim_adapter" to fimAdapterEnabled(model),
                 "fim_mode" to fimMode(model),
                 "input_cost_per_token" to 0.0,

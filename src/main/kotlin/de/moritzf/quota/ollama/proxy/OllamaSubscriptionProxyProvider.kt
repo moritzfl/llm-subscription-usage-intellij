@@ -32,6 +32,10 @@ class OllamaSubscriptionProxyProvider(
             apiKeyProvider = apiKeyProvider,
             localIdPrefix = PREFIX,
             modelTransformer = ::ollamaModelMetadata,
+            extraRoutesForModel = { id ->
+                if (isDeepSeekNativeFimModel(id)) setOf(SubscriptionProxyRoute.COMPLETIONS)
+                else emptySet()
+            },
             upstreamUrlProvider = { request ->
                 if (request.route == SubscriptionProxyRoute.COMPLETIONS)
                     generateUrl(upstreamBaseUri)
@@ -102,6 +106,10 @@ class OllamaSubscriptionProxyProvider(
         }
 
         internal fun toGenerateRequest(body: JsonObject): JsonObject {
+            val model = (body["model"] as? JsonPrimitive)?.content.orEmpty()
+            val prefix = (body["prompt"] as? JsonPrimitive)?.content.orEmpty()
+            val suffix = (body["suffix"] as? JsonPrimitive)?.contentOrNull.orEmpty()
+            val deepSeekFim = isDeepSeekNativeFimModel(model)
             val options = buildJsonObject {
                 body["max_tokens"]?.let { token ->
                     val value = (token as? JsonPrimitive)?.intOrNull
@@ -117,13 +125,24 @@ class OllamaSubscriptionProxyProvider(
                 }
             }
             return buildJsonObject {
-                put("model", (body["model"] as? JsonPrimitive)?.content.orEmpty())
-                put("prompt", (body["prompt"] as? JsonPrimitive)?.content.orEmpty())
+                put("model", model)
+                if (deepSeekFim) {
+                    // Verified on Ollama Cloud: ordinary prompt/suffix uses the chat template
+                    // and ignores the suffix. Raw DeepSeek FIM tokens infill natively.
+                    put("prompt", "<｜fim▁begin｜>$prefix<｜fim▁hole｜>$suffix<｜fim▁end｜>")
+                    put("raw", true)
+                    put("think", false)
+                } else {
+                    put("prompt", prefix)
+                    (body["suffix"] as? JsonPrimitive)?.contentOrNull?.let { put("suffix", it) }
+                }
                 put("stream", false)
-                (body["suffix"] as? JsonPrimitive)?.contentOrNull?.let { put("suffix", it) }
                 if (options.isNotEmpty()) put("options", options)
             }
         }
+
+        private fun isDeepSeekNativeFimModel(id: String): Boolean =
+            id.substringBefore(':') == "deepseek-v4.1-flash"
 
         internal fun toTextCompletion(raw: String): String {
             val root = JsonHelper.parseToJsonElementOrNull(raw) as? JsonObject ?: return raw
