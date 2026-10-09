@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Fix DeepSeek native AI completion through Ollama failing when more than four stop sequences are sent.
+
 ## [1.19.0] - 2026-10-09
 
 - Ask Azure vision models about local images through MCP, with a separate opt-in model setting and Test vision button.

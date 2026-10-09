@@ -19,6 +19,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -265,6 +267,43 @@ class OllamaSubscriptionProxyProviderTest {
     }
 
     @Test
+    fun capsDeepSeekUpstreamStopsButKeepsOtherModelsUnchanged() {
+        val stops = (1..6).map { "stop-$it" }
+        for (model in listOf("deepseek-v4.1-flash", "deepseek-v4.1-flash:cloud", "qwen2.5-coder")) {
+            val body =
+                OllamaSubscriptionProxyProvider.toGenerateRequest(
+                    buildJsonObject {
+                        put("model", model)
+                        put("prompt", "return ")
+                        put("stop", buildJsonArray { stops.forEach { add(JsonPrimitive(it)) } })
+                    }
+                )
+            val sent =
+                body["options"]!!.jsonObject["stop"]!!.jsonArray.map { it.jsonPrimitive.content }
+            assertEquals(
+                if (model.startsWith("deepseek-v4.1-flash")) stops.take(4) else stops,
+                sent,
+            )
+        }
+    }
+
+    @Test
+    fun enforcesStopsOmittedFromUpstreamLocally() {
+        val raw = """{"model":"deepseek-v4.1-flash","response":"a + bstop-5unwanted"}"""
+        val result =
+            OllamaSubscriptionProxyProvider.toTextCompletion(raw, (1..6).map { "stop-$it" })
+        assertEquals(
+            "a + b",
+            JsonHelper.JSON.parseToJsonElement(result)
+                .jsonObject["choices"]!!
+                .jsonArray[0]
+                .jsonObject["text"]!!
+                .jsonPrimitive
+                .content,
+        )
+    }
+
+    @Test
     fun advertisesAndRoutesDeepSeekNativeFimForJsonAndSse() {
         for (stream in listOf(false, true)) {
             TestUpstream().use { upstream ->
@@ -321,6 +360,7 @@ class OllamaSubscriptionProxyProviderTest {
                     assertEquals("false", body["think"]!!.jsonPrimitive.content)
                     assertEquals("false", body["stream"]!!.jsonPrimitive.content)
                     assertFalse("suffix" in body)
+                    assertEquals(4, body["options"]!!.jsonObject["stop"]!!.jsonArray.size)
                     assertTrue(response.body().contains("a + b"), response.body())
                     if (stream) {
                         assertTrue(

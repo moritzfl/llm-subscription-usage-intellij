@@ -1,5 +1,7 @@
 package de.moritzf.quota.ollama.proxy
 
+import de.moritzf.proxy.fim.CompletionSanitizer
+import de.moritzf.proxy.fim.CompletionsRequest
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.subscription.OpenAiCompatibleApiKeySubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
@@ -46,7 +48,8 @@ class OllamaSubscriptionProxyProvider(
                 else body
             },
             jsonResponseTransformer = { request, raw ->
-                if (request.route == SubscriptionProxyRoute.COMPLETIONS) toTextCompletion(raw)
+                if (request.route == SubscriptionProxyRoute.COMPLETIONS)
+                    toTextCompletion(raw, CompletionsRequest.stopSequences(request.body))
                 else raw
             },
             httpClient = httpClient,
@@ -120,7 +123,7 @@ class OllamaSubscriptionProxyProvider(
                 when (stop) {
                     is JsonPrimitive ->
                         stop.contentOrNull?.takeIf { it.isNotEmpty() }?.let { put("stop", it) }
-                    is JsonArray -> put("stop", stop)
+                    is JsonArray -> put("stop", if (deepSeekFim) JsonArray(stop.take(4)) else stop)
                     else -> Unit
                 }
             }
@@ -144,9 +147,10 @@ class OllamaSubscriptionProxyProvider(
         private fun isDeepSeekNativeFimModel(id: String): Boolean =
             id.substringBefore(':') == "deepseek-v4.1-flash"
 
-        internal fun toTextCompletion(raw: String): String {
+        internal fun toTextCompletion(raw: String, stops: List<String> = emptyList()): String {
             val root = JsonHelper.parseToJsonElementOrNull(raw) as? JsonObject ?: return raw
             val text = (root["response"] as? JsonPrimitive)?.contentOrNull ?: return raw
+            val completion = CompletionSanitizer.cutAtStopSequence(text, stops)?.content ?: text
             val model = (root["model"] as? JsonPrimitive)?.contentOrNull.orEmpty()
             return JsonHelper.encodeToString(
                 buildJsonObject {
@@ -159,7 +163,7 @@ class OllamaSubscriptionProxyProvider(
                         buildJsonArray {
                             add(
                                 buildJsonObject {
-                                    put("text", text)
+                                    put("text", completion)
                                     put("index", 0)
                                     put("finish_reason", "stop")
                                 }
