@@ -36,7 +36,7 @@ Track and use your LLM subscriptions directly in IntelliJ IDEA.
 
 | Provider | Sign-in | Quota | Web search | Images | Video | Voice | Docs | Vision | Proxy | Native FIM |
 |---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| OpenAI (ChatGPT / Codex) | Browser / device code / access token | ✓ | ✓ | ✓ | — | ✓ | (✓) | ✓ | ✓ | — |
+| OpenAI (ChatGPT / Codex) | Browser / device code / access token | ✓ | ✓ | ✓ | — | (✓) | (✓) | ✓ | ✓ | — |
 | Claude (Anthropic) | Browser login | ✓ | — | — | — | — | — | — | — | — |
 | SuperGrok / xAI | Browser / device code | ✓ | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ | ✓ | — |
 | GitHub Copilot | Device code | ✓ | — | — | — | — | — | ✓ | ✓ | — |
@@ -53,7 +53,7 @@ Track and use your LLM subscriptions directly in IntelliJ IDEA.
 - **Quota** — usage in the status bar and detail popup.
 - **Web search** — MCP tool that searches the web with your subscription. Copilot Chat can Bing-search in GitHub's own UI, but Copilot has no callable search API we can wrap.
 - **Images** / **Video** — MCP tools that generate images or video with your subscription.
-- **Voice** — MCP tools for speech-to-text and text-to-speech. (✓) means only one of the two.
+- **Voice** — MCP tools for speech-to-text and text-to-speech. (✓) means only one of the two. OpenAI/Codex supports speech-to-text; experimental realtime text-to-speech is not confirmed working end-to-end and was entitlement-blocked on the tested account, so it is not counted here.
 - **Docs** — MCP tool that converts a PDF or image to markdown. ✓ uses a dedicated OCR API that returns figures. ✓* requires an explicitly selected Azure document model. (✓) uses a chat/vision API and reconstructs figure images locally from estimated page boxes. OpenAI and SuperGrok use the vision model selected in that provider's settings. A general vision model is less precise and usually costs more than a document or OCR model (Mistral, Z.ai, or a company model such as Azure).
 - **Vision** — MCP tool `subscription_vision` that answers questions about an image with a vision-capable chat model, so non-vision models can extract information from images. Every provider starts off (`-`); select a vision model in that provider's settings first. Vision is a separate setting from the document model: a vision model does not need PDF support, and the document model keeps requiring PDF or OCR support.
 - **Proxy** — available through the local OpenAI-compatible proxy (for use of subscriptions in tools like Jetbrains AI Chat and other tools that require authentication by endpoint and API key).
