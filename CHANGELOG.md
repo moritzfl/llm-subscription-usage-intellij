@@ -2,13 +2,12 @@
 
 ## [Unreleased]
 
-- Prevent Ollama native AI completions from repeating existing suffixes or leaking FIM control tokens.
-- Use deterministic sampling and DeepSeek-native stop markers for Ollama DeepSeek AI completions unless a temperature is explicitly supplied.
-- Flag incorrect or whitespace-only AI completion test results instead of reporting them as usable.
-
 ## [1.19.1] - 2026-10-09
 
 - Fix DeepSeek native AI completion through Ollama returning HTTP 400 because of the provider's stop-sequence limit.
+- Prevent Ollama native AI completions from repeating existing suffixes or leaking FIM control tokens.
+- Use deterministic sampling and DeepSeek-native stop markers for Ollama DeepSeek AI completions unless a temperature is explicitly supplied.
+- Flag incorrect or whitespace-only AI completion test results instead of reporting them as usable.
 
 ## [1.19.0] - 2026-10-09
 
