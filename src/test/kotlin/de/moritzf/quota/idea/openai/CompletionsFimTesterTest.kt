@@ -40,4 +40,20 @@ class CompletionsFimTesterTest {
         assertNull(result.insert)
         assertTrue(result.detail.orEmpty().contains("no insert text"))
     }
+
+    @Test
+    fun duplicatedSuffixAndWrongAnswersAreNotReportedAsUsable() {
+        for (insert in listOf("a + b\n}", "return a + b", "a - b", "42", " ", "\n\t")) {
+            val result = CompletionsFimTester.formatSuccess(insert, elapsedMs = 12)
+            assertFalse(result.ok, insert)
+            assertTrue(result.detail.orEmpty().isNotBlank(), insert)
+        }
+    }
+
+    @Test
+    fun acceptsEquivalentAdditionFormatting() {
+        for (insert in listOf("a+b", "b + a", "(a + b)", "a + b;", " a + b\n")) {
+            assertTrue(CompletionsFimTester.formatSuccess(insert, elapsedMs = 12).ok, insert)
+        }
+    }
 }

@@ -2,7 +2,13 @@
 
 ## [Unreleased]
 
-- Fix DeepSeek native AI completion through Ollama failing when more than four stop sequences are sent.
+- Prevent Ollama native AI completions from repeating existing suffixes or leaking FIM control tokens.
+- Use deterministic sampling and DeepSeek-native stop markers for Ollama DeepSeek AI completions unless a temperature is explicitly supplied.
+- Flag incorrect or whitespace-only AI completion test results instead of reporting them as usable.
+
+## [1.19.1] - 2026-10-09
+
+- Fix DeepSeek native AI completion through Ollama returning HTTP 400 because of the provider's stop-sequence limit.
 
 ## [1.19.0] - 2026-10-09
 
@@ -663,7 +669,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.19.0...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.19.1...HEAD
+[1.19.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.19.0...1.19.1
 [1.19.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.18.1...1.19.0
 [1.18.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.18.0...1.18.1
 [1.18.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.4...1.18.0

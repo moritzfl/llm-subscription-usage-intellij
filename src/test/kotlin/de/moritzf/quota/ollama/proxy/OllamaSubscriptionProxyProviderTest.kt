@@ -242,7 +242,10 @@ class OllamaSubscriptionProxyProviderTest {
                 val options = body["options"]!!.jsonObject
                 assertEquals("48", options["num_predict"]!!.jsonPrimitive.content)
                 assertEquals("0.2", options["temperature"]!!.jsonPrimitive.content)
-                assertEquals("\n", options["stop"]!!.jsonPrimitive.content)
+                assertEquals(
+                    listOf("<｜end▁of▁sentence｜>", "<｜fim▁", "\n"),
+                    options["stop"]!!.jsonArray.map { it.jsonPrimitive.content },
+                )
             }
         }
     }
@@ -267,6 +270,32 @@ class OllamaSubscriptionProxyProviderTest {
     }
 
     @Test
+    fun deepSeekDefaultsToDeterministicNativeSamplingAndNativeBoundaryStops() {
+        val body =
+            OllamaSubscriptionProxyProvider.toGenerateRequest(
+                buildJsonObject {
+                    put("model", "deepseek-v4.1-flash")
+                    put("prompt", "return ")
+                    put("suffix", "\n}")
+                    put(
+                        "stop",
+                        buildJsonArray {
+                            de.moritzf.proxy.fim.CompletionSanitizer.INTERNAL_STOPS.forEach {
+                                add(JsonPrimitive(it))
+                            }
+                        },
+                    )
+                }
+            )
+        val options = body["options"]!!.jsonObject
+        assertEquals("0", options["temperature"]!!.jsonPrimitive.content)
+        assertEquals(
+            listOf("<｜end▁of▁sentence｜>", "<｜fim▁"),
+            options["stop"]!!.jsonArray.map { it.jsonPrimitive.content },
+        )
+    }
+
+    @Test
     fun capsDeepSeekUpstreamStopsButKeepsOtherModelsUnchanged() {
         val stops = (1..6).map { "stop-$it" }
         for (model in listOf("deepseek-v4.1-flash", "deepseek-v4.1-flash:cloud", "qwen2.5-coder")) {
@@ -281,7 +310,9 @@ class OllamaSubscriptionProxyProviderTest {
             val sent =
                 body["options"]!!.jsonObject["stop"]!!.jsonArray.map { it.jsonPrimitive.content }
             assertEquals(
-                if (model.startsWith("deepseek-v4.1-flash")) stops.take(4) else stops,
+                if (model.startsWith("deepseek-v4.1-flash"))
+                    listOf("<｜end▁of▁sentence｜>", "<｜fim▁") + stops.take(2)
+                else stops,
                 sent,
             )
         }
@@ -306,7 +337,7 @@ class OllamaSubscriptionProxyProviderTest {
     @Test
     fun advertisesAndRoutesDeepSeekNativeFimForJsonAndSse() {
         for (stream in listOf(false, true)) {
-            TestUpstream().use { upstream ->
+            TestUpstream(generateText = "a + b\n}").use { upstream ->
                 val proxy =
                     newProxy(
                         upstream.baseUri,
@@ -360,7 +391,12 @@ class OllamaSubscriptionProxyProviderTest {
                     assertEquals("false", body["think"]!!.jsonPrimitive.content)
                     assertEquals("false", body["stream"]!!.jsonPrimitive.content)
                     assertFalse("suffix" in body)
-                    assertEquals(4, body["options"]!!.jsonObject["stop"]!!.jsonArray.size)
+                    assertEquals(
+                        listOf("<｜end▁of▁sentence｜>", "<｜fim▁"),
+                        body["options"]!!.jsonObject["stop"]!!.jsonArray.map {
+                            it.jsonPrimitive.content
+                        },
+                    )
                     assertTrue(response.body().contains("a + b"), response.body())
                     if (stream) {
                         assertTrue(
@@ -371,6 +407,7 @@ class OllamaSubscriptionProxyProviderTest {
                                 .startsWith("text/event-stream")
                         )
                         assertTrue(response.body().contains("data: [DONE]"), response.body())
+                        assertEquals("a + b", completionText(response.body(), stream))
                     } else {
                         val text =
                             JsonHelper.JSON.parseToJsonElement(response.body())
@@ -385,6 +422,104 @@ class OllamaSubscriptionProxyProviderTest {
                     proxy.server.stop(gracePeriodMillis = 0)
                 }
             }
+        }
+    }
+
+    @Test
+    fun nativeFimCleansRecordedOutputsForJsonAndSseWithoutCorruptingSource() {
+        data class Case(
+            val prefix: String,
+            val suffix: String,
+            val raw: String,
+            val expected: String,
+        )
+        val cases =
+            listOf(
+                Case(
+                    "const fullName = user.first",
+                    "Name + \" \" + user.lastName;\n",
+                    "Name || user.last",
+                    "",
+                ),
+                Case("user.fi", "Name", "rst", "rst"),
+                Case("return ", "\n}\n", "a + b\n}", "a + b"),
+                Case("return ", "\n}\n", "a + b\n}\n<｜fim▁end｜>", "a + b"),
+                Case(
+                    "const fullName = user.first",
+                    "Name + \" \" + user.lastName;\n",
+                    "Name + \" \" + user.last",
+                    "",
+                ),
+                Case("return ", "\n}", "return a + b", "a + b"),
+                Case(
+                    "        ",
+                    "\n    }",
+                    "        result.append(value * value)",
+                    "result.append(value * value)",
+                ),
+                Case("print(", ")", "foo()", "foo()"),
+                Case("val greeting = ", "\n", "\"Hello\"", "\"Hello\""),
+                Case("", "\n}\n", "first()\nsecond()", "first()\nsecond()"),
+                Case("return ", "\n}", "a + b</code_after_cursor>ignored", "a + b"),
+                Case("return ", "\n}", "a + b<｜end▁of▁sentence｜>ignored", "a + b"),
+            )
+        for (stream in listOf(false, true)) {
+            for (case in cases) {
+                TestUpstream(generateText = case.raw).use { upstream ->
+                    val proxy =
+                        newProxy(
+                            upstream.baseUri,
+                            CompletionsConfig(
+                                enabled = true,
+                                modelLocalId = "ol-deepseek-v4.1-flash",
+                                useChatAdapter = false,
+                            ),
+                        )
+                    try {
+                        proxy.server.start()
+                        val response =
+                            post(
+                                proxy.port,
+                                "/v1/completions",
+                                JsonHelper.encodeToString(
+                                    buildJsonObject {
+                                        put("model", "qwen2.5-coder")
+                                        put("prompt", case.prefix)
+                                        put("suffix", case.suffix)
+                                        put("stream", stream)
+                                    }
+                                ),
+                            )
+                        assertEquals(200, response.statusCode(), response.body())
+                        assertEquals(
+                            case.expected,
+                            completionText(response.body(), stream),
+                            case.toString(),
+                        )
+                    } finally {
+                        proxy.server.stop(gracePeriodMillis = 0)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun completionText(body: String, stream: Boolean): String {
+        val chunks =
+            if (stream)
+                body
+                    .lineSequence()
+                    .filter { it.startsWith("data: ") && it != "data: [DONE]" }
+                    .map { it.removePrefix("data: ") }
+                    .toList()
+            else listOf(body)
+        return chunks.joinToString("") {
+            JsonHelper.JSON.parseToJsonElement(it)
+                .jsonObject["choices"]!!
+                .jsonArray[0]
+                .jsonObject["text"]!!
+                .jsonPrimitive
+                .content
         }
     }
 
@@ -436,7 +571,7 @@ class OllamaSubscriptionProxyProviderTest {
 
     private data class TestProxy(val port: Int, val server: SubscriptionProxyServer)
 
-    private class TestUpstream : AutoCloseable {
+    private class TestUpstream(private val generateText: String = "a + b") : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
         private val server =
             HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
@@ -462,13 +597,32 @@ class OllamaSubscriptionProxyProviderTest {
                             "{\"id\":\"nomic-embed-text\",\"object\":\"embedding\"}" +
                             "]}"
                     } else if (path.endsWith("/api/generate")) {
-                        "{\"model\":\"qwen3-coder-next\",\"response\":\"a + b\",\"done\":true}"
+                        JsonHelper.encodeToString(
+                            buildJsonObject {
+                                put("model", "deepseek-v4.1-flash")
+                                put("response", generateText)
+                                put("done", true)
+                            }
+                        )
                     } else {
                         "{\"id\":\"chatcmpl_1\",\"choices\":[]}"
                     }
-                val response = responseBody.toByteArray(Charsets.UTF_8)
+                val tooManyStops =
+                    if (path.endsWith("/api/generate")) {
+                        val request = JsonHelper.JSON.parseToJsonElement(body).jsonObject
+                        val model = request["model"]!!.jsonPrimitive.content
+                        model.startsWith("deepseek-v4.1-flash") &&
+                            (request["options"]?.jsonObject?.get("stop")
+                                    as? kotlinx.serialization.json.JsonArray)
+                                ?.size
+                                ?.let { it > 4 } == true
+                    } else false
+                val response =
+                    (if (tooManyStops) """{"error":"too many stop sequences; maximum is 4"}"""
+                        else responseBody)
+                        .toByteArray(Charsets.UTF_8)
                 exchange.responseHeaders.set("Content-Type", "application/json")
-                exchange.sendResponseHeaders(200, response.size.toLong())
+                exchange.sendResponseHeaders(if (tooManyStops) 400 else 200, response.size.toLong())
                 exchange.responseBody.use { output -> output.write(response) }
             }
             server.start()

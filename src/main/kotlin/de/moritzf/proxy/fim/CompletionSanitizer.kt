@@ -6,7 +6,7 @@ object CompletionSanitizer {
     private val WRAPPED_QUOTES = Regex("^([\"'])(.*)\\1$", RegexOption.DOT_MATCHES_ALL)
     private val LEFTOVER_TOKENS =
         Regex(
-            "<\\|fim_[a-z]+\\|>|<fim_[a-z]+>|<｜fim▁[^｜]*｜>|\\[PREFIX]|\\[SUFFIX]|\\[MIDDLE]|<PRE>|<SUF>|<MID>|<CURSOR>|</code_before_cursor>|</code_after_cursor>|<code_before_cursor>|<code_after_cursor>"
+            "<\\|fim_[a-z]+\\|>|<fim_[a-z]+>|<｜fim▁[^｜]*｜>|<｜(?:end|begin)▁of▁sentence｜>|\\[PREFIX]|\\[SUFFIX]|\\[MIDDLE]|<PRE>|<SUF>|<MID>|<CURSOR>|</code_before_cursor>|</code_after_cursor>|<code_before_cursor>|<code_after_cursor>"
         )
     private val APOLOGY_START =
         Regex("^(sure|here is|here's|i will|the code)\\b", RegexOption.IGNORE_CASE)
@@ -45,6 +45,37 @@ object CompletionSanitizer {
         text = stripRedundantCommentMarker(text, prefix, languageHint)
         if (looksLikeExplanation(text, prefix, languageHint)) return ""
         return text
+    }
+
+    /** Native infill is source text, not a chat answer: preserve quotes, fences and prose. */
+    fun sanitizeNative(raw: String, prefix: String, suffix: String, stop: List<String>): String {
+        var text = raw.removePrefix("\uFEFF").replace("\r\n", "\n")
+        text =
+            earliestCut(text, stop + INTERNAL_STOPS.filterNot { it == "\n\n\n" })?.content ?: text
+        text = LEFTOVER_TOKENS.replace(text, "")
+        text = dropPrefixOverlap(text, prefix)
+        text = dropCurrentLineOverlap(text, prefix)
+        if (repeatsIdentifierSuffix(text, prefix, suffix)) return ""
+        text = dropNativeSuffixOverlap(text, suffix)
+        return stripRedundantCurrentLineIndent(text, prefix)
+    }
+
+    private fun repeatsIdentifierSuffix(output: String, prefix: String, suffix: String): Boolean {
+        if (prefix.lastOrNull()?.isJavaIdentifierPart() != true) return false
+        val continuation = suffix.takeWhile { it.isJavaIdentifierPart() }
+        if (continuation.length < 2 || !output.startsWith(continuation)) return false
+        return output.getOrNull(continuation.length)?.isJavaIdentifierPart() != true
+    }
+
+    private fun dropNativeSuffixOverlap(output: String, suffix: String): String {
+        val max = minOf(64, output.length, suffix.length)
+        for (n in max downTo 2) {
+            val piece = suffix.take(n)
+            if (piece.isBlank() || (n < 8 && !isSafeSuffixOverlap(piece))) continue
+            if (output.startsWith(piece)) return output.drop(n)
+            if (output.endsWith(piece)) return output.dropLast(n)
+        }
+        return output
     }
 
     fun looksLikeExplanation(

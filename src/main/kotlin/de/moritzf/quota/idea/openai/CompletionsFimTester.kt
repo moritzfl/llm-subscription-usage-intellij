@@ -75,7 +75,7 @@ object CompletionsFimTester {
         elapsedMs: Long,
         raw: String = "",
     ): CompletionsFimTestResult {
-        if (insert.isNullOrEmpty()) {
+        if (insert.isNullOrBlank()) {
             return CompletionsFimTestResult(
                 ok = false,
                 status = "Empty insert",
@@ -91,13 +91,21 @@ object CompletionsFimTester {
                     },
             )
         }
+        val assembled = (SAMPLE_PROMPT + insert + SAMPLE_SUFFIX).trimEnd()
+        val expression =
+            insert.filterNot(Char::isWhitespace).removeSuffix(";").removeSurrounding("(", ")")
+        val usable = expression == "a+b" || expression == "b+a"
         return CompletionsFimTestResult(
-            ok = true,
-            status = "Fill-in looks usable",
+            ok = usable,
+            status = if (usable) "Fill-in looks usable" else "Unexpected fill-in",
             elapsedMs = elapsedMs,
             sample = SAMPLE_WITH_CURSOR.trimEnd(),
             insert = insert,
-            assembled = (SAMPLE_PROMPT + insert + SAMPLE_SUFFIX).trimEnd(),
+            assembled = assembled,
+            detail =
+                if (usable) null
+                else
+                    "Expected an addition expression (a + b or b + a). Check the assembled result before using this model for AI Completion.",
         )
     }
 

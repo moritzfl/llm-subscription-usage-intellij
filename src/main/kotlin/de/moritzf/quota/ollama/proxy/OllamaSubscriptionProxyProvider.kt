@@ -49,7 +49,12 @@ class OllamaSubscriptionProxyProvider(
             },
             jsonResponseTransformer = { request, raw ->
                 if (request.route == SubscriptionProxyRoute.COMPLETIONS)
-                    toTextCompletion(raw, CompletionsRequest.stopSequences(request.body))
+                    toTextCompletion(
+                        raw,
+                        CompletionsRequest.stopSequences(request.body),
+                        (request.body["prompt"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+                        (request.body["suffix"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+                    )
                 else raw
             },
             httpClient = httpClient,
@@ -118,20 +123,40 @@ class OllamaSubscriptionProxyProvider(
                     val value = (token as? JsonPrimitive)?.intOrNull
                     if (value != null && value > 0) put("num_predict", value)
                 }
-                body["temperature"]?.let { put("temperature", it) }
-                val stop = body["stop"]
-                when (stop) {
-                    is JsonPrimitive ->
-                        stop.contentOrNull?.takeIf { it.isNotEmpty() }?.let { put("stop", it) }
-                    is JsonArray -> put("stop", if (deepSeekFim) JsonArray(stop.take(4)) else stop)
-                    else -> Unit
+                (body["temperature"] ?: JsonPrimitive(0).takeIf { deepSeekFim })?.let {
+                    put("temperature", it)
                 }
+                val stop = body["stop"]
+                if (deepSeekFim) {
+                    // Raw infill uses DeepSeek boundaries, not the chat adapter's sentinel tags.
+                    // Keep the four-stop provider limit; enforce all caller stops on output.
+                    val requested =
+                        CompletionsRequest.stopSequences(body).filterNot {
+                            it in CompletionSanitizer.INTERNAL_STOPS
+                        }
+                    put(
+                        "stop",
+                        buildJsonArray {
+                            (listOf("<｜end▁of▁sentence｜>", "<｜fim▁") + requested)
+                                .distinct()
+                                .take(4)
+                                .forEach { add(JsonPrimitive(it)) }
+                        },
+                    )
+                } else
+                    when (stop) {
+                        is JsonPrimitive ->
+                            stop.contentOrNull?.takeIf { it.isNotEmpty() }?.let { put("stop", it) }
+                        is JsonArray -> put("stop", stop)
+                        else -> Unit
+                    }
             }
             return buildJsonObject {
                 put("model", model)
                 if (deepSeekFim) {
                     // Verified on Ollama Cloud: ordinary prompt/suffix uses the chat template
                     // and ignores the suffix. Raw DeepSeek FIM tokens infill natively.
+                    // DeepSeek-Coder's documented order: begin + prefix + hole + suffix + end.
                     put("prompt", "<｜fim▁begin｜>$prefix<｜fim▁hole｜>$suffix<｜fim▁end｜>")
                     put("raw", true)
                     put("think", false)
@@ -147,10 +172,15 @@ class OllamaSubscriptionProxyProvider(
         private fun isDeepSeekNativeFimModel(id: String): Boolean =
             id.substringBefore(':') == "deepseek-v4.1-flash"
 
-        internal fun toTextCompletion(raw: String, stops: List<String> = emptyList()): String {
+        internal fun toTextCompletion(
+            raw: String,
+            stops: List<String> = emptyList(),
+            prefix: String = "",
+            suffix: String = "",
+        ): String {
             val root = JsonHelper.parseToJsonElementOrNull(raw) as? JsonObject ?: return raw
             val text = (root["response"] as? JsonPrimitive)?.contentOrNull ?: return raw
-            val completion = CompletionSanitizer.cutAtStopSequence(text, stops)?.content ?: text
+            val completion = CompletionSanitizer.sanitizeNative(text, prefix, suffix, stops)
             val model = (root["model"] as? JsonPrimitive)?.contentOrNull.orEmpty()
             return JsonHelper.encodeToString(
                 buildJsonObject {
