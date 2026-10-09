@@ -2,10 +2,11 @@
 
 ## [Unreleased]
 
-- Add an opt-in Azure vision model setting and image-analysis test, with Azure support in `subscription_vision`.
-- Give AI completion test samples and results more room to avoid scrollbars for short snippets.
+## [1.19.0] - 2026-10-09
 
-- Add native DeepSeek V4.1 Flash FIM through Ollama using raw infill tokens with thinking disabled. Advertise it in the native FIM model group; OpenCode Go continues to use the chat adapter.
+- Ask Azure vision models about local images through MCP, with a separate opt-in model setting and Test vision button.
+- Use native DeepSeek V4.1 Flash fill-in-the-middle completions through Ollama, now listed among native AI completion models.
+- Give AI completion test samples and results more room to avoid scrollbars for short snippets.
 
 ## [1.18.1] - 2026-10-08
 
@@ -660,7 +661,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.18.1...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.19.0...HEAD
+[1.19.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.18.1...1.19.0
 [1.18.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.18.0...1.18.1
 [1.18.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.4...1.18.0
 [1.17.4]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.17.3...1.17.4
