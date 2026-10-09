@@ -1013,7 +1013,7 @@ private class FimTestDialog(
             group("Result") { row { cell(resultSlot).resizableColumn().align(AlignX.FILL) } }
             row { cell(detailSlot).resizableColumn().align(AlignX.FILL) }
         }
-            .apply { preferredSize = Dimension(JBUI.scale(520), JBUI.scale(420)) }
+            .apply { preferredSize = Dimension(JBUI.scale(520), JBUI.scale(480)) }
     }
 
     override fun createActions(): Array<Action> = arrayOf(abortAction, retryAction, okAction)
@@ -1090,7 +1090,7 @@ private class FimTestDialog(
     private fun isActive(gen: Int) = task.isActive(gen)
 
     private fun codeBlock(text: String): JComponent =
-        TestDialogUi.codeBlock(text, height = 72, wrapWords = false)
+        TestDialogUi.codeBlock(text, height = 96, wrapWords = false)
 
     private fun note(text: String) = TestDialogUi.note(text)
 

@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - Add an opt-in Azure vision model setting and image-analysis test, with Azure support in `subscription_vision`.
+- Give AI completion test samples and results more room to avoid scrollbars for short snippets.
 
 - Add native DeepSeek V4.1 Flash FIM through Ollama using raw infill tokens with thinking disabled. Advertise it in the native FIM model group; OpenCode Go continues to use the chat adapter.
 
