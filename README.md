@@ -48,7 +48,7 @@ Track and use your LLM subscriptions directly in IntelliJ IDEA.
 | Mistral | Session cookie + API key | ✓ | ✓ | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Kimi | Device code | ✓ | ✓ | — | — | — | — | ✓ | ✓ | — |
 | Antigravity (Gemini / Claude / GPT) | AGY CLI login | ✓ | — | — | — | — | — | — | — | — |
-| Azure OpenAI / Foundry | Azure CLI login | ✓ | — | — | — | — | ✓* | — | ✓ | — |
+| Azure OpenAI / Foundry | Azure CLI login | ✓ | — | — | — | — | ✓* | ✓ | ✓ | — |
 
 - **Quota** — usage in the status bar and detail popup.
 - **Web search** — MCP tool that searches the web with your subscription. Copilot Chat can Bing-search in GitHub's own UI, but Copilot has no callable search API we can wrap.
@@ -98,6 +98,8 @@ In each provider's settings, use **Refresh quota** beside the copy button in **L
 **Azure is a separate CLI exception.** Install the [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli), run `az login`, then add Azure in the plugin settings. Only one Azure entry is supported. It can pin a subscription from `az account list` and an Azure OpenAI resource name or endpoint. The plugin calls documented `az account get-access-token` and does not read `~/.azure`. Quota usage needs Cognitive Services Usages Reader and is optional: if that call is denied, the local proxy and any models or rate-limit numbers the token can read still work. Other providers continue to use plugin-managed credentials. For document-to-markdown, the first model list picks the newest Mistral OCR deployment when one exists, otherwise conversion stays off (`-`). You can still pick another discovered document model, Cohere Parse, or Document Intelligence, or choose `-` to turn it off. Changing the resource clears that choice so the next model list can pick again. The dropdown lists matching discovered deployments and manually entered names. Document Intelligence is not chosen automatically. OCR needs data-plane access to the selected resource; Document Intelligence requires Cognitive Services User access for the CLI identity. PDFs/images are sent inline to Azure, not to the providers' hosted APIs. Cohere Parse accepts images only, so PDF pages are rendered locally and processed one request per page for the whole document (or the requested `pageFrom`/`pageTo` slice). Cancellation takes effect between pages. Document Intelligence uses its asynchronous layout analysis API and can download detected figures when requested.
 
 Azure proxy model IDs use `az-<deployment-name>`, including deployments missing from discovery. Deployment names come from the selected resource when ARM access is available; otherwise the plugin uses the endpoint's model list or manually entered deployment names. Capacity allocations use Azure's native capacity units (PTU for provisioned deployments); live rate-limit percentages come from recent proxy response headers.
+
+Azure image analysis has a separate **Vision model** setting, off by default (`-`). Select a deployment and use **Test vision** to check image support; discovery does not declare it. `subscription_vision` with `provider=AZURE` requires `localFile` and uses the deployment name, not the proxy's `az-` prefix. Document-model selection is unchanged.
 
 Azure document conversion currently accepts PDF, PNG, and JPEG inputs up to 20 MiB. Document Intelligence can support larger files through its own API; the plugin's inline-input limit is lower.
 

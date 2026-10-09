@@ -59,6 +59,7 @@ enum class WebFetchProvider(val providerType: QuotaProviderType) {
  * Schema generation for the MCP tool parameter derives valid values from this enum.
  */
 enum class VisionProvider(val providerType: QuotaProviderType) {
+    AZURE(QuotaProviderType.AZURE),
     OPEN_AI(QuotaProviderType.OPEN_AI),
     SUPERGROK(QuotaProviderType.SUPERGROK),
     MISTRAL(QuotaProviderType.MISTRAL),

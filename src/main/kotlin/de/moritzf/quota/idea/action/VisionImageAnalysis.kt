@@ -47,6 +47,8 @@ internal object VisionImageAnalysis {
         }
         val trimmedPrompt = prompt.trim().ifBlank { error("Image prompt is required.") }
         return when (provider) {
+            VisionProvider.AZURE ->
+                NativeDocumentConversion.azureVision(account.id, chosen, image, trimmedPrompt)
             VisionProvider.OPEN_AI -> {
                 val auth = QuotaAuthService.getInstance()
                 val client =

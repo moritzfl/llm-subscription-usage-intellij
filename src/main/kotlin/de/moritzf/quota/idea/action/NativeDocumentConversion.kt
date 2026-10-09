@@ -162,6 +162,25 @@ internal object NativeDocumentConversion {
         )
     }
 
+    fun azureVision(accountId: String, model: String, source: Path, prompt: String): String {
+        val executable =
+            AzureQuotaProvider.executableForAccount(accountId) ?: error("Azure CLI not found.")
+        val config = AzureQuotaProvider.configForAccount(accountId)
+        val target = azureInferenceTarget(config) ?: error("Azure endpoint is missing.")
+        val token =
+            AzureCli(executable)
+                .accessToken(azureScopeForUrl(target.baseUrl), config.subscriptionId)
+                .accessToken
+        return poster.askImage(
+            URI.create(azureUpstreamUrl(target.baseUrl, "chat/completions")),
+            mapOf("Authorization" to "Bearer $token"),
+            NativePdfRoute.CHAT,
+            model,
+            prompt,
+            source,
+        )
+    }
+
     private fun uri(base: URI, route: NativePdfRoute): URI {
         val path =
             when (route) {

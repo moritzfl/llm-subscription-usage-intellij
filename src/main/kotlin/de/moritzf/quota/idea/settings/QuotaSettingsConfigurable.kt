@@ -762,6 +762,7 @@ class QuotaSettingsConfigurable : Configurable {
                 account.setExtra(ProviderAccount.EXTRA_AZURE_ENDPOINT, panel.endpoint())
                 account.setExtra(ProviderAccount.EXTRA_AZURE_LOCATION, panel.locationId())
                 account.setExtra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS, panel.deploymentNames())
+                account.setExtra(ProviderAccount.EXTRA_VISION_MODEL, panel.visionModelForStorage())
                 account.setExtra(
                     ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT,
                     panel.ocrDeploymentForStorage(),

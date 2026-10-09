@@ -32,6 +32,29 @@ internal suspend fun SubscriptionOperations.subscription_vision(
         return errorResult("Image prompt is required.")
     }
     return when (provider) {
+        VisionProvider.AZURE -> {
+            val source =
+                resolveOptionalPath(localFile)
+                    ?: return errorResult("Azure vision needs a local image file in localFile.")
+            try {
+                val account =
+                    de.moritzf.quota.idea.settings.AccountResolver.resolve(
+                        QuotaProviderType.AZURE,
+                        capability = AccountCapability.VISION,
+                    )
+                val answer =
+                    de.moritzf.quota.idea.action.NativeDocumentConversion.azureVision(
+                        account.id,
+                        chosen,
+                        source,
+                        trimmedPrompt,
+                    )
+                McpJson.visionResult(provider.name, chosen, answer)
+            } catch (exception: Exception) {
+                exception.rethrowIfCancellation()
+                errorResult(exception.message ?: "Azure image analysis failed.")
+            }
+        }
         VisionProvider.OPEN_AI -> {
             val response =
                 codexClient(AccountCapability.VISION)

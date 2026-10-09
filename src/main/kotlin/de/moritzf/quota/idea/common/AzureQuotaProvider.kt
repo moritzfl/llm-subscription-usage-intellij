@@ -135,5 +135,9 @@ class AzureQuotaProvider(
                 else -> azureOcrUri(config) != null
             }
         }
+
+        internal fun isVisionConfiguredForAccount(accountId: String): Boolean =
+            executableForAccount(accountId) != null &&
+                de.moritzf.quota.azure.azureInferenceTarget(configForAccount(accountId)) != null
     }
 }

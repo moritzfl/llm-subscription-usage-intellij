@@ -160,6 +160,7 @@ internal object ProviderCatalog {
                 type = QuotaProviderType.AZURE,
                 capabilities =
                     ProviderCapabilities(
+                        vision = true,
                         documentToMarkdown = true,
                         subscriptionProxy = true,
                         multipleAccounts = false,
@@ -180,6 +181,10 @@ internal object ProviderCatalog {
                     AzureQuotaProvider.isDocumentConfiguredForAccount(QuotaProviderType.AZURE.id)
                 },
                 isDocumentConfiguredForAccount = AzureQuotaProvider::isDocumentConfiguredForAccount,
+                isVisionConfigured = {
+                    AzureQuotaProvider.isVisionConfiguredForAccount(QuotaProviderType.AZURE.id)
+                },
+                isVisionConfiguredForAccount = AzureQuotaProvider::isVisionConfiguredForAccount,
                 isProxyConfigured = { _ ->
                     anyAccount(QuotaProviderType.AZURE) { id ->
                         val account =

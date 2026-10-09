@@ -56,6 +56,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
             setSwingPopup(false)
         }
     private lateinit var documentHintRow: Row
+    private val visionModelCombo = VisionModelCombo(groupUnverified = true)
     private var documentGroupHeaders: Map<String, ListSeparator> = emptyMap()
     private val accountCombo = ComboBox<AzureCliAccount>()
     private val status = JBLabel()
@@ -195,6 +196,21 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                         )
                     )
                 }
+                row("Vision model:") {
+                    cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
+                    cell(
+                        VisionTestButton(
+                            de.moritzf.quota.idea.mcp.VisionProvider.AZURE,
+                            visionModelCombo,
+                            { this@AzureSettingsPanel },
+                        )
+                    )
+                }
+                row {
+                    comment(
+                        "Off by default (-). Image support depends on the deployment; use Test vision to check."
+                    )
+                }
                 documentHintRow =
                     row {
                             comment(
@@ -238,6 +254,8 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
 
     fun deploymentNames(): String? = deploymentsField.text.trim().takeIf { it.isNotEmpty() }
 
+    fun visionModelForStorage(): String? = visionModelCombo.storedValue()
+
     fun ocrDeployment(): String? =
         (ocrDeploymentCombo.selectedItem as? String)?.takeIf { it != NO_OCR }
 
@@ -272,7 +290,8 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
             deploymentNames().orEmpty() !=
                 account?.extra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS).orEmpty() ||
             ocrDeploymentForStorage().orEmpty() !=
-                account?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT).orEmpty()
+                account?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT).orEmpty() ||
+            visionModelCombo.differs(account?.extra(ProviderAccount.EXTRA_VISION_MODEL))
     }
 
     private fun refreshAccounts(interactive: Boolean) {
@@ -336,6 +355,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                 account?.extra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS).orEmpty()
             ocrOffExplicit = account?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT) == NO_OCR
             refreshOcrDeployments(account?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT))
+            refreshVisionDeployments(account?.extra(ProviderAccount.EXTRA_VISION_MODEL))
         } finally {
             applyingFields = false
         }
@@ -447,6 +467,31 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
             applyingFields = false
         }
         updateDocumentHint()
+        refreshVisionDeployments(visionModelCombo.selected())
+    }
+
+    private fun refreshVisionDeployments(selection: String?) {
+        val sameTarget =
+            resourceName() == boundAccount?.extra(ProviderAccount.EXTRA_AZURE_RESOURCE) &&
+                endpoint() == boundAccount?.extra(ProviderAccount.EXTRA_AZURE_ENDPOINT)
+        val quota =
+            if (sameTarget)
+                runCatching {
+                    QuotaUsageService.getInstance()
+                        .getLastQuota(accountKey(QuotaProviderType.AZURE)) as? AzureQuota
+                }
+                    .getOrNull()
+            else null
+        visionModelCombo.show(
+            selection,
+            emptyList(),
+            de.moritzf.quota.azure.azureVisionChoices(
+                quota,
+                deploymentNames(),
+                selection,
+                resourceName(),
+            ),
+        )
     }
 
     private fun updateDocumentHint() {
