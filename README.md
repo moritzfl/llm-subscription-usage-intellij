@@ -34,21 +34,21 @@ Track and use your LLM subscriptions directly in IntelliJ IDEA.
 
 ## Supported providers
 
-| Provider | Sign-in | Quota | Web search | Images | Video | Voice | Docs | Vision | Proxy |
-|---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| OpenAI (ChatGPT / Codex) | Browser / device code / access token | ✓ | ✓ | ✓ | — | ✓ | (✓) | ✓ | ✓ |
-| Claude (Anthropic) | Browser login | ✓ | — | — | — | — | — | — | — |
-| SuperGrok / xAI | Browser / device code | ✓ | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ | ✓ |
-| GitHub Copilot | Device code | ✓ | — | — | — | — | — | ✓ | ✓ |
-| Cursor | Session cookie | ✓ | — | — | — | — | — | — | — |
-| OpenCode (Go / Zen) | Device code | ✓ | — | — | — | — | — | ✓ | ✓ |
-| Ollama Cloud | API key | ✓ | ✓ | — | — | — | — | ✓ | ✓ |
-| Z.ai | API key | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ | ✓ | ✓ |
-| MiniMax | Subscription key | ✓ | ✓ | ✓ | — | ✓ | — | — | ✓ |
-| Mistral | Session cookie + API key | ✓ | ✓ | ✓ | — | ✓ | ✓ | ✓ | ✓ |
-| Kimi | Device code | ✓ | ✓ | — | — | — | — | ✓ | ✓ |
-| Antigravity (Gemini / Claude / GPT) | AGY CLI login | ✓ | — | — | — | — | — | — | — |
-| Azure OpenAI / Foundry | Azure CLI login | ✓ | — | — | — | — | ✓* | — | ✓ |
+| Provider | Sign-in | Quota | Web search | Images | Video | Voice | Docs | Vision | Proxy | Native FIM |
+|---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| OpenAI (ChatGPT / Codex) | Browser / device code / access token | ✓ | ✓ | ✓ | — | ✓ | (✓) | ✓ | ✓ | — |
+| Claude (Anthropic) | Browser login | ✓ | — | — | — | — | — | — | — | — |
+| SuperGrok / xAI | Browser / device code | ✓ | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ | ✓ | — |
+| GitHub Copilot | Device code | ✓ | — | — | — | — | — | ✓ | ✓ | — |
+| Cursor | Session cookie | ✓ | — | — | — | — | — | — | — | — |
+| OpenCode (Go / Zen) | Device code | ✓ | — | — | — | — | — | ✓ | ✓ | — |
+| Ollama Cloud | API key | ✓ | ✓ | — | — | — | — | ✓ | ✓ | ✓ |
+| Z.ai | API key | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ | ✓ | ✓ | — |
+| MiniMax | Subscription key | ✓ | ✓ | ✓ | — | ✓ | — | — | ✓ | — |
+| Mistral | Session cookie + API key | ✓ | ✓ | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Kimi | Device code | ✓ | ✓ | — | — | — | — | ✓ | ✓ | — |
+| Antigravity (Gemini / Claude / GPT) | AGY CLI login | ✓ | — | — | — | — | — | — | — | — |
+| Azure OpenAI / Foundry | Azure CLI login | ✓ | — | — | — | — | ✓* | — | ✓ | — |
 
 - **Quota** — usage in the status bar and detail popup.
 - **Web search** — MCP tool that searches the web with your subscription. Copilot Chat can Bing-search in GitHub's own UI, but Copilot has no callable search API we can wrap.
@@ -57,6 +57,7 @@ Track and use your LLM subscriptions directly in IntelliJ IDEA.
 - **Docs** — MCP tool that converts a PDF or image to markdown. ✓ uses a dedicated OCR API that returns figures. ✓* requires an explicitly selected Azure document model. (✓) uses a chat/vision API and reconstructs figure images locally from estimated page boxes. OpenAI and SuperGrok use the vision model selected in that provider's settings. A general vision model is less precise and usually costs more than a document or OCR model (Mistral, Z.ai, or a company model such as Azure).
 - **Vision** — MCP tool `subscription_vision` that answers questions about an image with a vision-capable chat model, so non-vision models can extract information from images. Every provider starts off (`-`); select a vision model in that provider's settings first. Vision is a separate setting from the document model: a vision model does not need PDF support, and the document model keeps requiring PDF or OCR support.
 - **Proxy** — available through the local OpenAI-compatible proxy (for use of subscriptions in tools like Jetbrains AI Chat and other tools that require authentication by endpoint and API key).
+- **Native FIM** — model-native fill-in-the-middle code completion through the proxy, without chat adaptation: Ollama Cloud `deepseek-v4.1-flash` and Mistral Codestral/FIM models. Turn **Adapt model for FIM** off for these models. Other eligible proxy models can use the chat FIM adapter; this does not count as native FIM.
 
 Claude is quota-only. Anthropic does not allow using a Claude subscription outside their own apps, so this plugin only shows usage and does not wrap Claude search, media, documents, or a proxy.
 
