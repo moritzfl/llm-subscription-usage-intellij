@@ -1,6 +1,8 @@
 [versions]
 kotlinx-serialization-json = "1.11.0"
-kotlinx-coroutines-test = "1.11.0"
+# Pinned to the coroutines line bundled with the target IDE (2026.1). The test jar runs
+# without transitives against the platform core, so a newer test jar breaks at runtime.
+kotlinx-coroutines-test = "1.10.2"
 tomlj = "2.2.0"
 snakeyaml-engine = "3.2"
 junit4 = "4.13.2"

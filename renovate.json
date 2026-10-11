@@ -13,5 +13,15 @@
       "/(^|/)gradle\\.properties$/",
       "/(^|/)gradle/libs\\.versions\\.toml$/"
     ]
-  }
+  },
+  "packageRules": [
+    {
+      "description": "Keep kotlinx-coroutines-test on the coroutines line bundled with the target IntelliJ platform. The test jar runs without transitives against the platform core.",
+      "matchPackageNames": [
+        "org.jetbrains.kotlinx:kotlinx-coroutines-test",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-test-jvm"
+      ],
+      "allowedVersions": "<1.11.0"
+    }
+  ]
 }
