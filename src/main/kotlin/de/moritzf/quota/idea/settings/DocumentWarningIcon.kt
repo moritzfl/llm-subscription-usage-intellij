@@ -15,7 +15,7 @@ import java.awt.event.MouseEvent
 import javax.swing.JComponent
 import javax.swing.JPanel
 
-/** Warning mark beside a document control. Hover or click shows a plain formatted explainer. */
+/** Warning mark beside a settings control. Hover or click shows a plain formatted explainer. */
 internal class DocumentWarningIcon : JBLabel(AllIcons.General.Warning) {
     private val tooltip =
         HelpTooltip().setNeverHideOnTimeout(true).setLocation(HelpTooltip.Alignment.HELP_BUTTON)

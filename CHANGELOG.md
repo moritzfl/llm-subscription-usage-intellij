@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - Route AI completion automatically: native fill-in-the-middle models are called through their own infill endpoint and every other model through the chat adapter, so there is no adapter setting to configure anymore.
+- Group the AI completion model picker into **Native FIM** and **Adapted via chat**, and explain models without native fill-in-the-middle support with a warning marker.
 
 ## [1.19.1] - 2026-10-09
 

@@ -16,6 +16,7 @@ import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.AlignY
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
@@ -109,6 +110,8 @@ internal class SubscriptionProxySettingsPanel(
             setSwingPopup(false)
         }
     private var completionsGroupHeaders: Map<String, ListSeparator> = emptyMap()
+    private val completionsModelWarning = DocumentWarningIcon()
+    private var nativeCompletionsModelIds: Set<String> = emptySet()
     private val completionsMaxTokensField =
         JBTextField().apply {
             columns = 6
@@ -212,7 +215,10 @@ internal class SubscriptionProxySettingsPanel(
         }
         testFimButton.addActionListener { testFim() }
         completionsPriorityCheckBox.addItemListener { updateProxyStatus() }
-        completionsModelCombo.addActionListener { updateProxyStatus() }
+        completionsModelCombo.addActionListener {
+            updateProxyStatus()
+            updateFimModelWarning()
+        }
         onDocumentChange(completionsMaxTokensField) { updateProxyStatus() }
         onDocumentChange(completionsRpmField) { updateProxyStatus() }
         onDocumentChange(completionsTimeoutField) { updateProxyStatus() }
@@ -329,9 +335,11 @@ internal class SubscriptionProxySettingsPanel(
                             cell(completionsModelCombo)
                                 .resizableColumn()
                                 .align(AlignX.FILL)
+                                .gap(RightGap.SMALL)
                                 .comment(
                                     "Where the proxy sends those incoming FIM calls. ${COMPLETIONS_OFF} turns FIM off."
                                 )
+                            cell(completionsModelWarning).align(AlignY.TOP)
                         }
                         row {
                             cell(
@@ -797,13 +805,14 @@ internal class SubscriptionProxySettingsPanel(
         val eligible = models.filter(FimModels::isEligible).distinctBy { it.localId }
         val native = eligible.filter(FimModels::isNativeFimId).map { it.localId }.distinct()
         val generic = eligible.filterNot(FimModels::isNativeFimId).map { it.localId }.distinct()
+        nativeCompletionsModelIds = native.toSet()
         val selected = selectedCompletionsModelId().ifBlank { pendingCompletionsModelId }
         val kept = selected.takeIf { it.isNotBlank() && it !in native && it !in generic }
         val choices = listOf(COMPLETIONS_OFF) + native + generic + listOfNotNull(kept)
         completionsGroupHeaders = buildMap {
             // A group that has no models keeps its heading out of the list.
-            native.firstOrNull()?.let { put(it, ListSeparator("FIM models")) }
-            generic.firstOrNull()?.let { put(it, ListSeparator("General-purpose AI models")) }
+            native.firstOrNull()?.let { put(it, ListSeparator("Native FIM")) }
+            generic.firstOrNull()?.let { put(it, ListSeparator("Adapted via chat")) }
         }
         if (
             (0 until completionsModelCombo.itemCount).map(completionsModelCombo::getItemAt) !=
@@ -814,6 +823,7 @@ internal class SubscriptionProxySettingsPanel(
         val target = selected.takeIf { it.isNotBlank() && it in choices } ?: COMPLETIONS_OFF
         completionsModelCombo.selectedItem = target
         pendingCompletionsModelId = selectedCompletionsModelId()
+        updateFimModelWarning()
     }
 
     private fun testFim() {
@@ -853,6 +863,19 @@ internal class SubscriptionProxySettingsPanel(
             return
         }
         FimTestDialog(this, status.baseUrl, apiKey).show()
+    }
+
+    private fun updateFimModelWarning() {
+        val selected = selectedCompletionsModelId()
+        if (selected.isBlank() || selected in nativeCompletionsModelIds) {
+            completionsModelWarning.setExplainer(FIM_WARNING_TITLE, null)
+            return
+        }
+        completionsModelWarning.setExplainer(
+            FIM_WARNING_TITLE,
+            "This model has no native fill-in-the-middle endpoint. The proxy converts FIM calls into chat requests a chat model can understand.\n\n" +
+                "Native FIM models (for example Mistral Codestral or Ollama DeepSeek) answer FIM calls directly.",
+        )
     }
 
     private fun updateFimSetupStatus() {
@@ -962,6 +985,7 @@ internal class SubscriptionProxySettingsPanel(
         private const val COPY_FEEDBACK_ORIGINAL_TEXT =
             "SubscriptionProxySettingsPanel.copyFeedbackOriginalText"
         private const val COMPLETIONS_OFF = "-"
+        private const val FIM_WARNING_TITLE = "Not a native FIM model"
     }
 }
 
