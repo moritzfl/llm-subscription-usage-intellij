@@ -110,7 +110,7 @@ internal class SubscriptionProxySettingsPanel(
             setSwingPopup(false)
         }
     private var completionsGroupHeaders: Map<String, ListSeparator> = emptyMap()
-    private val completionsModelWarning = DocumentWarningIcon()
+    private val completionsModelWarning = ExplainerWarningIcon()
     private var nativeCompletionsModelIds: Set<String> = emptySet()
     private val completionsMaxTokensField =
         JBTextField().apply {

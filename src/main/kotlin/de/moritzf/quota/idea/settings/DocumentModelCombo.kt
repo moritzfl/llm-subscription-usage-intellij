@@ -14,7 +14,7 @@ internal class DocumentModelCombo(
     vision: Boolean,
 ) {
     val combo = ComboBox<String>().apply { prototypeDisplayValue = "mistral-ocr-latest" }
-    val warning = DocumentWarningIcon()
+    val warning = ExplainerWarningIcon()
     private val visionWarning = vision
 
     init {
