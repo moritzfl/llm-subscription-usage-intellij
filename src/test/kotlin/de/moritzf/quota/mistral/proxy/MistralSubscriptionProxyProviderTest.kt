@@ -197,7 +197,6 @@ class MistralSubscriptionProxyProviderTest {
                         CompletionsConfig(
                             enabled = true,
                             modelLocalId = "mi-codestral-latest",
-                            useChatAdapter = false,
                         ),
                 )
             try {

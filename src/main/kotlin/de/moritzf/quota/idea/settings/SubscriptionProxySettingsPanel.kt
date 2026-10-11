@@ -58,8 +58,6 @@ internal class SubscriptionProxySettingsPanel(
 ) : BorderLayoutPanel() {
     val proxyEnabledCheckBox = JBCheckBox("Enable local subscription proxy")
     val proxyLogRequestsCheckBox = JBCheckBox("Log requests and responses to disk")
-    val completionsUseChatAdapterCheckBox =
-        JBCheckBox("Adapt model for FIM").apply { isSelected = true }
     val completionsPriorityCheckBox = JBCheckBox("Use fast/priority processing")
 
     private val providerCheckBoxes =
@@ -213,7 +211,6 @@ internal class SubscriptionProxySettingsPanel(
             showCopiedFeedback(copyCompletionsModelButton)
         }
         testFimButton.addActionListener { testFim() }
-        completionsUseChatAdapterCheckBox.addItemListener { updateProxyStatus() }
         completionsPriorityCheckBox.addItemListener { updateProxyStatus() }
         completionsModelCombo.addActionListener { updateProxyStatus() }
         onDocumentChange(completionsMaxTokensField) { updateProxyStatus() }
@@ -337,10 +334,14 @@ internal class SubscriptionProxySettingsPanel(
                                 )
                         }
                         row {
-                            cell(completionsUseChatAdapterCheckBox)
-                                .comment(
-                                    "Converts FIM calls into chat requests a chat model can understand. Leave this on for ChatGPT, Grok, and similar models. Off: only native FIM models (some Ollama/Mistral coder models)."
+                            cell(
+                                    JBLabel(
+                                            "Native FIM models use their own infill endpoint; other models are converted into chat requests a chat model can understand."
+                                        )
+                                        .apply { foreground = JBColor.GRAY }
                                 )
+                                .resizableColumn()
+                                .align(AlignX.FILL)
                         }
                         row("Max output tokens:") {
                             cell(completionsMaxTokensField).gap(RightGap.SMALL)
@@ -402,7 +403,6 @@ internal class SubscriptionProxySettingsPanel(
         val settings = QuotaSettingsState.getInstance()
         proxyEnabledCheckBox.isSelected = settings.openAiProxyEnabled
         proxyLogRequestsCheckBox.isSelected = settings.openAiProxyLogRequests
-        completionsUseChatAdapterCheckBox.isSelected = settings.proxyCompletionsUseChatAdapter
         completionsPriorityCheckBox.isSelected = settings.proxyCompletionsPriorityTier
         completionsMaxTokensField.text =
             CompletionsConfig.clampMaxOutputTokens(settings.proxyCompletionsMaxOutputTokens)
@@ -471,7 +471,6 @@ internal class SubscriptionProxySettingsPanel(
     fun isCompletionsModified(): Boolean {
         val state = QuotaSettingsState.getInstance()
         return selectedCompletionsModelId().isNotBlank() != state.proxyCompletionsEnabled ||
-            completionsUseChatAdapterCheckBox.isSelected != state.proxyCompletionsUseChatAdapter ||
             selectedCompletionsModelId() != state.proxyCompletionsModelId.trim() ||
             completionsMaxOutputTokens() !=
                 CompletionsConfig.clampMaxOutputTokens(state.proxyCompletionsMaxOutputTokens) ||
@@ -487,7 +486,6 @@ internal class SubscriptionProxySettingsPanel(
     fun applyCompletionsSettings(state: QuotaSettingsState) {
         val modelId = selectedCompletionsModelId()
         state.proxyCompletionsEnabled = modelId.isNotBlank()
-        state.proxyCompletionsUseChatAdapter = completionsUseChatAdapterCheckBox.isSelected
         state.proxyCompletionsModelId = modelId
         state.proxyCompletionsMaxOutputTokens = completionsMaxOutputTokens()
         state.proxyCompletionsMaxRequestsPerMinute = completionsMaxRequestsPerMinute()
@@ -570,7 +568,6 @@ internal class SubscriptionProxySettingsPanel(
         val completionsEnabled = enabled && selectedCompletionsModelId().isNotBlank()
         completionsModelCombo.isEnabled = enabled
         fimIdeModelIdField.isEnabled = completionsEnabled
-        completionsUseChatAdapterCheckBox.isEnabled = completionsEnabled
         completionsMaxTokensField.isEnabled = completionsEnabled
         completionsRpmField.isEnabled = completionsEnabled
         completionsTimeoutField.isEnabled = completionsEnabled

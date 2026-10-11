@@ -16,7 +16,6 @@ internal data class QuotaSettingsDraft(
     val proxyProviders: List<String>,
     val completionsEnabled: Boolean,
     val completionsModel: String,
-    val completionsAdapter: Boolean,
     val completionsTokens: Int,
     val completionsRpm: Int,
     val completionsTimeout: Int,
@@ -51,7 +50,6 @@ internal data class QuotaSettingsDraft(
             state.subscriptionProxyEnabledProviders = proxyProviders.toMutableList()
             state.proxyCompletionsEnabled = completionsEnabled
             state.proxyCompletionsModelId = completionsModel
-            state.proxyCompletionsUseChatAdapter = completionsAdapter
             state.proxyCompletionsMaxOutputTokens = completionsTokens
             state.proxyCompletionsMaxRequestsPerMinute = completionsRpm
             state.proxyCompletionsTimeoutSeconds = completionsTimeout
@@ -74,7 +72,6 @@ internal data class QuotaSettingsDraft(
                     state.subscriptionProxyEnabledProviders.toList(),
                     state.proxyCompletionsEnabled,
                     state.proxyCompletionsModelId,
-                    state.proxyCompletionsUseChatAdapter,
                     state.proxyCompletionsMaxOutputTokens,
                     state.proxyCompletionsMaxRequestsPerMinute,
                     state.proxyCompletionsTimeoutSeconds,

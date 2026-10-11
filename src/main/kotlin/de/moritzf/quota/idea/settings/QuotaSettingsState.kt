@@ -45,7 +45,6 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
     var openAiProxyLogRequests: Boolean = false
     var proxyCompletionsEnabled: Boolean = true
     var proxyCompletionsModelId: String = ""
-    var proxyCompletionsUseChatAdapter: Boolean = true
     var proxyCompletionsMaxOutputTokens: Int = CompletionsConfig.DEFAULT_MAX_OUTPUT_TOKENS
     var proxyCompletionsMaxRequestsPerMinute: Int =
         CompletionsConfig.DEFAULT_MAX_REQUESTS_PER_MINUTE
@@ -109,7 +108,6 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         openAiProxyLogRequests = state.openAiProxyLogRequests
         proxyCompletionsEnabled = state.proxyCompletionsEnabled
         proxyCompletionsModelId = state.proxyCompletionsModelId.trim()
-        proxyCompletionsUseChatAdapter = state.proxyCompletionsUseChatAdapter
         proxyCompletionsMaxOutputTokens =
             CompletionsConfig.clampMaxOutputTokens(state.proxyCompletionsMaxOutputTokens)
         proxyCompletionsMaxRequestsPerMinute =
@@ -287,7 +285,6 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         return CompletionsConfig(
             enabled = openAiProxyEnabled && proxyCompletionsEnabled,
             modelLocalId = proxyCompletionsModelId.trim(),
-            useChatAdapter = proxyCompletionsUseChatAdapter,
             maxOutputTokens =
                 CompletionsConfig.clampMaxOutputTokens(proxyCompletionsMaxOutputTokens),
             maxRequestsPerMinute =

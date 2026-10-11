@@ -5,7 +5,6 @@ import de.moritzf.proxy.fim.CompletionSanitizer
 import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.proxy.fim.CompletionsGuard
 import de.moritzf.proxy.fim.CompletionsRequest
-import de.moritzf.proxy.fim.CompletionsStrategy
 import de.moritzf.proxy.fim.FimContext
 import de.moritzf.proxy.fim.FimModels
 import de.moritzf.proxy.fim.FimPromptParser
@@ -113,6 +112,9 @@ class CompletionsHandler(
             )
             return
         }
+        // Native FIM models are called through their own infill endpoint; everything else is
+        // converted into chat requests. The user only picks the model.
+        val nativeFim = FimModels.isNativeFimId(model)
         val job = currentCoroutineContext()[Job]
         val key = ctx.getAttribute(ProxyCallAttributes.KEY_FINGERPRINT) ?: "local"
         val fim =
@@ -132,7 +134,7 @@ class CompletionsHandler(
                     config = cfg,
                     job = job,
                     fingerprint = fim.fingerprint(),
-                    coalesce = cfg.strategy == CompletionsStrategy.CHAT_FIM,
+                    coalesce = !nativeFim,
                 )
         ) {
             is GuardDecision.Skip -> {
@@ -154,7 +156,9 @@ class CompletionsHandler(
         }
         try {
             withTimeout(cfg.timeoutMillis) {
-                if (cfg.strategy == CompletionsStrategy.CHAT_FIM) {
+                if (nativeFim) {
+                    handleNative(ctx, models, model, parsed, fim, maxTokens, requestId)
+                } else {
                     handleChatFim(
                         ctx = ctx,
                         cfg = cfg,
@@ -170,8 +174,6 @@ class CompletionsHandler(
                         key = key,
                         producerJob = job,
                     )
-                } else {
-                    handleNative(ctx, models, model, parsed, fim, maxTokens, requestId)
                 }
             }
         } catch (_: TimeoutCancellationException) {

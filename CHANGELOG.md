@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Route AI completion automatically: native fill-in-the-middle models are called through their own infill endpoint and every other model through the chat adapter, so there is no adapter setting to configure anymore.
+
 ## [1.19.1] - 2026-10-09
 
 - Fix DeepSeek native AI completion through Ollama returning HTTP 400 because of the provider's stop-sequence limit.

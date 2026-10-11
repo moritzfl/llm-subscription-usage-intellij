@@ -47,6 +47,7 @@ class OllamaSubscriptionProxyProviderTest {
                         "ol-llama3.3",
                         "ol-gemma3:4b",
                         "ol-qwen3-coder-next",
+                        "ol-qwen3-coder-next-fim",
                         "ol-deepseek-v4.1-flash",
                     ),
                     ids,
@@ -186,8 +187,7 @@ class OllamaSubscriptionProxyProviderTest {
                     completionsConfig =
                         CompletionsConfig(
                             enabled = true,
-                            modelLocalId = "ol-qwen3-coder-next",
-                            useChatAdapter = false,
+                            modelLocalId = "ol-qwen3-coder-next-fim",
                         ),
                 )
             try {
@@ -344,7 +344,6 @@ class OllamaSubscriptionProxyProviderTest {
                         CompletionsConfig(
                             enabled = true,
                             modelLocalId = "ol-deepseek-v4.1-flash",
-                            useChatAdapter = false,
                         ),
                     )
                 try {
@@ -472,7 +471,6 @@ class OllamaSubscriptionProxyProviderTest {
                             CompletionsConfig(
                                 enabled = true,
                                 modelLocalId = "ol-deepseek-v4.1-flash",
-                                useChatAdapter = false,
                             ),
                         )
                     try {
@@ -593,6 +591,7 @@ class OllamaSubscriptionProxyProviderTest {
                             "{\"id\":\"llama3.3\",\"object\":\"model\"}," +
                             "{\"id\":\"gemma3:4b\",\"object\":\"model\"}," +
                             "{\"id\":\"qwen3-coder-next\",\"object\":\"model\"}," +
+                            "{\"id\":\"qwen3-coder-next-fim\",\"object\":\"model\"}," +
                             "{\"id\":\"deepseek-v4.1-flash\",\"object\":\"model\"}," +
                             "{\"id\":\"nomic-embed-text\",\"object\":\"embedding\"}" +
                             "]}"

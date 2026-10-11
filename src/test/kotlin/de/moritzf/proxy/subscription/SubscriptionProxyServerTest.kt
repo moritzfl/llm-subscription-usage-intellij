@@ -272,11 +272,7 @@ class SubscriptionProxyServerTest {
                             ),
                         ),
                     completionsConfig =
-                        CompletionsConfig(
-                            enabled = true,
-                            modelLocalId = "gh-gpt-5.5",
-                            useChatAdapter = true,
-                        ),
+                        CompletionsConfig(enabled = true, modelLocalId = "gh-gpt-5.5"),
                 )
             try {
                 server.start()
@@ -312,27 +308,28 @@ class SubscriptionProxyServerTest {
     }
 
     @Test
-    fun modelInfoReportsNativeFimWhenAdapterIsOff() {
+    fun modelInfoReportsNativeFimForNativeModels() {
         TestUpstream().use { upstream ->
             val server =
                 newServer(
                     providers =
                         listOf(
                             fakeProvider(
-                                "github",
-                                "GitHub Copilot",
+                                "mistral",
+                                "Mistral",
                                 upstream.baseUri,
-                                "gh-token",
-                                "gh-gpt-5.5",
-                                "gpt-5.5",
+                                "mi-token",
+                                "mi-codestral-latest",
+                                "codestral-latest",
+                                routes =
+                                    setOf(
+                                        SubscriptionProxyRoute.CHAT_COMPLETIONS,
+                                        SubscriptionProxyRoute.FIM_COMPLETIONS,
+                                    ),
                             )
                         ),
                     completionsConfig =
-                        CompletionsConfig(
-                            enabled = true,
-                            modelLocalId = "gh-gpt-5.5",
-                            useChatAdapter = false,
-                        ),
+                        CompletionsConfig(enabled = true, modelLocalId = "mi-codestral-latest"),
                 )
             try {
                 server.start()
@@ -356,7 +353,8 @@ class SubscriptionProxyServerTest {
                     "native",
                     data
                         .first {
-                            it.jsonObject["model_name"]!!.jsonPrimitive.content == "gh-gpt-5.5"
+                            it.jsonObject["model_name"]!!.jsonPrimitive.content ==
+                                "mi-codestral-latest"
                         }
                         .jsonObject["model_info"]!!
                         .jsonObject["fim_mode"]!!
@@ -508,11 +506,7 @@ class SubscriptionProxyServerTest {
                             )
                         ),
                     completionsConfig =
-                        CompletionsConfig(
-                            enabled = true,
-                            modelLocalId = "grok-4.3",
-                            useChatAdapter = true,
-                        ),
+                        CompletionsConfig(enabled = true, modelLocalId = "grok-4.3"),
                 )
             try {
                 server.start()
@@ -585,7 +579,7 @@ class SubscriptionProxyServerTest {
     }
 
     @Test
-    fun nativeCompletionsPassThroughWithoutChatAdapter() {
+    fun nativeCompletionsPassThroughForNativeModels() {
         val completionBody =
             """{"id":"cmpl_1","object":"text_completion","choices":[{"index":0,"text":"a + b","finish_reason":"stop"}]}"""
         TestUpstream(responseBody = completionBody).use { upstream ->
@@ -600,14 +594,10 @@ class SubscriptionProxyServerTest {
                                 "ol-token",
                                 "ol-qwen",
                                 "qwen",
+                                routes = setOf(SubscriptionProxyRoute.COMPLETIONS),
                             )
                         ),
-                    completionsConfig =
-                        CompletionsConfig(
-                            enabled = true,
-                            modelLocalId = "ol-qwen",
-                            useChatAdapter = false,
-                        ),
+                    completionsConfig = CompletionsConfig(enabled = true, modelLocalId = "ol-qwen"),
                 )
             try {
                 server.start()
@@ -646,14 +636,10 @@ class SubscriptionProxyServerTest {
                                 "ol-token",
                                 "ol-qwen",
                                 "qwen",
+                                routes = setOf(SubscriptionProxyRoute.COMPLETIONS),
                             )
                         ),
-                    completionsConfig =
-                        CompletionsConfig(
-                            enabled = true,
-                            modelLocalId = "ol-qwen",
-                            useChatAdapter = false,
-                        ),
+                    completionsConfig = CompletionsConfig(enabled = true, modelLocalId = "ol-qwen"),
                 )
             try {
                 server.start()

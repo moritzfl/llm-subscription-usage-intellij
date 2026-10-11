@@ -492,16 +492,16 @@ class SubscriptionProxyServer(
     }
 
     private fun fimAdapterEnabled(model: SubscriptionProxyModel): Boolean {
-        val config = completionsConfig()
-        return config.enabled &&
-            config.useChatAdapter &&
-            isSelectedFimModel(model) &&
-            FimModels.isEligible(model)
+        val selected = selectedFimModel() ?: return false
+        return isSelectedFimModel(model) &&
+            FimModels.isEligible(selected) &&
+            !FimModels.isNativeFimId(selected)
     }
 
     private fun fimMode(model: SubscriptionProxyModel): String {
-        if (isSelectedFimModel(model) && completionsConfig().enabled) {
-            return if (completionsConfig().useChatAdapter) "adapter" else "native"
+        val selected = selectedFimModel()
+        if (selected != null && isSelectedFimModel(model)) {
+            return if (FimModels.isNativeFimId(selected)) "native" else "adapter"
         }
         if (
             SubscriptionProxyRoute.FIM_COMPLETIONS in model.supportedRoutes ||

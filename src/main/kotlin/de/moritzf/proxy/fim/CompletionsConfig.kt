@@ -3,7 +3,6 @@ package de.moritzf.proxy.fim
 data class CompletionsConfig(
     val enabled: Boolean = false,
     val modelLocalId: String = "",
-    val useChatAdapter: Boolean = true,
     val maxOutputTokens: Int = DEFAULT_MAX_OUTPUT_TOKENS,
     val maxRequestsPerMinute: Int = DEFAULT_MAX_REQUESTS_PER_MINUTE,
     val minIntervalMillis: Long = DEFAULT_MIN_INTERVAL_MILLIS,
@@ -12,9 +11,6 @@ data class CompletionsConfig(
     val maxPromptChars: Int = DEFAULT_MAX_PROMPT_CHARS,
     val aliasId: String = FIM_ALIAS_ID,
 ) {
-    val strategy: CompletionsStrategy
-        get() = if (useChatAdapter) CompletionsStrategy.CHAT_FIM else CompletionsStrategy.NATIVE_FIM
-
     fun acceptsModel(requested: String): Boolean {
         val id = requested.trim()
         if (id.isEmpty()) return true
