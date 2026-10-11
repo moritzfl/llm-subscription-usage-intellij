@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-10-11
+
 - Route AI completion automatically: native fill-in-the-middle models are called through their own infill endpoint and every other model through the chat adapter, so there is no adapter setting to configure anymore.
 - Group the AI completion model picker into **Native FIM** and **Adapted via chat**, and explain models without native fill-in-the-middle support with a warning marker.
 
@@ -671,7 +673,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.19.1...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.20.0...HEAD
+[1.20.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.19.1...1.20.0
 [1.19.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.19.0...1.19.1
 [1.19.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.18.1...1.19.0
 [1.18.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.18.0...1.18.1
