@@ -1,6 +1,6 @@
 [versions]
 kotlinx-serialization-json = "1.11.0"
-kotlinx-coroutines-test = "1.10.2"
+kotlinx-coroutines-test = "1.11.0"
 tomlj = "2.2.0"
 snakeyaml-engine = "3.2"
 junit4 = "4.13.2"
