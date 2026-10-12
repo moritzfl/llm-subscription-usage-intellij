@@ -28,6 +28,7 @@ import de.moritzf.quota.azure.preferredAzureOcrSelection
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
+import de.moritzf.quota.shared.DocumentModels
 import java.awt.event.ItemEvent
 import javax.swing.DefaultComboBoxModel
 import javax.swing.Timer
@@ -186,7 +187,10 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                         )
                 }
                 row("Document model:") {
-                    cell(ocrDeploymentCombo).align(AlignX.FILL).resizableColumn()
+                    cell(ocrDeploymentCombo)
+                        .align(AlignX.FILL)
+                        .resizableColumn()
+                        .comment(DocumentModels.OFF_COMMENT)
                     cell(
                         DocumentTestButton(
                             de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.AZURE,

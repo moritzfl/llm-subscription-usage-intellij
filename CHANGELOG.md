@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Clarify that selecting `-` for a document model disables only that account's document conversion, and explain PDFBox's local text extraction.
+
 ## [1.20.0] - 2026-10-11
 
 - Route AI completion automatically: native fill-in-the-middle models are called through their own infill endpoint and every other model through the chat adapter, so there is no adapter setting to configure anymore.

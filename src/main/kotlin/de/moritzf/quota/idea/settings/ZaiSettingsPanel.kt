@@ -46,7 +46,7 @@ internal class ZaiSettingsPanel(
                 cell(documentModelCombo.combo)
                     .align(AlignX.FILL)
                     .resizableColumn()
-                    .comment("- turns conversion off.")
+                    .comment(DocumentModels.OFF_COMMENT)
                 cell(
                     DocumentTestButton(
                         de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.ZAI,
