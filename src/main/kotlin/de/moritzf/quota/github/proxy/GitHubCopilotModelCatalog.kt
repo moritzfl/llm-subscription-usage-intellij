@@ -313,18 +313,21 @@ internal class GitHubCopilotModelCatalog(
                 .mapNotNull { parseRemoteModel(it) }
                 .filter { it.supportedRoutes.isNotEmpty() }
                 .distinctBy { it.id }
-        // Free/Student plans expose chat models for Auto while disabling their manual picker.
-        if (models.any { it.supportedRoutes != setOf(SubscriptionProxyRoute.COMPLETIONS) })
-            return models
+        // Paid plans offer Auto alongside named models; Free/Student hide manual chat choices.
+        val namedChatModels = models.filter {
+            it.supportedRoutes != setOf(SubscriptionProxyRoute.COMPLETIONS)
+        }
         val autoCandidates =
-            data
-                .mapNotNull { it as? JsonObject }
-                .filter {
-                    modelType(it) == "chat" &&
-                        stringField(it.jsonObject("policy"), "state") == "enabled"
-                }
-                .mapNotNull { parseRemoteModel(it, includeHidden = true) }
-        if (autoCandidates.isEmpty()) return models
+            namedChatModels +
+                data
+                    .mapNotNull { it as? JsonObject }
+                    .filter {
+                        modelType(it) == "chat" &&
+                            stringField(it.jsonObject("policy"), "state") == "enabled"
+                    }
+                    .mapNotNull { parseRemoteModel(it, includeHidden = true) }
+        if (autoCandidates.isEmpty() || models.any { it.id == GitHubCopilotAutoClient.MODEL_ID })
+            return models
         return models +
             GitHubCopilotRemoteModel(
                 id = GitHubCopilotAutoClient.MODEL_ID,
@@ -333,7 +336,7 @@ internal class GitHubCopilotModelCatalog(
                 supportsVision = autoCandidates.any { it.supportsVision },
                 maxInputTokens = autoCandidates.mapNotNull { it.maxInputTokens }.minOrNull(),
                 maxOutputTokens = autoCandidates.mapNotNull { it.maxOutputTokens }.minOrNull(),
-                isDefault = true,
+                isDefault = namedChatModels.isEmpty(),
             )
     }
 

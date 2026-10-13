@@ -97,7 +97,78 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 assertTrue("gh-gpt-5.4-mini" in models)
                 assertTrue("gh-claude-sonnet-4.6" in models)
                 assertTrue("gh-gemini-3.5-flash" in models)
+                assertTrue("gh-auto" in models)
                 assertFalse("gh-gpt-5.5" in models)
+            }
+    }
+
+    @Test
+    fun autoKeepsNamedDefaultAndAlphabeticalFallback() {
+        for (declaredDefault in listOf(true, false)) {
+            TestUpstream {
+                modelsBody(
+                    listOf(
+                        copilotModel("gpt-5-mini", "gpt-mini", isDefault = declaredDefault),
+                        copilotModel("gpt-5.4-mini", "gpt-mini", endpoints = listOf("/responses")),
+                    )
+                )
+            }
+                .use { upstream ->
+                    val proxy = newProxy(upstream.baseUri)
+                    try {
+                        proxy.start()
+                        assertEquals(
+                            listOf("gh-gpt-5-mini", "gh-gpt-5.4-mini", "gh-auto"),
+                            modelInfoIds(get(proxy.port, "/v1/model/info")),
+                        )
+                        val response =
+                            post(
+                                proxy.port,
+                                "/v1/chat/completions",
+                                """{"messages":[{"role":"user","content":"hi"}]}""",
+                                bearer = true,
+                            )
+                        assertEquals(200, response.statusCode(), response.body())
+                        val expectedModel = if (declaredDefault) "gpt-5-mini" else "gpt-5.4-mini"
+                        val inference = nextInferenceRequest(upstream, expectedModel)
+                        assertEquals(
+                            if (declaredDefault) "/chat/completions" else "/responses",
+                            inference.path,
+                        )
+                        assertEquals(
+                            expectedModel,
+                            JsonHelper.JSON.parseToJsonElement(inference.body)
+                                .jsonObject["model"]!!
+                                .jsonPrimitive
+                                .content,
+                        )
+                        assertEquals(null, inference.firstHeader("Copilot-Session-Token"))
+                    } finally {
+                        proxy.stop()
+                    }
+                }
+        }
+    }
+
+    @Test
+    fun preservesUpstreamAutoModelWithoutDuplicatingIt() {
+        TestUpstream {
+            modelsBody(
+                listOf(
+                    copilotModel("gpt-5-mini", "gpt-mini"),
+                    copilotModel("auto", "auto", isDefault = true),
+                )
+            )
+        }
+            .use { upstream ->
+                val provider =
+                    GitHubCopilotSubscriptionProxyProvider(
+                        { "github-token" },
+                        upstreamBaseUri = upstream.baseUri,
+                    )
+                val models = provider.models()
+                assertEquals(listOf("gh-gpt-5-mini", "gh-auto"), models.map { it.localId })
+                assertTrue(models.single { it.localId == "gh-auto" }.isDefault)
             }
     }
 
@@ -109,8 +180,14 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 "future-responses-model" to "/responses",
                 "claude-haiku-4.5" to "/v1/messages",
             )) {
-            for (stream in listOf(false, true)) {
-                TestUpstream { autoOnlyModels }
+            for ((stream, catalog) in
+                listOf(
+                    false to autoOnlyModels,
+                    true to autoOnlyModels,
+                    false to modelsBody(copilotModels),
+                    true to modelsBody(copilotModels),
+                )) {
+                TestUpstream { catalog }
                     .use { upstream ->
                         upstream.autoBody =
                             autoSelection(
@@ -310,6 +387,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                         "gh-gpt-5.4-mini",
                         "gh-mai-code-1-flash-picker",
                         "gh-grok-4.7",
+                        "gh-auto",
                     ),
                     ids,
                 )
@@ -697,11 +775,18 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                         "model=$modelId body=${response.body()}",
                     )
 
+                    if (modelId == "gh-auto") {
+                        assertEquals("/auto", nextInferenceRequest(upstream, modelId).path)
+                    }
                     val inference = nextInferenceRequest(upstream, modelId)
                     assertEquals(
                         expectedUpstreamPath,
                         inference.path,
                         "model=$modelId endpoints=$endpoints",
+                    )
+                    assertEquals(
+                        if (modelId == "gh-auto") "auto-secret" else null,
+                        inference.firstHeader("Copilot-Session-Token"),
                     )
                 }
             } finally {
@@ -1672,6 +1757,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
             disabled: Boolean = false,
             toolCalls: Boolean? = true,
             maxOutputTokens: Int? = 64_000,
+            isDefault: Boolean = false,
         ): String {
             val endpointsJson = endpoints.joinToString(prefix = "[", postfix = "]") { "\"$it\"" }
             val policy = if (disabled) ",\"policy\":{\"state\":\"disabled\"}" else ""
@@ -1691,6 +1777,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     .joinToString(",")
             return "{" +
                 "\"model_picker_enabled\":$pickerEnabled," +
+                "\"is_default\":$isDefault," +
                 "\"id\":\"$id\"," +
                 "\"name\":\"$id\"," +
                 "\"version\":\"$id-2026-01-01\"," +

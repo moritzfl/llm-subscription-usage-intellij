@@ -15,7 +15,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
-/** Uses GitHub's Auto decision and its request-bound authorization for Auto-only plans. */
+/** Uses GitHub's Auto decision and its request-bound authorization for chat. */
 internal class GitHubCopilotAutoClient(
     private val accessTokenProvider: () -> String?,
     private val tokenRefresher: (String?) -> String?,
