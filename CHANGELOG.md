@@ -6,6 +6,7 @@
 - Improve quota popup settings accessibility and show clipped provider headings in full on hover.
 - Use provider-aligned wording for Codex and SuperGrok usage-limit resets.
 - Identify which monthly Mistral allowance is exhausted in the quota popup.
+- Keep Ollama quota lines compact by moving dollar usage and allowance amounts into hover tooltips.
 
 ## [1.20.0] - 2026-10-11
 

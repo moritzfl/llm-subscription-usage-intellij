@@ -415,12 +415,14 @@ internal class WindowBlockPanel(topInset: Int = 3) :
         add(progressBar)
     }
 
-    fun update(title: String, info: String, percent: Int) {
+    fun update(title: String, info: String, percent: Int, detailTooltip: String? = null) {
         titleLabel.text = title
         if (!titleLabel.font.isBold) titleLabel.font = titleLabel.font.deriveFont(Font.BOLD)
         infoLabel.text = info
+        infoLabel.detailTooltip = detailTooltip
         infoLabel.isVisible = true
         progressBar.value = percent
+        progressBar.toolTipText = detailTooltip
         progressBar.isVisible = true
         isVisible = true
     }
@@ -446,8 +448,14 @@ internal class WindowBlockPanel(topInset: Int = 3) :
     }
 }
 
-/** Shows the full label text as a tooltip when the rendered text is clipped in the popup width. */
+/** Shows optional details and any clipped label text on hover. */
 internal class TruncatingPopupLabel(initialText: String = "") : JBLabel(initialText) {
+    var detailTooltip: String? = null
+        set(value) {
+            field = value
+            updateTruncationTooltip()
+        }
+
     init {
         addComponentListener(
             object : ComponentAdapter() {
@@ -469,9 +477,16 @@ internal class TruncatingPopupLabel(initialText: String = "") : JBLabel(initialT
 
     private fun updateTruncationTooltip() {
         val fullText = text.orEmpty()
-        toolTipText = fullText.takeIf {
+        val clippedText = fullText.takeIf {
             fullText.isNotBlank() && isLabelTextTruncated(this, fullText)
         }
+        toolTipText =
+            when {
+                detailTooltip == null -> clippedText
+                clippedText == null -> detailTooltip
+                else ->
+                    "<html>${QuotaUiUtil.escapeHtml(clippedText)}<br>${QuotaUiUtil.escapeHtml(detailTooltip.orEmpty())}</html>"
+            }
     }
 }
 
