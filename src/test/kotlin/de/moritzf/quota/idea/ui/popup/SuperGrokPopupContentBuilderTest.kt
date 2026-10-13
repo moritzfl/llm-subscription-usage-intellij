@@ -33,10 +33,10 @@ class SuperGrokPopupContentBuilderTest {
                 .flatMap { it.components.filterIsInstance<ActionLink>() }
                 .single()
                 .toolTipText
-        assertTrue(tooltip.contains("Redeem one SuperGrok weekly reset"))
-        assertTrue(tooltip.contains("Token 1: Expires in "))
-        assertTrue(tooltip.contains("Token 2: Expires in "))
-        assertTrue(tooltip.contains("Token 3: Expiration unknown"))
+        assertTrue(tooltip.contains("Use one SuperGrok weekly reset"))
+        assertTrue(tooltip.contains("Reset 1: Expires in "))
+        assertTrue(tooltip.contains("Reset 2: Expires in "))
+        assertTrue(tooltip.contains("Reset 3: Expiration unknown"))
         assertFalse(tooltip.contains("restok_"))
     }
 

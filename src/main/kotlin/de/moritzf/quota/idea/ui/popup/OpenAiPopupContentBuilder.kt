@@ -227,12 +227,12 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
 
         resetCreditsPanel.add(JLabel("Resets available: $availableCount"))
         resetCreditsPanel.add(
-            ActionLink("Reset") { confirmAndReset(resetCredits.firstOrNull()?.creditId) }
+            ActionLink("Use reset…") { confirmAndReset(resetCredits.firstOrNull()?.creditId) }
                 .apply {
                     icon = AllIcons.Actions.Restart
                     toolTipText =
                         resetTokenTooltip(
-                            "Redeem one Codex reset",
+                            "Use one Codex usage limit reset",
                             resetCredits.map { it.expiresAt },
                             availableCount,
                         )
@@ -245,9 +245,9 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
     private fun confirmAndReset(creditId: String?) {
         val result =
             Messages.showYesNoDialog(
-                "Redeem one Codex reset credit now?",
+                "Use one available Codex usage limit reset now?",
                 "Reset Codex Limits",
-                "Reset",
+                "Use reset",
                 "Cancel",
                 AllIcons.Actions.Restart,
             )

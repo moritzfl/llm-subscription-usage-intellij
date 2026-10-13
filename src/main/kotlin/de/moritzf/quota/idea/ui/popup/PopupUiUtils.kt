@@ -52,7 +52,7 @@ internal fun resetTokenTooltip(
         append("<html>")
         append(QuotaUiUtil.escapeHtml(action))
         repeat(maxOf(availableCount, expirations.size)) { index ->
-            append("<br>Token ${index + 1}: ")
+            append("<br>Reset ${index + 1}: ")
             append(
                 QuotaUiUtil.escapeHtml(
                     QuotaUiUtil.formatExpiry(expirations.getOrNull(index)) ?: "Expiration unknown"

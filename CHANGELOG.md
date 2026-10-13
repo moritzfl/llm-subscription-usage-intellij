@@ -4,6 +4,7 @@
 
 - Clarify that selecting `-` for a document model disables only that account's document conversion, and explain PDFBox's local text extraction.
 - Improve quota popup settings accessibility and show clipped provider headings in full on hover.
+- Use provider-aligned wording for Codex and SuperGrok usage-limit resets.
 
 ## [1.20.0] - 2026-10-11
 

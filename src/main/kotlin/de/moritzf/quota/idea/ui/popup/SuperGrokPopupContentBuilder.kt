@@ -103,12 +103,12 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
         }
         resetTokensPanel.add(JLabel("Resets available: ${resetTokens.size}"))
         resetTokensPanel.add(
-            ActionLink("Reset") { confirmAndReset(resetTokens.first().tokenId) }
+            ActionLink("Use reset…") { confirmAndReset(resetTokens.first().tokenId) }
                 .apply {
                     icon = AllIcons.Actions.Restart
                     toolTipText =
                         resetTokenTooltip(
-                            "Redeem one SuperGrok weekly reset",
+                            "Use one SuperGrok weekly reset",
                             resetTokens.map { it.expiresAt },
                         )
                     cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
@@ -120,9 +120,9 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
     private fun confirmAndReset(tokenId: String) {
         val result =
             Messages.showYesNoDialog(
-                "Redeem one SuperGrok weekly reset now?",
+                "Use one available SuperGrok weekly reset now?",
                 "Reset SuperGrok Limits",
-                "Reset",
+                "Use reset",
                 "Cancel",
                 AllIcons.Actions.Restart,
             )
