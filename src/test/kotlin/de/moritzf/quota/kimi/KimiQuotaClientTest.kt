@@ -11,10 +11,76 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class KimiQuotaClientTest {
+    @Test
+    fun parseQuotaUsesRatioWindowsInsteadOfAccompanyingLegacyCounters() {
+        // MoonshotAI/kimi-code packages/oauth/src/managed-usage.ts, afd95f64.
+        val quota =
+            KimiQuotaClient.parseQuota(
+                """{
+              "usages": {
+                "limit_5h": {"used_ratio":0.25,"reset_time":"2026-10-13T12:00:00Z"},
+                "limit_7d": {"used_ratio":"0.4","reset_time":"2026-10-20T00:00:00Z"},
+                "limit_month_total": {"used_ratio":1,"reset_time":"2026-11-01T00:00:00Z"},
+                "limit_month_code": {"used_ratio":0.6}
+              },
+              "usage": {"limit":"100","remaining":"0"},
+              "limits": [{"window":{"duration":300,"timeUnit":"TIME_UNIT_MINUTE"},
+                "detail":{"limit":"100","remaining":"0"}}]
+            }"""
+            )
+
+        val session = assertNotNull(quota.sessionUsage)
+        assertEquals(25.0, session.usagePercent)
+        assertEquals(18_000_000, session.periodDurationMs)
+        assertEquals("2026-10-13T12:00:00Z", session.resetsAt.toString())
+        assertEquals(40.0, assertNotNull(quota.weeklyUsage).usagePercent)
+        assertEquals(604_800_000, quota.weeklyUsage.periodDurationMs)
+        val monthly = assertNotNull(quota.monthlyUsage)
+        assertEquals(100.0, monthly.usagePercent)
+        assertEquals("2026-11-01T00:00:00Z", monthly.resetsAt.toString())
+        assertNull(quota.totalUsage)
+        assertEquals(3, quota.windows().size)
+        assertEquals(monthly, quota.primaryWindow())
+        assertEquals(1.0, quota.usageFraction())
+        assertEquals(
+            mapOf("session" to 0.25, "weekly" to 0.4, "monthly" to 1.0),
+            quota.activityWindows(),
+        )
+    }
+
+    @Test
+    fun parseQuotaKeepsUsableRatioWindowsWhenOtherEntriesAreInvalid() {
+        val quota =
+            KimiQuotaClient.parseQuota(
+                """{"usages":{
+              "limit_5h":{"used_ratio":"unknown"},
+              "limit_7d":{"used_ratio":-1},
+              "limit_month_total":{"used_ratio":0.6,"reset_time":"invalid"}
+            }}"""
+            )
+
+        assertNull(quota.sessionUsage)
+        assertNull(quota.weeklyUsage)
+        assertEquals(60.0, assertNotNull(quota.monthlyUsage).usagePercent)
+        assertNull(quota.monthlyUsage.resetsAt)
+        assertTrue(quota.hasUsageState())
+        assertEquals(quota.monthlyUsage, quota.primaryWindow())
+    }
+
+    @Test
+    fun parseQuotaDoesNotFallBackToCountedUsageWhenRatioMapIsEmpty() {
+        val quota =
+            KimiQuotaClient.parseQuota("""{"usages":{},"usage":{"limit":"100","remaining":"0"}}""")
+
+        assertFalse(quota.hasUsageState())
+    }
+
     @Test
     fun parseQuotaExtractsSessionAndTotalUsage() {
         val body =

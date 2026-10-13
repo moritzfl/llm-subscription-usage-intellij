@@ -380,7 +380,7 @@ internal fun cursorBarDisplayText(quota: CursorQuota?, error: String?): String {
 }
 
 internal fun kimiDisplayWindow(quota: KimiQuota): de.moritzf.quota.kimi.KimiUsageWindow? {
-    return quota.sessionUsage ?: quota.totalUsage
+    return quota.primaryWindow()
 }
 
 internal fun gitHubBarDisplayText(quota: GitHubQuota?, error: String?): String {

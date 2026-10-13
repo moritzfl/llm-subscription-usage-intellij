@@ -178,6 +178,8 @@ private fun indicatorTooltipUsage(quota: ProviderQuota?): IndicatorTooltipUsage 
                 when {
                     window === quota.sessionUsage -> "Session"
                     window === quota.totalUsage -> "Overall"
+                    window === quota.weeklyUsage -> "Weekly"
+                    window === quota.monthlyUsage -> "Monthly"
                     else -> null
                 }
             IndicatorTooltipUsage(

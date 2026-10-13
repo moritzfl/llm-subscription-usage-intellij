@@ -17,6 +17,8 @@ internal class KimiPopupSection : ProviderPopupSection() {
             border = JBUI.Borders.emptyTop(0)
         }
     private val sessionBlock = WindowBlockPanel(3)
+    private val weeklyBlock = WindowBlockPanel(5)
+    private val monthlyBlock = WindowBlockPanel(5)
     private val overallBlock = WindowBlockPanel(5)
 
     init {
@@ -25,6 +27,8 @@ internal class KimiPopupSection : ProviderPopupSection() {
         add(errorLabel)
         add(titleLabel)
         add(sessionBlock)
+        add(weeklyBlock)
+        add(monthlyBlock)
         add(overallBlock)
         hideAll()
     }
@@ -43,6 +47,8 @@ internal class KimiPopupSection : ProviderPopupSection() {
                 errorLabel.text = "Kimi error: $error"
                 titleLabel.isVisible = false
                 sessionBlock.isVisible = false
+                weeklyBlock.isVisible = false
+                monthlyBlock.isVisible = false
                 overallBlock.isVisible = false
             }
 
@@ -55,9 +61,7 @@ internal class KimiPopupSection : ProviderPopupSection() {
             }
 
             else -> {
-                val limitReached =
-                    (quota.sessionUsage?.usagePercent ?: 0.0) >= 100.0 ||
-                        (quota.totalUsage?.usagePercent ?: 0.0) >= 100.0
+                val limitReached = quota.windows().any { it.usagePercent >= 100.0 }
                 errorLabel.isVisible = limitReached
                 if (limitReached) {
                     errorLabel.text = "Kimi limit reached"
@@ -67,6 +71,10 @@ internal class KimiPopupSection : ProviderPopupSection() {
                 titleLabel.text = sectionTitle("Kimi Code", quota.plan.takeIf { it.isNotBlank() })
                 quota.sessionUsage?.let { sessionBlock.updateKimi(it, "Session") }
                     ?: sessionBlock.clear()
+                quota.weeklyUsage?.let { weeklyBlock.updateKimi(it, "Weekly") }
+                    ?: weeklyBlock.clear()
+                quota.monthlyUsage?.let { monthlyBlock.updateKimi(it, "Monthly") }
+                    ?: monthlyBlock.clear()
                 quota.totalUsage?.let { overallBlock.updateKimi(it, "Overall") }
                     ?: overallBlock.clear()
             }
@@ -77,6 +85,8 @@ internal class KimiPopupSection : ProviderPopupSection() {
         errorLabel.isVisible = false
         titleLabel.isVisible = false
         sessionBlock.isVisible = false
+        weeklyBlock.isVisible = false
+        monthlyBlock.isVisible = false
         overallBlock.isVisible = false
     }
 

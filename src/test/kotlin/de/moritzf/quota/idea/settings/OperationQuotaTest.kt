@@ -1,5 +1,7 @@
 package de.moritzf.quota.idea.settings
 
+import de.moritzf.quota.kimi.KimiQuota
+import de.moritzf.quota.kimi.KimiUsageWindow
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.minimax.MiniMaxUsageWindow
 import de.moritzf.quota.mistral.MistralQuota
@@ -16,6 +18,20 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class OperationQuotaTest {
+    @Test
+    fun kimiMonthlyExhaustionIsHardStopEvenWithSessionRemaining() {
+        val quota =
+            KimiQuota(
+                sessionUsage = KimiUsageWindow(usagePercent = 25.0),
+                monthlyUsage = KimiUsageWindow(usagePercent = 100.0),
+            )
+        val status = OperationQuota.status(quota, AccountCapability.PROXY)
+
+        assertTrue(status.exhausted)
+        assertEquals("monthly", status.limitingPool)
+        assertTrue(AccountResolver.isHardStop(quota, AccountCapability.PROXY))
+    }
+
     @Test
     fun zaiWebSearchUsesSearchPoolNotTokenWindows() {
         val quota =

@@ -127,6 +127,12 @@ internal object OperationQuota {
                         quota.totalUsage?.let {
                             NamedWindow("overall", it.usagePercent, it.resetsAt)
                         },
+                        quota.weeklyUsage?.let {
+                            NamedWindow("weekly", it.usagePercent, it.resetsAt)
+                        },
+                        quota.monthlyUsage?.let {
+                            NamedWindow("monthly", it.usagePercent, it.resetsAt)
+                        },
                     ),
                     quota.fetchedAt,
                 )

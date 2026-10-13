@@ -290,7 +290,7 @@ internal fun kimiPeriodElapsedFraction(quota: KimiQuota?, error: String?): Doubl
     if (error != null || quota == null) {
         return null
     }
-    return (quota.sessionUsage ?: quota.totalUsage)?.periodElapsedFraction()
+    return quota.primaryWindow()?.periodElapsedFraction()
 }
 
 internal fun gitHubPeriodElapsedFraction(quota: GitHubQuota?, error: String?): Double? {

@@ -1,6 +1,7 @@
 package de.moritzf.quota.kimi
 
 import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.shared.LenientDoubleOrNullSerializer
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
@@ -9,7 +10,9 @@ import java.net.http.HttpResponse
 import java.time.Duration
 import kotlin.time.Clock
 import kotlin.time.Instant
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 open class KimiQuotaClient(
     private val httpClient: HttpClient = HttpClient.newHttpClient(),
@@ -101,6 +104,28 @@ open class KimiQuotaClient(
                 } catch (exception: Exception) {
                     throw KimiQuotaException("Could not parse usage data.", 200, body, exception)
                 }
+            // Migrated plans use ratios, not counted usage. The old limits array can still
+            // accompany this map and must not overwrite its more precise windows.
+            dto.usages?.let { usages ->
+                fun window(key: String, durationMs: Long? = null): KimiUsageWindow? {
+                    val entry =
+                        JsonSupport.decodeSectionOrNull(usages[key], KimiRatioUsageDto.serializer())
+                            ?: return null
+                    val ratio = entry.usedRatio?.takeIf { it >= 0.0 } ?: return null
+                    return KimiUsageWindow(
+                        usagePercent = ratio.coerceAtMost(1.0) * 100.0,
+                        resetsAt =
+                            entry.resetTime?.let { runCatching { Instant.parse(it) }.getOrNull() },
+                        periodDurationMs = durationMs,
+                    )
+                }
+                return KimiQuota(
+                    plan = normalizeMembership(dto.user?.membership?.level),
+                    sessionUsage = window("limit_5h", Duration.ofHours(5).toMillis()),
+                    weeklyUsage = window("limit_7d", Duration.ofDays(7).toMillis()),
+                    monthlyUsage = window("limit_month_total"),
+                )
+            }
             val total = dto.usage?.toWindow(null)
             val sessionLimit =
                 dto.limits.firstOrNull {
@@ -162,9 +187,18 @@ data class KimiFetchResult(
 
 @Serializable
 private data class KimiUsageResponseDto(
+    val usages: JsonObject? = null,
     val usage: KimiLimitDetailDto? = null,
     val limits: List<KimiLimitDto> = emptyList(),
     val user: KimiUserDto? = null,
+)
+
+@Serializable
+private data class KimiRatioUsageDto(
+    @SerialName("used_ratio")
+    @Serializable(with = LenientDoubleOrNullSerializer::class)
+    val usedRatio: Double? = null,
+    @SerialName("reset_time") val resetTime: String? = null,
 )
 
 @Serializable
