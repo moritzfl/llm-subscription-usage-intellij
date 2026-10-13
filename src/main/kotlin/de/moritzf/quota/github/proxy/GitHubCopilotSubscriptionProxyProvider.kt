@@ -15,6 +15,7 @@ import de.moritzf.proxy.subscription.SubscriptionProxyRequest
 import de.moritzf.proxy.subscription.SubscriptionProxyRoute
 import de.moritzf.proxy.transport.UrlResolver
 import de.moritzf.proxy.usage.UsageTracker
+import de.moritzf.quota.github.GitHubQuotaException
 import java.io.InputStream
 import java.net.URI
 import java.net.http.HttpClient
@@ -22,6 +23,8 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.time.Duration
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -41,7 +44,7 @@ class GitHubCopilotSubscriptionProxyProvider(
     private val missingModelRetryDelays: List<Duration> = DEFAULT_MISSING_MODEL_RETRY_DELAYS,
     private val modelCacheTtl: kotlin.time.Duration = DEFAULT_CACHE_TTL,
     sessionTokenEndpoint: URI = GitHubCopilotSessionClient.endpoint(null),
-    fullRequestLogging: Boolean = false,
+    private val fullRequestLogging: Boolean = false,
     requestLogDir: String = DEFAULT_REQUEST_LOG_DIR,
 ) : SubscriptionProxyProvider {
     private val requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir))
@@ -56,18 +59,25 @@ class GitHubCopilotSubscriptionProxyProvider(
             modelCacheTtl = modelCacheTtl,
         )
     private val claudeBridge = GitHubCopilotClaudeChatBridge()
+    private val autoClient =
+        GitHubCopilotAutoClient(accessTokenProvider, tokenRefresher, httpClient, upstreamBaseUri)
     private val completions =
         GitHubCopilotCompletions(
             GitHubCopilotSessionClient(accessTokenProvider, httpClient, sessionTokenEndpoint),
             httpClient,
             requestLogger,
         )
-    private val chatCompletionsHandler =
+    private val chatCompletionsHandler = createChatCompletionsHandler()
+    private val delegate = createDelegate()
+
+    private fun createChatCompletionsHandler(selection: GitHubCopilotAutoClient.Selection? = null) =
         ChatCompletionsHandler(
             requestLogger = requestLogger,
             usageTracker = UsageTracker(),
             responsesRequester =
-                ChatCompletionsHandler.ResponsesRequester(::sendResponsesForChatCompletion),
+                ChatCompletionsHandler.ResponsesRequester { payload, requestId, promptCacheKey ->
+                    sendResponsesForChatCompletion(payload, requestId, promptCacheKey, selection)
+                },
             store = false,
             configuredModels = null,
             fullRequestLogging = fullRequestLogging,
@@ -76,14 +86,15 @@ class GitHubCopilotSubscriptionProxyProvider(
                 CodexInstructionsProvider(GitHubCopilotProxyIds.DEFAULT_RESPONSES_INSTRUCTIONS),
             responsesBodyTransformer = ::responsesChatBody,
         )
-    private val delegate =
+
+    private fun createDelegate(selection: GitHubCopilotAutoClient.Selection? = null) =
         PassThroughSubscriptionProxyProvider(
             id = ID,
             displayName = DISPLAY_NAME,
             litellmProvider = GitHubCopilotProxyIds.LITELLM_PROVIDER,
             baseUri = upstreamBaseUri,
-            accessTokenProvider = accessTokenProvider,
-            tokenRefresher = tokenRefresher,
+            accessTokenProvider = selection?.let { { it.githubToken } } ?: accessTokenProvider,
+            tokenRefresher = if (selection == null) tokenRefresher else { _ -> null },
             modelMappingsProvider = ::modelMappings,
             defaultHeaders =
                 mapOf(
@@ -97,7 +108,7 @@ class GitHubCopilotSubscriptionProxyProvider(
                     "x-initiator" to "user",
                 ),
             forwardedRequestHeadersTransformer = ::forwardedRequestHeaders,
-            requestHeadersProvider = ::requestHeaders,
+            requestHeadersProvider = { requestHeaders(it) + selection?.headers.orEmpty() },
             requestBodyTransformer = ::requestBody,
             upstreamRouteProvider = ::upstreamRoute,
             jsonResponseTransformer = ::openAiChatJsonResponse,
@@ -119,6 +130,10 @@ class GitHubCopilotSubscriptionProxyProvider(
         prefixedFallbackModel(localId, route)
 
     override suspend fun handle(ctx: ProxyCall, request: SubscriptionProxyRequest) {
+        if (request.model.upstreamId == GitHubCopilotAutoClient.MODEL_ID) {
+            handleAuto(ctx, request)
+            return
+        }
         if (request.route == SubscriptionProxyRoute.COMPLETIONS) {
             completions.handle(ctx, request)
             return
@@ -143,10 +158,73 @@ class GitHubCopilotSubscriptionProxyProvider(
         delegate.handle(ctx, request)
     }
 
+    private suspend fun handleAuto(ctx: ProxyCall, request: SubscriptionProxyRequest) {
+        if (request.route != SubscriptionProxyRoute.CHAT_COMPLETIONS) {
+            JsonHelper.toErrorResponse(
+                ctx,
+                "Copilot Auto supports chat completions.",
+                400,
+                "invalid_request_error",
+            )
+            return
+        }
+        val selection =
+            try {
+                runInterruptible(Dispatchers.IO) { autoClient.select(request.body) }
+            } catch (exception: GitHubQuotaException) {
+                JsonHelper.toErrorResponse(
+                    ctx,
+                    exception.message.orEmpty(),
+                    exception.statusCode,
+                    when (exception.statusCode) {
+                        400 -> "invalid_request_error"
+                        401 -> "authentication_error"
+                        else -> "upstream_error"
+                    },
+                )
+                return
+            }
+        val selected = modelCatalog.parseRemoteModel(selection.model, includeHidden = true)
+        if (
+            selected == null ||
+                selected.supportedRoutes.none {
+                    it in
+                        setOf(
+                            SubscriptionProxyRoute.CHAT_COMPLETIONS,
+                            SubscriptionProxyRoute.RESPONSES,
+                            SubscriptionProxyRoute.ANTHROPIC_MESSAGES,
+                        )
+                }
+        ) {
+            JsonHelper.toErrorResponse(
+                ctx,
+                "Copilot Auto returned an unsupported chat model.",
+                502,
+                "upstream_error",
+            )
+            return
+        }
+        val routed =
+            request.copy(
+                model =
+                    request.model.copy(
+                        upstreamId = selected.id,
+                        supportedRoutes = localSupportedRoutes(selected),
+                    )
+            )
+        if (shouldBridgeChatToResponses(routed)) {
+            createChatCompletionsHandler(selection)
+                .handleParsed(ctx, routed.requestId, routed.bodyWithUpstreamModel())
+        } else {
+            createDelegate(selection).handle(ctx, routed)
+        }
+    }
+
     private fun shouldBridgeChatToResponses(request: SubscriptionProxyRequest): Boolean {
         return request.route == SubscriptionProxyRoute.CHAT_COMPLETIONS &&
             SubscriptionProxyRoute.RESPONSES in request.model.supportedRoutes &&
-            shouldBridgeResponsesModel(request.model.upstreamId)
+            (shouldBridgeResponsesModel(request.model.upstreamId) ||
+                SubscriptionProxyRoute.CHAT_COMPLETIONS !in request.model.supportedRoutes)
     }
 
     private fun prefixedFallbackModel(
@@ -304,10 +382,14 @@ class GitHubCopilotSubscriptionProxyProvider(
         payload: String,
         requestId: String,
         @Suppress("UNUSED_PARAMETER") promptCacheKey: String?,
+        selection: GitHubCopilotAutoClient.Selection? = null,
     ): HttpResponse<InputStream> {
-        val token = accessTokenProvider().trimmedOrNull() ?: error("$DISPLAY_NAME login required.")
-        var response = sendResponsesRequest(payload, requestId, token)
-        if (response.statusCode() == 401) {
+        val token =
+            selection?.githubToken
+                ?: accessTokenProvider().trimmedOrNull()
+                ?: error("$DISPLAY_NAME login required.")
+        var response = sendResponsesRequest(payload, requestId, token, selection?.headers.orEmpty())
+        if (response.statusCode() == 401 && selection == null) {
             val refreshed = refreshAfterUnauthorized(token)
             if (refreshed != null) {
                 runCatching { response.body().close() }
@@ -321,6 +403,7 @@ class GitHubCopilotSubscriptionProxyProvider(
         payload: String,
         requestId: String,
         accessToken: String,
+        extraHeaders: Map<String, String> = emptyMap(),
     ): HttpResponse<InputStream> {
         val headers =
             linkedMapOf(
@@ -338,6 +421,7 @@ class GitHubCopilotSubscriptionProxyProvider(
         if (containsImageInput(JsonHelper.parseToJsonElementOrNull(payload))) {
             headers["Copilot-Vision-Request"] = "true"
         }
+        headers.putAll(extraHeaders)
         val targetUrl = UrlResolver.resolveTargetUrl("/responses", upstreamBaseUri.toString())
         val builder = HttpRequest.newBuilder(URI.create(targetUrl)).timeout(Duration.ofSeconds(30))
         headers.forEach { (name, value) -> builder.header(name, value) }

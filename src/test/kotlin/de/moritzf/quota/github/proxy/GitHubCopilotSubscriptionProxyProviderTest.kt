@@ -28,6 +28,260 @@ import kotlinx.serialization.json.jsonPrimitive
 
 class GitHubCopilotSubscriptionProxyProviderTest {
     @Test
+    fun autoRefreshesRejectedLoginOnceAndPassesImageRoutingHint() {
+        TestUpstream().use { upstream ->
+            val attempts = AtomicInteger()
+            upstream.onAuto = {
+                upstream.autoStatus = if (attempts.incrementAndGet() == 1) 401 else 200
+            }
+            HttpClient.newHttpClient().use { client ->
+                val auto =
+                    GitHubCopilotAutoClient(
+                        accessTokenProvider = { "stale-login" },
+                        tokenRefresher = {
+                            assertEquals("stale-login", it)
+                            "fresh-login"
+                        },
+                        httpClient = client,
+                        baseUri = upstream.baseUri,
+                    )
+                val body =
+                    JsonHelper.JSON.parseToJsonElement(
+                            """{"messages":[{"role":"user","content":[{"type":"text","text":"Read this"},{"type":"image_url","image_url":{"url":"data:image/png;base64,abc"}}]}]}"""
+                        )
+                        .jsonObject
+                val selection = auto.select(body)
+                assertEquals("fresh-login", selection.githubToken)
+                assertEquals(2, attempts.get())
+                val first = nextInferenceRequest(upstream, "auto")
+                val second = nextInferenceRequest(upstream, "auto")
+                assertEquals("Bearer stale-login", first.firstHeader("Authorization"))
+                assertEquals("Bearer fresh-login", second.firstHeader("Authorization"))
+                val routed = JsonHelper.JSON.parseToJsonElement(second.body).jsonObject
+                assertEquals("Read this", routed["prompt"]!!.jsonPrimitive.content)
+                assertEquals("true", routed["has_image"]!!.jsonPrimitive.content)
+                assertFalse(second.body.contains("base64"))
+            }
+        }
+    }
+
+    @Test
+    fun discoversAutoForStudentAccountsAlongsideNativeCompletion() {
+        TestUpstream { autoOnlyModels }
+            .use { upstream ->
+                val proxy = newProxy(upstream.baseUri)
+                try {
+                    proxy.start()
+                    assertEquals(
+                        listOf("gh-gpt-41-copilot", "gh-auto"),
+                        modelInfoIds(get(proxy.port, "/v1/model/info")),
+                    )
+                } finally {
+                    proxy.stop()
+                }
+            }
+    }
+
+    @Test
+    fun nativeCompletionDiscoveryKeepsAllSelectableChatModels() {
+        TestUpstream { modelsBody(copilotModels + nativeCompletionModel) }
+            .use { upstream ->
+                val provider =
+                    GitHubCopilotSubscriptionProxyProvider(
+                        { "editor-token" },
+                        upstreamBaseUri = upstream.baseUri,
+                    )
+                val models = provider.models().map { it.localId }
+                assertTrue("gh-gpt-41-copilot" in models)
+                assertTrue("gh-gpt-5-mini" in models)
+                assertTrue("gh-gpt-5.4-mini" in models)
+                assertTrue("gh-claude-sonnet-4.6" in models)
+                assertTrue("gh-gemini-3.5-flash" in models)
+                assertFalse("gh-gpt-5.5" in models)
+            }
+    }
+
+    @Test
+    fun autoUsesAuthorizedSelectionAcrossChatResponsesAndMessagesInJsonAndSse() {
+        for ((id, path) in
+            listOf(
+                "gpt-5-mini" to "/chat/completions",
+                "future-responses-model" to "/responses",
+                "claude-haiku-4.5" to "/v1/messages",
+            )) {
+            for (stream in listOf(false, true)) {
+                TestUpstream { autoOnlyModels }
+                    .use { upstream ->
+                        upstream.autoBody =
+                            autoSelection(
+                                copilotModel(
+                                    id,
+                                    "test",
+                                    endpoints = listOf(path),
+                                    pickerEnabled = false,
+                                )
+                            )
+                        val proxy = newProxy(upstream.baseUri)
+                        try {
+                            proxy.start()
+                            val response =
+                                post(
+                                    proxy.port,
+                                    "/v1/chat/completions",
+                                    """{"model":"gh-auto","stream":$stream,"messages":[{"role":"user","content":"old prompt"},{"role":"assistant","content":"old answer"},{"role":"user","content":"current prompt"}]}""",
+                                    true,
+                                )
+                            assertEquals(200, response.statusCode(), response.body())
+                            assertFalse(response.body().contains("auto-secret"), response.body())
+                            if (stream) {
+                                assertTrue(
+                                    response.body().contains("chat.completion.chunk"),
+                                    response.body(),
+                                )
+                                assertTrue(
+                                    response.body().contains("data: [DONE]"),
+                                    response.body(),
+                                )
+                            } else
+                                assertTrue(
+                                    response.body().contains("chat.completion"),
+                                    response.body(),
+                                )
+                            val selection = nextInferenceRequest(upstream, "auto")
+                            assertEquals("/auto", selection.path)
+                            assertEquals(
+                                "2026-08-01",
+                                selection.firstHeader("X-GitHub-Api-Version"),
+                            )
+                            assertEquals(
+                                "current prompt",
+                                JsonHelper.JSON.parseToJsonElement(selection.body)
+                                    .jsonObject["prompt"]!!
+                                    .jsonPrimitive
+                                    .content,
+                            )
+                            val inference = nextInferenceRequest(upstream, id)
+                            assertEquals(path, inference.path)
+                            assertEquals(
+                                "auto-secret",
+                                inference.firstHeader("Copilot-Session-Token"),
+                            )
+                            assertEquals(
+                                "Bearer github-token",
+                                inference.firstHeader("Authorization"),
+                            )
+                            assertTrue(inference.body.contains("\"model\":\"$id\""), inference.body)
+                            assertFalse(inference.body.contains("auto-secret"), inference.body)
+                            if (path == "/responses")
+                                assertTrue(
+                                    response.body().contains("hi from responses"),
+                                    response.body(),
+                                )
+                            if (path == "/v1/messages")
+                                assertTrue(
+                                    response.body().contains("hi from claude"),
+                                    response.body(),
+                                )
+                        } finally {
+                            proxy.stop()
+                        }
+                    }
+            }
+        }
+    }
+
+    @Test
+    fun autoSelectionStaysBoundToItsLoginAndDoesNotLeakIntoNamedRequests() {
+        TestUpstream { autoOnlyModels }
+            .use { upstream ->
+                var token = "first-login"
+                upstream.onAuto = { token = "second-login" }
+                val provider =
+                    GitHubCopilotSubscriptionProxyProvider(
+                        { token },
+                        upstreamBaseUri = upstream.baseUri,
+                    )
+                val proxy =
+                    TestProxy(SubscriptionProxyServer(0, { "local-key" }, { listOf(provider) }))
+                try {
+                    proxy.start()
+                    assertEquals(
+                        200,
+                        post(
+                                proxy.port,
+                                "/v1/chat/completions",
+                                """{"model":"gh-auto","messages":[{"role":"user","content":"hi"}]}""",
+                                true,
+                            )
+                            .statusCode(),
+                    )
+                    assertEquals("/auto", nextInferenceRequest(upstream, "auto").path)
+                    val selected = nextInferenceRequest(upstream, "auto")
+                    assertEquals("Bearer first-login", selected.firstHeader("Authorization"))
+                    assertEquals("auto-secret", selected.firstHeader("Copilot-Session-Token"))
+                    assertEquals(
+                        200,
+                        post(
+                                proxy.port,
+                                "/v1/chat/completions",
+                                """{"model":"gh-gpt-5-mini","messages":[{"role":"user","content":"hi"}]}""",
+                                true,
+                            )
+                            .statusCode(),
+                    )
+                    val named = nextInferenceRequest(upstream, "gpt-5-mini")
+                    assertEquals("Bearer second-login", named.firstHeader("Authorization"))
+                    assertEquals(null, named.firstHeader("Copilot-Session-Token"))
+                } finally {
+                    proxy.stop()
+                }
+            }
+    }
+
+    @Test
+    fun autoErrorsAndInvalidSelectionsDoNotLeakCredentialsOrStartInference() {
+        val cases =
+            listOf(
+                429 to "auto-secret",
+                200 to """{"session_token":"auto-secret","expires_at":"broken"}""",
+                200 to autoSelection(copilotModel("disabled", "test", disabled = true)),
+                200 to autoSelection(nativeCompletionModel),
+                200 to
+                    """{"session_token":"auto-secret","expires_at":1,"selected_model":{"id":"gpt-5-mini"}}""",
+                200 to
+                    """{"session_token":"auto-secret","expires_at":9999999999,"selected_model":{"id":"embedding","capabilities":{"type":"embeddings"}}}""",
+            )
+        for ((status, body) in cases) {
+            TestUpstream { autoOnlyModels }
+                .use { upstream ->
+                    upstream.autoStatus = status
+                    upstream.autoBody = body
+                    val proxy = newProxy(upstream.baseUri)
+                    try {
+                        proxy.start()
+                        val response =
+                            post(
+                                proxy.port,
+                                "/v1/chat/completions",
+                                """{"model":"gh-auto","messages":[{"role":"user","content":"hi"}]}""",
+                                true,
+                            )
+                        assertEquals(
+                            if (status == 429) 429 else 502,
+                            response.statusCode(),
+                            response.body(),
+                        )
+                        assertFalse(response.body().contains("auto-secret"), response.body())
+                        assertEquals("/auto", nextInferenceRequest(upstream, "auto").path)
+                        assertTrue(upstream.requests.isEmpty())
+                    } finally {
+                        proxy.stop()
+                    }
+                }
+        }
+    }
+
+    @Test
     fun advertisesOpenAiCompatibleCopilotModelsWithGhPrefix() {
         TestUpstream().use { upstream ->
             val proxy = newProxy(upstream.baseUri)
@@ -1215,6 +1469,9 @@ class GitHubCopilotSubscriptionProxyProviderTest {
         private val server =
             HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         val baseUri: URI
+        var autoBody = autoSelection(copilotModel("gpt-5-mini", "gpt-mini"))
+        var autoStatus = 200
+        var onAuto: () -> Unit = {}
 
         init {
             server.createContext("/") { exchange ->
@@ -1235,6 +1492,9 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 val responseBody =
                     if (exchange.requestURI.rawPath == "/models") {
                         modelsBodyProvider()
+                    } else if (exchange.requestURI.rawPath == "/auto") {
+                        onAuto()
+                        autoBody
                     } else if (
                         exchange.requestURI.rawPath == "/responses" &&
                             body.contains("\"stream\":true")
@@ -1270,7 +1530,10 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     if (body.contains("\"stream\":true")) "text/event-stream"
                     else "application/json",
                 )
-                exchange.sendResponseHeaders(200, response.size.toLong())
+                exchange.sendResponseHeaders(
+                    if (exchange.requestURI.rawPath == "/auto") autoStatus else 200,
+                    response.size.toLong(),
+                )
                 exchange.responseBody.use { output -> output.write(response) }
             }
             server.start()
@@ -1298,6 +1561,13 @@ class GitHubCopilotSubscriptionProxyProviderTest {
     companion object {
         private val httpClient: HttpClient = HttpClient.newHttpClient()
         private val GPT_MAJOR_REGEX = Regex("^gpt-(\\d+)")
+        private val nativeCompletionModel =
+            """{"id":"gpt-41-copilot","model_picker_enabled":false,"capabilities":{"type":"completion"}}"""
+        private val autoOnlyModels =
+            """{"data":[$nativeCompletionModel,{"id":"mai-code-1.1-flash","model_picker_enabled":false,"policy":{"state":"enabled"},"supported_endpoints":["/responses"],"capabilities":{"type":"chat","supports":{"tool_calls":true,"vision":true}}}]}"""
+
+        private fun autoSelection(model: String): String =
+            """{"session_token":"auto-secret","expires_at":${System.currentTimeMillis() / 1000 + 86400},"selected_model":$model}"""
 
         // Local fixture only: production discovers models from GitHub Copilot's /models endpoint.
         private val copilotModels =

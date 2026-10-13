@@ -308,17 +308,44 @@ internal class GitHubCopilotModelCatalog(
                 is JsonArray -> root
                 else -> null
             } ?: return emptyList()
-        return data
-            .mapNotNull { parseRemoteModel(it) }
-            .filter { it.supportedRoutes.isNotEmpty() }
-            .distinctBy { it.id }
+        val models =
+            data
+                .mapNotNull { parseRemoteModel(it) }
+                .filter { it.supportedRoutes.isNotEmpty() }
+                .distinctBy { it.id }
+        // Free/Student plans expose chat models for Auto while disabling their manual picker.
+        if (models.any { it.supportedRoutes != setOf(SubscriptionProxyRoute.COMPLETIONS) })
+            return models
+        val autoCandidates =
+            data
+                .mapNotNull { it as? JsonObject }
+                .filter {
+                    modelType(it) == "chat" &&
+                        stringField(it.jsonObject("policy"), "state") == "enabled"
+                }
+                .mapNotNull { parseRemoteModel(it, includeHidden = true) }
+        if (autoCandidates.isEmpty()) return models
+        return models +
+            GitHubCopilotRemoteModel(
+                id = GitHubCopilotAutoClient.MODEL_ID,
+                supportedRoutes = setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS),
+                supportsFunctionCalling = true,
+                supportsVision = autoCandidates.any { it.supportsVision },
+                maxInputTokens = autoCandidates.mapNotNull { it.maxInputTokens }.minOrNull(),
+                maxOutputTokens = autoCandidates.mapNotNull { it.maxOutputTokens }.minOrNull(),
+                isDefault = true,
+            )
     }
 
-    private fun parseRemoteModel(element: JsonElement): GitHubCopilotRemoteModel? {
+    internal fun parseRemoteModel(
+        element: JsonElement,
+        includeHidden: Boolean = false,
+    ): GitHubCopilotRemoteModel? {
         val item = element as? JsonObject ?: return null
         // The chat picker hides native completion models, even when they are usable.
         val completion = modelType(item) == "completion"
-        if (!completion && boolField(item, "model_picker_enabled") == false) return null
+        if (!completion && !includeHidden && boolField(item, "model_picker_enabled") == false)
+            return null
         if (stringField(item.jsonObject("policy"), "state") == "disabled") return null
         val capabilities = item.jsonObject("capabilities")
         val limits = capabilities?.jsonObject("limits")
