@@ -301,11 +301,6 @@ internal fun createUsageProgressBar(percent: Int): JProgressBar {
     }
 }
 
-internal fun parseDisplayMessagePercent(message: String): Int? {
-    val match = Regex("(\\d+)%").find(message) ?: return null
-    return match.groupValues[1].toIntOrNull()?.let(::clampPercent)
-}
-
 internal fun createOllamaWindowBlock(
     window: OllamaUsageWindow,
     label: String,

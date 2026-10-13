@@ -2,7 +2,6 @@ package de.moritzf.quota.cursor
 
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.LenientDoubleOrNullSerializer
-import de.moritzf.quota.shared.LenientDoubleSerializer
 import java.io.IOException
 import java.net.URI
 import java.net.URLEncoder
@@ -201,14 +200,15 @@ open class CursorQuotaClient(
 
             val planUsage =
                 CursorPlanUsage(
-                    totalPercentUsed = periodUsage.planUsage.totalPercentUsed,
-                    autoPercentUsed = periodUsage.planUsage.autoPercentUsed,
-                    apiPercentUsed = periodUsage.planUsage.apiPercentUsed,
-                    totalSpendUsd = periodUsage.planUsage.totalSpend / 100.0,
-                    limitUsd = periodUsage.planUsage.limit / 100.0,
-                    billingCycleStart = parseTimestamp(periodUsage.billingCycleStart),
-                    billingCycleEnd = parseTimestamp(periodUsage.billingCycleEnd),
-                )
+                        totalPercentUsed = normalizePercent(periodUsage.planUsage.totalPercentUsed),
+                        autoPercentUsed = normalizePercent(periodUsage.planUsage.autoPercentUsed),
+                        apiPercentUsed = normalizePercent(periodUsage.planUsage.apiPercentUsed),
+                        totalSpendUsd = periodUsage.planUsage.totalSpend / 100.0,
+                        limitUsd = periodUsage.planUsage.limit / 100.0,
+                        billingCycleStart = parseTimestamp(periodUsage.billingCycleStart),
+                        billingCycleEnd = parseTimestamp(periodUsage.billingCycleEnd),
+                    )
+                    .takeIf { it.usagePercent() != null || it.totalSpendUsd > 0.0 }
 
             val spendLimit =
                 periodUsage.spendLimitUsage.pooledLimit
@@ -223,12 +223,7 @@ open class CursorQuotaClient(
                         )
                     }
 
-            if (
-                planUsage.totalPercentUsed == 0.0 &&
-                    planUsage.autoPercentUsed == 0.0 &&
-                    planUsage.apiPercentUsed == 0.0 &&
-                    spendLimit == null
-            ) {
+            if (planUsage == null && spendLimit == null) {
                 throw CursorQuotaException(
                     "Could not parse Cursor quota response.",
                     200,
@@ -279,24 +274,6 @@ open class CursorQuotaClient(
             val pooledUsedRaw = teamUsage?.pooled?.used
             val pooledLimitRaw = teamUsage?.pooled?.limit
 
-            val planPercentUsed =
-                when {
-                    totalPercent != null -> totalPercent
-                    autoPercent != null && apiPercent != null ->
-                        normalizeRequiredPercent((autoPercent + apiPercent) / 2.0)
-                    apiPercent != null -> apiPercent
-                    autoPercent != null -> autoPercent
-                    planLimitRaw > 0.0 ->
-                        normalizeRequiredPercent((planUsedRaw / planLimitRaw) * 100.0)
-                    overallUsedRaw != null && overallLimitRaw != null && overallLimitRaw > 0.0 -> {
-                        normalizeRequiredPercent((overallUsedRaw / overallLimitRaw) * 100.0)
-                    }
-                    pooledUsedRaw != null && pooledLimitRaw != null && pooledLimitRaw > 0.0 -> {
-                        normalizeRequiredPercent((pooledUsedRaw / pooledLimitRaw) * 100.0)
-                    }
-                    else -> 0.0
-                }
-
             val (planUsedUsd, planLimitUsd) =
                 when {
                     planLimitRaw > 0.0 || planUsedRaw > 0.0 ->
@@ -320,14 +297,15 @@ open class CursorQuotaClient(
             val planUsage =
                 if (hasPlanUsage) {
                     CursorPlanUsage(
-                        totalPercentUsed = planPercentUsed,
-                        autoPercentUsed = autoPercent ?: 0.0,
-                        apiPercentUsed = apiPercent ?: 0.0,
-                        totalSpendUsd = planUsedUsd,
-                        limitUsd = planLimitUsd,
-                        billingCycleStart = parseTimestamp(summary.billingCycleStart),
-                        billingCycleEnd = parseTimestamp(summary.billingCycleEnd),
-                    )
+                            totalPercentUsed = totalPercent,
+                            autoPercentUsed = autoPercent,
+                            apiPercentUsed = apiPercent,
+                            totalSpendUsd = planUsedUsd,
+                            limitUsd = planLimitUsd,
+                            billingCycleStart = parseTimestamp(summary.billingCycleStart),
+                            billingCycleEnd = parseTimestamp(summary.billingCycleEnd),
+                        )
+                        .takeIf { it.usagePercent() != null || it.totalSpendUsd > 0.0 }
                 } else {
                     null
                 }
@@ -585,9 +563,9 @@ private data class PlanUsageResponse(
     val includedSpend: Double = 0.0,
     val bonusSpend: Double = 0.0,
     val limit: Double = 0.0,
-    @Serializable(with = LenientDoubleSerializer::class) val autoPercentUsed: Double = 0.0,
-    @Serializable(with = LenientDoubleSerializer::class) val apiPercentUsed: Double = 0.0,
-    @Serializable(with = LenientDoubleSerializer::class) val totalPercentUsed: Double = 0.0,
+    @Serializable(with = LenientDoubleOrNullSerializer::class) val autoPercentUsed: Double? = null,
+    @Serializable(with = LenientDoubleOrNullSerializer::class) val apiPercentUsed: Double? = null,
+    @Serializable(with = LenientDoubleOrNullSerializer::class) val totalPercentUsed: Double? = null,
 )
 
 @Serializable

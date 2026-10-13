@@ -1,5 +1,8 @@
 package de.moritzf.quota.idea.settings
 
+import de.moritzf.quota.cursor.CursorPlanUsage
+import de.moritzf.quota.cursor.CursorQuota
+import de.moritzf.quota.cursor.CursorRequestUsage
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.kimi.KimiUsageWindow
 import de.moritzf.quota.minimax.MiniMaxQuota
@@ -18,6 +21,27 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class OperationQuotaTest {
+    @Test
+    fun cursorKeepsAccountAvailableUntilBothModelPoolsAreExhausted() {
+        val quota =
+            CursorQuota(
+                planUsage =
+                    CursorPlanUsage(
+                        autoPercentUsed = 100.0,
+                        apiPercentUsed = 25.0,
+                        totalPercentUsed = 100.0,
+                    ),
+                requestUsage = CursorRequestUsage(used = 500, limit = 500),
+            )
+        val status = OperationQuota.status(quota, AccountCapability.PROXY)
+        assertFalse(status.exhausted)
+        assertEquals("Other Models", status.limitingPool)
+        assertEquals(25.0, status.usagePercent)
+
+        val exhausted = quota.copy(planUsage = quota.planUsage!!.copy(apiPercentUsed = 100.0))
+        assertTrue(OperationQuota.status(exhausted, AccountCapability.PROXY).exhausted)
+    }
+
     @Test
     fun kimiMonthlyExhaustionIsHardStopEvenWithSessionRemaining() {
         val quota =

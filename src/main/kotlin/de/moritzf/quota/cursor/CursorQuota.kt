@@ -23,10 +23,13 @@ data class CursorQuota(
     @Transient override var rawJson: String? = null,
 ) : ProviderQuota {
     fun primaryUsagePercent(): Double? {
+        planUsage?.modelPools()?.values?.maxOrNull()?.let {
+            return it
+        }
         requestUsage?.usagePercent()?.let {
             return it
         }
-        planUsage?.totalPercentUsed?.let {
+        planUsage?.usagePercent()?.let {
             return it
         }
         spendLimit?.usagePercent()?.let {
@@ -48,8 +51,13 @@ data class CursorQuota(
     override fun usageFraction(): Double? = primaryUsagePercent()?.let { it / 100.0 }
 
     override fun activityWindows(): Map<String, Double> = buildMap {
-        requestUsage?.usagePercent()?.let { put("request", it / 100.0) }
-        planUsage?.totalPercentUsed?.let { put("plan", it / 100.0) }
+        if (planUsage?.modelPools()?.isNotEmpty() == true) {
+            planUsage.autoPercentUsed?.let { put("cursorModels", it / 100.0) }
+            planUsage.apiPercentUsed?.let { put("otherModels", it / 100.0) }
+        } else {
+            requestUsage?.usagePercent()?.let { put("request", it / 100.0) }
+            planUsage?.usagePercent()?.let { put("plan", it / 100.0) }
+        }
         spendLimit?.usagePercent()?.let { put("spendLimit", it / 100.0) }
         onDemandUsage?.usagePercent()?.let { put("onDemand", it / 100.0) }
         teamOnDemandUsage?.usagePercent()?.let { put("teamOnDemand", it / 100.0) }
@@ -58,14 +66,25 @@ data class CursorQuota(
 
 @Serializable
 data class CursorPlanUsage(
-    val totalPercentUsed: Double = 0.0,
-    val autoPercentUsed: Double = 0.0,
-    val apiPercentUsed: Double = 0.0,
+    val totalPercentUsed: Double? = null,
+    val autoPercentUsed: Double? = null,
+    val apiPercentUsed: Double? = null,
     val totalSpendUsd: Double = 0.0,
     val limitUsd: Double = 0.0,
     val billingCycleStart: Instant? = null,
     val billingCycleEnd: Instant? = null,
-)
+) {
+    // The API retains its old auto/api field names for the two independent model pools.
+    fun modelPools(): Map<String, Double> = buildMap {
+        autoPercentUsed?.let { put("Cursor Models", it) }
+        apiPercentUsed?.let { put("Other Models", it) }
+    }
+
+    fun usagePercent(): Double? =
+        modelPools().values.maxOrNull()
+            ?: totalPercentUsed
+            ?: limitUsd.takeIf { it > 0.0 }?.let { totalSpendUsd / it * 100.0 }
+}
 
 @Serializable
 data class CursorSpendLimit(

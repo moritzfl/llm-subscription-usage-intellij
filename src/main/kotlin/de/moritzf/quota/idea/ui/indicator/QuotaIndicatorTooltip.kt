@@ -301,9 +301,15 @@ private fun zaiWindowKind(quota: ZaiQuota): String? {
 }
 
 private fun cursorWindowKind(quota: CursorQuota): String? {
+    quota.planUsage
+        ?.modelPools()
+        ?.maxByOrNull { it.value }
+        ?.let {
+            return it.key
+        }
     return when {
         quota.requestUsage?.usagePercent() != null -> "Requests"
-        quota.planUsage != null -> "Included"
+        quota.planUsage?.usagePercent() != null -> "Included"
         quota.spendLimit?.usagePercent() != null -> "Spend"
         quota.onDemandUsage?.usagePercent() != null -> "On-demand"
         quota.teamOnDemandUsage?.usagePercent() != null -> "Team"

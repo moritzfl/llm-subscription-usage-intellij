@@ -1,0 +1,102 @@
+package de.moritzf.quota.idea.ui.popup
+
+import de.moritzf.quota.cursor.CursorPlanUsage
+import de.moritzf.quota.cursor.CursorQuota
+import de.moritzf.quota.cursor.CursorQuotaClient
+import de.moritzf.quota.cursor.CursorRequestUsage
+import de.moritzf.quota.idea.ui.indicator.cursorIndicatorState
+import javax.swing.JLabel
+import javax.swing.JProgressBar
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+class CursorPopupContentBuilderTest {
+    @Test
+    fun displaysModelPoolsWithoutFalseExhaustionFromLegacyCounters() {
+        // cursor.com/docs/models-and-pricing; reported dollar/pool mismatch: quotio issue #519.
+        val quota =
+            CursorQuotaClient.parseUsageSummary(
+                """{
+              "autoModelSelectedDisplayMessage":"You've hit your usage limit",
+              "individualUsage":{"plan":{
+                "used":2000,"limit":2000,"autoPercentUsed":22,"apiPercentUsed":3,"totalPercentUsed":100
+              }}
+            }""",
+                null,
+                """{"gpt-4":{"numRequestsTotal":500,"maxRequestUsage":500}}""",
+            )
+        val section = CursorPopupSection()
+        section.update(quota, null, true)
+
+        val blocks = section.visibleBlocks()
+        assertEquals(listOf("Cursor Models usage", "Other Models usage"), blocks.map { it.title() })
+        assertEquals(
+            listOf(22, 3),
+            blocks.map { it.components.filterIsInstance<JProgressBar>().single().value },
+        )
+        assertEquals(emptyList(), section.warnings())
+        assertEquals(22, cursorIndicatorState(quota)?.percent)
+        blocks.forEach { assertTrue(it.components.filterIsInstance<JLabel>().first().font.isBold) }
+    }
+
+    @Test
+    fun keepsBothEqualPoolsAndNamesOnlyExhaustedPool() {
+        val section = CursorPopupSection()
+        section.update(
+            CursorQuota(planUsage = CursorPlanUsage(autoPercentUsed = 25.0, apiPercentUsed = 25.0)),
+            null,
+            true,
+        )
+        assertEquals(
+            listOf("Cursor Models usage", "Other Models usage"),
+            section.visibleBlocks().map { it.title() },
+        )
+
+        section.update(
+            CursorQuota(
+                planUsage = CursorPlanUsage(autoPercentUsed = 25.0, apiPercentUsed = 100.0)
+            ),
+            null,
+            true,
+        )
+        assertEquals(listOf("Other Models limit reached"), section.warnings())
+    }
+
+    @Test
+    fun clearsMissingPoolsAndRetainsLegacyRequests() {
+        val section = CursorPopupSection()
+        section.update(
+            CursorQuota(
+                planUsage = CursorPlanUsage(autoPercentUsed = 25.0, apiPercentUsed = 100.0)
+            ),
+            null,
+            true,
+        )
+        section.update(CursorQuota(planUsage = CursorPlanUsage(autoPercentUsed = 0.0)), null, true)
+        assertEquals(listOf("Cursor Models usage"), section.visibleBlocks().map { it.title() })
+        assertEquals(emptyList(), section.warnings())
+
+        section.update(
+            CursorQuota(requestUsage = CursorRequestUsage(used = 100, limit = 100)),
+            null,
+            true,
+        )
+        assertEquals(listOf("Requests"), section.visibleBlocks().map { it.title() })
+        assertEquals(listOf("Cursor limit reached"), section.warnings())
+        assertFalse(section.visibleBlocks().any { it.title().contains("Models") })
+    }
+
+    private fun CursorPopupSection.visibleBlocks(): List<WindowBlockPanel> =
+        components.filterIsInstance<WindowBlockPanel>().filter { it.isVisible }
+
+    private fun WindowBlockPanel.title(): String =
+        components.filterIsInstance<JLabel>().first().text
+
+    private fun CursorPopupSection.warnings(): List<String> =
+        components
+            .filterIsInstance<TruncatingPopupLabel>()
+            .filter { it.isVisible && it.text.contains("limit", ignoreCase = true) }
+            .map { it.text }
+}

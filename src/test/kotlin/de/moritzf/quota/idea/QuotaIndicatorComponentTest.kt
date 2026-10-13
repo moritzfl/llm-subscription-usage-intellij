@@ -224,6 +224,18 @@ class QuotaIndicatorComponentTest {
     }
 
     @Test
+    fun cursorIndicatorNamesMostUsedPoolInsteadOfLegacyRequests() {
+        val quota =
+            CursorQuota(
+                planUsage = CursorPlanUsage(autoPercentUsed = 25.0, apiPercentUsed = 40.0),
+                requestUsage = CursorRequestUsage(used = 500, limit = 500),
+            )
+
+        assertEquals(40, de.moritzf.quota.idea.ui.indicator.cursorIndicatorState(quota)?.percent)
+        assertEquals("Cursor • 40% Other Models", tooltip(QuotaProviderType.CURSOR, quota))
+    }
+
+    @Test
     fun cursorIndicatorUsesLegacyRequestUsageWhenPresent() {
         val quota =
             CursorQuota(

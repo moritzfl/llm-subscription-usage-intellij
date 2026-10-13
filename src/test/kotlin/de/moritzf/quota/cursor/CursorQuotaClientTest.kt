@@ -5,11 +5,80 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.time.Instant
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 
 class CursorQuotaClientTest {
+    @Test
+    fun parseSummaryPrefersSeparatePoolsOverLegacyDollarsAndRequests() {
+        val quota =
+            CursorQuotaClient.parseUsageSummary(
+                """{"individualUsage":{"plan":{
+              "used":2000,"limit":2000,"autoPercentUsed":22,"apiPercentUsed":3,"totalPercentUsed":100
+            }}}""",
+                null,
+                """{"gpt-4":{"numRequestsTotal":500,"maxRequestUsage":500}}""",
+            )
+
+        assertEquals(22.0, quota.primaryUsagePercent())
+        assertEquals(0.22, quota.usageFraction())
+        assertEquals(mapOf("cursorModels" to 0.22, "otherModels" to 0.03), quota.activityWindows())
+    }
+
+    @Test
+    fun bothEndpointsPreserveZeroUsageAndMissingPools() {
+        val quotas =
+            listOf(
+                CursorQuotaClient.parseQuota("""{"planUsage":{"autoPercentUsed":0}}""", null, null),
+                CursorQuotaClient.parseUsageSummary(
+                    """{"individualUsage":{"plan":{"autoPercentUsed":"0"}}}""",
+                    null,
+                    null,
+                ),
+            )
+
+        quotas.forEach { quota ->
+            val plan = assertNotNull(quota.planUsage)
+            assertEquals(0.0, plan.autoPercentUsed)
+            assertNull(plan.apiPercentUsed)
+            assertNull(plan.totalPercentUsed)
+            assertEquals(0.0, quota.primaryUsagePercent())
+            assertEquals(mapOf("Cursor Models" to 0.0), plan.modelPools())
+        }
+    }
+
+    @Test
+    fun bothEndpointsKeepDollarFallbackWhenPoolsAreAbsent() {
+        val quotas =
+            listOf(
+                CursorQuotaClient.parseQuota(
+                    """{"planUsage":{"totalSpend":500,"limit":2000}}""",
+                    null,
+                    null,
+                ),
+                CursorQuotaClient.parseUsageSummary(
+                    """{"individualUsage":{"plan":{"used":500,"limit":2000}}}""",
+                    null,
+                    null,
+                ),
+            )
+
+        quotas.forEach { quota ->
+            val plan = assertNotNull(quota.planUsage)
+            assertEquals(emptyMap(), plan.modelPools())
+            assertEquals(25.0, quota.primaryUsagePercent())
+        }
+    }
+
+    @Test
+    fun parseUsageSummaryRejectsEmptyPlanInsteadOfInventingUnusedPools() {
+        assertFailsWith<CursorQuotaException> {
+            CursorQuotaClient.parseUsageSummary("""{"individualUsage":{"plan":{}}}""", null, null)
+        }
+    }
+
     @Test
     fun parseQuotaExtractsPlanAndSpendLimitUsage() {
         val periodUsageJson =

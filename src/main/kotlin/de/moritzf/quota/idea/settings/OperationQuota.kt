@@ -156,18 +156,20 @@ internal object OperationQuota {
                     },
                     quota.fetchedAt,
                 )
-            is CursorQuota ->
-                fromPercentWindows(
-                    listOfNotNull(
-                        quota.planUsage?.let {
-                            NamedWindow("included", it.totalPercentUsed, it.billingCycleEnd)
-                        },
-                        quota.requestUsage?.usagePercent()?.let {
-                            NamedWindow("requests", it, null)
-                        },
-                    ),
-                    quota.fetchedAt,
-                )
+            is CursorQuota -> {
+                val plan = quota.planUsage
+                // Either model pool may still be usable; one exhausted pool is not a hard stop.
+                val availablePool = plan?.modelPools()?.minByOrNull { it.value }
+                val window =
+                    availablePool?.let { NamedWindow(it.key, it.value, plan.billingCycleEnd) }
+                        ?: quota.requestUsage?.usagePercent()?.let {
+                            NamedWindow("requests", it, plan?.billingCycleEnd)
+                        }
+                        ?: plan?.usagePercent()?.let {
+                            NamedWindow("included", it, plan.billingCycleEnd)
+                        }
+                fromPercentWindows(listOfNotNull(window), quota.fetchedAt)
+            }
             else -> OperationQuotaStatus(false, fetchedAt = quota.fetchedAt)
         }
     }

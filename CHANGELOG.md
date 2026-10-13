@@ -12,6 +12,7 @@
 - Show GitHub Copilot AI-credit usage with accurate reset timestamps while retaining legacy premium-request quotas.
 - Resolve MiniMax's consumed-versus-remaining quota counts using the provider's remaining percentage.
 - Prefer SuperGrok's current credit period over deprecated billing dates when calculating resets.
+- Show Cursor Models and Other Models as separate quota pools; ignore legacy spend caps and request counters when pool percentages are available.
 
 ## [1.20.0] - 2026-10-11
 
