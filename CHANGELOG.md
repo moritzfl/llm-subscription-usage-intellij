@@ -11,6 +11,7 @@
 - Read Kimi's ratio-based session, weekly, and monthly quotas, including exhausted monthly limits in the popup and account availability.
 - Show GitHub Copilot AI-credit usage with accurate reset timestamps while retaining legacy premium-request quotas.
 - Resolve MiniMax's consumed-versus-remaining quota counts using the provider's remaining percentage.
+- Prefer SuperGrok's current credit period over deprecated billing dates when calculating resets.
 
 ## [1.20.0] - 2026-10-11
 

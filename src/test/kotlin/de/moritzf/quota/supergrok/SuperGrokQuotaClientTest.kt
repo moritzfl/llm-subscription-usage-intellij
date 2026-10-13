@@ -23,6 +23,39 @@ import kotlin.time.Instant
 
 class SuperGrokQuotaClientTest {
     @Test
+    fun parseQuotaPrefersCurrentCreditPeriodOverDeprecatedBillingDates() {
+        // xai-org/grok-build extensions/billing.rs specifies currentPeriod precedence.
+        val quota =
+            SuperGrokQuotaClient.parseQuota(
+                """{"config":{
+              "creditUsagePercent":25,
+              "currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","start":"2026-10-13T00:00:00Z","end":"2026-10-20T00:00:00Z"},
+              "billingPeriodStart":"2026-10-01T00:00:00Z",
+              "billingPeriodEnd":"2026-11-01T00:00:00Z"
+            }}"""
+            )
+
+        assertEquals(Instant.parse("2026-10-20T00:00:00Z"), quota.creditUsage?.resetsAt)
+        assertEquals(604_800_000, quota.creditUsage?.periodDurationMs)
+    }
+
+    @Test
+    fun parseQuotaKeepsDeprecatedBillingDatesWhenCurrentPeriodIsAbsent() {
+        val quota =
+            SuperGrokQuotaClient.parseQuota(
+                """{"config":{
+              "monthlyLimit":{"val":2000},"used":{"val":500},
+              "billingPeriodStart":"2026-10-01T00:00:00Z",
+              "billingPeriodEnd":"2026-11-01T00:00:00Z"
+            }}"""
+            )
+
+        assertEquals(25.0, quota.creditUsage?.usagePercent)
+        assertEquals(Instant.parse("2026-11-01T00:00:00Z"), quota.creditUsage?.resetsAt)
+        assertEquals(2_678_400_000, quota.creditUsage?.periodDurationMs)
+    }
+
+    @Test
     fun parseQuotaExtractsWeeklyCreditsAndPlan() {
         val fetchedAt = Instant.parse("2026-07-10T12:00:00Z")
         val quota =

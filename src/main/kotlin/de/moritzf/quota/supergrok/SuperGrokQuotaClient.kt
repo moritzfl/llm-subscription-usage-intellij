@@ -266,9 +266,10 @@ open class SuperGrokQuotaClient(
             val limit = config.unitValue("monthlyLimit") ?: 0L
             val usagePercent = resolveUsagePercent(config, used, limit)
             val period = config.objectValue("currentPeriod")
+            // The credits period supersedes deprecated monthly billing dates.
             val periodStart =
-                config.stringValue("billingPeriodStart") ?: period?.stringValue("start")
-            val periodEnd = config.stringValue("billingPeriodEnd") ?: period?.stringValue("end")
+                period?.stringValue("start") ?: config.stringValue("billingPeriodStart")
+            val periodEnd = period?.stringValue("end") ?: config.stringValue("billingPeriodEnd")
             val resetsAt = periodEnd?.let { runCatching { Instant.parse(it) }.getOrNull() }
             val periodDurationMs = periodDurationMillis(periodStart, periodEnd)
             val plan = parsePlan(settingsJson)
