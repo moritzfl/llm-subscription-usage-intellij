@@ -144,7 +144,7 @@ open class ZaiQuotaClient(
             val limits = quotaResponse.data?.limits.orEmpty()
             val tokenLimits =
                 limits
-                    .filter { it.type == "TOKENS_LIMIT" }
+                    .filter { it.type == "TOKENS_LIMIT" || it.type == "CREDIT_LIMIT" }
                     .sortedWith(compareBy<ZaiLimitDto> { it.durationMillis() ?: Long.MAX_VALUE })
             val session = tokenLimits.firstOrNull()
             val weekly = tokenLimits.takeIf { it.size >= 2 }?.lastOrNull()

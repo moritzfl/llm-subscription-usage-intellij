@@ -4,8 +4,32 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 
 class ZaiQuotaClientTest {
+    @Test
+    fun parseQuotaExtractsCreditPlanWindowsWithoutMonthlyMcpBudget() {
+        // Current CREDIT_LIMIT contract, also used by Z.ai's dashboard since the July 2026
+        // migration.
+        val quota =
+            ZaiQuotaClient.parseQuota(
+                """{"success":true,"data":[]}""",
+                """{"success":true,"data":{"limits":[
+              {"type":"CREDIT_LIMIT","unit":6,"number":1,"usage":60000,"currentValue":15000,"remaining":45000,"percentage":25,"nextResetTime":1787649214999},
+              {"type":"CREDIT_LIMIT","unit":3,"number":5,"usage":12000,"currentValue":3000,"remaining":9000}
+            ],"level":"pro"}}""",
+            )
+
+        val session = assertNotNull(quota.sessionUsage)
+        assertEquals(25.0, session.usagePercent)
+        assertEquals(5 * 3_600_000L, session.periodDurationMs)
+        val weekly = assertNotNull(quota.weeklyUsage)
+        assertEquals(25.0, weekly.usagePercent)
+        assertEquals(7 * 86_400_000L, weekly.periodDurationMs)
+        assertEquals(1787649214999, weekly.resetsAt?.toEpochMilliseconds())
+        assertNull(quota.webSearchUsage)
+    }
+
     @Test
     fun parseQuotaExtractsPlanSessionWeeklyAndWebSearches() {
         val subscriptionJson =
