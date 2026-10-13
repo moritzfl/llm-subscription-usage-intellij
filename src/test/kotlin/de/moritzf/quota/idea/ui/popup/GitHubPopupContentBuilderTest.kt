@@ -41,7 +41,10 @@ class GitHubPopupContentBuilderTest {
 
         section.update(quota, error = null, visible = true)
 
-        val message = section.components.filterIsInstance<TruncatingPopupLabel>().single()
+        val message =
+            section.components.filterIsInstance<TruncatingPopupLabel>().single {
+                it.text == "GitHub Copilot subscription ended"
+            }
         assertTrue(message.isVisible)
         assertEquals("GitHub Copilot subscription ended", message.text)
         section.components.filterIsInstance<WindowBlockPanel>().forEach { block ->

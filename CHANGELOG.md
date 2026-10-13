@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - Clarify that selecting `-` for a document model disables only that account's document conversion, and explain PDFBox's local text extraction.
+- Improve quota popup settings accessibility and show clipped provider headings in full on hover.
 
 ## [1.20.0] - 2026-10-11
 

@@ -69,11 +69,11 @@ internal fun createOpenSettingsButton(onOpenSettings: () -> Unit): ActionLink {
             icon = AllIcons.General.Settings
             autoHideOnDisable = false
             toolTipText = "Open settings"
+            accessibleContext.accessibleName = "Open settings"
             margin = JBUI.emptyInsets()
             border = JBUI.Borders.empty()
             isBorderPainted = false
             isContentAreaFilled = false
-            isFocusPainted = false
             isOpaque = false
             cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
         }
@@ -235,7 +235,7 @@ internal fun createWindowTitleLabel(text: String): TruncatingPopupLabel {
 }
 
 internal fun createSectionTitleLabel(text: String, icon: Icon? = null): JBLabel {
-    return JBLabel(text).apply {
+    return TruncatingPopupLabel(text).apply {
         if (icon != null) {
             this.icon = scaleIconToQuotaStatusSize(icon, this)
             iconTextGap = JBUI.scale(4)
@@ -479,7 +479,11 @@ internal fun isLabelTextTruncated(label: JBLabel, fullText: String): Boolean {
     if (!label.isShowing || label.width <= 0) {
         return false
     }
-    val availableWidth = label.width - label.insets.left - label.insets.right
+    val availableWidth =
+        label.width -
+            label.insets.left -
+            label.insets.right -
+            (label.icon?.let { it.iconWidth + label.iconTextGap } ?: 0)
     if (availableWidth <= 0) {
         return false
     }
