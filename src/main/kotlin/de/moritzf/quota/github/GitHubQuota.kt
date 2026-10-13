@@ -9,9 +9,9 @@ import kotlinx.serialization.Transient
 /**
  * GitHub Copilot subscription quota as reported by `copilot_internal/user`.
  *
- * Paid plans report percentage-based snapshots for premium interactions and chat; the free tier
- * reports absolute chat/completions counters. Windows that the API marks as unlimited are kept for
- * snapshots/API output, but display helpers hide them.
+ * Paid plans report AI credits or legacy premium requests and chat; the free tier reports absolute
+ * chat/completions counters. Windows that the API marks as unlimited are kept for snapshots/API
+ * output, but display helpers hide them.
  */
 @Serializable
 data class GitHubQuota(

@@ -82,7 +82,7 @@ open class GitHubQuotaClient(
         private const val DEFAULT_HOST = "github.com"
         private const val DEFAULT_API_HOST = "api.github.com"
 
-        /** Copilot quota windows reset monthly; the API only reports the reset date. */
+        /** Copilot quota windows reset monthly. */
         private const val MONTH_DURATION_MS = 30L * 24 * 60 * 60 * 1000
 
         fun usageEndpoint(enterpriseHost: String?): URI {
@@ -121,19 +121,31 @@ open class GitHubQuotaClient(
                     throw GitHubQuotaException("Could not parse usage data.", 200, body, exception)
                 }
 
-            val paidResetsAt = parseResetDate(dto.quotaResetDate)
+            val paidResetsAt =
+                parseResetDate(dto.quotaResetDateUtc) ?: parseResetDate(dto.quotaResetDate)
             val freeResetsAt = parseResetDate(dto.limitedUserResetDate) ?: paidResetsAt
 
             // Paid plans report percentage snapshots; the free tier reports absolute counters.
+            val premiumSnapshot = dto.quotaSnapshots?.premiumInteractions
+            val creditBased =
+                dto.tokenBasedBilling == true || premiumSnapshot?.tokenBasedBilling == true
             val premium =
-                dto.quotaSnapshots?.premiumInteractions?.toWindow("Premium requests", paidResetsAt)
+                premiumSnapshot?.toWindow(
+                    if (creditBased) "AI credits" else "Premium requests",
+                    paidResetsAt,
+                    creditBased,
+                )
             val chat =
-                dto.quotaSnapshots?.chat?.toWindow("Chat", paidResetsAt)
+                dto.quotaSnapshots
+                    ?.chat
+                    ?.toWindow("Chat", paidResetsAt, dto.tokenBasedBilling == true)
                     ?: dto.limitedUserQuotas
                         ?.chat
                         ?.toFreeWindow("Chat", dto.monthlyQuotas?.chat, freeResetsAt)
             val completions =
-                dto.quotaSnapshots?.completions?.toWindow("Completions", paidResetsAt)
+                dto.quotaSnapshots
+                    ?.completions
+                    ?.toWindow("Completions", paidResetsAt, dto.tokenBasedBilling == true)
                     ?: dto.limitedUserQuotas
                         ?.completions
                         ?.toFreeWindow("Completions", dto.monthlyQuotas?.completions, freeResetsAt)
@@ -150,26 +162,38 @@ open class GitHubQuotaClient(
         private fun GitHubQuotaSnapshotDto.toWindow(
             label: String,
             resetsAt: Instant?,
+            creditBased: Boolean = false,
         ): GitHubUsageWindow? {
+            val reset = quotaResetAt?.takeIf { it > 0 }?.let(Instant::fromEpochSeconds) ?: resetsAt
             if (unlimited == true) {
                 return GitHubUsageWindow(
                     label = label,
                     unlimited = true,
-                    resetsAt = resetsAt,
+                    resetsAt = reset,
                     periodDurationMs = MONTH_DURATION_MS,
                 )
             }
             val total = entitlement ?: quotaTotal ?: return null
+            if (total <= 0.0) return null
+            val usesCredits = creditBased || tokenBasedBilling == true
             val remaining =
-                (remaining ?: quotaRemaining ?: percentRemaining?.let { total * it / 100.0 })
+                (percentRemaining?.takeIf { usesCredits }?.let { total * it / 100.0 }
+                        ?: remaining
+                        ?: quotaRemaining
+                        ?: percentRemaining?.let { total * it / 100.0 })
+                    ?.coerceAtLeast(0.0)
+            val used =
+                (creditsUsed?.takeIf { usesCredits } ?: remaining?.let { total - it })
                     ?.coerceAtLeast(0.0) ?: return null
-            val used = (total - remaining).coerceAtLeast(0.0)
+            val percent =
+                percentRemaining?.takeIf { usesCredits }?.let { (100.0 - it).coerceIn(0.0, 100.0) }
+                    ?: (used / total * 100.0)
             return GitHubUsageWindow(
                 label = label,
                 used = used,
                 limit = total,
-                usagePercent = if (total > 0) used / total * 100.0 else 0.0,
-                resetsAt = resetsAt,
+                usagePercent = percent,
+                resetsAt = reset,
                 periodDurationMs = MONTH_DURATION_MS,
             )
         }
@@ -239,6 +263,8 @@ private data class GitHubUserResponseDto(
     @SerialName("chat_enabled") val chatEnabled: Boolean? = null,
     @SerialName("cli_enabled") val cliEnabled: Boolean? = null,
     @SerialName("quota_reset_date") val quotaResetDate: String? = null,
+    @SerialName("quota_reset_date_utc") val quotaResetDateUtc: String? = null,
+    @SerialName("token_based_billing") val tokenBasedBilling: Boolean? = null,
     @SerialName("quota_snapshots") val quotaSnapshots: GitHubQuotaSnapshotsDto? = null,
     @SerialName("limited_user_reset_date") val limitedUserResetDate: String? = null,
     @SerialName("limited_user_quotas") val limitedUserQuotas: GitHubLimitedQuotasDto? = null,
@@ -261,6 +287,11 @@ private data class GitHubQuotaSnapshotDto(
     @SerialName("percent_remaining")
     @Serializable(with = LenientDoubleOrNullSerializer::class)
     val percentRemaining: Double? = null,
+    @SerialName("credits_used")
+    @Serializable(with = LenientDoubleOrNullSerializer::class)
+    val creditsUsed: Double? = null,
+    @SerialName("quota_reset_at") val quotaResetAt: Long? = null,
+    @SerialName("token_based_billing") val tokenBasedBilling: Boolean? = null,
     val unlimited: Boolean? = null,
 )
 

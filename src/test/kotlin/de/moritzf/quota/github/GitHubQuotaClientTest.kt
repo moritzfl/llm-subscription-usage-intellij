@@ -9,6 +9,79 @@ import kotlin.test.assertTrue
 
 class GitHubQuotaClientTest {
     @Test
+    fun parseQuotaUsesAiCreditsAndPreciseResetTimestamp() {
+        // Current microsoft/vscode parseQuotas contract: credit usage and UTC reset with time.
+        val quota =
+            GitHubQuotaClient.parseQuota(
+                """{
+              "copilot_plan":"pro", "token_based_billing":true,
+              "quota_reset_date":"2026-11-01", "quota_reset_date_utc":"2026-11-01T09:30:00Z",
+              "quota_snapshots":{"premium_interactions":{
+                "entitlement":"3000", "credits_used":300,
+                "remaining":0, "percent_remaining":90, "unlimited":false
+              }}
+            }"""
+            )
+
+        val premium = assertNotNull(quota.premiumInteractions)
+        assertEquals("AI credits", premium.label)
+        assertEquals(300.0, premium.used)
+        assertEquals(10.0, premium.usagePercent)
+        assertEquals("2026-11-01T09:30:00Z", premium.resetsAt.toString())
+    }
+
+    @Test
+    fun parseQuotaUsesCreditPercentageWhenConsumedCreditsAreOmitted() {
+        val quota =
+            GitHubQuotaClient.parseQuota(
+                """{"token_based_billing":true,"quota_snapshots":{"premium_interactions":{
+              "entitlement":3000,"remaining":0,"percent_remaining":90
+            }}}"""
+            )
+
+        val premium = assertNotNull(quota.premiumInteractions)
+        assertEquals(300.0, premium.used)
+        assertEquals(10.0, premium.usagePercent)
+    }
+
+    @Test
+    fun parseQuotaUsesSnapshotCreditFlagAndResetBeforeRootFallback() {
+        val quota =
+            GitHubQuotaClient.parseQuota(
+                """{
+              "quota_reset_date":"2026-11-01", "quota_reset_date_utc":"2026-11-01T09:30:00Z",
+              "quota_snapshots":{"premium_interactions":{
+                "token_based_billing":true, "entitlement":1000,
+                "credits_used":"250", "quota_reset_at":1792483200
+              }}
+            }"""
+            )
+
+        val premium = assertNotNull(quota.premiumInteractions)
+        assertEquals("AI credits", premium.label)
+        assertEquals(25.0, premium.usagePercent)
+        assertEquals("2026-10-20T08:00:00Z", premium.resetsAt.toString())
+    }
+
+    @Test
+    fun parseQuotaSkipsUnallocatedCreditPoolAndFallsBackFromInvalidUtcReset() {
+        val quota =
+            GitHubQuotaClient.parseQuota(
+                """{
+              "token_based_billing":true, "quota_reset_date":"2026-11-01",
+              "quota_reset_date_utc":"unavailable",
+              "quota_snapshots":{
+                "premium_interactions":{"entitlement":0,"percent_remaining":0},
+                "chat":{"entitlement":100,"percent_remaining":75}
+              }
+            }"""
+            )
+
+        assertNull(quota.premiumInteractions)
+        assertEquals("2026-11-01T00:00:00Z", assertNotNull(quota.chat).resetsAt.toString())
+    }
+
+    @Test
     fun parseQuotaExtractsPaidPlanSnapshots() {
         val body =
             """
