@@ -2,17 +2,19 @@
 
 ## [Unreleased]
 
+## [1.20.1] - 2026-10-13
+
 - Clarify that selecting `-` for a document model disables only that account's document conversion, and explain PDFBox's local text extraction.
 - Improve quota popup settings accessibility and show clipped provider headings in full on hover.
 - Use provider-aligned wording for Codex and SuperGrok usage-limit resets.
 - Identify which monthly Mistral allowance is exhausted in the quota popup.
 - Keep Ollama quota lines compact by moving dollar usage and allowance amounts into hover tooltips.
-- Read Z.ai credit-based plan quota windows alongside legacy token-based limits.
-- Read Kimi's ratio-based session, weekly, and monthly quotas, including exhausted monthly limits in the popup and account availability.
+- Restore Z.ai quota tracking for credit-based plans while retaining token-based plans.
+- Show Kimi's session, weekly, and monthly quotas on updated plans, and correctly report exhausted monthly limits.
 - Show GitHub Copilot AI-credit usage with accurate reset timestamps while retaining legacy premium-request quotas.
-- Resolve MiniMax's consumed-versus-remaining quota counts using the provider's remaining percentage.
-- Prefer SuperGrok's current credit period over deprecated billing dates when calculating resets.
-- Show Cursor Models and Other Models as separate quota pools; ignore legacy spend caps and request counters when pool percentages are available.
+- Correct MiniMax's used quota counts when the provider reports consumed instead of remaining usage.
+- Use SuperGrok's current credit period for accurate quota reset dates.
+- Show separate Cursor Models and Other Models quota pools without false exhaustion warnings from legacy counters.
 
 ## [1.20.0] - 2026-10-11
 
@@ -685,7 +687,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.20.0...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.20.1...HEAD
+[1.20.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.20.0...1.20.1
 [1.20.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.19.1...1.20.0
 [1.19.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.19.0...1.19.1
 [1.19.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.18.1...1.19.0
