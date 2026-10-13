@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea.settings
 
+import de.moritzf.proxy.subscription.SubscriptionProxyRoute
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.shared.ProviderQuota
@@ -45,6 +46,7 @@ internal object AccountResolver {
             runCatching { QuotaUsageService.getInstance().getLastQuota(id) }.getOrNull()
         },
         model: String? = null,
+        proxyRoute: SubscriptionProxyRoute? = null,
     ): ProviderAccount {
         val accounts = settings.accountsOf(type)
         val pinned = accountParam?.trim()?.takeIf { it.isNotEmpty() }
@@ -69,14 +71,26 @@ internal object AccountResolver {
                 )
         if (
             !allowsFailover(capability) ||
-                !isExhausted(default, quotaLookup, capability = capability, model = model)
+                !isExhausted(
+                    default,
+                    quotaLookup,
+                    capability = capability,
+                    model = model,
+                    proxyRoute = proxyRoute,
+                )
         ) {
             return default
         }
         val failover = accounts.firstOrNull { account ->
             !account.isDefault &&
                 account.allowFailover &&
-                !isExhausted(account, quotaLookup, capability = capability, model = model)
+                !isExhausted(
+                    account,
+                    quotaLookup,
+                    capability = capability,
+                    model = model,
+                    proxyRoute = proxyRoute,
+                )
         }
         return failover ?: default
     }
@@ -90,9 +104,10 @@ internal object AccountResolver {
             runCatching { QuotaUsageService.getInstance().getLastQuota(id) }.getOrNull()
         },
         model: String? = null,
+        proxyRoute: SubscriptionProxyRoute? = null,
     ): ProviderAccount? {
         return try {
-            resolve(type, accountParam, capability, settings, quotaLookup, model)
+            resolve(type, accountParam, capability, settings, quotaLookup, model, proxyRoute)
         } catch (_: AccountResolveException) {
             null
         }
@@ -106,21 +121,23 @@ internal object AccountResolver {
         nowMs: Long = System.currentTimeMillis(),
         capability: AccountCapability = AccountCapability.QUOTA,
         model: String? = null,
+        proxyRoute: SubscriptionProxyRoute? = null,
     ): Boolean {
         val stickyUntil = rateLimitedUntilMs[account.id]
         if (stickyUntil != null && stickyUntil > nowMs) {
             return true
         }
         val quota = quotaLookup(account.id) ?: return false
-        return isHardStop(quota, capability, model)
+        return isHardStop(quota, capability, model, proxyRoute)
     }
 
     fun isHardStop(
         quota: ProviderQuota,
         capability: AccountCapability = AccountCapability.QUOTA,
         model: String? = null,
+        proxyRoute: SubscriptionProxyRoute? = null,
     ): Boolean {
-        return OperationQuota.status(quota, capability, model).exhausted
+        return OperationQuota.status(quota, capability, model, proxyRoute).exhausted
     }
 
     private fun allowsFailover(capability: AccountCapability): Boolean {

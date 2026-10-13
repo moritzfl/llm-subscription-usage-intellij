@@ -1,5 +1,8 @@
 package de.moritzf.quota.idea.settings
 
+import de.moritzf.proxy.subscription.SubscriptionProxyRoute
+import de.moritzf.quota.github.GitHubQuota
+import de.moritzf.quota.github.GitHubUsageWindow
 import de.moritzf.quota.idea.common.ProviderSnapshot
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageSnapshot
@@ -18,6 +21,48 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class AccountResolverTest {
+    @Test
+    fun copilotFailoverUsesRequestedQuotaPool() {
+        val settings =
+            QuotaSettingsState().apply {
+                accounts =
+                    mutableListOf(
+                        ProviderAccount(
+                            id = "github",
+                            typeId = "github",
+                            name = "Student",
+                            isDefault = true,
+                        ),
+                        ProviderAccount(
+                            id = "github-work",
+                            typeId = "github",
+                            name = "Work",
+                            allowFailover = true,
+                        ),
+                    )
+            }
+        val quota =
+            GitHubQuota(
+                premiumInteractions = GitHubUsageWindow("AI credits", usagePercent = 100.0),
+                completions = GitHubUsageWindow("Completions", unlimited = true),
+            )
+        for (route in
+            listOf(SubscriptionProxyRoute.COMPLETIONS, SubscriptionProxyRoute.CHAT_COMPLETIONS)) {
+            val account =
+                AccountResolver.resolveOrNull(
+                    QuotaProviderType.GITHUB,
+                    capability = AccountCapability.PROXY,
+                    settings = settings,
+                    quotaLookup = { if (it == "github") quota else null },
+                    proxyRoute = route,
+                )
+            assertEquals(
+                if (route == SubscriptionProxyRoute.COMPLETIONS) "github" else "github-work",
+                account?.id,
+            )
+        }
+    }
+
     @Test
     fun snapshotUpdateKeepsOtherAccountEntries() {
         val first = ProviderSnapshot(exhaustedOpenAi(), null)

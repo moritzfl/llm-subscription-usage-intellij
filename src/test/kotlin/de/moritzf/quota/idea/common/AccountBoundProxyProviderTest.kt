@@ -24,11 +24,15 @@ class AccountBoundProxyProviderTest {
         val writes = mutableListOf<String>()
         val limited = mutableListOf<String>()
         val created = mutableListOf<String>()
+        val routes = mutableListOf<SubscriptionProxyRoute>()
         val provider =
             AccountBoundProxyProvider(
                 QuotaProviderType.KIMI,
                 accounts = { listOf(first, second) },
-                resolve = { selected },
+                resolve = { _, route ->
+                    route?.let { routes += it }
+                    selected
+                },
                 rateLimited = { limited += it },
                 create = { account ->
                     created += account.id
@@ -84,6 +88,7 @@ class AccountBoundProxyProviderTest {
             }
             assertEquals(listOf("a->a"), writes)
             assertEquals(listOf("a"), limited)
+            assertEquals(listOf(SubscriptionProxyRoute.CHAT_COMPLETIONS), routes)
             provider.models()
             provider.models()
             assertEquals(listOf("a", "b"), created)

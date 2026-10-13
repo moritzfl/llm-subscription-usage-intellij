@@ -727,12 +727,13 @@ internal object ProviderCatalog {
             AccountBoundProxyProvider(
                 descriptor.type,
                 accounts = { context.settings.accountsOf(descriptor.type) },
-                resolve = { model ->
+                resolve = { model, route ->
                     de.moritzf.quota.idea.settings.AccountResolver.resolveOrNull(
                         descriptor.type,
                         capability = de.moritzf.quota.idea.settings.AccountCapability.PROXY,
                         settings = context.settings,
                         model = model,
+                        proxyRoute = route,
                     )
                 },
                 create = { account -> factory(context.copy(account = account)) },

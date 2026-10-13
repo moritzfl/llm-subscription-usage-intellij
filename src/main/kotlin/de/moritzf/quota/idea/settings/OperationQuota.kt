@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.settings
 
 import de.moritzf.proxy.model.CodexReserveHop
+import de.moritzf.proxy.subscription.SubscriptionProxyRoute
 import de.moritzf.quota.antigravity.AntigravityQuota
 import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.cursor.CursorQuota
@@ -31,6 +32,7 @@ internal object OperationQuota {
         quota: ProviderQuota?,
         capability: AccountCapability = AccountCapability.QUOTA,
         model: String? = null,
+        proxyRoute: SubscriptionProxyRoute? = null,
     ): OperationQuotaStatus {
         if (quota == null) {
             return OperationQuotaStatus(exhausted = false)
@@ -151,9 +153,23 @@ internal object OperationQuota {
             is MistralQuota -> mistral(quota, capability)
             is GitHubQuota ->
                 fromPercentWindows(
-                    quota.limitedWindows().map {
-                        NamedWindow(it.label.ifBlank { "premium" }, it.usagePercent, it.resetsAt)
-                    },
+                    (if (
+                            capability == AccountCapability.PROXY &&
+                                proxyRoute == SubscriptionProxyRoute.COMPLETIONS
+                        ) {
+                            listOfNotNull(quota.completions).filterNot { it.unlimited }
+                        } else if (capability == AccountCapability.PROXY && proxyRoute != null) {
+                            listOfNotNull(quota.premiumInteractions, quota.chat).filterNot {
+                                it.unlimited
+                            }
+                        } else quota.limitedWindows())
+                        .map {
+                            NamedWindow(
+                                it.label.ifBlank { "premium" },
+                                it.usagePercent,
+                                it.resetsAt,
+                            )
+                        },
                     quota.fetchedAt,
                 )
             is CursorQuota -> {

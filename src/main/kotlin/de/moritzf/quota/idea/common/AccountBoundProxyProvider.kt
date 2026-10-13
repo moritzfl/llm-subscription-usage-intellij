@@ -13,7 +13,7 @@ import de.moritzf.quota.idea.settings.ProviderAccount
 internal class AccountBoundProxyProvider(
     private val type: QuotaProviderType,
     private val accounts: () -> List<ProviderAccount>,
-    private val resolve: (String?) -> ProviderAccount?,
+    private val resolve: (String?, SubscriptionProxyRoute?) -> ProviderAccount?,
     private val create: (ProviderAccount) -> SubscriptionProxyProvider,
     private val rateLimited: (String) -> Unit = { AccountResolver.markRateLimited(it) },
 ) : SubscriptionProxyProvider {
@@ -24,10 +24,10 @@ internal class AccountBoundProxyProvider(
     override val displayName = type.displayName
 
     @Synchronized
-    private fun selected(model: String? = null): Entry? {
+    private fun selected(model: String? = null, route: SubscriptionProxyRoute? = null): Entry? {
         val liveIds = accounts().map { it.id }.toSet()
         delegates.keys.retainAll(liveIds)
-        val account = resolve(model)?.snapshot() ?: return null
+        val account = resolve(model, route)?.snapshot() ?: return null
         val cached = delegates[account.id]
         if (cached != null && cached.account == account) return cached
         return Entry(account, create(account)).also { delegates[account.id] = it }
@@ -38,10 +38,10 @@ internal class AccountBoundProxyProvider(
     override fun models() = selected()?.provider?.models().orEmpty()
 
     override fun fallbackModel(localId: String, route: SubscriptionProxyRoute) =
-        selected(localId)?.provider?.fallbackModel(localId, route)
+        selected(localId, route)?.provider?.fallbackModel(localId, route)
 
     override suspend fun handle(ctx: ProxyCall, request: SubscriptionProxyRequest) {
-        val entry = selected(request.model.upstreamId)
+        val entry = selected(request.model.upstreamId, request.route)
         if (entry == null) {
             JsonHelper.toErrorResponse(
                 ctx,
