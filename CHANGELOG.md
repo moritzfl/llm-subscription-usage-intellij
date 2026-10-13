@@ -4,6 +4,7 @@
 
 - Add native GitHub Copilot FIM through live completion-model discovery, editor-compatible device login, and automatically refreshed Copilot session tokens. Existing logins need to reconnect once for native FIM.
 - Keep Copilot completion and chat quotas separate when selecting proxy accounts.
+- Finish native Copilot streams immediately on completion or a stop sequence, and return promptly when a newer FIM request supersedes an older one.
 
 ## [1.20.1] - 2026-10-13
 

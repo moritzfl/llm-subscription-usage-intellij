@@ -186,13 +186,12 @@ internal class GitHubCopilotCompletions(
     private fun consume(input: InputStream, stops: List<String>, emit: (String) -> Unit): String {
         var finishReason = "stop"
         var completed = false
-        var stopped = false
         var pending = ""
-        SseParser.iterateEvents(input) { event ->
-            val data = event.data()?.takeUnless { it.isBlank() } ?: return@iterateEvents
+        SseParser.iterateEventsWhile(input) { event ->
+            val data = event.data()?.takeUnless { it.isBlank() } ?: return@iterateEventsWhile true
             if (data == "[DONE]") {
                 completed = true
-                return@iterateEvents
+                return@iterateEventsWhile false
             }
             val chunk =
                 JsonHelper.parseToJsonElementOrNull(data) as? JsonObject
@@ -201,17 +200,15 @@ internal class GitHubCopilotCompletions(
                 error("Copilot completion stream failed.")
             val choice =
                 (chunk["choices"] as? JsonArray)?.firstOrNull() as? JsonObject
-                    ?: return@iterateEvents
-            if (stopped) return@iterateEvents
+                    ?: return@iterateEventsWhile true
             (choice["text"] as? JsonPrimitive)?.contentOrNull?.let { text ->
                 pending += text
                 val cut = CompletionSanitizer.cutAtStopSequence(pending, stops)
                 if (cut != null) {
                     if (cut.content.isNotEmpty()) emit(cut.content)
                     pending = ""
-                    stopped = true
                     completed = true
-                    finishReason = "stop"
+                    return@iterateEventsWhile false
                 } else {
                     val stable = CompletionSanitizer.dropUnstableTail(pending, stops)
                     if (stable.isNotEmpty()) emit(stable)
@@ -219,9 +216,10 @@ internal class GitHubCopilotCompletions(
                 }
             }
             stringField(choice, "finish_reason")?.let {
-                if (!stopped) finishReason = it
+                finishReason = it
                 completed = true
             }
+            !completed
         }
         check(completed) { "Copilot completion stream ended before completion." }
         if (pending.isNotEmpty()) emit(pending)

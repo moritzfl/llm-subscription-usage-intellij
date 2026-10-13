@@ -13,8 +13,14 @@ object SseParser {
     }
 
     fun iterateEvents(input: InputStream, consumer: (ServerSentEvent) -> Unit) {
-        // Note: the caller owns the InputStream; closing the BufferedReader here closes it too,
-        // which is intentional because this method fully consumes the stream.
+        iterateEventsWhile(input) {
+            consumer(it)
+            true
+        }
+    }
+
+    /** Closes the stream on EOF or when the consumer returns false. */
+    fun iterateEventsWhile(input: InputStream, consumer: (ServerSentEvent) -> Boolean) {
         BufferedReader(InputStreamReader(input, StandardCharsets.UTF_8)).use { reader ->
             var eventType: String? = null
             val dataLines = mutableListOf<String>()
@@ -22,12 +28,14 @@ object SseParser {
             while (line != null) {
                 if (line.isEmpty()) {
                     if (eventType != null || dataLines.isNotEmpty()) {
-                        consumer(
-                            ServerSentEvent(
-                                eventType,
-                                dataLines.takeIf { it.isNotEmpty() }?.joinToString("\n"),
+                        val proceed =
+                            consumer(
+                                ServerSentEvent(
+                                    eventType,
+                                    dataLines.takeIf { it.isNotEmpty() }?.joinToString("\n"),
+                                )
                             )
-                        )
+                        if (!proceed) return
                         eventType = null
                         dataLines.clear()
                     }

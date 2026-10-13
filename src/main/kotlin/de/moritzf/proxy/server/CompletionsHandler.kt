@@ -35,6 +35,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonArray
@@ -115,7 +116,6 @@ class CompletionsHandler(
         // Native FIM models are called through their own infill endpoint; everything else is
         // converted into chat requests. The user only picks the model.
         val nativeFim = FimModels.isNativeFimId(model)
-        val job = currentCoroutineContext()[Job]
         val key = ctx.getAttribute(ProxyCallAttributes.KEY_FINGERPRINT) ?: "local"
         val fim =
             CompletionsGuard.budget(
@@ -127,60 +127,69 @@ class CompletionsHandler(
         val completionId = completionId(requestId)
         val created = System.currentTimeMillis() / 1000L
         val advertised = advertisedModel(cfg, parsed)
-        when (
-            val decision =
-                guard.tryStart(
-                    key = key,
-                    config = cfg,
-                    job = job,
-                    fingerprint = fim.fingerprint(),
-                    coalesce = !nativeFim,
-                )
-        ) {
-            is GuardDecision.Skip -> {
-                LOG.debug("Skipping FIM completion: {}", decision.reason)
-                writeEmptyCompletion(ctx, parsed.stream, advertised, requestId)
-                return
-            }
-            is GuardDecision.Join -> {
-                val text =
-                    try {
-                        withTimeout(cfg.timeoutMillis) { decision.result.await() }
-                    } catch (_: TimeoutCancellationException) {
-                        ""
-                    }
-                writeCompletion(ctx, parsed.stream, advertised, requestId, text)
-                return
-            }
-            GuardDecision.Allow -> Unit
-        }
         try {
             withTimeout(cfg.timeoutMillis) {
-                if (nativeFim) {
-                    handleNative(ctx, models, model, parsed, fim, maxTokens, requestId)
-                } else {
-                    handleChatFim(
-                        ctx = ctx,
-                        cfg = cfg,
-                        model = model,
-                        parsed = parsed,
-                        fim = fim,
-                        maxTokens = maxTokens,
-                        temperature = temperature,
-                        completionId = completionId,
-                        created = created,
-                        advertised = advertised,
-                        requestId = requestId,
-                        key = key,
-                        producerJob = job,
-                    )
+                // Supersession cancels generation, leaving the HTTP handler able to reply.
+                val job = currentCoroutineContext()[Job]
+                when (
+                    val decision =
+                        guard.tryStart(
+                            key = key,
+                            config = cfg,
+                            job = job,
+                            fingerprint = fim.fingerprint(),
+                            coalesce = !nativeFim,
+                        )
+                ) {
+                    is GuardDecision.Skip -> {
+                        LOG.debug("Skipping FIM completion: {}", decision.reason)
+                        writeEmptyCompletion(ctx, parsed.stream, advertised, requestId)
+                        return@withTimeout
+                    }
+                    is GuardDecision.Join -> {
+                        writeCompletion(
+                            ctx,
+                            parsed.stream,
+                            advertised,
+                            requestId,
+                            decision.result.await(),
+                        )
+                        return@withTimeout
+                    }
+                    GuardDecision.Allow -> Unit
+                }
+                try {
+                    if (nativeFim) {
+                        handleNative(ctx, models, model, parsed, fim, maxTokens, requestId)
+                    } else {
+                        handleChatFim(
+                            ctx = ctx,
+                            cfg = cfg,
+                            model = model,
+                            parsed = parsed,
+                            fim = fim,
+                            maxTokens = maxTokens,
+                            temperature = temperature,
+                            completionId = completionId,
+                            created = created,
+                            advertised = advertised,
+                            requestId = requestId,
+                            key = key,
+                            producerJob = job,
+                        )
+                    }
+                } finally {
+                    guard.finish(key, job)
                 }
             }
         } catch (_: TimeoutCancellationException) {
+            currentCoroutineContext().ensureActive()
             LOG.debug("FIM completion timed out for {}", model.localId)
             if (!ctx.handled) writeEmptyCompletion(ctx, parsed.stream, advertised, requestId)
-        } catch (cancellation: CancellationException) {
-            throw cancellation
+        } catch (_: CancellationException) {
+            currentCoroutineContext().ensureActive()
+            LOG.debug("FIM completion superseded for {}", model.localId)
+            if (!ctx.handled) writeEmptyCompletion(ctx, parsed.stream, advertised, requestId)
         } catch (exception: Exception) {
             if (exception.isClientDisconnect()) throw exception
             LOG.debug("FIM completion failed for {}", model.localId, exception)
@@ -196,8 +205,6 @@ class CompletionsHandler(
                     )
                 }
             }
-        } finally {
-            guard.finish(key, job)
         }
     }
 

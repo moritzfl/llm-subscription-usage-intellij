@@ -1,5 +1,6 @@
 package de.moritzf.quota.github.proxy
 
+import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.proxy.fim.FimModels
@@ -13,6 +14,7 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -34,6 +36,167 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 class GitHubCopilotCompletionsTest {
+    @Test
+    fun supersededRequestCompletesWithoutCancellingItsHttpHandler() {
+        for (stream in listOf(false, true)) {
+            Upstream().use { upstream ->
+                val entered = CountDownLatch(1)
+                val release = CountDownLatch(1)
+                val requests = AtomicInteger()
+                upstream.completionWriter = { exchange ->
+                    if (requests.incrementAndGet() == 1) {
+                        entered.countDown()
+                        release.await(10, TimeUnit.SECONDS)
+                    }
+                    val body =
+                        "data: {\"choices\":[{\"text\":\"latest\",\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n"
+                            .toByteArray()
+                    exchange.responseHeaders.set("Content-Type", "text/event-stream")
+                    exchange.sendResponseHeaders(200, body.size.toLong())
+                    exchange.responseBody.use { it.write(body) }
+                }
+                withProxy(upstream) { port ->
+                    HttpClient.newHttpClient().use { client ->
+                        val request =
+                            HttpRequest.newBuilder(URI("http://127.0.0.1:$port/v1/completions"))
+                                .timeout(Duration.ofSeconds(8))
+                                .header("Authorization", "Bearer local-key")
+                                .header("Content-Type", "application/json")
+                                .POST(
+                                    HttpRequest.BodyPublishers.ofString(
+                                        """{"model":"qwen2.5-coder","prompt":"return ","stream":$stream}"""
+                                    )
+                                )
+                                .build()
+                        val previous =
+                            client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                        try {
+                            assertTrue(entered.await(5, TimeUnit.SECONDS))
+                            val latest =
+                                client
+                                    .sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                                    .get(5, TimeUnit.SECONDS)
+                            assertEquals(200, latest.statusCode(), latest.body())
+                            assertTrue(latest.body().contains("latest"), latest.body())
+                            val cancelled = previous.get(2, TimeUnit.SECONDS)
+                            assertEquals(200, cancelled.statusCode(), cancelled.body())
+                            assertTrue(cancelled.body().contains("\"text\":\"\""), cancelled.body())
+                            if (stream) assertTrue(cancelled.body().endsWith("data: [DONE]\n\n"))
+                            assertEquals(1, upstream.exchanges.get())
+                        } finally {
+                            release.countDown()
+                            previous.cancel(true)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun finishReasonFlushesPartialStopWithoutWaitingForDone() {
+        for (stream in listOf(false, true)) {
+            assertFinishesBeforeUpstreamClose(
+                stream,
+                "data: {\"choices\":[{\"text\":\"answer <FI\",\"finish_reason\":\"length\"}]}\n\n",
+                listOf("<FIFTH>"),
+                "answer <FI",
+            )
+        }
+    }
+
+    @Test
+    fun doneEventFinishesWithoutWaitingForUpstreamConnectionToClose() {
+        for (stream in listOf(false, true)) {
+            assertFinishesBeforeUpstreamClose(
+                stream,
+                "data: {\"choices\":[{\"text\":\"answer\\n\"}]}\n\ndata: [DONE]\n\n",
+                emptyList(),
+                "answer\n",
+            )
+        }
+    }
+
+    @Test
+    fun localStopFinishesWithoutWaitingForUpstreamGenerationToFinish() {
+        for (stream in listOf(false, true)) {
+            assertFinishesBeforeUpstreamClose(
+                stream,
+                "data: {\"choices\":[{\"text\":\"answer <FI\"}]}\n\ndata: {\"choices\":[{\"text\":\"FTH>discarded\"}]}\n\n",
+                listOf("<ONE>", "<TWO>", "<THREE>", "<FOUR>", "<FIFTH>"),
+                "answer ",
+            )
+        }
+    }
+
+    private fun assertFinishesBeforeUpstreamClose(
+        stream: Boolean,
+        events: String,
+        stops: List<String>,
+        expected: String,
+    ) {
+        Upstream().use { upstream ->
+            val sent = CountDownLatch(1)
+            val release = CountDownLatch(1)
+            upstream.completionWriter = { exchange ->
+                exchange.responseHeaders.set("Content-Type", "text/event-stream")
+                exchange.sendResponseHeaders(200, 0)
+                exchange.responseBody.use { output ->
+                    output.write(events.toByteArray())
+                    output.flush()
+                    sent.countDown()
+                    release.await(10, TimeUnit.SECONDS)
+                }
+            }
+            withProxy(upstream) { port ->
+                HttpClient.newHttpClient().use { client ->
+                    val future =
+                        client.sendAsync(
+                            HttpRequest.newBuilder(URI("http://127.0.0.1:$port/v1/completions"))
+                                .header("Authorization", "Bearer local-key")
+                                .header("Content-Type", "application/json")
+                                .POST(
+                                    HttpRequest.BodyPublishers.ofString(
+                                        """{"model":"qwen2.5-coder","prompt":"answer: ","stream":$stream,"stop":${JsonArray(stops.map(::JsonPrimitive))}}"""
+                                    )
+                                )
+                                .build(),
+                            HttpResponse.BodyHandlers.ofString(),
+                        )
+                    try {
+                        assertTrue(sent.await(5, TimeUnit.SECONDS))
+                        val response = future.get(2, TimeUnit.SECONDS)
+                        assertEquals(200, response.statusCode(), response.body())
+                        val text =
+                            if (stream)
+                                response
+                                    .body()
+                                    .lineSequence()
+                                    .filter { it.startsWith("data: {") }
+                                    .joinToString("") {
+                                        parse(it.substringAfter("data: "))["choices"]!!
+                                            .jsonArray[0]
+                                            .jsonObject["text"]!!
+                                            .jsonPrimitive
+                                            .content
+                                    }
+                            else
+                                parse(response.body())["choices"]!!
+                                    .jsonArray[0]
+                                    .jsonObject["text"]!!
+                                    .jsonPrimitive
+                                    .content
+                        assertEquals(expected, text)
+                        if (stream) assertTrue(response.body().endsWith("data: [DONE]\n\n"))
+                    } finally {
+                        release.countDown()
+                        future.cancel(true)
+                    }
+                }
+            }
+        }
+    }
+
     @Test
     fun discoversNativeModelsHiddenFromChatPickerWithoutAdvertisingChatOrTools() {
         Upstream().use { upstream ->
@@ -362,6 +525,7 @@ class GitHubCopilotCompletionsTest {
 
     private class Upstream : AutoCloseable {
         private val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        private val executor = Executors.newCachedThreadPool()
         val exchanges = AtomicInteger()
         val completions = AtomicInteger()
         var expiresAt = Instant.now().epochSecond + 3600
@@ -372,6 +536,7 @@ class GitHubCopilotCompletionsTest {
         var tokenBody: String? = null
         var completionBody: String? = null
         var completionContentType = "text/event-stream"
+        var completionWriter: ((HttpExchange) -> Unit)? = null
         var lastExchangeAuthorization: String? = null
         var lastExchangeIntegration: String? = null
         var lastCompletionAuthorization: String? = null
@@ -380,6 +545,7 @@ class GitHubCopilotCompletionsTest {
         var lastCompletionBody = ""
 
         init {
+            server.executor = executor
             server.createContext("/") { exchange ->
                 var status = 200
                 var contentType = "application/json"
@@ -407,6 +573,10 @@ class GitHubCopilotCompletionsTest {
                             lastCompletionIntent = exchange.requestHeaders.getFirst("OpenAI-Intent")
                             lastCompletionBody =
                                 exchange.requestBody.bufferedReader().use { it.readText() }
+                            completionWriter?.let { writer ->
+                                writer(exchange)
+                                return@createContext
+                            }
                             status =
                                 when {
                                     (parse(lastCompletionBody)["stop"] as? JsonArray)?.size?.let {
@@ -444,7 +614,10 @@ class GitHubCopilotCompletionsTest {
                 sessionTokenEndpoint = uri("/token"),
             )
 
-        override fun close() = server.stop(0)
+        override fun close() {
+            server.stop(0)
+            executor.shutdownNow()
+        }
     }
 
     companion object {
