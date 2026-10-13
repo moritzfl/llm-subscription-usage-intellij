@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-10-13
+
 - Add native GitHub Copilot FIM through live completion-model discovery, editor-compatible device login, and automatically refreshed Copilot session tokens. Existing logins need to reconnect once for native FIM.
 - Keep Copilot completion and chat quotas separate when selecting proxy accounts.
 - Offer Copilot Auto chat as `gh-auto` alongside named models on paid plans and for Auto-only Student/Free accounts, using the same login as native FIM.
@@ -692,7 +694,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.20.1...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.21.0...HEAD
+[1.21.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.20.1...1.21.0
 [1.20.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.20.0...1.20.1
 [1.20.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.19.1...1.20.0
 [1.19.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.19.0...1.19.1
