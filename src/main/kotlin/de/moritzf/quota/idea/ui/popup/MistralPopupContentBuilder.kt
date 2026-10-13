@@ -56,13 +56,16 @@ internal class MistralPopupSection : ProviderPopupSection() {
                 apiUsageBlock.showLoading("API usage")
             }
             else -> {
-                val limitReached =
-                    (quota.monthlyUsage?.usagePercent ?: 0.0) >= 100.0 ||
-                        (quota.includedApiUsage?.usagePercent ?: 0.0) >= 100.0
-                errorLabel.isVisible = limitReached
-                if (limitReached) {
-                    errorLabel.text = "Mistral limit reached"
-                }
+                val apiLimitReached = (quota.includedApiUsage?.usagePercent ?: 0.0) >= 100.0
+                val vibeLimitReached = (quota.monthlyUsage?.usagePercent ?: 0.0) >= 100.0
+                errorLabel.isVisible = apiLimitReached || vibeLimitReached
+                errorLabel.text =
+                    when {
+                        apiLimitReached && vibeLimitReached -> "Monthly API and Vibe limits reached"
+                        apiLimitReached -> "Monthly API limit reached"
+                        vibeLimitReached -> "Monthly Vibe limit reached"
+                        else -> ""
+                    }
                 titleLabel.isVisible = true
                 titleLabel.text = sectionTitle(MISTRAL_LABEL)
                 quota.includedApiUsage?.let {
