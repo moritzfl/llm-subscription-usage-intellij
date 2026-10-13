@@ -101,19 +101,19 @@ internal object IdeProxyFactories {
     }
 
     fun github(ctx: IdeProxyBuildContext): SubscriptionProxyProvider {
+        val host =
+            ctx.settings.githubHostFor(
+                resolvedAccount(ctx, QuotaProviderType.GITHUB)?.id ?: QuotaProviderType.GITHUB.id
+            )
         return GitHubCopilotSubscriptionProxyProvider(
             accessTokenProvider = {
                 resolvedAccount(ctx, QuotaProviderType.GITHUB)?.let { account ->
                     GitHubCredentialsStore.forAccount(account.id).loadBlocking()?.accessToken
                 }
             },
-            upstreamBaseUri =
-                githubCopilotBaseUri(
-                    ctx.settings.githubHostFor(
-                        resolvedAccount(ctx, QuotaProviderType.GITHUB)?.id
-                            ?: QuotaProviderType.GITHUB.id
-                    )
-                ),
+            upstreamBaseUri = githubCopilotBaseUri(host),
+            sessionTokenEndpoint =
+                de.moritzf.quota.github.proxy.GitHubCopilotSessionClient.endpoint(host),
             persistentModelCacheProvider = {
                 ctx.settings.subscriptionProxyModelCatalogJson(
                     GitHubCopilotSubscriptionProxyProvider.ID

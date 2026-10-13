@@ -139,7 +139,7 @@ internal fun parseGitHubListedModels(body: String): List<GitHubListedModel> {
             if (boolField(item, "model_picker_enabled") == false) return@mapNotNull null
             if (stringField(item.jsonObject("policy"), "state") == "disabled")
                 return@mapNotNull null
-            if (modelType(item) == "embeddings") return@mapNotNull null
+            if (modelType(item) in setOf("embeddings", "completion")) return@mapNotNull null
             val id =
                 remoteModelId(stringField(item, "id") ?: return@mapNotNull null)
                     ?: return@mapNotNull null

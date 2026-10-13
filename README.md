@@ -39,7 +39,7 @@ Track and use your LLM subscriptions directly in IntelliJ IDEA.
 | OpenAI (ChatGPT / Codex) | Browser / device code / access token | ✓ | ✓ | ✓ | — | (✓) | (✓) | ✓ | ✓ | — |
 | Claude (Anthropic) | Browser login | ✓ | — | — | — | — | — | — | — | — |
 | SuperGrok / xAI | Browser / device code | ✓ | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ | ✓ | — |
-| GitHub Copilot | Device code | ✓ | — | — | — | — | — | ✓ | ✓ | — |
+| GitHub Copilot | Device code | ✓ | — | — | — | — | — | ✓ | ✓ | ✓ |
 | Cursor | Session cookie | ✓ | — | — | — | — | — | — | — | — |
 | OpenCode (Go / Zen) | Device code | ✓ | — | — | — | — | — | ✓ | ✓ | — |
 | Ollama Cloud | API key | ✓ | ✓ | — | — | — | — | ✓ | ✓ | ✓ |
@@ -57,7 +57,7 @@ Track and use your LLM subscriptions directly in IntelliJ IDEA.
 - **Docs** — MCP tool that converts a PDF or image to markdown. ✓ uses a dedicated OCR API that returns figures. ✓* requires an explicitly selected Azure document model. (✓) uses a chat/vision API and reconstructs figure images locally from estimated page boxes. OpenAI and SuperGrok use the vision model selected in that provider's settings. A general vision model is less precise and usually costs more than a document or OCR model (Mistral, Z.ai, or a company model such as Azure).
 - **Vision** — MCP tool `subscription_vision` that answers questions about an image with a vision-capable chat model, so non-vision models can extract information from images. Every provider starts off (`-`); select a vision model in that provider's settings first. Vision is a separate setting from the document model: a vision model does not need PDF support, and the document model keeps requiring PDF or OCR support.
 - **Proxy** — available through the local OpenAI-compatible proxy (for use of subscriptions in tools like Jetbrains AI Chat and other tools that require authentication by endpoint and API key).
-- **Native FIM** — model-native fill-in-the-middle code completion through the proxy, without chat adaptation: Ollama Cloud `deepseek-v4.1-flash` and Mistral Codestral/FIM models. The proxy picks that path automatically when you select one. Other eligible proxy models are converted into chat requests; this does not count as native FIM.
+- **Native FIM** — model-native fill-in-the-middle code completion through the proxy, without chat adaptation: GitHub Copilot completion models (such as `gpt-41-copilot`), Ollama Cloud `deepseek-v4.1-flash`, and Mistral Codestral/FIM models. The proxy picks that path automatically when you select one. Other eligible proxy models are converted into chat requests; this does not count as native FIM.
 
 Claude is quota-only. Anthropic does not allow using a Claude subscription outside their own apps, so this plugin only shows usage and does not wrap Claude search, media, documents, or a proxy.
 
@@ -78,6 +78,7 @@ Everything else is optional and lives in the same settings page: MCP tools, MCP 
 - **OpenAI and SuperGrok:** select **Log In with Device Code**. Copy the displayed URL and code into any browser, including one on another device. The plugin waits for approval without opening a local browser or listening on a callback port. Use **Cancel Login** to stop. OpenAI may require enabling device-code login in [ChatGPT security settings](https://chatgpt.com/#settings/Security), or approval from your workspace admin.
 - **OpenAI access tokens:** select **Use Access Token...** and paste a Codex personal access token starting with `at-`, created in [ChatGPT workspace settings](https://chatgpt.com/admin/access-tokens). Select the **Codex** scope when offered. These tokens are available for Business and Enterprise workspaces. The plugin validates the workspace identity before storing the token in IntelliJ Password Safe. Expired or revoked tokens require a replacement; they do not refresh automatically. Workspace permissions determine which Codex operations are available. Platform API keys, legacy agent-identity JWTs, and FedRAMP endpoints are not supported by this option.
 - **GitHub Copilot, Kimi and OpenCode:** their existing sign-in already uses device authorization. Copy the URL/code shown in settings if the browser cannot open; authorization continues while you approve elsewhere.
+- **GitHub Copilot native FIM:** older plugin logins must log out and log in once to authorize the Copilot editor app. The plugin exchanges its own GitHub login for short-lived Copilot session tokens and renews them automatically.
 
 Credentials are managed by this plugin. It does not import other tools' login files.
 
@@ -167,7 +168,7 @@ The plugin can run a local proxy that exposes your subscriptions through standar
 
 **Setup:** open the **Proxy** tab in `Settings` > `Tools` > `LLM Subscription Usage`, tick `Enable local subscription proxy`, choose the providers to expose, and apply. Then use `Copy Base URL` and `Copy API Key` to configure your client.
 
-**FIM / AI Completion:** when the proxy is on, `/v1/completions` is on too. Pick one completion model on the Proxy tab — `-` turns FIM off, and the list groups models under **Native FIM** and **Adapted via chat** — then point JetBrains AI Completion at this proxy using the stable model id `qwen2.5-coder` (JetBrains Auto maps that name to `(fim) Qwen`). Ghost text stays off until that IDE setup is done. Changing the underlying model in this plugin does not require changing the IDE completion model. Most models do not support FIM, so the proxy converts their calls into chat requests automatically. Native FIM models (Mistral Codestral/FIM, Ollama `deepseek-v4.1-flash`) are called through their own infill endpoint instead — Ollama DeepSeek uses raw infill tokens with thinking disabled. The same model through OpenCode Go goes through chat adaptation. Expect seconds of latency and quota use on chat models. Claude stays quota-only.
+**FIM / AI Completion:** when the proxy is on, `/v1/completions` is on too. Pick one completion model on the Proxy tab — `-` turns FIM off, and the list groups models under **Native FIM** and **Adapted via chat** — then point JetBrains AI Completion at this proxy using the stable model id `qwen2.5-coder` (JetBrains Auto maps that name to `(fim) Qwen`). Ghost text stays off until that IDE setup is done. Changing the underlying model in this plugin does not require changing the IDE completion model. Most models do not support FIM, so the proxy converts their calls into chat requests automatically. Native FIM models (GitHub Copilot completion models, Mistral Codestral/FIM, Ollama `deepseek-v4.1-flash`) are called through their own infill endpoint instead — Ollama DeepSeek uses raw infill tokens with thinking disabled. The same model through OpenCode Go goes through chat adaptation. Expect seconds of latency and quota use on chat models. Claude stays quota-only.
 
 Point JetBrains AI Completion at:
 

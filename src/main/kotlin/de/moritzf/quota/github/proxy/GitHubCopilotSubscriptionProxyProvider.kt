@@ -40,6 +40,7 @@ class GitHubCopilotSubscriptionProxyProvider(
     private val persistentModelCacheSaver: (String?) -> Unit = {},
     private val missingModelRetryDelays: List<Duration> = DEFAULT_MISSING_MODEL_RETRY_DELAYS,
     private val modelCacheTtl: kotlin.time.Duration = DEFAULT_CACHE_TTL,
+    sessionTokenEndpoint: URI = GitHubCopilotSessionClient.endpoint(null),
     fullRequestLogging: Boolean = false,
     requestLogDir: String = DEFAULT_REQUEST_LOG_DIR,
 ) : SubscriptionProxyProvider {
@@ -55,6 +56,12 @@ class GitHubCopilotSubscriptionProxyProvider(
             modelCacheTtl = modelCacheTtl,
         )
     private val claudeBridge = GitHubCopilotClaudeChatBridge()
+    private val completions =
+        GitHubCopilotCompletions(
+            GitHubCopilotSessionClient(accessTokenProvider, httpClient, sessionTokenEndpoint),
+            httpClient,
+            requestLogger,
+        )
     private val chatCompletionsHandler =
         ChatCompletionsHandler(
             requestLogger = requestLogger,
@@ -112,6 +119,10 @@ class GitHubCopilotSubscriptionProxyProvider(
         prefixedFallbackModel(localId, route)
 
     override suspend fun handle(ctx: ProxyCall, request: SubscriptionProxyRequest) {
+        if (request.route == SubscriptionProxyRoute.COMPLETIONS) {
+            completions.handle(ctx, request)
+            return
+        }
         if (shouldBridgeChatToResponses(request)) {
             if (accessTokenProvider().trimmedOrNull() == null) {
                 JsonHelper.toErrorResponse(
@@ -163,7 +174,7 @@ class GitHubCopilotSubscriptionProxyProvider(
                 upstreamId = model.id,
                 supportedRoutes = localSupportedRoutes(model),
                 supportsFunctionCalling = model.supportsFunctionCalling,
-                supportsToolChoice = true,
+                supportsToolChoice = model.supportsFunctionCalling,
                 supportsVision = model.supportsVision,
                 maxInputTokens = model.maxInputTokens,
                 maxOutputTokens = model.maxOutputTokens,

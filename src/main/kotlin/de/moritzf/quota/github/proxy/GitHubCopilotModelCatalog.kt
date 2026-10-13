@@ -316,12 +316,14 @@ internal class GitHubCopilotModelCatalog(
 
     private fun parseRemoteModel(element: JsonElement): GitHubCopilotRemoteModel? {
         val item = element as? JsonObject ?: return null
-        if (boolField(item, "model_picker_enabled") == false) return null
+        // The chat picker hides native completion models, even when they are usable.
+        val completion = modelType(item) == "completion"
+        if (!completion && boolField(item, "model_picker_enabled") == false) return null
         if (stringField(item.jsonObject("policy"), "state") == "disabled") return null
         val capabilities = item.jsonObject("capabilities")
         val limits = capabilities?.jsonObject("limits")
         val supports = capabilities?.jsonObject("supports")
-        val toolCalls = boolField(supports, "tool_calls") ?: true
+        val toolCalls = !completion && (boolField(supports, "tool_calls") ?: true)
         val id = remoteModelId(stringField(item, "id") ?: return null) ?: return null
         return GitHubCopilotRemoteModel(
             id = id,
@@ -344,6 +346,7 @@ internal class GitHubCopilotModelCatalog(
         modelType: String?,
         endpoints: JsonArray?,
     ): Set<SubscriptionProxyRoute> {
+        if (modelType == "completion") return setOf(SubscriptionProxyRoute.COMPLETIONS)
         val values =
             endpoints?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }?.toSet().orEmpty()
         if (values.isEmpty()) {

@@ -15,7 +15,7 @@ import kotlin.test.assertNotNull
 
 class GitHubOAuthClientTest {
     @Test
-    fun requestDeviceAuthorizationUsesCopilotCliClientId() {
+    fun requestDeviceAuthorizationUsesCopilotEditorClientId() {
         TestOAuthServer(
                 """
                 {"device_code":"device-123","user_code":"ABCD-1234","verification_uri":"https://github.com/login/device","expires_in":900,"interval":5}
@@ -35,14 +35,14 @@ class GitHubOAuthClientTest {
                 assertEquals("ABCD-1234", authorization.userCode)
                 val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
                 assertEquals("/login/device/code", request.path)
-                assertEquals(GitHubOAuthClient.CLIENT_ID, request.form["client_id"])
+                assertEquals("Iv1.b507a08c87ecfe98", request.form["client_id"])
                 assertEquals("read:user", request.form["scope"])
                 assertEquals("openai-usage-quota-intellij", request.headers["User-agent"])
             }
     }
 
     @Test
-    fun pollDeviceTokenUsesCopilotCliClientIdAndStoresItWithCredentials() {
+    fun pollDeviceTokenUsesCopilotEditorClientIdAndStoresItWithCredentials() {
         TestOAuthServer("""{"access_token":"github-token"}""").use { server ->
             val client =
                 GitHubOAuthClient(

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Add native GitHub Copilot FIM through live completion-model discovery, editor-compatible device login, and automatically refreshed Copilot session tokens. Existing logins need to reconnect once for native FIM.
+
 ## [1.20.1] - 2026-10-13
 
 - Clarify that selecting `-` for a document model disables only that account's document conversion, and explain PDFBox's local text extraction.

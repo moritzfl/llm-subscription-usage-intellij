@@ -130,10 +130,8 @@ class GitHubOAuthClient(
         private val ACCESS_TOKEN_ENDPOINT = accessTokenEndpoint(null)
         private const val DEFAULT_VERIFICATION_URI = "https://github.com/login/device"
 
-        /**
-         * Public GitHub Copilot CLI/opencode device-flow client id; device flow needs no secret.
-         */
-        internal const val CLIENT_ID = "Ov23li8tweQw6odWQebz"
+        /** Public Copilot editor GitHub App; supports the Copilot session-token exchange. */
+        internal const val CLIENT_ID = "Iv1.b507a08c87ecfe98"
 
         /** `read:user` is sufficient for `copilot_internal/user`. */
         private const val SCOPE = "read:user"
