@@ -10,6 +10,7 @@
 - Read Z.ai credit-based plan quota windows alongside legacy token-based limits.
 - Read Kimi's ratio-based session, weekly, and monthly quotas, including exhausted monthly limits in the popup and account availability.
 - Show GitHub Copilot AI-credit usage with accurate reset timestamps while retaining legacy premium-request quotas.
+- Resolve MiniMax's consumed-versus-remaining quota counts using the provider's remaining percentage.
 
 ## [1.20.0] - 2026-10-11
 

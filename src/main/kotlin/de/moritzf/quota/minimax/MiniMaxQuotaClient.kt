@@ -8,6 +8,7 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
+import kotlin.math.abs
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -219,12 +220,14 @@ open class MiniMaxQuotaClient(
             val periodDurationMs =
                 if (startMs != null && endMs != null && endMs > startMs) endMs - startMs else null
 
-            val remaining = remainingCount ?: remainsCount ?: usageCount
+            val remaining = remainingCount ?: remainsCount
             val usedFromCounts =
                 when {
                     explicitUsed != null -> explicitUsed
                     remaining != null && (total ?: 0L) > 0L ->
                         (total!! - remaining).coerceAtLeast(0)
+                    usageCount != null && total != null ->
+                        resolveUsedCount(usageCount, total, remainingPercent)
                     else -> null
                 }
             val percentFromCounts =
@@ -244,11 +247,28 @@ open class MiniMaxQuotaClient(
 
             return MiniMaxUsageWindow(
                 used = usedFromCounts ?: 0,
-                limit = total ?: 0,
+                limit = if (usedFromCounts != null) total ?: 0 else 0,
                 usagePercent = usagePercent,
                 resetsAt = resetsAt,
                 periodDurationMs = periodDurationMs,
             )
+        }
+
+        private fun resolveUsedCount(
+            reportedCount: Long,
+            total: Long,
+            remainingPercent: Double?,
+        ): Long? {
+            if (total <= 0 || reportedCount !in 0..total) return null
+            // MiniMax's CLI resolves old remaining counts and new consumed counts against
+            // the authoritative remaining percentage, allowing one point for rounding.
+            if (remainingPercent == null) return total - reportedCount
+            val asRemaining = reportedCount.toDouble() / total * 100.0
+            val asUsed = (total - reportedCount).toDouble() / total * 100.0
+            val remainingDistance = abs(asRemaining - remainingPercent)
+            val usedDistance = abs(asUsed - remainingPercent)
+            if (minOf(remainingDistance, usedDistance) > 1.0) return null
+            return if (usedDistance < remainingDistance) reportedCount else total - reportedCount
         }
 
         private fun countdownUsesMillis(item: MiniMaxRemainDto): Boolean {

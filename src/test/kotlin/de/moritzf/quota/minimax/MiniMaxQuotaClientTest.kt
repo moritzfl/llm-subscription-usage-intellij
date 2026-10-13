@@ -19,6 +19,63 @@ import kotlin.time.Duration.Companion.minutes
 
 class MiniMaxQuotaClientTest {
     @Test
+    fun parseQuotaResolvesConsumedAndRemainingCountSemanticsPerWindow() {
+        val quota =
+            MiniMaxQuotaClient.parseQuota(
+                """{"model_remains":[{
+              "model_name":"general",
+              "current_interval_total_count":10,"current_interval_usage_count":7,
+              "current_interval_remaining_percent":30,
+              "current_weekly_total_count":50,"current_weekly_usage_count":40,
+              "current_weekly_remaining_percent":80
+            }]}""",
+                MiniMaxRegion.GLOBAL,
+            )
+
+        val session = assertNotNull(quota.sessionUsage)
+        assertEquals(7, session.used)
+        assertEquals(70.0, session.usagePercent)
+        val weekly = assertNotNull(quota.weeklyUsage)
+        assertEquals(10, weekly.used)
+        assertEquals(20.0, weekly.usagePercent)
+    }
+
+    @Test
+    fun parseQuotaDoesNotInvertUnusedNewPlanCounts() {
+        // MiniMax-AI/cli test/utils/quota.test.ts: count=0, total=5, remaining=100.
+        val quota =
+            MiniMaxQuotaClient.parseQuota(
+                """{"model_remains":[{
+              "current_interval_total_count":5,"current_interval_usage_count":0,
+              "current_interval_remaining_percent":100
+            }]}""",
+                MiniMaxRegion.GLOBAL,
+            )
+
+        val session = assertNotNull(quota.sessionUsage)
+        assertEquals(0, session.used)
+        assertEquals(5, session.limit)
+        assertEquals(0.0, session.usagePercent)
+    }
+
+    @Test
+    fun parseQuotaDropsCountsThatDoNotMatchAuthoritativePercentage() {
+        val quota =
+            MiniMaxQuotaClient.parseQuota(
+                """{"model_remains":[{
+              "current_interval_total_count":10,"current_interval_usage_count":7,
+              "current_interval_remaining_percent":40
+            }]}""",
+                MiniMaxRegion.GLOBAL,
+            )
+
+        val session = assertNotNull(quota.sessionUsage)
+        assertEquals(0, session.used)
+        assertEquals(0, session.limit)
+        assertEquals(60.0, session.usagePercent)
+    }
+
+    @Test
     fun parseQuotaUsesExplicitUsedCount() {
         val body =
             """
