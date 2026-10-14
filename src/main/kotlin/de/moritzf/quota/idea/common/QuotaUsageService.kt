@@ -145,17 +145,32 @@ class QuotaUsageService(
 
     internal fun getEffectiveIndicatorData(): QuotaIndicatorData {
         val settings = settingsProvider()
+        settings?.connectionOnlyAccount()?.let { account ->
+            return QuotaIndicatorData(
+                type = requireNotNull(account.providerType()),
+                quota = null,
+                error = null,
+                accountId = account.id,
+            )
+        }
         val configured = settings?.source() ?: QuotaIndicatorSource.OPEN_AI
         val source =
             when (configured) {
                 QuotaIndicatorSource.LAST_USED -> resolveLastActiveSource(settings)
                 else -> configured
             }
-        val type = source.providerType ?: QuotaProviderType.OPEN_AI
+        val requestedType = source.providerType ?: QuotaProviderType.OPEN_AI
+        val quotaTypes =
+            settings?.accounts.orEmpty().mapNotNull { account ->
+                account.providerType()?.takeIf { ProviderCatalog.get(it).capabilities.quota }
+            }
+        val type =
+            if (quotaTypes.isEmpty() || requestedType in quotaTypes) requestedType
+            else quotaTypes.first()
         val accountId =
             when (configured) {
                 QuotaIndicatorSource.LAST_USED ->
-                    settings?.lastActiveAccount()?.id
+                    settings?.lastActiveAccount()?.takeIf { it.providerType() == type }?.id
                         ?: settings?.defaultAccount(type)?.id
                         ?: type.id
                 else -> settings?.defaultAccount(type)?.id ?: type.id

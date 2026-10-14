@@ -5,6 +5,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
+import com.intellij.openapi.util.Disposer
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
@@ -17,8 +18,12 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageListener
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.common.QuotaUsageSnapshot
+import de.moritzf.quota.idea.openai.OpenAiProxyService
+import de.moritzf.quota.idea.openai.OpenAiProxyStatus
+import de.moritzf.quota.idea.settings.QuotaSettingsListener
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.ui.QuotaUiUtil
+import de.moritzf.quota.idea.ui.indicator.CompatibleUi
 import de.moritzf.quota.idea.ui.indicator.ProviderAuthState
 import de.moritzf.quota.idea.ui.indicator.ProviderUiRegistry
 import de.moritzf.quota.shared.ProviderQuota
@@ -32,6 +37,7 @@ import java.awt.Toolkit
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.Scrollable
+import javax.swing.Timer
 
 internal enum class QuotaPopupLocation {
     ABOVE,
@@ -52,7 +58,9 @@ internal object QuotaPopupSupport {
         service.refreshNowAsync()
         var popup: JBPopup? = null
 
-        val contentPanel = QuotaPopupContentPanel(project, component) { popup?.cancel() }
+        val contentPanel = QuotaPopupContentPanel {
+            openSettings(project, component) { popup?.cancel() }
+        }
         val scrollPane = QuotaPopupScrollPane(contentPanel)
         val content =
             RefreshablePopupPanel<QuotaUsageSnapshot>(scrollPane) { state ->
@@ -108,6 +116,17 @@ internal object QuotaPopupSupport {
                 }
             },
         )
+        popupConnection.subscribe(
+            QuotaSettingsListener.TOPIC,
+            QuotaSettingsListener {
+                latestState = service.currentSnapshot()
+                scheduleRefresh()
+            },
+        )
+        // Connection-only mode has no quota events. Read local proxy/credential state while open.
+        val connectionRefresh = Timer(1000) { if (contentPanel.isConnectionOnly) scheduleRefresh() }
+        Disposer.register(currentPopup) { connectionRefresh.stop() }
+        connectionRefresh.start()
 
         latestState = service.currentSnapshot()
         content.refresh(latestState)
@@ -228,20 +247,27 @@ internal class RefreshablePopupPanel<T>(
     }
 }
 
-private class QuotaPopupContentPanel(
-    private val project: Project,
-    private val component: Component,
-    private val onClosePopup: () -> Unit,
+internal class QuotaPopupContentPanel(
+    private val settingsProvider: () -> QuotaSettingsState = QuotaSettingsState::getInstance,
+    private val proxyStatusProvider: () -> OpenAiProxyStatus = {
+        OpenAiProxyService.getInstance().status()
+    },
+    credentialState: (String) -> ProviderAuthState = CompatibleUi::authState,
+    onOpenSettings: () -> Unit,
 ) : JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)) {
 
-    private val header = createHeaderRow { openSettings(project, component) { onClosePopup() } }
+    private val title = createPopupTitleLabel()
+    private val header = createHeaderRow(title, onOpenSettings)
+    private val connectionPanel = ConnectionOnlyPopupPanel(credentialState)
+    var isConnectionOnly = false
+        private set
 
     private val notLoggedInPanel =
         JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)).apply {
             isOpaque = false
             add(JBLabel("Not logged in.").apply { border = JBUI.Borders.emptyTop(1) })
             add(
-                ActionLink("Open Settings") { openSettings(project, component) { onClosePopup() } }
+                ActionLink("Open Settings") { onOpenSettings() }
                     .apply { border = JBUI.Borders.emptyTop(3) }
             )
         }
@@ -255,7 +281,7 @@ private class QuotaPopupContentPanel(
                 }
             )
             add(
-                ActionLink("Open Settings") { openSettings(project, component) { onClosePopup() } }
+                ActionLink("Open Settings") { onOpenSettings() }
                     .apply { border = JBUI.Borders.emptyTop(3) }
             )
         }
@@ -271,11 +297,12 @@ private class QuotaPopupContentPanel(
         isOpaque = false
         border = JBUI.Borders.empty(6, 8, 5, 8)
         add(header)
+        add(connectionPanel)
         add(notLoggedInPanel)
         add(allHiddenPanel)
         add(updatedAtSeparator)
         add(updatedAtRow)
-        rebuildSections(QuotaSettingsState.getInstance())
+        rebuildSections(settingsProvider())
     }
 
     override fun getPreferredSize(): Dimension {
@@ -284,8 +311,20 @@ private class QuotaPopupContentPanel(
     }
 
     fun update(state: QuotaUsageSnapshot) {
-        val settings = QuotaSettingsState.getInstance()
+        val settings = settingsProvider()
         rebuildSections(settings)
+        isConnectionOnly = settings.connectionOnlyAccount() != null
+        connectionPanel.isVisible = isConnectionOnly
+        title.text = if (isConnectionOnly) "API Connections" else "Subscription Usage"
+        if (isConnectionOnly) {
+            notLoggedInPanel.isVisible = false
+            allHiddenPanel.isVisible = false
+            sections.values.forEach { it.isVisible = false }
+            updatedAtSeparator.isVisible = false
+            updatedAtRow.isVisible = false
+            connectionPanel.update(settings, proxyStatusProvider())
+            return
+        }
         val visibleSections = sections.keys.associateWith { id -> isSectionVisible(settings, id) }
 
         val notLoggedIn =

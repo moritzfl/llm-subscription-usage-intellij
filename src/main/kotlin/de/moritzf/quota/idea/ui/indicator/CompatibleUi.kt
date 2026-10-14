@@ -19,6 +19,13 @@ internal object CompatibleUi : ProviderUi {
 
     override fun createPopupSection() = null
 
+    override fun tooltip(quota: ProviderQuota?, error: String?, accountId: String): String =
+        when (authState(accountId)) {
+            ProviderAuthState.AUTHENTICATED -> "API connection configured"
+            ProviderAuthState.UNAUTHENTICATED -> "API connection needs setup"
+            ProviderAuthState.UNKNOWN -> "API connection"
+        } + " · Quota tracking unsupported"
+
     override fun authState(accountId: String): ProviderAuthState {
         val store = CompatibleApiKeyStore.forAccount(accountId)
         val key = store.load()

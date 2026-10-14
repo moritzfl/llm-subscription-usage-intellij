@@ -85,10 +85,13 @@ internal fun createPopupStack(): NonOpaquePanel {
     }
 }
 
-internal fun createHeaderRow(onOpenSettings: () -> Unit): JComponent {
+internal fun createHeaderRow(
+    title: JBLabel = createPopupTitleLabel(),
+    onOpenSettings: () -> Unit,
+): JComponent {
     return BorderLayoutPanel().apply {
         isOpaque = false
-        addToLeft(createPopupTitleLabel())
+        addToLeft(title)
         addToRight(createOpenSettingsButton(onOpenSettings))
     }
 }

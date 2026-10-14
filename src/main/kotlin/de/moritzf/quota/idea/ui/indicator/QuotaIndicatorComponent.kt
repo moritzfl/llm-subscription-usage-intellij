@@ -8,6 +8,7 @@ import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.cursor.CursorQuota
 import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.github.GitHubSubscriptionState
+import de.moritzf.quota.idea.common.ProviderCatalog
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.settings.QuotaDisplayMode
 import de.moritzf.quota.idea.ui.QuotaUiUtil
@@ -120,7 +121,10 @@ internal class QuotaIndicatorComponent(
         sourceIconLabel.toolTipText = tooltip
         percentageComponent.toolTipText = tooltip
 
-        when (displayMode) {
+        val effectiveMode =
+            if (ProviderCatalog.get(data.type).capabilities.quota) displayMode
+            else QuotaDisplayMode.ICON_ONLY
+        when (effectiveMode) {
             QuotaDisplayMode.ICON_ONLY -> {
                 statusIconLabel.icon = QuotaIcons.STATUS
                 showContent(statusIconLabel)

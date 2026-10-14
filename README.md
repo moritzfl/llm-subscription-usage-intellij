@@ -146,7 +146,7 @@ The proxy serves `/v1/chat/completions`, `/v1/responses` where supported, `/v1/c
 4. Optionally select separate **Vision** and **Document** models and use their test buttons. Both start off (`-`); document conversion requires native PDF input.
 5. **Apply**, then enable the provider on the **Proxy** tab. Use the existing proxy setup for Junie, AI Chat, and completion.
 
-Keys are saved in Password Safe on Apply; Cancel discards edits. Each endpoint gets stable model IDs (`api-<account-id>/<model-id>`), keeping overlapping catalogs separate. Chat, streaming, tool calls, images, and native PDF parts pass through; completion uses the chat adapter. Selected vision/PDF capabilities are advertised. Other unknown capabilities and prices stay unset. Generic APIs have no quota tracking.
+Keys are saved in Password Safe on Apply; Cancel discards edits. Each endpoint gets stable model IDs (`api-<account-id>/<model-id>`), keeping overlapping catalogs separate. Chat, streaming, tool calls, images, and native PDF parts pass through; completion uses the chat adapter. Selected vision/PDF capabilities are advertised. Other unknown capabilities and prices stay unset. Generic APIs have no quota tracking; API-only setups show a neutral indicator and connection details with local proxy status.
 
 **LiteLLM** adds Responses support, declared capabilities/prices from `/model/info`, and virtual-key spend/budgets from `/key/info`. Management permissions are optional for chat. Budgets describe the key only; team/user limits may also apply. **Check key budget** works before Apply.
 

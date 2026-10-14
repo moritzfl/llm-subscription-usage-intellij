@@ -21,6 +21,47 @@ import kotlin.test.*
 
 class QuotaUsageServiceTest {
     @Test
+    fun indicatorSwitchesBetweenConnectionOnlyAndAvailableQuotaAccounts() {
+        val settings = QuotaSettingsState()
+        val api = settings.addAccount(QuotaProviderType.OPENAI_COMPATIBLE)
+        val service =
+            QuotaUsageService(
+                providers = emptyList(),
+                settingsProvider = { settings },
+                updatePublisher = {},
+                scheduleOnInit = false,
+            )
+        try {
+            // The default source is OpenAI, even though this setup has no OpenAI account.
+            assertEquals(
+                QuotaProviderType.OPENAI_COMPATIBLE,
+                service.getEffectiveIndicatorData().type,
+            )
+            assertEquals(api.id, service.getEffectiveIndicatorData().accountId)
+
+            val liteLlm = settings.addAccount(QuotaProviderType.LITELLM)
+            assertNull(settings.connectionOnlyAccount())
+            assertEquals(QuotaProviderType.LITELLM, service.getEffectiveIndicatorData().type)
+            assertEquals(liteLlm.id, service.getEffectiveIndicatorData().accountId)
+
+            settings.setSource(QuotaIndicatorSource.LAST_USED)
+            settings.setLastActiveAccount(api.id)
+            assertEquals(liteLlm.id, service.getEffectiveIndicatorData().accountId)
+            assertNull(service.getEffectiveIndicatorData().quota)
+
+            settings.removeAccount(liteLlm.id)
+            assertEquals(
+                QuotaProviderType.OPENAI_COMPATIBLE,
+                service.getEffectiveIndicatorData().type,
+            )
+            settings.removeAccount(api.id)
+            assertNull(settings.connectionOnlyAccount())
+        } finally {
+            service.dispose()
+        }
+    }
+
+    @Test
     fun refreshStoresRawResponseFromQuotaException() {
         val rawJson = """{"unexpected":"shape"}"""
         val openAiProvider =

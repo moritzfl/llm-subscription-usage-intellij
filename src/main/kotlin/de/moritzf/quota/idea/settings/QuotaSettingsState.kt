@@ -324,6 +324,13 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
 
     fun accountTypeHasDuplicates(type: QuotaProviderType): Boolean = accountsOf(type).size > 1
 
+    fun connectionOnlyAccount(): ProviderAccount? =
+        accounts.firstOrNull()?.takeIf {
+            accounts.all { account ->
+                account.providerType()?.let { !ProviderCatalog.get(it).capabilities.quota } == true
+            }
+        }
+
     fun accountDisplayName(account: ProviderAccount): String {
         val type = account.providerType() ?: return account.name
         return if (accountTypeHasDuplicates(type)) account.name else type.displayName

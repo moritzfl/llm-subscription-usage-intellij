@@ -7,6 +7,7 @@
 - Keep custom endpoint model namespaces separate and leave unknown capabilities and prices unclaimed; quota tracking is unavailable for generic APIs.
 - Add opt-in image and native-PDF models with tests against unsaved connection values, MCP tools, and proxy multimodal input.
 - Add LiteLLM gateways using the shared API transport, with model capability/pricing discovery, Responses support, and virtual-key budget tracking.
+- Show a neutral indicator and connection details with local proxy status when only quota-less APIs are configured.
 
 ## [1.21.1] - 2026-10-14
 
