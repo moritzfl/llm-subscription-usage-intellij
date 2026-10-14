@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.21.1] - 2026-10-14
+
 - Allow Claude models from GitHub Copilot and OpenCode to provide inline code completion through their existing chat adapters.
 
 ## [1.21.0] - 2026-10-13
@@ -696,7 +698,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.21.0...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.21.1...HEAD
+[1.21.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.21.0...1.21.1
 [1.21.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.20.1...1.21.0
 [1.20.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.20.0...1.20.1
 [1.20.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.19.1...1.20.0
