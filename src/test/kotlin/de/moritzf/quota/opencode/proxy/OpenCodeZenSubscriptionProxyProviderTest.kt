@@ -1,6 +1,7 @@
 package de.moritzf.quota.opencode.proxy
 
 import com.sun.net.httpserver.HttpServer
+import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.subscription.SubscriptionProxyRoute
 import de.moritzf.proxy.subscription.SubscriptionProxyServer
@@ -187,6 +188,89 @@ class OpenCodeZenSubscriptionProxyProviderTest {
     }
 
     @Test
+    fun adaptsClaudeCodeCompletionsThroughGoAndZenChatBridges() {
+        Upstream().use { upstream ->
+            val provider =
+                OpenCodeZenSubscriptionProxyProvider(
+                    consoleSessionProvider = {
+                        OpenCodeConsoleSession("account", "oauth", "org_a") { null }
+                    },
+                    consoleEndpoint = upstream.endpoint,
+                    pools = { OpenCodePools(go = setOf("claude")) },
+                )
+            for (pool in listOf("go", "zen")) {
+                withProxy(
+                    provider,
+                    CompletionsConfig(
+                        enabled = true,
+                        modelLocalId = "oc-$pool-claude",
+                        minIntervalMillis = 0,
+                    ),
+                ) { port ->
+                    for (stream in listOf(false, true)) {
+                        val response =
+                            post(
+                                port,
+                                "/v1/completions",
+                                """{"model":"qwen2.5-coder","prompt":"val greeting = \"","suffix":"\"\n","max_tokens":32,"stop":["STOP_FIM"],"stream":$stream}""",
+                            )
+                        assertEquals(200, response.statusCode(), response.body())
+                        val chunks =
+                            if (stream) {
+                                assertTrue(
+                                    response.body().endsWith("data: [DONE]\n\n"),
+                                    response.body(),
+                                )
+                                response
+                                    .body()
+                                    .lineSequence()
+                                    .filter { it.startsWith("data: {") }
+                                    .map {
+                                        JsonHelper.JSON.parseToJsonElement(
+                                                it.removePrefix("data: ")
+                                            )
+                                            .jsonObject
+                                    }
+                                    .toList()
+                            } else {
+                                listOf(
+                                    JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject
+                                )
+                            }
+                        assertTrue(
+                            chunks.all { it["object"]!!.jsonPrimitive.content == "text_completion" }
+                        )
+                        val choices = chunks.map { it["choices"]!!.jsonArray.single().jsonObject }
+                        assertEquals(
+                            "hello",
+                            choices.joinToString("") { it["text"]!!.jsonPrimitive.content },
+                        )
+                        val inference = upstream.requests.last()
+                        val expectedPath =
+                            if (pool == "go") "/inference/go/anthropic/v1/messages"
+                            else "/inference/anthropic/v1/messages"
+                        assertEquals(expectedPath, inference.path)
+                        assertEquals("Bearer oauth", inference.authorization)
+                        assertEquals("org_a", inference.inferenceOrganization)
+                        val body = JsonHelper.JSON.parseToJsonElement(inference.body).jsonObject
+                        assertEquals("claude", body["model"]!!.jsonPrimitive.content)
+                        assertEquals("32", body["max_tokens"]!!.jsonPrimitive.content)
+                        assertEquals(stream.toString(), body["stream"]!!.jsonPrimitive.content)
+                        assertTrue(
+                            body["system"]!!.jsonPrimitive.content.contains("exact text to insert")
+                        )
+                        assertTrue(
+                            body["stop_sequences"]!!.jsonArray.any {
+                                it.jsonPrimitive.content == "STOP_FIM"
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     fun config401RefreshAndAccountSwitchCannotReuseAnotherOrganizationsCatalog() {
         Upstream(rejectConfig = true).use { upstream ->
             var account = "a"
@@ -221,13 +305,18 @@ class OpenCodeZenSubscriptionProxyProviderTest {
         }
     }
 
-    private fun withProxy(provider: OpenCodeZenSubscriptionProxyProvider, block: (Int) -> Unit) {
+    private fun withProxy(
+        provider: OpenCodeZenSubscriptionProxyProvider,
+        completionsConfig: CompletionsConfig = CompletionsConfig(),
+        block: (Int) -> Unit,
+    ) {
         val port = ServerSocket(0).use { it.localPort }
         val proxy =
             SubscriptionProxyServer(
                 port = port,
                 localApiKeyProvider = { "local" },
                 providers = { listOf(provider) },
+                completionsConfig = { completionsConfig },
             )
         try {
             proxy.start()
@@ -498,6 +587,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                     if (config) rejectConfig.also { rejectConfig = false }
                     else rejectInference.also { rejectInference = false }
                 val responses = path.endsWith("/responses")
+                val messagesStream = path.endsWith("/messages") && body.contains("\"stream\":true")
                 val result =
                     when {
                         reject -> """{"error":"unauthorized"}"""
@@ -505,6 +595,12 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                         responses ->
                             "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\n" +
                                 "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"hello\"}]}],\"usage\":{\"input_tokens\":1,\"output_tokens\":2,\"total_tokens\":3}}}\n\ndata: [DONE]\n\n"
+                        messagesStream ->
+                            "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[]}}\n\n" +
+                                "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hel\"}}\n\n" +
+                                "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"lo\"}}\n\n" +
+                                "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"}}\n\n" +
+                                "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
                         path.endsWith("/messages") ->
                             """{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"hello"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":2}}"""
                         else ->
@@ -512,7 +608,8 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                     }
                 exchange.responseHeaders.set(
                     "Content-Type",
-                    if (responses && !reject) "text/event-stream" else "application/json",
+                    if ((responses || messagesStream) && !reject) "text/event-stream"
+                    else "application/json",
                 )
                 val bytes = result.toByteArray()
                 exchange.sendResponseHeaders(if (reject) 401 else 200, bytes.size.toLong())

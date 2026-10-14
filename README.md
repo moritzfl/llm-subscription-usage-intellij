@@ -58,7 +58,7 @@ Availability depends on your account and selected model. Search, media, document
 - **Proxy** — use subscriptions in OpenAI-compatible clients for chat and other supported requests.
 - **Code completion** — inline suggestions with **every proxy-enabled provider**. ✓ means built-in code completion (native support); (✓) means the plugin asks a chat model to generate the completion; — means unavailable. See [setup and model limits](#inline-code-completion-fim).
 
-Claude, Cursor, and Antigravity are quota-only.
+Claude, Cursor, and Antigravity accounts provide quota tracking only.
 
 ## Quick start
 
@@ -141,8 +141,8 @@ The proxy serves `/v1/chat/completions`, `/v1/responses` where supported, `/v1/c
 **Every proxy-enabled provider supports inline code completion ("ghost text")**, including providers without native FIM models. Select a completion model on the Proxy tab, apply, and use **Test FIM** to try it; `-` turns completion off.
 
 - **Native FIM (fill-in-the-middle):** the model directly generates missing code between the text before and after your cursor. Available with GitHub Copilot completion models, Mistral Codestral/FIM, and Ollama Cloud `deepseek-v4.1-flash`.
-- **Adapted via chat:** other eligible models receive the code before and after the cursor as a chat request. Suggestions may take seconds and consume chat quota; quality varies by model.
-- **Not supported:** quota-only providers, Claude/Cursor models, and models exposed only through the Anthropic Messages API. These model exclusions also apply when another provider offers them for proxy chat.
+- **Adapted via chat:** other eligible models, including Claude models available through Copilot or OpenCode, receive the code before and after the cursor as a chat request. Suggestions may take seconds and consume chat quota; quality varies by model.
+- **Model availability:** the completion picker lists eligible models for your connected accounts.
 
 To enable JetBrains AI Completion:
 

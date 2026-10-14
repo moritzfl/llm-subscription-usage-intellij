@@ -8,7 +8,6 @@ object FimModels {
         if (model.supportedRoutes.all { it == SubscriptionProxyRoute.ANTHROPIC_MESSAGES })
             return false
         val blob = "${model.localId} ${model.upstreamId} ${model.providerId}"
-        if (blob.contains("claude", ignoreCase = true)) return false
         if (blob.contains("cursor", ignoreCase = true)) return false
         return model.supportedRoutes.any { route ->
             route == SubscriptionProxyRoute.CHAT_COMPLETIONS ||

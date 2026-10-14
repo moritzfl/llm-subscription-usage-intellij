@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Allow Claude models from GitHub Copilot and OpenCode to provide inline code completion through their existing chat adapters.
+
 ## [1.21.0] - 2026-10-13
 
 - Add native GitHub Copilot FIM through live completion-model discovery, editor-compatible device login, and automatically refreshed Copilot session tokens. Existing logins need to reconnect once for native FIM.

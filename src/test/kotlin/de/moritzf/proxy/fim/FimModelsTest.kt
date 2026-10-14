@@ -10,6 +10,30 @@ import kotlin.test.assertTrue
 
 class FimModelsTest {
     @Test
+    fun claudeChatBridgesAreEligibleButUnadaptedMessagesRoutesAreNot() {
+        for ((localId, providerId) in
+            listOf("gh-claude-sonnet-4.6" to "github", "oc-go-claude-haiku-5-5" to "opencode")) {
+            val bridged =
+                model(localId, providerId)
+                    .copy(
+                        supportedRoutes =
+                            setOf(
+                                SubscriptionProxyRoute.CHAT_COMPLETIONS,
+                                SubscriptionProxyRoute.ANTHROPIC_MESSAGES,
+                            )
+                    )
+            assertTrue(FimModels.isEligible(bridged), localId)
+            assertFalse(FimModels.isNativeFimId(bridged), localId)
+            assertFalse(
+                FimModels.isEligible(
+                    bridged.copy(supportedRoutes = setOf(SubscriptionProxyRoute.ANTHROPIC_MESSAGES))
+                )
+            )
+            assertFalse(FimModels.isEligible(bridged.copy(supportedRoutes = emptySet())))
+        }
+    }
+
+    @Test
     fun nativeFimIdsAreCodestralAndFimNotChatOrAudio() {
         assertTrue(FimModels.isNativeFimId("mi-codestral-latest"))
         assertTrue(FimModels.isNativeFimId("mistral-code-fim-latest"))

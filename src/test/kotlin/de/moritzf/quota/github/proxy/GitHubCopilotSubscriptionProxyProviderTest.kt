@@ -1,10 +1,12 @@
 package de.moritzf.quota.github.proxy
 
 import com.sun.net.httpserver.HttpServer
+import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.subscription.SubscriptionProxyServer
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.net.ServerSocket
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -832,6 +834,123 @@ class GitHubCopilotSubscriptionProxyProviderTest {
     }
 
     @Test
+    fun adaptsClaudeCodeCompletionsThroughExistingChatBridge() {
+        for (modelId in listOf("gh-claude-haiku-4.5", "gh-claude-sonnet-4.6")) {
+            TestUpstream().use { upstream ->
+                val proxy =
+                    newProxy(
+                        upstream.baseUri,
+                        completionsConfig =
+                            CompletionsConfig(
+                                enabled = true,
+                                modelLocalId = modelId,
+                                minIntervalMillis = 0,
+                            ),
+                    )
+                try {
+                    proxy.start()
+                    val models = get(proxy.port, "/v1/models")
+                    assertTrue(models.body().contains("qwen2.5-coder"), models.body())
+                    val info =
+                        JsonHelper.JSON.parseToJsonElement(get(proxy.port, "/v1/model/info").body())
+                            .jsonObject["data"]!!
+                            .jsonArray
+                            .single { it.jsonObject["id"]!!.jsonPrimitive.content == modelId }
+                            .jsonObject["model_info"]!!
+                            .jsonObject
+                    assertEquals("adapter", info["fim_mode"]!!.jsonPrimitive.content)
+                    assertEquals("true", info["supports_fim_adapter"]!!.jsonPrimitive.content)
+
+                    for (stream in listOf(false, true)) {
+                        val response =
+                            post(
+                                proxy.port,
+                                "/v1/completions",
+                                """{"model":"qwen2.5-coder","prompt":"val greeting = \"","suffix":"\"\n","max_tokens":32,"stop":["STOP_FIM"],"stream":$stream}""",
+                                bearer = true,
+                            )
+                        assertEquals(200, response.statusCode(), response.body())
+                        val chunks =
+                            if (stream) {
+                                assertTrue(
+                                    response.body().endsWith("data: [DONE]\n\n"),
+                                    response.body(),
+                                )
+                                response
+                                    .body()
+                                    .lineSequence()
+                                    .filter { it.startsWith("data: {") }
+                                    .map {
+                                        JsonHelper.JSON.parseToJsonElement(
+                                                it.removePrefix("data: ")
+                                            )
+                                            .jsonObject
+                                    }
+                                    .toList()
+                            } else {
+                                listOf(
+                                    JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject
+                                )
+                            }
+                        assertTrue(
+                            chunks.all { it["object"]!!.jsonPrimitive.content == "text_completion" }
+                        )
+                        assertTrue(
+                            chunks.all { it["model"]!!.jsonPrimitive.content == "qwen2.5-coder" }
+                        )
+                        val choices = chunks.map { it["choices"]!!.jsonArray.single().jsonObject }
+                        assertEquals(
+                            "hi from claude",
+                            choices.joinToString("") { it["text"]!!.jsonPrimitive.content },
+                        )
+                        assertEquals(
+                            "stop",
+                            choices.last()["finish_reason"]!!.jsonPrimitive.content,
+                        )
+
+                        val inference = nextInferenceRequest(upstream, modelId)
+                        assertEquals("/v1/messages", inference.path)
+                        val body = JsonHelper.JSON.parseToJsonElement(inference.body).jsonObject
+                        assertEquals(
+                            modelId.removePrefix("gh-"),
+                            body["model"]!!.jsonPrimitive.content,
+                        )
+                        assertEquals("32", body["max_tokens"]!!.jsonPrimitive.content)
+                        assertEquals(stream.toString(), body["stream"]!!.jsonPrimitive.content)
+                        assertTrue(
+                            body["system"]!!.jsonPrimitive.content.contains("exact text to insert")
+                        )
+                        val prompt =
+                            body["messages"]!!
+                                .jsonArray
+                                .single()
+                                .jsonObject["content"]!!
+                                .jsonPrimitive
+                                .content
+                        assertTrue(
+                            prompt.contains(
+                                "<code_before_cursor>\nval greeting = \"\n</code_before_cursor>"
+                            ),
+                            prompt,
+                        )
+                        assertTrue(
+                            prompt.contains("<code_after_cursor>\n\"\n\n</code_after_cursor>"),
+                            prompt,
+                        )
+                        assertTrue(
+                            body["stop_sequences"]!!.jsonArray.any {
+                                it.jsonPrimitive.content == "STOP_FIM"
+                            }
+                        )
+                    }
+                } finally {
+                    proxy.stop()
+                }
+            }
+        }
+    }
+
+    @Test
     fun bridgesStreamingAnthropicModelsOnOpenAiChatCompletionsRoute() {
         TestUpstream().use { upstream ->
             val proxy = newProxy(upstream.baseUri)
@@ -1434,6 +1553,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
         persistentModelCacheSaver: (String?) -> Unit = {},
         missingModelRetryDelays: List<Duration> = emptyList(),
         modelCacheTtl: kotlin.time.Duration = 5.minutes,
+        completionsConfig: CompletionsConfig = CompletionsConfig(),
     ): TestProxy {
         val provider =
             GitHubCopilotSubscriptionProxyProvider(
@@ -1448,9 +1568,10 @@ class GitHubCopilotSubscriptionProxyProviderTest {
             )
         return TestProxy(
             SubscriptionProxyServer(
-                port = 0,
+                port = if (completionsConfig.enabled) ServerSocket(0).use { it.localPort } else 0,
                 localApiKeyProvider = { "local-key" },
                 providers = { listOf(provider) },
+                completionsConfig = { completionsConfig },
                 requestLogDir =
                     Files.createTempDirectory("subscription-proxy-test-logs").toString(),
             )
