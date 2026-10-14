@@ -27,35 +27,36 @@ Track and use your LLM subscriptions directly in IntelliJ IDEA.
 
 - **See your quota** for ChatGPT, Claude, Grok, Copilot & more in the status bar and a detail popup.
 - **Use your subscriptions from IDE chat** for web search, media generation, document conversion, and image questions via MCP tools.
-- **Reuse your subscriptions in other tools** through a local OpenAI-compatible proxy, including JetBrains AI Chat and Junie.
+- **Reuse subscriptions for chat and inline code completion** through a local OpenAI-compatible proxy for JetBrains AI Assistant, Junie, and other clients.
 - **Keep AI client configs in sync** with IntelliJ's MCP server URL, which changes port between restarts.
 
 ![Quota popup](docs/quota-popup.png)
 
 ## Supported providers
 
-| Provider | Sign-in | Quota | Web search | Images | Video | Voice | Docs | Vision | Proxy | Native FIM |
+| Provider | Sign-in | Quota | Web search | Images | Video | Voice | Docs | Vision | Proxy | Code completion |
 |---|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| OpenAI (ChatGPT / Codex) | Browser / device code / access token | ✓ | ✓ | ✓ | — | (✓) | (✓) | ✓ | ✓ | — |
+| OpenAI (ChatGPT / Codex) | Browser / device code / access token | ✓ | ✓ | ✓ | — | (✓) | (✓) | ✓ | ✓ | (✓) |
 | Claude (Anthropic) | Browser login | ✓ | — | — | — | — | — | — | — | — |
-| SuperGrok / xAI | Browser / device code | ✓ | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ | ✓ | — |
+| SuperGrok / xAI | Browser / device code | ✓ | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ | ✓ | (✓) |
 | GitHub Copilot | Device code | ✓ | — | — | — | — | (✓) | ✓ | ✓ | ✓ |
 | Cursor | Session cookie | ✓ | — | — | — | — | — | — | — | — |
-| OpenCode (Go / Zen) | Device code | ✓ | — | — | — | — | (✓) | ✓ | ✓ | — |
+| OpenCode (Go / Zen) | Device code | ✓ | — | — | — | — | (✓) | ✓ | ✓ | (✓) |
 | Ollama Cloud | API key | ✓ | ✓ | — | — | — | — | ✓ | ✓ | ✓ |
-| Z.ai | API key | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ | ✓ | ✓ | — |
-| MiniMax | Subscription key | ✓ | ✓ | ✓ | — | ✓ | — | — | ✓ | — |
+| Z.ai | API key | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ | ✓ | ✓ | (✓) |
+| MiniMax | Subscription key | ✓ | ✓ | ✓ | — | ✓ | — | — | ✓ | (✓) |
 | Mistral | Session cookie + API key | ✓ | ✓ | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Kimi | Device code | ✓ | ✓ | — | — | — | — | ✓ | ✓ | — |
+| Kimi | Device code | ✓ | ✓ | — | — | — | — | ✓ | ✓ | (✓) |
 | Antigravity (Gemini / Claude / GPT) | AGY CLI login | ✓ | — | — | — | — | — | — | — | — |
-| Azure OpenAI / Foundry | Azure CLI login | ✓ | — | — | — | — | ✓ | ✓ | ✓ | — |
+| Azure OpenAI / Foundry | Azure CLI login | ✓ | — | — | — | — | ✓ | ✓ | ✓ | (✓) |
 
 Availability depends on your account and selected model. Search, media, documents, and vision are exposed through MCP.
 
 - **Voice** — speech-to-text and text-to-speech; (✓) means speech-to-text only. Experimental OpenAI speech output is not counted here.
 - **Docs** — PDF/image-to-Markdown conversion. ✓ uses a dedicated document/OCR service; (✓) requires a **general-purpose model that accepts PDF files natively**. Image/vision support alone is insufficient for PDF conversion.
 - **Vision** — image questions through an image-capable model. PDF support is not required. Select a separate **Vision model** in settings; it is off (`-`) by default.
-- **Proxy / Native FIM** — chat and inline code completion in other tools. Native FIM uses a model's own infill support; other eligible models use chat adaptation.
+- **Proxy** — use subscriptions in OpenAI-compatible clients for chat and other supported requests.
+- **Code completion** — inline suggestions with **every proxy-enabled provider**. ✓ means built-in code completion (native support); (✓) means the plugin asks a chat model to generate the completion; — means unavailable. See [setup and model limits](#inline-code-completion-fim).
 
 Claude, Cursor, and Antigravity are quota-only.
 
@@ -137,7 +138,11 @@ The proxy serves `/v1/chat/completions`, `/v1/responses` where supported, `/v1/c
 
 ### Inline code completion (FIM)
 
-Select a completion model on the Proxy tab; `-` turns it off. **Native FIM** includes GitHub Copilot completion models, Mistral Codestral/FIM, and Ollama Cloud `deepseek-v4.1-flash`. **Adapted via chat** models may take seconds and consume chat quota. Use **Test FIM** to try the selection.
+**Every proxy-enabled provider supports inline code completion ("ghost text")**, including providers without native FIM models. Select a completion model on the Proxy tab, apply, and use **Test FIM** to try it; `-` turns completion off.
+
+- **Native FIM (fill-in-the-middle):** the model directly generates missing code between the text before and after your cursor. Available with GitHub Copilot completion models, Mistral Codestral/FIM, and Ollama Cloud `deepseek-v4.1-flash`.
+- **Adapted via chat:** other eligible models receive the code before and after the cursor as a chat request. Suggestions may take seconds and consume chat quota; quality varies by model.
+- **Not supported:** quota-only providers, Claude/Cursor models, and models exposed only through the Anthropic Messages API. These model exclusions also apply when another provider offers them for proxy chat.
 
 To enable JetBrains AI Completion:
 
