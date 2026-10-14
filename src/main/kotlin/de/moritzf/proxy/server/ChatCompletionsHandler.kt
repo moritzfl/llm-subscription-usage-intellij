@@ -172,7 +172,7 @@ class ChatCompletionsHandler {
         val resolvedModel = modelAliasResolver.resolve(model)
         val upstreamModel = resolvedModel.model ?: model
         if (rejectRetiredChatGptModels && ChatGptSubscriptionModels.isUnsupported(upstreamModel)) {
-            JsonHelper.toErrorResponse(
+            toErrorResponse(
                 ctx,
                 ChatGptSubscriptionModels.unsupportedMessage(upstreamModel),
             )
@@ -347,7 +347,7 @@ class ChatCompletionsHandler {
         } else {
             message.putNull("content")
         }
-        if (!reasoningContent.isEmpty()) {
+        if (reasoningContent.isNotEmpty()) {
             message.put("reasoning_content", reasoningContent.toString())
         }
         // Junie requires every assistant turn to contain a tool call. If the model
@@ -1100,7 +1100,7 @@ class ChatCompletionsHandler {
                 if (text.isBlank()) {
                     continue
                 }
-                if (!target.isEmpty()) {
+                if (target.isNotEmpty()) {
                     target.append('\n')
                 }
                 target.append(text)

@@ -10,7 +10,6 @@ import java.net.http.HttpResponse
 import java.time.Duration
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 
 open class ZaiWebSearchClient(
     private val httpClient: HttpClient = defaultHttpClient(),

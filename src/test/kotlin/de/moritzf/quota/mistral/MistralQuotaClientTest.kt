@@ -1,6 +1,5 @@
 package de.moritzf.quota.mistral
 
-import de.moritzf.quota.shared.JsonSupport
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -8,7 +7,6 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
-import kotlinx.serialization.encodeToString
 
 class MistralQuotaClientTest {
     @Test

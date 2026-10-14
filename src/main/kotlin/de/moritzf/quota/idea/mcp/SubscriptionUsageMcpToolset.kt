@@ -46,7 +46,7 @@ class SubscriptionUsageMcpToolset : McpToolset {
             description =
                 "Optional operation to evaluate against cached quota, such as PROXY or WEB_SEARCH."
         )
-        capability: de.moritzf.quota.idea.settings.AccountCapability? = null,
+        capability: AccountCapability? = null,
         @McpDescription(
             description =
                 "Optional model id when availability depends on a specific pool, such as gpt-6-luna versus gpt-reserve."

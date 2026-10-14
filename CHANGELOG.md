@@ -11,6 +11,7 @@
 - Run document and vision tests against the selected account and current unsaved models, keys, and connection settings.
 - Test AI Completion with unsaved settings through shared FIM/provider logic, without applying settings or starting a local proxy.
 - Standardize vision/document model help across providers and centralize model settings and test-dialog text in the IntelliJ message bundle.
+- Modernize coroutine timeout and delay calls, remove unused helpers, and clean up redundant imports, annotations, and null handling.
 
 ## [1.21.1] - 2026-10-14
 

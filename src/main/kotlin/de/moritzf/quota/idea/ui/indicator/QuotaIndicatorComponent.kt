@@ -344,7 +344,7 @@ internal fun mistralBarDisplayText(quota: MistralQuota?, error: String?): String
 /** Fallback when the subscription allowance is unavailable. */
 internal fun mistralApiUsageBarText(usage: de.moritzf.quota.mistral.MistralApiUsage): String {
     val spend = usage.spendEur
-    if (spend != null) return String.format(java.util.Locale.ROOT, "€%.2f", spend)
+    if (spend != null) return String.format(Locale.ROOT, "€%.2f", spend)
     return QuotaUiUtil.formatCompactCount(usage.tokens) + " tok"
 }
 

@@ -30,10 +30,10 @@ internal enum class ProviderListStatus {
         fun explain(status: ProviderListStatus, error: String?): String {
             val detail = error?.trim().orEmpty()
             return when (status) {
-                ProviderListStatus.OK -> "Configured"
-                ProviderListStatus.NEVER_CONFIGURED -> "Not configured"
-                ProviderListStatus.ERROR -> detail.ifBlank { "Quota fetch failed" }
-                ProviderListStatus.WARNING ->
+                OK -> "Configured"
+                NEVER_CONFIGURED -> "Not configured"
+                ERROR -> detail.ifBlank { "Quota fetch failed" }
+                WARNING ->
                     when {
                         detail.isNotEmpty() -> "Using last good quota. $detail"
                         else -> "Configured, waiting for first quota"

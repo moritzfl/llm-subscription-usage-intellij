@@ -195,14 +195,12 @@ internal fun githubCopilotHeaders(token: String): Map<String, String> =
     )
 
 internal fun fetchGitHubListedModels(
-    base: java.net.URI,
+    base: URI,
     token: String,
     httpClient: HttpClient = HttpClient.newHttpClient(),
 ): List<GitHubListedModel> {
     val request =
-        HttpRequest.newBuilder(
-                java.net.URI.create(UrlResolver.resolveTargetUrl("/models", base.toString()))
-            )
+        HttpRequest.newBuilder(URI.create(UrlResolver.resolveTargetUrl("/models", base.toString())))
             .timeout(Duration.ofSeconds(30))
             .GET()
     githubCopilotHeaders(token).forEach { (name, value) -> request.header(name, value) }

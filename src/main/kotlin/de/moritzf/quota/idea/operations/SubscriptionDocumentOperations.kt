@@ -498,8 +498,7 @@ internal fun SubscriptionOperations.documentModel(provider: DocumentToMarkdownPr
         runCatching {
             de.moritzf.quota.idea.settings.AccountResolver.resolve(
                     type,
-                    capability =
-                        de.moritzf.quota.idea.settings.AccountCapability.DOCUMENT_TO_MARKDOWN,
+                    capability = AccountCapability.DOCUMENT_TO_MARKDOWN,
                 )
                 .id
         }

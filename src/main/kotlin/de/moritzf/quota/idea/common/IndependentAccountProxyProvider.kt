@@ -40,8 +40,7 @@ internal class IndependentAccountProxyProvider(
         current()
             .asSequence()
             .filter { it.isConfigured() }
-            .mapNotNull { it.fallbackModel(localId, route) }
-            .firstOrNull()
+            .firstNotNullOfOrNull { it.fallbackModel(localId, route) }
 
     override suspend fun handle(ctx: ProxyCall, request: SubscriptionProxyRequest) {
         val provider =

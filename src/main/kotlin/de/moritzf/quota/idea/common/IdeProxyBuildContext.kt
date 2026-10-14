@@ -51,10 +51,7 @@ internal object IdeProxyFactories {
             accountId = account.id,
             name = account.name,
             endpoint =
-                endpoint
-                    ?: de.moritzf.quota.compatible.CompatibleEndpoint(
-                        java.net.URI("http://localhost")
-                    ),
+                endpoint ?: de.moritzf.quota.compatible.CompatibleEndpoint(URI("http://localhost")),
             apiKeyProvider = {
                 if (account.id in ctx.apiKeyOverrides) {
                     ctx.apiKeyOverrides[account.id]?.takeIf { endpoint != null && it.isNotBlank() }

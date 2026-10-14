@@ -106,7 +106,7 @@ internal suspend fun SubscriptionOperations.kimiWebSearch(
         try {
             de.moritzf.quota.idea.settings.AccountResolver.resolve(
                 QuotaProviderType.KIMI,
-                capability = de.moritzf.quota.idea.settings.AccountCapability.WEB_SEARCH,
+                capability = AccountCapability.WEB_SEARCH,
             )
         } catch (exception: de.moritzf.quota.idea.settings.AccountResolveException) {
             exception.rethrowIfCancellation()

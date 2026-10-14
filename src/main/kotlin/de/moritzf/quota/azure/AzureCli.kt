@@ -239,7 +239,7 @@ internal fun parseAzureAccountList(raw: String): List<AzureCliAccount> {
     val element =
         runCatching { JsonSupport.json.parseToJsonElement(extractJson(raw)) }.getOrNull()
             ?: return emptyList()
-    val array = element as? kotlinx.serialization.json.JsonArray ?: return emptyList()
+    val array = element as? JsonArray ?: return emptyList()
     return array
         .mapNotNull { item -> parseAzureAccount(item as? JsonObject) }
         .filter { it.subscriptionId.isNotEmpty() }

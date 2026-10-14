@@ -14,7 +14,7 @@ enum class McpServerTransport(
             SSE -> endpoints.sseUrl
             STREAMABLE_HTTP ->
                 endpoints.streamUrl?.takeUnless { it.isBlank() }
-                    ?: endpoints.serverBaseUrl + pathSuffix
+                    ?: (endpoints.serverBaseUrl + pathSuffix)
         }
     }
 

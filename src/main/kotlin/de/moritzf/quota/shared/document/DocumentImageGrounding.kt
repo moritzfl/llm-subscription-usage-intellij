@@ -162,8 +162,7 @@ internal object DocumentImageGrounding {
         pdfFile: Path,
         regions: List<Region>,
         outputDir: Path,
-        extractor: de.moritzf.quota.shared.document.PdfRegionImageExtractor? =
-            de.moritzf.quota.shared.document.PdfRegionImageExtractor.open(pdfFile),
+        extractor: PdfRegionImageExtractor? = PdfRegionImageExtractor.open(pdfFile),
     ): List<Path> {
         if (regions.isEmpty()) return emptyList()
         val ex = extractor ?: return emptyList()
@@ -172,7 +171,7 @@ internal object DocumentImageGrounding {
                 runCatching {
                     val target = outputDir.resolve(region.fallbackFileName)
                     val pageRegion =
-                        de.moritzf.quota.shared.document.PdfRegionImageExtractor.PageRegion(
+                        PdfRegionImageExtractor.PageRegion(
                             region.page,
                             region.x0,
                             region.y0,

@@ -88,7 +88,7 @@ internal data class ProviderCapabilities(
 internal data class ProviderDescriptor(
     val type: QuotaProviderType,
     val capabilities: ProviderCapabilities = ProviderCapabilities(),
-    val quotaFactory: ((de.moritzf.quota.idea.settings.ProviderAccount) -> QuotaProvider)?,
+    val quotaFactory: ((ProviderAccount) -> QuotaProvider)?,
     val snapshotCodec: QuotaCodec<out ProviderQuota>?,
     val mcpQuota: UsageQuotaMcpRegistration?,
     val settingsPanelFactory: (ProviderSettingsPanelContext) -> ProviderSettingsPanel,
@@ -193,13 +193,8 @@ internal object ProviderCatalog {
                             de.moritzf.quota.idea.settings.QuotaSettingsState.getInstance()
                                 .account(id)
                         AzureQuotaProvider.executableForAccount(id) != null &&
-                            (account?.extra(
-                                de.moritzf.quota.idea.settings.ProviderAccount.EXTRA_AZURE_RESOURCE
-                            ) != null ||
-                                account?.extra(
-                                    de.moritzf.quota.idea.settings.ProviderAccount
-                                        .EXTRA_AZURE_ENDPOINT
-                                ) != null)
+                            (account?.extra(ProviderAccount.EXTRA_AZURE_RESOURCE) != null ||
+                                account?.extra(ProviderAccount.EXTRA_AZURE_ENDPOINT) != null)
                     }
                 },
                 ideProxyFactory = IdeProxyFactories::azure,
@@ -686,19 +681,15 @@ internal object ProviderCatalog {
         descriptor.quotaFactory?.invoke(defaultAccount(descriptor.type))
     }
 
-    fun createAccountProviders(
-        accounts: List<de.moritzf.quota.idea.settings.ProviderAccount>
-    ): List<QuotaProvider> {
+    fun createAccountProviders(accounts: List<ProviderAccount>): List<QuotaProvider> {
         return accounts.mapNotNull { account ->
             val type = account.providerType() ?: return@mapNotNull null
             getOrNull(type)?.quotaFactory?.invoke(account)
         }
     }
 
-    private fun defaultAccount(
-        type: QuotaProviderType
-    ): de.moritzf.quota.idea.settings.ProviderAccount {
-        return de.moritzf.quota.idea.settings.ProviderAccount.create(
+    private fun defaultAccount(type: QuotaProviderType): ProviderAccount {
+        return ProviderAccount.create(
             type,
             type.displayName,
             isFirstOfType = true,
@@ -814,7 +805,7 @@ internal object ProviderCatalog {
         val saved = runCatching {
             de.moritzf.quota.idea.settings.QuotaSettingsState.getInstance()
                 .account(accountId)
-                ?.extra(de.moritzf.quota.idea.settings.ProviderAccount.EXTRA_DOCUMENT_MODEL)
+                ?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)
         }
             .getOrNull()
         if (saved == "-") return true
@@ -838,7 +829,7 @@ internal object ProviderCatalog {
         val saved = runCatching {
             de.moritzf.quota.idea.settings.QuotaSettingsState.getInstance()
                 .account(accountId)
-                ?.extra(de.moritzf.quota.idea.settings.ProviderAccount.EXTRA_VISION_MODEL)
+                ?.extra(ProviderAccount.EXTRA_VISION_MODEL)
         }
             .getOrNull()
         return saved.isNullOrBlank() || saved == "-"
@@ -894,7 +885,7 @@ internal object ProviderCatalog {
     private fun descriptor(
         type: QuotaProviderType,
         capabilities: ProviderCapabilities = ProviderCapabilities(),
-        quotaFactory: ((de.moritzf.quota.idea.settings.ProviderAccount) -> QuotaProvider)? = null,
+        quotaFactory: ((ProviderAccount) -> QuotaProvider)? = null,
         snapshotCodec: QuotaCodec<out ProviderQuota>? = null,
         mcpEmpty: String? = null,
         mcpQuota: UsageQuotaMcpRegistration? = null,

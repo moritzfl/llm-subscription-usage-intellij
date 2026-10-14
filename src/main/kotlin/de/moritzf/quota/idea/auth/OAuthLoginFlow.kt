@@ -12,7 +12,6 @@ import java.security.SecureRandom
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlin.io.encoding.Base64
-import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -389,7 +388,6 @@ private constructor(
             return random.joinToString("") { "%02x".format(it) }
         }
 
-        @OptIn(ExperimentalEncodingApi::class)
         private fun base64Url(value: ByteArray): String {
             return Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT).encode(value)
         }

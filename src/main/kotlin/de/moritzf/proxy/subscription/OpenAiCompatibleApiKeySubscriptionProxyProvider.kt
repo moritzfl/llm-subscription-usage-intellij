@@ -10,7 +10,6 @@ import java.nio.file.Path
 import java.time.Duration
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
-import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -148,7 +147,6 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
         }
     }
 
-    @OptIn(ExperimentalTime::class)
     @Synchronized
     private fun remoteModels(): List<StaticModel> {
         val now = Clock.System.now()

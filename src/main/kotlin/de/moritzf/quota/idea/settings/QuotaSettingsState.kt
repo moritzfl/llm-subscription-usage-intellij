@@ -416,8 +416,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
         if (accounts.isNotEmpty()) {
             val ranked = accounts.mapNotNull { account ->
                 val type = account.providerType() ?: return@mapNotNull null
-                if (!de.moritzf.quota.idea.common.ProviderCatalog.get(type).capabilities.quota)
-                    return@mapNotNull null
+                if (!ProviderCatalog.get(type).capabilities.quota) return@mapNotNull null
                 type to timestampFor(account.id, type)
             }
             val latestAt = ranked.maxOfOrNull { it.second } ?: 0L
@@ -490,9 +489,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
                         account.allowFailover &&
                             account.id != defaultId &&
                             account.providerType()?.let {
-                                !de.moritzf.quota.idea.common.ProviderCatalog.get(it)
-                                    .capabilities
-                                    .independentProxyAccounts
+                                !ProviderCatalog.get(it).capabilities.independentProxyAccounts
                             } == true,
                 )
             }

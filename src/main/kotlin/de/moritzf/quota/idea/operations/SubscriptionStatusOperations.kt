@@ -18,12 +18,12 @@ internal suspend fun SubscriptionOperations.subscription_quota(
 }
 
 internal suspend fun SubscriptionOperations.subscription_tools_status(
-    capability: de.moritzf.quota.idea.settings.AccountCapability? = null,
+    capability: AccountCapability? = null,
     model: String? = null,
 ): String {
     val settings = runCatching { QuotaSettingsState.getInstance() }.getOrNull()
     val accounts = settings?.accounts.orEmpty()
-    val requestedCapability = capability ?: de.moritzf.quota.idea.settings.AccountCapability.QUOTA
+    val requestedCapability = capability ?: AccountCapability.QUOTA
     val statuses =
         if (accounts.isEmpty() || settings == null) {
             ProviderCatalog.all.map { descriptor ->
@@ -77,7 +77,7 @@ internal fun SubscriptionOperations.quotaResult(
             de.moritzf.quota.idea.settings.AccountResolver.resolve(
                 type,
                 accountParam,
-                de.moritzf.quota.idea.settings.AccountCapability.QUOTA,
+                AccountCapability.QUOTA,
             )
         } catch (exception: de.moritzf.quota.idea.settings.AccountResolveException) {
             exception.rethrowIfCancellation()
@@ -107,7 +107,7 @@ internal fun SubscriptionOperations.accountStatus(
     isDefault: Boolean,
     allowFailover: Boolean,
     descriptor: de.moritzf.quota.idea.common.ProviderDescriptor,
-    capability: de.moritzf.quota.idea.settings.AccountCapability,
+    capability: AccountCapability,
     model: String?,
 ): McpAccountToolStatus {
     val caps = descriptor.capabilities

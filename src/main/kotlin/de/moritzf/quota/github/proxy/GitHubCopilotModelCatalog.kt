@@ -9,7 +9,6 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -31,7 +30,6 @@ internal data class GitHubCopilotRemoteModel(
     val isDefault: Boolean,
 )
 
-@OptIn(ExperimentalTime::class)
 internal class GitHubCopilotModelCatalog(
     private val accessTokenProvider: () -> String?,
     private val httpClient: HttpClient,
@@ -57,7 +55,6 @@ internal class GitHubCopilotModelCatalog(
         return refreshRemoteModels(now, memory ?: disk)
     }
 
-    @OptIn(ExperimentalTime::class)
     private fun refreshRemoteModels(
         now: Instant,
         cached: ModelCache?,
@@ -90,7 +87,6 @@ internal class GitHubCopilotModelCatalog(
         return protectedModels
     }
 
-    @OptIn(ExperimentalTime::class)
     private fun loadPersistedModelCache(now: Instant): ModelCache? {
         val raw =
             runCatching { persistentModelCacheProvider() }.getOrNull()?.takeIf { it.isNotBlank() }
@@ -107,7 +103,6 @@ internal class GitHubCopilotModelCatalog(
         return ModelCache(models, fetchedAt)
     }
 
-    @OptIn(ExperimentalTime::class)
     private fun cacheModels(
         models: List<GitHubCopilotRemoteModel>,
         fetchedAt: Instant = Clock.System.now(),
@@ -116,7 +111,6 @@ internal class GitHubCopilotModelCatalog(
         savePersistedModels(models, fetchedAt)
     }
 
-    @OptIn(ExperimentalTime::class)
     private fun savePersistedModels(
         models: List<GitHubCopilotRemoteModel>,
         fetchedAt: Instant = Clock.System.now(),
@@ -151,7 +145,6 @@ internal class GitHubCopilotModelCatalog(
         runCatching { persistentModelCacheSaver(JsonHelper.encodeToString(payload)) }
     }
 
-    @OptIn(ExperimentalTime::class)
     private fun parseFetchedAt(root: JsonObject): Instant? {
         val epochMs = (root["fetchedAtEpochMs"] as? JsonPrimitive)?.contentOrNull?.toLongOrNull()
         return epochMs?.let(Instant::fromEpochMilliseconds)
@@ -190,7 +183,6 @@ internal class GitHubCopilotModelCatalog(
         return merged.values.toList()
     }
 
-    @OptIn(ExperimentalTime::class)
     private fun startMissingModelRetry(
         token: String,
         missingModels: List<GitHubCopilotRemoteModel>,
@@ -219,7 +211,6 @@ internal class GitHubCopilotModelCatalog(
             }
     }
 
-    @OptIn(ExperimentalTime::class)
     private fun retryMissingModels(
         token: String,
         retry: MissingModelRetry,

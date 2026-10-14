@@ -147,8 +147,7 @@ class GitHubAuthService(
             ApplicationManager.getApplication().getService(GitHubAuthService::class.java)
 
         fun forAccount(accountId: String): GitHubAuthService {
-            if (accountId == de.moritzf.quota.idea.common.QuotaProviderType.GITHUB.id)
-                return getInstance()
+            if (accountId == QuotaProviderType.GITHUB.id) return getInstance()
             return extras.computeIfAbsent(accountId) {
                 GitHubAuthService(
                     oauthClientProvider = {

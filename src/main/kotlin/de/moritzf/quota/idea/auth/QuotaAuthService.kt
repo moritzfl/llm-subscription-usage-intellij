@@ -890,9 +890,7 @@ class QuotaAuthService(
         onAttempt: (OAuthCredentials) -> Unit,
     ): OAuthCredentials? {
         var credentials = initialCredentials
-        var attempt = 0
-        while (attempt < 2) {
-            attempt++
+        for (attempt in 1..2) {
             val (current, writeVersion) =
                 state.credentialStore.coordinator.withWriteLock {
                     getCredentialsBlocking(state) to

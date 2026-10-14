@@ -4,14 +4,12 @@ import de.moritzf.quota.openai.dto.OpenAiAuthorizationDto
 import de.moritzf.quota.shared.JsonSupport
 import java.security.MessageDigest
 import kotlin.io.encoding.Base64
-import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
 
 /** Utilities for extracting account metadata from JWT tokens. */
 object QuotaTokenUtil {
-    @OptIn(ExperimentalEncodingApi::class)
     @JvmStatic
     fun extractChatGptAccountId(token: String?): String? {
         if (token.isNullOrBlank()) {
@@ -43,14 +41,12 @@ object QuotaTokenUtil {
         }
     }
 
-    @OptIn(ExperimentalEncodingApi::class)
     @JvmStatic
     fun extractGoogleEmail(token: String?): String? {
         val payload = extractPayload(token) ?: return null
         return payload["email"]?.toString()?.removeSurrounding("\"")?.takeUnless { it.isBlank() }
     }
 
-    @OptIn(ExperimentalEncodingApi::class)
     @JvmStatic
     fun extractGoogleHd(token: String?): String? {
         val payload = extractPayload(token) ?: return null
@@ -82,7 +78,6 @@ object QuotaTokenUtil {
         return seconds.takeIf { it > 0 }?.times(1000L)
     }
 
-    @OptIn(ExperimentalEncodingApi::class)
     private fun extractPayload(token: String?): kotlinx.serialization.json.JsonObject? {
         if (token.isNullOrBlank()) return null
         val parts = token.split(".")

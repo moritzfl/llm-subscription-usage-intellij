@@ -197,7 +197,7 @@ class OAuthTokenClient(
         if (tokenResponse.expiresIn > 0) {
             return now + tokenResponse.expiresIn * 1000L
         }
-        return QuotaTokenUtil.extractJwtExpiresAtMs(accessToken) ?: now + DEFAULT_EXPIRES_IN_MS
+        return QuotaTokenUtil.extractJwtExpiresAtMs(accessToken) ?: (now + DEFAULT_EXPIRES_IN_MS)
     }
 
     private fun parseResponse(body: String): OAuthTokenResponseDto {

@@ -22,8 +22,7 @@ class SubscriptionModelCatalog(private val providers: List<SubscriptionProxyProv
             ?: providers
                 .asSequence()
                 .filter { it.isConfigured() }
-                .mapNotNull { it.fallbackModel(requested, route) }
-                .firstOrNull()
+                .firstNotNullOfOrNull { it.fallbackModel(requested, route) }
     }
 
     fun providerFor(model: SubscriptionProxyModel): SubscriptionProxyProvider? {

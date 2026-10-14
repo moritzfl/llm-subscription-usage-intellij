@@ -7,7 +7,6 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 
 /** Cloud model ids and their provider-declared image capability; null means discovery failed. */
 internal class OllamaVisionModels(
