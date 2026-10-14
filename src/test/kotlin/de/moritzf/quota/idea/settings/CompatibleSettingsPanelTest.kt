@@ -111,10 +111,14 @@ class CompatibleSettingsPanelTest {
             fun reveal(control: javax.swing.JComponent) {
                 content.scrollRectToVisible(
                     SwingUtilities.convertRectangle(
-                        control,
-                        java.awt.Rectangle(0, 0, control.width, control.height),
-                        content,
-                    )
+                            control,
+                            java.awt.Rectangle(0, 0, control.width, control.height),
+                            content,
+                        )
+                        .apply {
+                            x = 0
+                            width = scroll.viewport.width
+                        }
                 )
             }
             for (control in
@@ -139,6 +143,29 @@ class CompatibleSettingsPanelTest {
                 assertTrue(
                     origin.y >= 0 && origin.y + control.height <= scroll.viewport.height,
                     "${control.javaClass.simpleName} clipped vertically: $origin ${control.size}",
+                )
+            }
+            for ((combo, button) in
+                listOf(
+                    panel.modelCombo to panel.testButton,
+                    panel.visionModel.combo to panel.visionTest,
+                    panel.documentModel.combo to panel.documentTest,
+                )) {
+                val comboBounds =
+                    SwingUtilities.convertRectangle(combo.parent, combo.bounds, content)
+                val buttonBounds =
+                    SwingUtilities.convertRectangle(button.parent, button.bounds, content)
+                assertTrue(
+                    buttonBounds.centerX > comboBounds.maxX,
+                    "${button.text} must sit beside its model picker",
+                )
+                assertTrue(
+                    kotlin.math.abs(buttonBounds.centerY - comboBounds.centerY) <= 1,
+                    "${button.text} must share its model picker's row",
+                )
+                assertTrue(
+                    button.width >= button.preferredSize.width,
+                    "${button.text} label must remain fully visible",
                 )
             }
             scroll.viewport.viewPosition = java.awt.Point(0, 0)

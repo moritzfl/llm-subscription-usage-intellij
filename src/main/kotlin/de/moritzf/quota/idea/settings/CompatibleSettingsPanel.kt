@@ -22,7 +22,6 @@ import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.shared.DocumentModels
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JButton
-import javax.swing.JToggleButton
 import javax.swing.Timer
 import javax.swing.event.DocumentEvent
 
@@ -45,17 +44,6 @@ internal class CompatibleSettingsPanel(
         }
     val modelIdsField = JBTextArea(3, 25)
     val apiKeyField = JBPasswordField().apply { columns = 1 }
-    private val hiddenEcho = apiKeyField.echoChar
-    private val revealKey =
-        JToggleButton(AllIcons.Actions.Show).apply {
-            toolTipText = "Show API key"
-            accessibleContext.accessibleName = toolTipText
-            addActionListener {
-                apiKeyField.echoChar = if (isSelected) 0.toChar() else hiddenEcho
-                toolTipText = if (isSelected) "Hide API key" else "Show API key"
-                accessibleContext.accessibleName = toolTipText
-            }
-        }
     val status = JBLabel()
     private val keyHint = JBLabel().apply { minimumSize = java.awt.Dimension(0, 16) }
     val modelCombo = ComboBox<String>().apply { prototypeDisplayValue = "select-a-model-to-test" }
@@ -110,14 +98,16 @@ internal class CompatibleSettingsPanel(
     private var budgetStatusRow: com.intellij.ui.dsl.builder.Row? = null
 
     init {
+        // Let model fields shrink in narrow panes while keeping their test buttons alongside them.
+        listOf(modelCombo, visionModel.combo, documentModel.combo).forEach {
+            it.isUsePreferredSizeAsMinimum = false
+            it.minimumSize = java.awt.Dimension(0, it.minimumSize.height)
+        }
         installScrollable(
             panel {
                 row("Base URL:") { cell(baseUrlField).align(AlignX.FILL).resizableColumn() }
                 row { comment("API root, including /v1 when required.") }
-                row("API key:") {
-                    cell(apiKeyField).align(AlignX.FILL).resizableColumn()
-                    cell(revealKey)
-                }
+                row("API key:") { cell(apiKeyField).align(AlignX.FILL).resizableColumn() }
                 row { cell(keyHint).align(AlignX.FILL).resizableColumn() }
             },
             panel {
@@ -127,18 +117,22 @@ internal class CompatibleSettingsPanel(
                         cell(cancelButton)
                     }
                     row { cell(status).align(AlignX.FILL).resizableColumn() }
-                    row { cell(modelCombo).align(AlignX.FILL).resizableColumn() }
-                    row { cell(testButton) }
+                    row("Model:") {
+                        cell(modelCombo).align(AlignX.FILL).resizableColumn()
+                        cell(testButton)
+                    }
                     row { comment("Sends a short chat request using unsaved settings.") }
                 }
                 group("Vision and documents") {
-                    row("Vision:") { cell(visionModel.combo).align(AlignX.FILL).resizableColumn() }
-                    row { cell(visionTest) }
-                    row("Document:") {
+                    row("Vision model:") {
+                        cell(visionModel.combo).align(AlignX.FILL).resizableColumn()
+                        cell(visionTest)
+                    }
+                    row("Document model:") {
                         cell(documentModel.combo).align(AlignX.FILL).resizableColumn()
                         cell(documentModel.warning)
+                        cell(documentTest)
                     }
-                    row { cell(documentTest) }
                     row {
                         comment(
                             "Optional; off by default. Tests use unsaved settings. Document models must accept native PDFs."
@@ -218,10 +212,6 @@ internal class CompatibleSettingsPanel(
         baseUrlField.text = account.extra(ProviderAccount.EXTRA_COMPATIBLE_BASE_URL).orEmpty()
         modelIdsField.text = account.extra(ProviderAccount.EXTRA_COMPATIBLE_MODELS).orEmpty()
         apiKeyField.text = ""
-        revealKey.isSelected = false
-        apiKeyField.echoChar = hiddenEcho
-        revealKey.toolTipText = "Show API key"
-        revealKey.accessibleContext.accessibleName = "Show API key"
         manualGroup?.expanded = modelIdsField.text.isNotBlank()
         keyLoadError = null
         discovered = emptyList()

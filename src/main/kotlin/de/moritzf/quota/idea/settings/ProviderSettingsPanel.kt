@@ -95,6 +95,9 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
 
     /** Long connection forms wrap to the detail pane and scroll vertically as one surface. */
     protected fun installScrollable(config: JComponent, response: JComponent) {
+        // DSL section separators can retain their previous width as a minimum after layout.
+        config.minimumSize = Dimension(0, 0)
+        response.minimumSize = Dimension(0, 0)
         val content =
             object : BorderLayoutPanel(), javax.swing.Scrollable {
                     override fun getPreferredScrollableViewportSize() =
