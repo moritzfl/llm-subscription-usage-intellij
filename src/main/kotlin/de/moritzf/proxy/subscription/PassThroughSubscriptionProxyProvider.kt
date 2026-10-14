@@ -384,26 +384,26 @@ class PassThroughSubscriptionProxyProvider(
 
         private fun <T> responseContentType(response: HttpResponse<T>): ContentType {
             val raw =
-                response
-                    .headers()
-                    .firstValue(HttpHeaders.ContentType)
-                    .orElse(JsonHelper.JSON_CONTENT_TYPE)
+                response.headers().allValues(HttpHeaders.ContentType).firstOrNull()
+                    ?: JsonHelper.JSON_CONTENT_TYPE
             return runCatching { ContentType.parse(raw) }.getOrElse { ContentType.Application.Json }
         }
 
         private fun <T> isEventStream(response: HttpResponse<T>): Boolean {
             return response
                 .headers()
-                .firstValue(HttpHeaders.ContentType)
-                .orElse("")
+                .allValues(HttpHeaders.ContentType)
+                .firstOrNull()
+                .orEmpty()
                 .contains("text/event-stream", ignoreCase = true)
         }
 
         private fun <T> isJsonResponse(response: HttpResponse<T>): Boolean {
             return response
                 .headers()
-                .firstValue(HttpHeaders.ContentType)
-                .orElse("")
+                .allValues(HttpHeaders.ContentType)
+                .firstOrNull()
+                .orEmpty()
                 .contains("json", ignoreCase = true)
         }
 

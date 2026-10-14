@@ -123,12 +123,12 @@ class McpYamlTargetUpdater {
             }
         }
 
-        private fun parseRoot(content: String): Any? {
+        private fun parseRoot(content: String): Any {
             require(content.isNotBlank()) { "YAML file is empty." }
             return loader.loadFromString(content) ?: error("YAML file is empty.")
         }
 
-        private fun requireExistingTargetValue(root: Any?, path: List<String>): Any? {
+        private fun requireExistingTargetValue(root: Any, path: List<String>): Any {
             var current = root
             path.forEachIndexed { index, segment ->
                 val currentMap =

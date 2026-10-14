@@ -68,8 +68,9 @@ internal class GitHubCopilotCompletions(
             if (
                 !upstream
                     .headers()
-                    .firstValue("Content-Type")
-                    .orElse("")
+                    .allValues("Content-Type")
+                    .firstOrNull()
+                    .orEmpty()
                     .contains("text/event-stream", ignoreCase = true)
             ) {
                 JsonHelper.toErrorResponse(

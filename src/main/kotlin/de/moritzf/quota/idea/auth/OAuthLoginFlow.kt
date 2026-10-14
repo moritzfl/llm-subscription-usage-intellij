@@ -265,7 +265,7 @@ private constructor(
 
         @JvmStatic
         fun parseCallbackInput(input: String?): ParsedOAuthCallback? {
-            val trimmed = input?.trim()?.trim('"', '\'')?.orEmpty().orEmpty()
+            val trimmed = input?.trim()?.trim('"', '\'').orEmpty()
             if (trimmed.isEmpty()) {
                 return null
             }

@@ -59,8 +59,9 @@ internal class CodexRealtimeSpeech(private val client: CodexHttpClient) {
                         response.body().toString(Charsets.UTF_8),
                         response
                             .headers()
-                            .firstValue("Location")
-                            .orElse("")
+                            .allValues("Location")
+                            .firstOrNull()
+                            .orEmpty()
                             .substringAfterLast('/'),
                     )
                 }

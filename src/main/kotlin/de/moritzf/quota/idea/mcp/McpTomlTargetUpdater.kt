@@ -129,7 +129,7 @@ class McpTomlTargetUpdater {
             return root
         }
 
-        private fun requireExistingTargetValue(root: TomlTable, path: List<String>): Any? {
+        private fun requireExistingTargetValue(root: TomlTable, path: List<String>): Any {
             var current: Any? = root
             path.forEachIndexed { index, segment ->
                 val currentTable =
