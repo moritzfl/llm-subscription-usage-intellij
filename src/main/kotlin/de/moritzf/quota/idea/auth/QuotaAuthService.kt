@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.coroutines.coroutineContext
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -25,6 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
@@ -154,11 +155,11 @@ class QuotaAuthService(
                     "Device code expired. Start a new login."
                 )
             val credentials =
-                withTimeoutOrNull(remaining) {
+                withTimeoutOrNull(remaining.milliseconds) {
                     var interval = authorization.intervalSeconds.coerceIn(1, 86_400) * 1000
                     var authorized: OAuthCredentials? = null
                     while (authorized == null) {
-                        delay(interval)
+                        delay(interval.milliseconds)
                         when (val result = client.poll(authorization)) {
                             is OAuthDevicePollResult.Authorized -> authorized = result.credentials
                             OAuthDevicePollResult.Pending -> Unit
@@ -566,7 +567,7 @@ class QuotaAuthService(
         generation: Long,
         credentials: OAuthCredentials,
     ): LoginResult {
-        coroutineContext.ensureActive()
+        currentCoroutineContext().ensureActive()
         if (
             persistCredentialsIfCurrent(
                 state = state,

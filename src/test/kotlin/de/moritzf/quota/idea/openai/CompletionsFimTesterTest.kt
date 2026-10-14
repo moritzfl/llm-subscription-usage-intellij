@@ -19,6 +19,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
@@ -117,7 +118,7 @@ class CompletionsFimTesterTest {
                     )
 
                 override suspend fun handle(ctx: ProxyCall, request: SubscriptionProxyRequest) {
-                    delay(10_000)
+                    delay(10.seconds)
                 }
             }
         val result =

@@ -15,6 +15,7 @@ import de.moritzf.proxy.subscription.SubscriptionProxyRequest
 import de.moritzf.proxy.subscription.SubscriptionProxyRoute
 import de.moritzf.quota.idea.common.QuotaBundle.message
 import java.util.UUID
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -44,8 +45,8 @@ object CompletionsFimTester {
         config: CompletionsConfig,
     ): CompletionsFimTestResult =
         try {
-            withTimeout(config.timeoutMillis) { execute(catalog, config) }
-        } catch (timeout: TimeoutCancellationException) {
+            withTimeout(config.timeoutMillis.milliseconds) { execute(catalog, config) }
+        } catch (_: TimeoutCancellationException) {
             currentCoroutineContext().ensureActive()
             CompletionsFimTestResult(
                 false,

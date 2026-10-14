@@ -4,6 +4,7 @@ import io.ktor.http.Headers
 import io.ktor.http.content.PartData
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 
@@ -16,7 +17,7 @@ class MultipartPartReleaseTest {
             Unit
         }
         val release: suspend () -> Unit = {
-            delay(10)
+            delay(10.milliseconds)
             calls.add("release")
         }
         // Exercise the actual bundled Ktor API, including a genuinely suspending callback on newer

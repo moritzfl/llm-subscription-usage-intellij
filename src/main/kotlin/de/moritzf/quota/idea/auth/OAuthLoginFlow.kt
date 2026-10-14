@@ -13,6 +13,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -54,7 +55,7 @@ private constructor(
 
     suspend fun waitForCallback(): OAuthCallbackResult {
         return try {
-            withTimeoutOrNull(CALLBACK_TIMEOUT_MS) { callbackDeferred.await() }
+            withTimeoutOrNull(CALLBACK_TIMEOUT_MS.milliseconds) { callbackDeferred.await() }
                 ?: OAuthCallbackResult(error = "Authentication timed out")
         } finally {
             scheduleStopServer()
@@ -234,7 +235,7 @@ private constructor(
 
     private fun scheduleStopServer() {
         scope.launch {
-            delay(CALLBACK_SHUTDOWN_DELAY_MS)
+            delay(CALLBACK_SHUTDOWN_DELAY_MS.milliseconds)
             stopServer()
         }
     }

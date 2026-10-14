@@ -3,6 +3,7 @@ package de.moritzf.proxy.server
 import java.io.IOException
 import java.io.InputStream
 import java.net.http.HttpResponse
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runInterruptible
@@ -39,7 +40,7 @@ object UpstreamRetry {
                 }
             }
             attempt++
-            delay(RETRY_BACKOFF_MILLIS * attempt)
+            delay((RETRY_BACKOFF_MILLIS * attempt).milliseconds)
         }
     }
 

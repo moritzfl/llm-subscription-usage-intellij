@@ -31,6 +31,7 @@ import java.time.Duration
 import java.util.UUID
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
@@ -128,7 +129,7 @@ class CompletionsHandler(
         val created = System.currentTimeMillis() / 1000L
         val advertised = advertisedModel(cfg, parsed)
         try {
-            withTimeout(cfg.timeoutMillis) {
+            withTimeout(cfg.timeoutMillis.milliseconds) {
                 // Supersession cancels generation, leaving the HTTP handler able to reply.
                 val job = currentCoroutineContext()[Job]
                 when (

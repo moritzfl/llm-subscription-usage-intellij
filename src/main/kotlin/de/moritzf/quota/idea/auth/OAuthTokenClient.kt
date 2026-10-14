@@ -15,6 +15,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.channels.UnresolvedAddressException
 import java.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runInterruptible
@@ -118,7 +119,7 @@ class OAuthTokenClient(
         for (attempt in 0 until MAX_REFRESH_ATTEMPTS) {
             val lastAttempt = attempt == MAX_REFRESH_ATTEMPTS - 1
             if (attempt > 0) {
-                delay(RETRY_BASE_DELAY_MS shl (attempt - 1))
+                delay((RETRY_BASE_DELAY_MS shl (attempt - 1)).milliseconds)
             }
             try {
                 return postToken(parameters)

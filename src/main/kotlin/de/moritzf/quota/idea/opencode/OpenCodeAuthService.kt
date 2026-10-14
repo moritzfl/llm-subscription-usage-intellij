@@ -16,6 +16,7 @@ import de.moritzf.quota.opencode.OpenCodeQuotaException
 import de.moritzf.quota.opencode.OpenCodeWorkspace
 import de.moritzf.quota.shared.auth.OAuthCredentials
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -170,7 +171,7 @@ class OpenCodeAuthService(
                         val expiresAfter = authorization.expiresInSeconds * 1_000_000_000
                         var authorized = false
                         while (System.nanoTime() - started < expiresAfter) {
-                            delay(interval)
+                            delay(interval.milliseconds)
                             if (System.nanoTime() - started >= expiresAfter) break
                             when (
                                 val polled = oauthClient.pollDeviceToken(authorization.deviceCode)

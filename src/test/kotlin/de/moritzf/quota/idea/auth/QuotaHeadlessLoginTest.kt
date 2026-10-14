@@ -14,6 +14,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -173,7 +174,7 @@ class QuotaHeadlessLoginTest {
                 { staleCallbacks.incrementAndGet() },
                 { prompts.incrementAndGet() },
             )
-            withTimeout(5_000) { entered.await() }
+            withTimeout(5.seconds) { entered.await() }
             assertTrue(fixture.service.abortLogin("a", OPEN_AI, "Canceled"))
             val completed = CompletableFuture<LoginResult>()
             fixture.service.startPersonalTokenLogin("a", "at-new") { completed.complete(it) }
@@ -208,7 +209,7 @@ class QuotaHeadlessLoginTest {
             )
         try {
             fixture.service.startDeviceLoginFlow("a", OPEN_AI, { callbacks.incrementAndGet() })
-            withTimeout(5_000) { entered.await() }
+            withTimeout(5.seconds) { entered.await() }
             assertTrue(fixture.service.clearCredentials("a", OPEN_AI))
             release.complete(Unit)
             assertNull(fixture.store("a").load())
@@ -239,7 +240,7 @@ class QuotaHeadlessLoginTest {
             )
         try {
             fixture.service.startPersonalTokenLogin("a", "at-old") { callbacks.incrementAndGet() }
-            withTimeout(5_000) { entered.await() }
+            withTimeout(5.seconds) { entered.await() }
             fixture.service.abortLogin("a", OPEN_AI, "Canceled")
             val complete = CompletableFuture<LoginResult>()
             fixture.service.startPersonalTokenLogin("a", "at-new") { complete.complete(it) }

@@ -12,6 +12,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -85,9 +86,9 @@ class AccountOperationsTest {
                     }
                 }
             }
-        withTimeout(5_000) { entered.await() }
+        withTimeout(5.seconds) { entered.await() }
         job.cancel()
-        withTimeout(5_000) { job.join() }
+        withTimeout(5.seconds) { job.join() }
         assertTrue(interrupted.await(5, TimeUnit.SECONDS))
     }
 }
