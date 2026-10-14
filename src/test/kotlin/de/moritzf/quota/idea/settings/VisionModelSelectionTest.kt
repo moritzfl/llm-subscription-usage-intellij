@@ -9,7 +9,7 @@ class VisionModelSelectionTest {
     @Test
     fun defaultsToOffForEveryProvider() {
         for (type in QuotaProviderType.entries) {
-            assertEquals(DocumentModels.OFF, VisionModelSelection.forAccount(type, "account-1"))
+            assertEquals(DocumentModels.OFF, VisionModelSelection.forAccount(type.id))
         }
     }
 
@@ -17,12 +17,11 @@ class VisionModelSelectionTest {
     fun explicitModelWinsOverSettings() {
         assertEquals(
             "gpt-6-sol",
-            VisionModelSelection.forAccount(QuotaProviderType.OPEN_AI, "account-1", " gpt-6-sol "),
+            VisionModelSelection.forAccount("account-1", " gpt-6-sol "),
         )
         assertEquals(
             "pixtral-large-latest",
             VisionModelSelection.forAccount(
-                QuotaProviderType.MISTRAL,
                 "account-1",
                 "pixtral-large-latest",
             ),
@@ -34,14 +33,13 @@ class VisionModelSelectionTest {
         assertEquals(
             DocumentModels.OFF,
             VisionModelSelection.forAccount(
-                QuotaProviderType.OPEN_AI,
                 "account-1",
                 DocumentModels.OFF,
             ),
         )
         assertEquals(
             DocumentModels.OFF,
-            VisionModelSelection.forAccount(QuotaProviderType.OPEN_AI, "account-1", " - "),
+            VisionModelSelection.forAccount("account-1", " - "),
         )
     }
 }

@@ -10,26 +10,17 @@ import com.intellij.ui.JBColor
 import com.intellij.ui.SeparatorComponent
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
-import com.intellij.ui.components.panels.NonOpaquePanel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.settings.QuotaSettingsConfigurable
 import de.moritzf.quota.idea.ui.QuotaUiUtil
-import de.moritzf.quota.idea.ui.indicator.clampPercent
 import de.moritzf.quota.idea.ui.indicator.scaleIconToQuotaStatusSize
-import de.moritzf.quota.kimi.KimiUsageWindow
-import de.moritzf.quota.minimax.MiniMaxUsageWindow
-import de.moritzf.quota.ollama.OllamaUsageWindow
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.UsageWindow
 import de.moritzf.quota.openai.creditsLimitWarning
-import de.moritzf.quota.opencode.OpenCodeUsageWindow
-import de.moritzf.quota.zai.ZaiCountUsageWindow
-import de.moritzf.quota.zai.ZaiUsageWindow
 import java.awt.Component
 import java.awt.Cursor
 import java.awt.Dimension
-import java.awt.FlowLayout
 import java.awt.Font
 import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
@@ -39,7 +30,6 @@ import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.JProgressBar
 import javax.swing.SwingUtilities
-import kotlin.math.roundToInt
 import kotlin.time.Instant
 import org.intellij.lang.annotations.Language
 
@@ -79,12 +69,6 @@ internal fun createOpenSettingsButton(onOpenSettings: () -> Unit): ActionLink {
         }
 }
 
-internal fun createPopupStack(): NonOpaquePanel {
-    return NonOpaquePanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)).apply {
-        border = JBUI.Borders.empty(6, 8, 5, 8)
-    }
-}
-
 internal fun createHeaderRow(
     title: JBLabel = createPopupTitleLabel(),
     onOpenSettings: () -> Unit,
@@ -93,55 +77,6 @@ internal fun createHeaderRow(
         isOpaque = false
         addToLeft(title)
         addToRight(createOpenSettingsButton(onOpenSettings))
-    }
-}
-
-internal fun createWindowBlock(window: UsageWindow, fallbackLabel: String, top: Int): JComponent {
-    val percent = clampPercent(window.usedPercent.roundToInt())
-    val title = describeWindowLabel(window, fallbackLabel)
-    val resetText = QuotaUiUtil.formatReset(window.resetsAt)
-    var info = "$percent% used"
-    if (resetText != null) {
-        info += " - $resetText"
-    }
-
-    return createPopupStack().apply {
-        border = JBUI.Borders.emptyTop(top)
-        add(createWindowTitleLabel(title))
-        add(withVerticalInsets(JBLabel(info), top = 1))
-        add(withVerticalInsets(createUsageProgressBar(percent), top = 1))
-    }
-}
-
-internal fun createLoadingWindowBlock(label: String, top: Int): JComponent {
-    return createPopupStack().apply {
-        border = JBUI.Borders.emptyTop(top)
-        add(createWindowTitleLabel("$label limit"))
-        add(withVerticalInsets(createMutedLabel("Loading usage..."), top = 1))
-        add(withVerticalInsets(createUsageProgressBar(0), top = 1))
-    }
-}
-
-internal fun createOpenCodeWindowBlock(
-    window: OpenCodeUsageWindow,
-    label: String,
-    top: Int,
-): JComponent {
-    val percent = clampPercent(window.usagePercent.roundToInt())
-    val resetText = QuotaUiUtil.formatResetInSeconds(window.resetInSec)
-    var info = "$percent% used"
-    if (window.isRateLimited) {
-        info += " - LIMIT REACHED"
-    }
-    if (resetText != null) {
-        info += " - $resetText"
-    }
-
-    return createPopupStack().apply {
-        border = JBUI.Borders.emptyTop(top)
-        add(createWindowTitleLabel("$label limit"))
-        add(withVerticalInsets(JBLabel(info), top = 1))
-        add(withVerticalInsets(createUsageProgressBar(percent), top = 1))
     }
 }
 
@@ -259,27 +194,6 @@ internal fun createMutedLabel(text: String): JBLabel {
     return JBLabel(text).apply { foreground = JBColor.GRAY }
 }
 
-internal fun createUpdatedAtRow(items: List<UpdatedAtItem>): JComponent {
-    return JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(3), 0)).apply {
-        isOpaque = false
-        add(createMutedLabel("Updated:"))
-        items.forEachIndexed { index, item ->
-            item.icons.forEach { providerIcon ->
-                add(
-                    JBLabel().apply {
-                        icon = scaleIconToQuotaStatusSize(providerIcon.icon, this)
-                        toolTipText = providerIcon.label
-                    }
-                )
-            }
-            add(createMutedLabel(item.text))
-            if (index < items.lastIndex) {
-                add(createMutedLabel(";"))
-            }
-        }
-    }
-}
-
 internal data class UpdatedAtItem(
     val icons: List<UpdatedAtIcon>,
     val text: String,
@@ -301,92 +215,6 @@ internal fun createUsageProgressBar(percent: Int): JProgressBar {
         value = percent
         isStringPainted = false
         preferredSize = Dimension(200, 4)
-    }
-}
-
-internal fun createOllamaWindowBlock(
-    window: OllamaUsageWindow,
-    label: String,
-    top: Int,
-): JComponent {
-    val percent = clampPercent(window.usagePercent.roundToInt())
-    val resetText = QuotaUiUtil.formatReset(window.resetsAt)
-    var info = "$percent% used"
-    if (resetText != null) {
-        info += " - $resetText"
-    }
-
-    return createPopupStack().apply {
-        border = JBUI.Borders.emptyTop(top)
-        add(createWindowTitleLabel("$label limit"))
-        add(withVerticalInsets(JBLabel(info), top = 1))
-        add(withVerticalInsets(createUsageProgressBar(percent), top = 1))
-    }
-}
-
-internal fun createZaiWindowBlock(window: ZaiUsageWindow, label: String, top: Int): JComponent {
-    val percent = clampPercent(window.usagePercent.roundToInt())
-    val resetText = QuotaUiUtil.formatReset(window.resetsAt)
-    var info = "$percent% used"
-    if (resetText != null) {
-        info += " - $resetText"
-    }
-
-    return createPopupStack().apply {
-        border = JBUI.Borders.emptyTop(top)
-        add(createWindowTitleLabel("$label limit"))
-        add(withVerticalInsets(JBLabel(info), top = 1))
-        add(withVerticalInsets(createUsageProgressBar(percent), top = 1))
-    }
-}
-
-internal fun createZaiCountWindowBlock(
-    window: ZaiCountUsageWindow,
-    label: String,
-    top: Int,
-): JComponent {
-    val percent = clampPercent(window.usagePercent.roundToInt())
-    val resetText = QuotaUiUtil.formatReset(window.resetsAt)
-    var info = "$percent% used"
-    if (resetText != null) {
-        info += " - $resetText"
-    }
-
-    return createPopupStack().apply {
-        border = JBUI.Borders.emptyTop(top)
-        add(createWindowTitleLabel(label))
-        add(withVerticalInsets(JBLabel(info), top = 1))
-        add(withVerticalInsets(createUsageProgressBar(percent), top = 1))
-    }
-}
-
-internal fun createMiniMaxWindowBlock(
-    window: MiniMaxUsageWindow,
-    label: String,
-    top: Int,
-): JComponent {
-    val percent = clampPercent(window.usagePercent.roundToInt())
-    val resetText = QuotaUiUtil.formatReset(window.resetsAt)
-    var info = "$percent% used"
-    if (resetText != null) info += " - $resetText"
-    return createPopupStack().apply {
-        border = JBUI.Borders.emptyTop(top)
-        add(createWindowTitleLabel(describeDurationLimitLabel(window.periodDuration, label)))
-        add(withVerticalInsets(JBLabel(info), top = 1))
-        add(withVerticalInsets(createUsageProgressBar(percent), top = 1))
-    }
-}
-
-internal fun createKimiWindowBlock(window: KimiUsageWindow, label: String, top: Int): JComponent {
-    val percent = clampPercent(window.usagePercent.roundToInt())
-    val resetText = QuotaUiUtil.formatReset(window.resetsAt)
-    var info = "$percent% used"
-    if (resetText != null) info += " - $resetText"
-    return createPopupStack().apply {
-        border = JBUI.Borders.emptyTop(top)
-        add(createWindowTitleLabel(describeDurationLimitLabel(window.periodDuration, label)))
-        add(withVerticalInsets(JBLabel(info), top = 1))
-        add(withVerticalInsets(createUsageProgressBar(percent), top = 1))
     }
 }
 

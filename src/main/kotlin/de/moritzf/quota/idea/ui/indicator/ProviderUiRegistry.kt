@@ -85,8 +85,6 @@ internal interface ProviderUi {
 
     fun periodElapsedFraction(quota: ProviderQuota?, error: String?): Double?
 
-    fun authState(): ProviderAuthState = authState(type.id)
-
     fun authState(accountId: String): ProviderAuthState
 
     fun createPopupSection(): ProviderPopupSection?

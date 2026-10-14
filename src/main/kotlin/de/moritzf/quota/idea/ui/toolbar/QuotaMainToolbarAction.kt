@@ -12,7 +12,6 @@ import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.settings.QuotaDisplayMode
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorComponent
-import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorData
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorLocation
 import de.moritzf.quota.idea.ui.popup.QuotaPopupLocation
 import de.moritzf.quota.idea.ui.popup.QuotaPopupSupport
@@ -34,7 +33,10 @@ class QuotaMainToolbarAction :
     override fun actionPerformed(event: AnActionEvent) {}
 
     override fun createCustomComponent(presentation: Presentation, place: String): JComponent {
-        return QuotaIndicatorComponent(horizontalPadding = 6, onClick = ::showPopup)
+        return QuotaIndicatorComponent(
+                horizontalPadding = 6,
+                onClick = { component, _ -> showPopup(component) },
+            )
             .also(::updateComponent)
     }
 
@@ -54,7 +56,7 @@ class QuotaMainToolbarAction :
         )
     }
 
-    private fun showPopup(component: Component, data: QuotaIndicatorData) {
+    private fun showPopup(component: Component) {
         val project = ProjectUtil.getProjectForComponent(component) ?: return
         QuotaPopupSupport.showPopup(project, component, QuotaPopupLocation.BELOW)
     }

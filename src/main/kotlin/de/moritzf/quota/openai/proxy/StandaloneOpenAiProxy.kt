@@ -37,11 +37,9 @@ fun main(args: Array<String>) {
             loadCredentials()
         }
     val credentialManager = StandaloneCredentialManager(credentials)
-    val accessToken =
-        credentialManager.accessToken()
-            ?: error(
-                "OPENAI_PROXY_ACCESS_TOKEN or OPENAI_PROXY_REFRESH_TOKEN, .env, OPENAI_PROXY_CREDENTIALS_FILE, or --login is required"
-            )
+    checkNotNull(credentialManager.accessToken()) {
+        "OPENAI_PROXY_ACCESS_TOKEN or OPENAI_PROXY_REFRESH_TOKEN, .env, OPENAI_PROXY_CREDENTIALS_FILE, or --login is required"
+    }
     val localApiKey = env("OPENAI_PROXY_API_KEY") ?: DEFAULT_LOCAL_API_KEY
     val port = env("OPENAI_PROXY_PORT")?.toIntOrNull() ?: DEFAULT_PORT
 

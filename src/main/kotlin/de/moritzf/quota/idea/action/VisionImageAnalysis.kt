@@ -11,7 +11,6 @@ import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
 import de.moritzf.quota.idea.settings.AccountCapability
 import de.moritzf.quota.idea.settings.AccountResolver
 import de.moritzf.quota.idea.settings.ProviderTestConnection
-import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.settings.VisionModelSelection
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 import de.moritzf.quota.kimi.KimiVisionClient
@@ -32,14 +31,6 @@ import kotlinx.serialization.json.contentOrNull
  * MCP tool.
  */
 internal object VisionImageAnalysis {
-    fun availableProviders(): List<VisionProvider> {
-        val settings = QuotaSettingsState.getInstance()
-        return VisionProvider.entries.filter { provider ->
-            val type = provider.providerType
-            settings.accountsOf(type).any { VisionModelSelection.isEnabledForAccount(it.id) }
-        }
-    }
-
     fun analyze(
         provider: VisionProvider,
         image: Path,
@@ -55,7 +46,7 @@ internal object VisionImageAnalysis {
                 ?: if (type.isCompatibleConnection())
                     de.moritzf.quota.idea.compatible.compatibleAccount(type, accountId)
                 else AccountResolver.resolve(type, accountId, capability = AccountCapability.VISION)
-        val chosen = VisionModelSelection.forAccount(type, account.id, model)
+        val chosen = VisionModelSelection.forAccount(account.id, model)
         if (chosen == DocumentModels.OFF) {
             error("Vision is off. Pick a vision model in settings.")
         }

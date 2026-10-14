@@ -2,7 +2,6 @@ package de.moritzf.quota.shared
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 
 internal object McpJson {
     fun error(message: String): String = JsonSupport.json.encodeToString(McpErrorResponse(message))
@@ -11,19 +10,6 @@ internal object McpJson {
         return runCatching { JsonSupport.json.parseToJsonElement(body) }
             .map { body }
             .getOrElse { JsonSupport.json.encodeToString(McpRawProviderResponse(body)) }
-    }
-
-    fun webSearchStatus(statuses: List<McpWebSearchToolStatus>): String {
-        return JsonSupport.json.encodeToString(
-            McpWebSearchStatusResponse(
-                availableTools = statuses.filter { it.available }.map { it.tool },
-                tools = statuses,
-            )
-        )
-    }
-
-    fun toolsStatus(providers: List<McpProviderToolStatus>): String {
-        return JsonSupport.json.encodeToString(McpToolsStatusResponse(providers = providers))
     }
 
     fun accountToolsStatus(
@@ -49,15 +35,6 @@ internal object McpJson {
         return JsonSupport.json.encodeToString(McpVisionResultResponse(provider, model, content))
     }
 }
-
-@Serializable
-internal data class McpWebSearchToolStatus(
-    val tool: String,
-    val provider: String,
-    val configured: Boolean,
-    val available: Boolean,
-    val reason: String? = null,
-)
 
 @Serializable
 internal data class McpAccountToolStatus(
@@ -89,21 +66,6 @@ internal data class McpAccountToolStatus(
     @SerialName("exhaustion_reason") val exhaustionReason: String? = null,
 )
 
-@Serializable
-internal data class McpProviderToolStatus(
-    val provider: String,
-    @SerialName("quota_configured") val quotaConfigured: Boolean,
-    @SerialName("web_search_available") val webSearchAvailable: Boolean,
-    @SerialName("web_search_type") val webSearchType: String? = null,
-    @SerialName("image_generation_available") val imageGenerationAvailable: Boolean,
-    @SerialName("video_generation_available") val videoGenerationAvailable: Boolean,
-    @SerialName("speech_to_text_available") val speechToTextAvailable: Boolean = false,
-    @SerialName("text_to_speech_available") val textToSpeechAvailable: Boolean = false,
-    @SerialName("document_to_markdown_available") val documentToMarkdownAvailable: Boolean = false,
-    @SerialName("vision_available") val visionAvailable: Boolean = false,
-    val reason: String? = null,
-)
-
 @Serializable private data class McpErrorResponse(val error: String)
 
 @Serializable
@@ -115,21 +77,6 @@ internal data class McpVisionResultResponse(
 
 @Serializable
 private data class McpRawProviderResponse(@SerialName("raw_response") val rawResponse: String)
-
-@Serializable
-private data class McpWebSearchStatusResponse(
-    val check: String = "credentials",
-    val note: String = "This status does not call provider search APIs.",
-    @SerialName("available_tools") val availableTools: List<String>,
-    val tools: List<McpWebSearchToolStatus>,
-)
-
-@Serializable
-private data class McpToolsStatusResponse(
-    val check: String = "credentials",
-    val note: String = "This status does not call provider APIs.",
-    val providers: List<McpProviderToolStatus>,
-)
 
 @Serializable
 private data class McpAccountsToolsStatusResponse(

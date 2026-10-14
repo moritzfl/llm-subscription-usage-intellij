@@ -29,7 +29,6 @@ internal suspend fun SubscriptionOperations.subscription_vision(
                 de.moritzf.quota.idea.compatible.compatibleAccount(provider.providerType, account)
             val chosen =
                 de.moritzf.quota.idea.settings.VisionModelSelection.forAccount(
-                    provider.providerType,
                     selectedAccount.id,
                     model,
                 )
@@ -135,10 +134,7 @@ internal fun SubscriptionOperations.visionModel(provider: VisionProvider): Strin
                 .id
         }
             .getOrNull() ?: return ""
-    return de.moritzf.quota.idea.settings.VisionModelSelection.forAccount(
-        provider.providerType,
-        accountId,
-    )
+    return de.moritzf.quota.idea.settings.VisionModelSelection.forAccount(accountId)
 }
 
 internal suspend fun SubscriptionOperations.mistralVision(

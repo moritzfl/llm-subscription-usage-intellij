@@ -9,7 +9,6 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -128,8 +127,6 @@ open class MiniMaxWebSearchClient(
 
     companion object {
         const val DEFAULT_LIMIT = 5
-        const val MIN_LIMIT = 1
-        const val MAX_LIMIT = 20
         private const val WEB_SEARCH_PATH = "/v1/coding_plan/search"
         private val GLOBAL_API_HOST = URI.create("https://api.minimax.io")
         private val CN_API_HOST = URI.create("https://api.minimaxi.com")

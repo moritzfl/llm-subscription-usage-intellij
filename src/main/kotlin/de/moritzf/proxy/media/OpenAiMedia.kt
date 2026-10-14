@@ -10,10 +10,6 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 
 internal object OpenAiMedia {
-    const val IMAGES_PATH = "/images/generations"
-    const val SPEECH_PATH = "/audio/speech"
-    const val TRANSCRIPTIONS_PATH = "/audio/transcriptions"
-
     data class AdvertisedMediaModel(
         val localId: String,
         val providerId: String,

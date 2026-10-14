@@ -262,9 +262,6 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
 
     fun visionModelForStorage(): String? = visionModelCombo.storedValue()
 
-    fun ocrDeployment(): String? =
-        (ocrDeploymentCombo.selectedItem as? String)?.takeIf { it != NO_OCR }
-
     /**
      * "-" is stored so a later model list does not turn conversion back on. A new resource clears
      * it.

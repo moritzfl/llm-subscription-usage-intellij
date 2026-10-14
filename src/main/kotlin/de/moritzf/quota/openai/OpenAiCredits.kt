@@ -48,8 +48,6 @@ fun OpenAiCodexQuota.isCreditsDepleted(): Boolean {
     return rateLimitReachedType == "workspace_member_credits_depleted"
 }
 
-fun OpenAiCodexQuota.hasAssignedCreditsQuota(): Boolean = isAssignedCreditsQuota()
-
 fun OpenAiCodexQuota.creditsLimitWarning(): String? {
     if (rateLimitReachedType == "workspace_member_credits_depleted") {
         return "Assigned credits depleted"

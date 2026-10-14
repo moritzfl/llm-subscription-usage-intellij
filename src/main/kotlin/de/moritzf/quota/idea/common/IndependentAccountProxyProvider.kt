@@ -11,7 +11,7 @@ import de.moritzf.quota.idea.settings.ProviderAccount
  * Separate endpoints advertise together but never borrow one another's URL, credentials, or quota.
  */
 internal class IndependentAccountProxyProvider(
-    private val type: QuotaProviderType,
+    type: QuotaProviderType,
     private val accounts: () -> List<ProviderAccount>,
     private val create: (ProviderAccount) -> SubscriptionProxyProvider,
 ) : SubscriptionProxyProvider {

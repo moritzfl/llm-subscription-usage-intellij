@@ -471,10 +471,6 @@ class QuotaAuthService(
     fun getAccountId(accountId: String, type: QuotaProviderType): String? =
         cachedCredentialsOrScheduleLoad(stateFor(accountId, type))?.accountId
 
-    fun peekAccessToken(accountId: String, type: QuotaProviderType): String? {
-        return stateFor(accountId, type).cachedCredentials.get()?.accessToken
-    }
-
     fun forgetAccount(accountId: String) {
         providerStates[accountId]?.let { abortLogin(accountId, it.type, "Account removed") }
         providerStates.remove(accountId)

@@ -248,7 +248,7 @@ class CodexMcpClient(
             publisher = MultipartFilePublisher.of(boundary, fields, localFile)
         } else {
             val audio =
-                resolveAudioBytes(audioUrl, null)
+                resolveAudioBytes(audioUrl)
                     ?: return CodexMcpResponse(
                         errorJson("Provide audioUrl or a local audio file path."),
                         true,
@@ -425,13 +425,7 @@ class CodexMcpClient(
         )
     }
 
-    private fun resolveAudioBytes(audioUrl: String?, localFile: Path?): ByteArray? {
-        if (localFile != null) {
-            if (!Files.isRegularFile(localFile)) {
-                return null
-            }
-            return Files.readAllBytes(localFile)
-        }
+    private fun resolveAudioBytes(audioUrl: String?): ByteArray? {
         val url = audioUrl?.trim().orEmpty()
         if (url.isEmpty()) {
             return null

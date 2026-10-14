@@ -6,8 +6,6 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.util.concurrency.AppExecutorUtil
 import de.moritzf.proxy.fim.CompletionsConfig
-import de.moritzf.proxy.subscription.SubscriptionModelCatalog
-import de.moritzf.proxy.subscription.SubscriptionProxyModel
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyServer
 import de.moritzf.proxy.util.ApiKeyUtils
@@ -59,14 +57,6 @@ class OpenAiProxyService(
             runningProviders = runningProviderIds,
             requestLogDir = requestLogDir().toString(),
         )
-    }
-
-    fun advertisedModelsSnapshot(): List<SubscriptionProxyModel> {
-        val settings = settingsProvider() ?: return emptyList()
-        return SubscriptionModelCatalog(
-                createProviders(settings, false, requestLogDir().toString())
-            )
-            .models
     }
 
     fun requestLogDir(): Path = DEFAULT_REQUEST_LOG_DIR
