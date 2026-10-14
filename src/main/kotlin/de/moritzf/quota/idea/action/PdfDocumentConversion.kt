@@ -18,6 +18,7 @@ import de.moritzf.quota.idea.mistral.MistralApiKeyStore
 import de.moritzf.quota.idea.settings.AccountCapability
 import de.moritzf.quota.idea.settings.AccountResolver
 import de.moritzf.quota.idea.settings.DocumentModelSelection
+import de.moritzf.quota.idea.settings.ProviderTestConnection
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 import de.moritzf.quota.mistral.MistralOcrClient
@@ -72,6 +73,7 @@ internal object PdfDocumentConversion {
         progress: DocumentConversionProgress = DocumentConversionProgress.NONE,
         model: String = "",
         accountId: String? = null,
+        connection: ProviderTestConnection? = null,
     ): DocumentConversionResult {
         progress.update(0, 0, "Preparing document conversion")
         require(PdfPages.isPdf(source)) { "Select a readable PDF file." }
@@ -82,10 +84,17 @@ internal object PdfDocumentConversion {
             )
         }
         val type = checkNotNull(provider.providerType)
+        require(connection == null || connection.account.providerType() == type)
         val account =
-            if (type.isCompatibleConnection())
-                de.moritzf.quota.idea.compatible.compatibleAccount(type, accountId)
-            else AccountResolver.resolve(type, capability = AccountCapability.DOCUMENT_TO_MARKDOWN)
+            connection?.account
+                ?: if (type.isCompatibleConnection())
+                    de.moritzf.quota.idea.compatible.compatibleAccount(type, accountId)
+                else
+                    AccountResolver.resolve(
+                        type,
+                        accountId,
+                        capability = AccountCapability.DOCUMENT_TO_MARKDOWN,
+                    )
         fun selectedModel() = DocumentModelSelection.forAccount(type, account.id, model)
         if (provider != DocumentToMarkdownProvider.AZURE && selectedModel() == DocumentModels.OFF) {
             error("Document conversion is off. Pick a model in settings.")
@@ -94,13 +103,14 @@ internal object PdfDocumentConversion {
             when (provider) {
                 DocumentToMarkdownProvider.OPENAI_COMPATIBLE,
                 DocumentToMarkdownProvider.LITELLM ->
-                    de.moritzf.quota.idea.compatible
-                        .compatibleMediaClient(account)
+                    (connection?.compatibleClient()
+                            ?: de.moritzf.quota.idea.compatible.compatibleMediaClient(account))
                         .document(selectedModel(), source, output)
                 DocumentToMarkdownProvider.MISTRAL -> {
                     val key =
-                        MistralApiKeyStore.forAccount(account.id).loadBlocking()
-                            ?: error("Mistral API key missing.")
+                        (connection?.apiKeyOverride
+                                ?: MistralApiKeyStore.forAccount(account.id).loadBlocking())
+                            ?.takeIf(String::isNotBlank) ?: error("Mistral API key missing.")
                     MistralOcrClient.createDefault()
                         .convertDocument(
                             key,
@@ -119,13 +129,18 @@ internal object PdfDocumentConversion {
                     if (selection == "-")
                         error("Azure document conversion is off. Pick a model in settings.")
                     val executable =
-                        AzureQuotaProvider.executableForAccount(account.id)
-                            ?: error("Azure CLI not found.")
+                        AzureQuotaProvider.executableFor(account) ?: error("Azure CLI not found.")
                     val cli = AzureCli(executable)
-                    val config = AzureQuotaProvider.configForAccount(account.id)
+                    val config = AzureQuotaProvider.configFor(account)
                     when {
                         isAzureNativePdfSelection(selection) ->
-                            NativeDocumentConversion.azure(account.id, selection, source, output)
+                            NativeDocumentConversion.azure(
+                                account.id,
+                                selection,
+                                source,
+                                output,
+                                connection?.account,
+                            )
                         selection == AZURE_DOCUMENT_INTELLIGENCE_LAYOUT ->
                             AzureDocumentIntelligenceClient()
                                 .convertDocument(
@@ -164,8 +179,9 @@ internal object PdfDocumentConversion {
                 }
                 DocumentToMarkdownProvider.ZAI -> {
                     val key =
-                        ZaiApiKeyStore.forAccount(account.id).loadBlocking()
-                            ?: error("Z.ai API key missing.")
+                        (connection?.apiKeyOverride
+                                ?: ZaiApiKeyStore.forAccount(account.id).loadBlocking())
+                            ?.takeIf(String::isNotBlank) ?: error("Z.ai API key missing.")
                     ZaiOcrClient.createDefault()
                         .convertDocument(
                             key,
@@ -223,9 +239,21 @@ internal object PdfDocumentConversion {
                     }
                 }
                 DocumentToMarkdownProvider.GITHUB ->
-                    NativeDocumentConversion.github(account.id, selectedModel(), source, output)
+                    NativeDocumentConversion.github(
+                        account.id,
+                        selectedModel(),
+                        source,
+                        output,
+                        connection?.account,
+                    )
                 DocumentToMarkdownProvider.OPEN_CODE ->
-                    NativeDocumentConversion.openCode(account.id, selectedModel(), source, output)
+                    NativeDocumentConversion.openCode(
+                        account.id,
+                        selectedModel(),
+                        source,
+                        output,
+                        connection?.account,
+                    )
                 DocumentToMarkdownProvider.PDFBOX ->
                     error("PDFBox is handled before account lookup.")
             }

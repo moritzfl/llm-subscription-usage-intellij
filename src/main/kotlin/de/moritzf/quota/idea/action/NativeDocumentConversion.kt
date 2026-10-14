@@ -15,6 +15,7 @@ import de.moritzf.quota.idea.common.AzureQuotaProvider
 import de.moritzf.quota.idea.common.IdeProxyFactories
 import de.moritzf.quota.idea.github.GitHubCredentialsStore
 import de.moritzf.quota.idea.opencode.OpenCodeAuthService
+import de.moritzf.quota.idea.settings.ProviderAccount
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.opencode.proxy.OpenCodeConsoleProxy
 import de.moritzf.quota.opencode.proxy.OpenCodeConsoleSession
@@ -30,16 +31,19 @@ internal object NativeDocumentConversion {
     private val poster = NativePdfPoster()
     private val httpClient: HttpClient = HttpClient.newHttpClient()
 
-    fun github(accountId: String, model: String, source: Path, output: Path): String {
+    fun github(
+        accountId: String,
+        model: String,
+        source: Path,
+        output: Path,
+        account: ProviderAccount? = null,
+    ): String {
         val token =
             GitHubCredentialsStore.forAccount(accountId).loadBlocking()?.accessToken
                 ?: error("GitHub Copilot login required.")
         val selected =
             model.trim().ifBlank { error("Select a GitHub Copilot document model in settings.") }
-        val base =
-            IdeProxyFactories.githubCopilotBaseUri(
-                QuotaSettingsState.getInstance().githubHostFor(accountId)
-            )
+        val base = IdeProxyFactories.githubCopilotBaseUri(githubHost(accountId, account))
         val listed = runCatching {
             fetchGitHubListedModels(base, token, httpClient)
         }
@@ -59,21 +63,31 @@ internal object NativeDocumentConversion {
         )
     }
 
-    fun openCode(accountId: String, model: String, source: Path, output: Path): String {
-        val (route, headers, targetUri, upstreamId, extraBody) = openCodeTarget(accountId, model)
+    fun openCode(
+        accountId: String,
+        model: String,
+        source: Path,
+        output: Path,
+        account: ProviderAccount? = null,
+    ): String {
+        val (route, headers, targetUri, upstreamId, extraBody) =
+            openCodeTarget(accountId, model, account)
         return poster.convert(targetUri, headers, route, upstreamId, source, output, extraBody)
     }
 
-    fun githubVision(accountId: String, model: String, source: Path, prompt: String): String {
+    fun githubVision(
+        accountId: String,
+        model: String,
+        source: Path,
+        prompt: String,
+        account: ProviderAccount? = null,
+    ): String {
         val token =
             GitHubCredentialsStore.forAccount(accountId).loadBlocking()?.accessToken
                 ?: error("GitHub Copilot login required.")
         val selected =
             model.trim().ifBlank { error("Select a GitHub Copilot vision model in settings.") }
-        val base =
-            IdeProxyFactories.githubCopilotBaseUri(
-                QuotaSettingsState.getInstance().githubHostFor(accountId)
-            )
+        val base = IdeProxyFactories.githubCopilotBaseUri(githubHost(accountId, account))
         val listed = runCatching {
             fetchGitHubListedModels(base, token, httpClient)
         }
@@ -93,18 +107,30 @@ internal object NativeDocumentConversion {
         )
     }
 
-    fun openCodeVision(accountId: String, model: String, source: Path, prompt: String): String {
-        val (route, headers, targetUri, upstreamId, extraBody) = openCodeTarget(accountId, model)
+    fun openCodeVision(
+        accountId: String,
+        model: String,
+        source: Path,
+        prompt: String,
+        account: ProviderAccount? = null,
+    ): String {
+        val (route, headers, targetUri, upstreamId, extraBody) =
+            openCodeTarget(accountId, model, account)
         return poster.askImage(targetUri, headers, route, upstreamId, prompt, source, extraBody)
     }
 
-    private fun openCodeTarget(accountId: String, model: String): OpenCodeTarget {
+    private fun openCodeTarget(
+        accountId: String,
+        model: String,
+        account: ProviderAccount?,
+    ): OpenCodeTarget {
         val auth = OpenCodeAuthService.getInstance()
         val credentials = auth.credentials(accountId) ?: error("OpenCode login required.")
         val token = credentials.accessToken ?: error("OpenCode login required.")
         val organization =
             credentials.accountId
-                ?: QuotaSettingsState.getInstance().openCodeWorkspaceIdFor(accountId)
+                ?: if (account != null) account.extra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE)
+                else QuotaSettingsState.getInstance().openCodeWorkspaceIdFor(accountId)
         val session =
             OpenCodeConsoleSession(accountId, token, organization) {
                 auth.credentials(accountId, it)?.accessToken
@@ -141,11 +167,21 @@ internal object NativeDocumentConversion {
         val extraBody: JsonObject,
     )
 
-    fun azure(accountId: String, selection: String, source: Path, output: Path): String {
+    fun azure(
+        accountId: String,
+        selection: String,
+        source: Path,
+        output: Path,
+        account: ProviderAccount? = null,
+    ): String {
         val deployment = azureNativePdfDeploymentId(selection)
         val executable =
-            AzureQuotaProvider.executableForAccount(accountId) ?: error("Azure CLI not found.")
-        val config = AzureQuotaProvider.configForAccount(accountId)
+            (if (account != null) AzureQuotaProvider.executableFor(account)
+            else AzureQuotaProvider.executableForAccount(accountId))
+                ?: error("Azure CLI not found.")
+        val config =
+            if (account != null) AzureQuotaProvider.configFor(account)
+            else AzureQuotaProvider.configForAccount(accountId)
         val target = azureInferenceTarget(config) ?: error("Azure endpoint is missing.")
         val token =
             AzureCli(executable)
@@ -162,10 +198,20 @@ internal object NativeDocumentConversion {
         )
     }
 
-    fun azureVision(accountId: String, model: String, source: Path, prompt: String): String {
+    fun azureVision(
+        accountId: String,
+        model: String,
+        source: Path,
+        prompt: String,
+        account: ProviderAccount? = null,
+    ): String {
         val executable =
-            AzureQuotaProvider.executableForAccount(accountId) ?: error("Azure CLI not found.")
-        val config = AzureQuotaProvider.configForAccount(accountId)
+            (if (account != null) AzureQuotaProvider.executableFor(account)
+            else AzureQuotaProvider.executableForAccount(accountId))
+                ?: error("Azure CLI not found.")
+        val config =
+            if (account != null) AzureQuotaProvider.configFor(account)
+            else AzureQuotaProvider.configForAccount(accountId)
         val target = azureInferenceTarget(config) ?: error("Azure endpoint is missing.")
         val token =
             AzureCli(executable)
@@ -193,4 +239,8 @@ internal object NativeDocumentConversion {
 
     private fun githubHeaders(token: String): Map<String, String> =
         githubCopilotHeaders(token) + mapOf("Copilot-Vision-Request" to "true")
+
+    private fun githubHost(accountId: String, account: ProviderAccount?): String =
+        if (account != null) account.extra(ProviderAccount.EXTRA_GITHUB_HOST).orEmpty()
+        else QuotaSettingsState.getInstance().githubHostFor(accountId)
 }

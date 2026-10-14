@@ -11,8 +11,6 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
-import de.moritzf.quota.idea.action.VisionImageAnalysis
-import de.moritzf.quota.idea.mcp.VisionProvider
 import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.shared.HelloPdf
 import java.awt.Dimension
@@ -31,12 +29,9 @@ import javax.swing.ScrollPaneConstants
 
 /** Runs the selected vision model against the plugin icon rendered as a PNG. */
 internal class VisionTestButton(
-    private val provider: VisionProvider,
     private val combo: VisionModelCombo,
     private val modality: () -> JComponent?,
-    private val prepare: (String) -> VisionTestExecution = { model ->
-        { image, prompt -> VisionImageAnalysis.analyze(provider, image, prompt, model) }
-    },
+    private val prepare: (String) -> VisionTestExecution,
 ) : JButton("Test vision") {
     init {
         toolTipText = "Ask the selected vision model to describe the plugin icon"

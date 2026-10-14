@@ -45,19 +45,27 @@ internal class OpenCodeSettingsPanel(
     private val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
     private val visionModelCombo = VisionModelCombo(groupUnverified = true)
     private val testDocumentButton =
-        DocumentTestButton(
+        documentTestButton(
             DocumentToMarkdownProvider.OPEN_CODE,
             { documentModelCombo.storedValue().orEmpty() },
             modalityComponentProvider,
             documentModelCombo.combo,
         )
     private val testVisionButton =
-        VisionTestButton(
+        visionTestButton(
             de.moritzf.quota.idea.mcp.VisionProvider.OPEN_CODE,
             visionModelCombo,
             modalityComponentProvider,
         )
     private val responseViewer = createResponseViewer()
+
+    override fun testConnection(): ProviderTestConnection =
+        ProviderTestConnection(
+            checkNotNull(boundAccount).snapshot().apply {
+                setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, selectedWorkspaceId())
+            }
+        )
+
     private var modelRefreshGeneration = 0
     private var verificationUrl: String? = null
     private var authMessage: AuthStatusMessage? = null

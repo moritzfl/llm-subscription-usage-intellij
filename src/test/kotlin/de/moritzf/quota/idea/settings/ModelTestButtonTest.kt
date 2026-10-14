@@ -1,7 +1,5 @@
 package de.moritzf.quota.idea.settings
 
-import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
-import de.moritzf.quota.idea.mcp.VisionProvider
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JComboBox
 import javax.swing.SwingUtilities
@@ -16,10 +14,10 @@ class ModelTestButtonTest {
             val combo = JComboBox<String>()
             val button =
                 DocumentTestButton(
-                    DocumentToMarkdownProvider.AZURE,
                     { (combo.selectedItem as? String).orEmpty() },
                     { null },
                     combo,
+                    prepare = { error("Not executed") },
                 )
             assertFalse(button.isEnabled)
 
@@ -45,7 +43,8 @@ class ModelTestButtonTest {
     fun visionTestDisablesWhenDiscoveryReplacesSelectionWithOff() {
         SwingUtilities.invokeAndWait {
             val picker = VisionModelCombo()
-            val button = VisionTestButton(VisionProvider.OPEN_AI, picker, modality = { null })
+            val button =
+                VisionTestButton(picker, modality = { null }, prepare = { error("Not executed") })
             picker.show("vision-model", listOf("vision-model"))
             assertTrue(button.isEnabled)
 

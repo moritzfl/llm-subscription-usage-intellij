@@ -192,7 +192,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                         .resizableColumn()
                         .comment(DocumentModels.OFF_COMMENT)
                     cell(
-                        DocumentTestButton(
+                        documentTestButton(
                             de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.AZURE,
                             { (ocrDeploymentCombo.selectedItem as? String).orEmpty() },
                             { this@AzureSettingsPanel },
@@ -203,7 +203,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                 row("Vision model:") {
                     cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
                     cell(
-                        VisionTestButton(
+                        visionTestButton(
                             de.moritzf.quota.idea.mcp.VisionProvider.AZURE,
                             visionModelCombo,
                             { this@AzureSettingsPanel },
@@ -247,6 +247,20 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
     }
 
     fun normalizedExecutablePath(): String? = executableField.text.trim().takeIf { it.isNotEmpty() }
+
+    override fun testConnection(): ProviderTestConnection =
+        ProviderTestConnection(
+            checkNotNull(boundAccount).snapshot().apply {
+                setExtra(ProviderAccount.EXTRA_AZURE_EXECUTABLE, normalizedExecutablePath())
+                setExtra(ProviderAccount.EXTRA_AZURE_SUBSCRIPTION, subscriptionId())
+                setExtra(ProviderAccount.EXTRA_AZURE_RESOURCE, resourceName())
+                setExtra(ProviderAccount.EXTRA_AZURE_ENDPOINT, endpoint())
+                setExtra(ProviderAccount.EXTRA_AZURE_LOCATION, locationId())
+                setExtra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS, deploymentNames())
+                setExtra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT, ocrDeploymentForStorage())
+                setExtra(ProviderAccount.EXTRA_VISION_MODEL, visionModelForStorage())
+            }
+        )
 
     fun subscriptionId(): String? = subscriptionField.text.trim().takeIf { it.isNotEmpty() }
 

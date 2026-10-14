@@ -78,7 +78,7 @@ internal class OllamaSettingsPanel(
                         "Cloud models that report vision support. Used by subscription_vision; '-' keeps vision off."
                     )
                 cell(
-                    VisionTestButton(
+                    visionTestButton(
                         de.moritzf.quota.idea.mcp.VisionProvider.OLLAMA,
                         visionModelCombo,
                         modalityComponentProvider,
@@ -131,6 +131,12 @@ internal class OllamaSettingsPanel(
     }
 
     fun visionModelForStorage(): String? = visionModelCombo.storedValue()
+
+    override fun testConnection(): ProviderTestConnection =
+        ProviderTestConnection(
+            checkNotNull(boundAccount),
+            String(apiKeyField.password).takeUnless { it == API_KEY_PLACEHOLDER },
+        )
 
     fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
 

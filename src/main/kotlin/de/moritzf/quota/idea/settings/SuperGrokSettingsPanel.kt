@@ -175,7 +175,7 @@ internal class SuperGrokSettingsPanel(
                     .comment(DocumentModels.OFF_COMMENT)
                 cell(documentModelCombo.warning).align(AlignY.TOP)
                 cell(
-                    DocumentTestButton(
+                    documentTestButton(
                         de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.SUPERGROK,
                         { documentModelCombo.selected().orEmpty() },
                         modalityComponentProvider,
@@ -189,7 +189,7 @@ internal class SuperGrokSettingsPanel(
                     .resizableColumn()
                     .comment("Used by subscription_vision. '-' keeps vision off.")
                 cell(
-                    VisionTestButton(
+                    visionTestButton(
                         de.moritzf.quota.idea.mcp.VisionProvider.SUPERGROK,
                         visionModelCombo,
                         modalityComponentProvider,

@@ -73,28 +73,32 @@ class AzureQuotaProvider(
 
     companion object {
         fun executableForAccount(accountId: String): Path? {
-            val configured = runCatching {
-                QuotaSettingsState.getInstance()
-                    .account(accountId)
-                    ?.extra(ProviderAccount.EXTRA_AZURE_EXECUTABLE)
+            val account = runCatching {
+                QuotaSettingsState.getInstance().account(accountId)
             }
                 .getOrNull()
-            return AzureCli.findExecutable(configured)
+            return executableFor(account)
         }
+
+        internal fun executableFor(account: ProviderAccount?): Path? =
+            AzureCli.findExecutable(account?.extra(ProviderAccount.EXTRA_AZURE_EXECUTABLE))
 
         internal fun configForAccount(accountId: String): AzureAccountConfig {
             val account = runCatching {
                 QuotaSettingsState.getInstance().account(accountId)
             }
                 .getOrNull()
-            return azureAccountConfig(
+            return configFor(account)
+        }
+
+        internal fun configFor(account: ProviderAccount?): AzureAccountConfig =
+            azureAccountConfig(
                 subscriptionId = account?.extra(ProviderAccount.EXTRA_AZURE_SUBSCRIPTION),
                 resourceName = account?.extra(ProviderAccount.EXTRA_AZURE_RESOURCE),
                 endpoint = account?.extra(ProviderAccount.EXTRA_AZURE_ENDPOINT),
                 location = account?.extra(ProviderAccount.EXTRA_AZURE_LOCATION),
                 deploymentNames = account?.extra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS),
             )
-        }
 
         internal fun ocrDeploymentForAccount(accountId: String): String? {
             val stored = runCatching {

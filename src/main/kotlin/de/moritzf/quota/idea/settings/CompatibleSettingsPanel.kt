@@ -13,7 +13,6 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.UIUtil
 import de.moritzf.quota.compatible.CompatibleEndpoint
-import de.moritzf.quota.compatible.CompatibleMediaClient
 import de.moritzf.quota.compatible.proxy.CompatibleSubscriptionProxyProvider
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.compatible.CompatibleApiKeyStore
@@ -56,14 +55,12 @@ internal class CompatibleSettingsPanel(
     val documentModel = DocumentModelCombo(DocumentModels.OFF, vision = true)
     val visionTest =
         VisionTestButton(
-            de.moritzf.quota.idea.mcp.VisionProvider.OPENAI_COMPATIBLE,
             visionModel,
             { this },
             prepare = ::prepareVisionTest,
         )
     val documentTest =
         DocumentTestButton(
-            de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.OPENAI_COMPATIBLE,
             { documentModel.selected().orEmpty() },
             { this },
             documentModel.combo,
@@ -373,21 +370,27 @@ internal class CompatibleSettingsPanel(
                 documentModel = documentModel.storedValue(),
             )
 
-    internal fun prepareVisionTest(model: String): VisionTestExecution {
-        val client =
-            CompatibleMediaClient(draftEndpoint(), currentKey() ?: error("Enter an API key."))
-        return { image, prompt -> client.vision(model, prompt, image) }
-    }
+    override fun testConnection(): ProviderTestConnection =
+        ProviderTestConnection(
+            checkNotNull(boundAccount).snapshot().also(::writeTo),
+            if (apiKeyField.isEnabled) currentKey().orEmpty() else null,
+        )
 
-    internal fun prepareDocumentTest(model: String): DocumentTestExecution {
-        val client =
-            CompatibleMediaClient(draftEndpoint(), currentKey() ?: error("Enter an API key."))
-        return { pdf, output, _ ->
-            de.moritzf.quota.idea.action
-                .checkConversionResult(client.document(model, pdf, output), output)
-                .warnings
-        }
-    }
+    internal fun prepareVisionTest(model: String): VisionTestExecution =
+        prepareVisionTest(
+            de.moritzf.quota.idea.mcp.VisionProvider.entries.first {
+                it.providerType == boundAccount?.providerType()
+            },
+            model,
+        )
+
+    internal fun prepareDocumentTest(model: String): DocumentTestExecution =
+        prepareDocumentTest(
+            de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.entries.first {
+                it.providerType == boundAccount?.providerType()
+            },
+            model,
+        )
 
     private fun checkBudget() {
         val endpoint = draftEndpoint()

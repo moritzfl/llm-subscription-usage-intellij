@@ -174,7 +174,7 @@ internal class KimiSettingsPanel(
                             "Kimi coding models with image input. Used by subscription_vision; '-' keeps vision off."
                         )
                     cell(
-                        VisionTestButton(
+                        visionTestButton(
                             de.moritzf.quota.idea.mcp.VisionProvider.KIMI,
                             visionModelCombo,
                             modalityComponentProvider,

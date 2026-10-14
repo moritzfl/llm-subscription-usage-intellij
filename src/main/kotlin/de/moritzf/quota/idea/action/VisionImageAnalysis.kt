@@ -10,6 +10,7 @@ import de.moritzf.quota.idea.mistral.MistralApiKeyStore
 import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
 import de.moritzf.quota.idea.settings.AccountCapability
 import de.moritzf.quota.idea.settings.AccountResolver
+import de.moritzf.quota.idea.settings.ProviderTestConnection
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.settings.VisionModelSelection
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
@@ -45,12 +46,15 @@ internal object VisionImageAnalysis {
         prompt: String,
         model: String = "",
         accountId: String? = null,
+        connection: ProviderTestConnection? = null,
     ): String {
         val type = provider.providerType
+        require(connection == null || connection.account.providerType() == type)
         val account =
-            if (type.isCompatibleConnection())
-                de.moritzf.quota.idea.compatible.compatibleAccount(type, accountId)
-            else AccountResolver.resolve(type, capability = AccountCapability.VISION)
+            connection?.account
+                ?: if (type.isCompatibleConnection())
+                    de.moritzf.quota.idea.compatible.compatibleAccount(type, accountId)
+                else AccountResolver.resolve(type, accountId, capability = AccountCapability.VISION)
         val chosen = VisionModelSelection.forAccount(type, account.id, model)
         if (chosen == DocumentModels.OFF) {
             error("Vision is off. Pick a vision model in settings.")
@@ -59,11 +63,17 @@ internal object VisionImageAnalysis {
         return when (provider) {
             VisionProvider.OPENAI_COMPATIBLE,
             VisionProvider.LITELLM ->
-                de.moritzf.quota.idea.compatible
-                    .compatibleMediaClient(account)
+                (connection?.compatibleClient()
+                        ?: de.moritzf.quota.idea.compatible.compatibleMediaClient(account))
                     .vision(chosen, trimmedPrompt, image)
             VisionProvider.AZURE ->
-                NativeDocumentConversion.azureVision(account.id, chosen, image, trimmedPrompt)
+                NativeDocumentConversion.azureVision(
+                    account.id,
+                    chosen,
+                    image,
+                    trimmedPrompt,
+                    connection?.account,
+                )
             VisionProvider.OPEN_AI -> {
                 val auth = QuotaAuthService.getInstance()
                 val client =
@@ -104,24 +114,27 @@ internal object VisionImageAnalysis {
 
             VisionProvider.MISTRAL -> {
                 val key =
-                    MistralApiKeyStore.forAccount(account.id).loadBlocking()
-                        ?: error("Mistral API key missing.")
+                    (connection?.apiKeyOverride
+                            ?: MistralApiKeyStore.forAccount(account.id).loadBlocking())
+                        ?.takeIf(String::isNotBlank) ?: error("Mistral API key missing.")
                 MistralVisionClient.createDefault()
                     .ask(key, localFile = image, prompt = trimmedPrompt, model = chosen)
             }
 
             VisionProvider.ZAI -> {
                 val key =
-                    ZaiApiKeyStore.forAccount(account.id).loadBlocking()
-                        ?: error("Z.ai API key missing.")
+                    (connection?.apiKeyOverride
+                            ?: ZaiApiKeyStore.forAccount(account.id).loadBlocking())
+                        ?.takeIf(String::isNotBlank) ?: error("Z.ai API key missing.")
                 ZaiVisionClient.createDefault()
                     .ask(key, localFile = image, prompt = trimmedPrompt, model = chosen)
             }
 
             VisionProvider.OLLAMA -> {
                 val key =
-                    OllamaApiKeyStore.forAccount(account.id).loadBlocking()
-                        ?: error("Ollama API key missing.")
+                    (connection?.apiKeyOverride
+                            ?: OllamaApiKeyStore.forAccount(account.id).loadBlocking())
+                        ?.takeIf(String::isNotBlank) ?: error("Ollama API key missing.")
                 OllamaVisionClient.createDefault()
                     .ask(key, localFile = image, prompt = trimmedPrompt, model = chosen)
             }
@@ -138,10 +151,22 @@ internal object VisionImageAnalysis {
             }
 
             VisionProvider.GITHUB ->
-                NativeDocumentConversion.githubVision(account.id, chosen, image, trimmedPrompt)
+                NativeDocumentConversion.githubVision(
+                    account.id,
+                    chosen,
+                    image,
+                    trimmedPrompt,
+                    connection?.account,
+                )
 
             VisionProvider.OPEN_CODE ->
-                NativeDocumentConversion.openCodeVision(account.id, chosen, image, trimmedPrompt)
+                NativeDocumentConversion.openCodeVision(
+                    account.id,
+                    chosen,
+                    image,
+                    trimmedPrompt,
+                    connection?.account,
+                )
         }
     }
 

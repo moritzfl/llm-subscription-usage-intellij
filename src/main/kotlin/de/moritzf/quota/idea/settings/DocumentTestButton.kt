@@ -11,8 +11,6 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
-import de.moritzf.quota.idea.action.PdfDocumentConversion
-import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.shared.HelloPdf
@@ -32,23 +30,10 @@ import javax.swing.ScrollPaneConstants
 
 /** Runs the selected document model against a one-page PDF created by PDFBox. */
 internal class DocumentTestButton(
-    private val provider: DocumentToMarkdownProvider,
     private val selectedModel: () -> String,
     private val modality: () -> JComponent?,
     watch: JComboBox<*>? = null,
-    private val prepare: (String) -> DocumentTestExecution = { model ->
-        { pdf, output, progress ->
-            PdfDocumentConversion.convert(
-                    provider,
-                    pdf,
-                    output,
-                    false,
-                    progress = progress,
-                    model = model,
-                )
-                .warnings
-        }
-    },
+    private val prepare: (String) -> DocumentTestExecution,
 ) : JButton("Test document") {
     init {
         toolTipText = "Convert a one-page hello PDF with the selected model"

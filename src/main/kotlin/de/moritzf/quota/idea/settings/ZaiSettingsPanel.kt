@@ -48,7 +48,7 @@ internal class ZaiSettingsPanel(
                     .resizableColumn()
                     .comment(DocumentModels.OFF_COMMENT)
                 cell(
-                    DocumentTestButton(
+                    documentTestButton(
                         de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.ZAI,
                         { documentModelCombo.selected().orEmpty() },
                         modalityComponentProvider,
@@ -64,7 +64,7 @@ internal class ZaiSettingsPanel(
                         "GLM vision chat models. Used by subscription_vision; '-' keeps vision off."
                     )
                 cell(
-                    VisionTestButton(
+                    visionTestButton(
                         de.moritzf.quota.idea.mcp.VisionProvider.ZAI,
                         visionModelCombo,
                         modalityComponentProvider,
@@ -100,6 +100,12 @@ internal class ZaiSettingsPanel(
         updateStatus()
         refreshDocumentModels()
     }
+
+    override fun testConnection(): ProviderTestConnection =
+        ProviderTestConnection(
+            checkNotNull(boundAccount),
+            String(apiKeyField.password).takeUnless { it == API_KEY_PLACEHOLDER },
+        )
 
     fun documentModelForStorage(): String? = documentModelCombo.storedValue()
 

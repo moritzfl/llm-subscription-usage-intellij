@@ -54,6 +54,67 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
         routingHost.repaint()
     }
 
+    open fun testConnection(): ProviderTestConnection =
+        ProviderTestConnection(checkNotNull(boundAccount) { "Select an account to test." })
+
+    protected fun documentTestButton(
+        provider: de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider,
+        selectedModel: () -> String,
+        modality: () -> JComponent?,
+        watch: javax.swing.JComboBox<*>,
+    ): DocumentTestButton =
+        DocumentTestButton(selectedModel, modality, watch) { model ->
+            prepareDocumentTest(provider, model)
+        }
+
+    protected fun visionTestButton(
+        provider: de.moritzf.quota.idea.mcp.VisionProvider,
+        combo: VisionModelCombo,
+        modality: () -> JComponent?,
+    ): VisionTestButton =
+        VisionTestButton(combo, modality) { model -> prepareVisionTest(provider, model) }
+
+    internal fun prepareDocumentTest(
+        provider: de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider,
+        model: String,
+    ): DocumentTestExecution {
+        val connection = testConnection()
+        require(model.isNotBlank() && model != de.moritzf.quota.shared.DocumentModels.OFF) {
+            "Select a document model to test."
+        }
+        return { pdf, output, progress ->
+            de.moritzf.quota.idea.action.PdfDocumentConversion.convert(
+                    provider,
+                    pdf,
+                    output,
+                    false,
+                    progress = progress,
+                    model = model,
+                    connection = connection,
+                )
+                .warnings
+        }
+    }
+
+    internal fun prepareVisionTest(
+        provider: de.moritzf.quota.idea.mcp.VisionProvider,
+        model: String,
+    ): VisionTestExecution {
+        val connection = testConnection()
+        require(model.isNotBlank() && model != de.moritzf.quota.shared.DocumentModels.OFF) {
+            "Select a vision model to test."
+        }
+        return { image, prompt ->
+            de.moritzf.quota.idea.action.VisionImageAnalysis.analyze(
+                provider,
+                image,
+                prompt,
+                model,
+                connection = connection,
+            )
+        }
+    }
+
     protected fun install(config: JComponent, response: JComponent) {
         // The form can be wider than the detail pane. Scroll instead of clipping the right edge.
         val formScroll =
