@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- Add named OpenAI-compatible API connections for Junie, AI Chat, and chat-adapted code completion, with independent endpoints and API keys in Password Safe.
+- Discover models automatically or enter manual IDs; validate URLs and test a model before Apply. Cancel discards connection edits.
+- Keep custom endpoint model namespaces separate and leave unknown capabilities and prices unclaimed; quota tracking is unavailable for generic APIs.
+- Add opt-in image and native-PDF models with tests against unsaved connection values, MCP tools, and proxy multimodal input.
+- Add LiteLLM gateways using the shared API transport, with model capability/pricing discovery, Responses support, and virtual-key budget tracking.
+
 ## [1.21.1] - 2026-10-14
 
 - Allow Claude models from GitHub Copilot and OpenCode to provide inline code completion through their existing chat adapters.

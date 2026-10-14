@@ -49,6 +49,8 @@ Track and use your LLM subscriptions directly in IntelliJ IDEA.
 | Kimi | Device code | ✓ | ✓ | — | — | — | — | ✓ | ✓ | (✓) |
 | Antigravity (Gemini / Claude / GPT) | AGY CLI login | ✓ | — | — | — | — | — | — | — | — |
 | Azure OpenAI / Foundry | Azure CLI login | ✓ | — | — | — | — | ✓ | ✓ | ✓ | (✓) |
+| OpenAI-compatible API | Base URL + API key | — | — | — | — | — | (✓) | ✓ | ✓ | (✓) |
+| LiteLLM gateway | Base URL + virtual key | ✓ | — | — | — | — | (✓) | ✓ | ✓ | (✓) |
 
 Availability depends on your account and selected model. Search, media, documents, and vision are exposed through MCP.
 
@@ -128,13 +130,27 @@ IntelliJ's MCP server may change ports after a restart. Enable **Sync IntelliJ M
 
 ## OpenAI-compatible proxy
 
-Use your subscriptions in clients that support OpenAI-compatible or LiteLLM servers, including JetBrains AI Chat and Junie.
+Use your subscriptions or API-key connections in clients that support OpenAI-compatible or LiteLLM servers, including JetBrains AI Chat and Junie.
 
 1. Open the **Proxy** tab in the plugin settings, check **Enable local subscription proxy**, choose providers, and apply.
 2. Use **Copy Base URL** and **Copy API Key** to configure your client. Use the URL **without `/v1`**.
 3. For Junie, add a LiteLLM provider with those details; models are discovered automatically.
 
 The proxy serves `/v1/chat/completions`, `/v1/responses` where supported, `/v1/completions` for FIM, `/v1/models`, and LiteLLM-style `/v1/model/info`. Image generation, speech, and transcription routes use the same base URL and provider-prefixed model IDs.
+
+### Connect another API
+
+1. Add an **OpenAI-compatible** or **LiteLLM** account and name the connection.
+2. Enter the API base URL (including `/v1` if required) and API key. Models load automatically; use **Refresh models** to retry.
+3. Select a model and click **Test model** to send a short chat request with your unsaved settings. If discovery is unavailable, expand **Model IDs (optional)** and enter one ID per line. A manual list replaces discovery.
+4. Optionally select separate **Vision** and **Document** models and use their test buttons. Both start off (`-`); document conversion requires native PDF input.
+5. **Apply**, then enable the provider on the **Proxy** tab. Use the existing proxy setup for Junie, AI Chat, and completion.
+
+Keys are saved in Password Safe on Apply; Cancel discards edits. Each endpoint gets stable model IDs (`api-<account-id>/<model-id>`), keeping overlapping catalogs separate. Chat, streaming, tool calls, images, and native PDF parts pass through; completion uses the chat adapter. Selected vision/PDF capabilities are advertised. Other unknown capabilities and prices stay unset. Generic APIs have no quota tracking.
+
+**LiteLLM** adds Responses support, declared capabilities/prices from `/model/info`, and virtual-key spend/budgets from `/key/info`. Management permissions are optional for chat. Budgets describe the key only; team/user limits may also apply. **Check key budget** works before Apply.
+
+MCP vision/document calls use upstream model IDs. With multiple connections of one type, pass `account=` with the connection name or ID. The PDF action lists connections individually.
 
 ### Inline code completion (FIM)
 
@@ -179,5 +195,7 @@ Use JDK 21 and the Gradle wrapper. Kotlin sources and Gradle Kotlin scripts use 
 ```
 
 CI runs `ktfmtCheck` and the test suite.
+
+Standalone custom API: use `--provider=openai-compatible` with `COMPATIBLE_PROXY_BASE_URL`, `COMPATIBLE_PROXY_API_KEY`, and optional comma-separated `COMPATIBLE_PROXY_MODELS`. LiteLLM uses `--provider=litellm` and `LITELLM_PROXY_*`. Both accept optional `*_PROXY_VISION_MODEL` and `*_PROXY_DOCUMENT_MODEL` selections.
 
 The proxy builds on the initial design of [AIProxyOauth](https://github.com/skanga/AIProxyOauth), adapted to Kotlin and extended for multiple providers and clients.
