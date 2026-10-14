@@ -72,6 +72,8 @@ internal data class StandaloneSubscriptionOptions(
     val providers: Set<String> =
         setOf(
             "openai",
+            "openai-compatible",
+            "litellm",
             "supergrok",
             "github",
             "kimi",
@@ -209,6 +211,30 @@ private fun createProviders(
     options: StandaloneSubscriptionOptions,
 ): List<SubscriptionProxyProvider> {
     val providers = mutableListOf<SubscriptionProxyProvider>()
+    for ((type, prefix) in mapOf("openai-compatible" to "COMPATIBLE", "litellm" to "LITELLM")) {
+        if (type !in selected) continue
+        val baseUrl = env.value("${prefix}_PROXY_BASE_URL")
+        if (!baseUrl.isNullOrBlank()) {
+            providers +=
+                de.moritzf.quota.compatible.proxy.CompatibleSubscriptionProxyProvider(
+                    accountId = "standalone-$type",
+                    name = if (type == "litellm") "LiteLLM" else "Custom API",
+                    endpoint =
+                        de.moritzf.quota.compatible.CompatibleEndpoint.parse(
+                                baseUrl,
+                                env.value("${prefix}_PROXY_MODELS").orEmpty(),
+                            )
+                            .copy(
+                                liteLlm = type == "litellm",
+                                visionModel = env.value("${prefix}_PROXY_VISION_MODEL"),
+                                documentModel = env.value("${prefix}_PROXY_DOCUMENT_MODEL"),
+                            ),
+                    apiKeyProvider = { env.value("${prefix}_PROXY_API_KEY") },
+                    fullRequestLogging = options.logRequests,
+                    requestLogDir = options.requestLogDir,
+                )
+        }
+    }
     if ("openai" in selected) {
         providers +=
             OpenAiCodexSubscriptionProxyProvider(
