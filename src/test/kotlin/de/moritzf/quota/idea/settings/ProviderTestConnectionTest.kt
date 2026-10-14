@@ -14,12 +14,63 @@ import javax.swing.SwingUtilities
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 
 class ProviderTestConnectionTest {
+    @Test
+    fun completionDraftSelectionSurvivesModelRefreshAndWorksWhileProxyIsOff() = onEdt {
+        val app =
+            com.intellij.openapi.application.ApplicationManager.getApplication() as MockApplication
+        val settings = QuotaSettingsState.getInstance()
+        val keyStore = de.moritzf.quota.idea.openai.OpenAiProxyApiKeyStore()
+        val proxy =
+            de.moritzf.quota.idea.openai.OpenAiProxyService(
+                apiKeyStore = keyStore,
+                executor = java.util.concurrent.Executor { error("Must not start proxy") },
+            )
+        app.registerService(de.moritzf.quota.idea.openai.OpenAiProxyService::class.java, proxy)
+        val panel =
+            SubscriptionProxySettingsPanel(
+                testSettingsProvider = { ProxyTestSettings(settings.state) }
+            )
+        val models =
+            listOf(
+                de.moritzf.proxy.subscription.SubscriptionProxyModel(
+                    "draft-model",
+                    "draft-model",
+                    "openai-compatible",
+                    "Draft",
+                    "openai",
+                    setOf(de.moritzf.proxy.subscription.SubscriptionProxyRoute.CHAT_COMPLETIONS),
+                )
+            )
+        val combo = descendants(panel).filterIsInstance<javax.swing.JComboBox<*>>().single()
+        panel.refreshCompletionsModelCombo(models)
+        combo.selectedItem = "draft-model"
+        assertTrue(
+            descendants(panel)
+                .filterIsInstance<javax.swing.JButton>()
+                .single { it.text == "Test AI Completion" }
+                .isEnabled
+        )
+        assertFalse(panel.proxyEnabledCheckBox.isSelected)
+        assertEquals("draft-model", panel.captureTestSettings().settings.proxyCompletionsModelId)
+        combo.selectedItem = "-"
+        panel.refreshCompletionsModelCombo(models)
+        assertEquals("-", combo.selectedItem)
+        assertFalse(panel.captureTestSettings().settings.proxyCompletionsEnabled)
+        proxy.dispose()
+    }
+
+    private fun descendants(component: Container): List<java.awt.Component> =
+        component.components.flatMap {
+            listOf(it) + if (it is Container) descendants(it) else emptyList()
+        }
+
     @Test
     fun providerMediaTestsCaptureUnsavedKeysAndNeverFallBackWhenDraftKeyIsCleared() = onEdt {
         val panels =

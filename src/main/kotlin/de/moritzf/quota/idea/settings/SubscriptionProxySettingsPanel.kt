@@ -5,7 +5,6 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
-import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.popup.ListSeparator
 import com.intellij.ui.AnimatedIcon
 import com.intellij.ui.GroupedComboBoxRenderer
@@ -55,7 +54,10 @@ import javax.swing.event.DocumentListener
 import javax.swing.text.JTextComponent
 
 internal class SubscriptionProxySettingsPanel(
-    private val modalityComponentProvider: () -> JComponent? = { null }
+    private val testSettingsProvider: () -> ProxyTestSettings = {
+        ProxyTestSettings(QuotaSettingsState.getInstance().state)
+    },
+    private val modalityComponentProvider: () -> JComponent? = { null },
 ) : BorderLayoutPanel() {
     val proxyEnabledCheckBox = JBCheckBox("Enable local subscription proxy")
     val proxyLogRequestsCheckBox = JBCheckBox("Log requests and responses to disk")
@@ -66,6 +68,8 @@ internal class SubscriptionProxySettingsPanel(
             provider ->
             JBCheckBox(provider.displayName)
         }
+    private val initializedProviderSelections = mutableSetOf<QuotaProviderType>()
+    private var configuredProviderTypes: Set<QuotaProviderType> = emptySet()
     private val proxyPortField =
         JBTextField().apply {
             columns = 6
@@ -143,7 +147,7 @@ internal class SubscriptionProxySettingsPanel(
         }
     private val testFimButton =
         JButton("Test AI Completion").apply {
-            toolTipText = "Send a sample editor suggestion through the proxy"
+            toolTipText = "Test the current model and completion options without applying settings"
         }
     private val completionsHelpLabel =
         JBLabel(
@@ -180,7 +184,6 @@ internal class SubscriptionProxySettingsPanel(
     private val proxyStatusRefreshTimer =
         Timer(PROXY_STATUS_REFRESH_MILLIS) { refreshProxyRunStatus() }.apply { isRepeats = true }
     private val copiedFeedbackTimers = HashMap<JButton, Timer>()
-    private var pendingCompletionsModelId: String = ""
     private var savedProxyApiKey: String? = null
     private var proxyApiKeyLoading = false
     private var proxyApiKeyLoadError: String? = null
@@ -426,11 +429,17 @@ internal class SubscriptionProxySettingsPanel(
                 .toString()
         // The model picker's "-" entry is the FIM on/off switch, so a stored model is only shown
         // while FIM is on.
-        pendingCompletionsModelId =
+        val selected =
             if (settings.proxyCompletionsEnabled) settings.proxyCompletionsModelId.trim() else ""
+        completionsModelCombo.model =
+            DefaultComboBoxModel(
+                (listOf(COMPLETIONS_OFF) + listOfNotNull(selected.takeIf { it.isNotBlank() }))
+                    .toTypedArray()
+            )
+        completionsModelCombo.selectedItem = selected.ifBlank { COMPLETIONS_OFF }
         proxyPortField.text = OpenAiProxyService.sanitizePort(settings.openAiProxyPort).toString()
         loadProxyApiKeyField()
-        updateProviderControls()
+        updateProviderControls(resetSelections = true)
         refreshModelPreviewAsync()
         updateProxyStatus()
     }
@@ -439,7 +448,7 @@ internal class SubscriptionProxySettingsPanel(
         proxyPortField.text =
             OpenAiProxyService.sanitizePort(QuotaSettingsState.getInstance().openAiProxyPort)
                 .toString()
-        updateProviderControls()
+        updateProviderControls(resetSelections = true)
         updateProxyApiKeyHint()
         updateProxyStatus()
         refreshModelPreviewAsync()
@@ -500,7 +509,6 @@ internal class SubscriptionProxySettingsPanel(
         state.proxyCompletionsMaxRequestsPerMinute = completionsMaxRequestsPerMinute()
         state.proxyCompletionsTimeoutSeconds = completionsTimeoutSeconds()
         state.proxyCompletionsPriorityTier = completionsPriorityCheckBox.isSelected
-        pendingCompletionsModelId = state.proxyCompletionsModelId
     }
 
     fun applyProviderSelections(state: QuotaSettingsState) {
@@ -516,18 +524,25 @@ internal class SubscriptionProxySettingsPanel(
         return parsed.takeIf { it in 1..65535 }
     }
 
-    private fun updateProviderControls() {
-        val proxyControlsEnabled = proxyEnabledCheckBox.isSelected
+    private fun updateProviderControls(resetSelections: Boolean = false) {
         val state = QuotaSettingsState.getInstance()
+        configuredProviderTypes =
+            testSettingsProvider().settings.accounts.mapNotNull { it.providerType() }.toSet()
         providerCheckBoxes.forEach { (provider, checkBox) ->
             val configured = isProviderConfigured(provider)
-            checkBox.isEnabled = proxyControlsEnabled && configured
-            checkBox.isSelected = configured && state.isSubscriptionProxyProviderEnabled(provider)
+            checkBox.isEnabled = configured
+            if (!configured) {
+                checkBox.isSelected = false
+                initializedProviderSelections.remove(provider)
+            } else if (resetSelections || initializedProviderSelections.add(provider)) {
+                checkBox.isSelected = state.isSubscriptionProxyProviderEnabled(provider)
+                initializedProviderSelections.add(provider)
+            }
             checkBox.toolTipText =
                 if (configured) {
                     "Expose ${provider.displayName} models through the local proxy"
                 } else {
-                    "Configure ${provider.displayName} credentials before enabling this provider"
+                    "Add a ${provider.displayName} account to enable this provider"
                 }
         }
         updateProviderStatus()
@@ -541,9 +556,9 @@ internal class SubscriptionProxySettingsPanel(
                 selected.isNotEmpty() && unconfigured.isEmpty() ->
                     "Selected providers: ${selected.joinToString { it.displayName }}"
                 selected.isNotEmpty() ->
-                    "Selected providers: ${selected.joinToString { it.displayName }}. Log in to enable: ${unconfigured.joinToString { it.displayName }}."
+                    "Selected providers: ${selected.joinToString { it.displayName }}. Add accounts to enable: ${unconfigured.joinToString { it.displayName }}."
                 unconfigured.size == providerCheckBoxes.size ->
-                    "No providers are configured yet. Log in or add provider API keys first."
+                    "No provider accounts yet. Add an account first."
                 else ->
                     "Select at least one configured provider. Not configured: ${unconfigured.joinToString { it.displayName }}."
             }
@@ -553,11 +568,10 @@ internal class SubscriptionProxySettingsPanel(
     }
 
     private fun isProviderConfigured(provider: QuotaProviderType): Boolean {
-        return de.moritzf.quota.idea.common.ProviderCatalog.get(provider)
-            .isProxyConfigured(::refreshAfterCredentialsLoad)
+        return provider in configuredProviderTypes
     }
 
-    private fun refreshAfterCredentialsLoad() {
+    fun refreshDraftConnections() {
         updateProviderControls()
         updateProxyStatus()
         refreshModelPreviewAsync()
@@ -574,8 +588,8 @@ internal class SubscriptionProxySettingsPanel(
         proxyLogRequestsCheckBox.isEnabled = enabled
         showLogsButton.isEnabled =
             enabled || Files.isDirectory(OpenAiProxyService.getInstance().requestLogDir())
-        val completionsEnabled = enabled && selectedCompletionsModelId().isNotBlank()
-        completionsModelCombo.isEnabled = enabled
+        val completionsEnabled = selectedCompletionsModelId().isNotBlank()
+        completionsModelCombo.isEnabled = true
         fimIdeModelIdField.isEnabled = completionsEnabled
         completionsMaxTokensField.isEnabled = completionsEnabled
         completionsRpmField.isEnabled = completionsEnabled
@@ -644,9 +658,12 @@ internal class SubscriptionProxySettingsPanel(
 
     private fun refreshModelPreviewAsync() {
         val generation = modelPreviewGeneration.incrementAndGet()
+        val draft = captureTestSettings()
         modelPreview.text = "Loading advertised models..."
         ApplicationManager.getApplication().executeOnPooledThread {
-            val result = runCatching { OpenAiProxyService.getInstance().advertisedModelsSnapshot() }
+            val result = runCatching {
+                de.moritzf.proxy.subscription.SubscriptionModelCatalog(draft.providers()).models
+            }
             ApplicationManager.getApplication()
                 .invokeLater(
                     {
@@ -802,7 +819,7 @@ internal class SubscriptionProxySettingsPanel(
         return CompletionsConfig.clampTimeoutSeconds(parsed)
     }
 
-    private fun refreshCompletionsModelCombo(models: List<SubscriptionProxyModel>) {
+    internal fun refreshCompletionsModelCombo(models: List<SubscriptionProxyModel>) {
         completionsModelLabels =
             models
                 .filter {
@@ -814,7 +831,7 @@ internal class SubscriptionProxySettingsPanel(
         val native = eligible.filter(FimModels::isNativeFimId).map { it.localId }.distinct()
         val generic = eligible.filterNot(FimModels::isNativeFimId).map { it.localId }.distinct()
         nativeCompletionsModelIds = native.toSet()
-        val selected = selectedCompletionsModelId().ifBlank { pendingCompletionsModelId }
+        val selected = selectedCompletionsModelId()
         val kept = selected.takeIf { it.isNotBlank() && it !in native && it !in generic }
         val choices = listOf(COMPLETIONS_OFF) + native + generic + listOfNotNull(kept)
         completionsGroupHeaders = buildMap {
@@ -830,47 +847,19 @@ internal class SubscriptionProxySettingsPanel(
         }
         val target = selected.takeIf { it.isNotBlank() && it in choices } ?: COMPLETIONS_OFF
         completionsModelCombo.selectedItem = target
-        pendingCompletionsModelId = selectedCompletionsModelId()
         updateFimModelWarning()
     }
 
     private fun testFim() {
-        if (
-            isCompletionsModified() ||
-                isProxyPortModified() ||
-                isProxyApiKeyModified() ||
-                isProxyLogRequestsModified() ||
-                isProviderSelectionModified() ||
-                proxyEnabledCheckBox.isSelected !=
-                    QuotaSettingsState.getInstance().openAiProxyEnabled
-        ) {
-            Messages.showErrorDialog(
-                this,
-                "Apply settings before testing AI Completion.",
-                "Test AI Completion",
-            )
-            return
-        }
-        val settings = QuotaSettingsState.getInstance()
-        if (!settings.proxyCompletionsEnabled || settings.proxyCompletionsModelId.isBlank()) {
-            Messages.showErrorDialog(
-                this,
-                "Enable AI Completion and select a model, then apply.",
-                "Test AI Completion",
-            )
-            return
-        }
-        val status = OpenAiProxyService.getInstance().status()
-        if (!status.running) {
-            Messages.showErrorDialog(this, "Proxy is not running.", "Test AI Completion")
-            return
-        }
-        val apiKey = proxyApiKey()
-        if (apiKey == null) {
-            Messages.showErrorDialog(this, "Local API key is missing.", "Test AI Completion")
-            return
-        }
-        FimTestDialog(this, status.baseUrl, apiKey).show()
+        FimTestDialog(this, ::captureTestSettings).show()
+    }
+
+    internal fun captureTestSettings(): ProxyTestSettings {
+        val draft = testSettingsProvider()
+        draft.settings.openAiProxyEnabled = proxyEnabledCheckBox.isSelected
+        applyProviderSelections(draft.settings)
+        applyCompletionsSettings(draft.settings)
+        return draft
     }
 
     private fun updateFimModelWarning() {
@@ -999,8 +988,7 @@ internal class SubscriptionProxySettingsPanel(
 
 private class FimTestDialog(
     parent: JComponent,
-    private val baseUrl: String,
-    private val apiKey: String,
+    private val prepare: () -> ProxyTestSettings,
 ) : DialogWrapper(parent, true) {
     private val task = TestDialogTask { isDisposed }
     private val statusIcon = JBLabel()
@@ -1054,7 +1042,15 @@ private class FimTestDialog(
 
     private fun start() {
         showRunning()
-        task.start(::runGeneration)
+        val draft =
+            try {
+                prepare()
+            } catch (failure: Exception) {
+                if (TestDialogTask.isCancellation(failure)) throw failure
+                showResult(CompletionsFimTestResult(false, "Test failed", detail = failure.message))
+                return
+            }
+        task.start { gen -> runGeneration(gen, draft) }
     }
 
     private fun abort() {
@@ -1062,8 +1058,14 @@ private class FimTestDialog(
         showAborted()
     }
 
-    private fun runGeneration(gen: Int) {
-        val result = CompletionsFimTester.test(baseUrl, apiKey)
+    private fun runGeneration(gen: Int, draft: ProxyTestSettings) {
+        val result =
+            try {
+                draft.testCompletion()
+            } catch (failure: Exception) {
+                if (TestDialogTask.isCancellation(failure)) throw failure
+                CompletionsFimTestResult(false, "Test failed", detail = failure.message)
+            }
         if (!isActive(gen) || Thread.currentThread().isInterrupted) return
         task.onEdt(gen) { showResult(result) }
     }

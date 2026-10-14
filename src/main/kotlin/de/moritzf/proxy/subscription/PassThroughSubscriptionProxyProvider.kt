@@ -9,8 +9,6 @@ import de.moritzf.proxy.usage.UsageJson
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
-import io.ktor.server.response.respondOutputStream
-import io.ktor.server.response.respondText
 import java.io.InputStream
 import java.net.URI
 import java.net.http.HttpClient
@@ -20,7 +18,7 @@ import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runInterruptible
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -104,7 +102,7 @@ class PassThroughSubscriptionProxyProvider(
             )
             return
         }
-        val upstream = withContext(Dispatchers.IO) { sendWithRefresh(ctx, request, token) }
+        val upstream = runInterruptible(Dispatchers.IO) { sendWithRefresh(ctx, request, token) }
         AccessLogFields.upstreamStatus(ctx, upstream.statusCode())
         if (upstream.statusCode() !in 200..<300) {
             upstreamErrorMapper.writeResponse(ctx, requestLogger, request.requestId, upstream)
@@ -211,7 +209,7 @@ class PassThroughSubscriptionProxyProvider(
         }
         copySelectedResponseHeaders(ctx, upstream)
         ctx.setStatus(upstream.statusCode())
-        ctx.call.respondOutputStream(
+        ctx.respondOutputStream(
             responseContentType(upstream),
             HttpStatusCode.fromValue(upstream.statusCode()),
         ) {
@@ -237,7 +235,7 @@ class PassThroughSubscriptionProxyProvider(
     ) {
         copySelectedResponseHeaders(ctx, upstream)
         ctx.setStatus(upstream.statusCode())
-        val raw = upstream.body().use(JsonHelper::readUtf8Body)
+        val raw = runInterruptible(Dispatchers.IO) { upstream.body().use(JsonHelper::readUtf8Body) }
         val transformed = transformer(request, raw)
         UsageJson.record(ctx, transformed)
         if (shouldEmitCompletionSse(request)) {
@@ -247,7 +245,7 @@ class PassThroughSubscriptionProxyProvider(
                 sse.toByteArray(StandardCharsets.UTF_8).size.toLong(),
             )
             JsonHelper.setSseHeaders(ctx)
-            ctx.call.respondText(
+            ctx.respondText(
                 sse,
                 ContentType.parse(JsonHelper.SSE_CONTENT_TYPE),
                 HttpStatusCode.fromValue(upstream.statusCode()),
@@ -257,7 +255,7 @@ class PassThroughSubscriptionProxyProvider(
                 ctx,
                 transformed.toByteArray(StandardCharsets.UTF_8).size.toLong(),
             )
-            ctx.call.respondText(
+            ctx.respondText(
                 transformed,
                 responseContentType(upstream),
                 HttpStatusCode.fromValue(upstream.statusCode()),
@@ -286,7 +284,7 @@ class PassThroughSubscriptionProxyProvider(
         JsonHelper.setSseHeaders(ctx)
         ctx.setStatus(upstream.statusCode())
         try {
-            ctx.call.respondOutputStream(
+            ctx.respondOutputStream(
                 responseContentType(upstream),
                 HttpStatusCode.fromValue(upstream.statusCode()),
             ) {

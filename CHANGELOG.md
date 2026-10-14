@@ -9,6 +9,7 @@
 - Add LiteLLM gateways using the shared API transport, with model capability/pricing discovery, Responses support, and virtual-key budget tracking.
 - Show a neutral indicator and connection details with local proxy status when only quota-less APIs are configured.
 - Run document and vision tests against the selected account and current unsaved models, keys, and connection settings.
+- Test AI Completion with unsaved settings through shared FIM/provider logic, without applying settings or starting a local proxy.
 
 ## [1.21.1] - 2026-10-14
 

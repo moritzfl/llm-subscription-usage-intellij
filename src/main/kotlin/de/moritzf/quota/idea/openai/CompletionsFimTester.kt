@@ -1,13 +1,23 @@
 package de.moritzf.quota.idea.openai
 
+import de.moritzf.proxy.fim.CompletionSanitizer
 import de.moritzf.proxy.fim.CompletionsConfig
+import de.moritzf.proxy.fim.CompletionsGuard
+import de.moritzf.proxy.fim.CompletionsRequest
+import de.moritzf.proxy.fim.FimModels
+import de.moritzf.proxy.fim.FimPromptParser
+import de.moritzf.proxy.fim.StreamingCompletionSanitizer
+import de.moritzf.proxy.server.BufferedProxyCall
+import de.moritzf.proxy.server.CompletionsHandler
 import de.moritzf.proxy.server.JsonHelper
-import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
-import java.nio.charset.StandardCharsets
-import java.time.Duration
+import de.moritzf.proxy.subscription.SubscriptionModelCatalog
+import de.moritzf.proxy.subscription.SubscriptionProxyRequest
+import de.moritzf.proxy.subscription.SubscriptionProxyRoute
+import java.util.UUID
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -28,46 +38,111 @@ object CompletionsFimTester {
     const val SAMPLE_SUFFIX = "\n}\n"
     const val SAMPLE_WITH_CURSOR = "fun add(a: Int, b: Int): Int {\n    return |\n}\n"
 
-    fun test(
-        baseUrl: String,
-        apiKey: String,
-        modelId: String = CompletionsConfig.FIM_ALIAS_ID,
-        timeout: Duration = Duration.ofSeconds(CompletionsConfig.DEFAULT_TIMEOUT_SECONDS.toLong()),
-        httpClient: HttpClient = CLIENT,
+    suspend fun test(
+        catalog: SubscriptionModelCatalog,
+        config: CompletionsConfig,
+    ): CompletionsFimTestResult =
+        try {
+            withTimeout(config.timeoutMillis) { execute(catalog, config) }
+        } catch (timeout: TimeoutCancellationException) {
+            currentCoroutineContext().ensureActive()
+            CompletionsFimTestResult(
+                false,
+                "Timed out",
+                detail = "The model did not finish within the configured completion timeout.",
+            )
+        }
+
+    private suspend fun execute(
+        catalog: SubscriptionModelCatalog,
+        config: CompletionsConfig,
     ): CompletionsFimTestResult {
-        val url = baseUrl.trimEnd('/') + "/v1/completions"
-        val body =
-            """{"model":${jsonString(modelId)},"prompt":${jsonString(SAMPLE_PROMPT)},"suffix":${jsonString(SAMPLE_SUFFIX)},"stream":false,"max_tokens":48}"""
-        val request =
-            HttpRequest.newBuilder(URI.create(url))
-                .timeout(timeout)
-                .header("Authorization", "Bearer $apiKey")
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
-                .build()
-        val started = System.nanoTime()
-        val response =
-            try {
-                httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-            } catch (exception: Exception) {
-                return CompletionsFimTestResult(
-                    ok = false,
-                    status = "Test failed",
-                    detail =
-                        "Request failed: ${exception.message ?: exception::class.java.simpleName}",
+        val model =
+            CompletionsHandler.resolveSelectedModel(catalog, config.modelLocalId)
+                ?: error(
+                    "Selected completion model is unavailable. Check the account and model settings."
                 )
+        require(FimModels.isEligible(model)) { "Selected model cannot be used for completions." }
+        val provider =
+            checkNotNull(catalog.providerFor(model)) {
+                "Configure the selected model's account first."
             }
+        val request =
+            CompletionsRequest(
+                model.localId,
+                SAMPLE_PROMPT,
+                SAMPLE_SUFFIX,
+                maxTokens = config.maxOutputTokens,
+            )
+        val fim =
+            CompletionsGuard.budget(
+                FimPromptParser.parse(request.prompt, request.suffix),
+                config.maxPromptChars,
+            )
+        val maxTokens = CompletionsGuard.clampMaxTokens(request.maxTokens, config)
+        val native = FimModels.isNativeFimId(model)
+        val route =
+            if (native) SubscriptionProxyRoute.COMPLETIONS
+            else SubscriptionProxyRoute.CHAT_COMPLETIONS
+        val body =
+            if (native) CompletionsHandler.nativeBody(model.localId, request, fim, maxTokens)
+            else
+                CompletionsHandler.chatBody(
+                    model.localId,
+                    request,
+                    fim,
+                    maxTokens,
+                    priorityTier = config.priorityTier && FimModels.supportsPriorityTier(model),
+                    reasoningEffort = FimModels.fimReasoningEffort(model),
+                )
+        val response = BufferedProxyCall(route.normalizedPath)
+        val started = System.nanoTime()
+        provider.handle(
+            response,
+            SubscriptionProxyRequest(route, UUID.randomUUID().toString(), model, body),
+        )
         val elapsedMs = (System.nanoTime() - started) / 1_000_000L
-        val raw = response.body()
-        if (response.statusCode() !in 200..<300) {
+        val raw = response.body
+        if (response.responseStatus() !in 200..<300) {
             return CompletionsFimTestResult(
                 ok = false,
-                status = "HTTP ${response.statusCode()}",
+                status = "HTTP ${response.responseStatus()}",
                 elapsedMs = elapsedMs,
                 detail = raw.take(2000).ifBlank { "Empty error body" },
             )
         }
-        return formatSuccess(completionText(raw), elapsedMs, raw)
+        val text =
+            if (native) completionText(raw)
+            else {
+                val sanitizer =
+                    StreamingCompletionSanitizer(
+                        fim.prefix,
+                        fim.suffix,
+                        CompletionSanitizer.effectiveStops(
+                            fim.prefix,
+                            request.stop,
+                            fim.languageHint,
+                        ),
+                        languageHint = fim.languageHint,
+                    )
+                if (
+                    response.contentType?.contains("text/event-stream", ignoreCase = true) == true
+                ) {
+                    buildString {
+                        for (line in raw.lineSequence()) {
+                            if (!line.startsWith("data:")) continue
+                            val data = line.substringAfter("data:").trim()
+                            if (data == "[DONE]") break
+                            CompletionsHandler.chatDeltaContent(data)?.let {
+                                append(sanitizer.push(it))
+                            }
+                        }
+                        append(sanitizer.finish())
+                    }
+                } else
+                    sanitizer.push(CompletionsHandler.chatMessageContent(raw)) + sanitizer.finish()
+            }
+        return formatSuccess(text, elapsedMs, raw)
     }
 
     internal fun formatSuccess(
@@ -116,14 +191,4 @@ object CompletionsFimTester {
         val text = choice["text"] as? JsonPrimitive
         return text?.contentOrNull
     }
-
-    private fun jsonString(value: String): String {
-        return JsonHelper.encodeToString(JsonPrimitive(value))
-    }
-
-    private val CLIENT: HttpClient =
-        HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5))
-            .version(HttpClient.Version.HTTP_1_1)
-            .build()
 }

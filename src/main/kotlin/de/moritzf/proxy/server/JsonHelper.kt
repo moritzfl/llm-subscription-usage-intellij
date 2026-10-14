@@ -5,7 +5,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.withCharset
-import io.ktor.server.response.respondText
 import java.io.InputStream
 import java.nio.charset.StandardCharsets
 import kotlinx.serialization.json.JsonElement
@@ -57,7 +56,7 @@ object JsonHelper {
                 ctx,
                 json.toByteArray(StandardCharsets.UTF_8).size.toLong(),
             )
-            ctx.call.respondText(
+            ctx.respondText(
                 json,
                 ContentType.Application.Json.withCharset(StandardCharsets.UTF_8),
                 HttpStatusCode.fromValue(status),
@@ -69,7 +68,7 @@ object JsonHelper {
                 ctx,
                 fallback.toByteArray(StandardCharsets.UTF_8).size.toLong(),
             )
-            ctx.call.respondText(
+            ctx.respondText(
                 fallback,
                 ContentType.Application.Json.withCharset(StandardCharsets.UTF_8),
                 HttpStatusCode.fromValue(status),
@@ -82,7 +81,7 @@ object JsonHelper {
         ctx.setStatus(status)
         val json = JSON.encodeToString(JsonElement.serializer(), body)
         AccessLogFields.responseBytes(ctx, json.toByteArray(StandardCharsets.UTF_8).size.toLong())
-        ctx.call.respondText(
+        ctx.respondText(
             json,
             ContentType.Application.Json.withCharset(StandardCharsets.UTF_8),
             HttpStatusCode.fromValue(status),

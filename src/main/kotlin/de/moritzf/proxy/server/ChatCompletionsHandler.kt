@@ -28,8 +28,6 @@ import de.moritzf.proxy.usage.UsageJson
 import de.moritzf.proxy.usage.UsageTracker
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
-import io.ktor.server.response.respondOutputStream
-import io.ktor.server.response.respondText
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
@@ -41,6 +39,7 @@ import java.util.HashSet
 import java.util.LinkedHashMap
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -272,7 +271,8 @@ class ChatCompletionsHandler {
         legacyFunctionCallProtocol: Boolean,
         requestBody: JsonObject,
     ) {
-        val completedResponse = collectCompletedResponse(upstreamBody)
+        val completedResponse =
+            runInterruptible(Dispatchers.IO) { collectCompletedResponse(upstreamBody) }
         val upstreamStatus = completedResponse.stringPath("status", "")
         if ("failed" == upstreamStatus || "cancelled" == upstreamStatus) {
             val errorMessage =
@@ -391,7 +391,7 @@ class ChatCompletionsHandler {
         val responseBody: String = JsonHelper.encodeToString(result.build())
         requestLogger.logClientResponse(requestId(ctx), 200, responseBody)
         ctx.setStatus(200)
-        ctx.call.respondText(responseBody, ContentType.Application.Json, HttpStatusCode.OK)
+        ctx.respondText(responseBody, ContentType.Application.Json, HttpStatusCode.OK)
         ctx.handled = true
     }
 
@@ -424,7 +424,7 @@ class ChatCompletionsHandler {
     ) {
         setSseHeaders(ctx)
         ctx.handled = true
-        ctx.call.respondOutputStream(
+        ctx.respondOutputStream(
             ContentType.parse(JsonHelper.SSE_CONTENT_TYPE),
             HttpStatusCode.OK,
         ) {

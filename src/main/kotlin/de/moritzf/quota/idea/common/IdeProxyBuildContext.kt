@@ -40,6 +40,7 @@ internal data class IdeProxyBuildContext(
     val authService: () -> QuotaAuthService = { QuotaAuthService.getInstance() },
     val openCodeAuth: () -> OpenCodeAuthService = { OpenCodeAuthService.getInstance() },
     val account: de.moritzf.quota.idea.settings.ProviderAccount? = null,
+    val apiKeyOverrides: Map<String, String> = emptyMap(),
 )
 
 internal object IdeProxyFactories {
@@ -55,19 +56,25 @@ internal object IdeProxyFactories {
                         java.net.URI("http://localhost")
                     ),
             apiKeyProvider = {
-                val store =
-                    de.moritzf.quota.idea.compatible.CompatibleApiKeyStore.forAccount(account.id)
-                // Password Safe can prompt on the EDT; never load it while holding settings.
-                store.loadBlocking()
-                synchronized(ctx.settings) {
-                    if (
-                        endpoint == null ||
-                            de.moritzf.quota.idea.compatible.compatibleEndpoint(
-                                ctx.settings.account(account.id)
-                            ) != endpoint
-                    )
-                        null
-                    else store.load()
+                if (account.id in ctx.apiKeyOverrides) {
+                    ctx.apiKeyOverrides[account.id]?.takeIf { endpoint != null && it.isNotBlank() }
+                } else {
+                    val store =
+                        de.moritzf.quota.idea.compatible.CompatibleApiKeyStore.forAccount(
+                            account.id
+                        )
+                    // Password Safe can prompt on the EDT; never load it while holding settings.
+                    store.loadBlocking()
+                    synchronized(ctx.settings) {
+                        if (
+                            endpoint == null ||
+                                de.moritzf.quota.idea.compatible.compatibleEndpoint(
+                                    ctx.settings.account(account.id)
+                                ) != endpoint
+                        )
+                            null
+                        else store.load()
+                    }
                 }
             },
             fullRequestLogging = ctx.logRequests,
@@ -121,8 +128,8 @@ internal object IdeProxyFactories {
                         ?: return@AzureSubscriptionProxyProvider null
                 AzureSubscriptionProxyProvider.AzureProxyConfig(
                     accountId = account.id,
-                    executable = AzureQuotaProvider.executableForAccount(account.id),
-                    account = AzureQuotaProvider.configForAccount(account.id),
+                    executable = AzureQuotaProvider.executableFor(account),
+                    account = AzureQuotaProvider.configFor(account),
                 )
             },
             accountKey =
@@ -189,7 +196,8 @@ internal object IdeProxyFactories {
         return MiniMaxSubscriptionProxyProvider(
             apiKeyProvider = {
                 resolvedAccount(ctx, QuotaProviderType.MINIMAX)?.let { account ->
-                    MiniMaxApiKeyStore.forAccount(account.id).loadBlocking()
+                    ctx.apiKeyOverrides[account.id]
+                        ?: MiniMaxApiKeyStore.forAccount(account.id).loadBlocking()
                 }
             },
             regionProvider = { region },
@@ -202,7 +210,8 @@ internal object IdeProxyFactories {
         return MistralSubscriptionProxyProvider(
             apiKeyProvider = {
                 resolvedAccount(ctx, QuotaProviderType.MISTRAL)?.let { account ->
-                    MistralApiKeyStore.forAccount(account.id).loadBlocking()
+                    ctx.apiKeyOverrides[account.id]
+                        ?: MistralApiKeyStore.forAccount(account.id).loadBlocking()
                 }
             },
             fullRequestLogging = ctx.logRequests,
@@ -214,7 +223,8 @@ internal object IdeProxyFactories {
         return OllamaSubscriptionProxyProvider(
             apiKeyProvider = {
                 resolvedAccount(ctx, QuotaProviderType.OLLAMA)?.let { account ->
-                    OllamaApiKeyStore.forAccount(account.id).loadBlocking()
+                    ctx.apiKeyOverrides[account.id]
+                        ?: OllamaApiKeyStore.forAccount(account.id).loadBlocking()
                 }
             },
             fullRequestLogging = ctx.logRequests,
@@ -253,7 +263,8 @@ internal object IdeProxyFactories {
         return ZaiSubscriptionProxyProvider(
             apiKeyProvider = {
                 resolvedAccount(ctx, QuotaProviderType.ZAI)?.let { account ->
-                    ZaiApiKeyStore.forAccount(account.id).loadBlocking()
+                    ctx.apiKeyOverrides[account.id]
+                        ?: ZaiApiKeyStore.forAccount(account.id).loadBlocking()
                 }
             },
             fullRequestLogging = ctx.logRequests,

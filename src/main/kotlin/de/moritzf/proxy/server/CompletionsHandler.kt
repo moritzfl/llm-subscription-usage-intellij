@@ -564,7 +564,7 @@ class CompletionsHandler(
             request: CompletionsRequest,
             fim: FimContext,
             maxTokens: Int,
-            temperature: Double,
+            temperature: Double = DEFAULT_TEMPERATURE,
             priorityTier: Boolean = false,
             reasoningEffort: String? = null,
         ): JsonObject {

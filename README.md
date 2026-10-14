@@ -144,7 +144,7 @@ The proxy serves `/v1/chat/completions`, `/v1/responses` where supported, `/v1/c
 2. Enter the API base URL (including `/v1` if required) and API key. Models load automatically; use **Refresh models** to retry.
 3. Select a model and click **Test model** to send a short chat request with your unsaved settings. If discovery is unavailable, expand **Model IDs (optional)** and enter one ID per line. A manual list replaces discovery.
 4. Optionally select separate **Vision** and **Document** models and use their test buttons. Both start off (`-`); document conversion requires native PDF input.
-5. **Apply**, then enable the provider on the **Proxy** tab. Use the existing proxy setup for Junie, AI Chat, and completion.
+5. Enable the provider on the **Proxy** tab, then **Apply**. Use the existing proxy setup for Junie, AI Chat, and completion.
 
 Keys are saved in Password Safe on Apply; Cancel discards edits. Each endpoint gets stable model IDs (`api-<account-id>/<model-id>`), keeping overlapping catalogs separate. Chat, streaming, tool calls, images, and native PDF parts pass through; completion uses the chat adapter. Selected vision/PDF capabilities are advertised. Other unknown capabilities and prices stay unset. Generic APIs have no quota tracking; API-only setups show a neutral indicator and connection details with local proxy status.
 
@@ -154,7 +154,9 @@ MCP vision/document calls use upstream model IDs. With multiple connections of o
 
 ### Inline code completion (FIM)
 
-**Every proxy-enabled provider supports inline code completion ("ghost text")**, including providers without native FIM models. Select a completion model on the Proxy tab, apply, and use **Test FIM** to try it; `-` turns completion off.
+**Every proxy-enabled provider supports inline code completion ("ghost text")**, including providers without native FIM models. Select a completion model on the Proxy tab and use **Test AI Completion** before Apply; `-` turns completion off.
+
+All model, document, vision, and completion tests use the current unsaved settings and call the provider directly. Apply saves the configuration for regular use.
 
 - **Native FIM (fill-in-the-middle):** the model directly generates missing code between the text before and after your cursor. Available with GitHub Copilot completion models, Mistral Codestral/FIM, and Ollama Cloud `deepseek-v4.1-flash`.
 - **Adapted via chat:** other eligible models, including Claude models available through Copilot or OpenCode, receive the code before and after the cursor as a chat request. Suggestions may take seconds and consume chat quota; quality varies by model.

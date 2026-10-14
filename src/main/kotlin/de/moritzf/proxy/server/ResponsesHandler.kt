@@ -12,7 +12,6 @@ import de.moritzf.proxy.usage.UsageJson
 import de.moritzf.proxy.usage.UsageTracker
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
-import io.ktor.server.response.respondOutputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.net.http.HttpResponse
@@ -119,7 +118,7 @@ class ResponsesHandler {
             JsonHelper.setSseHeaders(ctx)
             val recorder =
                 if (state != null) StreamingCompletionRecorder(ctx, state, expandedJson) else null
-            ctx.call.respondOutputStream(
+            ctx.respondOutputStream(
                 ContentType.parse(JsonHelper.SSE_CONTENT_TYPE),
                 HttpStatusCode.OK,
             ) {

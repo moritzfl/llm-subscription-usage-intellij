@@ -3,7 +3,9 @@ package de.moritzf.proxy.server
 import java.io.IOException
 import java.io.InputStream
 import java.net.http.HttpResponse
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.runInterruptible
 
 /**
  * Honors LiteLLM's `x-litellm-num-retries` request header by retrying the upstream call on failures
@@ -26,7 +28,7 @@ object UpstreamRetry {
         var attempt = 0
         while (true) {
             try {
-                val response = call.send()
+                val response = runInterruptible(Dispatchers.IO) { call.send() }
                 if (attempt >= retries || !isRetryableStatus(response.statusCode())) {
                     return response
                 }

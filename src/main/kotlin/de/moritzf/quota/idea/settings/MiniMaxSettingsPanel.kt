@@ -54,6 +54,17 @@ internal class MiniMaxSettingsPanel(
         updateStatus()
     }
 
+    override fun testConnection(): ProviderTestConnection =
+        ProviderTestConnection(
+            checkNotNull(boundAccount).snapshot().apply {
+                setExtra(
+                    ProviderAccount.EXTRA_MINIMAX_REGION,
+                    (regionComboBox.selectedItem as? MiniMaxRegionPreference)?.name,
+                )
+            },
+            String(apiKeyField.password).takeUnless { it == PLACEHOLDER },
+        )
+
     override fun updateStatus() {
         val store = MiniMaxApiKeyStore.forAccount(accountKey(QuotaProviderType.MINIMAX))
         val apiKey = store.load(onLoaded = ::refreshAfterKeyLoad)

@@ -4,7 +4,6 @@ import de.moritzf.proxy.logging.RequestLogger
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.withCharset
-import io.ktor.server.response.respondText
 import java.io.InputStream
 import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
@@ -49,7 +48,7 @@ class UpstreamErrorMapper {
                 ctx,
                 mapped.body.toByteArray(StandardCharsets.UTF_8).size.toLong(),
             )
-            ctx.call.respondText(
+            ctx.respondText(
                 mapped.body,
                 ContentType.Application.Json.withCharset(StandardCharsets.UTF_8),
                 HttpStatusCode.fromValue(mapped.statusCode),

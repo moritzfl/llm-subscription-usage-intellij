@@ -13,7 +13,6 @@ import de.moritzf.proxy.subscription.SubscriptionProxyRequest
 import de.moritzf.quota.github.GitHubQuotaException
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
-import io.ktor.server.response.respondOutputStream
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.URI
@@ -89,7 +88,7 @@ internal class GitHubCopilotCompletions(
                 JsonHelper.setSseHeaders(ctx)
                 ctx.setStatus(200)
                 ctx.handled = true
-                ctx.call.respondOutputStream(
+                ctx.respondOutputStream(
                     ContentType.parse(JsonHelper.SSE_CONTENT_TYPE),
                     HttpStatusCode.OK,
                 ) {

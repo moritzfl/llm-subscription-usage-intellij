@@ -71,6 +71,7 @@
 - Provider state is mostly map/list based in `QuotaSettingsState`; avoid adding per-provider fields unless persistence or migration requires them.
 - Quota cache writes use synchronized snapshot methods. Settings UI builds `QuotaSettingsDraft`; `SettingsApplyCoordinator` owns commit/follow-up actions and publishes one settings event.
 - Document, vision, and FIM test dialogs share `TestDialogTask` and `TestDialogUi`; queued UI results must be generation-checked.
+- Settings tests capture draft account, model, target, and keys on the EDT. Never require Apply or temporarily install drafts into application settings. Completion tests call shared provider/FIM logic directly, without a local proxy server.
 - Do not keep backwards-compat decode paths just to revive old cached quota snapshots. If the cache shape changes, drop unreadable entries and wait for the next live refresh.
 - Add changelog entries under `## [Unreleased]`. Do not edit released changelog sections unless explicitly requested.
 - Keep this file concise and update it when project-level agent guidance changes.

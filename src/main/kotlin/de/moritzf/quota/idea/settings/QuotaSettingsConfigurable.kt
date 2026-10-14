@@ -57,6 +57,7 @@ class QuotaSettingsConfigurable : Configurable {
     private var updatingDisplayModeChoices: Boolean = false
 
     private val providerPanelsByType = linkedMapOf<QuotaProviderType, ProviderSettingsPanel>()
+    private val testApiKeyDrafts = mutableMapOf<String, String>()
 
     private var locationComboBox: ComboBox<QuotaIndicatorLocation>? = null
     private var displayModeComboBox: ComboBox<QuotaDisplayMode>? = null
@@ -103,7 +104,10 @@ class QuotaSettingsConfigurable : Configurable {
         mcpSyncCheckBox = JBCheckBox("Sync IntelliJ MCP server URL to JSON/TOML/YAML files")
         mcpSyncTargetsPanel = McpServerSyncTargetsPanel(emptyList())
         mcpServerStatusLabel = JBLabel()
-        proxySettingsPanel = SubscriptionProxySettingsPanel { panel ?: rootComponent }
+        proxySettingsPanel =
+            SubscriptionProxySettingsPanel(testSettingsProvider = ::captureProxyTestSettings) {
+                panel ?: rootComponent
+            }
 
         locationComboBox!!.addActionListener {
             updateDisplayModeChoices()
@@ -214,6 +218,7 @@ class QuotaSettingsConfigurable : Configurable {
     }
 
     override fun reset() {
+        testApiKeyDrafts.clear()
         panel?.reset()
     }
 
@@ -224,6 +229,7 @@ class QuotaSettingsConfigurable : Configurable {
     }
 
     override fun disposeUIResources() {
+        testApiKeyDrafts.clear()
         compatiblePanels().forEach { it.dispose() }
         accountListPanel?.discardPending()
         connection?.disconnect()
@@ -496,6 +502,10 @@ class QuotaSettingsConfigurable : Configurable {
                 addTab("Subscription Usage", buildSubscriptionUsageTab())
                 addTab("MCP Synchronisation", buildMcpSyncTab())
                 addTab("Proxy", proxySettingsPanel!!)
+                addChangeListener {
+                    if (selectedComponent === proxySettingsPanel)
+                        proxySettingsPanel?.refreshDraftConnections()
+                }
             }
         compatiblePanels().forEach {
             it.openProxySettings = { tabs.selectedComponent = proxySettingsPanel }
@@ -781,6 +791,13 @@ class QuotaSettingsConfigurable : Configurable {
     }
 
     private fun persistAccountFields(account: ProviderAccount) {
+        providerPanelsByType[account.providerType()]
+            ?.takeIf { it.boundAccountId == account.id }
+            ?.let { panel ->
+                val key = panel.testConnection().apiKeyOverride
+                if (key == null) testApiKeyDrafts.remove(account.id)
+                else testApiKeyDrafts[account.id] = key
+            }
         account.hiddenFromPopup =
             providerPanelsByType[account.providerType()]?.popupVisibilityToggle?.isHidden == true
         when (account.providerType()) {
@@ -972,6 +989,16 @@ class QuotaSettingsConfigurable : Configurable {
                 kimiPanel().visionModelDiffers(persisted?.extra(ProviderAccount.EXTRA_VISION_MODEL))
             else -> false
         }
+    }
+
+    private fun captureProxyTestSettings(): ProxyTestSettings {
+        persistAccountRouting()
+        val draft = QuotaSettingsState.getInstance().state
+        draft.accounts =
+            (accountListPanel?.accounts() ?: draft.accounts).map { it.snapshot() }.toMutableList()
+        draft.syncLegacyAccountFields()
+        val ids = draft.accounts.map { it.id }.toSet()
+        return ProxyTestSettings(draft, testApiKeyDrafts.filterKeys { it in ids })
     }
 
     private fun compatiblePanels(): List<CompatibleSettingsPanel> =
