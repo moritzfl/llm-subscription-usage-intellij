@@ -80,7 +80,10 @@ class KimiSubscriptionProxyProviderTest {
                     val models = proxy.provider.models()
                     assertTrue(models.single { it.localId == "ki-kimi-for-coding" }.isDefault)
                     assertTrue(!models.single { it.localId == "ki-k2p7" }.isDefault)
-                    assertTrue(models.single { it.localId == "ki-kimi-k2-thinking" }.supportsVision)
+                    assertEquals(
+                        true,
+                        models.single { it.localId == "ki-kimi-k2-thinking" }.supportsVision,
+                    )
 
                     val chat =
                         post(

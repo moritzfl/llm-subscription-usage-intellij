@@ -86,7 +86,7 @@ internal data class OpenCodeConsoleModel(
 
         /** Only models the console lists with image input; unknown stays out, vision is opt-in. */
         fun visionModelIds(models: List<OpenCodeConsoleModel>): List<String> =
-            models.filter { it.model.supportsVision }.map { it.model.upstreamId }
+            models.filter { it.model.supportsVision == true }.map { it.model.upstreamId }
 
         const val GO_MODELS_URL = "https://opencode.ai/zen/go/v1/models"
         const val ZEN_MODELS_URL = "https://opencode.ai/zen/v1/models"

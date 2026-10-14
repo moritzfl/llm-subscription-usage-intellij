@@ -207,8 +207,8 @@ class GitHubCopilotCompletionsTest {
             )
             models.forEach {
                 assertEquals(setOf(SubscriptionProxyRoute.COMPLETIONS), it.supportedRoutes)
-                assertFalse(it.supportsFunctionCalling)
-                assertFalse(it.supportsToolChoice)
+                assertEquals(false, it.supportsFunctionCalling)
+                assertEquals(false, it.supportsToolChoice)
                 assertTrue(FimModels.isNativeFimId(it))
                 assertTrue(FimModels.isEligible(it))
             }

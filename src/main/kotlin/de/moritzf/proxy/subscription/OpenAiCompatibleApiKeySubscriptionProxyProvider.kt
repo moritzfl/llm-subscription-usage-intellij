@@ -2,7 +2,6 @@ package de.moritzf.proxy.subscription
 
 import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.proxy.server.JsonHelper
-import de.moritzf.proxy.transport.UrlResolver
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -50,6 +49,8 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
     fullRequestLogging: Boolean = false,
     requestLogDir: String = DEFAULT_REQUEST_LOG_DIR,
     private val modelCacheTtl: kotlin.time.Duration = CACHE_TTL,
+    private val modelRequestTimeout: Duration = Duration.ofSeconds(30),
+    private val modelListEnricher: ((String, List<StaticModel>) -> List<StaticModel>)? = null,
 ) : SubscriptionProxyProvider {
     private val delegate =
         PassThroughSubscriptionProxyProvider(
@@ -97,6 +98,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
         if (!includeModel(upstreamId)) return null
         val routes = routesFor(upstreamId)
         if (route !in routes) return null
+        val model = modelTransformer(StaticModel(upstreamId))
         return SubscriptionProxyModel(
             localId = localId,
             upstreamId = upstreamId,
@@ -104,9 +106,14 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
             providerName = displayName,
             litellmProvider = litellmProvider,
             supportedRoutes = setOf(route),
-            supportsFunctionCalling = true,
-            supportsToolChoice = true,
-            supportsVision = true,
+            supportsFunctionCalling = model.supportsFunctionCalling,
+            supportsToolChoice = model.supportsToolChoice,
+            supportsVision = model.supportsVision,
+            supportsPdfInput = model.supportsPdfInput,
+            supportsParallelFunctionCalling = model.supportsParallelFunctionCalling,
+            supportsPromptCaching = model.supportsPromptCaching,
+            inputCostPerToken = model.inputCostPerToken,
+            outputCostPerToken = model.outputCostPerToken,
         )
     }
 
@@ -118,7 +125,9 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
     }
 
     private fun modelMappings(): List<PassThroughSubscriptionProxyProvider.ModelMapping> {
-        val models = if (discoverModels) remoteModels() else staticModels.map(modelTransformer)
+        val models =
+            if (discoverModels || modelListEnricher != null) remoteModels()
+            else staticModels.map(modelTransformer)
         return models.map { model ->
             PassThroughSubscriptionProxyProvider.ModelMapping(
                 localId = localIdPrefix + model.id,
@@ -127,6 +136,11 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
                 supportsFunctionCalling = model.supportsFunctionCalling,
                 supportsToolChoice = model.supportsToolChoice,
                 supportsVision = model.supportsVision,
+                supportsPdfInput = model.supportsPdfInput,
+                supportsParallelFunctionCalling = model.supportsParallelFunctionCalling,
+                supportsPromptCaching = model.supportsPromptCaching,
+                inputCostPerToken = model.inputCostPerToken,
+                outputCostPerToken = model.outputCostPerToken,
                 maxInputTokens = model.maxInputTokens,
                 maxOutputTokens = model.maxOutputTokens,
                 isDefault = model.isDefault,
@@ -135,43 +149,73 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
     }
 
     @OptIn(ExperimentalTime::class)
+    @Synchronized
     private fun remoteModels(): List<StaticModel> {
         val now = Clock.System.now()
-        val cached = modelCache
+        val token =
+            apiKeyProvider().trimmedOrNull()
+                ?: run {
+                    modelCache = null
+                    return emptyList()
+                }
+        val cached = modelCache?.takeIf { it.apiKey == token }
         if (cached != null && now - cached.fetchedAt < modelCacheTtl) {
             return cached.models
         }
-        val token = apiKeyProvider().trimmedOrNull() ?: return cached?.models.orEmpty()
-        val models = runCatching { fetchModels(token) }.getOrDefault(emptyList())
-        if (models.isNotEmpty()) {
-            modelCache = ModelCache(models, now)
-        }
-        return models.ifEmpty { cached?.models.orEmpty() }
+        val models =
+            try {
+                if (discoverModels) fetchModels(token)
+                else modelListEnricher?.invoke(token, staticModels.map(modelTransformer)).orEmpty()
+            } catch (cancelled: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw cancelled
+            } catch (cancelled: java.util.concurrent.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                cached?.models.orEmpty()
+            }
+        modelCache = ModelCache(models, now, token)
+        return models
     }
 
-    private fun fetchModels(apiKey: String): List<StaticModel> {
+    /** Explicit discovery for settings: failures must be visible rather than an empty picker. */
+    fun fetchModels(apiKey: String): List<StaticModel> {
         val builder =
-            HttpRequest.newBuilder(
-                    URI.create(UrlResolver.resolveTargetUrl("/models", baseUri.toString()))
-                )
-                .timeout(Duration.ofSeconds(30))
+            HttpRequest.newBuilder(URI.create(baseUri.toString().trimEnd('/') + "/models"))
+                .timeout(modelRequestTimeout)
                 .header("Authorization", "Bearer $apiKey")
                 .GET()
         defaultHeaders.forEach { (name, value) -> builder.header(name, value) }
         val response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString())
-        if (response.statusCode() !in 200..299) return emptyList()
-        val root = JsonHelper.parseToJsonElementOrNull(response.body()) ?: return emptyList()
+        check(response.statusCode() in 200..299) {
+            when (response.statusCode()) {
+                401,
+                403 ->
+                    "Model discovery was denied (HTTP ${response.statusCode()}). Check the API key and endpoint access."
+                404,
+                405 ->
+                    "This endpoint does not expose /models. Check the base URL or enter model IDs manually."
+                429 ->
+                    "Model discovery is rate-limited (HTTP 429). Try again later or enter model IDs manually."
+                else -> "Model discovery failed (HTTP ${response.statusCode()})."
+            }
+        }
+        val root =
+            JsonHelper.parseToJsonElementOrNull(response.body())
+                ?: error("The /models endpoint returned invalid JSON. Check the base URL.")
         val data =
             when (root) {
                 is JsonObject -> root["data"] as? JsonArray ?: root["models"] as? JsonArray
                 is JsonArray -> root
                 else -> null
-            } ?: return emptyList()
-        return data
-            .mapNotNull(::parseRemoteModel)
-            .filter { includeModel(it.id) }
-            .map(modelTransformer)
-            .distinctBy { it.id }
+            } ?: error("The /models response has no model list. Enter model IDs manually.")
+        val models =
+            data
+                .mapNotNull(::parseRemoteModel)
+                .filter { includeModel(it.id) }
+                .map(modelTransformer)
+                .distinctBy { it.id }
+        return modelListEnricher?.invoke(apiKey, models) ?: models
     }
 
     private fun routesFor(upstreamId: String): Set<SubscriptionProxyRoute> {
@@ -195,17 +239,23 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
 
     data class StaticModel(
         val id: String,
-        val supportsFunctionCalling: Boolean = true,
-        val supportsToolChoice: Boolean = true,
-        val supportsVision: Boolean = false,
+        val supportsFunctionCalling: Boolean? = true,
+        val supportsToolChoice: Boolean? = true,
+        val supportsVision: Boolean? = false,
         val maxInputTokens: Int? = null,
         val maxOutputTokens: Int? = null,
         val isDefault: Boolean = false,
+        val supportsParallelFunctionCalling: Boolean? = false,
+        val supportsPromptCaching: Boolean? = false,
+        val inputCostPerToken: Double? = 0.0,
+        val outputCostPerToken: Double? = 0.0,
+        val supportsPdfInput: Boolean? = null,
     )
 
     private data class ModelCache(
         val models: List<StaticModel>,
         val fetchedAt: Instant,
+        val apiKey: String,
     )
 
     companion object {
