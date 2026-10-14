@@ -43,7 +43,15 @@ class FimModelsTest {
         assertFalse(FimModels.isNativeFimId("voxtral-mini-tts-2603"))
         assertFalse(FimModels.isNativeFimId("codestral-embed"))
         assertFalse(FimModels.isNativeFimId(model("sg-grok-4.6", "supergrok")))
-        assertTrue(FimModels.isNativeFimId(model("mi-codestral-latest", "mistral")))
+        assertFalse(
+            FimModels.isNativeFimId(model("api-custom/codestral-latest", "openai-compatible"))
+        )
+        assertTrue(
+            FimModels.isNativeFimId(
+                model("mi-codestral-latest", "mistral")
+                    .copy(supportedRoutes = setOf(SubscriptionProxyRoute.FIM_COMPLETIONS))
+            )
+        )
     }
 
     @Test
@@ -92,6 +100,13 @@ class FimModelsTest {
             ),
         )
         assertNull(FimModels.fimReasoningEffort("ol-kimi-k3", "kimi-k3", "ollama"))
+        assertNull(
+            FimModels.fimReasoningEffort(
+                "api-custom/deepseek-v4",
+                "deepseek-v4",
+                "openai-compatible",
+            )
+        )
     }
 
     @Test

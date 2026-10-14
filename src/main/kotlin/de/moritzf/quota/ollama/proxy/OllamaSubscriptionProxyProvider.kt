@@ -35,7 +35,10 @@ class OllamaSubscriptionProxyProvider(
             localIdPrefix = PREFIX,
             modelTransformer = ::ollamaModelMetadata,
             extraRoutesForModel = { id ->
-                if (isDeepSeekNativeFimModel(id)) setOf(SubscriptionProxyRoute.COMPLETIONS)
+                if (
+                    isDeepSeekNativeFimModel(id) || de.moritzf.proxy.fim.FimModels.isNativeFimId(id)
+                )
+                    setOf(SubscriptionProxyRoute.COMPLETIONS)
                 else emptySet()
             },
             upstreamUrlProvider = { request ->

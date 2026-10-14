@@ -5,10 +5,6 @@ import de.moritzf.proxy.subscription.SubscriptionProxyRoute
 
 object FimModels {
     fun isEligible(model: SubscriptionProxyModel): Boolean {
-        if (model.supportedRoutes.all { it == SubscriptionProxyRoute.ANTHROPIC_MESSAGES })
-            return false
-        val blob = "${model.localId} ${model.upstreamId} ${model.providerId}"
-        if (blob.contains("cursor", ignoreCase = true)) return false
         return model.supportedRoutes.any { route ->
             route == SubscriptionProxyRoute.CHAT_COMPLETIONS ||
                 route == SubscriptionProxyRoute.RESPONSES ||
@@ -19,9 +15,7 @@ object FimModels {
 
     fun isNativeFimId(model: SubscriptionProxyModel): Boolean {
         return SubscriptionProxyRoute.COMPLETIONS in model.supportedRoutes ||
-            SubscriptionProxyRoute.FIM_COMPLETIONS in model.supportedRoutes ||
-            isNativeFimId(model.localId) ||
-            isNativeFimId(model.upstreamId)
+            SubscriptionProxyRoute.FIM_COMPLETIONS in model.supportedRoutes
     }
 
     fun isNativeFimId(id: String): Boolean {
@@ -55,7 +49,8 @@ object FimModels {
         if ("non-reasoning" in blob || "nonreasoning" in blob) return null
         // DeepSeek V4 thinks by default and spends the FIM token cap before any insert.
         // Ollama accepts reasoning_effort=none and returns the insert with no reasoning.
-        if (isDeepSeekReasoning(blob)) return "none"
+        if ((providerId == "ollama" || localId.startsWith("ol-")) && isDeepSeekReasoning(blob))
+            return "none"
         if (!supportsPriorityTier(localId, providerId)) return null
         // ChatGPT Codex backend accepts none on gpt-6-sol and gpt-6-luna (0 reasoning tokens).
         // gpt-6-astra rejects none. models.json still lists low as the picker floor.
