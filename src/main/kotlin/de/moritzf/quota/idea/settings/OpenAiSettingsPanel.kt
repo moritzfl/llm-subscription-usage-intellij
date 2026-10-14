@@ -12,6 +12,7 @@ import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.idea.auth.LoginResult
 import de.moritzf.quota.idea.auth.QuotaAuthService
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
@@ -189,12 +190,12 @@ internal class OpenAiSettingsPanel(
             separator()
             row("Account ID:") { cell(accountIdField).resizableColumn().align(AlignX.FILL) }
             row("Email:") { cell(emailField).resizableColumn().align(AlignX.FILL) }
-            row("Document model:") {
+            row(message("settings.model.document.label")) {
                 cell(documentModelCombo.combo)
                     .align(AlignX.FILL)
                     .resizableColumn()
                     .gap(RightGap.SMALL)
-                    .comment(DocumentModels.OFF_COMMENT)
+                    .comment(message("settings.model.document.help"))
                 cell(documentModelCombo.warning).align(AlignY.TOP)
                 cell(
                     documentTestButton(
@@ -205,11 +206,11 @@ internal class OpenAiSettingsPanel(
                     )
                 )
             }
-            row("Vision model:") {
+            row(message("settings.model.vision.label")) {
                 cell(visionModelCombo.combo)
                     .align(AlignX.FILL)
                     .resizableColumn()
-                    .comment("Used by subscription_vision. '-' keeps vision off.")
+                    .comment(message("settings.model.vision.help"))
                 cell(
                     visionTestButton(
                         de.moritzf.quota.idea.mcp.VisionProvider.OPEN_AI,

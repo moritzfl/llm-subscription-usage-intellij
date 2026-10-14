@@ -25,10 +25,10 @@ import de.moritzf.quota.azure.azureOcrDeployments
 import de.moritzf.quota.azure.isAzureCohereSelection
 import de.moritzf.quota.azure.isAzureNativePdfSelection
 import de.moritzf.quota.azure.preferredAzureOcrSelection
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
-import de.moritzf.quota.shared.DocumentModels
 import java.awt.event.ItemEvent
 import javax.swing.DefaultComboBoxModel
 import javax.swing.Timer
@@ -186,11 +186,11 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                             "Optional deployment names. Used when discovery is unavailable. Proxy accepts az-<deployment-name> even if unlisted."
                         )
                 }
-                row("Document model:") {
+                row(message("settings.model.document.label")) {
                     cell(ocrDeploymentCombo)
                         .align(AlignX.FILL)
                         .resizableColumn()
-                        .comment(DocumentModels.OFF_COMMENT)
+                        .comment(message("settings.model.document.help"))
                     cell(
                         documentTestButton(
                             de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.AZURE,
@@ -200,8 +200,11 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                         )
                     )
                 }
-                row("Vision model:") {
-                    cell(visionModelCombo.combo).align(AlignX.FILL).resizableColumn()
+                row(message("settings.model.vision.label")) {
+                    cell(visionModelCombo.combo)
+                        .align(AlignX.FILL)
+                        .resizableColumn()
+                        .comment(message("settings.model.vision.help"))
                     cell(
                         visionTestButton(
                             de.moritzf.quota.idea.mcp.VisionProvider.AZURE,
@@ -210,25 +213,10 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                         )
                     )
                 }
-                row {
-                    comment(
-                        "Off by default (-). Image support depends on the deployment; use Test vision to check."
-                    )
-                }
                 documentHintRow =
-                    row {
-                            comment(
-                                "PDF support depends on the selected model and deployment. " +
-                                    "For text recognition and layout, choose a model from Documents & text recognition."
-                            )
-                        }
+                    row { comment(message("settings.azure.document.nativePdf.help")) }
                         .visible(false)
-                row {
-                    comment(
-                        "Newest Mistral OCR deployment is selected automatically, otherwise -. " +
-                            "- disables conversion. Change the resource to choose again."
-                    )
-                }
+                row { comment(message("settings.azure.document.selection.help")) }
                 row {
                     browserLink(
                         "Azure OpenAI auth (Microsoft documentation)",
@@ -453,9 +441,9 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
         documentGroupHeaders = buildMap {
             choices
                 .firstOrNull { it != NO_OCR && !isAzureNativePdfSelection(it) }
-                ?.let { put(it, ListSeparator("Documents & text recognition")) }
+                ?.let { put(it, ListSeparator(message("settings.azure.document.group.ocr"))) }
             choices.firstOrNull(::isAzureNativePdfSelection)?.let {
-                put(it, ListSeparator("General-purpose AI models"))
+                put(it, ListSeparator(message("settings.azure.document.group.general")))
             }
         }
         val preferred =

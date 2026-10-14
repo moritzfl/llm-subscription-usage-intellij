@@ -16,6 +16,7 @@ import de.moritzf.quota.github.proxy.githubDocumentModelIds
 import de.moritzf.quota.github.proxy.githubVisionModelIds
 import de.moritzf.quota.idea.auth.AuthService
 import de.moritzf.quota.idea.common.IdeProxyFactories
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.github.GitHubAuthService
@@ -214,21 +215,19 @@ internal class GitHubSettingsPanel(
                     cell(cancelLoginButton).gap(RightGap.SMALL)
                     cell(logoutButton)
                 }
-                row("Document model:") {
+                row(message("settings.model.document.label")) {
                     cell(documentModelCombo.combo)
                         .align(AlignX.FILL)
                         .resizableColumn()
-                        .comment(DocumentModels.OFF_COMMENT)
+                        .comment(message("settings.model.document.help"))
                     cell(documentModelCombo.warning).align(com.intellij.ui.dsl.builder.AlignY.TOP)
                     cell(testDocumentButton)
                 }
-                row("Vision model:") {
+                row(message("settings.model.vision.label")) {
                     cell(visionModelCombo.combo)
                         .align(AlignX.FILL)
                         .resizableColumn()
-                        .comment(
-                            "Models Copilot flags as vision-capable. Used by subscription_vision; '-' keeps vision off."
-                        )
+                        .comment(message("settings.model.vision.help"))
                     cell(testVisionButton)
                 }
             },

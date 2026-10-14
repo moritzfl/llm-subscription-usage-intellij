@@ -13,6 +13,7 @@ import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.subscription.SubscriptionModelCatalog
 import de.moritzf.proxy.subscription.SubscriptionProxyRequest
 import de.moritzf.proxy.subscription.SubscriptionProxyRoute
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import java.util.UUID
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.currentCoroutineContext
@@ -48,8 +49,8 @@ object CompletionsFimTester {
             currentCoroutineContext().ensureActive()
             CompletionsFimTestResult(
                 false,
-                "Timed out",
-                detail = "The model did not finish within the configured completion timeout.",
+                message("modelTest.completion.timeout"),
+                detail = message("modelTest.completion.timeout.detail"),
             )
         }
 
@@ -59,13 +60,11 @@ object CompletionsFimTester {
     ): CompletionsFimTestResult {
         val model =
             CompletionsHandler.resolveSelectedModel(catalog, config.modelLocalId)
-                ?: error(
-                    "Selected completion model is unavailable. Check the account and model settings."
-                )
-        require(FimModels.isEligible(model)) { "Selected model cannot be used for completions." }
+                ?: error(message("modelTest.completion.unavailable"))
+        require(FimModels.isEligible(model)) { message("modelTest.completion.ineligible") }
         val provider =
             checkNotNull(catalog.providerFor(model)) {
-                "Configure the selected model's account first."
+                message("modelTest.completion.configureAccount")
             }
         val request =
             CompletionsRequest(
@@ -106,9 +105,9 @@ object CompletionsFimTester {
         if (response.responseStatus() !in 200..<300) {
             return CompletionsFimTestResult(
                 ok = false,
-                status = "HTTP ${response.responseStatus()}",
+                status = message("modelTest.completion.httpError", response.responseStatus()),
                 elapsedMs = elapsedMs,
-                detail = raw.take(2000).ifBlank { "Empty error body" },
+                detail = raw.take(2000).ifBlank { message("modelTest.completion.emptyError") },
             )
         }
         val text =
@@ -153,12 +152,12 @@ object CompletionsFimTester {
         if (insert.isNullOrBlank()) {
             return CompletionsFimTestResult(
                 ok = false,
-                status = "Empty insert",
+                status = message("modelTest.completion.empty"),
                 elapsedMs = elapsedMs,
                 sample = SAMPLE_WITH_CURSOR.trimEnd(),
                 detail =
                     buildString {
-                        append("The adapter ran, but the model returned no insert text.")
+                        append(message("modelTest.completion.empty.detail"))
                         if (raw.isNotBlank()) {
                             append("\n\n")
                             append(raw.take(2000))
@@ -172,15 +171,14 @@ object CompletionsFimTester {
         val usable = expression == "a+b" || expression == "b+a"
         return CompletionsFimTestResult(
             ok = usable,
-            status = if (usable) "Fill-in looks usable" else "Unexpected fill-in",
+            status =
+                if (usable) message("modelTest.completion.usable")
+                else message("modelTest.completion.unexpected"),
             elapsedMs = elapsedMs,
             sample = SAMPLE_WITH_CURSOR.trimEnd(),
             insert = insert,
             assembled = assembled,
-            detail =
-                if (usable) null
-                else
-                    "Expected an addition expression (a + b or b + a). Check the assembled result before using this model for AI Completion.",
+            detail = if (usable) null else message("modelTest.completion.unexpected.detail"),
         )
     }
 

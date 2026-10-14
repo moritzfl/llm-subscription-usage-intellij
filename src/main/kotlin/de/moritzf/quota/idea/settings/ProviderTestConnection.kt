@@ -1,5 +1,7 @@
 package de.moritzf.quota.idea.settings
 
+import de.moritzf.quota.idea.common.QuotaBundle.message
+
 /** Captured on the EDT for one test; never installed into application settings or Password Safe. */
 internal class ProviderTestConnection(
     account: ProviderAccount,
@@ -17,10 +19,10 @@ internal class ProviderTestConnection(
     fun compatibleClient(): de.moritzf.quota.compatible.CompatibleMediaClient =
         de.moritzf.quota.compatible.CompatibleMediaClient(
             de.moritzf.quota.idea.compatible.compatibleEndpoint(account)
-                ?: error("Enter a valid API base URL."),
+                ?: error(message("modelTest.enterUrl")),
             apiKey {
                 de.moritzf.quota.idea.compatible.CompatibleApiKeyStore.forAccount(account.id)
                     .loadBlocking()
-            } ?: error("Enter an API key."),
+            } ?: error(message("modelTest.enterApiKey")),
         )
 }

@@ -21,6 +21,7 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.common.CredentialStorage
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageListener
 import de.moritzf.quota.idea.common.rethrowIfCancellation
@@ -83,7 +84,7 @@ class QuotaSettingsConfigurable : Configurable {
     private var proxySettingsPanel: SubscriptionProxySettingsPanel? = null
     private var boundDetailAccountId: String? = null
 
-    override fun getDisplayName(): String = "LLM Subscription Usage"
+    override fun getDisplayName(): String = message("settings.displayName")
 
     override fun createComponent(): JComponent? {
         val statusLabelDefaultForeground = UIManager.getColor("Label.foreground")

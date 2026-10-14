@@ -6,6 +6,7 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
@@ -42,11 +43,11 @@ internal class ZaiSettingsPanel(
         val configPanel = panel {
             row { cell(zaiStatusLabel) }
             row("API key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
-            row("Document model:") {
+            row(message("settings.model.document.label")) {
                 cell(documentModelCombo.combo)
                     .align(AlignX.FILL)
                     .resizableColumn()
-                    .comment(DocumentModels.OFF_COMMENT)
+                    .comment(message("settings.model.document.help"))
                 cell(
                     documentTestButton(
                         de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.ZAI,
@@ -56,13 +57,11 @@ internal class ZaiSettingsPanel(
                     )
                 )
             }
-            row("Vision model:") {
+            row(message("settings.model.vision.label")) {
                 cell(visionModelCombo.combo)
                     .align(AlignX.FILL)
                     .resizableColumn()
-                    .comment(
-                        "GLM vision chat models. Used by subscription_vision; '-' keeps vision off."
-                    )
+                    .comment(message("settings.model.vision.help"))
                 cell(
                     visionTestButton(
                         de.moritzf.quota.idea.mcp.VisionProvider.ZAI,

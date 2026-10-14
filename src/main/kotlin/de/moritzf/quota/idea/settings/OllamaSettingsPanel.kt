@@ -8,6 +8,7 @@ import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
@@ -70,13 +71,11 @@ internal class OllamaSettingsPanel(
                             "Fallback only when the API omits the monthly reset. Same day and clock each calendar month."
                     )
             }
-            row("Vision model:") {
+            row(message("settings.model.vision.label")) {
                 cell(visionModelCombo.combo)
                     .align(AlignX.FILL)
                     .resizableColumn()
-                    .comment(
-                        "Cloud models that report vision support. Used by subscription_vision; '-' keeps vision off."
-                    )
+                    .comment(message("settings.model.vision.help"))
                 cell(
                     visionTestButton(
                         de.moritzf.quota.idea.mcp.VisionProvider.OLLAMA,

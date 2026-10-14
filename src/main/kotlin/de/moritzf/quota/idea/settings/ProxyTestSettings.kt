@@ -3,6 +3,7 @@ package de.moritzf.quota.idea.settings
 import de.moritzf.proxy.subscription.SubscriptionModelCatalog
 import de.moritzf.quota.idea.common.IdeProxyBuildContext
 import de.moritzf.quota.idea.common.ProviderCatalog
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.openai.CompletionsFimTestResult
 import de.moritzf.quota.idea.openai.CompletionsFimTester
 import kotlinx.coroutines.Dispatchers
@@ -27,7 +28,7 @@ internal class ProxyTestSettings(
 
     fun testCompletion(): CompletionsFimTestResult {
         val config = settings.completionsConfig()
-        require(config.modelLocalId.isNotBlank()) { "Select a completion model to test." }
+        require(config.modelLocalId.isNotBlank()) { message("modelTest.completion.selectModel") }
         return runBlocking {
             val catalog = runInterruptible(Dispatchers.IO) { SubscriptionModelCatalog(providers()) }
             CompletionsFimTester.test(catalog, config)

@@ -68,6 +68,7 @@
 
 ## Settings And Releases
 
+- IDE UI text belongs in `messages/OpenAiUsageQuotaBundle.properties`, accessed through `QuotaBundle.message` (`DynamicBundle`, `@PropertyKey`). Reuse shared model-help keys across providers; keep protocol values, model IDs, and provider JSON out of the UI bundle.
 - Provider state is mostly map/list based in `QuotaSettingsState`; avoid adding per-provider fields unless persistence or migration requires them.
 - Quota cache writes use synchronized snapshot methods. Settings UI builds `QuotaSettingsDraft`; `SettingsApplyCoordinator` owns commit/follow-up actions and publishes one settings event.
 - Document, vision, and FIM test dialogs share `TestDialogTask` and `TestDialogUi`; queued UI results must be generation-checked.

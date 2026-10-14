@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.settings
 
 import com.intellij.openapi.ui.ComboBox
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.shared.DocumentModels
 import java.awt.event.ItemEvent
 import javax.swing.DefaultComboBoxModel
@@ -45,8 +46,8 @@ internal class DocumentModelCombo(
     private fun updateWarning() {
         val off = selected() == DocumentModels.OFF
         warning.setExplainer(
-            "Not a document or OCR model",
-            if (visionWarning && !off) DocumentModels.VISION_WARNING else null,
+            message("settings.model.document.warning.title"),
+            if (visionWarning && !off) message("settings.model.document.warning") else null,
         )
     }
 }

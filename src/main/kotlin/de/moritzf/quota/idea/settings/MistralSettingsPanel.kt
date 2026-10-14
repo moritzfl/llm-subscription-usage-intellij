@@ -7,6 +7,7 @@ import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.mistral.MistralApiKeyStore
@@ -70,11 +71,11 @@ internal class MistralSettingsPanel(
                 }
                 row("csrftoken:") { cell(csrfField).resizableColumn().align(AlignX.FILL) }
                 row("API key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
-                row("Document model:") {
+                row(message("settings.model.document.label")) {
                     cell(documentModelCombo.combo)
                         .align(AlignX.FILL)
                         .resizableColumn()
-                        .comment(DocumentModels.OFF_COMMENT)
+                        .comment(message("settings.model.document.help"))
                     cell(
                         documentTestButton(
                             de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.MISTRAL,
@@ -84,13 +85,11 @@ internal class MistralSettingsPanel(
                         )
                     )
                 }
-                row("Vision model:") {
+                row(message("settings.model.vision.label")) {
                     cell(visionModelCombo.combo)
                         .align(AlignX.FILL)
                         .resizableColumn()
-                        .comment(
-                            "Mistral chat models that accept images. Used by subscription_vision; '-' keeps vision off."
-                        )
+                        .comment(message("settings.model.vision.help"))
                     cell(
                         visionTestButton(
                             de.moritzf.quota.idea.mcp.VisionProvider.MISTRAL,

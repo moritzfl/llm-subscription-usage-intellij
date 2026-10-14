@@ -3,6 +3,7 @@ package de.moritzf.quota.idea.settings
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.popup.ListSeparator
 import com.intellij.ui.GroupedComboBoxRenderer
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.shared.DocumentModels
 import java.awt.event.ItemEvent
 import javax.swing.DefaultComboBoxModel
@@ -42,9 +43,11 @@ internal class VisionModelCombo(groupUnverified: Boolean = false) {
         val declared = choices.filter { it != DocumentModels.OFF }.distinct()
         unverifiedModels = unverified.filter { it != DocumentModels.OFF && it !in declared }.toSet()
         groupHeaders = buildMap {
-            declared.firstOrNull()?.let { put(it, ListSeparator("Declared vision support")) }
+            declared.firstOrNull()?.let {
+                put(it, ListSeparator(message("settings.model.vision.group.declared")))
+            }
             unverifiedModels.firstOrNull()?.let {
-                put(it, ListSeparator("Unverified vision support"))
+                put(it, ListSeparator(message("settings.model.vision.group.unverified")))
             }
         }
         val models = DocumentModels.withOff(declared + unverifiedModels)
@@ -58,11 +61,11 @@ internal class VisionModelCombo(groupUnverified: Boolean = false) {
 
     private fun tooltip(): String {
         return if (selected() == DocumentModels.OFF) {
-            "Vision is off. Pick a model so subscription_vision and the vision test can use this account."
+            message("settings.model.vision.off.tooltip")
         } else if (selected() in unverifiedModels) {
-            "Image support is not declared by the console. Use Test vision before relying on this model."
+            message("settings.model.vision.unverified.tooltip")
         } else {
-            "Model used by subscription_vision when the tool call passes no model."
+            message("settings.model.vision.selected.tooltip")
         }
     }
 }

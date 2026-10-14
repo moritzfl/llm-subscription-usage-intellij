@@ -8,6 +8,7 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.shared.JsonSupport
 import java.awt.Cursor
@@ -55,7 +56,7 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
     }
 
     open fun testConnection(): ProviderTestConnection =
-        ProviderTestConnection(checkNotNull(boundAccount) { "Select an account to test." })
+        ProviderTestConnection(checkNotNull(boundAccount) { message("modelTest.selectAccount") })
 
     protected fun documentTestButton(
         provider: de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider,
@@ -80,7 +81,7 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
     ): DocumentTestExecution {
         val connection = testConnection()
         require(model.isNotBlank() && model != de.moritzf.quota.shared.DocumentModels.OFF) {
-            "Select a document model to test."
+            message("modelTest.document.selectModel")
         }
         return { pdf, output, progress ->
             de.moritzf.quota.idea.action.PdfDocumentConversion.convert(
@@ -102,7 +103,7 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
     ): VisionTestExecution {
         val connection = testConnection()
         require(model.isNotBlank() && model != de.moritzf.quota.shared.DocumentModels.OFF) {
-            "Select a vision model to test."
+            message("modelTest.vision.selectModel")
         }
         return { image, prompt ->
             de.moritzf.quota.idea.action.VisionImageAnalysis.analyze(

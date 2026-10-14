@@ -14,6 +14,7 @@ import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.UIUtil
 import de.moritzf.quota.compatible.CompatibleEndpoint
 import de.moritzf.quota.compatible.proxy.CompatibleSubscriptionProxyProvider
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.compatible.CompatibleApiKeyStore
 import de.moritzf.quota.idea.compatible.isCompatibleConnection
@@ -50,7 +51,11 @@ internal class CompatibleSettingsPanel(
         JButton("Refresh models", AllIcons.Actions.Refresh).apply {
             addActionListener { refreshModels() }
         }
-    val testButton = JButton("Test model").apply { addActionListener { testModel() } }
+    val testButton =
+        JButton(message("modelTest.chat.title")).apply {
+            toolTipText = message("modelTest.chat.tooltip")
+            addActionListener { testModel() }
+        }
     val visionModel = VisionModelCombo(groupUnverified = true)
     val documentModel = DocumentModelCombo(DocumentModels.OFF, vision = true)
     val visionTest =
@@ -118,23 +123,21 @@ internal class CompatibleSettingsPanel(
                         cell(modelCombo).align(AlignX.FILL).resizableColumn()
                         cell(testButton)
                     }
-                    row { comment("Sends a short chat request using unsaved settings.") }
+                    row { comment(message("modelTest.chat.tooltip")) }
                 }
                 group("Vision and documents") {
-                    row("Vision model:") {
+                    row(message("settings.model.vision.label")) {
                         cell(visionModel.combo).align(AlignX.FILL).resizableColumn()
                         cell(visionTest)
                     }
-                    row("Document model:") {
+                    row { comment(message("settings.model.vision.help")) }
+                    row(message("settings.model.document.label")) {
                         cell(documentModel.combo).align(AlignX.FILL).resizableColumn()
                         cell(documentModel.warning)
                         cell(documentTest)
                     }
-                    row {
-                        comment(
-                            "Optional; off by default. Tests use unsaved settings. Document models must accept native PDFs."
-                        )
-                    }
+                    row { comment(message("settings.model.document.help")) }
+                    row { comment(message("settings.model.document.nativePdf.help")) }
                 }
                 budgetRow = row { cell(budgetButton) }
                 budgetStatusRow = row { cell(budgetStatus).align(AlignX.FILL).resizableColumn() }
@@ -353,7 +356,7 @@ internal class CompatibleSettingsPanel(
     private fun provider(): CompatibleSubscriptionProxyProvider {
         val endpoint = draftEndpoint()
         val key = currentKey()
-        require(key != null) { "Enter an API key." }
+        require(key != null) { message("modelTest.enterApiKey") }
         return CompatibleSubscriptionProxyProvider(
             shownAccountId,
             boundAccount?.name.orEmpty(),
@@ -472,7 +475,7 @@ internal class CompatibleSettingsPanel(
                 return
             }
         busy = true
-        setStatus("Testing $model…")
+        setStatus(message("modelTest.chat.running", model))
         requestTask.start { gen ->
             try {
                 val start = System.nanoTime()
@@ -480,7 +483,7 @@ internal class CompatibleSettingsPanel(
                 val elapsed = (System.nanoTime() - start) / 1_000_000
                 requestTask.onEdt(gen) {
                     busy = false
-                    setStatus("$model responded in ${elapsed} ms: $reply")
+                    setStatus(message("modelTest.chat.success", model, elapsed, reply))
                 }
             } catch (failure: Exception) {
                 if (TestDialogTask.isCancellation(failure)) return@start

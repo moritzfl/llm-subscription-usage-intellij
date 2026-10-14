@@ -8,6 +8,7 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.idea.auth.AuthService
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.kimi.KimiAuthService
@@ -166,13 +167,11 @@ internal class KimiSettingsPanel(
                     cell(cancelLoginButton).gap(RightGap.SMALL)
                     cell(logoutButton)
                 }
-                row("Vision model:") {
+                row(message("settings.model.vision.label")) {
                     cell(visionModelCombo.combo)
                         .align(com.intellij.ui.dsl.builder.AlignX.FILL)
                         .resizableColumn()
-                        .comment(
-                            "Kimi coding models with image input. Used by subscription_vision; '-' keeps vision off."
-                        )
+                        .comment(message("settings.model.vision.help"))
                     cell(
                         visionTestButton(
                             de.moritzf.quota.idea.mcp.VisionProvider.KIMI,

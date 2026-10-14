@@ -10,6 +10,7 @@
 - Show a neutral indicator and connection details with local proxy status when only quota-less APIs are configured.
 - Run document and vision tests against the selected account and current unsaved models, keys, and connection settings.
 - Test AI Completion with unsaved settings through shared FIM/provider logic, without applying settings or starting a local proxy.
+- Standardize vision/document model help across providers and centralize model settings and test-dialog text in the IntelliJ message bundle.
 
 ## [1.21.1] - 2026-10-14
 

@@ -24,6 +24,7 @@ import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.proxy.fim.FimModels
 import de.moritzf.proxy.subscription.SubscriptionProxyModel
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.openai.AiCompletionSetupInspector
 import de.moritzf.quota.idea.openai.CompletionsFimTestResult
@@ -146,8 +147,8 @@ internal class SubscriptionProxySettingsPanel(
             accessibleContext.accessibleName = "Copy IDE model id"
         }
     private val testFimButton =
-        JButton("Test AI Completion").apply {
-            toolTipText = "Test the current model and completion options without applying settings"
+        JButton(message("modelTest.completion.title")).apply {
+            toolTipText = message("modelTest.completion.tooltip")
         }
     private val completionsHelpLabel =
         JBLabel(
@@ -836,8 +837,12 @@ internal class SubscriptionProxySettingsPanel(
         val choices = listOf(COMPLETIONS_OFF) + native + generic + listOfNotNull(kept)
         completionsGroupHeaders = buildMap {
             // A group that has no models keeps its heading out of the list.
-            native.firstOrNull()?.let { put(it, ListSeparator("Native FIM")) }
-            generic.firstOrNull()?.let { put(it, ListSeparator("Adapted via chat")) }
+            native.firstOrNull()?.let {
+                put(it, ListSeparator(message("settings.model.completion.group.native")))
+            }
+            generic.firstOrNull()?.let {
+                put(it, ListSeparator(message("settings.model.completion.group.adapted")))
+            }
         }
         if (
             (0 until completionsModelCombo.itemCount).map(completionsModelCombo::getItemAt) !=
@@ -865,13 +870,15 @@ internal class SubscriptionProxySettingsPanel(
     private fun updateFimModelWarning() {
         val selected = selectedCompletionsModelId()
         if (selected.isBlank() || selected in nativeCompletionsModelIds) {
-            completionsModelWarning.setExplainer(FIM_WARNING_TITLE, null)
+            completionsModelWarning.setExplainer(
+                message("settings.model.completion.warning.title"),
+                null,
+            )
             return
         }
         completionsModelWarning.setExplainer(
-            FIM_WARNING_TITLE,
-            "This model has no native fill-in-the-middle endpoint. The proxy converts FIM calls into chat requests a chat model can understand.\n\n" +
-                "Native FIM models (for example Mistral Codestral or Ollama DeepSeek) answer FIM calls directly.",
+            message("settings.model.completion.warning.title"),
+            message("settings.model.completion.warning"),
         )
     }
 
@@ -982,7 +989,6 @@ internal class SubscriptionProxySettingsPanel(
         private const val COPY_FEEDBACK_ORIGINAL_TEXT =
             "SubscriptionProxySettingsPanel.copyFeedbackOriginalText"
         private const val COMPLETIONS_OFF = "-"
-        private const val FIM_WARNING_TITLE = "Not a native FIM model"
     }
 }
 
@@ -999,21 +1005,21 @@ private class FimTestDialog(
     private val resultSlot = slot()
     private val detailSlot = slot()
     private val abortAction =
-        object : DialogWrapperAction("Abort") {
+        object : DialogWrapperAction(message("modelTest.action.abort")) {
             override fun doAction(event: ActionEvent) {
                 abort()
             }
         }
     private val retryAction =
-        object : DialogWrapperAction("Retry") {
+        object : DialogWrapperAction(message("modelTest.action.retry")) {
             override fun doAction(event: ActionEvent) {
                 start()
             }
         }
 
     init {
-        title = "Test AI Completion"
-        setOKButtonText("Close")
+        title = message("modelTest.completion.title")
+        setOKButtonText(message("modelTest.action.close"))
         init()
         start()
     }
@@ -1025,9 +1031,15 @@ private class FimTestDialog(
                 cell(statusLabel)
                 cell(latencyLabel)
             }
-            group("Sample") { row { cell(sampleSlot).resizableColumn().align(AlignX.FILL) } }
-            group("Inserted") { row { cell(insertSlot).resizableColumn().align(AlignX.FILL) } }
-            group("Result") { row { cell(resultSlot).resizableColumn().align(AlignX.FILL) } }
+            group(message("modelTest.completion.sample")) {
+                row { cell(sampleSlot).resizableColumn().align(AlignX.FILL) }
+            }
+            group(message("modelTest.completion.inserted")) {
+                row { cell(insertSlot).resizableColumn().align(AlignX.FILL) }
+            }
+            group(message("modelTest.completion.result")) {
+                row { cell(resultSlot).resizableColumn().align(AlignX.FILL) }
+            }
             row { cell(detailSlot).resizableColumn().align(AlignX.FILL) }
         }
             .apply { preferredSize = Dimension(JBUI.scale(520), JBUI.scale(480)) }
@@ -1047,7 +1059,13 @@ private class FimTestDialog(
                 prepare()
             } catch (failure: Exception) {
                 if (TestDialogTask.isCancellation(failure)) throw failure
-                showResult(CompletionsFimTestResult(false, "Test failed", detail = failure.message))
+                showResult(
+                    CompletionsFimTestResult(
+                        false,
+                        message("modelTest.failed"),
+                        detail = failure.message,
+                    )
+                )
                 return
             }
         task.start { gen -> runGeneration(gen, draft) }
@@ -1064,7 +1082,11 @@ private class FimTestDialog(
                 draft.testCompletion()
             } catch (failure: Exception) {
                 if (TestDialogTask.isCancellation(failure)) throw failure
-                CompletionsFimTestResult(false, "Test failed", detail = failure.message)
+                CompletionsFimTestResult(
+                    false,
+                    message("modelTest.failed"),
+                    detail = failure.message,
+                )
             }
         if (!isActive(gen) || Thread.currentThread().isInterrupted) return
         task.onEdt(gen) { showResult(result) }
@@ -1072,12 +1094,12 @@ private class FimTestDialog(
 
     private fun showRunning() {
         statusIcon.icon = AnimatedIcon.Default.INSTANCE
-        statusLabel.text = "Testing…"
+        statusLabel.text = message("modelTest.status.running")
         latencyLabel.text = ""
         latencyLabel.isVisible = false
         replace(sampleSlot, codeBlock(CompletionsFimTester.SAMPLE_WITH_CURSOR.trimEnd()))
-        replace(insertSlot, note("Waiting for the model."))
-        replace(resultSlot, note("Waiting for the model."))
+        replace(insertSlot, note(message("modelTest.waiting")))
+        replace(resultSlot, note(message("modelTest.waiting")))
         clear(detailSlot)
         abortAction.isEnabled = true
         retryAction.isEnabled = false
@@ -1086,11 +1108,11 @@ private class FimTestDialog(
     private fun showResult(result: CompletionsFimTestResult) {
         statusIcon.icon = if (result.ok) AllIcons.General.InspectionsOK else AllIcons.General.Error
         statusLabel.text = result.status
-        latencyLabel.text = result.elapsedMs?.let { "$it ms" }.orEmpty()
+        latencyLabel.text = result.elapsedMs?.let { message("modelTest.latency", it) }.orEmpty()
         latencyLabel.isVisible = result.elapsedMs != null
         result.sample?.let { replace(sampleSlot, codeBlock(it)) }
         if (result.insert != null) replace(insertSlot, codeBlock(result.insert))
-        else replace(insertSlot, note("No insert."))
+        else replace(insertSlot, note(message("modelTest.completion.noInsert")))
         if (result.assembled != null) replace(resultSlot, codeBlock(result.assembled))
         else clear(resultSlot)
         showDetail(result.detail)
@@ -1100,9 +1122,9 @@ private class FimTestDialog(
 
     private fun showAborted() {
         statusIcon.icon = AllIcons.Actions.Cancel
-        statusLabel.text = "Aborted"
+        statusLabel.text = message("modelTest.status.aborted")
         latencyLabel.isVisible = false
-        replace(insertSlot, note("Test aborted."))
+        replace(insertSlot, note(message("modelTest.aborted")))
         clear(resultSlot)
         clear(detailSlot)
         abortAction.isEnabled = false

@@ -11,6 +11,7 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.shared.HelloPdf
@@ -34,9 +35,9 @@ internal class DocumentTestButton(
     private val modality: () -> JComponent?,
     watch: JComboBox<*>? = null,
     private val prepare: (String) -> DocumentTestExecution,
-) : JButton("Test document") {
+) : JButton(message("modelTest.document.title")) {
     init {
-        toolTipText = "Convert a one-page hello PDF with the selected model"
+        toolTipText = message("modelTest.document.tooltip")
         watch?.addItemListener { updateEnabled() }
         // Replacing the model can change the selection without firing an item event.
         watch?.addPropertyChangeListener("model") { updateEnabled() }
@@ -75,21 +76,21 @@ private class DocumentTestDialog(
     private val outputSlot = slot()
     private val detailSlot = slot()
     private val abortAction =
-        object : DialogWrapperAction("Abort") {
+        object : DialogWrapperAction(message("modelTest.action.abort")) {
             override fun doAction(event: ActionEvent) {
                 abort()
             }
         }
     private val retryAction =
-        object : DialogWrapperAction("Retry") {
+        object : DialogWrapperAction(message("modelTest.action.retry")) {
             override fun doAction(event: ActionEvent) {
                 start()
             }
         }
 
     init {
-        title = "Test document"
-        setOKButtonText("Close")
+        title = message("modelTest.document.title")
+        setOKButtonText(message("modelTest.action.close"))
         init()
         start()
     }
@@ -102,8 +103,12 @@ private class DocumentTestDialog(
                 cell(modelLabel)
                 cell(latencyLabel)
             }
-            group("Input") { row { cell(inputSlot).resizableColumn().align(AlignX.FILL) } }
-            group("Output") { row { cell(outputSlot).resizableColumn().align(AlignX.FILL) } }
+            group(message("modelTest.input")) {
+                row { cell(inputSlot).resizableColumn().align(AlignX.FILL) }
+            }
+            group(message("modelTest.output")) {
+                row { cell(outputSlot).resizableColumn().align(AlignX.FILL) }
+            }
             row { cell(detailSlot).resizableColumn().align(AlignX.FILL) }
         }
             .apply { preferredSize = Dimension(JBUI.scale(520), JBUI.scale(360)) }
@@ -124,7 +129,7 @@ private class DocumentTestDialog(
                 prepare(model)
             } catch (failure: Exception) {
                 if (TestDialogTask.isCancellation(failure)) throw failure
-                showFailure(failure.message ?: "Document test failed", null, null)
+                showFailure(failure.message ?: message("modelTest.document.failed"), null, null)
                 return
             }
         task.start { gen -> runGeneration(gen, execute) }
@@ -160,7 +165,11 @@ private class DocumentTestDialog(
                     if (!isActive(gen) || isCancellation(exception)) throw exception
                     val elapsedMs = (System.nanoTime() - started) / 1_000_000L
                     onEdt(gen) {
-                        showFailure(exception.message ?: "Document test failed", page, elapsedMs)
+                        showFailure(
+                            exception.message ?: message("modelTest.document.failed"),
+                            page,
+                            elapsedMs,
+                        )
                     }
                     return@runGeneration
                 }
@@ -180,7 +189,13 @@ private class DocumentTestDialog(
         } catch (exception: Exception) {
             if (!isActive(gen) || isCancellation(exception)) return
             val rendered = page
-            onEdt(gen) { showFailure(exception.message ?: "Document test failed", rendered, null) }
+            onEdt(gen) {
+                showFailure(
+                    exception.message ?: message("modelTest.document.failed"),
+                    rendered,
+                    null,
+                )
+            }
         } finally {
             Files.deleteIfExists(pdf)
             Files.deleteIfExists(output)
@@ -189,12 +204,12 @@ private class DocumentTestDialog(
 
     private fun showRunning(model: String) {
         statusIcon.icon = AnimatedIcon.Default.INSTANCE
-        statusLabel.text = "Testing…"
+        statusLabel.text = message("modelTest.status.running")
         modelLabel.text = model
         modelLabel.isVisible = model.isNotBlank()
         showLatency(null)
-        replace(inputSlot, note("Preparing the sample page…"))
-        replace(outputSlot, note("Waiting for the model."))
+        replace(inputSlot, note(message("modelTest.document.preparing")))
+        replace(outputSlot, note(message("modelTest.waiting")))
         clear(detailSlot)
         abortAction.isEnabled = true
         retryAction.isEnabled = false
@@ -211,7 +226,7 @@ private class DocumentTestDialog(
         elapsedMs: Long,
     ) {
         statusIcon.icon = AllIcons.General.InspectionsOK
-        statusLabel.text = "Converted"
+        statusLabel.text = message("modelTest.document.success")
         showLatency(elapsedMs)
         showPage(page)
         replace(outputSlot, codeBlock(markdown))
@@ -222,7 +237,7 @@ private class DocumentTestDialog(
 
     private fun showFailure(message: String, page: BufferedImage?, elapsedMs: Long?) {
         statusIcon.icon = AllIcons.General.Error
-        statusLabel.text = "Failed"
+        statusLabel.text = message("modelTest.status.failed")
         showLatency(elapsedMs)
         if (page != null) showPage(page)
         replace(outputSlot, codeBlock(message))
@@ -233,15 +248,15 @@ private class DocumentTestDialog(
 
     private fun showAborted() {
         statusIcon.icon = AllIcons.Actions.Cancel
-        statusLabel.text = "Aborted"
+        statusLabel.text = message("modelTest.status.aborted")
         showLatency(null)
-        replace(outputSlot, note("Test aborted."))
+        replace(outputSlot, note(message("modelTest.aborted")))
         abortAction.isEnabled = false
         retryAction.isEnabled = true
     }
 
     private fun showLatency(elapsedMs: Long?) {
-        latencyLabel.text = elapsedMs?.let { "$it ms" }.orEmpty()
+        latencyLabel.text = elapsedMs?.let { message("modelTest.latency", it) }.orEmpty()
         latencyLabel.isVisible = elapsedMs != null
     }
 

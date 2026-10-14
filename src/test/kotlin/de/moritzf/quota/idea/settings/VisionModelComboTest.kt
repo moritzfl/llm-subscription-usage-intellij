@@ -1,10 +1,10 @@
 package de.moritzf.quota.idea.settings
 
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import javax.swing.SwingUtilities
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 class VisionModelComboTest {
     @Test
@@ -21,11 +21,17 @@ class VisionModelComboTest {
                 (0 until picker.combo.itemCount).map(picker.combo::getItemAt),
             )
             assertEquals("working-but-undeclared", picker.selected())
-            assertTrue(picker.combo.toolTipText.contains("not declared"))
+            assertEquals(
+                message("settings.model.vision.unverified.tooltip"),
+                picker.combo.toolTipText,
+            )
             assertFalse(picker.combo.isSwingPopup)
 
             picker.show("working-but-undeclared", listOf("declared", "working-but-undeclared"))
-            assertFalse(picker.combo.toolTipText.contains("not declared"))
+            assertEquals(
+                message("settings.model.vision.selected.tooltip"),
+                picker.combo.toolTipText,
+            )
             assertEquals("working-but-undeclared", picker.selected())
         }
     }

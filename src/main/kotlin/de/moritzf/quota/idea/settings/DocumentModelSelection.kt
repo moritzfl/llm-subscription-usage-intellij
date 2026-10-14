@@ -2,6 +2,7 @@ package de.moritzf.quota.idea.settings
 
 import de.moritzf.quota.azure.azureDocumentSelectionUsesVision
 import de.moritzf.quota.idea.common.AzureQuotaProvider
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
 import de.moritzf.quota.openai.proxy.OpenAiProxyServer
@@ -80,7 +81,7 @@ internal object DocumentModelSelection {
 
     fun visionHint(provider: DocumentToMarkdownProvider): String? {
         if (provider == DocumentToMarkdownProvider.AZURE) {
-            return if (azureVisionSelected()) DocumentModels.AZURE_VISION_WARNING else null
+            return if (azureVisionSelected()) message("settings.azure.document.warning") else null
         }
         if (
             provider == DocumentToMarkdownProvider.OPENAI_COMPATIBLE ||
@@ -88,7 +89,7 @@ internal object DocumentModelSelection {
                 provider == DocumentToMarkdownProvider.GITHUB ||
                 provider == DocumentToMarkdownProvider.OPEN_CODE
         ) {
-            return DocumentModels.VISION_WARNING
+            return message("settings.model.document.warning")
         }
         if (
             provider != DocumentToMarkdownProvider.OPEN_AI &&
@@ -102,8 +103,9 @@ internal object DocumentModelSelection {
             forAccount(type, account.id)
         }
             .getOrNull()
-        return if (model.isNullOrBlank()) DocumentModels.VISION_WARNING
-        else "Uses $model.\n\n${DocumentModels.VISION_WARNING}"
+        val warning = message("settings.model.document.warning")
+        return if (model.isNullOrBlank()) warning
+        else message("settings.model.document.warning.withModel", model, warning)
     }
 
     private fun azureVisionSelected(): Boolean {

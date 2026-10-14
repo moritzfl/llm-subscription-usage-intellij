@@ -10,6 +10,7 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.proxy.logging.RequestLogger
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
@@ -190,21 +191,19 @@ internal class OpenCodeSettingsPanel(
                 }
                 row { cell(workspaceStatus) }
                 row { text("To change a browser-scoped organization, sign in again.") }
-                row("Document model:") {
+                row(message("settings.model.document.label")) {
                     cell(documentModelCombo.combo)
                         .align(AlignX.FILL)
                         .resizableColumn()
-                        .comment(DocumentModels.OFF_COMMENT)
+                        .comment(message("settings.model.document.help"))
                     cell(documentModelCombo.warning).align(com.intellij.ui.dsl.builder.AlignY.TOP)
                     cell(testDocumentButton)
                 }
-                row("Vision model:") {
+                row(message("settings.model.vision.label")) {
                     cell(visionModelCombo.combo)
                         .align(AlignX.FILL)
                         .resizableColumn()
-                        .comment(
-                            "Declared vision models first; unverified models may also work. Use Test vision to check. '-' keeps vision off."
-                        )
+                        .comment(message("settings.model.vision.help"))
                     cell(testVisionButton)
                 }
             },
