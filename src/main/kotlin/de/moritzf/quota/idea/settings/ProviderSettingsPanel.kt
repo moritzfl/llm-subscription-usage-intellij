@@ -93,6 +93,51 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
         )
     }
 
+    /** Long connection forms wrap to the detail pane and scroll vertically as one surface. */
+    protected fun installScrollable(config: JComponent, response: JComponent) {
+        val content =
+            object : BorderLayoutPanel(), javax.swing.Scrollable {
+                    override fun getPreferredScrollableViewportSize() =
+                        Dimension(JBUI.scale(420), JBUI.scale(500))
+
+                    override fun getScrollableTracksViewportWidth() = true
+
+                    override fun getScrollableTracksViewportHeight() = false
+
+                    override fun getScrollableUnitIncrement(
+                        visibleRect: java.awt.Rectangle,
+                        orientation: Int,
+                        direction: Int,
+                    ) = JBUI.scale(16)
+
+                    override fun getScrollableBlockIncrement(
+                        visibleRect: java.awt.Rectangle,
+                        orientation: Int,
+                        direction: Int,
+                    ) = (visibleRect.height - JBUI.scale(16)).coerceAtLeast(JBUI.scale(16))
+                }
+                .apply {
+                    isOpaque = false
+                    addToTop(
+                        panel {
+                            group("Connection") {
+                                row { cell(config).align(AlignX.FILL).resizableColumn() }
+                            }
+                            row { cell(routingHost).align(AlignX.FILL).resizableColumn() }
+                            row { cell(response).align(AlignX.FILL).resizableColumn() }
+                        }
+                    )
+                }
+        addToCenter(
+            JBScrollPane(content).apply {
+                border = JBUI.Borders.empty()
+                isOverlappingScrollBar = false
+                horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
+                verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
+            }
+        )
+    }
+
     override fun getPreferredSize(): Dimension {
         val size = super.getPreferredSize()
         return Dimension(size.width.coerceAtMost(JBUI.scale(420)), size.height)

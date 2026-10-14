@@ -12,6 +12,7 @@ enum class QuotaIndicatorSource(
     CURSOR("Cursor", QuotaProviderType.CURSOR),
     GITHUB("GitHub Copilot", QuotaProviderType.GITHUB),
     KIMI("Kimi", QuotaProviderType.KIMI),
+    LITELLM("LiteLLM", QuotaProviderType.LITELLM),
     MINIMAX("MiniMax", QuotaProviderType.MINIMAX),
     MISTRAL("Mistral", QuotaProviderType.MISTRAL),
     OPEN_AI("OpenAI", QuotaProviderType.OPEN_AI),

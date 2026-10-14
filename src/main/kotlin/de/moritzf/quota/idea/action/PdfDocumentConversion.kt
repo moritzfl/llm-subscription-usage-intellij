@@ -11,6 +11,7 @@ import de.moritzf.quota.azure.isAzureNativePdfSelection
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.AzureQuotaProvider
 import de.moritzf.quota.idea.common.ProviderCatalog
+import de.moritzf.quota.idea.compatible.isCompatibleConnection
 import de.moritzf.quota.idea.mcp.CodexMcpClient
 import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
 import de.moritzf.quota.idea.mistral.MistralApiKeyStore
@@ -38,14 +39,27 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.decodeFromJsonElement
 
+internal data class DocumentConnection(
+    val provider: DocumentToMarkdownProvider,
+    val accountId: String? = null,
+    val accountName: String? = null,
+)
+
 /** IDE-side entry point; no dependency on the optional IntelliJ MCP server. */
 internal object PdfDocumentConversion {
-    fun availableProviders(): List<DocumentToMarkdownProvider> {
+    fun availableConnections(): List<DocumentConnection> {
         val settings = QuotaSettingsState.getInstance()
-        return DocumentToMarkdownProvider.entries.filter { choice ->
-            val type = choice.providerType ?: return@filter true
+        return DocumentToMarkdownProvider.entries.flatMap { choice ->
+            val type = choice.providerType ?: return@flatMap listOf(DocumentConnection(choice))
             val descriptor = ProviderCatalog.get(type)
-            settings.accountsOf(type).any { descriptor.isDocumentConfiguredForAccount(it.id) }
+            val accounts = settings.accountsOf(type)
+            if (type.isCompatibleConnection()) {
+                accounts
+                    .filter { descriptor.isDocumentConfiguredForAccount(it.id) }
+                    .map { DocumentConnection(choice, it.id, it.name.takeIf { accounts.size > 1 }) }
+            } else if (accounts.any { descriptor.isDocumentConfiguredForAccount(it.id) }) {
+                listOf(DocumentConnection(choice))
+            } else emptyList()
         }
     }
 
@@ -57,6 +71,7 @@ internal object PdfDocumentConversion {
         imageOptions: DocumentImageOptions = DocumentImageOptions(),
         progress: DocumentConversionProgress = DocumentConversionProgress.NONE,
         model: String = "",
+        accountId: String? = null,
     ): DocumentConversionResult {
         progress.update(0, 0, "Preparing document conversion")
         require(PdfPages.isPdf(source)) { "Select a readable PDF file." }
@@ -68,13 +83,20 @@ internal object PdfDocumentConversion {
         }
         val type = checkNotNull(provider.providerType)
         val account =
-            AccountResolver.resolve(type, capability = AccountCapability.DOCUMENT_TO_MARKDOWN)
+            if (type.isCompatibleConnection())
+                de.moritzf.quota.idea.compatible.compatibleAccount(type, accountId)
+            else AccountResolver.resolve(type, capability = AccountCapability.DOCUMENT_TO_MARKDOWN)
         fun selectedModel() = DocumentModelSelection.forAccount(type, account.id, model)
         if (provider != DocumentToMarkdownProvider.AZURE && selectedModel() == DocumentModels.OFF) {
             error("Document conversion is off. Pick a model in settings.")
         }
         val response =
             when (provider) {
+                DocumentToMarkdownProvider.OPENAI_COMPATIBLE,
+                DocumentToMarkdownProvider.LITELLM ->
+                    de.moritzf.quota.idea.compatible
+                        .compatibleMediaClient(account)
+                        .document(selectedModel(), source, output)
                 DocumentToMarkdownProvider.MISTRAL -> {
                     val key =
                         MistralApiKeyStore.forAccount(account.id).loadBlocking()

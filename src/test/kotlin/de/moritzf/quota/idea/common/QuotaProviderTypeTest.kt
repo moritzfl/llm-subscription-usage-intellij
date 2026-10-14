@@ -14,10 +14,12 @@ class QuotaProviderTypeTest {
                 QuotaProviderType.CURSOR,
                 QuotaProviderType.GITHUB,
                 QuotaProviderType.KIMI,
+                QuotaProviderType.LITELLM,
                 QuotaProviderType.MINIMAX,
                 QuotaProviderType.MISTRAL,
                 QuotaProviderType.OLLAMA,
                 QuotaProviderType.OPEN_AI,
+                QuotaProviderType.OPENAI_COMPATIBLE,
                 QuotaProviderType.OPEN_CODE,
                 QuotaProviderType.SUPERGROK,
                 QuotaProviderType.ZAI,
@@ -29,7 +31,7 @@ class QuotaProviderTypeTest {
     @Test
     fun registryCoversEveryProviderTypeOnce() {
         assertEquals(
-            QuotaProviderType.entries.toSet(),
+            ProviderCatalog.all.filter { it.capabilities.quota }.map { it.type }.toSet(),
             QuotaProviderRegistry.all.map { it.type }.toSet(),
         )
         assertEquals(
@@ -73,10 +75,12 @@ class QuotaProviderTypeTest {
                 QuotaProviderType.CURSOR,
                 QuotaProviderType.GITHUB,
                 QuotaProviderType.KIMI,
+                QuotaProviderType.LITELLM,
                 QuotaProviderType.MINIMAX,
                 QuotaProviderType.MISTRAL,
                 QuotaProviderType.OLLAMA,
                 QuotaProviderType.OPEN_AI,
+                QuotaProviderType.OPENAI_COMPATIBLE,
                 QuotaProviderType.OPEN_CODE,
                 QuotaProviderType.SUPERGROK,
                 QuotaProviderType.ZAI,
@@ -125,10 +129,12 @@ class QuotaProviderTypeTest {
                 QuotaProviderType.SUPERGROK,
                 QuotaProviderType.ZAI,
                 QuotaProviderType.KIMI,
+                QuotaProviderType.LITELLM,
                 QuotaProviderType.MINIMAX,
                 QuotaProviderType.MISTRAL,
                 QuotaProviderType.OLLAMA,
                 QuotaProviderType.OPEN_AI,
+                QuotaProviderType.OPENAI_COMPATIBLE,
             ),
             merged,
         )

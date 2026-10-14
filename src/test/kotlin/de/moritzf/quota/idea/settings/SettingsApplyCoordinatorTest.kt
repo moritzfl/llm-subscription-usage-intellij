@@ -8,6 +8,48 @@ import kotlin.test.assertTrue
 
 class SettingsApplyCoordinatorTest {
     @Test
+    fun compatibleValidationPrecedesSecretWritesAndRemovalClearsOnlyRemovedAccount() {
+        val row =
+            ProviderAccount("api", "openai-compatible", "Custom").apply {
+                setExtra(ProviderAccount.EXTRA_COMPATIBLE_BASE_URL, "https://example.com/v1")
+            }
+        val state = QuotaSettingsState().apply { accounts = mutableListOf(row) }
+        val invalid =
+            QuotaSettingsDraft.from(state).also {
+                it.accounts
+                    .single()
+                    .setExtra(
+                        ProviderAccount.EXTRA_COMPATIBLE_BASE_URL,
+                        "https://example.com/v1/models",
+                    )
+            }
+        val events = mutableListOf<String>()
+        val coordinator = coordinator(state, events)
+        assertFailsWith<IllegalArgumentException> {
+            coordinator.apply(
+                invalid,
+                credentialsChanged = true,
+                saveCredentials = { events += "save" },
+            )
+        }
+        assertTrue(events.isEmpty())
+        assertEquals(
+            "https://example.com/v1",
+            state.accounts.single().extra(ProviderAccount.EXTRA_COMPATIBLE_BASE_URL),
+        )
+        coordinator.apply(
+            QuotaSettingsDraft.from(state),
+            credentialsChanged = true,
+            saveCredentials = { events += "save" },
+        )
+        assertEquals(listOf("save", "sync", "publish"), events)
+        events.clear()
+        coordinator.apply(QuotaSettingsDraft.from(state).copy(accounts = emptyList()))
+        assertEquals(listOf("delete:api", "clear:api", "sync", "publish"), events)
+        assertTrue(state.accounts.isEmpty())
+    }
+
+    @Test
     fun settingsEventReloadsEachServiceExactlyOnce() {
         val calls = mutableListOf<String>()
         SettingsServicesListener({ calls += "proxy" }, { calls += "mcp" }).onSettingsChanged()

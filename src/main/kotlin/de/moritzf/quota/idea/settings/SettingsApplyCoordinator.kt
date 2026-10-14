@@ -39,9 +39,11 @@ internal class SettingsApplyCoordinator(
                 .filter { it.id !in kept }
                 .distinctBy { it.id }
         if (before == draft && !credentialsChanged && deleted.isEmpty()) return false
-        if (credentialsChanged) saveCredentials()
-        deleted.forEach(clearSecrets)
-        draft.applyTo(state)
+        synchronized(state) {
+            if (credentialsChanged) saveCredentials()
+            deleted.forEach(clearSecrets)
+            draft.applyTo(state)
+        }
         deleted.forEach { clearUsage(it.id) }
         syncAccounts()
         // Invalidate workers before pruning, so late results cannot restore removed entries.
@@ -49,6 +51,13 @@ internal class SettingsApplyCoordinator(
         state.pruneOrphanAccountData()
         for (account in draft.accounts) {
             val old = before.accounts.firstOrNull { it.id == account.id } ?: continue
+            if (
+                account.providerType() == QuotaProviderType.LITELLM &&
+                    (credentialsChanged || old.extras != account.extras)
+            ) {
+                clearUsage(account.id)
+                refresh(account.id)
+            }
             if (old.extras == account.extras) continue
             when (account.providerType()) {
                 QuotaProviderType.AZURE,

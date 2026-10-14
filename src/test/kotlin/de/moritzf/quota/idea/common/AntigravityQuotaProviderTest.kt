@@ -33,7 +33,8 @@ class AntigravityQuotaProviderTest {
             service.refreshBlocking(account.id)
             assertEquals(
                 USAGE_REPORT,
-                UsageQuotaMcpRegistry.get(provider.type).json(service, provider.type),
+                assertNotNull(UsageQuotaMcpRegistry.get(provider.type))
+                    .json(service, provider.type),
             )
             assertNotNull(service.getLastQuota(account.id))
             assertNull(settings.cachedQuotaJson(account.id))

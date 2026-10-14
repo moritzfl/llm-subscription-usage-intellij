@@ -19,6 +19,8 @@ internal object TypeHasStoredCredentials {
         return when (type) {
             QuotaProviderType.ANTIGRAVITY -> false // Opt-in only; AGY owns its credentials.
             QuotaProviderType.AZURE -> false // Opt-in only; Azure CLI owns its credentials.
+            QuotaProviderType.OPENAI_COMPATIBLE,
+            QuotaProviderType.LITELLM -> false // No legacy account to migrate.
             QuotaProviderType.CLAUDE,
             QuotaProviderType.OPEN_AI,
             QuotaProviderType.SUPERGROK -> hasOAuth(type)

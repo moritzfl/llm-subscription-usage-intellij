@@ -27,6 +27,7 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.AlignY
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
+import de.moritzf.quota.idea.compatible.isCompatibleConnection
 import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
 import de.moritzf.quota.idea.settings.DocumentModelSelection
 import de.moritzf.quota.idea.settings.ExplainerWarningIcon
@@ -66,10 +67,10 @@ class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
             ) ?: return
         val source = Path.of(pdf.path)
         ApplicationManager.getApplication().executeOnPooledThread {
-            val providers = PdfDocumentConversion.availableProviders()
+            val connections = PdfDocumentConversion.availableConnections()
             ApplicationManager.getApplication().invokeLater {
                 if (project.isDisposed) return@invokeLater
-                if (providers.isEmpty()) {
+                if (connections.isEmpty()) {
                     Messages.showInfoMessage(
                         project,
                         "Configure a document-conversion provider in LLM Subscription Usage settings.",
@@ -77,10 +78,11 @@ class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
                     )
                     return@invokeLater
                 }
-                val dialog = ConvertPdfToMarkdownDialog(project, source, providers)
+                val dialog = ConvertPdfToMarkdownDialog(project, source, connections)
                 if (!dialog.showAndGet()) return@invokeLater
                 val destination = dialog.outputFile()
                 val provider = dialog.provider()
+                val accountId = dialog.accountId()
                 val includeImages = dialog.includeImages()
                 val imageOptions = dialog.imageOptions()
                 if (
@@ -107,6 +109,7 @@ class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
                                         destination,
                                         includeImages,
                                         imageOptions,
+                                        accountId = accountId,
                                         progress = { completed, total, detail ->
                                             indicator.checkCanceled()
                                             indicator.text = source.fileName.toString()
@@ -185,11 +188,11 @@ internal fun pdfFromSelection(files: List<VirtualFile>?, single: VirtualFile?): 
 private class ConvertPdfToMarkdownDialog(
     private val project: Project,
     private val source: Path,
-    providers: List<DocumentToMarkdownProvider>,
+    connections: List<DocumentConnection>,
 ) : DialogWrapper(project) {
     private val defaultFileName = checkNotNull(DocumentMarkdown.defaultOutput(source)).fileName
     private val providerCombo =
-        ComboBox(providers.toTypedArray()).apply {
+        ComboBox(connections.toTypedArray()).apply {
             renderer =
                 object : DefaultListCellRenderer() {
                     override fun getListCellRendererComponent(
@@ -206,7 +209,8 @@ private class ConvertPdfToMarkdownDialog(
                             isSelected,
                             cellHasFocus,
                         )
-                        val provider = value as? DocumentToMarkdownProvider
+                        val connection = value as? DocumentConnection
+                        val provider = connection?.provider
                         text =
                             when (provider) {
                                 DocumentToMarkdownProvider.MISTRAL -> "Mistral OCR"
@@ -216,12 +220,15 @@ private class ConvertPdfToMarkdownDialog(
                                 DocumentToMarkdownProvider.SUPERGROK -> "SuperGrok vision"
                                 DocumentToMarkdownProvider.GITHUB -> "GitHub Copilot"
                                 DocumentToMarkdownProvider.OPEN_CODE -> "OpenCode"
+                                DocumentToMarkdownProvider.OPENAI_COMPATIBLE,
+                                DocumentToMarkdownProvider.LITELLM ->
+                                    provider.providerType?.displayName.orEmpty() +
+                                        (connection.accountName?.let { " · $it" } ?: "")
                                 DocumentToMarkdownProvider.PDFBOX ->
                                     "PDFBox text extraction (local)"
                                 else -> ""
                             }
-                        // Popup rows only. The closed field keeps the separate icon, which owns the
-                        // explainer.
+                        // Popup rows only. The closed field keeps the separate explainer icon.
                         icon =
                             if (
                                 index >= 0 &&
@@ -374,7 +381,9 @@ private class ConvertPdfToMarkdownDialog(
     }
 
     fun provider(): DocumentToMarkdownProvider =
-        providerCombo.selectedItem as DocumentToMarkdownProvider
+        (providerCombo.selectedItem as DocumentConnection).provider
+
+    fun accountId(): String? = (providerCombo.selectedItem as DocumentConnection).accountId
 
     fun includeImages(): Boolean = imagesCheckBox.isSelected
 
@@ -389,7 +398,12 @@ private class ConvertPdfToMarkdownDialog(
 
     private fun updateImageControls() {
         val pdfBox = provider() == DocumentToMarkdownProvider.PDFBOX
-        if (pdfBox) {
+        val textOnly =
+            pdfBox ||
+                provider().providerType.isCompatibleConnection() ||
+                provider() == DocumentToMarkdownProvider.GITHUB ||
+                provider() == DocumentToMarkdownProvider.OPEN_CODE
+        if (textOnly) {
             if (imagesCheckBox.isEnabled) restoreImages = imagesCheckBox.isSelected
             imagesCheckBox.isSelected = false
             imagesCheckBox.isEnabled = false

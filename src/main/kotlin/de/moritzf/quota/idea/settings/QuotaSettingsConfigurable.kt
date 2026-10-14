@@ -23,6 +23,7 @@ import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.common.CredentialStorage
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageListener
+import de.moritzf.quota.idea.common.rethrowIfCancellation
 import de.moritzf.quota.idea.mcp.McpServerStatusState
 import de.moritzf.quota.idea.mcp.McpServerSyncTarget
 import de.moritzf.quota.idea.mcp.McpServerUrlResolver
@@ -217,11 +218,13 @@ class QuotaSettingsConfigurable : Configurable {
     }
 
     override fun cancel() {
+        compatiblePanels().forEach { it.discardDrafts() }
         accountListPanel?.discardPending()
         super.cancel()
     }
 
     override fun disposeUIResources() {
+        compatiblePanels().forEach { it.dispose() }
         accountListPanel?.discardPending()
         connection?.disconnect()
         connection = null
@@ -330,6 +333,7 @@ class QuotaSettingsConfigurable : Configurable {
 
     private fun showAccountDetail(account: ProviderAccount?) {
         flushVisibleAccountFields()
+        compatiblePanels().forEach { it.cancelRequests() }
         boundDetailAccountId = account?.id
         val type = account?.providerType()
         if (account == null || type == null) {
@@ -493,6 +497,9 @@ class QuotaSettingsConfigurable : Configurable {
                 addTab("MCP Synchronisation", buildMcpSyncTab())
                 addTab("Proxy", proxySettingsPanel!!)
             }
+        compatiblePanels().forEach {
+            it.openProxySettings = { tabs.selectedComponent = proxySettingsPanel }
+        }
         return panel {
             // Shown once for the whole dialog: the setting is an IDE-wide one, and it drops the
             // logins, session cookies, and API keys of every provider alike. `text` wraps to the
@@ -531,6 +538,7 @@ class QuotaSettingsConfigurable : Configurable {
                 persistAccountRouting()
                 draft.accounts =
                     accountListPanel?.accounts().orEmpty().map { it.snapshot() }.toMutableList()
+                val keptIds = draft.accounts.map { it.id }.toSet()
                 draft.syncIntellijMcpServerUrl = mcpSyncCheckBox?.isSelected == true
                 draft.mcpServerSyncTargets = normalizedMcpTargets.toMutableList()
                 draft.openAiProxyEnabled = proxyPanel.proxyEnabledCheckBox.isSelected
@@ -543,8 +551,20 @@ class QuotaSettingsConfigurable : Configurable {
                         .apply(
                             QuotaSettingsDraft.from(draft),
                             removed = accountListPanel?.removedAccounts().orEmpty(),
-                            credentialsChanged = proxyApiKeyChanged,
-                            saveCredentials = proxyPanel::saveProxyApiKeyBlocking,
+                            credentialsChanged =
+                                proxyApiKeyChanged ||
+                                    compatiblePanels().any { it.credentialsModified(keptIds) },
+                            saveCredentials = {
+                                try {
+                                    proxyPanel.saveProxyApiKeyBlocking()
+                                    compatiblePanels().forEach { it.saveCredentials(keptIds) }
+                                } catch (failure: Exception) {
+                                    failure.rethrowIfCancellation()
+                                    throw ConfigurationException(
+                                        "Could not save credentials to Password Safe. Please retry Apply."
+                                    )
+                                }
+                            },
                         )
                 } catch (failure: IllegalArgumentException) {
                     throw ConfigurationException(failure.message ?: "Invalid settings")
@@ -557,6 +577,7 @@ class QuotaSettingsConfigurable : Configurable {
 
             onReset {
                 boundDetailAccountId = null
+                compatiblePanels().forEach { it.discardDrafts() }
                 locationComboBox?.selectedItem = QuotaSettingsState.getInstance().location()
                 updateDisplayModeChoices(QuotaSettingsState.getInstance().displayMode())
                 updateDisplayModePreview()
@@ -592,6 +613,11 @@ class QuotaSettingsConfigurable : Configurable {
                     QuotaDisplayMode.sanitizeFor(selectedLocation, selectedDisplayMode) !=
                         state.displayMode() ||
                     selectedSource != state.source() ||
+                    compatiblePanels().any {
+                        it.credentialsModified(
+                            accountListPanel?.accounts().orEmpty().map { it.id }.toSet()
+                        )
+                    } ||
                     selectedAccountExtrasModified(state) ||
                     accountListPanel?.isModifiedVs(state) == true ||
                     accountListPanel?.hasDuplicateNames() == true ||
@@ -691,7 +717,13 @@ class QuotaSettingsConfigurable : Configurable {
     private fun updateRoutingControls(account: ProviderAccount) {
         val type = account.providerType()
         val siblings = accountListPanel?.accounts()?.filter { it.typeId == type?.id }.orEmpty()
-        if (type == null || siblings.size <= 1) {
+        if (
+            type == null ||
+                siblings.size <= 1 ||
+                de.moritzf.quota.idea.common.ProviderCatalog.get(type)
+                    .capabilities
+                    .independentProxyAccounts
+        ) {
             setRoutingVisible(false)
             return
         }
@@ -711,6 +743,12 @@ class QuotaSettingsConfigurable : Configurable {
     }
 
     private fun bindVisibilityToggle(type: QuotaProviderType, account: ProviderAccount) {
+        if (!de.moritzf.quota.idea.common.ProviderCatalog.get(type).capabilities.quota) {
+            visibilitySlot?.removeAll()
+            visibilitySlot?.revalidate()
+            visibilitySlot?.repaint()
+            return
+        }
         val toggle = providerPanelsByType[type]?.popupVisibilityToggle ?: return
         toggle.isHidden = account.hiddenFromPopup
         val slot = visibilitySlot ?: return
@@ -746,6 +784,11 @@ class QuotaSettingsConfigurable : Configurable {
         account.hiddenFromPopup =
             providerPanelsByType[account.providerType()]?.popupVisibilityToggle?.isHidden == true
         when (account.providerType()) {
+            QuotaProviderType.OPENAI_COMPATIBLE,
+            QuotaProviderType.LITELLM ->
+                (providerPanelsByType[account.providerType()] as CompatibleSettingsPanel).writeTo(
+                    account
+                )
             QuotaProviderType.ANTIGRAVITY ->
                 account.setExtra(
                     ProviderAccount.EXTRA_AGY_EXECUTABLE,
@@ -869,6 +912,10 @@ class QuotaSettingsConfigurable : Configurable {
         )
             return true
         return when (selected.providerType()) {
+            QuotaProviderType.OPENAI_COMPATIBLE,
+            QuotaProviderType.LITELLM ->
+                (providerPanelsByType[selected.providerType()] as CompatibleSettingsPanel)
+                    .differsFrom(persisted ?: selected)
             QuotaProviderType.ANTIGRAVITY ->
                 antigravityPanel().executableField.text.trim() !=
                     persisted?.extra(ProviderAccount.EXTRA_AGY_EXECUTABLE).orEmpty()
@@ -926,6 +973,9 @@ class QuotaSettingsConfigurable : Configurable {
             else -> false
         }
     }
+
+    private fun compatiblePanels(): List<CompatibleSettingsPanel> =
+        providerPanelsByType.values.filterIsInstance<CompatibleSettingsPanel>()
 
     private fun miniMaxPanel(): MiniMaxSettingsPanel =
         providerPanelsByType.getValue(QuotaProviderType.MINIMAX) as MiniMaxSettingsPanel

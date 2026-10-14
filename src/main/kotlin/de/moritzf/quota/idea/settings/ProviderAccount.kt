@@ -24,6 +24,8 @@ data class ProviderAccount(
     fun snapshot(): ProviderAccount = copy(extras = extras.toMutableMap())
 
     companion object {
+        const val EXTRA_COMPATIBLE_BASE_URL = "compatibleBaseUrl"
+        const val EXTRA_COMPATIBLE_MODELS = "compatibleModels"
         const val EXTRA_AGY_EXECUTABLE = "agyExecutable"
         const val EXTRA_AZURE_EXECUTABLE = "azureExecutable"
         const val EXTRA_AZURE_SUBSCRIPTION = "azureSubscriptionId"

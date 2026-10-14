@@ -262,7 +262,7 @@ class SubscriptionUsageMcpToolset : McpToolset {
     suspend fun subscription_document_to_markdown(
         @McpDescription(
             description =
-                "Prefer a document or OCR provider (MISTRAL, ZAI, or a company model such as AZURE), then OPEN_AI, SUPERGROK, GITHUB, or OPEN_CODE native PDF. PDFBOX extracts embedded text locally and needs no subscription; it is not OCR. Honor explicit provider requests."
+                "Prefer a document or OCR provider (MISTRAL, ZAI, or a company model such as AZURE), then OPEN_AI, SUPERGROK, GITHUB, or OPEN_CODE native PDF. OPENAI_COMPATIBLE and LITELLM use a selected native-PDF model from your connection. PDFBOX extracts embedded text locally and needs no subscription; it is not OCR. Honor explicit provider requests."
         )
         provider: DocumentToMarkdownProvider = DocumentToMarkdownProvider.MISTRAL,
         @McpDescription(description = "Public document URL. Leave blank when localFile is set.")
@@ -306,6 +306,11 @@ class SubscriptionUsageMcpToolset : McpToolset {
                 "Extra figure margin in PDF points (0-72, default 2; 72 points = 1 inch). Applies to local SVG/PNG export."
         )
         imagePaddingPoints: Double = 2.0,
+        @McpDescription(
+            description =
+                "OpenAI-compatible or LiteLLM connection name/ID. Required when that provider has multiple connections. Uses the connection's upstream model ID."
+        )
+        account: String? = null,
     ): String {
         return interruptibleOperation {
             operations.subscription_document_to_markdown(
@@ -320,6 +325,7 @@ class SubscriptionUsageMcpToolset : McpToolset {
                 imageFormat,
                 imageDpi,
                 imagePaddingPoints,
+                account,
             )
         }
     }
@@ -352,9 +358,14 @@ class SubscriptionUsageMcpToolset : McpToolset {
                 "Vision model id. Leave blank to use the vision model selected in settings."
         )
         model: String = "",
+        @McpDescription(
+            description =
+                "OpenAI-compatible or LiteLLM connection name/ID. Required when that provider has multiple connections. Uses the connection's upstream model ID."
+        )
+        account: String? = null,
     ): String {
         return interruptibleOperation {
-            operations.subscription_vision(prompt, provider, imageUrl, localFile, model)
+            operations.subscription_vision(prompt, provider, imageUrl, localFile, model, account)
         }
     }
 

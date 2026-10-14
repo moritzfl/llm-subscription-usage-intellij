@@ -14,7 +14,11 @@ internal data class UsageQuotaMcpRegistration(
 /** Facade over [ProviderCatalog] for MCP quota JSON export. */
 internal object UsageQuotaMcpRegistry {
     val all: Map<QuotaProviderType, UsageQuotaMcpRegistration>
-        get() = ProviderCatalog.all.associate { it.type to it.mcpQuota }
+        get() =
+            ProviderCatalog.all
+                .mapNotNull { descriptor -> descriptor.mcpQuota?.let { descriptor.type to it } }
+                .toMap()
 
-    fun get(type: QuotaProviderType): UsageQuotaMcpRegistration = ProviderCatalog.get(type).mcpQuota
+    fun get(type: QuotaProviderType): UsageQuotaMcpRegistration? =
+        ProviderCatalog.get(type).mcpQuota
 }

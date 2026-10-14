@@ -43,6 +43,38 @@ internal data class IdeProxyBuildContext(
 )
 
 internal object IdeProxyFactories {
+    fun compatible(ctx: IdeProxyBuildContext): SubscriptionProxyProvider {
+        val account = requireNotNull(ctx.account)
+        val endpoint = de.moritzf.quota.idea.compatible.compatibleEndpoint(account)
+        return de.moritzf.quota.compatible.proxy.CompatibleSubscriptionProxyProvider(
+            accountId = account.id,
+            name = account.name,
+            endpoint =
+                endpoint
+                    ?: de.moritzf.quota.compatible.CompatibleEndpoint(
+                        java.net.URI("http://localhost")
+                    ),
+            apiKeyProvider = {
+                val store =
+                    de.moritzf.quota.idea.compatible.CompatibleApiKeyStore.forAccount(account.id)
+                // Password Safe can prompt on the EDT; never load it while holding settings.
+                store.loadBlocking()
+                synchronized(ctx.settings) {
+                    if (
+                        endpoint == null ||
+                            de.moritzf.quota.idea.compatible.compatibleEndpoint(
+                                ctx.settings.account(account.id)
+                            ) != endpoint
+                    )
+                        null
+                    else store.load()
+                }
+            },
+            fullRequestLogging = ctx.logRequests,
+            requestLogDir = ctx.requestLogDir,
+        )
+    }
+
     fun openAi(ctx: IdeProxyBuildContext): SubscriptionProxyProvider {
         return OpenAiCodexSubscriptionProxyProvider(
             accessTokenProvider = {

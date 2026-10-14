@@ -7,6 +7,8 @@ enum class QuotaProviderType(val id: String, val displayName: String) {
     CURSOR("cursor", "Cursor"),
     GITHUB("github", "GitHub Copilot"),
     OPEN_AI("openai", "OpenAI"),
+    OPENAI_COMPATIBLE("openai-compatible", "OpenAI-compatible"),
+    LITELLM("litellm", "LiteLLM"),
     OPEN_CODE("opencode", "OpenCode"),
     OLLAMA("ollama", "Ollama"),
     SUPERGROK("supergrok", "SuperGrok"),
@@ -20,8 +22,7 @@ enum class QuotaProviderType(val id: String, val displayName: String) {
             it.id.equals(id.trim(), ignoreCase = true)
         }
 
-        fun defaultProviderOrder(): List<QuotaProviderType> =
-            QuotaProviderRegistry.defaultProviderOrder()
+        fun defaultProviderOrder(): List<QuotaProviderType> = ProviderCatalog.defaultProviderOrder()
 
         /**
          * Preserves [storedOrder] while inserting any newly added providers: alphabetically first

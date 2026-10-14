@@ -45,10 +45,39 @@ class ProviderCatalogTest {
     @Test
     fun facadesExposeSameProviderSet() {
         val catalog = ProviderCatalog.all.map { it.type }.toSet()
-        assertEquals(catalog, QuotaProviderRegistry.all.map { it.type }.toSet())
+        val quota = ProviderCatalog.all.filter { it.capabilities.quota }.map { it.type }.toSet()
+        assertEquals(quota, QuotaProviderRegistry.all.map { it.type }.toSet())
         assertEquals(catalog, ProviderSettingsRegistry.all.keys)
         assertEquals(catalog, ProviderUiRegistry.all.keys)
-        assertEquals(catalog, UsageQuotaMcpRegistry.all.keys)
+        assertEquals(quota, UsageQuotaMcpRegistry.all.keys)
+    }
+
+    @Test
+    fun compatibleEndpointsHaveProxyAndSettingsWithoutQuotaRegistrations() {
+        val type = QuotaProviderType.OPENAI_COMPATIBLE
+        val descriptor = ProviderCatalog.get(type)
+        assertTrue(descriptor.capabilities.subscriptionProxy)
+        assertTrue(descriptor.capabilities.independentProxyAccounts)
+        assertEquals(false, descriptor.capabilities.quota)
+        assertEquals(false, descriptor.isQuotaConfiguredForAccount("custom"))
+        assertNull(descriptor.quotaFactory)
+        assertNull(descriptor.snapshotCodec)
+        assertNull(descriptor.mcpQuota)
+        assertNull(descriptor.ui.createPopupSection())
+        assertNull(QuotaProviderRegistry.getOrNull(type))
+        assertTrue(
+            ProviderCatalog.createAccountProviders(
+                    listOf(
+                        de.moritzf.quota.idea.settings.ProviderAccount("custom", type.id, "Custom")
+                    )
+                )
+                .isEmpty()
+        )
+        for (entry in ProviderCatalog.all) {
+            assertEquals(entry.capabilities.quota, entry.quotaFactory != null)
+            assertEquals(entry.capabilities.quota, entry.snapshotCodec != null)
+            assertEquals(entry.capabilities.quota, entry.mcpQuota != null)
+        }
     }
 
     @Test
@@ -142,7 +171,7 @@ class ProviderCatalogTest {
     fun indicatorSourcesShareProviderStorageIds() {
         val providerSources = QuotaIndicatorSource.entries.filter { it.providerType != null }
         assertEquals(
-            QuotaProviderType.entries.toSet(),
+            ProviderCatalog.all.filter { it.capabilities.quota }.map { it.type }.toSet(),
             providerSources.map { it.providerType }.toSet(),
         )
         for (source in providerSources) {

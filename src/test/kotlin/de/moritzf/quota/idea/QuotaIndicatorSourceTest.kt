@@ -1,6 +1,5 @@
 package de.moritzf.quota.idea
 
-import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -9,7 +8,10 @@ import kotlin.test.assertNull
 class QuotaIndicatorSourceTest {
     @Test
     fun storageIdMatchesProviderIdForEveryProviderSource() {
-        for (type in QuotaProviderType.entries) {
+        for (type in
+            de.moritzf.quota.idea.common.ProviderCatalog.all
+                .filter { it.capabilities.quota }
+                .map { it.type }) {
             val source = QuotaIndicatorSource.forProvider(type)
             assertEquals(type.id, source.storageId, type.name)
             assertEquals(type, source.providerType)

@@ -354,6 +354,8 @@ private class QuotaPopupContentPanel(
             if (settings.accounts.isNotEmpty()) {
                 settings.accounts.mapNotNull { account ->
                     val type = account.providerType() ?: return@mapNotNull null
+                    if (!de.moritzf.quota.idea.common.ProviderCatalog.get(type).capabilities.quota)
+                        return@mapNotNull null
                     account.id to type
                 }
             } else {
@@ -367,7 +369,8 @@ private class QuotaPopupContentPanel(
         sectionTypes.clear()
         val insertAt = getComponentZOrder(updatedAtSeparator).takeIf { it >= 0 } ?: componentCount
         desired.forEachIndexed { index, (id, type) ->
-            val section = ProviderUiRegistry.forType(type).createPopupSection()
+            val section =
+                ProviderUiRegistry.forType(type).createPopupSection() ?: return@forEachIndexed
             sections[id] = section
             sectionTypes[id] = type
             add(section, insertAt + index)

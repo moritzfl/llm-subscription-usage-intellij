@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea.settings
 
+import de.moritzf.quota.idea.compatible.isCompatibleConnection
 import de.moritzf.quota.idea.mcp.McpServerSyncTarget
 
 /** Editable configuration only: applying a dialog must never overwrite live quota caches. */
@@ -33,6 +34,18 @@ internal data class QuotaSettingsDraft(
         ) {
             "Account names must be unique per provider."
         }
+        accounts
+            .filter { it.providerType().isCompatibleConnection() }
+            .forEach { account ->
+                try {
+                    de.moritzf.quota.compatible.CompatibleEndpoint.parse(
+                        account.extra(ProviderAccount.EXTRA_COMPATIBLE_BASE_URL).orEmpty(),
+                        account.extra(ProviderAccount.EXTRA_COMPATIBLE_MODELS).orEmpty(),
+                    )
+                } catch (failure: IllegalArgumentException) {
+                    throw IllegalArgumentException("${account.name}: ${failure.message}")
+                }
+            }
     }
 
     fun applyTo(state: QuotaSettingsState) =

@@ -41,6 +41,18 @@ internal object OperationQuota {
             return OperationQuotaStatus(exhausted = false, fetchedAt = quota.fetchedAt)
         }
         return when (quota) {
+            is de.moritzf.quota.litellm.LiteLlmQuota ->
+                OperationQuotaStatus(
+                    exhausted = (quota.usageFraction() ?: 0.0) >= 1.0,
+                    limitingPool = "key budget",
+                    usagePercent = quota.usageFraction()?.times(100),
+                    resetsAt = quota.resetsAt,
+                    reason =
+                        if (quota.blocked) "key blocked"
+                        else if ((quota.usageFraction() ?: 0.0) >= 1.0) "key budget exhausted"
+                        else null,
+                    fetchedAt = quota.fetchedAt,
+                )
             is AntigravityQuota ->
                 fromPercentWindows(
                     quota.windows.mapNotNull { window ->

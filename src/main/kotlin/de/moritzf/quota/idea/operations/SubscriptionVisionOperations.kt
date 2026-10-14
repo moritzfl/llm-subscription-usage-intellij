@@ -2,6 +2,7 @@ package de.moritzf.quota.idea.operations
 
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.rethrowIfCancellation
+import de.moritzf.quota.idea.compatible.isCompatibleConnection
 import de.moritzf.quota.idea.kimi.KimiCredentialsStore
 import de.moritzf.quota.idea.mcp.*
 import de.moritzf.quota.idea.mistral.MistralApiKeyStore
@@ -20,7 +21,28 @@ internal suspend fun SubscriptionOperations.subscription_vision(
     imageUrl: String? = null,
     localFile: String? = null,
     model: String = "",
+    account: String? = null,
 ): String {
+    if (provider.providerType.isCompatibleConnection()) {
+        return try {
+            val selectedAccount =
+                de.moritzf.quota.idea.compatible.compatibleAccount(provider.providerType, account)
+            val chosen =
+                de.moritzf.quota.idea.settings.VisionModelSelection.forAccount(
+                    provider.providerType,
+                    selectedAccount.id,
+                    model,
+                )
+            val answer =
+                de.moritzf.quota.idea.compatible
+                    .compatibleMediaClient(selectedAccount)
+                    .vision(chosen, prompt, resolveOptionalPath(localFile), imageUrl)
+            McpJson.visionResult(provider.name, chosen, answer)
+        } catch (failure: Exception) {
+            failure.rethrowIfCancellation()
+            errorResult(failure.message ?: "Image analysis failed.")
+        }
+    }
     val chosen = model.trim().ifBlank { visionModel(provider) }
     if (chosen == "-" || chosen.isBlank()) {
         return errorResult(
@@ -32,6 +54,8 @@ internal suspend fun SubscriptionOperations.subscription_vision(
         return errorResult("Image prompt is required.")
     }
     return when (provider) {
+        VisionProvider.OPENAI_COMPATIBLE,
+        VisionProvider.LITELLM -> error("Handled above")
         VisionProvider.AZURE -> {
             val source =
                 resolveOptionalPath(localFile)

@@ -68,6 +68,8 @@ internal data class McpAccountToolStatus(
     @SerialName("default") val isDefault: Boolean,
     @SerialName("allow_failover") val allowFailover: Boolean,
     @SerialName("quota_configured") val quotaConfigured: Boolean,
+    @SerialName("quota_supported") val quotaSupported: Boolean = true,
+    @SerialName("proxy_supported") val proxySupported: Boolean = false,
     @SerialName("web_search_available") val webSearchAvailable: Boolean,
     @SerialName("web_search_type") val webSearchType: String? = null,
     @SerialName("web_fetch_available") val webFetchAvailable: Boolean = false,

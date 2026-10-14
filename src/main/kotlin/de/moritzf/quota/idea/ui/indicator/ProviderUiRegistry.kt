@@ -89,7 +89,7 @@ internal interface ProviderUi {
 
     fun authState(accountId: String): ProviderAuthState
 
-    fun createPopupSection(): ProviderPopupSection
+    fun createPopupSection(): ProviderPopupSection?
 }
 
 internal fun accountTooltipName(type: QuotaProviderType, accountId: String): String? {

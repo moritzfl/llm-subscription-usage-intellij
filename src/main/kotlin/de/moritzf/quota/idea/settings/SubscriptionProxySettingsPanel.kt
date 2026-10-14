@@ -110,6 +110,7 @@ internal class SubscriptionProxySettingsPanel(
             setSwingPopup(false)
         }
     private var completionsGroupHeaders: Map<String, ListSeparator> = emptyMap()
+    private var completionsModelLabels: Map<String, String> = emptyMap()
     private val completionsModelWarning = ExplainerWarningIcon()
     private var nativeCompletionsModelIds: Set<String> = emptySet()
     private val completionsMaxTokensField =
@@ -187,7 +188,7 @@ internal class SubscriptionProxySettingsPanel(
     init {
         completionsModelCombo.renderer =
             object : GroupedComboBoxRenderer<String>(completionsModelCombo) {
-                override fun getText(item: String): String = item
+                override fun getText(item: String): String = completionsModelLabels[item] ?: item
 
                 override fun separatorFor(value: String): ListSeparator? =
                     completionsGroupHeaders[value]
@@ -250,7 +251,7 @@ internal class SubscriptionProxySettingsPanel(
                 row {
                     cell(proxyEnabledCheckBox)
                         .comment(
-                            "Lets Junie, AI Assistant, and other JetBrains AI features use your ChatGPT, Grok, and similar subscriptions."
+                            "Lets Junie, AI Assistant, and other JetBrains AI features use your subscriptions and OpenAI-compatible APIs."
                         )
                 }
                 row {
@@ -288,9 +289,9 @@ internal class SubscriptionProxySettingsPanel(
                         cell(logsStatusLabel)
                     }
                     separator()
-                    row("Providers:") {
-                        providerCheckBoxes.values.forEach { checkBox ->
-                            cell(checkBox).gap(RightGap.SMALL)
+                    providerCheckBoxes.values.chunked(3).forEachIndexed { index, boxes ->
+                        row(if (index == 0) "Providers:" else "") {
+                            boxes.forEach { checkBox -> cell(checkBox).gap(RightGap.SMALL) }
                         }
                     }
                     row { cell(providerStatusLabel) }
@@ -306,7 +307,7 @@ internal class SubscriptionProxySettingsPanel(
                     row {
                         cell(
                                 JBLabel(
-                                        "<html><body width='520'>Gray suggestions while you type, billed to your subscription. " +
+                                        "<html><body width='520'>Gray suggestions while you type, using the selected provider. " +
                                             "Set <b>Subscription model</b> to ${COMPLETIONS_OFF} to turn FIM off.</body></html>"
                                     )
                                     .apply { foreground = JBColor.GRAY }
@@ -802,6 +803,13 @@ internal class SubscriptionProxySettingsPanel(
     }
 
     private fun refreshCompletionsModelCombo(models: List<SubscriptionProxyModel>) {
+        completionsModelLabels =
+            models
+                .filter {
+                    it.providerId == QuotaProviderType.OPENAI_COMPATIBLE.id ||
+                        it.providerId == QuotaProviderType.LITELLM.id
+                }
+                .associate { it.localId to "${it.providerName} · ${it.upstreamId}" }
         val eligible = models.filter(FimModels::isEligible).distinctBy { it.localId }
         val native = eligible.filter(FimModels::isNativeFimId).map { it.localId }.distinct()
         val generic = eligible.filterNot(FimModels::isNativeFimId).map { it.localId }.distinct()

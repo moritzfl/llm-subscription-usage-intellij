@@ -9,6 +9,7 @@ import de.moritzf.quota.azure.isAzureCohereSelection
 import de.moritzf.quota.idea.common.AzureQuotaProvider
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.rethrowIfCancellation
+import de.moritzf.quota.idea.compatible.isCompatibleConnection
 import de.moritzf.quota.idea.mcp.*
 import de.moritzf.quota.idea.mistral.MistralApiKeyStore
 import de.moritzf.quota.idea.settings.AccountCapability
@@ -30,6 +31,7 @@ internal suspend fun SubscriptionOperations.subscription_document_to_markdown(
     imageFormat: DocumentImageFormat = DocumentImageFormat.SVG,
     imageDpi: Int = 300,
     imagePaddingPoints: Double = 2.0,
+    account: String? = null,
 ): String {
     val imageOptions =
         try {
@@ -40,7 +42,8 @@ internal suspend fun SubscriptionOperations.subscription_document_to_markdown(
         }
     if (
         provider != DocumentToMarkdownProvider.PDFBOX &&
-            provider != DocumentToMarkdownProvider.AZURE
+            provider != DocumentToMarkdownProvider.AZURE &&
+            !provider.providerType.isCompatibleConnection()
     ) {
         val chosen = model.ifBlank { documentModel(provider) }
         if (chosen == "-" || chosen.isBlank()) {
@@ -48,6 +51,18 @@ internal suspend fun SubscriptionOperations.subscription_document_to_markdown(
         }
     }
     return when (provider) {
+        DocumentToMarkdownProvider.OPENAI_COMPATIBLE,
+        DocumentToMarkdownProvider.LITELLM ->
+            nativePdfDocument(
+                provider,
+                documentUrl,
+                localFile,
+                outputFile,
+                model,
+                pageFrom,
+                pageTo,
+                account,
+            )
         DocumentToMarkdownProvider.AZURE ->
             azureDocumentToMarkdown(
                 documentUrl,
@@ -375,6 +390,7 @@ internal suspend fun SubscriptionOperations.nativePdfDocument(
     model: String,
     pageFrom: Int,
     pageTo: Int,
+    accountParam: String? = null,
 ): String {
     if (pageFrom > 0 || pageTo > 0)
         return errorResult("pageFrom/pageTo are not supported for native PDF.")
@@ -387,6 +403,24 @@ internal suspend fun SubscriptionOperations.nativePdfDocument(
             ?: de.moritzf.quota.shared.DocumentMarkdown.defaultOutput(source)
             ?: return errorResult("Could not choose an output path.")
     val type = provider.providerType ?: return errorResult("Unknown document provider.")
+    if (type.isCompatibleConnection()) {
+        return try {
+            val selectedAccount =
+                de.moritzf.quota.idea.compatible.compatibleAccount(type, accountParam)
+            val selected =
+                de.moritzf.quota.idea.settings.DocumentModelSelection.forAccount(
+                    type,
+                    selectedAccount.id,
+                    model,
+                )
+            de.moritzf.quota.idea.compatible
+                .compatibleMediaClient(selectedAccount)
+                .document(selected, source, output)
+        } catch (failure: Exception) {
+            failure.rethrowIfCancellation()
+            errorResult(failure.message ?: "Document conversion failed.")
+        }
+    }
     val account =
         try {
             de.moritzf.quota.idea.settings.AccountResolver.resolve(

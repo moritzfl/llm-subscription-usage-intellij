@@ -510,6 +510,13 @@ internal class ProviderReorderPanel(
                 ProviderUiRegistry.forType(type).authState(accountId)
             }
                 .getOrDefault(ProviderAuthState.UNKNOWN)
+            if (!de.moritzf.quota.idea.common.ProviderCatalog.get(type).capabilities.quota) {
+                return ProviderListStatusSnapshot(
+                    if (auth == ProviderAuthState.AUTHENTICATED) ProviderListStatus.OK
+                    else ProviderListStatus.NEVER_CONFIGURED,
+                    "Proxy access only; quota tracking is unavailable.",
+                )
+            }
             val service = runCatching { QuotaUsageService.getInstance() }.getOrNull()
             val error = service?.getLastError(accountId)
             val status =

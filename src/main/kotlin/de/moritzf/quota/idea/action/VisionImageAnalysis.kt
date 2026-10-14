@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.action
 
 import de.moritzf.quota.idea.auth.QuotaAuthService
+import de.moritzf.quota.idea.compatible.isCompatibleConnection
 import de.moritzf.quota.idea.kimi.KimiCredentialsStore
 import de.moritzf.quota.idea.kimi.KimiDeviceIdStore
 import de.moritzf.quota.idea.mcp.CodexMcpClient
@@ -38,15 +39,29 @@ internal object VisionImageAnalysis {
         }
     }
 
-    fun analyze(provider: VisionProvider, image: Path, prompt: String, model: String = ""): String {
+    fun analyze(
+        provider: VisionProvider,
+        image: Path,
+        prompt: String,
+        model: String = "",
+        accountId: String? = null,
+    ): String {
         val type = provider.providerType
-        val account = AccountResolver.resolve(type, capability = AccountCapability.VISION)
+        val account =
+            if (type.isCompatibleConnection())
+                de.moritzf.quota.idea.compatible.compatibleAccount(type, accountId)
+            else AccountResolver.resolve(type, capability = AccountCapability.VISION)
         val chosen = VisionModelSelection.forAccount(type, account.id, model)
         if (chosen == DocumentModels.OFF) {
             error("Vision is off. Pick a vision model in settings.")
         }
         val trimmedPrompt = prompt.trim().ifBlank { error("Image prompt is required.") }
         return when (provider) {
+            VisionProvider.OPENAI_COMPATIBLE,
+            VisionProvider.LITELLM ->
+                de.moritzf.quota.idea.compatible
+                    .compatibleMediaClient(account)
+                    .vision(chosen, trimmedPrompt, image)
             VisionProvider.AZURE ->
                 NativeDocumentConversion.azureVision(account.id, chosen, image, trimmedPrompt)
             VisionProvider.OPEN_AI -> {

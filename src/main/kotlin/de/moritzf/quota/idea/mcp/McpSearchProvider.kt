@@ -59,6 +59,8 @@ enum class WebFetchProvider(val providerType: QuotaProviderType) {
  * Schema generation for the MCP tool parameter derives valid values from this enum.
  */
 enum class VisionProvider(val providerType: QuotaProviderType) {
+    OPENAI_COMPATIBLE(QuotaProviderType.OPENAI_COMPATIBLE),
+    LITELLM(QuotaProviderType.LITELLM),
     AZURE(QuotaProviderType.AZURE),
     OPEN_AI(QuotaProviderType.OPEN_AI),
     SUPERGROK(QuotaProviderType.SUPERGROK),
@@ -75,6 +77,8 @@ enum class VisionProvider(val providerType: QuotaProviderType) {
  * and has no catalog account.
  */
 enum class DocumentToMarkdownProvider(val providerType: QuotaProviderType?) {
+    OPENAI_COMPATIBLE(QuotaProviderType.OPENAI_COMPATIBLE),
+    LITELLM(QuotaProviderType.LITELLM),
     MISTRAL(QuotaProviderType.MISTRAL),
     AZURE(QuotaProviderType.AZURE),
     ZAI(QuotaProviderType.ZAI),

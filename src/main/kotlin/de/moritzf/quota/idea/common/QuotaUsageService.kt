@@ -251,7 +251,8 @@ class QuotaUsageService(
                     return@forEach
                 }
                 val type = account.providerType() ?: return@forEach
-                val provider = ProviderCatalog.get(type).quotaFactory(account)
+                val provider =
+                    ProviderCatalog.get(type).quotaFactory?.invoke(account) ?: return@forEach
                 provider.hydrateFromCache(settings)
                 states[account.id] = ProviderState(provider)
                 added += account.id
@@ -436,9 +437,12 @@ class QuotaUsageService(
     }
 
     private fun resolveLastActiveSource(settings: QuotaSettingsState?): QuotaIndicatorSource {
-        settings?.lastActiveProvider()?.let {
-            return QuotaIndicatorSource.forProvider(it)
-        }
+        settings
+            ?.lastActiveProvider()
+            ?.takeIf { ProviderCatalog.get(it).capabilities.quota }
+            ?.let {
+                return QuotaIndicatorSource.forProvider(it)
+            }
         return settings?.lastUsedSource() ?: QuotaIndicatorSource.OPEN_AI
     }
 

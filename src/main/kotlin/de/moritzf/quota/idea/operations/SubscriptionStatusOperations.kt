@@ -67,6 +67,11 @@ internal fun SubscriptionOperations.quotaResult(
     type: QuotaProviderType,
     accountParam: String? = null,
 ): String {
+    val registration =
+        UsageQuotaMcpRegistry.get(type)
+            ?: return errorResult(
+                "${type.displayName} provides proxy access without quota tracking."
+            )
     val account =
         try {
             de.moritzf.quota.idea.settings.AccountResolver.resolve(
@@ -78,7 +83,6 @@ internal fun SubscriptionOperations.quotaResult(
             exception.rethrowIfCancellation()
             return errorResult(exception.message ?: "Account not found")
         }
-    val registration = UsageQuotaMcpRegistry.get(type)
     val usageService = QuotaUsageService.getInstance()
     usageService.refreshBlocking(account.id)
 
@@ -131,6 +135,8 @@ internal fun SubscriptionOperations.accountStatus(
         isDefault = isDefault,
         allowFailover = allowFailover,
         quotaConfigured = quotaConfigured,
+        quotaSupported = caps.quota,
+        proxySupported = caps.subscriptionProxy,
         webSearchAvailable = webSearchAvailable,
         webSearchType = searchType,
         webFetchAvailable = caps.webFetch && webSearchAvailable,

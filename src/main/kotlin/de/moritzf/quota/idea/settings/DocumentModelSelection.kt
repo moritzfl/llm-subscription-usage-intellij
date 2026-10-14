@@ -56,6 +56,8 @@ internal object DocumentModelSelection {
                         )
                     } ?: DocumentModels.OFF
             QuotaProviderType.GITHUB,
+            QuotaProviderType.OPENAI_COMPATIBLE,
+            QuotaProviderType.LITELLM,
             QuotaProviderType.OPEN_CODE ->
                 saved?.trim()?.takeIf { it.isNotEmpty() } ?: DocumentModels.OFF
             else -> saved?.trim().orEmpty()
@@ -68,6 +70,8 @@ internal object DocumentModelSelection {
             DocumentToMarkdownProvider.OPEN_AI,
             DocumentToMarkdownProvider.SUPERGROK,
             DocumentToMarkdownProvider.GITHUB,
+            DocumentToMarkdownProvider.OPENAI_COMPATIBLE,
+            DocumentToMarkdownProvider.LITELLM,
             DocumentToMarkdownProvider.OPEN_CODE,
             DocumentToMarkdownProvider.PDFBOX -> true
             DocumentToMarkdownProvider.AZURE -> azureVisionSelected()
@@ -79,7 +83,9 @@ internal object DocumentModelSelection {
             return if (azureVisionSelected()) DocumentModels.AZURE_VISION_WARNING else null
         }
         if (
-            provider == DocumentToMarkdownProvider.GITHUB ||
+            provider == DocumentToMarkdownProvider.OPENAI_COMPATIBLE ||
+                provider == DocumentToMarkdownProvider.LITELLM ||
+                provider == DocumentToMarkdownProvider.GITHUB ||
                 provider == DocumentToMarkdownProvider.OPEN_CODE
         ) {
             return DocumentModels.VISION_WARNING

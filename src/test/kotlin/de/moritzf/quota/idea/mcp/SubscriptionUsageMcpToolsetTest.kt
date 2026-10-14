@@ -15,7 +15,13 @@ import kotlin.test.assertTrue
 class SubscriptionUsageMcpToolsetTest {
     @Test
     fun usageQuotaMcpRegistryCoversEveryProviderType() {
-        assertEquals(QuotaProviderType.entries.toSet(), UsageQuotaMcpRegistry.all.keys)
+        assertEquals(
+            de.moritzf.quota.idea.common.ProviderCatalog.all
+                .filter { it.capabilities.quota }
+                .map { it.type }
+                .toSet(),
+            UsageQuotaMcpRegistry.all.keys,
+        )
     }
 
     @Test
@@ -167,10 +173,11 @@ class SubscriptionUsageMcpToolsetTest {
                 DocumentImageFormat::class,
                 Int::class,
                 Double::class,
+                String::class,
             ),
             tools.single().mcpParamClassifiers(),
         )
-        val imageOptions = tools.single().valueParameters.takeLast(3)
+        val imageOptions = tools.single().valueParameters.dropLast(1).takeLast(3)
         assertEquals(
             listOf("imageFormat", "imageDpi", "imagePaddingPoints"),
             imageOptions.map { it.name },
@@ -231,6 +238,7 @@ class SubscriptionUsageMcpToolsetTest {
             listOf(
                 String::class,
                 VisionProvider::class,
+                String::class,
                 String::class,
                 String::class,
                 String::class,

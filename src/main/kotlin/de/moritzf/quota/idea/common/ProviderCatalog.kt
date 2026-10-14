@@ -65,6 +65,7 @@ internal enum class WebSearchCapability {
 }
 
 internal data class ProviderCapabilities(
+    val quota: Boolean = true,
     val webSearch: WebSearchCapability = WebSearchCapability.NONE,
     val imageGeneration: Boolean = false,
     val imageEdit: Boolean = false,
@@ -77,6 +78,7 @@ internal data class ProviderCapabilities(
     val subscriptionProxy: Boolean = false,
     val oauth: Boolean = false,
     val multipleAccounts: Boolean = true,
+    val independentProxyAccounts: Boolean = false,
 )
 
 /**
@@ -86,9 +88,9 @@ internal data class ProviderCapabilities(
 internal data class ProviderDescriptor(
     val type: QuotaProviderType,
     val capabilities: ProviderCapabilities = ProviderCapabilities(),
-    val quotaFactory: (de.moritzf.quota.idea.settings.ProviderAccount) -> QuotaProvider,
-    val snapshotCodec: QuotaCodec<out ProviderQuota>,
-    val mcpQuota: UsageQuotaMcpRegistration,
+    val quotaFactory: ((de.moritzf.quota.idea.settings.ProviderAccount) -> QuotaProvider)?,
+    val snapshotCodec: QuotaCodec<out ProviderQuota>?,
+    val mcpQuota: UsageQuotaMcpRegistration?,
     val settingsPanelFactory: (ProviderSettingsPanelContext) -> ProviderSettingsPanel,
     val ui: ProviderUi,
     /** Blocking credential check for MCP status / background work. */
@@ -518,6 +520,8 @@ internal object ProviderCatalog {
                 webSearchMissingReason = "OpenAI login required. Log in from settings.",
                 ideProxyFactory = IdeProxyFactories::openAi,
             ),
+            compatibleDescriptor(QuotaProviderType.OPENAI_COMPATIBLE),
+            compatibleDescriptor(QuotaProviderType.LITELLM),
             descriptor(
                 type = QuotaProviderType.OPEN_CODE,
                 capabilities =
@@ -678,8 +682,8 @@ internal object ProviderCatalog {
 
     fun getOrNull(type: QuotaProviderType): ProviderDescriptor? = byType[type]
 
-    fun createQuotaProviders(): List<QuotaProvider> = all.map { descriptor ->
-        descriptor.quotaFactory(defaultAccount(descriptor.type))
+    fun createQuotaProviders(): List<QuotaProvider> = all.mapNotNull { descriptor ->
+        descriptor.quotaFactory?.invoke(defaultAccount(descriptor.type))
     }
 
     fun createAccountProviders(
@@ -724,6 +728,17 @@ internal object ProviderCatalog {
         return all.mapNotNull { descriptor ->
             if (descriptor.type !in enabled) return@mapNotNull null
             val factory = descriptor.ideProxyFactory ?: return@mapNotNull null
+            if (descriptor.capabilities.independentProxyAccounts) {
+                return@mapNotNull IndependentAccountProxyProvider(
+                    descriptor.type,
+                    accounts = {
+                        synchronized(context.settings) {
+                            context.settings.accountsOf(descriptor.type).map { it.snapshot() }
+                        }
+                    },
+                    create = { account -> factory(context.copy(account = account)) },
+                )
+            }
             AccountBoundProxyProvider(
                 descriptor.type,
                 accounts = { context.settings.accountsOf(descriptor.type) },
@@ -808,6 +823,8 @@ internal object ProviderCatalog {
 
     private val VISION_DOCUMENT_TYPES =
         setOf(
+            QuotaProviderType.OPENAI_COMPATIBLE,
+            QuotaProviderType.LITELLM,
             QuotaProviderType.OPEN_AI,
             QuotaProviderType.SUPERGROK,
             QuotaProviderType.GITHUB,
@@ -827,11 +844,58 @@ internal object ProviderCatalog {
         return saved.isNullOrBlank() || saved == "-"
     }
 
+    private fun compatibleDescriptor(type: QuotaProviderType): ProviderDescriptor {
+        val liteLlm = type == QuotaProviderType.LITELLM
+        return descriptor(
+            type = type,
+            capabilities =
+                ProviderCapabilities(
+                    quota = liteLlm,
+                    vision = true,
+                    documentToMarkdown = true,
+                    subscriptionProxy = true,
+                    independentProxyAccounts = true,
+                ),
+            quotaFactory = if (liteLlm) { account -> LiteLlmQuotaProvider(account.id) } else null,
+            snapshotCodec =
+                if (liteLlm) EnvelopeQuotaCodec(de.moritzf.quota.litellm.LiteLlmQuota.serializer())
+                else null,
+            settings = { de.moritzf.quota.idea.settings.CompatibleSettingsPanel() },
+            ui =
+                if (liteLlm) de.moritzf.quota.idea.ui.indicator.LiteLlmUi
+                else de.moritzf.quota.idea.ui.indicator.CompatibleUi,
+            isQuotaConfigured = {
+                liteLlm &&
+                    anyAccount(type) { de.moritzf.quota.idea.compatible.compatibleConfigured(it) }
+            },
+            isQuotaConfiguredForAccount = {
+                liteLlm && de.moritzf.quota.idea.compatible.compatibleConfigured(it)
+            },
+            isVisionConfiguredForAccount = {
+                de.moritzf.quota.idea.compatible.compatibleConfigured(it)
+            },
+            isDocumentConfiguredForAccount = {
+                de.moritzf.quota.idea.compatible.compatibleConfigured(it)
+            },
+            isProxyConfigured = { loaded ->
+                anyAccount(type) { id ->
+                    de.moritzf.quota.idea.compatible.CompatibleApiKeyStore.forAccount(id)
+                        .load(loaded) != null &&
+                        de.moritzf.quota.idea.compatible.compatibleEndpoint(
+                            de.moritzf.quota.idea.settings.QuotaSettingsState.getInstance()
+                                .account(id)
+                        ) != null
+                }
+            },
+            ideProxyFactory = IdeProxyFactories::compatible,
+        )
+    }
+
     private fun descriptor(
         type: QuotaProviderType,
         capabilities: ProviderCapabilities = ProviderCapabilities(),
-        quotaFactory: (de.moritzf.quota.idea.settings.ProviderAccount) -> QuotaProvider,
-        snapshotCodec: QuotaCodec<out ProviderQuota>,
+        quotaFactory: ((de.moritzf.quota.idea.settings.ProviderAccount) -> QuotaProvider)? = null,
+        snapshotCodec: QuotaCodec<out ProviderQuota>? = null,
         mcpEmpty: String? = null,
         mcpQuota: UsageQuotaMcpRegistration? = null,
         settings: (ProviderSettingsPanelContext) -> ProviderSettingsPanel,
@@ -859,7 +923,9 @@ internal object ProviderCatalog {
             quotaFactory = quotaFactory,
             snapshotCodec = snapshotCodec,
             mcpQuota =
-                mcpQuota ?: UsageQuotaMcpRegistration(mcpEmpty ?: "No usage response available"),
+                if (capabilities.quota)
+                    mcpQuota ?: UsageQuotaMcpRegistration(mcpEmpty ?: "No usage response available")
+                else null,
             settingsPanelFactory = settings,
             ui = ui,
             isQuotaConfigured = isQuotaConfigured,

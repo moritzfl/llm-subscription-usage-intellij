@@ -38,6 +38,9 @@ internal object AccountSecrets {
             QuotaProviderType.OLLAMA -> OllamaApiKeyStore.forAccount(id).clear()
             QuotaProviderType.ZAI -> ZaiApiKeyStore.forAccount(id).clear()
             QuotaProviderType.MINIMAX -> MiniMaxApiKeyStore.forAccount(id).clear()
+            QuotaProviderType.OPENAI_COMPATIBLE,
+            QuotaProviderType.LITELLM ->
+                de.moritzf.quota.idea.compatible.CompatibleApiKeyStore.forAccount(id).clear()
             QuotaProviderType.CURSOR -> CursorCredentialsStore.forAccount(id).clearSessionCookie()
             QuotaProviderType.OPEN_CODE -> {
                 OpenCodeAuthService.getInstance().clearCredentials(id)
