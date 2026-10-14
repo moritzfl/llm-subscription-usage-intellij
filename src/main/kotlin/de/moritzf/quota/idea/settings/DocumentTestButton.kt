@@ -36,6 +36,19 @@ internal class DocumentTestButton(
     private val selectedModel: () -> String,
     private val modality: () -> JComponent?,
     watch: JComboBox<*>? = null,
+    private val prepare: (String) -> DocumentTestExecution = { model ->
+        { pdf, output, progress ->
+            PdfDocumentConversion.convert(
+                    provider,
+                    pdf,
+                    output,
+                    false,
+                    progress = progress,
+                    model = model,
+                )
+                .warnings
+        }
+    },
 ) : JButton("Test document") {
     init {
         toolTipText = "Convert a one-page hello PDF with the selected model"
@@ -52,14 +65,21 @@ internal class DocumentTestButton(
     }
 
     private fun runTest() {
-        DocumentTestDialog(modality() ?: this, provider, selectedModel).show()
+        DocumentTestDialog(modality() ?: this, selectedModel, prepare).show()
     }
 }
 
+internal typealias DocumentTestExecution =
+    (
+        java.nio.file.Path,
+        java.nio.file.Path,
+        de.moritzf.quota.shared.DocumentConversionProgress,
+    ) -> List<String>
+
 private class DocumentTestDialog(
     parent: JComponent,
-    private val provider: DocumentToMarkdownProvider,
     private val selectedModel: () -> String,
+    private val prepare: (String) -> DocumentTestExecution,
 ) : DialogWrapper(parent, true) {
     private val task = TestDialogTask { isDisposed }
     private val statusIcon = JBLabel()
@@ -114,7 +134,15 @@ private class DocumentTestDialog(
     private fun start() {
         val model = selectedModel()
         showRunning(model)
-        task.start { gen -> runGeneration(gen, model) }
+        val execute =
+            try {
+                prepare(model)
+            } catch (failure: Exception) {
+                if (TestDialogTask.isCancellation(failure)) throw failure
+                showFailure(failure.message ?: "Document test failed", null, null)
+                return
+            }
+        task.start { gen -> runGeneration(gen, execute) }
     }
 
     private fun abort() {
@@ -122,7 +150,7 @@ private class DocumentTestDialog(
         showAborted()
     }
 
-    private fun runGeneration(gen: Int, model: String) {
+    private fun runGeneration(gen: Int, execute: DocumentTestExecution) {
         val pdf = Files.createTempFile("quota-hello-", ".pdf")
         val output = Files.createTempFile("quota-hello-", ".md")
         var page: BufferedImage? = null
@@ -136,15 +164,13 @@ private class DocumentTestDialog(
             val started = System.nanoTime()
             val warnings =
                 try {
-                    PdfDocumentConversion.convert(
-                            provider,
-                            pdf,
-                            output,
-                            includeImages = false,
-                            progress = { _, _, _ -> checkActive(gen) },
-                            model = model,
-                        )
-                        .warnings
+                    execute(
+                        pdf,
+                        output,
+                        de.moritzf.quota.shared.DocumentConversionProgress { _, _, _ ->
+                            checkActive(gen)
+                        },
+                    )
                 } catch (exception: Exception) {
                     if (!isActive(gen) || isCancellation(exception)) throw exception
                     val elapsedMs = (System.nanoTime() - started) / 1_000_000L

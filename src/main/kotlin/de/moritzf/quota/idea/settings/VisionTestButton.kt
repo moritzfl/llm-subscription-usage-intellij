@@ -34,6 +34,9 @@ internal class VisionTestButton(
     private val provider: VisionProvider,
     private val combo: VisionModelCombo,
     private val modality: () -> JComponent?,
+    private val prepare: (String) -> VisionTestExecution = { model ->
+        { image, prompt -> VisionImageAnalysis.analyze(provider, image, prompt, model) }
+    },
 ) : JButton("Test vision") {
     init {
         toolTipText = "Ask the selected vision model to describe the plugin icon"
@@ -41,7 +44,7 @@ internal class VisionTestButton(
         combo.combo.addPropertyChangeListener("model") { updateEnabled() }
         updateEnabled()
         addActionListener {
-            VisionTestDialog(modality() ?: this, provider) { combo.selected().orEmpty() }.show()
+            VisionTestDialog(modality() ?: this, { combo.selected().orEmpty() }, prepare).show()
         }
     }
 
@@ -51,10 +54,12 @@ internal class VisionTestButton(
     }
 }
 
+internal typealias VisionTestExecution = (java.nio.file.Path, String) -> String
+
 private class VisionTestDialog(
     parent: JComponent,
-    private val provider: VisionProvider,
     private val selectedModel: () -> String,
+    private val prepare: (String) -> VisionTestExecution,
 ) : DialogWrapper(parent, true) {
     private val task = TestDialogTask { isDisposed }
     private val statusIcon = JBLabel()
@@ -107,7 +112,15 @@ private class VisionTestDialog(
     private fun start() {
         val model = selectedModel()
         showRunning(model)
-        task.start { gen -> runGeneration(gen, model) }
+        val execute =
+            try {
+                prepare(model)
+            } catch (failure: Exception) {
+                if (TestDialogTask.isCancellation(failure)) throw failure
+                showFailure(failure.message ?: "Vision test failed", null, null)
+                return
+            }
+        task.start { gen -> runGeneration(gen, execute) }
     }
 
     private fun abort() {
@@ -115,7 +128,7 @@ private class VisionTestDialog(
         showAborted()
     }
 
-    private fun runGeneration(gen: Int, model: String) {
+    private fun runGeneration(gen: Int, execute: VisionTestExecution) {
         val image = Files.createTempFile("quota-vision-", ".png")
         var preview: BufferedImage? = null
         try {
@@ -128,7 +141,7 @@ private class VisionTestDialog(
             val started = System.nanoTime()
             val answer =
                 try {
-                    VisionImageAnalysis.analyze(provider, image, TEST_PROMPT, model)
+                    execute(image, TEST_PROMPT)
                 } catch (exception: Exception) {
                     if (!isActive(gen) || isCancellation(exception)) throw exception
                     val elapsedMs = (System.nanoTime() - started) / 1_000_000L

@@ -45,7 +45,7 @@ class ModelTestButtonTest {
     fun visionTestDisablesWhenDiscoveryReplacesSelectionWithOff() {
         SwingUtilities.invokeAndWait {
             val picker = VisionModelCombo()
-            val button = VisionTestButton(VisionProvider.OPEN_AI, picker) { null }
+            val button = VisionTestButton(VisionProvider.OPEN_AI, picker, modality = { null })
             picker.show("vision-model", listOf("vision-model"))
             assertTrue(button.isEnabled)
 
