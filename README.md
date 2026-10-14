@@ -26,8 +26,8 @@
 Track and use your LLM subscriptions directly in IntelliJ IDEA.
 
 - **See your quota** for ChatGPT, Claude, Grok, Copilot & more in the status bar and a detail popup.
-- **Use your subscriptions from IDE chat** via MCP tools: quota lookup, web search, image and video generation, voice, document-to-markdown, and image analysis for non-vision models.
-- **Reuse your subscriptions in other tools** through a local OpenAI-compatible proxy (for example as a custom LLM provider for JetBrains Junie).
+- **Use your subscriptions from IDE chat** for web search, media generation, document conversion, and image questions via MCP tools.
+- **Reuse your subscriptions in other tools** through a local OpenAI-compatible proxy, including JetBrains AI Chat and Junie.
 - **Keep AI client configs in sync** with IntelliJ's MCP server URL, which changes port between restarts.
 
 ![Quota popup](docs/quota-popup.png)
@@ -39,161 +39,121 @@ Track and use your LLM subscriptions directly in IntelliJ IDEA.
 | OpenAI (ChatGPT / Codex) | Browser / device code / access token | ✓ | ✓ | ✓ | — | (✓) | (✓) | ✓ | ✓ | — |
 | Claude (Anthropic) | Browser login | ✓ | — | — | — | — | — | — | — | — |
 | SuperGrok / xAI | Browser / device code | ✓ | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ | ✓ | — |
-| GitHub Copilot | Device code | ✓ | — | — | — | — | — | ✓ | ✓ | ✓ |
+| GitHub Copilot | Device code | ✓ | — | — | — | — | (✓) | ✓ | ✓ | ✓ |
 | Cursor | Session cookie | ✓ | — | — | — | — | — | — | — | — |
-| OpenCode (Go / Zen) | Device code | ✓ | — | — | — | — | — | ✓ | ✓ | — |
+| OpenCode (Go / Zen) | Device code | ✓ | — | — | — | — | (✓) | ✓ | ✓ | — |
 | Ollama Cloud | API key | ✓ | ✓ | — | — | — | — | ✓ | ✓ | ✓ |
 | Z.ai | API key | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ | ✓ | ✓ | — |
 | MiniMax | Subscription key | ✓ | ✓ | ✓ | — | ✓ | — | — | ✓ | — |
 | Mistral | Session cookie + API key | ✓ | ✓ | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Kimi | Device code | ✓ | ✓ | — | — | — | — | ✓ | ✓ | — |
 | Antigravity (Gemini / Claude / GPT) | AGY CLI login | ✓ | — | — | — | — | — | — | — | — |
-| Azure OpenAI / Foundry | Azure CLI login | ✓ | — | — | — | — | ✓* | ✓ | ✓ | — |
+| Azure OpenAI / Foundry | Azure CLI login | ✓ | — | — | — | — | ✓ | ✓ | ✓ | — |
 
-- **Quota** — usage in the status bar and detail popup.
-- **Web search** — MCP tool that searches the web with your subscription. Copilot Chat can Bing-search in GitHub's own UI, but Copilot has no callable search API we can wrap.
-- **Images** / **Video** — MCP tools that generate images or video with your subscription.
-- **Voice** — MCP tools for speech-to-text and text-to-speech. (✓) means only one of the two. OpenAI/Codex supports speech-to-text; experimental realtime text-to-speech is not confirmed working end-to-end and was entitlement-blocked on the tested account, so it is not counted here.
-- **Docs** — MCP tool that converts a PDF or image to markdown. ✓ uses a dedicated OCR API that returns figures. ✓* requires an explicitly selected Azure document model. (✓) uses a chat/vision API and reconstructs figure images locally from estimated page boxes. OpenAI and SuperGrok use the vision model selected in that provider's settings. A general vision model is less precise and usually costs more than a document or OCR model (Mistral, Z.ai, or a company model such as Azure).
-- **Vision** — MCP tool `subscription_vision` that answers questions about an image with a vision-capable chat model, so non-vision models can extract information from images. Every provider starts off (`-`); select a vision model in that provider's settings first. Vision is a separate setting from the document model: a vision model does not need PDF support, and the document model keeps requiring PDF or OCR support.
-- **Proxy** — available through the local OpenAI-compatible proxy (for use of subscriptions in tools like Jetbrains AI Chat and other tools that require authentication by endpoint and API key).
-- **Native FIM** — model-native fill-in-the-middle code completion through the proxy, without chat adaptation: GitHub Copilot completion models (such as `gpt-41-copilot`), Ollama Cloud `deepseek-v4.1-flash`, and Mistral Codestral/FIM models. The proxy picks that path automatically when you select one. Other eligible proxy models are converted into chat requests; this does not count as native FIM.
+Availability depends on your account and selected model. Search, media, documents, and vision are exposed through MCP.
 
-Claude is quota-only. Anthropic does not allow using a Claude subscription outside their own apps, so this plugin only shows usage and does not wrap Claude search, media, documents, or a proxy.
+- **Voice** — speech-to-text and text-to-speech; (✓) means speech-to-text only. Experimental OpenAI speech output is not counted here.
+- **Docs** — PDF/image-to-Markdown conversion. ✓ uses a dedicated document/OCR service; (✓) requires a **general-purpose model that accepts PDF files natively**. Image/vision support alone is insufficient for PDF conversion.
+- **Vision** — image questions through an image-capable model. PDF support is not required. Select a separate **Vision model** in settings; it is off (`-`) by default.
+- **Proxy / Native FIM** — chat and inline code completion in other tools. Native FIM uses a model's own infill support; other eligible models use chat adaptation.
 
-## Installation
-
-Open IntelliJ IDEA `Settings` > `Plugins` > `Marketplace`, search for **LLM Subscription Usage**, and click Install.
+Claude, Cursor, and Antigravity are quota-only.
 
 ## Quick start
 
-1. Open `Settings` > `Tools` > `LLM Subscription Usage`.
-2. Sign in or add credentials for the providers you use.
-3. Done — the status bar widget now shows your quota. Click it for the detail popup.
+1. Install **LLM Subscription Usage** from `Settings` > `Plugins` > `Marketplace`.
+2. Open `Settings` > `Tools` > `LLM Subscription Usage` and add your accounts.
+3. Sign in or enter the requested credentials. Your quota appears in the status bar; click it for details.
 
-Everything else is optional and lives in the same settings page: MCP tools, MCP server URL sync, and the local proxy.
+MCP tools, server URL sync, and the local proxy are optional and configured on the same settings page.
 
 ## Quota tracking
 
-**Status bar widget** — a compact indicator shows your quota at a glance. Hover for a quick summary, click for the full popup. You can also place the indicator in the main toolbar instead.
+Hover over the status bar widget for a summary, or click for usage windows, reset times, and refresh timestamps. You can also place the indicator in the main toolbar.
 
 ![Status bar icon](docs/quota-statusbar-icon.png) ![Status bar with percentage](docs/quota-statusbar-percentage.png) ![Status bar with cake diagram](docs/quota-statusbar-cake.png)
 
-**Detail popup** — one block per login, with usage windows, next reset times, and last refresh timestamps. Reorder accounts in settings (the list on the left); the popup follows that order.
+Quotas refresh every five minutes, on login, and when opening the popup. Use **Refresh quota** in an account's settings for an immediate update; **Last quota response** shows the provider's original response.
 
-Quotas refresh automatically every 5 minutes, plus on login and when opening the popup. Plugin-managed credentials — OAuth tokens, API keys, and session cookies — are stored in IntelliJ Password Safe.
+Add multiple logins and drag to reorder them in settings; the popup follows that order. Account changes take effect on **Apply**. Plugin-managed credentials are stored in IntelliJ Password Safe.
 
-In each provider's settings, use **Refresh quota** beside the copy button in **Last quota response** for an immediate update of the selected account.
+![Settings](docs/quota-settings.png)
 
-**Antigravity is a CLI exception.** Install [Antigravity CLI (Google documentation)](https://antigravity.google/docs/cli/install/) 1.1.11 or later, run `agy` in a terminal to sign in, then add Antigravity in the plugin settings. The plugin runs `agy -p /usage --output-format json` to read quotas without an agent turn. It uses the current CLI login; credentials stay with AGY. Only one Antigravity entry is supported. Leave the executable path blank for automatic detection from `PATH` and standard install locations, use **Detect** to fill it, or browse to the binary. Sign-in/account changes happen in AGY; quotas refresh automatically. No credentials or conversation files are imported.
+### CLI-backed accounts
 
-**Azure is a separate CLI exception.** Install the [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli), run `az login`, then add Azure in the plugin settings. Only one Azure entry is supported. It can pin a subscription from `az account list` and an Azure OpenAI resource name or endpoint. The plugin calls documented `az account get-access-token` and does not read `~/.azure`. Quota usage needs Cognitive Services Usages Reader and is optional: if that call is denied, the local proxy and any models or rate-limit numbers the token can read still work. Other providers continue to use plugin-managed credentials. For document-to-markdown, the first model list picks the newest Mistral OCR deployment when one exists, otherwise conversion stays off (`-`). You can still pick another discovered document model, Cohere Parse, or Document Intelligence, or choose `-` to turn it off. Changing the resource clears that choice so the next model list can pick again. The dropdown lists matching discovered deployments and manually entered names. Document Intelligence is not chosen automatically. OCR needs data-plane access to the selected resource; Document Intelligence requires Cognitive Services User access for the CLI identity. PDFs/images are sent inline to Azure, not to the providers' hosted APIs. Cohere Parse accepts images only, so PDF pages are rendered locally and processed one request per page for the whole document (or the requested `pageFrom`/`pageTo` slice). Cancellation takes effect between pages. Document Intelligence uses its asynchronous layout analysis API and can download detected figures when requested.
+- **Antigravity:** Install [AGY CLI](https://antigravity.google/docs/cli/install/) 1.1.11 or later, sign in with `agy`, then add Antigravity in settings. It tracks the current CLI account's quota.
+- **Azure:** Install the [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli), run `az login`, then select your subscription and resource in settings. Proxy model IDs are `az-<deployment-name>`. Quota reading needs **Cognitive Services Usages Reader**; proxy use does not require that quota permission.
 
-Azure proxy model IDs use `az-<deployment-name>`, including deployments missing from discovery. Deployment names come from the selected resource when ARM access is available; otherwise the plugin uses the endpoint's model list or manually entered deployment names. Capacity allocations use Azure's native capacity units (PTU for provisioned deployments); live rate-limit percentages come from recent proxy response headers.
-
-Azure image analysis has a separate **Vision model** setting, off by default (`-`). Select a deployment and use **Test vision** to check image support; discovery does not declare it. `subscription_vision` with `provider=AZURE` requires `localFile` and uses the deployment name, not the proxy's `az-` prefix. Document-model selection is unchanged.
-
-Azure document conversion currently accepts PDF, PNG, and JPEG inputs up to 20 MiB. Document Intelligence can support larger files through its own API; the plugin's inline-input limit is lower.
+Each uses its own CLI login and supports one plugin entry. Set the executable path only if automatic detection fails. Azure model access depends on the selected resource and your permissions.
 
 ## MCP tools for IDE chat
 
-The plugin registers subscription-backed tools with IntelliJ's built-in MCP server. They are available to the IDE's AI chat — and to any external agent or AI harness that connects to IntelliJ's MCP server (Codex CLI, OpenCode, and others):
+Enable IntelliJ's built-in MCP server to make these tools available to connected AI clients, including IDE chat, Codex CLI, and OpenCode. Manage individual tools under `Settings` > `Tools` > `MCP Server` > `Exposed Tools`.
 
 | Tool | What it does |
 |---|---|
-| `subscription_quota` | Current usage for any configured provider (optional `account` when you have more than one login of that type) |
-| `subscription_tools_status` | Which accounts and tools are ready to use. Optional `capability`/`model` adds cached quota freshness, limiting pool, reset time, and whether that operation can still run |
-| `codex_web_search` | Web search answered by OpenAI/Codex (context size, live access, domain filters) |
-| `supergrok_web_search` | Web search answered by Grok (model selection, domain filters) |
-| `mistral_web_search` | Answer-style web search via Mistral Conversations |
-| `subscription_web_search` | Result-list web search via Kimi, Z.ai, MiniMax, or Ollama |
-| `subscription_web_fetch` | Fetch a page as JSON (title/content/links) via Ollama or Z.ai |
-| `subscription_svg_to_png` | Rasterize a local SVG to PNG. No subscription. |
-| `subscription_document_to_markdown` | Convert a PDF/image to markdown. Prefer a document or OCR model (Mistral, Z.ai, or a company model such as Azure) before OpenAI/Codex, SuperGrok, GitHub Copilot, or OpenCode native PDF. Those lists come from the live provider when it reports PDF support, otherwise every discovered model. `PDFBOX` is local text extraction and needs no subscription, but it is not OCR. Azure supports Mistral OCR/Document AI, Cohere Parse, and Document Intelligence layout. Image-only Cohere Parse renders PDF pages locally; Document Intelligence retrieves detected figures; Codex/SuperGrok crop figures from vision-estimated boxes |
-| `subscription_image_generation` | Image generation via OpenAI/Codex, SuperGrok/xAI Imagine, Mistral, Z.ai GLM-Image, or MiniMax. Returns a download URL or writes a file; never base64 |
-| `subscription_image_edit` | SuperGrok/xAI JSON image edits from a source URL or local file. Masks are not supported |
-| `subscription_vision` | Ask a vision-capable model about an image and get `{provider, model, content}` back, so non-vision models can extract information from images. Providers: OpenAI/Codex, SuperGrok/xAI, Mistral chat, Z.ai GLM, GitHub Copilot, OpenCode Zen/Go, Ollama Cloud, Kimi. Off by default everywhere (`-`); select a vision model in settings or pass `model=`. Image comes from `imageUrl` or a local `localFile` (Copilot and OpenCode need a local file) |
-| `subscription_speech_to_text` | Transcribe audio via OpenAI/Codex, SuperGrok/xAI, Mistral, Z.ai, or MiniMax |
-| `subscription_text_to_speech` | Generate speech audio via OpenAI/Codex (experimental realtime), SuperGrok/xAI, Mistral, or MiniMax and write it to a file |
-| `subscription_list_voices` | List OpenAI/Codex, SuperGrok/xAI, Mistral, or MiniMax voices |
-| `subscription_video_generation` | Video generation via SuperGrok/xAI Imagine or Z.ai CogVideoX |
-| `supergrok_video_generation` | SuperGrok/xAI Imagine video (same as `subscription_video_generation` with SUPERGROK) |
-
-Right-click a local PDF in the Project view or its editor and select **Convert PDF to Markdown...**. The dialog lists configured document providers, document or OCR models first (Mistral, Z.ai, or a company model such as Azure), and always includes local PDFBox text extraction. PDFBox needs no subscription. It only reads embedded text: scans stay blank, tables and figures are not reconstructed, and reading order is often wrong. The dialog warns about that and disables figure export for PDFBox. Provider, image extraction, and output location can all be changed before conversion; the generated Markdown opens in the editor.
-
-Azure Mistral OCR/Document AI automatically splits PDFs into requests of at most 30 pages and joins the results in page order, both from this action and from MCP. The action shows completed pages and the current range; cancellation takes effect between requests. Azure's local input-size guard remains 20 MB. Z.ai OCR does the same for local PDFs, at most 30 pages and 50 MB per request; a URL is still one request. Cohere Parse walks every selected page as its own image request and joins the markdown. Mistral/Azure OCR images use a unique `<output>-images-…` folder and page-specific names, with matching relative Markdown links. Existing Markdown is replaced only after the whole conversion succeeds; failed or cancelled runs remove their partial output. Earlier image folders are retained so existing links are never overwritten. Without an output path, a multi-request MCP result contains `page_count` and `chunks` with `page_from`, `page_to`, and each original provider `response`.
-
-### Figure quality for OCR documents
-
-Mistral, Z.ai, and Azure document converters use the OCR response's figure coordinates to export from the original PDF. No extra vision-model request is needed. The PDF dialog and `subscription_document_to_markdown` expose:
-
-| Option | Default | Meaning |
-|---|---|---|
-| `imageFormat` | `SVG` | Prefer SVG from the original PDF, with PNG fallback. `PNG` renders the original PDF; `PROVIDER` retains the provider's image bytes. |
-| `imageDpi` | `300` | Resolution for local PNG export and SVG's PNG fallback. MCP accepts 72–600; the dialog offers 150, 300, and 600 DPI. This does not change the OCR service's input resolution. |
-| `imagePaddingPoints` | `2` | Extra margin around the detected figure (0–72 PDF points; 72 points = 1 inch). |
-
-SVG keeps vector graphics and text outlines sharp when zooming; embedded raster images retain their original resolution. Linear and stitched RGB/gray gradients are supported. Unsupported paints, nonlinear gradients, complex transparency, or SVG errors fall back to PNG. Missing/invalid coordinates, mismatched page orientation, or an unavailable original PDF fall back to provider images. The result JSON includes `warnings` and an `image_export` report with final SVG/PNG/provider counts, failed-image count, and per-image diagnostics. The PDF action summarizes saved/failed images and the fallbacks actually used; logs and stack traces appear in a collapsed **Details** section. Unavailable or malformed provider images are omitted without losing the converted text. PNG rendering is limited to 40 million page pixels to bound memory. Figures are stored in a unique `<output>-images-…` folder, with correct relative links in **one resulting Markdown document**.
-
-Azure reuses the document bytes submitted to OCR. For Mistral/Z.ai URL inputs, local figure export downloads the original PDF on demand (public HTTPS, no redirects, maximum 50 MB); prefer a local PDF for a stable source. Image inputs use provider images and report that original-PDF export is unavailable. OpenAI/Codex and SuperGrok keep their existing vision-based figure export; the new options apply to OCR providers only.
-
-Individual tools can be enabled or disabled under `Settings` > `Tools` > `MCP Server` > `Exposed Tools`.
-
-![PDF to markdown pipelines](docs/document-to-markdown-pipelines.svg)
-
-PDFBox is a third path: local `PDFText2Markdown` extraction only. It is not shown in the diagram.
+| `subscription_quota` | Check usage for a provider or account |
+| `subscription_tools_status` | Check which accounts and tools are ready |
+| `codex_web_search` / `supergrok_web_search` / `mistral_web_search` | Get a web-search answer from the named provider |
+| `subscription_web_search` | Get search results from Kimi, Z.ai, MiniMax, or Ollama |
+| `subscription_web_fetch` | Read a web page through Ollama or Z.ai |
+| `subscription_document_to_markdown` | Convert documents with a configured model or local PDFBox |
+| `subscription_vision` | Ask questions about an image using your selected vision model |
+| `subscription_image_generation` / `subscription_image_edit` | Generate images; edit existing images through SuperGrok |
+| `subscription_svg_to_png` | Convert a local SVG to PNG without a subscription |
+| `subscription_speech_to_text` | Transcribe audio |
+| `subscription_text_to_speech` / `subscription_list_voices` | Generate speech audio and choose a voice |
+| `subscription_video_generation` / `supergrok_video_generation` | Generate video with SuperGrok or Z.ai |
 
 ![MCP integration](docs/quota-mcp-integration.png)
 
+## PDF to Markdown
+
+Right-click a local PDF in the Project view or editor and choose **Convert PDF to Markdown...**. Select the provider, figure export, and output location; the resulting Markdown opens in the editor. AI clients can use `subscription_document_to_markdown` for the same task.
+
+- **Document/OCR models** are the preferred choice for text recognition and layout, through Mistral, Z.ai, or an Azure document service.
+- **General-purpose models must accept PDFs natively through the selected provider's API.** Being able to read images is not enough. Model lists can include unverified choices; use **Test document** to check support. These models can be less precise and consume more quota than OCR.
+- **PDFBox** extracts embedded text locally, without a subscription. It does not OCR scans, rebuild tables, or export figures; reading order may be wrong.
+
+Set the **Document model** in the account's settings. It is independent of **Vision model**, which only needs image input for `subscription_vision`; use **Test vision** to check that separately. Selecting `-` disables the corresponding account setting. PDFBox remains available.
+
+For OCR figure export, choose **SVG** (default, with PNG fallback), **PNG**, or **provider images**. PNG defaults to 300 DPI with 2-point padding. Figures are saved beside the Markdown in a separate folder; the result reports missing images and fallbacks. OpenAI/Codex and SuperGrok instead estimate figure regions, so crops can be less accurate.
+
 ## MCP server URL sync
 
-IntelliJ's built-in MCP server may change its port between restarts, which breaks AI clients (OpenCode, Codex CLI, and others) that store the server URL in their own config files.
-
-The plugin can keep those configs pointed at the active endpoint: enable `Sync IntelliJ MCP server URL to JSON/TOML/YAML files` in settings, pick one or more config files, and select the property to update. The settings page also shows whether IntelliJ's MCP server is running, stopped, disabled, or unavailable.
+IntelliJ's MCP server may change ports after a restart. Enable **Sync IntelliJ MCP server URL to JSON/TOML/YAML files**, select your client config files and the properties to update, and the plugin keeps them pointed at the active server. Settings also show the server's current status.
 
 ![MCP server sync settings](docs/mcp-sync-settings.png)
 
 ## OpenAI-compatible proxy
 
-The plugin can run a local proxy that exposes your subscriptions through standard OpenAI-compatible endpoints (`/v1/chat/completions`, `/v1/responses` where supported, `/v1/completions` for FIM, `/v1/models`, plus LiteLLM-style `/v1/model/info`). Any tool that speaks the OpenAI API or expects a LiteLLM server can then use your subscriptions. Compatibility is tested with the Junie CLI and with JetBrains' own API Connections for AI features (such as the integrated AI chat).
+Use your subscriptions in clients that support OpenAI-compatible or LiteLLM servers, including JetBrains AI Chat and Junie.
 
-**Setup:** open the **Proxy** tab in `Settings` > `Tools` > `LLM Subscription Usage`, tick `Enable local subscription proxy`, choose the providers to expose, and apply. Then use `Copy Base URL` and `Copy API Key` to configure your client.
+1. Open the **Proxy** tab in the plugin settings, check **Enable local subscription proxy**, choose providers, and apply.
+2. Use **Copy Base URL** and **Copy API Key** to configure your client. Use the URL **without `/v1`**.
+3. For Junie, add a LiteLLM provider with those details; models are discovered automatically.
 
-**FIM / AI Completion:** when the proxy is on, `/v1/completions` is on too. Pick one completion model on the Proxy tab — `-` turns FIM off, and the list groups models under **Native FIM** and **Adapted via chat** — then point JetBrains AI Completion at this proxy using the stable model id `qwen2.5-coder` (JetBrains Auto maps that name to `(fim) Qwen`). Ghost text stays off until that IDE setup is done. Changing the underlying model in this plugin does not require changing the IDE completion model. Most models do not support FIM, so the proxy converts their calls into chat requests automatically. Native FIM models (GitHub Copilot completion models, Mistral Codestral/FIM, Ollama `deepseek-v4.1-flash`) are called through their own infill endpoint instead — Ollama DeepSeek uses raw infill tokens with thinking disabled. The same model through OpenCode Go goes through chat adaptation. Expect seconds of latency and quota use on chat models. Claude stays quota-only.
+The proxy serves `/v1/chat/completions`, `/v1/responses` where supported, `/v1/completions` for FIM, `/v1/models`, and LiteLLM-style `/v1/model/info`. Image generation, speech, and transcription routes use the same base URL and provider-prefixed model IDs.
 
-Point JetBrains AI Completion at:
+### Inline code completion (FIM)
 
-- Settings → Tools → AI Assistant → Providers & API keys → AI Completion
-- Provider: OpenAI Compatible
-- Base URL: the copied proxy URL (no `/v1`)
-- API key: the copied local key
-- Model: `qwen2.5-coder`
-- Prompt schema: Auto (recognized as `(fim) Qwen`). Do not pick Zeta/Sweep (next-edit) or Mellum.
+Select a completion model on the Proxy tab; `-` turns it off. **Native FIM** includes GitHub Copilot completion models, Mistral Codestral/FIM, and Ollama Cloud `deepseek-v4.1-flash`. **Adapted via chat** models may take seconds and consume chat quota. Use **Test FIM** to try the selection.
 
-Use **Test FIM** on the Proxy tab to send a sample completion and inspect the insert text. The same page tries to detect whether AI Completion already points at this proxy.
+To enable JetBrains AI Completion:
 
-**Good to know:**
+1. Open `Settings` > `Tools` > `AI Assistant` > `Providers & API keys` > `AI Completion`.
+2. Select **OpenAI Compatible** and enter the copied proxy URL (without `/v1`) and API key.
+3. Set the model to **`qwen2.5-coder`** and prompt schema to **Auto** (recognized as `(fim) Qwen`). Do not select Zeta/Sweep or Mellum.
 
-- Configure clients with the base URL **without** a `/v1` suffix (for example `http://127.0.0.1:14621`) — clients append `/v1/...` themselves, and all routes also answer unprefixed.
-- For JetBrains Junie, add the proxy as a LiteLLM provider with that base URL and the copied API key; available models are discovered automatically. Do not pick `qwen2.5-coder` for Junie chat.
-- GitHub Copilot exposes `gh-auto` on `/v1/chat/completions` for automatic model selection. Paid plans also expose their live-discovered named models; Student/Free plans use Auto only.
-- Image, speech, and transcription OpenAI routes are on the same base URL (`/v1/images/generations`, `/v1/audio/speech`, `/v1/audio/transcriptions`). Use a prefixed model id (`sg-`, `mm-`, `za-`, `mi-`, `oa-`). Images return a URL, not base64.
-- OpenAI subscription STT uses ChatGPT's dictation endpoint. Experimental subscription TTS uses `gpt-live-1-codex` in MCP (`oa-gpt-live-1-codex` in the proxy), `responseFormat=wav` (`response_format` in the proxy), and voice `marin` or `cedar`. It renders text through a finite Codex WebRTC voice session and may paraphrase. Existing API-style speech defaults are retained; `/codex/audio/speech` currently returns 404. The tested account established a voice connection but received **Voice session access denied**, so live synthesis remains entitlement-blocked on that login. No fallback to another account or a billable API occurs.
-- Realtime speech includes headless webrtc-java native binaries for macOS, Windows and Linux. On minimal Linux installations, install its [native prerequisites](https://jrtc.dev/guide/get-started). It does not open the computer's microphone or speakers. The MCP/proxy result is a completed WAV file; direct assistant playback streaming is implemented in Voice Bridge.
-- The API key is generated locally and stored in IntelliJ Password Safe. Provider credentials never leave the plugin's regular secure storage.
-- `Log requests and responses to disk` writes full request/response bodies to a temp folder for debugging. Off by default; logs are pruned automatically (7 days / 2000 files).
+`qwen2.5-coder` is the stable completion alias: change the underlying model in this plugin without changing the IDE configuration. Do not use that alias for chat. Older Copilot logins need to reconnect once for native FIM.
+
+### Other proxy options
+
+- **Copilot Auto:** use `gh-auto` on `/v1/chat/completions`. Named models remain available when your plan allows manual selection.
+- **OpenAI speech output:** experimental and not yet verified end-to-end; it requires voice-session access and may paraphrase text.
+- **Request logging:** enable **Log requests and responses to disk** for debugging. It records full bodies in a temporary folder and prunes old logs. Off by default.
 
 ![Proxy settings](docs/proxy-settings.png)
-
-The proxy implementation was derived from the initial proxy design of [AIProxyOauth](https://github.com/skanga/AIProxyOauth), adapted to Kotlin and extended for this plugin's multi-provider subscription proxy, broader client compatibility, model discovery, request/response translation, and additional OpenAI-compatible routes.
-
-## How it works
-
-The plugin calls each provider's usage API with your credentials and displays the result in a normalized format. Nothing is sent anywhere except to the providers you configured.
-
-Settings is an account list: add or remove logins, including more than one of the same type. Drag to reorder. The detail pane shows the raw `Last quota response` exactly as it arrived from the API — useful for transparency, debugging, and bug reports. Add, remove, default, and standby wait until Apply.
-
-![Settings](docs/quota-settings.png)
 
 ## Troubleshooting
 
@@ -201,7 +161,7 @@ Settings is an account list: add or remove logins, including more than one of th
 
 **"Not logged in"** — open the plugin settings and start the sign-in flow for that provider again.
 
-**Quota fetch errors or wrong numbers** — providers occasionally change their API responses. Check `Last quota response` in the provider's settings page to see what the API actually returned, and please [open an issue](https://github.com/moritzfl/llm-subscription-usage-intellij/issues/new/choose) with that response attached (redact anything you consider sensitive first). This is usually all that is needed to fix a parsing problem.
+**Quota fetch errors or wrong numbers** — check **Last quota response** in the account's settings and [open an issue](https://github.com/moritzfl/llm-subscription-usage-intellij/issues/new/choose) with sensitive information removed from the response.
 
 ## Development
 
@@ -214,3 +174,5 @@ Use JDK 21 and the Gradle wrapper. Kotlin sources and Gradle Kotlin scripts use 
 ```
 
 CI runs `ktfmtCheck` and the test suite.
+
+The proxy builds on the initial design of [AIProxyOauth](https://github.com/skanga/AIProxyOauth), adapted to Kotlin and extended for multiple providers and clients.
