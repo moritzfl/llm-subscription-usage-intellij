@@ -5,6 +5,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.ActionLink
 import com.intellij.util.ui.JBUI
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
@@ -247,7 +248,7 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
             Messages.showYesNoDialog(
                 "Use one available Codex usage limit reset now?",
                 "Reset Codex Limits",
-                "Use reset",
+                message("quota.reset.title"),
                 "Cancel",
                 AllIcons.Actions.Restart,
             )

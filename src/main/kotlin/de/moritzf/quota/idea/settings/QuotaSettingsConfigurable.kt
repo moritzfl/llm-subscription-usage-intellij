@@ -476,7 +476,7 @@ class QuotaSettingsConfigurable : Configurable {
             }
         }
         routingPanel = panel {
-            group("MCP tools & local proxy") {
+            group(message("settings.integrations.group")) {
                 row { cell(combo).align(AlignX.FILL).resizableColumn() }
                 row { cell(standbyCheckBox!!) }
             }

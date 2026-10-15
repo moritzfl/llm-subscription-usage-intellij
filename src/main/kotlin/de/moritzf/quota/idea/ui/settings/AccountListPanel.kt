@@ -10,6 +10,7 @@ import com.intellij.ui.components.JBList
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import de.moritzf.quota.idea.common.ProviderCatalog
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.settings.ProviderAccount
 import de.moritzf.quota.idea.settings.QuotaSettingsState
@@ -179,7 +180,7 @@ internal class AccountListPanel(
                         "Remove $label? Your Azure CLI login will remain available."
                     else -> "Remove $label and delete its stored login?"
                 },
-                "Remove account",
+                message("settings.account.remove.title"),
                 Messages.getQuestionIcon(),
             ) == Messages.YES
         if (!confirmed) return
@@ -215,7 +216,7 @@ internal class AccountListPanel(
         val popup =
             JBPopupFactory.getInstance()
                 .createPopupChooserBuilder(types)
-                .setTitle("Add provider")
+                .setTitle(message("settings.account.add.title"))
                 .setSelectionMode(ListSelectionModel.SINGLE_SELECTION)
                 .setRenderer(ProviderTypeCellRenderer())
                 .setNamerForFiltering { it.displayName }

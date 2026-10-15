@@ -125,7 +125,7 @@ internal class CompatibleSettingsPanel(
                     }
                     row { comment(message("modelTest.chat.tooltip")) }
                 }
-                group("Vision and documents") {
+                group(message("settings.compatible.group.media")) {
                     row(message("settings.model.vision.label")) {
                         cell(visionModel.combo).align(AlignX.FILL).resizableColumn()
                         cell(visionTest)
@@ -142,7 +142,7 @@ internal class CompatibleSettingsPanel(
                 budgetRow = row { cell(budgetButton) }
                 budgetStatusRow = row { cell(budgetStatus).align(AlignX.FILL).resizableColumn() }
                 manualGroup =
-                    collapsibleGroup("Model IDs (optional)") {
+                    collapsibleGroup(message("settings.compatible.group.modelIds")) {
                             row {
                                 comment(
                                     "Leave empty to discover models automatically. Enter one model ID per line to use only those models, or when discovery is unavailable."

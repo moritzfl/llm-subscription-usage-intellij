@@ -168,9 +168,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                     cell(endpointField)
                         .align(AlignX.FILL)
                         .resizableColumn()
-                        .comment(
-                            "Optional. Overrides the resource URL. https Azure OpenAI, Cognitive Services, or Foundry hosts only."
-                        )
+                        .comment(message("settings.azure.endpoint.help"))
                 }
                 row("Location:") {
                     cell(locationField)
@@ -323,7 +321,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                         if (interactive && accounts.isEmpty()) {
                             Messages.showWarningDialog(
                                 this,
-                                "az account list returned no subscriptions. Run az login, then refresh.",
+                                message("settings.azure.subscriptions.empty"),
                                 "Azure CLI",
                             )
                         }
