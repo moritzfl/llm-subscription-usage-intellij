@@ -14,6 +14,7 @@
 - Modernize coroutine timeout and delay calls, remove unused helpers, and clean up redundant imports, annotations, and null handling.
 - Keep credential saves, clears, and logouts tied to the clicked account, and preserve unsaved fields and model choices when credentials finish loading or accounts change.
 - Close abandoned FIM response bodies on cancellation and move blocking response reads and cleanup off request threads.
+- Clean up remaining redundant Kotlin constructs and unused byte-payload value semantics.
 
 ## [1.21.1] - 2026-10-14
 

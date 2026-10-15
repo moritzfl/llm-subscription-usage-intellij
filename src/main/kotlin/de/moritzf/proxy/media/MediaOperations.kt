@@ -1,6 +1,6 @@
 package de.moritzf.proxy.media
 
-data class SpeechAudio(
+class SpeechAudio(
     val bytes: ByteArray,
     val contentType: String,
 )

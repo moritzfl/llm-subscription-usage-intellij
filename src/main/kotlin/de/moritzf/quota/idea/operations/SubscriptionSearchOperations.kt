@@ -15,7 +15,7 @@ import de.moritzf.quota.ollama.OllamaQuotaException
 import de.moritzf.quota.supergrok.SuperGrokWebSearchClient
 import de.moritzf.quota.zai.ZaiQuotaException
 
-internal suspend fun SubscriptionOperations.codex_web_search(
+internal fun SubscriptionOperations.codex_web_search(
     query: String,
     searchContextSize: String = "medium",
     includeSources: Boolean = false,
@@ -60,7 +60,7 @@ internal suspend fun SubscriptionOperations.subscription_web_search(
     }
 }
 
-internal suspend fun SubscriptionOperations.subscription_web_fetch(
+internal fun SubscriptionOperations.subscription_web_fetch(
     provider: WebFetchProvider = WebFetchProvider.OLLAMA,
     url: String,
 ): String {
@@ -70,7 +70,7 @@ internal suspend fun SubscriptionOperations.subscription_web_fetch(
     }
 }
 
-internal suspend fun SubscriptionOperations.mistral_web_search(
+internal fun SubscriptionOperations.mistral_web_search(
     query: String,
     model: String = MistralWebSearchClient.DEFAULT_MODEL,
     premium: Boolean = false,
@@ -97,7 +97,7 @@ internal suspend fun SubscriptionOperations.supergrokWebSearch(
     }
 }
 
-internal suspend fun SubscriptionOperations.kimiWebSearch(
+internal fun SubscriptionOperations.kimiWebSearch(
     query: String,
     limit: Int,
     includeContent: Boolean,
@@ -133,7 +133,7 @@ internal suspend fun SubscriptionOperations.kimiWebSearch(
     }
 }
 
-internal suspend fun SubscriptionOperations.zaiWebSearch(
+internal fun SubscriptionOperations.zaiWebSearch(
     query: String,
     limit: Int,
     includeContent: Boolean,
@@ -167,7 +167,7 @@ internal suspend fun SubscriptionOperations.miniMaxWebSearch(
     }
 }
 
-internal suspend fun SubscriptionOperations.mistralWebSearch(
+internal fun SubscriptionOperations.mistralWebSearch(
     query: String,
     model: String,
     premium: Boolean,
@@ -228,7 +228,7 @@ internal fun SubscriptionOperations.zaiWebFetch(url: String): String {
     }
 }
 
-internal suspend fun SubscriptionOperations.ollamaWebSearch(
+internal fun SubscriptionOperations.ollamaWebSearch(
     query: String,
     limit: Int,
     includeContent: Boolean,

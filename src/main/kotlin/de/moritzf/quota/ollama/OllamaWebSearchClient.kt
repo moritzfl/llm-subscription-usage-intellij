@@ -96,17 +96,13 @@ open class OllamaWebSearchClient(
     private fun fetchRequest(apiKey: String, url: String): HttpRequest {
         val body = JsonSupport.json.encodeToString(OllamaFetchRequestDto(url))
         return HttpRequest.newBuilder()
-            .uri(endpoint(WEB_FETCH_PATH))
+            .uri(URI.create(baseUri.toString().trimEnd('/') + WEB_FETCH_PATH))
             .timeout(Duration.ofSeconds(60))
             .header("Authorization", "Bearer $apiKey")
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(body))
             .build()
-    }
-
-    private fun endpoint(path: String): URI {
-        return URI.create(baseUri.toString().trimEnd('/') + path)
     }
 
     private fun send(request: HttpRequest): HttpResponse<String> {

@@ -168,7 +168,7 @@ internal object SuperGrokResetCodec {
             (wireType == WIRE_VARINT || wireType == WIRE_LEN || wireType == 1 || wireType == 5)
     }
 
-    private data class ProtoField(
+    private class ProtoField(
         val number: Int,
         val varint: Long? = null,
         val bytes: ByteArray? = null,

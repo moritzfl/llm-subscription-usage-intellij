@@ -71,6 +71,17 @@ class RealtimeSpeechResourcesTest {
     }
 
     @Test
+    fun repeatedFailureInstanceDoesNotSuppressItselfOrSkipLaterReleases() {
+        val failure = IOException("shared cleanup failure")
+        var released = false
+        val resources =
+            RealtimeSpeechResources({ throw failure }, { throw failure }, { released = true })
+        assertSame(failure, assertFailsWith<IOException> { resources.initialize { throw failure } })
+        assertTrue(released)
+        assertTrue(failure.suppressed.isEmpty())
+    }
+
+    @Test
     fun usePreservesBodyFailureAndReleasesEveryResource() {
         val failure = InterruptedException("interrupted")
         val cleanup = IOException("cleanup failed")

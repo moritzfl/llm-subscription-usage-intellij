@@ -54,7 +54,7 @@ class ZaiApiKeyStore(
                 val stored =
                     try {
                         PasswordSafe.instance.get(attributes)
-                    } catch (exception: Exception) {
+                    } catch (_: Exception) {
                         null
                     }
                 val apiKey = stored?.getPasswordAsString()?.ifBlank { null }

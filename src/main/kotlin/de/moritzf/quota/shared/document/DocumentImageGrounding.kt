@@ -44,7 +44,7 @@ internal object DocumentImageGrounding {
      */
     private val ANY_GROUNDING_COMMENT = Regex("""<!--\s*img\s[^>]*-->""")
 
-    private val PLACEHOLDER_IMAGE = Regex("""!\[([^\]]*)]\(image-p(\d+)-(\d+)\.png\)""")
+    private val PLACEHOLDER_IMAGE = Regex("""!\[([^]]*)]\(image-p(\d+)-(\d+)\.png\)""")
 
     data class Region(
         val page: Int,

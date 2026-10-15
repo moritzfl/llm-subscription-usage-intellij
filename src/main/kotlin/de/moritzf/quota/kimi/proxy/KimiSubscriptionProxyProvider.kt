@@ -222,7 +222,7 @@ class KimiSubscriptionProxyProvider(
     private fun fetchModels(token: String): List<RemoteModel> {
         val request =
             HttpRequest.newBuilder(
-                    URI.create(resolveUpstreamUrl(openAiCompatibleBaseUri, "/models"))
+                    URI.create(openAiCompatibleBaseUri.toString().trimEnd('/') + "/models")
                 )
                 .timeout(Duration.ofSeconds(30))
                 .header("Authorization", "Bearer $token")
@@ -328,10 +328,6 @@ class KimiSubscriptionProxyProvider(
         val models: List<RemoteModel>,
         val fetchedAtMillis: Long,
     )
-
-    private fun resolveUpstreamUrl(baseUri: URI, path: String): String {
-        return baseUri.toString().trimEnd('/') + "/" + path.trimStart('/')
-    }
 
     companion object {
         const val ID = "kimi"

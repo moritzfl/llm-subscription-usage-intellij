@@ -112,7 +112,7 @@ private fun env(name: String): String? {
 private fun dotEnv(): Map<String, String> {
     val cached = loadedDotEnv
     if (cached != null) return cached
-    val loaded = loadDotEnv(DOT_ENV_PATH)
+    val loaded = loadDotEnv()
     loadedDotEnv = loaded
     return loaded
 }
@@ -385,9 +385,9 @@ private fun loadCredentials(): StandaloneCredentials {
     )
 }
 
-private fun loadDotEnv(path: Path): Map<String, String> {
-    if (!Files.exists(path)) return emptyMap()
-    return Files.readAllLines(path)
+private fun loadDotEnv(): Map<String, String> {
+    if (!Files.exists(DOT_ENV_PATH)) return emptyMap()
+    return Files.readAllLines(DOT_ENV_PATH)
         .mapNotNull { line ->
             val trimmed = line.trim()
             if (trimmed.isEmpty() || trimmed.startsWith('#')) return@mapNotNull null
@@ -409,7 +409,7 @@ private fun String.unquoteDotEnvValue(): String {
 
 private fun saveCredentialsToDotEnv(credentials: StandaloneCredentials) {
     val accessToken = credentials.accessToken?.takeIf { it.isNotBlank() } ?: return
-    val existing = loadDotEnv(DOT_ENV_PATH).toMutableMap()
+    val existing = loadDotEnv().toMutableMap()
     existing["OPENAI_PROXY_ACCESS_TOKEN"] = accessToken
     credentials.refreshToken
         ?.takeIf { it.isNotBlank() }
@@ -432,22 +432,22 @@ private fun saveCredentialsToDotEnv(credentials: StandaloneCredentials) {
         }
     // The file holds the OAuth access token; restrict it to the owner before writing,
     // mirroring AuthLoader's handling of auth.json.
-    restrictToOwner(DOT_ENV_PATH)
+    restrictToOwner()
     Files.writeString(DOT_ENV_PATH, content)
     loadedDotEnv = existing.toMap()
     println("Saved standalone proxy credentials to ${DOT_ENV_PATH.toAbsolutePath().normalize()}")
 }
 
-private fun restrictToOwner(path: Path) {
+private fun restrictToOwner() {
     runCatching {
-        if (!Files.exists(path)) {
-            Files.createFile(path)
+        if (!Files.exists(DOT_ENV_PATH)) {
+            Files.createFile(DOT_ENV_PATH)
         }
         if (
             java.nio.file.FileSystems.getDefault().supportedFileAttributeViews().contains("posix")
         ) {
             Files.setPosixFilePermissions(
-                path,
+                DOT_ENV_PATH,
                 setOf(
                     java.nio.file.attribute.PosixFilePermission.OWNER_READ,
                     java.nio.file.attribute.PosixFilePermission.OWNER_WRITE,

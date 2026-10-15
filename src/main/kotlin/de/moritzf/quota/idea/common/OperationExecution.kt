@@ -1,6 +1,5 @@
 package de.moritzf.quota.idea.common
 
-import com.intellij.openapi.progress.ProcessCanceledException
 import java.util.Collections
 import java.util.IdentityHashMap
 import kotlin.coroutines.ContinuationInterceptor
@@ -23,7 +22,6 @@ internal suspend fun <T> interruptibleOperation(block: suspend () -> T): T {
 internal fun Throwable.rethrowIfCancellation() {
     when (val cancellation = cancellationCause()) {
         is CancellationException -> throw cancellation
-        is ProcessCanceledException -> throw cancellation
         is InterruptedException -> {
             Thread.currentThread().interrupt()
             throw CancellationException("Operation interrupted", cancellation)
@@ -37,7 +35,6 @@ internal fun Throwable.cancellationCause(): Throwable? {
     while (cause != null && seen.add(cause)) {
         when (cause) {
             is CancellationException,
-            is ProcessCanceledException,
             is InterruptedException -> return cause
         }
         cause = cause.cause

@@ -13,7 +13,7 @@ internal class RealtimeSpeechResources(private vararg val releases: () -> Unit) 
             try {
                 close()
             } catch (cleanup: Throwable) {
-                if (cleanup !== failure) failure.addSuppressed(cleanup)
+                failure.addSuppressed(cleanup)
             }
             throw failure
         }
@@ -26,8 +26,7 @@ internal class RealtimeSpeechResources(private vararg val releases: () -> Unit) 
             try {
                 release()
             } catch (cleanup: Throwable) {
-                if (failure == null) failure = cleanup
-                else if (failure !== cleanup) failure.addSuppressed(cleanup)
+                if (failure == null) failure = cleanup else failure.addSuppressed(cleanup)
             }
         }
         failure?.let { throw it }

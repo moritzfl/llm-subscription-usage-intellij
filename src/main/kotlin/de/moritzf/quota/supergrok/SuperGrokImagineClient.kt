@@ -183,7 +183,7 @@ open class SuperGrokImagineClient(
         val deadlineMs = System.currentTimeMillis() + timeoutSeconds * 1000L
         var lastBody: String? = null
         while (System.currentTimeMillis() < deadlineMs) {
-            val body = getJson(accessToken, "videos/$requestId", requestTimeoutSeconds = 30)
+            val body = getJson(accessToken, "videos/$requestId")
             lastBody = body
             val status = extractVideoStatus(body)?.lowercase(Locale.ROOT)
             when (status) {
@@ -286,11 +286,11 @@ open class SuperGrokImagineClient(
         return sendForBody(request)
     }
 
-    private fun getJson(accessToken: String, path: String, requestTimeoutSeconds: Long): String {
+    private fun getJson(accessToken: String, path: String): String {
         val request =
             HttpRequest.newBuilder()
                 .uri(baseUri.resolve(path))
-                .timeout(Duration.ofSeconds(requestTimeoutSeconds))
+                .timeout(Duration.ofSeconds(30))
                 .header("Authorization", "Bearer $accessToken")
                 .header("Accept", "application/json")
                 .header("User-Agent", USER_AGENT)

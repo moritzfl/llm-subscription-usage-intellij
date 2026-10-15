@@ -385,14 +385,12 @@ class SubscriptionProxyServer(
     private fun applyCorsHeaders(ctx: ProxyCall) {
         val origin = ctx.header(HttpHeaders.Origin)
         val allowedOrigin =
-            if (allowAnyCors) {
-                "*"
-            } else
-                if (origin != null && ProxyServer.isAllowedCorsOrigin(origin, allowedCorsOrigins)) {
+            when {
+                allowAnyCors -> "*"
+                origin != null && ProxyServer.isAllowedCorsOrigin(origin, allowedCorsOrigins) ->
                     origin
-                } else {
-                    null
-                } ?: return
+                else -> return
+            }
         ctx.responseHeader(HttpHeaders.AccessControlAllowOrigin, allowedOrigin)
         ctx.responseHeader(HttpHeaders.Vary, HttpHeaders.Origin)
         ctx.responseHeader(HttpHeaders.AccessControlAllowMethods, "GET,POST,OPTIONS")

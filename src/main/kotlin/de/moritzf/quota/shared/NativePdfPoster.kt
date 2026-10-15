@@ -64,9 +64,9 @@ internal class NativePdfPoster(private val httpClient: HttpClient = HttpClient.n
         val response =
             try {
                 httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString())
-            } catch (exception: IOException) {
+            } catch (_: IOException) {
                 error("Document request failed. Check your connection.")
-            } catch (exception: InterruptedException) {
+            } catch (_: InterruptedException) {
                 Thread.currentThread().interrupt()
                 error("Document request failed. Check your connection.")
             }

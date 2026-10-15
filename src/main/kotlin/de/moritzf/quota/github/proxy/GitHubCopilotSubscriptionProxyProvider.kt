@@ -74,10 +74,9 @@ class GitHubCopilotSubscriptionProxyProvider(
         ChatCompletionsHandler(
             requestLogger = requestLogger,
             usageTracker = UsageTracker(),
-            responsesRequester =
-                ChatCompletionsHandler.ResponsesRequester { payload, requestId, promptCacheKey ->
-                    sendResponsesForChatCompletion(payload, requestId, promptCacheKey, selection)
-                },
+            responsesRequester = { payload, requestId, promptCacheKey ->
+                sendResponsesForChatCompletion(payload, requestId, promptCacheKey, selection)
+            },
             store = false,
             configuredModels = null,
             fullRequestLogging = fullRequestLogging,

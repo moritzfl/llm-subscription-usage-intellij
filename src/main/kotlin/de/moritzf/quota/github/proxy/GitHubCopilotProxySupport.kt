@@ -249,7 +249,7 @@ internal fun containsImageInput(element: JsonElement?): Boolean {
     }
 }
 
-internal data class RemoteImageHop(
+internal class RemoteImageHop(
     val statusCode: Int,
     val uri: URI,
     val location: String?,

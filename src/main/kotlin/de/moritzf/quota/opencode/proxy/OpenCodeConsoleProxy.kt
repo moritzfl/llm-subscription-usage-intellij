@@ -128,44 +128,41 @@ internal class OpenCodeConsoleProxy(
                 ChatCompletionsHandler(
                     requestLogger = requestLogger,
                     usageTracker = UsageTracker(),
-                    responsesRequester =
-                        ChatCompletionsHandler.ResponsesRequester { payload, requestId, _ ->
-                            fun send(): HttpResponse<java.io.InputStream> {
-                                val headers =
-                                    configured.headers +
-                                        clientHeaders +
-                                        mapOf(
-                                            "Authorization" to "Bearer ${session.accessToken}",
-                                            "Content-Type" to "application/json",
-                                        )
-                                val builder =
-                                    HttpRequest.newBuilder(configured.targetUri)
-                                        .timeout(Duration.ofMinutes(15))
-                                headers.forEach { (name, value) -> builder.setHeader(name, value) }
-                                requestLogger.logUpstreamRequest(
-                                    requestId,
-                                    "POST",
-                                    "/responses",
-                                    headers,
-                                    payload,
-                                )
-                                return httpClient.send(
-                                    builder
-                                        .POST(HttpRequest.BodyPublishers.ofString(payload))
-                                        .build(),
-                                    HttpResponse.BodyHandlers.ofInputStream(),
-                                )
+                    responsesRequester = { payload, requestId, _ ->
+                        fun send(): HttpResponse<java.io.InputStream> {
+                            val headers =
+                                configured.headers +
+                                    clientHeaders +
+                                    mapOf(
+                                        "Authorization" to "Bearer ${session.accessToken}",
+                                        "Content-Type" to "application/json",
+                                    )
+                            val builder =
+                                HttpRequest.newBuilder(configured.targetUri)
+                                    .timeout(Duration.ofMinutes(15))
+                            headers.forEach { (name, value) -> builder.setHeader(name, value) }
+                            requestLogger.logUpstreamRequest(
+                                requestId,
+                                "POST",
+                                "/responses",
+                                headers,
+                                payload,
+                            )
+                            return httpClient.send(
+                                builder.POST(HttpRequest.BodyPublishers.ofString(payload)).build(),
+                                HttpResponse.BodyHandlers.ofInputStream(),
+                            )
+                        }
+                        var response = send()
+                        if (response.statusCode() == 401) {
+                            val token = session.refresh(session.accessToken)
+                            if (token != null) {
+                                response.body().close()
+                                response = send()
                             }
-                            var response = send()
-                            if (response.statusCode() == 401) {
-                                val token = session.refresh(session.accessToken)
-                                if (token != null) {
-                                    response.body().close()
-                                    response = send()
-                                }
-                            }
-                            response
-                        },
+                        }
+                        response
+                    },
                     store = false,
                     configuredModels = null,
                     fullRequestLogging = false,

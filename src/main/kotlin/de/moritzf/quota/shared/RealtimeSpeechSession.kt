@@ -42,7 +42,7 @@ object RealtimeSpeechSession {
         fun accept(pcm: Pcm)
     }
 
-    private val CALL_ID = Regex("(?:rtc_[A-Za-z0-9_-]{1,200}|[a-fA-F0-9-]{36})")
+    private val CALL_ID = Regex("rtc_[A-Za-z0-9_-]{1,200}|[a-fA-F0-9-]{36}")
 
     fun synthesize(text: String, protocol: Protocol, chunks: Chunks): Pcm {
         if (text.isBlank() || text.length > 8000) {

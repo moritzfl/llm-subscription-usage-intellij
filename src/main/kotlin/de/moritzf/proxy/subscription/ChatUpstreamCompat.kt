@@ -18,7 +18,7 @@ object ChatUpstreamCompat {
     fun adaptChat(modelId: String, body: JsonObject): JsonObject {
         val omitted = omitUnsupportedChatFields(modelId, body)
         if (!modelId.trim().lowercase().startsWith("gemini-") || !hasTools(omitted)) return omitted
-        return addTokenHeadroom(omitted, GEMINI_TOOL_REASONING_HEADROOM)
+        return addTokenHeadroom(omitted)
     }
 
     fun omitUnsupportedChatFields(modelId: String, body: JsonObject): JsonObject {
@@ -91,13 +91,13 @@ object ChatUpstreamCompat {
         return listOf("tools", "functions").any { (body[it] as? JsonArray)?.isNotEmpty() == true }
     }
 
-    private fun addTokenHeadroom(body: JsonObject, headroom: Int): JsonObject {
+    private fun addTokenHeadroom(body: JsonObject): JsonObject {
         if (body.keys.none { it == "max_tokens" || it == "max_completion_tokens" }) return body
         return buildJsonObject {
             body.forEach { (key, value) ->
                 val amount = (value as? JsonPrimitive)?.intOrNull
                 if ((key == "max_tokens" || key == "max_completion_tokens") && amount != null) {
-                    put(key, amount + headroom)
+                    put(key, amount + GEMINI_TOOL_REASONING_HEADROOM)
                 } else {
                     put(key, value)
                 }

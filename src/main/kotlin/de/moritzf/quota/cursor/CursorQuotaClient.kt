@@ -45,7 +45,7 @@ open class CursorQuotaClient(
         }
             .getOrNull()
         val profileJson = runCatching {
-            getRest(accessToken, "/auth/full_stripe_profile", auth)
+            getStripeProfile(accessToken, auth)
         }
             .getOrNull()
 
@@ -115,10 +115,10 @@ open class CursorQuotaClient(
         return send(builder.POST(HttpRequest.BodyPublishers.ofString("{}")).build())
     }
 
-    private fun getRest(accessToken: String, path: String, auth: CursorAuth? = null): String {
+    private fun getStripeProfile(accessToken: String, auth: CursorAuth?): String {
         val builder =
             HttpRequest.newBuilder()
-                .uri(baseUri.resolve(path))
+                .uri(baseUri.resolve("/auth/full_stripe_profile"))
                 .timeout(Duration.ofSeconds(30))
                 .header("Authorization", "Bearer $accessToken")
                 .header("Content-Type", "application/json")

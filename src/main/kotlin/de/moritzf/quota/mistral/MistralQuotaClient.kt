@@ -95,7 +95,7 @@ open class MistralQuotaClient(
         val identityBody =
             apiKey
                 ?.takeIf { it.isNotBlank() }
-                ?.let { key -> runCatching { getJson(key, IDENTITY_URI) }.getOrNull() }
+                ?.let { key -> runCatching { getIdentityJson(key) }.getOrNull() }
         val identity = identityBody?.let { runCatching { parseIdentity(it) }.getOrNull() }
         val probe =
             apiKey
@@ -204,10 +204,10 @@ open class MistralQuotaClient(
         return body
     }
 
-    private fun getJson(apiKey: String, endpoint: URI): String {
+    private fun getIdentityJson(apiKey: String): String {
         val request =
             HttpRequest.newBuilder()
-                .uri(endpoint)
+                .uri(IDENTITY_URI)
                 .timeout(Duration.ofSeconds(30))
                 .header("Authorization", "Bearer $apiKey")
                 .header("Accept", "application/json")

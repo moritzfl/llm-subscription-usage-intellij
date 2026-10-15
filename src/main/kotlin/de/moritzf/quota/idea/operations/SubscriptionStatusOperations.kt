@@ -10,14 +10,14 @@ import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.shared.McpAccountToolStatus
 import de.moritzf.quota.shared.McpJson
 
-internal suspend fun SubscriptionOperations.subscription_quota(
+internal fun SubscriptionOperations.subscription_quota(
     provider: QuotaProviderType,
     account: String? = null,
 ): String {
     return quotaResult(provider, account)
 }
 
-internal suspend fun SubscriptionOperations.subscription_tools_status(
+internal fun SubscriptionOperations.subscription_tools_status(
     capability: AccountCapability? = null,
     model: String? = null,
 ): String {

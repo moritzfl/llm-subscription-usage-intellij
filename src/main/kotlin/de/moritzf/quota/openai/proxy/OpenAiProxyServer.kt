@@ -45,9 +45,6 @@ class OpenAiProxyServer(
     private val running = AtomicBoolean(false)
     private var server: ProxyServer? = null
 
-    val isRunning: Boolean
-        get() = running.get()
-
     fun start() {
         check(running.compareAndSet(false, true)) { "OpenAI proxy is already running" }
 

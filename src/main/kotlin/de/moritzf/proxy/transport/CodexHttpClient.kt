@@ -56,7 +56,7 @@ open class CodexHttpClient {
         callId: String,
         listener: java.net.http.WebSocket.Listener,
     ): java.util.concurrent.CompletableFuture<java.net.http.WebSocket> {
-        require(callId.matches(Regex("(?:rtc_[A-Za-z0-9_-]{1,200}|[a-fA-F0-9-]{36})")))
+        require(callId.matches(Regex("rtc_[A-Za-z0-9_-]{1,200}|[a-fA-F0-9-]{36}")))
         val base = URI.create(baseUrl)
         val origin =
             if (base.host == "chatgpt.com") "wss://api.openai.com"

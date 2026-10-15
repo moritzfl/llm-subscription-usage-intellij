@@ -116,7 +116,7 @@ open class SuperGrokAudioClient(
                 .header("User-Agent", USER_AGENT)
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build()
-        return sendBytes(request, "Grok text-to-speech failed")
+        return sendBytes(request)
     }
 
     open fun listVoices(accessToken: String): String {
@@ -179,7 +179,7 @@ open class SuperGrokAudioClient(
         }
     }
 
-    private fun sendBytes(request: HttpRequest, failure: String): ByteArray {
+    private fun sendBytes(request: HttpRequest): ByteArray {
         val response =
             try {
                 httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray())
@@ -207,7 +207,10 @@ open class SuperGrokAudioClient(
             )
         }
         if (status !in 200..299) {
-            throw SuperGrokQuotaException("$failure (HTTP $status). Try again later.", status)
+            throw SuperGrokQuotaException(
+                "Grok text-to-speech failed (HTTP $status). Try again later.",
+                status,
+            )
         }
         return response.body()
     }

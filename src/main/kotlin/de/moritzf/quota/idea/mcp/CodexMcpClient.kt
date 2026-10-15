@@ -1281,7 +1281,7 @@ class CodexMcpClient(
                 .map { CodexVoice(it, it) }
     }
 
-    internal data class MultipartBody(val boundary: String, val body: ByteArray)
+    internal class MultipartBody(val boundary: String, val body: ByteArray)
 }
 
 @Serializable

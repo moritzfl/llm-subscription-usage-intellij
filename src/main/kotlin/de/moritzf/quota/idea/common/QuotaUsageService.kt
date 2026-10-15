@@ -310,6 +310,7 @@ class QuotaUsageService(
         states.values.forEach { it.provider.hydrateFromCache(settings) }
     }
 
+    @Suppress("UnstableApiUsage")
     private fun refreshNow() {
         val futures =
             states.keys.map { accountId ->

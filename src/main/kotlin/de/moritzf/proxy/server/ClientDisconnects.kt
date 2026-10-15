@@ -1,7 +1,6 @@
 package de.moritzf.proxy.server
 
 import io.ktor.utils.io.ClosedByteChannelException
-import io.ktor.utils.io.ClosedWriteChannelException
 import java.nio.channels.ClosedChannelException
 
 /**
@@ -18,11 +17,7 @@ fun Throwable.isClientDisconnect(): Boolean {
     var current: Throwable? = this
     var depth = 0
     while (current != null && depth < MAX_CAUSE_DEPTH) {
-        if (
-            current is ClosedByteChannelException ||
-                current is ClosedWriteChannelException ||
-                current is ClosedChannelException
-        ) {
+        if (current is ClosedByteChannelException || current is ClosedChannelException) {
             return true
         }
         current = current.cause
