@@ -29,15 +29,19 @@ import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.util.UUID
-import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -258,62 +262,74 @@ class CompletionsHandler(
                 .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
                 .build()
         val upstream = sendAsync(request)
-        AccessLogFields.upstreamStatus(ctx, upstream.statusCode())
-        if (upstream.statusCode() == 429) {
-            guard.noteQuotaError(key)
-            upstream.body().close()
-            writeEmptyCompletion(ctx, parsed.stream, advertised, requestId)
-            return
-        }
-        if (upstream.statusCode() !in 200..<300) {
-            val errorBody = upstream.body().use { JsonHelper.readUtf8Body(it) }
-            if (parsed.stream) {
-                writeEmptyCompletion(ctx, true, advertised, requestId)
-            } else {
-                ctx.setStatus(upstream.statusCode())
-                ctx.call.respondText(
-                    errorBody,
-                    ContentType.Application.Json,
-                    HttpStatusCode.fromValue(upstream.statusCode()),
-                )
-                ctx.handled = true
+        try {
+            AccessLogFields.upstreamStatus(ctx, upstream.statusCode())
+            if (upstream.statusCode() == 429) {
+                guard.noteQuotaError(key)
+                writeEmptyCompletion(ctx, parsed.stream, advertised, requestId)
+                return
             }
-            return
-        }
-        guard.noteSuccess(key)
-        val stops = CompletionSanitizer.effectiveStops(fim.prefix, parsed.stop, fim.languageHint)
-        val sanitizer =
-            StreamingCompletionSanitizer(
-                prefix = fim.prefix,
-                suffix = fim.suffix,
-                stop = stops,
-                languageHint = fim.languageHint,
-            )
-        val upstreamStream = isEventStream(upstream)
-        if (parsed.stream) {
-            val text =
-                if (upstreamStream) {
-                    writeChatStream(ctx, upstream, sanitizer, completionId, created, advertised)
+            if (upstream.statusCode() !in 200..<300) {
+                val errorBody =
+                    runInterruptible(Dispatchers.IO) { JsonHelper.readUtf8Body(upstream.body()) }
+                if (parsed.stream) {
+                    writeEmptyCompletion(ctx, true, advertised, requestId)
                 } else {
-                    val raw = upstream.body().use { JsonHelper.readUtf8Body(it) }
-                    val assembled = sanitizer.push(chatMessageContent(raw)) + sanitizer.finish()
-                    writeCompletion(ctx, true, advertised, requestId, assembled)
-                    assembled
+                    ctx.setStatus(upstream.statusCode())
+                    ctx.call.respondText(
+                        errorBody,
+                        ContentType.Application.Json,
+                        HttpStatusCode.fromValue(upstream.statusCode()),
+                    )
+                    ctx.handled = true
                 }
-            guard.publish(key, producerJob, text)
-        } else {
-            val text =
-                if (upstreamStream) {
-                    collectChatStream(upstream, sanitizer)
-                } else {
-                    val raw = upstream.body().use { JsonHelper.readUtf8Body(it) }
-                    sanitizer.push(chatMessageContent(raw)) + sanitizer.finish()
-                }
-            guard.publish(key, producerJob, text)
-            JsonHelper.toJsonResponse(
-                ctx,
-                textCompletionJson(completionId, created, advertised, text),
-            )
+                return
+            }
+            guard.noteSuccess(key)
+            val stops =
+                CompletionSanitizer.effectiveStops(fim.prefix, parsed.stop, fim.languageHint)
+            val sanitizer =
+                StreamingCompletionSanitizer(
+                    prefix = fim.prefix,
+                    suffix = fim.suffix,
+                    stop = stops,
+                    languageHint = fim.languageHint,
+                )
+            val upstreamStream = isEventStream(upstream)
+            if (parsed.stream) {
+                val text =
+                    if (upstreamStream) {
+                        writeChatStream(ctx, upstream, sanitizer, completionId, created, advertised)
+                    } else {
+                        val raw =
+                            runInterruptible(Dispatchers.IO) {
+                                JsonHelper.readUtf8Body(upstream.body())
+                            }
+                        val assembled = sanitizer.push(chatMessageContent(raw)) + sanitizer.finish()
+                        writeCompletion(ctx, true, advertised, requestId, assembled)
+                        assembled
+                    }
+                guard.publish(key, producerJob, text)
+            } else {
+                val text =
+                    if (upstreamStream) {
+                        collectChatStream(upstream, sanitizer)
+                    } else {
+                        val raw =
+                            runInterruptible(Dispatchers.IO) {
+                                JsonHelper.readUtf8Body(upstream.body())
+                            }
+                        sanitizer.push(chatMessageContent(raw)) + sanitizer.finish()
+                    }
+                guard.publish(key, producerJob, text)
+                JsonHelper.toJsonResponse(
+                    ctx,
+                    textCompletionJson(completionId, created, advertised, text),
+                )
+            }
+        } finally {
+            // Own the body across reads and response setup, including cancellation before either.
+            withContext(NonCancellable + Dispatchers.IO) { closeBodyQuietly(upstream) }
         }
     }
 
@@ -348,12 +364,13 @@ class CompletionsHandler(
         )
     }
 
-    private fun collectChatStream(
+    private suspend fun collectChatStream(
         upstream: HttpResponse<InputStream>,
         sanitizer: StreamingCompletionSanitizer,
-    ): String {
-        val assembled = StringBuilder()
-        upstream.body().bufferedReader(StandardCharsets.UTF_8).use { reader ->
+    ): String =
+        runInterruptible(Dispatchers.IO) {
+            val assembled = StringBuilder()
+            val reader = upstream.body().bufferedReader(StandardCharsets.UTF_8)
             while (true) {
                 val line = reader.readLine() ?: break
                 if (line.isEmpty()) continue
@@ -363,10 +380,9 @@ class CompletionsHandler(
                 val delta = chatDeltaContent(data)
                 if (delta != null) assembled.append(sanitizer.push(delta))
             }
+            assembled.append(sanitizer.finish())
+            assembled.toString()
         }
-        assembled.append(sanitizer.finish())
-        return assembled.toString()
-    }
 
     private suspend fun writeChatStream(
         ctx: ProxyCall,
@@ -384,7 +400,8 @@ class CompletionsHandler(
             ContentType.parse(JsonHelper.SSE_CONTENT_TYPE),
             HttpStatusCode.OK,
         ) {
-            upstream.body().bufferedReader(StandardCharsets.UTF_8).use { reader ->
+            runInterruptible(Dispatchers.IO) {
+                val reader = upstream.body().bufferedReader(StandardCharsets.UTF_8)
                 while (true) {
                     val line = reader.readLine() ?: break
                     if (line.isEmpty()) continue
@@ -392,7 +409,7 @@ class CompletionsHandler(
                         val data = line.substringAfter("data:").trim()
                         if (data == "[DONE]") {
                             assembled.append(writeFinish(ctx, this, sanitizer, id, created, model))
-                            return@use
+                            return@runInterruptible
                         }
                         val delta = chatDeltaContent(data)
                         if (delta != null) {
@@ -498,11 +515,13 @@ class CompletionsHandler(
         return suspendCancellableCoroutine { continuation ->
             val future = httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream())
             future.whenComplete { response, error ->
-                if (continuation.isActive) {
-                    if (error != null) continuation.resumeWithException(error)
-                    else continuation.resume(response)
+                if (error != null) {
+                    continuation.resumeWithException(error)
                 } else {
-                    response?.body()?.close()
+                    // Cancellation can win after resume but before the caller receives the body.
+                    continuation.resume(response) { _, abandoned, _ ->
+                        Dispatchers.IO.asExecutor().execute { closeBodyQuietly(abandoned) }
+                    }
                 }
             }
             continuation.invokeOnCancellation { future.cancel(true) }
@@ -511,6 +530,15 @@ class CompletionsHandler(
 
     companion object {
         private val LOG = LoggerFactory.getLogger(CompletionsHandler::class.java)
+
+        private fun closeBodyQuietly(response: HttpResponse<InputStream>) {
+            try {
+                response.body().close()
+            } catch (exception: Exception) {
+                LOG.debug("Failed to close FIM response body", exception)
+            }
+        }
+
         private const val DEFAULT_TEMPERATURE = 0.1
         private const val MAX_TEMPERATURE = 0.2
         private val HTTP_CLIENT: HttpClient =
