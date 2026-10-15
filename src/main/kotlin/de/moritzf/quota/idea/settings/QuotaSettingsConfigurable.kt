@@ -220,10 +220,12 @@ class QuotaSettingsConfigurable : Configurable {
 
     override fun reset() {
         testApiKeyDrafts.clear()
+        providerPanelsByType.values.forEach { it.discardCredentialDrafts() }
         panel?.reset()
     }
 
     override fun cancel() {
+        providerPanelsByType.values.forEach { it.discardCredentialDrafts() }
         compatiblePanels().forEach { it.discardDrafts() }
         accountListPanel?.discardPending()
         super.cancel()
@@ -231,6 +233,7 @@ class QuotaSettingsConfigurable : Configurable {
 
     override fun disposeUIResources() {
         testApiKeyDrafts.clear()
+        providerPanelsByType.values.forEach { it.discardCredentialDrafts() }
         compatiblePanels().forEach { it.dispose() }
         accountListPanel?.discardPending()
         connection?.disconnect()
@@ -999,7 +1002,13 @@ class QuotaSettingsConfigurable : Configurable {
             (accountListPanel?.accounts() ?: draft.accounts).map { it.snapshot() }.toMutableList()
         draft.syncLegacyAccountFields()
         val ids = draft.accounts.map { it.id }.toSet()
-        return ProxyTestSettings(draft, testApiKeyDrafts.filterKeys { it in ids })
+        val keys = testApiKeyDrafts.filterKeys { it in ids }.toMutableMap()
+        providerPanelsByType.forEach { (type, panel) ->
+            val liveDrafts = panel.testApiKeyDrafts() ?: return@forEach
+            draft.accounts.filter { it.providerType() == type }.forEach { keys.remove(it.id) }
+            keys.putAll(liveDrafts.filterKeys { it in ids })
+        }
+        return ProxyTestSettings(draft, keys)
     }
 
     private fun compatiblePanels(): List<CompatibleSettingsPanel> =

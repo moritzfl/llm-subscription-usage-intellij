@@ -60,8 +60,10 @@ internal class KimiSettingsPanel(
         }
 
         loginButton.addActionListener {
-            val authService: AuthService =
-                KimiAuthService.forAccount(accountKey(QuotaProviderType.KIMI))
+            val accountId = accountKey(QuotaProviderType.KIMI)
+            val isCurrent = accountUiGuard()
+            val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
+            val authService: AuthService = KimiAuthService.forAccount(accountId)
             if (authService.isLoggedIn()) {
                 updateStatus()
                 return@addActionListener
@@ -72,9 +74,11 @@ internal class KimiSettingsPanel(
             updateStatus()
             authService.startLoginFlow(
                 callback = { result ->
+                    if (result.success) QuotaUsageService.getInstance().refreshAsync(accountId)
                     ApplicationManager.getApplication()
                         .invokeLater(
                             {
+                                if (!isCurrent()) return@invokeLater
                                 authStatusMessage =
                                     if (result.success) {
                                         AuthStatusMessage(
@@ -91,18 +95,15 @@ internal class KimiSettingsPanel(
                                     }
                                 loginButton.isEnabled = true
                                 updateStatus()
-                                if (result.success) {
-                                    QuotaUsageService.getInstance()
-                                        .refreshAsync(accountKey(QuotaProviderType.KIMI))
-                                }
                             },
-                            ModalityState.stateForComponent(modalityComponentProvider() ?: this),
+                            modality,
                         )
                 },
                 onVerificationUrl = { url, userCode ->
                     ApplicationManager.getApplication()
                         .invokeLater(
                             {
+                                if (!isCurrent()) return@invokeLater
                                 verificationUrl = url
                                 copyUrlButton.isVisible = true
                                 userCodeLabel.text =
@@ -116,7 +117,7 @@ internal class KimiSettingsPanel(
                                     )
                                 updateStatus()
                             },
-                            ModalityState.stateForComponent(modalityComponentProvider() ?: this),
+                            modality,
                         )
                 },
             )
@@ -137,20 +138,22 @@ internal class KimiSettingsPanel(
         }
 
         logoutButton.addActionListener {
-            setPending("Clearing credentials...")
+            val accountId = accountKey(QuotaProviderType.KIMI)
+            val isCurrent = accountUiGuard()
+            val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
+            setPending()
             ApplicationManager.getApplication().executeOnPooledThread {
-                (KimiAuthService.forAccount(accountKey(QuotaProviderType.KIMI)) as AuthService)
-                    .clearCredentials()
+                (KimiAuthService.forAccount(accountId) as AuthService).clearCredentials()
+                QuotaUsageService.getInstance().clearUsageData(accountId, "Not logged in")
                 ApplicationManager.getApplication()
                     .invokeLater(
                         {
+                            if (!isCurrent()) return@invokeLater
                             authStatusMessage =
                                 AuthStatusMessage("Logged out", false, AuthStatusKind.DISCONNECTED)
-                            QuotaUsageService.getInstance()
-                                .clearUsageData(accountKey(QuotaProviderType.KIMI), "Not logged in")
                             updateStatus()
                         },
-                        ModalityState.stateForComponent(modalityComponentProvider() ?: this),
+                        modality,
                     )
             }
         }
@@ -187,8 +190,9 @@ internal class KimiSettingsPanel(
 
     override fun updateFields() {
         rememberAccount()
+        val isCurrent = accountUiGuard()
         KimiCredentialsStore.forAccount(accountKey(QuotaProviderType.KIMI))
-            .load(onLoaded = ::refreshAfterCredentialsLoad)
+            .load(onLoaded = { if (isCurrent()) refreshAfterCredentialsLoad() })
         showVisionModels(emptyList())
         updateStatus()
         refreshVisionModels()
@@ -206,6 +210,8 @@ internal class KimiSettingsPanel(
     }
 
     private fun refreshVisionModels() {
+        val isCurrent = accountUiGuard()
+        val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
         val accountId = accountKey(QuotaProviderType.KIMI)
         val generation = ++modelRefreshGeneration
         ApplicationManager.getApplication().executeOnPooledThread {
@@ -216,25 +222,22 @@ internal class KimiSettingsPanel(
             ApplicationManager.getApplication()
                 .invokeLater(
                     {
-                        if (
-                            generation != modelRefreshGeneration ||
-                                accountKey(QuotaProviderType.KIMI) != accountId
-                        )
-                            return@invokeLater
+                        if (!isCurrent() || generation != modelRefreshGeneration) return@invokeLater
                         showVisionModels(
                             discovered,
                             visionModelCombo.selected()
                                 ?: boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL),
                         )
                     },
-                    ModalityState.stateForComponent(modalityComponentProvider() ?: this),
+                    modality,
                 )
         }
     }
 
     override fun updateStatus() {
+        val isCurrent = accountUiGuard()
         val store = KimiCredentialsStore.forAccount(accountKey(QuotaProviderType.KIMI))
-        val credentials = store.load(onLoaded = ::refreshAfterCredentialsLoad)
+        val credentials = store.load(onLoaded = { if (isCurrent()) refreshAfterCredentialsLoad() })
         val inProgress =
             (KimiAuthService.forAccount(accountKey(QuotaProviderType.KIMI)) as AuthService)
                 .isLoginInProgress()
@@ -301,11 +304,13 @@ internal class KimiSettingsPanel(
     }
 
     private fun refreshAfterCredentialsLoad() {
-        updateFields()
+        updateStatus()
+        refreshVisionModels()
         updateResponseArea()
     }
 
-    private fun setPending(text: String) {
+    private fun setPending() {
+        val text = "Clearing credentials..."
         authStatusMessage = AuthStatusMessage(text, false, AuthStatusKind.PENDING)
         statusLabel.text = formatStatusText(text, AuthStatusKind.PENDING)
         statusLabel.isVisible = true

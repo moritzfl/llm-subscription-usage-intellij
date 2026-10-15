@@ -29,6 +29,7 @@ internal class CursorSettingsPanel(
             toolTipText = "WorkosCursorSessionToken from cursor.com browser cookies"
         }
     private val authSourceLabel = JBLabel()
+    private val sessionCookieDraft = credentialDraft(sessionCookieField)
     private val cursorStatusLabel = JBLabel().apply { isVisible = false }
     private val cursorJsonViewer = createResponseViewer()
     private val validationGeneration = AtomicLong(0)
@@ -47,21 +48,26 @@ internal class CursorSettingsPanel(
             row("Auth source:") { cell(authSourceLabel) }
             row {
                 button("Save") {
+                    val id = accountKey(QuotaProviderType.CURSOR)
                     val sessionCookie = String(sessionCookieField.password)
                     if (sessionCookie.isNotBlank() && sessionCookie != SESSION_COOKIE_PLACEHOLDER) {
                         CursorCredentialsStore.forAccount(accountKey(QuotaProviderType.CURSOR))
                             .saveSessionCookie(sessionCookie)
-                        sessionCookieField.text = SESSION_COOKIE_PLACEHOLDER
-                        setCursorPendingStatus("Validating session cookie...")
+                        sessionCookieDraft.saved(id, sessionCookie)
+                        sessionCookieDraft.show(id, SESSION_COOKIE_PLACEHOLDER)
+                        setCursorPendingStatus()
                         validateSessionCookieNow(sessionCookie)
                         QuotaUsageService.getInstance()
                             .refreshAsync(accountKey(QuotaProviderType.CURSOR))
                     }
                 }
                 button("Clear") {
+                    val id = accountKey(QuotaProviderType.CURSOR)
                     CursorCredentialsStore.forAccount(accountKey(QuotaProviderType.CURSOR))
                         .clearSessionCookie()
-                    sessionCookieField.text = ""
+                    sessionCookieDraft.saved(id, String(sessionCookieField.password))
+                    sessionCookieDraft.show(id, "")
+                    validationGeneration.incrementAndGet()
                     updateStatus()
                     QuotaUsageService.getInstance()
                         .clearUsageData(accountKey(QuotaProviderType.CURSOR))
@@ -73,21 +79,38 @@ internal class CursorSettingsPanel(
     }
 
     override fun updateFields() {
-        val store = CursorCredentialsStore.forAccount(accountKey(QuotaProviderType.CURSOR))
-        store.load(onLoaded = ::refreshAfterCredentialLoad)
-        sessionCookieField.text =
+        loadCredentialField()
+        updateStatus()
+    }
+
+    private fun loadCredentialField() {
+        val id = accountKey(QuotaProviderType.CURSOR)
+        val isCurrent = accountUiGuard()
+        val store = CursorCredentialsStore.forAccount(id)
+        store.load(
+            onLoaded = {
+                if (isCurrent()) {
+                    loadCredentialField()
+                    updateStatus()
+                    updateResponseArea()
+                }
+            }
+        )
+        sessionCookieDraft.show(
+            id,
             when {
                 !store.isLoaded() -> ""
                 store.hasSessionCookie() -> SESSION_COOKIE_PLACEHOLDER
                 else -> ""
-            }
+            },
+        )
         updateAuthSourceLabel(store)
-        updateStatus()
     }
 
     override fun updateStatus() {
+        val isCurrent = accountUiGuard()
         val store = CursorCredentialsStore.forAccount(accountKey(QuotaProviderType.CURSOR))
-        store.load(onLoaded = ::refreshAfterCredentialLoad)
+        store.load(onLoaded = { if (isCurrent()) updateStatus() })
         val cursorQuota =
             QuotaUsageService.getInstance().getLastQuota(accountKey(QuotaProviderType.CURSOR))
                 as? CursorQuota
@@ -133,6 +156,8 @@ internal class CursorSettingsPanel(
     }
 
     private fun validateSessionCookieNow(sessionCookie: String) {
+        val isCurrent = accountUiGuard()
+        val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
         val accessToken = CursorSessionTokenParser.extractAccessToken(sessionCookie)
         if (accessToken.isNullOrBlank()) {
             cursorStatusLabel.text =
@@ -159,7 +184,7 @@ internal class CursorSettingsPanel(
             ApplicationManager.getApplication()
                 .invokeLater(
                     {
-                        if (generation != validationGeneration.get()) {
+                        if (!isCurrent() || generation != validationGeneration.get()) {
                             return@invokeLater
                         }
                         result.fold(
@@ -182,20 +207,14 @@ internal class CursorSettingsPanel(
                             },
                         )
                     },
-                    ModalityState.stateForComponent(
-                        modalityComponentProvider() ?: this@CursorSettingsPanel
-                    ),
+                    modality,
                 )
         }
     }
 
-    private fun refreshAfterCredentialLoad() {
-        updateFields()
-        updateResponseArea()
-    }
-
-    private fun setCursorPendingStatus(text: String) {
-        cursorStatusLabel.text = formatStatusText(text, AuthStatusKind.PENDING)
+    private fun setCursorPendingStatus() {
+        cursorStatusLabel.text =
+            formatStatusText("Validating session cookie...", AuthStatusKind.PENDING)
         cursorStatusLabel.foreground = statusLabelDefaultForeground ?: cursorStatusLabel.foreground
         cursorStatusLabel.isVisible = true
     }

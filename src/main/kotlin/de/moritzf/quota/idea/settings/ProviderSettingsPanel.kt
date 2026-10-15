@@ -23,14 +23,31 @@ import javax.swing.Timer
 
 /** Common surface the settings dialog uses to drive a provider's panel. */
 internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
+    private var accountUiGeneration = 0L
+    private val credentialDrafts = mutableListOf<CredentialFieldDraft>()
     val popupVisibilityToggle = PopupVisibilityToggle()
     var boundAccountId: String = ""
         set(value) {
+            if (field != value) accountUiGeneration++
             field = value
             refreshButton?.accountId = value
         }
 
     var boundAccount: ProviderAccount? = null
+
+    protected fun credentialDraft(field: javax.swing.text.JTextComponent): CredentialFieldDraft =
+        CredentialFieldDraft(field).also(credentialDrafts::add)
+
+    protected fun accountUiGuard(): () -> Boolean {
+        val generation = accountUiGeneration
+        return { generation == accountUiGeneration }
+    }
+
+    fun discardCredentialDrafts() {
+        accountUiGeneration++
+        credentialDrafts.forEach(CredentialFieldDraft::discard)
+    }
+
     private var refreshButton: QuotaRefreshButton? = null
     private val routingHost =
         BorderLayoutPanel().apply {
@@ -57,6 +74,11 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
 
     open fun testConnection(): ProviderTestConnection =
         ProviderTestConnection(checkNotNull(boundAccount) { message("modelTest.selectAccount") })
+
+    /**
+     * Live per-account drafts, when the panel owns their lifecycle rather than the configurable.
+     */
+    open fun testApiKeyDrafts(): Map<String, String>? = null
 
     protected fun documentTestButton(
         provider: de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider,

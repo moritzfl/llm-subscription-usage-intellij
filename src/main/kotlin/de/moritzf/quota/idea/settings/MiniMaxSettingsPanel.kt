@@ -22,6 +22,7 @@ internal class MiniMaxSettingsPanel(
 ) : ProviderSettingsPanel() {
     val regionComboBox = ComboBox(MiniMaxRegionPreference.entries.toTypedArray())
     private val apiKeyField = JBPasswordField().apply { columns = 40 }
+    private val apiKeyDraft = credentialDraft(apiKeyField)
     private val statusLabel = JBLabel().apply { isVisible = false }
     private val responseViewer = createResponseViewer()
 
@@ -41,10 +42,7 @@ internal class MiniMaxSettingsPanel(
     }
 
     override fun updateFields() {
-        val apiKey =
-            MiniMaxApiKeyStore.forAccount(accountKey(QuotaProviderType.MINIMAX))
-                .load(onLoaded = ::refreshAfterKeyLoad)
-        apiKeyField.text = if (apiKey.isNullOrBlank()) "" else PLACEHOLDER
+        loadCredentialField()
         regionComboBox.selectedItem =
             boundAccount
                 ?.extra(ProviderAccount.EXTRA_MINIMAX_REGION)
@@ -52,6 +50,23 @@ internal class MiniMaxSettingsPanel(
                 ?: QuotaSettingsState.getInstance()
                     .miniMaxRegionFor(accountKey(QuotaProviderType.MINIMAX))
         updateStatus()
+    }
+
+    private fun loadCredentialField() {
+        val id = accountKey(QuotaProviderType.MINIMAX)
+        val isCurrent = accountUiGuard()
+        val apiKey =
+            MiniMaxApiKeyStore.forAccount(id)
+                .load(
+                    onLoaded = {
+                        if (isCurrent()) {
+                            loadCredentialField()
+                            updateStatus()
+                            updateResponseArea()
+                        }
+                    }
+                )
+        apiKeyDraft.show(id, if (apiKey.isNullOrBlank()) "" else PLACEHOLDER)
     }
 
     override fun testConnection(): ProviderTestConnection =
@@ -65,9 +80,13 @@ internal class MiniMaxSettingsPanel(
             String(apiKeyField.password).takeUnless { it == PLACEHOLDER },
         )
 
+    override fun testApiKeyDrafts(): Map<String, String> =
+        apiKeyDraft.snapshot().filterValues { it != PLACEHOLDER }
+
     override fun updateStatus() {
+        val isCurrent = accountUiGuard()
         val store = MiniMaxApiKeyStore.forAccount(accountKey(QuotaProviderType.MINIMAX))
-        val apiKey = store.load(onLoaded = ::refreshAfterKeyLoad)
+        val apiKey = store.load(onLoaded = { if (isCurrent()) updateStatus() })
         val quota =
             QuotaUsageService.getInstance().getLastQuota(accountKey(QuotaProviderType.MINIMAX))
                 as? MiniMaxQuota
@@ -106,44 +125,51 @@ internal class MiniMaxSettingsPanel(
     }
 
     private fun saveKeysNow() {
-        val current = MiniMaxApiKeyStore.forAccount(accountKey(QuotaProviderType.MINIMAX)).load()
-        val apiKey = String(apiKeyField.password).let { if (it == PLACEHOLDER) current else it }
+        val id = accountKey(QuotaProviderType.MINIMAX)
+        val isCurrent = accountUiGuard()
+        val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
+        val current = MiniMaxApiKeyStore.forAccount(id).load()
+        val submitted = String(apiKeyField.password)
+        val apiKey = submitted.let { if (it == PLACEHOLDER) current else it }
         setPending("Saving API keys...")
         ApplicationManager.getApplication().executeOnPooledThread {
-            MiniMaxApiKeyStore.forAccount(accountKey(QuotaProviderType.MINIMAX)).save(apiKey)
+            MiniMaxApiKeyStore.forAccount(id).save(apiKey)
+            QuotaUsageService.getInstance().refreshAsync(id)
             ApplicationManager.getApplication()
                 .invokeLater(
                     {
-                        apiKeyField.text = if (apiKey.isNullOrBlank()) "" else PLACEHOLDER
-                        updateStatus()
-                        QuotaUsageService.getInstance()
-                            .refreshAsync(accountKey(QuotaProviderType.MINIMAX))
+                        apiKeyDraft.saved(id, submitted)
+                        if (isCurrent()) {
+                            apiKeyDraft.show(id, if (apiKey.isNullOrBlank()) "" else PLACEHOLDER)
+                            updateStatus()
+                        }
                     },
-                    ModalityState.stateForComponent(modalityComponentProvider() ?: this),
+                    modality,
                 )
         }
     }
 
     private fun clearKeysNow() {
+        val id = accountKey(QuotaProviderType.MINIMAX)
+        val isCurrent = accountUiGuard()
+        val submitted = String(apiKeyField.password)
+        val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
         setPending("Clearing API keys...")
         ApplicationManager.getApplication().executeOnPooledThread {
-            MiniMaxApiKeyStore.forAccount(accountKey(QuotaProviderType.MINIMAX)).clear()
+            MiniMaxApiKeyStore.forAccount(id).clear()
+            QuotaUsageService.getInstance().clearUsageData(id)
             ApplicationManager.getApplication()
                 .invokeLater(
                     {
-                        apiKeyField.text = ""
-                        updateStatus()
-                        QuotaUsageService.getInstance()
-                            .clearUsageData(accountKey(QuotaProviderType.MINIMAX))
+                        apiKeyDraft.saved(id, submitted)
+                        if (isCurrent()) {
+                            apiKeyDraft.show(id, "")
+                            updateStatus()
+                        }
                     },
-                    ModalityState.stateForComponent(modalityComponentProvider() ?: this),
+                    modality,
                 )
         }
-    }
-
-    private fun refreshAfterKeyLoad() {
-        updateFields()
-        updateResponseArea()
     }
 
     private fun setPending(text: String) {

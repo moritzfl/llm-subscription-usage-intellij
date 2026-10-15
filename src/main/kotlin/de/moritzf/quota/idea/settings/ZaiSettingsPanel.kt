@@ -35,9 +35,9 @@ internal class ZaiSettingsPanel(
             toolTipText = "Z.ai API key from the Z.ai console"
         }
     private val zaiStatusLabel = JBLabel().apply { isVisible = false }
+    private val apiKeyDraft = credentialDraft(apiKeyField)
     private val zaiJsonViewer = createResponseViewer()
     private val validationGeneration = AtomicLong(0)
-    private var awaitingApiKeyLoadRefresh: Boolean = false
 
     init {
         val configPanel = panel {
@@ -90,14 +90,29 @@ internal class ZaiSettingsPanel(
     }
 
     override fun updateFields() {
-        val apiKey =
-            ZaiApiKeyStore.forAccount(accountKey(QuotaProviderType.ZAI))
-                .load(onLoaded = ::refreshAfterApiKeyLoad)
-        apiKeyField.text = if (apiKey.isNullOrBlank()) "" else API_KEY_PLACEHOLDER
+        loadCredentialField()
         showDocumentModels(emptyList())
         showVisionModels(emptyList())
         updateStatus()
         refreshDocumentModels()
+    }
+
+    private fun loadCredentialField() {
+        val id = accountKey(QuotaProviderType.ZAI)
+        val isCurrent = accountUiGuard()
+        val apiKey =
+            ZaiApiKeyStore.forAccount(id)
+                .load(
+                    onLoaded = {
+                        if (isCurrent()) {
+                            loadCredentialField()
+                            updateStatus()
+                            updateResponseArea()
+                            refreshDocumentModels()
+                        }
+                    }
+                )
+        apiKeyDraft.show(id, if (apiKey.isNullOrBlank()) "" else API_KEY_PLACEHOLDER)
     }
 
     override fun testConnection(): ProviderTestConnection =
@@ -137,6 +152,8 @@ internal class ZaiSettingsPanel(
     }
 
     private fun refreshDocumentModels() {
+        val isCurrent = accountUiGuard()
+        val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
         val accountId = accountKey(QuotaProviderType.ZAI)
         val generation = ++modelRefreshGeneration
         ApplicationManager.getApplication().executeOnPooledThread {
@@ -155,11 +172,7 @@ internal class ZaiSettingsPanel(
             ApplicationManager.getApplication()
                 .invokeLater(
                     {
-                        if (
-                            generation != modelRefreshGeneration ||
-                                accountKey(QuotaProviderType.ZAI) != accountId
-                        )
-                            return@invokeLater
+                        if (!isCurrent() || generation != modelRefreshGeneration) return@invokeLater
                         showDocumentModels(
                             discovered,
                             documentModelCombo.selected()
@@ -171,14 +184,18 @@ internal class ZaiSettingsPanel(
                                 ?: boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL),
                         )
                     },
-                    ModalityState.stateForComponent(modalityComponentProvider() ?: this),
+                    modality,
                 )
         }
     }
 
+    override fun testApiKeyDrafts(): Map<String, String> =
+        apiKeyDraft.snapshot().filterValues { it != API_KEY_PLACEHOLDER }
+
     override fun updateStatus() {
+        val isCurrent = accountUiGuard()
         val apiKeyStore = ZaiApiKeyStore.forAccount(accountKey(QuotaProviderType.ZAI))
-        val apiKey = apiKeyStore.load(onLoaded = ::refreshAfterApiKeyLoad)
+        val apiKey = apiKeyStore.load(onLoaded = { if (isCurrent()) updateStatus() })
         val quota =
             QuotaUsageService.getInstance().getLastQuota(accountKey(QuotaProviderType.ZAI))
                 as? ZaiQuota
@@ -245,19 +262,24 @@ internal class ZaiSettingsPanel(
     }
 
     private fun saveApiKeyNow(apiKey: String) {
+        val id = accountKey(QuotaProviderType.ZAI)
+        val submitted = String(apiKeyField.password)
+        val isCurrent = accountUiGuard()
+        val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
         ApplicationManager.getApplication().executeOnPooledThread {
             val result = runCatching {
-                ZaiApiKeyStore.forAccount(accountKey(QuotaProviderType.ZAI)).save(apiKey)
+                ZaiApiKeyStore.forAccount(id).save(apiKey)
+                QuotaUsageService.getInstance().refreshAsync(id)
             }
             ApplicationManager.getApplication()
                 .invokeLater(
                     {
+                        if (result.isSuccess) apiKeyDraft.saved(id, submitted)
+                        if (!isCurrent()) return@invokeLater
                         result.fold(
                             onSuccess = {
-                                apiKeyField.text = API_KEY_PLACEHOLDER
+                                apiKeyDraft.show(id, API_KEY_PLACEHOLDER)
                                 validateApiKeyNow(apiKey)
-                                QuotaUsageService.getInstance()
-                                    .refreshAsync(accountKey(QuotaProviderType.ZAI))
                             },
                             onFailure = { error ->
                                 zaiStatusLabel.text =
@@ -271,38 +293,44 @@ internal class ZaiSettingsPanel(
                             },
                         )
                     },
-                    ModalityState.stateForComponent(
-                        modalityComponentProvider() ?: this@ZaiSettingsPanel
-                    ),
+                    modality,
                 )
         }
     }
 
     private fun clearApiKeyNow() {
+        val id = accountKey(QuotaProviderType.ZAI)
+        val isCurrent = accountUiGuard()
+        val submitted = String(apiKeyField.password)
+        val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
+        validationGeneration.incrementAndGet()
         ApplicationManager.getApplication().executeOnPooledThread {
-            ZaiApiKeyStore.forAccount(accountKey(QuotaProviderType.ZAI)).clear()
+            ZaiApiKeyStore.forAccount(id).clear()
+            QuotaUsageService.getInstance().clearUsageData(id)
             ApplicationManager.getApplication()
                 .invokeLater(
                     {
-                        updateStatus()
-                        QuotaUsageService.getInstance()
-                            .clearUsageData(accountKey(QuotaProviderType.ZAI))
+                        apiKeyDraft.saved(id, submitted)
+                        if (isCurrent()) {
+                            apiKeyDraft.show(id, "")
+                            updateStatus()
+                        }
                     },
-                    ModalityState.stateForComponent(
-                        modalityComponentProvider() ?: this@ZaiSettingsPanel
-                    ),
+                    modality,
                 )
         }
     }
 
     private fun validateApiKeyNow(apiKey: String) {
+        val isCurrent = accountUiGuard()
+        val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
         val generation = validationGeneration.incrementAndGet()
         ApplicationManager.getApplication().executeOnPooledThread {
             val result = runCatching { ZaiQuotaClient().fetchQuota(apiKey) }
             ApplicationManager.getApplication()
                 .invokeLater(
                     {
-                        if (generation != validationGeneration.get()) {
+                        if (!isCurrent() || generation != validationGeneration.get()) {
                             return@invokeLater
                         }
                         result.fold(
@@ -325,9 +353,7 @@ internal class ZaiSettingsPanel(
                             },
                         )
                     },
-                    ModalityState.stateForComponent(
-                        modalityComponentProvider() ?: this@ZaiSettingsPanel
-                    ),
+                    modality,
                 )
         }
     }
@@ -336,15 +362,6 @@ internal class ZaiSettingsPanel(
         zaiStatusLabel.text = formatStatusText(text, AuthStatusKind.PENDING)
         zaiStatusLabel.foreground = statusLabelDefaultForeground ?: zaiStatusLabel.foreground
         zaiStatusLabel.isVisible = true
-    }
-
-    private fun refreshAfterApiKeyLoad() {
-        if (awaitingApiKeyLoadRefresh) {
-            awaitingApiKeyLoadRefresh = false
-            return
-        }
-        updateFields()
-        updateResponseArea()
     }
 
     private fun formatStatusText(text: String, kind: AuthStatusKind): String {

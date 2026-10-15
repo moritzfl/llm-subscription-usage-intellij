@@ -220,6 +220,16 @@ internal class OpenCodeSettingsPanel(
     fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
 
     override fun updateFields() {
+        documentModelCombo.show(
+            boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL),
+            emptyList(),
+        )
+        visionModelCombo.show(boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL), emptyList())
+        refreshCredentials()
+    }
+
+    private fun refreshCredentials() {
+        val isCurrent = accountUiGuard()
         val id = accountId()
         if (shownAccountId != id) {
             shownAccountId = id
@@ -231,7 +241,7 @@ internal class OpenCodeSettingsPanel(
             loggingOut = false
             replaceWorkspaces(emptyList(), null)
         }
-        val credentials = auth().load(id) { onUi(id) { updateFields() } }
+        val credentials = auth().load(id) { onUi(id) { if (isCurrent()) refreshCredentials() } }
         if (credentials != null && credentials !== workspaceCredentials && !loggingOut) {
             workspaceCredentials = credentials
             loadWorkspaces(id)
@@ -246,6 +256,8 @@ internal class OpenCodeSettingsPanel(
     }
 
     private fun refreshDocumentModels() {
+        val isCurrent = accountUiGuard()
+        val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
         val generation = ++modelRefreshGeneration
         val id = accountId()
         val saved = boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)
@@ -272,31 +284,34 @@ internal class OpenCodeSettingsPanel(
             ApplicationManager.getApplication()
                 .invokeLater(
                     {
-                        if (generation != modelRefreshGeneration) return@invokeLater
+                        if (!isCurrent() || generation != modelRefreshGeneration) return@invokeLater
+                        val selected = documentModelCombo.selected() ?: saved
+                        val selectedVision = visionModelCombo.selected() ?: savedVision
                         documentModelCombo.show(
-                            saved,
+                            selected,
                             (de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel.documentModelIds(
                                     models
-                                ) + listOfNotNull(saved))
+                                ) + listOfNotNull(selected))
                                 .distinct(),
                         )
                         visionModelCombo.show(
-                            savedVision,
+                            selectedVision,
                             de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel.visionModelIds(
                                 models
                             ),
-                            (models.map { it.model.upstreamId } + listOfNotNull(savedVision))
+                            (models.map { it.model.upstreamId } + listOfNotNull(selectedVision))
                                 .distinct(),
                         )
                     },
-                    ModalityState.stateForComponent(modalityComponentProvider() ?: this),
+                    modality,
                 )
         }
     }
 
     override fun updateStatus() {
+        val isCurrent = accountUiGuard()
         val id = accountId()
-        val credentials = auth().load(id) { onUi(id) { updateFields() } }
+        val credentials = auth().load(id) { onUi(id) { if (isCurrent()) refreshCredentials() } }
         val inProgress = auth().isLoginInProgress(id)
         if (credentials != null && credentials !== workspaceCredentials && !loggingOut) {
             workspaceCredentials = credentials

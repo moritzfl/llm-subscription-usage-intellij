@@ -47,6 +47,7 @@ internal class OllamaSettingsPanel(
             toolTipText = "Ollama API key from ollama.com/settings/keys"
         }
     private val ollamaStatusLabel = JBLabel().apply { isVisible = false }
+    private val apiKeyDraft = credentialDraft(apiKeyField)
     private val visionModelCombo = VisionModelCombo()
     private val ollamaJsonViewer = createResponseViewer()
     private val validationGeneration = AtomicLong(0)
@@ -113,20 +114,30 @@ internal class OllamaSettingsPanel(
     }
 
     override fun updateFields() {
-        val id = accountKey(QuotaProviderType.OLLAMA)
-        val apiKeyStore = OllamaApiKeyStore.forAccount(id)
-        val apiKey =
-            apiKeyStore.load(
-                onLoaded = {
-                    if (accountKey(QuotaProviderType.OLLAMA) == id) refreshAfterCredentialLoad()
-                }
-            )
-        apiKeyField.text = if (apiKey.isNullOrBlank()) "" else API_KEY_PLACEHOLDER
+        loadCredentialField()
         monthlyResetField.text =
             boundAccount?.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET).orEmpty()
         showVisionModels(emptyMap())
         updateStatus()
         refreshVisionModels()
+    }
+
+    private fun loadCredentialField() {
+        val id = accountKey(QuotaProviderType.OLLAMA)
+        val isCurrent = accountUiGuard()
+        val apiKeyStore = OllamaApiKeyStore.forAccount(id)
+        val apiKey =
+            apiKeyStore.load(
+                onLoaded = {
+                    if (isCurrent()) {
+                        loadCredentialField()
+                        updateStatus()
+                        updateResponseArea()
+                        refreshVisionModels()
+                    }
+                }
+            )
+        apiKeyDraft.show(id, if (apiKey.isNullOrBlank()) "" else API_KEY_PLACEHOLDER)
     }
 
     fun visionModelForStorage(): String? = visionModelCombo.storedValue()
@@ -147,6 +158,8 @@ internal class OllamaSettingsPanel(
     }
 
     private fun refreshVisionModels() {
+        val isCurrent = accountUiGuard()
+        val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
         val accountId = accountKey(QuotaProviderType.OLLAMA)
         val generation = ++modelRefreshGeneration
         ApplicationManager.getApplication().executeOnPooledThread {
@@ -160,25 +173,25 @@ internal class OllamaSettingsPanel(
             ApplicationManager.getApplication()
                 .invokeLater(
                     {
-                        if (
-                            generation != modelRefreshGeneration ||
-                                accountKey(QuotaProviderType.OLLAMA) != accountId
-                        )
-                            return@invokeLater
+                        if (!isCurrent() || generation != modelRefreshGeneration) return@invokeLater
                         showVisionModels(
                             discovered,
                             visionModelCombo.selected()
                                 ?: boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL),
                         )
                     },
-                    ModalityState.stateForComponent(modalityComponentProvider() ?: this),
+                    modality,
                 )
         }
     }
 
+    override fun testApiKeyDrafts(): Map<String, String> =
+        apiKeyDraft.snapshot().filterValues { it != API_KEY_PLACEHOLDER }
+
     override fun updateStatus() {
+        val isCurrent = accountUiGuard()
         val apiKeyStore = OllamaApiKeyStore.forAccount(accountKey(QuotaProviderType.OLLAMA))
-        val apiKey = apiKeyStore.load(onLoaded = ::refreshAfterCredentialLoad)
+        val apiKey = apiKeyStore.load(onLoaded = { if (isCurrent()) updateStatus() })
         val ollamaQuota =
             QuotaUsageService.getInstance().getLastQuota(accountKey(QuotaProviderType.OLLAMA))
                 as? OllamaQuota
@@ -220,10 +233,13 @@ internal class OllamaSettingsPanel(
     }
 
     private fun saveApiKeyNow() {
-        val apiKey = String(apiKeyField.password).trim()
+        val id = accountKey(QuotaProviderType.OLLAMA)
+        val submitted = String(apiKeyField.password)
+        val apiKey = submitted.trim()
         if (apiKey.isNotBlank() && apiKey != API_KEY_PLACEHOLDER) {
-            OllamaApiKeyStore.forAccount(accountKey(QuotaProviderType.OLLAMA)).save(apiKey)
-            apiKeyField.text = API_KEY_PLACEHOLDER
+            OllamaApiKeyStore.forAccount(id).save(apiKey)
+            apiKeyDraft.saved(id, submitted)
+            apiKeyDraft.show(id, API_KEY_PLACEHOLDER)
             setOllamaPendingStatus()
             validateApiKeyNow(apiKey)
             QuotaUsageService.getInstance().refreshAsync(accountKey(QuotaProviderType.OLLAMA))
@@ -231,20 +247,25 @@ internal class OllamaSettingsPanel(
     }
 
     private fun clearApiKeyNow() {
-        OllamaApiKeyStore.forAccount(accountKey(QuotaProviderType.OLLAMA)).clear()
-        apiKeyField.text = ""
+        val id = accountKey(QuotaProviderType.OLLAMA)
+        OllamaApiKeyStore.forAccount(id).clear()
+        apiKeyDraft.saved(id, String(apiKeyField.password))
+        apiKeyDraft.show(id, "")
+        validationGeneration.incrementAndGet()
         updateStatus()
         QuotaUsageService.getInstance().clearUsageData(accountKey(QuotaProviderType.OLLAMA))
     }
 
     private fun validateApiKeyNow(apiKey: String) {
+        val isCurrent = accountUiGuard()
+        val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
         val generation = validationGeneration.incrementAndGet()
         ApplicationManager.getApplication().executeOnPooledThread {
             val result = runCatching { OllamaQuotaClient().fetchQuota(apiKey) }
             ApplicationManager.getApplication()
                 .invokeLater(
                     {
-                        if (generation != validationGeneration.get()) {
+                        if (!isCurrent() || generation != validationGeneration.get()) {
                             return@invokeLater
                         }
                         result.fold(
@@ -267,16 +288,9 @@ internal class OllamaSettingsPanel(
                             },
                         )
                     },
-                    ModalityState.stateForComponent(
-                        modalityComponentProvider() ?: this@OllamaSettingsPanel
-                    ),
+                    modality,
                 )
         }
-    }
-
-    private fun refreshAfterCredentialLoad() {
-        updateFields()
-        updateResponseArea()
     }
 
     private fun setOllamaPendingStatus() {

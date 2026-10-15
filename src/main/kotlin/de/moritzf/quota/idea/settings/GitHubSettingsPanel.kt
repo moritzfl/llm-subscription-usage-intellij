@@ -94,7 +94,10 @@ internal class GitHubSettingsPanel(
         }
 
         loginButton.addActionListener {
-            val authService = GitHubAuthService.forAccount(accountKey(QuotaProviderType.GITHUB))
+            val accountId = accountKey(QuotaProviderType.GITHUB)
+            val isCurrent = accountUiGuard()
+            val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
+            val authService = GitHubAuthService.forAccount(accountId)
             if (authService.isLoggedIn()) {
                 updateStatus()
                 return@addActionListener
@@ -110,9 +113,11 @@ internal class GitHubSettingsPanel(
             updateStatus()
             authService.startLoginFlow(
                 callback = { result ->
+                    if (result.success) QuotaUsageService.getInstance().refreshAsync(accountId)
                     ApplicationManager.getApplication()
                         .invokeLater(
                             {
+                                if (!isCurrent()) return@invokeLater
                                 authStatusMessage =
                                     if (result.success) {
                                         AuthStatusMessage(
@@ -129,18 +134,15 @@ internal class GitHubSettingsPanel(
                                     }
                                 loginButton.isEnabled = true
                                 updateStatus()
-                                if (result.success) {
-                                    QuotaUsageService.getInstance()
-                                        .refreshAsync(accountKey(QuotaProviderType.GITHUB))
-                                }
                             },
-                            ModalityState.stateForComponent(modalityComponentProvider() ?: this),
+                            modality,
                         )
                 },
                 onVerificationUrl = { url, code ->
                     ApplicationManager.getApplication()
                         .invokeLater(
                             {
+                                if (!isCurrent()) return@invokeLater
                                 verificationUrl = url
                                 userCode = code
                                 copyUrlButton.isVisible = true
@@ -156,7 +158,7 @@ internal class GitHubSettingsPanel(
                                     )
                                 updateStatus()
                             },
-                            ModalityState.stateForComponent(modalityComponentProvider() ?: this),
+                            modality,
                         )
                 },
                 enterpriseHost = host,
@@ -178,23 +180,22 @@ internal class GitHubSettingsPanel(
         }
 
         logoutButton.addActionListener {
-            setPending("Clearing credentials...")
+            val accountId = accountKey(QuotaProviderType.GITHUB)
+            val isCurrent = accountUiGuard()
+            val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
+            setPending()
             ApplicationManager.getApplication().executeOnPooledThread {
-                (GitHubAuthService.forAccount(accountKey(QuotaProviderType.GITHUB)) as AuthService)
-                    .clearCredentials()
+                (GitHubAuthService.forAccount(accountId) as AuthService).clearCredentials()
+                QuotaUsageService.getInstance().clearUsageData(accountId, "Not logged in")
                 ApplicationManager.getApplication()
                     .invokeLater(
                         {
+                            if (!isCurrent()) return@invokeLater
                             authStatusMessage =
                                 AuthStatusMessage("Logged out", false, AuthStatusKind.DISCONNECTED)
-                            QuotaUsageService.getInstance()
-                                .clearUsageData(
-                                    accountKey(QuotaProviderType.GITHUB),
-                                    "Not logged in",
-                                )
                             updateStatus()
                         },
-                        ModalityState.stateForComponent(modalityComponentProvider() ?: this),
+                        modality,
                     )
             }
         }
@@ -245,18 +246,26 @@ internal class GitHubSettingsPanel(
 
     override fun updateFields() {
         rememberAccount()
+        val isCurrent = accountUiGuard()
         GitHubCredentialsStore.forAccount(accountKey(QuotaProviderType.GITHUB))
-            .load(onLoaded = ::refreshAfterCredentialsLoad)
+            .load(onLoaded = { if (isCurrent()) refreshAfterCredentialsLoad() })
         val settings = QuotaSettingsState.getInstance()
         val accountId = accountKey(QuotaProviderType.GITHUB)
         enterpriseHostField.text =
             boundAccount?.extra(ProviderAccount.EXTRA_GITHUB_HOST)
                 ?: settings.githubHostFor(accountId)
+        documentModelCombo.show(
+            boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL),
+            emptyList(),
+        )
+        visionModelCombo.show(boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL), emptyList())
         updateStatus()
         refreshDocumentModels()
     }
 
     private fun refreshDocumentModels() {
+        val isCurrent = accountUiGuard()
+        val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
         val generation = ++modelRefreshGeneration
         val accountId = accountKey(QuotaProviderType.GITHUB)
         val saved = boundAccount?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)
@@ -277,24 +286,28 @@ internal class GitHubSettingsPanel(
             ApplicationManager.getApplication()
                 .invokeLater(
                     {
-                        if (generation != modelRefreshGeneration) return@invokeLater
+                        if (!isCurrent() || generation != modelRefreshGeneration) return@invokeLater
+                        val selected = documentModelCombo.selected() ?: saved
+                        val selectedVision = visionModelCombo.selected() ?: savedVision
                         documentModelCombo.show(
-                            saved,
-                            (githubDocumentModelIds(listed) + listOfNotNull(saved)).distinct(),
+                            selected,
+                            (githubDocumentModelIds(listed) + listOfNotNull(selected)).distinct(),
                         )
                         visionModelCombo.show(
-                            savedVision,
-                            (githubVisionModelIds(listed) + listOfNotNull(savedVision)).distinct(),
+                            selectedVision,
+                            (githubVisionModelIds(listed) + listOfNotNull(selectedVision))
+                                .distinct(),
                         )
                     },
-                    ModalityState.stateForComponent(modalityComponentProvider() ?: this),
+                    modality,
                 )
         }
     }
 
     override fun updateStatus() {
+        val isCurrent = accountUiGuard()
         val store = GitHubCredentialsStore.forAccount(accountKey(QuotaProviderType.GITHUB))
-        val credentials = store.load(onLoaded = ::refreshAfterCredentialsLoad)
+        val credentials = store.load(onLoaded = { if (isCurrent()) refreshAfterCredentialsLoad() })
         val inProgress =
             (GitHubAuthService.forAccount(accountKey(QuotaProviderType.GITHUB)) as AuthService)
                 .isLoginInProgress()
@@ -366,7 +379,8 @@ internal class GitHubSettingsPanel(
     }
 
     private fun refreshAfterCredentialsLoad() {
-        updateFields()
+        updateStatus()
+        refreshDocumentModels()
         updateResponseArea()
     }
 
@@ -375,7 +389,8 @@ internal class GitHubSettingsPanel(
         return if (normalized == "github.com") "" else normalized
     }
 
-    private fun setPending(text: String) {
+    private fun setPending() {
+        val text = "Clearing credentials..."
         authStatusMessage = AuthStatusMessage(text, false, AuthStatusKind.PENDING)
         statusLabel.text = formatStatusText(text, AuthStatusKind.PENDING)
         statusLabel.isVisible = true
