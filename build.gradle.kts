@@ -58,7 +58,7 @@ repositories {
 // Dependencies are managed with Gradle version catalog - read more:
 // https://docs.gradle.org/current/userguide/version_catalogs.html
 dependencies {
-    implementation("dev.onvoid.webrtc:webrtc-java:0.19.0") { isTransitive = false }
+    implementation("dev.onvoid.webrtc:webrtc-java:0.20.0") { isTransitive = false }
     for (platform in
         listOf(
             "linux-x86_64",
