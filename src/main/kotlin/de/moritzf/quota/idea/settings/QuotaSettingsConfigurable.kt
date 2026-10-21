@@ -21,6 +21,7 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.common.CredentialStorage
+import de.moritzf.quota.idea.common.ProviderCatalog
 import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageListener
@@ -511,8 +512,10 @@ class QuotaSettingsConfigurable : Configurable {
                         proxySettingsPanel?.refreshDraftConnections()
                 }
             }
-        compatiblePanels().forEach {
-            it.openProxySettings = { tabs.selectedComponent = proxySettingsPanel }
+        providerPanelsByType.forEach { (type, panel) ->
+            if (ProviderCatalog.get(type).capabilities.subscriptionProxy) {
+                panel.showProxySettingsLink { tabs.selectedComponent = proxySettingsPanel }
+            }
         }
         return panel {
             // Shown once for the whole dialog: the setting is an IDE-wide one, and it drops the

@@ -36,7 +36,6 @@ internal class CompatibleSettingsPanel(
         com.intellij.util.concurrency.AppExecutorUtil.getAppExecutorService(),
     dispatch: (() -> Unit) -> Unit = { javax.swing.SwingUtilities.invokeLater(it) },
 ) : ProviderSettingsPanel(), Disposable {
-    var openProxySettings: () -> Unit = {}
     val baseUrlField =
         JBTextField().apply {
             emptyText.text = "https://api.example.com/v1"
@@ -155,7 +154,6 @@ internal class CompatibleSettingsPanel(
                             }
                         }
                         .apply { expanded = false }
-                row { link("Open proxy settings") { openProxySettings() } }
                 row {
                     comment(
                         "Apply this connection, then enable its provider in proxy settings for chat and code completion. LiteLLM can also report key budgets."

@@ -72,6 +72,10 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
         routingHost.repaint()
     }
 
+    fun showProxySettingsLink(openProxySettings: () -> Unit) {
+        addToBottom(panel { row { link(message("settings.proxy.open")) { openProxySettings() } } })
+    }
+
     open fun testConnection(): ProviderTestConnection =
         ProviderTestConnection(checkNotNull(boundAccount) { message("modelTest.selectAccount") })
 
