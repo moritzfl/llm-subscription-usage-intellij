@@ -11,12 +11,10 @@
 - Show a neutral indicator and connection details with local proxy status when only quota-less APIs are configured.
 - Run document and vision tests against the selected account and current unsaved models, keys, and connection settings.
 - Test AI Completion with unsaved settings through shared FIM/provider logic, without applying settings or starting a local proxy.
-- Standardize vision/document model help across providers and centralize model settings and test-dialog text in the IntelliJ message bundle.
-- Modernize coroutine timeout and delay calls, remove unused helpers, and clean up redundant imports, annotations, and null handling.
+- Standardize vision/document model help, settings and dialog titles, and model-test messages across providers through the IntelliJ message bundle.
+- Modernize coroutine timeout and delay calls, remove unused helpers and byte-payload value semantics, and simplify redundant Kotlin constructs.
 - Keep credential saves, clears, and logouts tied to the clicked account, and preserve unsaved fields and model choices when credentials finish loading or accounts change.
 - Close abandoned FIM response bodies on cancellation and move blocking response reads and cleanup off request threads.
-- Clean up remaining redundant Kotlin constructs and unused byte-payload value semantics.
-- Standardize settings and dialog title capitalization through the shared message bundle.
 
 ## [1.21.1] - 2026-10-14
 
