@@ -7,6 +7,7 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.MAX_LINE_LENGTH_WORD_WRAP
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.proxy.logging.RequestLogger
@@ -41,7 +42,7 @@ internal class OpenCodeSettingsPanel(
     private val copyUrlButton =
         JButton("Copy URL", AllIcons.Actions.Copy).apply { isVisible = false }
     private val userCodeLabel = JBLabel().apply { isVisible = false }
-    private val workspaceComboBox = ComboBox<OpenCodeWorkspace>()
+    private val workspaceComboBox = ComboBox<OpenCodeWorkspace>().shrinkable()
     private val workspaceStatus = JBLabel()
     private val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
     private val visionModelCombo = VisionModelCombo(groupUnverified = true)
@@ -172,7 +173,7 @@ internal class OpenCodeSettingsPanel(
         install(
             panel {
                 row {
-                    cell(statusLabel).gap(RightGap.SMALL)
+                    cell(statusLabel).align(AlignX.FILL).resizableColumn().gap(RightGap.SMALL)
                     cell(copyUrlButton)
                 }
                 row { cell(userCodeLabel) }
@@ -189,13 +190,13 @@ internal class OpenCodeSettingsPanel(
                 row("Organization:") {
                     cell(workspaceComboBox).resizableColumn().align(AlignX.FILL)
                 }
-                row { cell(workspaceStatus) }
+                row { cell(workspaceStatus).align(AlignX.FILL).resizableColumn() }
                 row { text("To change a browser-scoped organization, sign in again.") }
                 row(message("settings.model.document.label")) {
                     cell(documentModelCombo.combo)
                         .align(AlignX.FILL)
                         .resizableColumn()
-                        .comment(message("settings.model.document.help"))
+                        .comment(message("settings.model.document.help"), MAX_LINE_LENGTH_WORD_WRAP)
                     cell(documentModelCombo.warning).align(com.intellij.ui.dsl.builder.AlignY.TOP)
                     cell(testDocumentButton)
                 }
@@ -203,7 +204,7 @@ internal class OpenCodeSettingsPanel(
                     cell(visionModelCombo.combo)
                         .align(AlignX.FILL)
                         .resizableColumn()
-                        .comment(message("settings.model.vision.help"))
+                        .comment(message("settings.model.vision.help"), MAX_LINE_LENGTH_WORD_WRAP)
                     cell(testVisionButton)
                 }
             },
@@ -385,7 +386,8 @@ internal class OpenCodeSettingsPanel(
                             if (workspaces.isEmpty()) "No organizations found" else ""
                     },
                     onFailure = {
-                        workspaceStatus.text = "Could not load organizations: ${it.message}"
+                        workspaceStatus.text =
+                            wrappingHtml("Could not load organizations: ${it.message}")
                     },
                 )
             }

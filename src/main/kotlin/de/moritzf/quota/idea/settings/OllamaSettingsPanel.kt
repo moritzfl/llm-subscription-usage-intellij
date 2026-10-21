@@ -7,6 +7,7 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.MAX_LINE_LENGTH_WORD_WRAP
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
@@ -55,7 +56,7 @@ internal class OllamaSettingsPanel(
 
     init {
         val ollamaConfigPanel = panel {
-            row { cell(ollamaStatusLabel) }
+            row { cell(ollamaStatusLabel).align(AlignX.FILL).resizableColumn() }
             row {
                 text(
                     "Create an API key at ollama.com/settings/keys. Used for quota, MCP web search, and the local proxy."
@@ -69,14 +70,15 @@ internal class OllamaSettingsPanel(
                     .comment(
                         "Optional. Paste an ISO-8601 UTC time, or the ollama.com/settings page HTML. " +
                             "The Monthly usage Resets data-time is kept; other timestamps are ignored. " +
-                            "Fallback only when the API omits the monthly reset. Same day and clock each calendar month."
+                            "Fallback only when the API omits the monthly reset. Same day and clock each calendar month.",
+                        MAX_LINE_LENGTH_WORD_WRAP,
                     )
             }
             row(message("settings.model.vision.label")) {
                 cell(visionModelCombo.combo)
                     .align(AlignX.FILL)
                     .resizableColumn()
-                    .comment(message("settings.model.vision.help"))
+                    .comment(message("settings.model.vision.help"), MAX_LINE_LENGTH_WORD_WRAP)
                 cell(
                     visionTestButton(
                         de.moritzf.quota.idea.mcp.VisionProvider.OLLAMA,

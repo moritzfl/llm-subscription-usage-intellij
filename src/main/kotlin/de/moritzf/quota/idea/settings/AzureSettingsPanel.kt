@@ -11,6 +11,7 @@ import com.intellij.ui.GroupedComboBoxRenderer
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.MAX_LINE_LENGTH_WORD_WRAP
 import com.intellij.ui.dsl.builder.Row
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.azure.AZURE_DOCUMENT_INTELLIGENCE_LAYOUT
@@ -51,15 +52,17 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
     val locationField = JBTextField().apply { columns = 16 }
     val deploymentsField = JBTextField().apply { columns = 28 }
     val ocrDeploymentCombo =
-        ComboBox<String>().apply {
-            prototypeDisplayValue = "mistral-document-ai-2512"
-            // GroupedComboBoxRenderer reads headings from IntelliJ's popup model.
-            setSwingPopup(false)
-        }
+        ComboBox<String>()
+            .apply {
+                prototypeDisplayValue = "mistral-document-ai-2512"
+                // GroupedComboBoxRenderer reads headings from IntelliJ's popup model.
+                setSwingPopup(false)
+            }
+            .shrinkable()
     private lateinit var documentHintRow: Row
     private val visionModelCombo = VisionModelCombo(groupUnverified = true)
     private var documentGroupHeaders: Map<String, ListSeparator> = emptyMap()
-    private val accountCombo = ComboBox<AzureCliAccount>()
+    private val accountCombo = ComboBox<AzureCliAccount>().shrinkable()
     private val status = JBLabel()
     private val viewer = createResponseViewer()
     private var applyingFields = false
@@ -136,7 +139,8 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                         .align(AlignX.FILL)
                         .resizableColumn()
                         .comment(
-                            "Leave blank to find az automatically. Browse only if it is not on PATH."
+                            "Leave blank to find az automatically. Browse only if it is not on PATH.",
+                            MAX_LINE_LENGTH_WORD_WRAP,
                         )
                 }
                 row("Subscription:") {
@@ -144,7 +148,8 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                         .align(AlignX.FILL)
                         .resizableColumn()
                         .comment(
-                            "Blank uses the CLI default. Picking a CLI account pins that subscription."
+                            "Blank uses the CLI default. Picking a CLI account pins that subscription.",
+                            MAX_LINE_LENGTH_WORD_WRAP,
                         )
                 }
                 row("CLI accounts:") {
@@ -152,7 +157,8 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                         .align(AlignX.FILL)
                         .resizableColumn()
                         .comment(
-                            "Loaded from az account list. Refresh after az login. Your pinned subscription stays selected."
+                            "Loaded from az account list. Refresh after az login. Your pinned subscription stays selected.",
+                            MAX_LINE_LENGTH_WORD_WRAP,
                         )
                     button("Refresh") { refreshAccounts(interactive = true) }
                 }
@@ -161,19 +167,21 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                         .align(AlignX.FILL)
                         .resizableColumn()
                         .comment(
-                            "Azure OpenAI resource name, for example my-models. Builds https://name.openai.azure.com/openai/v1."
+                            "Azure OpenAI resource name, for example my-models. Builds https://name.openai.azure.com/openai/v1.",
+                            MAX_LINE_LENGTH_WORD_WRAP,
                         )
                 }
                 row("Endpoint:") {
                     cell(endpointField)
                         .align(AlignX.FILL)
                         .resizableColumn()
-                        .comment(message("settings.azure.endpoint.help"))
+                        .comment(message("settings.azure.endpoint.help"), MAX_LINE_LENGTH_WORD_WRAP)
                 }
                 row("Location:") {
                     cell(locationField)
                         .comment(
-                            "Optional region id, for example eastus. Quota usage is skipped when this login cannot read it."
+                            "Optional region id, for example eastus. Quota usage is skipped when this login cannot read it.",
+                            MAX_LINE_LENGTH_WORD_WRAP,
                         )
                 }
                 row("Deployments:") {
@@ -181,14 +189,15 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                         .align(AlignX.FILL)
                         .resizableColumn()
                         .comment(
-                            "Optional deployment names. Used when discovery is unavailable. Proxy accepts az-<deployment-name> even if unlisted."
+                            "Optional deployment names. Used when discovery is unavailable. Proxy accepts az-<deployment-name> even if unlisted.",
+                            MAX_LINE_LENGTH_WORD_WRAP,
                         )
                 }
                 row(message("settings.model.document.label")) {
                     cell(ocrDeploymentCombo)
                         .align(AlignX.FILL)
                         .resizableColumn()
-                        .comment(message("settings.model.document.help"))
+                        .comment(message("settings.model.document.help"), MAX_LINE_LENGTH_WORD_WRAP)
                     cell(
                         documentTestButton(
                             de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.AZURE,
@@ -202,7 +211,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                     cell(visionModelCombo.combo)
                         .align(AlignX.FILL)
                         .resizableColumn()
-                        .comment(message("settings.model.vision.help"))
+                        .comment(message("settings.model.vision.help"), MAX_LINE_LENGTH_WORD_WRAP)
                     cell(
                         visionTestButton(
                             de.moritzf.quota.idea.mcp.VisionProvider.AZURE,

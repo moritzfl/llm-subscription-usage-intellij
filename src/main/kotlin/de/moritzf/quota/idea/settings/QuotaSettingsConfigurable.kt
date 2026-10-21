@@ -51,8 +51,13 @@ import javax.swing.SwingConstants
 import javax.swing.Timer
 import javax.swing.UIManager
 
-/** Settings UI that manages authentication actions and shows latest quota payload data. */
-class QuotaSettingsConfigurable : Configurable {
+/**
+ * Settings UI that manages authentication actions and shows latest quota payload data.
+ *
+ * [Configurable.NoScroll]: the tabs scroll individually. A dialog-wide scroll pane sizes every tab
+ * to the tallest and widest one.
+ */
+class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
     private var rootComponent: JComponent? = null
     private var panel: DialogPanel? = null
     private var connection: MessageBusConnection? = null
@@ -501,20 +506,21 @@ class QuotaSettingsConfigurable : Configurable {
     }
 
     private fun buildSettingsPanel(): DialogPanel {
+        val proxyTab = verticalScrollPane(proxySettingsPanel!!)
         val tabs =
             JTabbedPane().apply {
                 isOpaque = false
                 addTab("Subscription Usage", buildSubscriptionUsageTab())
-                addTab("MCP Synchronisation", buildMcpSyncTab())
-                addTab("Proxy", proxySettingsPanel!!)
+                addTab("MCP Synchronisation", verticalScrollPane(buildMcpSyncTab()))
+                addTab("Proxy", proxyTab)
                 addChangeListener {
-                    if (selectedComponent === proxySettingsPanel)
+                    if (selectedComponent === proxyTab)
                         proxySettingsPanel?.refreshDraftConnections()
                 }
             }
         providerPanelsByType.forEach { (type, panel) ->
             if (ProviderCatalog.get(type).capabilities.subscriptionProxy) {
-                panel.showProxySettingsLink { tabs.selectedComponent = proxySettingsPanel }
+                panel.showProxySettingsLink { tabs.selectedComponent = proxyTab }
             }
         }
         return panel {
@@ -693,25 +699,28 @@ class QuotaSettingsConfigurable : Configurable {
         return panel {
             row { cell(mcpSyncCheckBox!!) }
 
-            row { cell(mcpSyncDescriptionLabel()).resizableColumn().align(Align.FILL) }
+            row {
+                comment(
+                    "IntelliJ's integrated MCP server can change its port from time to time. " +
+                        "When sync is enabled, this plugin writes the current server URL to the selected agent " +
+                        "configuration files on startup and after settings changes, so those agents keep pointing " +
+                        "at the correct IntelliJ MCP server."
+                )
+            }
 
-            row { cell(mcpServerStatusLabel!!) }
+            row { cell(mcpServerStatusLabel!!).resizableColumn().align(AlignX.FILL) }
+
+            row {
+                comment(
+                    "Use dot paths like mcpServers.jetbrains.url for JSON/TOML/YAML, or JSON Pointer paths like /mcpServers/jetbrains/url."
+                )
+            }
 
             row {
                 cell(mcpSyncTargetsPanel!!).resizableColumn().align(Align.FILL)
             }
                 .resizableRow()
         }
-    }
-
-    private fun mcpSyncDescriptionLabel(): JBLabel {
-        return JBLabel(
-                "<html><body width='520'>IntelliJ's integrated MCP server can change its port from time to time. " +
-                    "When sync is enabled, this plugin writes the current server URL to the selected agent " +
-                    "configuration files on startup and after settings changes, so those agents keep pointing " +
-                    "at the correct IntelliJ MCP server.</body></html>"
-            )
-            .apply { foreground = JBColor.GRAY }
     }
 
     private fun flushVisibleAccountFields() {

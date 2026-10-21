@@ -13,7 +13,8 @@ import javax.swing.DefaultComboBoxModel
  * provider starts there because image analysis is opt-in.
  */
 internal class VisionModelCombo(groupUnverified: Boolean = false) {
-    val combo = ComboBox<String>().apply { prototypeDisplayValue = "mistral-ocr-latest" }
+    val combo =
+        ComboBox<String>().apply { prototypeDisplayValue = "mistral-ocr-latest" }.shrinkable()
     private var groupHeaders: Map<String, ListSeparator> = emptyMap()
     private var unverifiedModels: Set<String> = emptySet()
 

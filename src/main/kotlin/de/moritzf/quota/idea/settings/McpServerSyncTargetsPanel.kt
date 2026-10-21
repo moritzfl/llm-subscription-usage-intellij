@@ -77,7 +77,6 @@ internal class McpServerSyncTargetsPanel(initialTargets: List<McpServerSyncTarge
         isOpaque = false
         model.addTableModelListener { refreshValidationState() }
         setTargets(initialTargets)
-        addToTop(helpLabel())
         addToCenter(targetsTablePanel())
     }
 
@@ -103,16 +102,6 @@ internal class McpServerSyncTargetsPanel(initialTargets: List<McpServerSyncTarge
             return "MCP sync target row ${row + 1}: $error"
         }
         return null
-    }
-
-    private fun helpLabel(): JBLabel {
-        return JBLabel(
-                "Use dot paths like mcpServers.jetbrains.url for JSON/TOML/YAML, or JSON Pointer paths like /mcpServers/jetbrains/url."
-            )
-            .apply {
-                foreground = JBColor.GRAY
-                border = JBUI.Borders.emptyBottom(8)
-            }
     }
 
     private fun targetsTablePanel(): JComponent {

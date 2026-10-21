@@ -6,6 +6,7 @@ import com.intellij.ui.components.JBCheckBox
 import javax.swing.SwingUtilities
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class SubscriptionProxyProvidersLayoutTest {
@@ -28,6 +29,32 @@ class SubscriptionProxyProvidersLayoutTest {
         val wideRows = rowCount(2_000)
         assertTrue(narrowRows > 1, "Narrow provider list must wrap")
         assertTrue(wideRows < narrowRows, "Wider pane must fit provider checkboxes in fewer rows")
+    }
+
+    @Test
+    fun narrowProxyTabWrapsInsteadOfScrollingSideways() = onEdt {
+        val panel = SubscriptionProxySettingsPanel()
+        val tab = verticalScrollPane(panel)
+        tab.setSize(520, 3_000)
+        layoutHeadless(tab)
+
+        assertFalse(tab.horizontalScrollBar.isVisible, "Proxy tab must not scroll sideways")
+        val viewport = tab.viewport
+        val clipped =
+            panel
+                .descendants()
+                .filter { it.width > 0 && (it as java.awt.Container).componentCount == 0 }
+                .filter {
+                    generateSequence(it) { c -> c.parent }
+                        .takeWhile { c -> c !== panel }
+                        .all { c -> c.isVisible }
+                }
+                .filter {
+                    SwingUtilities.convertPoint(it, it.width, 0, viewport).x > viewport.width
+                }
+                .map { "${it.javaClass.simpleName}(${(it as? javax.swing.JLabel)?.text})" }
+                .toList()
+        assertTrue(clipped.isEmpty(), "Clipped at the right edge: $clipped")
     }
 
     private fun onEdt(block: () -> Unit) {
@@ -57,6 +84,7 @@ class SubscriptionProxyProvidersLayoutTest {
     }
 
     private fun layoutTree(container: java.awt.Container) {
+        container.invalidate()
         container.doLayout()
         container.components.filterIsInstance<java.awt.Container>().forEach(::layoutTree)
     }

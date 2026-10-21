@@ -34,4 +34,26 @@ class AccountSplitterLayoutTest {
             }
         }
     }
+
+    @Test
+    fun narrowDialogLendsAccountWidthToTheDetailAndGetsItBack() {
+        SwingUtilities.invokeAndWait {
+            val accounts = JPanel().apply { preferredSize = Dimension(260, 200) }
+            val detail = JPanel()
+            val splitter = AccountDetailsSplitter(accounts, detail)
+
+            splitter.setSize(560, 800)
+            splitter.doLayout()
+            assertEquals(360, detail.width, "Detail keeps its minimum on a narrow dialog")
+            assertEquals(560 - 360 - splitter.dividerWidth, accounts.width)
+
+            splitter.setSize(400, 800)
+            splitter.doLayout()
+            assertEquals(160, accounts.width, "Account list keeps its own minimum")
+
+            splitter.setSize(1400, 800)
+            splitter.doLayout()
+            assertEquals(260, accounts.width, "Wide dialog restores the account width")
+        }
+    }
 }

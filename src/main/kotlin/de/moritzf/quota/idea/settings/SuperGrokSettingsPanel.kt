@@ -7,6 +7,7 @@ import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.AlignY
+import com.intellij.ui.dsl.builder.MAX_LINE_LENGTH_WORD_WRAP
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.idea.auth.LoginResult
@@ -153,7 +154,7 @@ internal class SuperGrokSettingsPanel(
 
         val configPanel = panel {
             row {
-                cell(statusLabel).gap(RightGap.SMALL)
+                cell(statusLabel).align(AlignX.FILL).resizableColumn().gap(RightGap.SMALL)
                 cell(copyUrlButton)
             }
             row {
@@ -173,7 +174,7 @@ internal class SuperGrokSettingsPanel(
                     .align(AlignX.FILL)
                     .resizableColumn()
                     .gap(RightGap.SMALL)
-                    .comment(message("settings.model.document.help"))
+                    .comment(message("settings.model.document.help"), MAX_LINE_LENGTH_WORD_WRAP)
                 cell(documentModelCombo.warning).align(AlignY.TOP)
                 cell(
                     documentTestButton(
@@ -188,7 +189,7 @@ internal class SuperGrokSettingsPanel(
                 cell(visionModelCombo.combo)
                     .align(AlignX.FILL)
                     .resizableColumn()
-                    .comment(message("settings.model.vision.help"))
+                    .comment(message("settings.model.vision.help"), MAX_LINE_LENGTH_WORD_WRAP)
                 cell(
                     visionTestButton(
                         de.moritzf.quota.idea.mcp.VisionProvider.SUPERGROK,

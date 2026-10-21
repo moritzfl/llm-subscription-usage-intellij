@@ -248,13 +248,9 @@ class CompatibleSettingsPanelTest {
             panel.status.text =
                 "<html>Discovery unavailable. Enter model IDs below, then select a model to test.</html>"
             panel.setSize(420, 650)
-            fun layout(component: java.awt.Container) {
-                component.doLayout()
-                component.components.filterIsInstance<java.awt.Container>().forEach(::layout)
-            }
-            repeat(2) { layout(panel) }
-            // The outer vertical viewport contains the manual model IDs, unlike the horizontal
-            // form scroll and the model IDs text area's own scroll.
+            layoutHeadless(panel)
+            // The outer vertical viewport contains the manual model IDs, unlike the model IDs
+            // text area's own scroll.
             val scroll =
                 descendants(panel).filterIsInstance<javax.swing.JScrollPane>().single {
                     val view = it.viewport.view

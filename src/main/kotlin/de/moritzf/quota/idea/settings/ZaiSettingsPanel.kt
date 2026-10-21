@@ -5,6 +5,7 @@ import com.intellij.openapi.application.ModalityState
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.MAX_LINE_LENGTH_WORD_WRAP
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
@@ -41,13 +42,13 @@ internal class ZaiSettingsPanel(
 
     init {
         val configPanel = panel {
-            row { cell(zaiStatusLabel) }
+            row { cell(zaiStatusLabel).align(AlignX.FILL).resizableColumn() }
             row("API key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
             row(message("settings.model.document.label")) {
                 cell(documentModelCombo.combo)
                     .align(AlignX.FILL)
                     .resizableColumn()
-                    .comment(message("settings.model.document.help"))
+                    .comment(message("settings.model.document.help"), MAX_LINE_LENGTH_WORD_WRAP)
                 cell(
                     documentTestButton(
                         de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.ZAI,
@@ -61,7 +62,7 @@ internal class ZaiSettingsPanel(
                 cell(visionModelCombo.combo)
                     .align(AlignX.FILL)
                     .resizableColumn()
-                    .comment(message("settings.model.vision.help"))
+                    .comment(message("settings.model.vision.help"), MAX_LINE_LENGTH_WORD_WRAP)
                 cell(
                     visionTestButton(
                         de.moritzf.quota.idea.mcp.VisionProvider.ZAI,

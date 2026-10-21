@@ -14,7 +14,8 @@ internal class DocumentModelCombo(
     private val defaultModel: String,
     vision: Boolean,
 ) {
-    val combo = ComboBox<String>().apply { prototypeDisplayValue = "mistral-ocr-latest" }
+    val combo =
+        ComboBox<String>().apply { prototypeDisplayValue = "mistral-ocr-latest" }.shrinkable()
     val warning = ExplainerWarningIcon()
     private val visionWarning = vision
 

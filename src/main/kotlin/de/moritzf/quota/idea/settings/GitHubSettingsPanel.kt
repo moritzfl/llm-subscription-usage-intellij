@@ -7,6 +7,7 @@ import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.MAX_LINE_LENGTH_WORD_WRAP
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.github.GitHubQuota
@@ -206,7 +207,7 @@ internal class GitHubSettingsPanel(
                     cell(enterpriseHostField).resizableColumn().align(AlignX.FILL)
                 }
                 row {
-                    cell(statusLabel).gap(RightGap.SMALL)
+                    cell(statusLabel).align(AlignX.FILL).resizableColumn().gap(RightGap.SMALL)
                     cell(copyUrlButton).gap(RightGap.SMALL)
                     cell(copyCodeButton)
                 }
@@ -220,7 +221,7 @@ internal class GitHubSettingsPanel(
                     cell(documentModelCombo.combo)
                         .align(AlignX.FILL)
                         .resizableColumn()
-                        .comment(message("settings.model.document.help"))
+                        .comment(message("settings.model.document.help"), MAX_LINE_LENGTH_WORD_WRAP)
                     cell(documentModelCombo.warning).align(com.intellij.ui.dsl.builder.AlignY.TOP)
                     cell(testDocumentButton)
                 }
@@ -228,7 +229,7 @@ internal class GitHubSettingsPanel(
                     cell(visionModelCombo.combo)
                         .align(AlignX.FILL)
                         .resizableColumn()
-                        .comment(message("settings.model.vision.help"))
+                        .comment(message("settings.model.vision.help"), MAX_LINE_LENGTH_WORD_WRAP)
                     cell(testVisionButton)
                 }
             },

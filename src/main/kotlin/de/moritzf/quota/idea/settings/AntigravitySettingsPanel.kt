@@ -5,6 +5,7 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.MAX_LINE_LENGTH_WORD_WRAP
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.antigravity.AntigravityQuota
 import de.moritzf.quota.antigravity.AntigravityQuotaClient
@@ -45,7 +46,8 @@ internal class AntigravitySettingsPanel : ProviderSettingsPanel() {
                         .align(AlignX.FILL)
                         .resizableColumn()
                         .comment(
-                            "Leave blank for automatic detection. Changes take effect after Apply."
+                            "Leave blank for automatic detection. Changes take effect after Apply.",
+                            MAX_LINE_LENGTH_WORD_WRAP,
                         )
                     button("Detect") { detectExecutable() }
                         .applyToComponent {

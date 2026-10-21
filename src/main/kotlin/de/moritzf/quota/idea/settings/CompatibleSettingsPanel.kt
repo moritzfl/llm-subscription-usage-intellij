@@ -19,7 +19,6 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.compatible.CompatibleApiKeyStore
 import de.moritzf.quota.idea.compatible.isCompatibleConnection
-import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.litellm.LiteLlmResponseException
 import de.moritzf.quota.shared.DocumentModels
 import javax.swing.DefaultComboBoxModel
@@ -103,12 +102,8 @@ internal class CompatibleSettingsPanel(
     private var responseRow: com.intellij.ui.dsl.builder.Row? = null
 
     init {
-        // Let model fields shrink in narrow panes while keeping their test buttons alongside them.
-        listOf(modelCombo, visionModel.combo, documentModel.combo).forEach {
-            it.isUsePreferredSizeAsMinimum = false
-            it.minimumSize = java.awt.Dimension(0, it.minimumSize.height)
-        }
-        installScrollable(
+        modelCombo.shrinkable()
+        installForm(
             panel {
                 row("Base URL:") { cell(baseUrlField).align(AlignX.FILL).resizableColumn() }
                 row { comment("API root, including /v1 when required.") }
@@ -449,7 +444,7 @@ internal class CompatibleSettingsPanel(
                 val quota = de.moritzf.quota.litellm.LiteLlmClient(endpoint).quota(key)
                 requestTask.onEdt(gen) {
                     busy = false
-                    budgetStatus.text = "<html>${QuotaUiUtil.escapeHtml(quota.budgetText())}</html>"
+                    budgetStatus.text = wrappingHtml(quota.budgetText())
                     showBudgetResponse(quota.rawJson, null)
                     setStatus(
                         if (quota.hasUsageState())
@@ -591,7 +586,7 @@ internal class CompatibleSettingsPanel(
         }
 
     private fun setStatus(text: String, error: Boolean = false) {
-        status.text = "<html>${QuotaUiUtil.escapeHtml(text)}</html>"
+        status.text = wrappingHtml(text)
         status.toolTipText = text
         status.foreground =
             if (error) UIUtil.getErrorForeground() else UIUtil.getContextHelpForeground()

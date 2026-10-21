@@ -172,7 +172,7 @@ internal class ClaudeSettingsPanel(
 
         val configPanel = panel {
             row {
-                cell(statusLabel).gap(RightGap.SMALL)
+                cell(statusLabel).align(AlignX.FILL).resizableColumn().gap(RightGap.SMALL)
                 cell(copyUrlButton)
             }
             row {

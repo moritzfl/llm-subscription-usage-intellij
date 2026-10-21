@@ -8,7 +8,6 @@ import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.popup.ListSeparator
 import com.intellij.ui.AnimatedIcon
 import com.intellij.ui.GroupedComboBoxRenderer
-import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
@@ -16,6 +15,7 @@ import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.AlignY
+import com.intellij.ui.dsl.builder.MAX_LINE_LENGTH_WORD_WRAP
 import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
@@ -74,10 +74,19 @@ internal class SubscriptionProxySettingsPanel(
     // Flow as many provider checkboxes as the detail pane allows, then wrap. Fixed rows left a
     // ragged block and wasted horizontal space.
     private val providerBoxesPanel =
-        JPanel(WrapLayout(FlowLayout.LEFT, JBUI.scale(12), JBUI.scale(4))).apply {
-            isOpaque = false
-            providerCheckBoxes.values.forEach(::add)
-        }
+        object : JPanel(WrapLayout(FlowLayout.LEFT, JBUI.scale(12), JBUI.scale(4))) {
+                // WrapLayout's own minimum is the current width, which keeps the form from
+                // shrinking. One checkbox per row is the real limit.
+                override fun getMinimumSize(): Dimension =
+                    Dimension(
+                        components.maxOfOrNull { it.preferredSize.width } ?: 0,
+                        super.getMinimumSize().height,
+                    )
+            }
+            .apply {
+                isOpaque = false
+                providerCheckBoxes.values.forEach(::add)
+            }
     private val initializedProviderSelections = mutableSetOf<QuotaProviderType>()
     private var configuredProviderTypes: Set<QuotaProviderType> = emptySet()
     private val proxyPortField =
@@ -146,7 +155,7 @@ internal class SubscriptionProxySettingsPanel(
     private val fimIdeModelIdField =
         JBTextField(CompletionsConfig.FIM_ALIAS_ID).apply {
             isEditable = false
-            columns = 24
+            columns = 14
             toolTipText =
                 "IntelliJ autodetects how to talk to the model from this name. ${CompletionsConfig.FIM_ALIAS_ID} keeps AI Completion on FIM."
         }
@@ -159,26 +168,7 @@ internal class SubscriptionProxySettingsPanel(
         JButton(message("modelTest.completion.title")).apply {
             toolTipText = message("modelTest.completion.tooltip")
         }
-    private val completionsHelpLabel =
-        JBLabel(
-                "<html><body width='520'>Point AI Completion at this proxy." +
-                    "<ul>" +
-                    "<li>Provider: OpenAI Compatible</li>" +
-                    "<li>Base URL: Copy Base URL</li>" +
-                    "<li>API key: Copy API Key</li>" +
-                    "<li>Model: ${CompletionsConfig.FIM_ALIAS_ID}</li>" +
-                    "<li>Prompt schema: Auto</li>" +
-                    "</ul>" +
-                    "Then type in the editor and wait for gray suggestions.</body></html>"
-            )
-            .apply { foreground = JBColor.GRAY }
-    private val completionsStatusLabel = JBLabel().apply { isVisible = false }
     private val fimSetupStatusLabel = JBLabel().apply { isVisible = false }
-    private val proxyDescriptionLabel =
-        JBLabel(
-                "<html><body width='520'>Copy the URL and API key below into AI Assistant or Junie.</body></html>"
-            )
-            .apply { foreground = JBColor.GRAY }
     private val modelPreview =
         JBTextArea().apply {
             isEditable = false
@@ -264,7 +254,8 @@ internal class SubscriptionProxySettingsPanel(
                 row {
                     cell(proxyEnabledCheckBox)
                         .comment(
-                            "Lets Junie, AI Assistant, and other JetBrains AI features use your subscriptions and OpenAI-compatible APIs."
+                            "Lets Junie, AI Assistant, and other JetBrains AI features use your subscriptions and OpenAI-compatible APIs.",
+                            MAX_LINE_LENGTH_WORD_WRAP,
                         )
                 }
                 row {
@@ -274,7 +265,7 @@ internal class SubscriptionProxySettingsPanel(
                         )
                     }
                 }
-                row { cell(proxyDescriptionLabel).resizableColumn().align(AlignX.FILL) }
+                row { comment("Copy the URL and API key below into AI Assistant or Junie.") }
                 indent {
                     row("Port:") {
                         cell(proxyPortField).gap(RightGap.SMALL)
@@ -289,24 +280,25 @@ internal class SubscriptionProxySettingsPanel(
                         cell(copyProxyApiKeyButton).gap(RightGap.SMALL)
                         cell(generateProxyApiKeyButton)
                     }
-                    row { cell(proxyApiKeyHintLabel) }
+                    row { cell(proxyApiKeyHintLabel).align(AlignX.FILL).resizableColumn() }
                     row {
                         cell(proxyLogRequestsCheckBox)
                             .comment(
                                 "Writes full request and response bodies (prompts, tool output, file contents) to disk. " +
-                                    "Sensitive; leave off unless debugging."
+                                    "Sensitive; leave off unless debugging.",
+                                MAX_LINE_LENGTH_WORD_WRAP,
                             )
                     }
                     row {
                         cell(showLogsButton).gap(RightGap.SMALL)
-                        cell(logsStatusLabel)
+                        cell(logsStatusLabel).align(AlignX.FILL).resizableColumn()
                     }
                     separator()
                     row("Providers:") {
                         cell(providerBoxesPanel).align(AlignX.FILL).resizableColumn()
                     }
-                    row { cell(providerStatusLabel) }
-                    row { cell(proxyStatusLabel) }
+                    row { cell(providerStatusLabel).align(AlignX.FILL).resizableColumn() }
+                    row { cell(proxyStatusLabel).align(AlignX.FILL).resizableColumn() }
                     separator()
                     row {
                         cell(
@@ -316,15 +308,10 @@ internal class SubscriptionProxySettingsPanel(
                         )
                     }
                     row {
-                        cell(
-                                JBLabel(
-                                        "<html><body width='520'>Gray suggestions while you type, using the selected provider. " +
-                                            "Set <b>Subscription model</b> to ${COMPLETIONS_OFF} to turn FIM off.</body></html>"
-                                    )
-                                    .apply { foreground = JBColor.GRAY }
-                            )
-                            .resizableColumn()
-                            .align(AlignX.FILL)
+                        comment(
+                            "Gray suggestions while you type, using the selected provider. " +
+                                "Set <b>Subscription model</b> to $COMPLETIONS_OFF to turn FIM off."
+                        )
                     }
                     indent {
                         row {
@@ -334,12 +321,25 @@ internal class SubscriptionProxySettingsPanel(
                                 )
                             }
                         }
-                        row { cell(completionsHelpLabel).resizableColumn().align(AlignX.FILL) }
+                        row {
+                            comment(
+                                "Point AI Completion at this proxy." +
+                                    "<ul>" +
+                                    "<li>Provider: OpenAI Compatible</li>" +
+                                    "<li>Base URL: Copy Base URL</li>" +
+                                    "<li>API key: Copy API Key</li>" +
+                                    "<li>Model: ${CompletionsConfig.FIM_ALIAS_ID}</li>" +
+                                    "<li>Prompt schema: Auto</li>" +
+                                    "</ul>" +
+                                    "Then type in the editor and wait for gray suggestions."
+                            )
+                        }
                         row("AI Completion model:") {
                             cell(fimIdeModelIdField)
                                 .gap(RightGap.SMALL)
                                 .comment(
-                                    "IntelliJ autodetects how to talk to the model from this name. Using ${CompletionsConfig.FIM_ALIAS_ID} keeps AI Completion on FIM and prevents a misconfigured prompt schema."
+                                    "IntelliJ autodetects how to talk to the model from this name. Using ${CompletionsConfig.FIM_ALIAS_ID} keeps AI Completion on FIM and prevents a misconfigured prompt schema.",
+                                    MAX_LINE_LENGTH_WORD_WRAP,
                                 )
                             cell(copyCompletionsModelButton)
                         }
@@ -349,19 +349,15 @@ internal class SubscriptionProxySettingsPanel(
                                 .align(AlignX.FILL)
                                 .gap(RightGap.SMALL)
                                 .comment(
-                                    "Where the proxy sends those incoming FIM calls. ${COMPLETIONS_OFF} turns FIM off."
+                                    "Where the proxy sends those incoming FIM calls. ${COMPLETIONS_OFF} turns FIM off.",
+                                    MAX_LINE_LENGTH_WORD_WRAP,
                                 )
                             cell(completionsModelWarning).align(AlignY.TOP)
                         }
                         row {
-                            cell(
-                                    JBLabel(
-                                            "Native FIM models use their own infill endpoint; other models are converted into chat requests a chat model can understand."
-                                        )
-                                        .apply { foreground = JBColor.GRAY }
-                                )
-                                .resizableColumn()
-                                .align(AlignX.FILL)
+                            comment(
+                                "Native FIM models use their own infill endpoint; other models are converted into chat requests a chat model can understand."
+                            )
                         }
                         row("Max output tokens:") {
                             cell(completionsMaxTokensField).gap(RightGap.SMALL)
@@ -371,20 +367,19 @@ internal class SubscriptionProxySettingsPanel(
                         row("Timeout (seconds):") {
                             cell(completionsTimeoutField)
                                 .comment(
-                                    "This plugin stops waiting after this many seconds (default ${CompletionsConfig.DEFAULT_TIMEOUT_SECONDS}, max ${CompletionsConfig.MAX_TIMEOUT_SECONDS}). AI Completion also times out on its side. A new keystroke cancels the current suggestion."
+                                    "This plugin stops waiting after this many seconds (default ${CompletionsConfig.DEFAULT_TIMEOUT_SECONDS}, max ${CompletionsConfig.MAX_TIMEOUT_SECONDS}). AI Completion also times out on its side. A new keystroke cancels the current suggestion.",
+                                    MAX_LINE_LENGTH_WORD_WRAP,
                                 )
                         }
                         row {
                             cell(completionsPriorityCheckBox)
                                 .comment(
-                                    "Uses priority on Grok and Codex. About 2× quota. No effect on other models."
+                                    "Uses priority on Grok and Codex. About 2× quota. No effect on other models.",
+                                    MAX_LINE_LENGTH_WORD_WRAP,
                                 )
                         }
-                        row {
-                            cell(testFimButton).gap(RightGap.SMALL)
-                            cell(completionsStatusLabel)
-                        }
-                        row { cell(fimSetupStatusLabel) }
+                        row { cell(testFimButton) }
+                        row { cell(fimSetupStatusLabel).align(AlignX.FILL).resizableColumn() }
                     }
                 }
             }
@@ -570,7 +565,7 @@ internal class SubscriptionProxySettingsPanel(
                 else ->
                     "Select at least one configured provider. Not configured: ${unconfigured.joinToString { it.displayName }}."
             }
-        providerStatusLabel.text = message
+        providerStatusLabel.text = wrappingHtml(message)
         providerStatusLabel.foreground = UIUtil.getContextHelpForeground()
         providerStatusLabel.isVisible = true
     }
@@ -797,7 +792,7 @@ internal class SubscriptionProxySettingsPanel(
             }
         proxyApiKeyHintLabel.foreground =
             if (isError) UIUtil.getErrorForeground() else UIUtil.getContextHelpForeground()
-        proxyApiKeyHintLabel.text = hint.orEmpty()
+        proxyApiKeyHintLabel.text = wrappingHtml(hint.orEmpty())
         proxyApiKeyHintLabel.isVisible = hint != null
     }
 
@@ -904,7 +899,7 @@ internal class SubscriptionProxySettingsPanel(
                 else -> ProxyRunState.OFF
             }
         fimSetupStatusLabel.text =
-            "<html><body width='520'><span style=\"color: ${state.colorHex}\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(report.summary)}</body></html>"
+            "<html><span style=\"color: ${state.colorHex}\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(report.summary)}</html>"
         fimSetupStatusLabel.isVisible = true
     }
 
@@ -929,7 +924,7 @@ internal class SubscriptionProxySettingsPanel(
     }
 
     private fun setLogsStatus(text: String, error: Boolean) {
-        logsStatusLabel.text = text
+        logsStatusLabel.text = wrappingHtml(text)
         logsStatusLabel.foreground =
             if (error) UIUtil.getErrorForeground() else UIUtil.getContextHelpForeground()
         logsStatusLabel.isVisible = true

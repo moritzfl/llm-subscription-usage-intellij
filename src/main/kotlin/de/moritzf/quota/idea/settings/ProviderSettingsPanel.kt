@@ -5,6 +5,7 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.Panel
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
@@ -155,101 +156,49 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
         }
     }
 
+    /**
+     * Connection form, routing, proxy link, then [response]. Everything scrolls vertically as one
+     * surface; when the pane has spare height, [response] takes it.
+     */
     protected fun install(config: JComponent, response: JComponent) {
-        // The form can be wider than the detail pane. Scroll instead of clipping the right edge.
-        val formScroll =
-            object : JBScrollPane(config) {
-                    // The parent fixes our height before layout discovers horizontal overflow.
-                    // Reserve
-                    // scrollbar space up front so it cannot take height away from the final help
-                    // row.
-                    override fun getPreferredSize(): Dimension =
-                        Dimension(
-                            JBUI.scale(280),
-                            super.getPreferredSize().height +
-                                horizontalScrollBar.preferredSize.height,
-                        )
-
-                    override fun getMinimumSize(): Dimension = Dimension(0, 0)
-                }
-                .apply {
-                    border = JBUI.Borders.empty()
-                    isOverlappingScrollBar = false
-                    horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED
-                    verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER
-                }
-        addToTop(
-            panel {
-                group("Connection") {
-                    row { cell(formScroll).align(AlignX.FILL).resizableColumn() }
-                }
-            }
-        )
         addToCenter(
-            BorderLayoutPanel().apply {
-                isOpaque = false
-                addToTop(
-                    BorderLayoutPanel().apply {
-                        isOpaque = false
-                        addToTop(routingHost)
-                        addToCenter(proxyLinkHost)
-                    }
-                )
-                addToCenter(response)
-            }
+            verticalScrollPane(
+                BorderLayoutPanel().apply {
+                    isOpaque = false
+                    addToTop(
+                        BorderLayoutPanel().apply {
+                            isOpaque = false
+                            addToTop(connectionGroup(config))
+                            addToCenter(routingHost)
+                            addToBottom(proxyLinkHost)
+                        }
+                    )
+                    addToCenter(response)
+                }
+            )
         )
     }
 
     /**
-     * Long connection forms wrap to the detail pane and scroll vertically as one surface. Panels
-     * using this layout place [proxySettingsLinkHost] directly above their quota response, matching
-     * the standard layout.
+     * For long forms whose [body] places [proxySettingsLinkHost] and the quota response itself,
+     * after the connection group and routing.
      */
-    protected fun installScrollable(config: JComponent, response: JComponent) {
-        // DSL section separators can retain their previous width as a minimum after layout.
-        config.minimumSize = Dimension(0, 0)
-        response.minimumSize = Dimension(0, 0)
-        val content =
-            object : BorderLayoutPanel(), javax.swing.Scrollable {
-                    override fun getPreferredScrollableViewportSize() =
-                        Dimension(JBUI.scale(420), JBUI.scale(500))
-
-                    override fun getScrollableTracksViewportWidth() = true
-
-                    override fun getScrollableTracksViewportHeight() = false
-
-                    override fun getScrollableUnitIncrement(
-                        visibleRect: java.awt.Rectangle,
-                        orientation: Int,
-                        direction: Int,
-                    ) = JBUI.scale(16)
-
-                    override fun getScrollableBlockIncrement(
-                        visibleRect: java.awt.Rectangle,
-                        orientation: Int,
-                        direction: Int,
-                    ) = (visibleRect.height - JBUI.scale(16)).coerceAtLeast(JBUI.scale(16))
-                }
-                .apply {
-                    isOpaque = false
-                    addToTop(
-                        panel {
-                            group("Connection") {
-                                row { cell(config).align(AlignX.FILL).resizableColumn() }
-                            }
-                            row { cell(routingHost).align(AlignX.FILL).resizableColumn() }
-                            row { cell(response).align(AlignX.FILL).resizableColumn() }
-                        }
-                    )
-                }
+    protected fun installForm(config: JComponent, body: JComponent) {
         addToCenter(
-            JBScrollPane(content).apply {
-                border = JBUI.Borders.empty()
-                isOverlappingScrollBar = false
-                horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
-                verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
-            }
+            verticalScrollPane(
+                panel {
+                    connectionGroup(config)
+                    row { cell(routingHost).align(AlignX.FILL).resizableColumn() }
+                    row { cell(body).align(AlignX.FILL).resizableColumn() }
+                }
+            )
         )
+    }
+
+    private fun connectionGroup(config: JComponent): JComponent = panel { connectionGroup(config) }
+
+    private fun Panel.connectionGroup(config: JComponent) {
+        group("Connection") { row { cell(config).align(AlignX.FILL).resizableColumn() } }
     }
 
     override fun getPreferredSize(): Dimension {

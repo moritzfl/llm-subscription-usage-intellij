@@ -6,6 +6,7 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.MAX_LINE_LENGTH_WORD_WRAP
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
@@ -61,7 +62,7 @@ internal class MistralSettingsPanel(
     init {
         install(
             panel {
-                row { cell(statusLabel) }
+                row { cell(statusLabel).align(AlignX.FILL).resizableColumn() }
                 row {
                     text(
                         "Quota cookies from admin.mistral.ai / console.mistral.ai → DevTools → Application → Cookies. Copy each name/value."
@@ -79,7 +80,7 @@ internal class MistralSettingsPanel(
                     cell(documentModelCombo.combo)
                         .align(AlignX.FILL)
                         .resizableColumn()
-                        .comment(message("settings.model.document.help"))
+                        .comment(message("settings.model.document.help"), MAX_LINE_LENGTH_WORD_WRAP)
                     cell(
                         documentTestButton(
                             de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider.MISTRAL,
@@ -93,7 +94,7 @@ internal class MistralSettingsPanel(
                     cell(visionModelCombo.combo)
                         .align(AlignX.FILL)
                         .resizableColumn()
-                        .comment(message("settings.model.vision.help"))
+                        .comment(message("settings.model.vision.help"), MAX_LINE_LENGTH_WORD_WRAP)
                     cell(
                         visionTestButton(
                             de.moritzf.quota.idea.mcp.VisionProvider.MISTRAL,

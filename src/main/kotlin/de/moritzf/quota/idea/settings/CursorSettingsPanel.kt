@@ -36,7 +36,7 @@ internal class CursorSettingsPanel(
 
     init {
         val cursorConfigPanel = panel {
-            row { cell(cursorStatusLabel) }
+            row { cell(cursorStatusLabel).align(AlignX.FILL).resizableColumn() }
             row {
                 text(
                     "Paste the WorkosCursorSessionToken cookie from cursor.com (DevTools → Application → Cookies)."
