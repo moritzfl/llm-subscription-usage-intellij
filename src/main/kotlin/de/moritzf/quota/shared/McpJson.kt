@@ -4,7 +4,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 internal object McpJson {
-    fun error(message: String): String = JsonSupport.json.encodeToString(McpErrorResponse(message))
+    fun error(message: String): String =
+        JsonSupport.json.encodeToString(McpErrorResponse(RawResponseRedactor.redactText(message)))
 
     fun providerJsonOrRaw(body: String): String {
         return runCatching { JsonSupport.json.parseToJsonElement(body) }

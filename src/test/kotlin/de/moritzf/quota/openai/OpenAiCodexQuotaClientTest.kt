@@ -24,6 +24,25 @@ import org.intellij.lang.annotations.Language
 
 class OpenAiCodexQuotaClientTest {
     @Test
+    fun fetchQuotaSanitizesEchoedTokensInErrorMessages() {
+        val token = "synthetic-access-token"
+        val body = """{"message":"Rejected $token","refresh_token":"synthetic-refresh-token"}"""
+        val client = newClientReturning(403, body)
+
+        val error =
+            assertFailsWith<OpenAiCodexQuotaException> { client.fetchQuota(token, "account-1") }
+
+        assertEquals(403, error.statusCode)
+        assertFalse(error.message!!.contains(token))
+        assertFalse(error.message!!.contains("synthetic-refresh-token"))
+        val diagnostic = assertNotNull(error.rawBody)
+        assertFalse(diagnostic.contains(token))
+        assertFalse(diagnostic.contains("synthetic-refresh-token"))
+        assertTrue(error.message!!.contains("Rejected"))
+        assertTrue(error.message!!.contains("403"))
+    }
+
+    @Test
     fun customDeserializationMapsTopLevelAndWindowFields() {
         @Language("JSON")
         val json =

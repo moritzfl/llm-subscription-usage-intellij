@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - Add proxy settings links to every proxy-capable provider.
+- Redact credentials from MCP errors, including malformed authentication headers and echoed upstream error bodies.
 - Add named OpenAI-compatible API connections for Junie, AI Chat, and chat-adapted code completion, with independent endpoints and API keys in Password Safe.
 - Discover models automatically or enter manual IDs; validate URLs and test a model before Apply. Cancel discards connection edits.
 - Keep custom endpoint model namespaces separate and leave unknown capabilities and prices unclaimed; quota tracking is unavailable for generic APIs.

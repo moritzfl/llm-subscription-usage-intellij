@@ -1,6 +1,7 @@
 package de.moritzf.quota.openai
 
 import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.shared.RawResponseRedactor
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
@@ -37,7 +38,12 @@ class OpenAiCodexQuotaClient(
         val body = response.body()
 
         if (status !in 200..299) {
-            throw OpenAiCodexQuotaException("Usage request failed: $status $body", status, body)
+            val diagnostic = RawResponseRedactor.redactText(body, accessToken)
+            throw OpenAiCodexQuotaException(
+                "Usage request failed: $status $diagnostic",
+                status,
+                diagnostic,
+            )
         }
 
         val quota =
