@@ -14,6 +14,7 @@ import de.moritzf.quota.minimax.proxy.MiniMaxSubscriptionProxyProvider
 import de.moritzf.quota.mistral.proxy.MistralSubscriptionProxyProvider
 import de.moritzf.quota.ollama.proxy.OllamaSubscriptionProxyProvider
 import de.moritzf.quota.openai.proxy.OpenAiCodexSubscriptionProxyProvider
+import de.moritzf.quota.opencode.OpenCodeQuotaClient
 import de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel
 import de.moritzf.quota.opencode.proxy.OpenCodeConsoleSession
 import de.moritzf.quota.opencode.proxy.OpenCodeZenSubscriptionProxyProvider
@@ -330,6 +331,9 @@ private fun createProviders(
                 },
                 fullRequestLogging = options.logRequests,
                 requestLogDir = options.requestLogDir,
+                consoleEndpoint =
+                    env.value("OPENCODE_PROXY_CONSOLE_URL")?.let(URI::create)
+                        ?: OpenCodeQuotaClient.DEFAULT_ENDPOINT,
                 pools = { OpenCodeConsoleModel.fetchPools() },
             )
     }
