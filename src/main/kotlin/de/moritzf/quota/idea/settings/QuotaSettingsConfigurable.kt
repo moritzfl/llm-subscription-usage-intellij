@@ -288,20 +288,14 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
     private fun updateMcpServerStatus() {
         val label = mcpServerStatusLabel ?: return
         val status = McpServerUrlResolver.currentStatus()
-        label.text = formatMcpServerStatusText(status.message, status.state)
+        label.text =
+            statusDotHtml(
+                status.message,
+                if (status.state == McpServerStatusState.RUNNING) AuthStatusKind.CONNECTED
+                else AuthStatusKind.DISCONNECTED,
+            )
         label.foreground = UIManager.getColor("Label.foreground") ?: label.foreground
         label.toolTipText = status.message
-    }
-
-    private fun formatMcpServerStatusText(text: String, state: McpServerStatusState): String {
-        val color =
-            when (state) {
-                McpServerStatusState.RUNNING -> "#4CAF50"
-                McpServerStatusState.NOT_RUNNING,
-                McpServerStatusState.NOT_INSTALLED_OR_DISABLED,
-                McpServerStatusState.UNAVAILABLE -> "#F44336"
-            }
-        return "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
     }
 
     private fun updateDisplayModeChoices(preferredMode: QuotaDisplayMode? = null) {

@@ -3,6 +3,7 @@ package de.moritzf.quota.idea.settings
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
@@ -24,8 +25,6 @@ import de.moritzf.quota.opencode.proxy.OpenCodeConsoleSession
 import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.shared.auth.OAuthCredentials
 import java.awt.Color
-import java.awt.Toolkit
-import java.awt.datatransfer.StringSelection
 import java.net.http.HttpClient
 import java.nio.file.Path
 import javax.swing.JButton
@@ -84,9 +83,7 @@ internal class OpenCodeSettingsPanel(
 
     init {
         copyUrlButton.addActionListener {
-            verificationUrl?.let {
-                Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(it), null)
-            }
+            verificationUrl?.let { CopyPasteManager.copyTextToClipboard(it) }
         }
         loginButton.addActionListener {
             val id = accountId()
@@ -344,14 +341,7 @@ internal class OpenCodeSettingsPanel(
                     )
                 else -> AuthStatusMessage("Connected", false, AuthStatusKind.CONNECTED)
             }
-        val color =
-            when (message.kind) {
-                AuthStatusKind.CONNECTED -> "#4CAF50"
-                AuthStatusKind.DISCONNECTED -> "#F44336"
-                AuthStatusKind.PENDING -> "#FFC107"
-            }
-        statusLabel.text =
-            "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(message.text)}</html>"
+        statusLabel.text = statusDotHtml(message.text, message.kind)
         statusLabel.foreground = statusLabelDefaultForeground ?: statusLabel.foreground
         loginButton.isEnabled = !inProgress && !loggingOut
         cancelButton.isEnabled = inProgress && !loggingOut

@@ -10,7 +10,6 @@ import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
-import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.zai.ZaiOcrClient
@@ -204,29 +203,29 @@ internal class ZaiSettingsPanel(
 
         when {
             !apiKeyStore.isLoaded() -> {
-                zaiStatusLabel.text = formatStatusText("Loading API key...", AuthStatusKind.PENDING)
+                zaiStatusLabel.text = statusDotHtml("Loading API key...", AuthStatusKind.PENDING)
                 zaiStatusLabel.foreground =
                     statusLabelDefaultForeground ?: zaiStatusLabel.foreground
             }
             apiKey.isNullOrBlank() -> {
                 zaiStatusLabel.text =
-                    formatStatusText("No Z.ai API key configured", AuthStatusKind.DISCONNECTED)
+                    statusDotHtml("No Z.ai API key configured", AuthStatusKind.DISCONNECTED)
                 zaiStatusLabel.foreground =
                     statusLabelDefaultForeground ?: zaiStatusLabel.foreground
             }
             error != null -> {
-                zaiStatusLabel.text = formatStatusText("Error: $error", AuthStatusKind.DISCONNECTED)
+                zaiStatusLabel.text = statusDotHtml("Error: $error", AuthStatusKind.DISCONNECTED)
                 zaiStatusLabel.foreground =
                     statusLabelDefaultForeground ?: zaiStatusLabel.foreground
             }
             quota != null -> {
-                zaiStatusLabel.text = formatStatusText("Connected", AuthStatusKind.CONNECTED)
+                zaiStatusLabel.text = statusDotHtml("Connected", AuthStatusKind.CONNECTED)
                 zaiStatusLabel.foreground =
                     statusLabelDefaultForeground ?: zaiStatusLabel.foreground
             }
             else -> {
                 zaiStatusLabel.text =
-                    formatStatusText("API key stored securely", AuthStatusKind.CONNECTED)
+                    statusDotHtml("API key stored securely", AuthStatusKind.CONNECTED)
                 zaiStatusLabel.foreground =
                     statusLabelDefaultForeground ?: zaiStatusLabel.foreground
             }
@@ -284,7 +283,7 @@ internal class ZaiSettingsPanel(
                             },
                             onFailure = { error ->
                                 zaiStatusLabel.text =
-                                    formatStatusText(
+                                    statusDotHtml(
                                         "Error: ${error.message ?: "Could not save API key"}",
                                         AuthStatusKind.DISCONNECTED,
                                     )
@@ -337,14 +336,14 @@ internal class ZaiSettingsPanel(
                         result.fold(
                             onSuccess = {
                                 zaiStatusLabel.text =
-                                    formatStatusText("Connected", AuthStatusKind.CONNECTED)
+                                    statusDotHtml("Connected", AuthStatusKind.CONNECTED)
                                 zaiStatusLabel.foreground =
                                     statusLabelDefaultForeground ?: zaiStatusLabel.foreground
                                 zaiStatusLabel.isVisible = true
                             },
                             onFailure = { error ->
                                 zaiStatusLabel.text =
-                                    formatStatusText(
+                                    statusDotHtml(
                                         "Error: ${error.message ?: "Validation failed"}",
                                         AuthStatusKind.DISCONNECTED,
                                     )
@@ -360,19 +359,9 @@ internal class ZaiSettingsPanel(
     }
 
     private fun setZaiPendingStatus(text: String) {
-        zaiStatusLabel.text = formatStatusText(text, AuthStatusKind.PENDING)
+        zaiStatusLabel.text = statusDotHtml(text, AuthStatusKind.PENDING)
         zaiStatusLabel.foreground = statusLabelDefaultForeground ?: zaiStatusLabel.foreground
         zaiStatusLabel.isVisible = true
-    }
-
-    private fun formatStatusText(text: String, kind: AuthStatusKind): String {
-        val color =
-            when (kind) {
-                AuthStatusKind.CONNECTED -> "#4CAF50"
-                AuthStatusKind.DISCONNECTED -> "#F44336"
-                AuthStatusKind.PENDING -> "#FFC107"
-            }
-        return "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
     }
 
     private companion object {

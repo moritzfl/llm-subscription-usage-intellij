@@ -11,7 +11,6 @@ import de.moritzf.quota.antigravity.AntigravityQuota
 import de.moritzf.quota.antigravity.AntigravityQuotaClient
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
-import de.moritzf.quota.idea.ui.QuotaUiUtil
 
 internal class AntigravitySettingsPanel : ProviderSettingsPanel() {
     val executableField =
@@ -104,14 +103,7 @@ internal class AntigravitySettingsPanel : ProviderSettingsPanel() {
                     )
                 else -> AuthStatusMessage("Connected to the current AGY CLI account.")
             }
-        val color =
-            when (message.kind) {
-                AuthStatusKind.CONNECTED -> "#4CAF50"
-                AuthStatusKind.DISCONNECTED -> "#F44336"
-                AuthStatusKind.PENDING -> "#FFC107"
-            }
-        status.text =
-            "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(message.text)}</html>"
+        status.text = statusDotHtml(message.text, message.kind)
     }
 
     override fun updateResponseArea() {

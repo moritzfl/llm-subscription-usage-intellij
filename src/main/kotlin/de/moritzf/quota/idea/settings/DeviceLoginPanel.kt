@@ -1,12 +1,11 @@
 package de.moritzf.quota.idea.settings
 
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.idea.auth.DeviceLoginPrompt
-import java.awt.Toolkit
-import java.awt.datatransfer.StringSelection
 import javax.swing.JButton
 
 /** Copyable instructions also work when the IDE cannot launch a browser. */
@@ -35,10 +34,6 @@ internal class DeviceLoginPanel {
 
     private fun copyButton(label: String, field: JBTextField) =
         JButton(label, AllIcons.Actions.Copy).apply {
-            addActionListener {
-                Toolkit.getDefaultToolkit()
-                    .systemClipboard
-                    .setContents(StringSelection(field.text), null)
-            }
+            addActionListener { CopyPasteManager.copyTextToClipboard(field.text) }
         }
 }

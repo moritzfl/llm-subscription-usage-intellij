@@ -13,7 +13,6 @@ import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
-import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.ollama.OllamaQuotaClient
 import de.moritzf.quota.ollama.OllamaResetSchedule
@@ -203,30 +202,30 @@ internal class OllamaSettingsPanel(
         when {
             !apiKeyStore.isLoaded() -> {
                 ollamaStatusLabel.text =
-                    formatStatusText("Loading Ollama credentials...", AuthStatusKind.PENDING)
+                    statusDotHtml("Loading Ollama credentials...", AuthStatusKind.PENDING)
                 ollamaStatusLabel.foreground =
                     statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
             apiKey.isNullOrBlank() -> {
                 ollamaStatusLabel.text =
-                    formatStatusText("No API key configured", AuthStatusKind.DISCONNECTED)
+                    statusDotHtml("No API key configured", AuthStatusKind.DISCONNECTED)
                 ollamaStatusLabel.foreground =
                     statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
             ollamaError != null -> {
                 ollamaStatusLabel.text =
-                    formatStatusText("Error: $ollamaError", AuthStatusKind.DISCONNECTED)
+                    statusDotHtml("Error: $ollamaError", AuthStatusKind.DISCONNECTED)
                 ollamaStatusLabel.foreground =
                     statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
             ollamaQuota != null -> {
-                ollamaStatusLabel.text = formatStatusText("Connected", AuthStatusKind.CONNECTED)
+                ollamaStatusLabel.text = statusDotHtml("Connected", AuthStatusKind.CONNECTED)
                 ollamaStatusLabel.foreground =
                     statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
             else -> {
                 ollamaStatusLabel.text =
-                    formatStatusText("API key stored securely", AuthStatusKind.CONNECTED)
+                    statusDotHtml("API key stored securely", AuthStatusKind.CONNECTED)
                 ollamaStatusLabel.foreground =
                     statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
@@ -273,14 +272,14 @@ internal class OllamaSettingsPanel(
                         result.fold(
                             onSuccess = {
                                 ollamaStatusLabel.text =
-                                    formatStatusText("Connected", AuthStatusKind.CONNECTED)
+                                    statusDotHtml("Connected", AuthStatusKind.CONNECTED)
                                 ollamaStatusLabel.foreground =
                                     statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
                                 ollamaStatusLabel.isVisible = true
                             },
                             onFailure = { error ->
                                 ollamaStatusLabel.text =
-                                    formatStatusText(
+                                    statusDotHtml(
                                         "Error: ${error.message ?: "Validation failed"}",
                                         AuthStatusKind.DISCONNECTED,
                                     )
@@ -296,7 +295,7 @@ internal class OllamaSettingsPanel(
     }
 
     private fun setOllamaPendingStatus() {
-        ollamaStatusLabel.text = formatStatusText("Validating API key...", AuthStatusKind.PENDING)
+        ollamaStatusLabel.text = statusDotHtml("Validating API key...", AuthStatusKind.PENDING)
         ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
         ollamaStatusLabel.isVisible = true
     }
@@ -326,16 +325,6 @@ internal class OllamaSettingsPanel(
                 }
             }
         ollamaJsonViewer.setCaretPosition(0)
-    }
-
-    private fun formatStatusText(text: String, kind: AuthStatusKind): String {
-        val color =
-            when (kind) {
-                AuthStatusKind.CONNECTED -> "#4CAF50"
-                AuthStatusKind.DISCONNECTED -> "#F44336"
-                AuthStatusKind.PENDING -> "#FFC107"
-            }
-        return "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
     }
 
     private companion object {

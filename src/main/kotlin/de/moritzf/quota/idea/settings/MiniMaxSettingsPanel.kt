@@ -10,7 +10,6 @@ import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
-import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.minimax.MiniMaxRegionPreference
 import java.awt.Color
@@ -94,15 +93,15 @@ internal class MiniMaxSettingsPanel(
             QuotaUsageService.getInstance().getLastError(accountKey(QuotaProviderType.MINIMAX))
         statusLabel.text =
             when {
-                !store.isLoaded() -> formatStatusText("Loading API keys...", AuthStatusKind.PENDING)
+                !store.isLoaded() -> statusDotHtml("Loading API keys...", AuthStatusKind.PENDING)
                 apiKey.isNullOrBlank() ->
-                    formatStatusText(
+                    statusDotHtml(
                         "MiniMax subscription key missing",
                         AuthStatusKind.DISCONNECTED,
                     )
-                error != null -> formatStatusText("Error: $error", AuthStatusKind.DISCONNECTED)
-                quota != null -> formatStatusText("Connected", AuthStatusKind.CONNECTED)
-                else -> formatStatusText("API key stored securely", AuthStatusKind.CONNECTED)
+                error != null -> statusDotHtml("Error: $error", AuthStatusKind.DISCONNECTED)
+                quota != null -> statusDotHtml("Connected", AuthStatusKind.CONNECTED)
+                else -> statusDotHtml("API key stored securely", AuthStatusKind.CONNECTED)
             }
         statusLabel.foreground = statusLabelDefaultForeground ?: statusLabel.foreground
         statusLabel.isVisible = true
@@ -173,18 +172,8 @@ internal class MiniMaxSettingsPanel(
     }
 
     private fun setPending(text: String) {
-        statusLabel.text = formatStatusText(text, AuthStatusKind.PENDING)
+        statusLabel.text = statusDotHtml(text, AuthStatusKind.PENDING)
         statusLabel.isVisible = true
-    }
-
-    private fun formatStatusText(text: String, kind: AuthStatusKind): String {
-        val color =
-            when (kind) {
-                AuthStatusKind.CONNECTED -> "#4CAF50"
-                AuthStatusKind.DISCONNECTED -> "#F44336"
-                AuthStatusKind.PENDING -> "#FFC107"
-            }
-        return "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
     }
 
     private companion object {

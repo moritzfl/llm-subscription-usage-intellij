@@ -3,6 +3,7 @@ package de.moritzf.quota.idea.settings
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.popup.ListSeparator
@@ -37,8 +38,6 @@ import java.awt.Desktop
 import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Font
-import java.awt.Toolkit
-import java.awt.datatransfer.StringSelection
 import java.awt.event.ActionEvent
 import java.nio.file.Files
 import java.nio.file.Path
@@ -200,12 +199,12 @@ internal class SubscriptionProxySettingsPanel(
             val status = OpenAiProxyService.getInstance().status()
             val baseUrl =
                 if (status.running) status.baseUrl else OpenAiProxyService.localBaseUrl(proxyPort())
-            copyToClipboard(baseUrl)
+            CopyPasteManager.copyTextToClipboard(baseUrl)
             showCopiedFeedback(copyProxyBaseUrlButton)
         }
         copyProxyApiKeyButton.addActionListener {
             val apiKey = proxyApiKey() ?: return@addActionListener
-            copyToClipboard(apiKey)
+            CopyPasteManager.copyTextToClipboard(apiKey)
             showCopiedFeedback(copyProxyApiKeyButton)
         }
         generateProxyApiKeyButton.addActionListener {
@@ -214,7 +213,7 @@ internal class SubscriptionProxySettingsPanel(
         toggleProxyApiKeyVisibilityButton.addActionListener { updateProxyApiKeyVisibility() }
         showLogsButton.addActionListener { openRequestLogs() }
         copyCompletionsModelButton.addActionListener {
-            copyToClipboard(CompletionsConfig.FIM_ALIAS_ID)
+            CopyPasteManager.copyTextToClipboard(CompletionsConfig.FIM_ALIAS_ID)
             showCopiedFeedback(copyCompletionsModelButton)
         }
         testFimButton.addActionListener { testFim() }
@@ -898,8 +897,7 @@ internal class SubscriptionProxySettingsPanel(
                 report.pluginFound -> ProxyRunState.PENDING
                 else -> ProxyRunState.OFF
             }
-        fimSetupStatusLabel.text =
-            "<html><span style=\"color: ${state.colorHex}\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(report.summary)}</html>"
+        fimSetupStatusLabel.text = statusDotHtml(report.summary, state.colorHex)
         fimSetupStatusLabel.isVisible = true
     }
 
@@ -968,13 +966,8 @@ internal class SubscriptionProxySettingsPanel(
         )
     }
 
-    private fun copyToClipboard(text: String) {
-        Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)
-    }
-
     private fun setProxyStatus(text: String, state: ProxyRunState) {
-        proxyStatusLabel.text =
-            "<html><span style=\"color: ${state.colorHex}\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
+        proxyStatusLabel.text = statusDotHtml(text, state.colorHex)
         proxyStatusLabel.isVisible = true
     }
 

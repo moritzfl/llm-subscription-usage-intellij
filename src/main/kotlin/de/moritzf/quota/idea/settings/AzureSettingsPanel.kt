@@ -29,7 +29,6 @@ import de.moritzf.quota.azure.preferredAzureOcrSelection
 import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
-import de.moritzf.quota.idea.ui.QuotaUiUtil
 import java.awt.event.ItemEvent
 import javax.swing.DefaultComboBoxModel
 import javax.swing.Timer
@@ -401,14 +400,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                         "Signed in${identity?.userName?.let { " as $it" }.orEmpty()}."
                     )
             }
-        val color =
-            when (message.kind) {
-                AuthStatusKind.CONNECTED -> "#4CAF50"
-                AuthStatusKind.DISCONNECTED -> "#F44336"
-                AuthStatusKind.PENDING -> "#FFC107"
-            }
-        status.text =
-            "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(message.text)}</html>"
+        status.text = statusDotHtml(message.text, message.kind)
     }
 
     override fun updateResponseArea() {

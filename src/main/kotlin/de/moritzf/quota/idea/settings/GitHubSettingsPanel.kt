@@ -3,6 +3,7 @@ package de.moritzf.quota.idea.settings
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
@@ -23,11 +24,8 @@ import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.github.GitHubAuthService
 import de.moritzf.quota.idea.github.GitHubCredentialsStore
 import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
-import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.shared.DocumentModels
 import java.awt.Color
-import java.awt.Toolkit
-import java.awt.datatransfer.StringSelection
 import javax.swing.JButton
 import javax.swing.JComponent
 
@@ -88,10 +86,10 @@ internal class GitHubSettingsPanel(
 
     init {
         copyUrlButton.addActionListener {
-            verificationUrl?.takeIf { it.isNotBlank() }?.let { copyToClipboard(it) }
+            verificationUrl?.takeIf { it.isNotBlank() }?.let(CopyPasteManager::copyTextToClipboard)
         }
         copyCodeButton.addActionListener {
-            userCode?.takeIf { it.isNotBlank() }?.let { copyToClipboard(it) }
+            userCode?.takeIf { it.isNotBlank() }?.let(CopyPasteManager::copyTextToClipboard)
         }
 
         loginButton.addActionListener {
@@ -337,7 +335,7 @@ internal class GitHubSettingsPanel(
             authStatusMessage?.takeIf {
                 inProgress || it.isError || credentials?.isUsable() != true
             } ?: fallbackMessage
-        statusLabel.text = formatStatusText(visibleMessage.text, visibleMessage.kind)
+        statusLabel.text = statusDotHtml(visibleMessage.text, visibleMessage.kind)
         statusLabel.foreground = statusLabelDefaultForeground ?: statusLabel.foreground
         statusLabel.isVisible = true
         loginButton.isEnabled = !inProgress && credentials?.isUsable() != true
@@ -393,25 +391,11 @@ internal class GitHubSettingsPanel(
     private fun setPending() {
         val text = "Clearing credentials..."
         authStatusMessage = AuthStatusMessage(text, false, AuthStatusKind.PENDING)
-        statusLabel.text = formatStatusText(text, AuthStatusKind.PENDING)
+        statusLabel.text = statusDotHtml(text, AuthStatusKind.PENDING)
         statusLabel.isVisible = true
-    }
-
-    private fun copyToClipboard(text: String) {
-        Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)
     }
 
     private fun createActionLink(text: String): ActionLink {
         return ActionLink(text).apply { autoHideOnDisable = false }
-    }
-
-    private fun formatStatusText(text: String, kind: AuthStatusKind): String {
-        val color =
-            when (kind) {
-                AuthStatusKind.CONNECTED -> "#4CAF50"
-                AuthStatusKind.DISCONNECTED -> "#F44336"
-                AuthStatusKind.PENDING -> "#FFC107"
-            }
-        return "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
     }
 }

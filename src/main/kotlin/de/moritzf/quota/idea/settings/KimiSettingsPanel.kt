@@ -3,6 +3,7 @@ package de.moritzf.quota.idea.settings
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.dsl.builder.AlignX
@@ -15,12 +16,9 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.kimi.KimiAuthService
 import de.moritzf.quota.idea.kimi.KimiCredentialsStore
-import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.shared.JsonSupport
 import java.awt.Color
-import java.awt.Toolkit
-import java.awt.datatransfer.StringSelection
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -57,7 +55,7 @@ internal class KimiSettingsPanel(
         copyUrlButton.addActionListener {
             val url = verificationUrl
             if (!url.isNullOrBlank()) {
-                Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(url), null)
+                CopyPasteManager.copyTextToClipboard(url)
             }
         }
 
@@ -267,7 +265,7 @@ internal class KimiSettingsPanel(
             authStatusMessage?.takeIf {
                 inProgress || it.isError || credentials?.isUsable() != true
             } ?: fallbackMessage
-        statusLabel.text = formatStatusText(visibleMessage.text, visibleMessage.kind)
+        statusLabel.text = statusDotHtml(visibleMessage.text, visibleMessage.kind)
         statusLabel.foreground = statusLabelDefaultForeground ?: statusLabel.foreground
         statusLabel.isVisible = true
         loginButton.isEnabled = !inProgress && credentials?.isUsable() != true
@@ -314,22 +312,12 @@ internal class KimiSettingsPanel(
     private fun setPending() {
         val text = "Clearing credentials..."
         authStatusMessage = AuthStatusMessage(text, false, AuthStatusKind.PENDING)
-        statusLabel.text = formatStatusText(text, AuthStatusKind.PENDING)
+        statusLabel.text = statusDotHtml(text, AuthStatusKind.PENDING)
         statusLabel.isVisible = true
     }
 
     private fun createActionLink(text: String): ActionLink {
         return ActionLink(text).apply { autoHideOnDisable = false }
-    }
-
-    private fun formatStatusText(text: String, kind: AuthStatusKind): String {
-        val color =
-            when (kind) {
-                AuthStatusKind.CONNECTED -> "#4CAF50"
-                AuthStatusKind.DISCONNECTED -> "#F44336"
-                AuthStatusKind.PENDING -> "#FFC107"
-            }
-        return "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
     }
 }
 

@@ -13,7 +13,6 @@ import de.moritzf.quota.cursor.CursorSessionTokenParser
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.cursor.CursorCredentialsStore
-import de.moritzf.quota.idea.ui.QuotaUiUtil
 import java.awt.Color
 import java.util.concurrent.atomic.AtomicLong
 import javax.swing.JComponent
@@ -121,25 +120,25 @@ internal class CursorSettingsPanel(
         when {
             !store.isLoaded() -> {
                 cursorStatusLabel.text =
-                    formatStatusText("Loading credentials...", AuthStatusKind.PENDING)
+                    statusDotHtml("Loading credentials...", AuthStatusKind.PENDING)
             }
             !store.hasCredentials() -> {
                 cursorStatusLabel.text =
-                    formatStatusText(
+                    statusDotHtml(
                         "No session cookie configured. Paste WorkosCursorSessionToken from cursor.com.",
                         AuthStatusKind.DISCONNECTED,
                     )
             }
             cursorError != null -> {
                 cursorStatusLabel.text =
-                    formatStatusText("Error: $cursorError", AuthStatusKind.DISCONNECTED)
+                    statusDotHtml("Error: $cursorError", AuthStatusKind.DISCONNECTED)
             }
             cursorQuota != null -> {
-                cursorStatusLabel.text = formatStatusText("Connected", AuthStatusKind.CONNECTED)
+                cursorStatusLabel.text = statusDotHtml("Connected", AuthStatusKind.CONNECTED)
             }
             else -> {
                 cursorStatusLabel.text =
-                    formatStatusText("Session cookie stored securely", AuthStatusKind.CONNECTED)
+                    statusDotHtml("Session cookie stored securely", AuthStatusKind.CONNECTED)
             }
         }
         cursorStatusLabel.foreground = statusLabelDefaultForeground ?: cursorStatusLabel.foreground
@@ -161,7 +160,7 @@ internal class CursorSettingsPanel(
         val accessToken = CursorSessionTokenParser.extractAccessToken(sessionCookie)
         if (accessToken.isNullOrBlank()) {
             cursorStatusLabel.text =
-                formatStatusText(
+                statusDotHtml(
                     "Error: Could not parse WorkosCursorSessionToken cookie",
                     AuthStatusKind.DISCONNECTED,
                 )
@@ -190,14 +189,14 @@ internal class CursorSettingsPanel(
                         result.fold(
                             onSuccess = {
                                 cursorStatusLabel.text =
-                                    formatStatusText("Connected", AuthStatusKind.CONNECTED)
+                                    statusDotHtml("Connected", AuthStatusKind.CONNECTED)
                                 cursorStatusLabel.foreground =
                                     statusLabelDefaultForeground ?: cursorStatusLabel.foreground
                                 cursorStatusLabel.isVisible = true
                             },
                             onFailure = { error ->
                                 cursorStatusLabel.text =
-                                    formatStatusText(
+                                    statusDotHtml(
                                         "Error: ${error.message ?: "Validation failed"}",
                                         AuthStatusKind.DISCONNECTED,
                                     )
@@ -214,7 +213,7 @@ internal class CursorSettingsPanel(
 
     private fun setCursorPendingStatus() {
         cursorStatusLabel.text =
-            formatStatusText("Validating session cookie...", AuthStatusKind.PENDING)
+            statusDotHtml("Validating session cookie...", AuthStatusKind.PENDING)
         cursorStatusLabel.foreground = statusLabelDefaultForeground ?: cursorStatusLabel.foreground
         cursorStatusLabel.isVisible = true
     }
@@ -247,16 +246,6 @@ internal class CursorSettingsPanel(
                 }
             }
         cursorJsonViewer.setCaretPosition(0)
-    }
-
-    private fun formatStatusText(text: String, kind: AuthStatusKind): String {
-        val color =
-            when (kind) {
-                AuthStatusKind.CONNECTED -> "#4CAF50"
-                AuthStatusKind.DISCONNECTED -> "#F44336"
-                AuthStatusKind.PENDING -> "#FFC107"
-            }
-        return "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
     }
 
     private companion object {

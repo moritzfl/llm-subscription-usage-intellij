@@ -3,6 +3,7 @@ package de.moritzf.quota.idea.settings
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
@@ -16,12 +17,9 @@ import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
-import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.openai.OpenAiCodexQuota
 import de.moritzf.quota.openai.proxy.OpenAiProxyServer
 import de.moritzf.quota.shared.DocumentModels
-import java.awt.Toolkit
-import java.awt.datatransfer.StringSelection
 import javax.swing.JButton
 import javax.swing.JComponent
 
@@ -57,7 +55,7 @@ internal class OpenAiSettingsPanel(
         copyUrlButton.addActionListener {
             val url = authUrl
             if (!url.isNullOrBlank()) {
-                copyToClipboard(url)
+                CopyPasteManager.copyTextToClipboard(url)
             }
         }
 
@@ -276,7 +274,7 @@ internal class OpenAiSettingsPanel(
         cancelLoginButton.isEnabled = uiState.cancelEnabled
         logoutButton.isEnabled = uiState.logoutEnabled
         statusLabel.text =
-            uiState.visibleStatusMessage?.let { formatStatusText(it.text, it.kind) }.orEmpty()
+            uiState.visibleStatusMessage?.let { statusDotHtml(it.text, it.kind) }.orEmpty()
         statusLabel.isVisible = !uiState.visibleStatusMessage?.text.isNullOrBlank()
         if (!inProgress) {
             copyUrlButton.isVisible = false
@@ -340,20 +338,5 @@ internal class OpenAiSettingsPanel(
             authStatusMessage = null
             authUrl = null
         }
-    }
-
-    private fun copyToClipboard(text: String) {
-        val selection = StringSelection(text)
-        Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, null)
-    }
-
-    private fun formatStatusText(text: String, kind: AuthStatusKind): String {
-        val color =
-            when (kind) {
-                AuthStatusKind.CONNECTED -> "#4CAF50"
-                AuthStatusKind.DISCONNECTED -> "#F44336"
-                AuthStatusKind.PENDING -> "#FFC107"
-            }
-        return "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
     }
 }

@@ -94,6 +94,10 @@ private fun Container.invalidateSubtree() {
 /** Label text that wraps to the label's width. Place the label with `align(AlignX.FILL)`. */
 internal fun wrappingHtml(text: String): String = "<html>${QuotaUiUtil.escapeHtml(text)}</html>"
 
+/** [wrappingHtml] behind a status dot in [colorHex]. */
+internal fun statusDotHtml(text: String, colorHex: String): String =
+    "<html><span style=\"color: $colorHex\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
+
 /** Lets a combo shrink with a narrow form instead of fixing the form's minimum width. */
 internal fun <T : ComboBox<*>> T.shrinkable(): T = apply {
     isUsePreferredSizeAsMinimum = false

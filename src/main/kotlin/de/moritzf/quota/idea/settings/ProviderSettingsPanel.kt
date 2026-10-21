@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.settings
 
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
@@ -15,8 +16,6 @@ import de.moritzf.quota.shared.JsonSupport
 import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.Font
-import java.awt.Toolkit
-import java.awt.datatransfer.StringSelection
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.ScrollPaneConstants
@@ -291,9 +290,7 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
                 toolTipText = "Copy last quota response"
                 accessibleContext.accessibleName = "Copy last quota response"
                 addActionListener {
-                    Toolkit.getDefaultToolkit()
-                        .systemClipboard
-                        .setContents(StringSelection(viewer.text), null)
+                    CopyPasteManager.copyTextToClipboard(viewer.text)
                     icon = AllIcons.Actions.Checked
                     toolTipText = "Copied"
                     Timer(1_500) {

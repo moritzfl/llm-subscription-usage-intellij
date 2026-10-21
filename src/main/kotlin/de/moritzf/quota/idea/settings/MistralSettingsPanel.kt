@@ -13,7 +13,6 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.mistral.MistralApiKeyStore
 import de.moritzf.quota.idea.mistral.MistralSessionCookieStore
-import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.mistral.MistralOcrClient
 import de.moritzf.quota.mistral.MistralQuota
 import de.moritzf.quota.mistral.MistralQuotaClient
@@ -234,12 +233,12 @@ internal class MistralSettingsPanel(
         statusLabel.text =
             when {
                 !cookieStore.isLoaded() ->
-                    formatStatusText("Loading credentials...", AuthStatusKind.PENDING)
+                    statusDotHtml("Loading credentials...", AuthStatusKind.PENDING)
                 cookie.isNullOrBlank() ->
-                    formatStatusText("Mistral session cookie missing", AuthStatusKind.DISCONNECTED)
-                error != null -> formatStatusText("Error: $error", AuthStatusKind.DISCONNECTED)
-                quota != null -> formatStatusText("Connected", AuthStatusKind.CONNECTED)
-                else -> formatStatusText("Session cookie stored securely", AuthStatusKind.CONNECTED)
+                    statusDotHtml("Mistral session cookie missing", AuthStatusKind.DISCONNECTED)
+                error != null -> statusDotHtml("Error: $error", AuthStatusKind.DISCONNECTED)
+                quota != null -> statusDotHtml("Connected", AuthStatusKind.CONNECTED)
+                else -> statusDotHtml("Session cookie stored securely", AuthStatusKind.CONNECTED)
             }
         statusLabel.foreground = statusLabelDefaultForeground ?: statusLabel.foreground
         statusLabel.isVisible = true
@@ -292,7 +291,7 @@ internal class MistralSettingsPanel(
                             {
                                 if (!isCurrent()) return@invokeLater
                                 statusLabel.text =
-                                    formatStatusText(
+                                    statusDotHtml(
                                         error.message ?: "Invalid Mistral cookies",
                                         AuthStatusKind.DISCONNECTED,
                                     )
@@ -356,18 +355,8 @@ internal class MistralSettingsPanel(
     }
 
     private fun setPending(text: String) {
-        statusLabel.text = formatStatusText(text, AuthStatusKind.PENDING)
+        statusLabel.text = statusDotHtml(text, AuthStatusKind.PENDING)
         statusLabel.isVisible = true
-    }
-
-    private fun formatStatusText(text: String, kind: AuthStatusKind): String {
-        val color =
-            when (kind) {
-                AuthStatusKind.CONNECTED -> "#4CAF50"
-                AuthStatusKind.DISCONNECTED -> "#F44336"
-                AuthStatusKind.PENDING -> "#FFC107"
-            }
-        return "<html><span style=\"color: $color\">●</span>&nbsp;${QuotaUiUtil.escapeHtml(text)}</html>"
     }
 
     private companion object {

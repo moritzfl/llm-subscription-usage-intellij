@@ -9,11 +9,14 @@ internal data class AuthStatusMessage(
         if (isError) AuthStatusKind.DISCONNECTED else AuthStatusKind.CONNECTED,
 )
 
-internal enum class AuthStatusKind {
-    CONNECTED,
-    DISCONNECTED,
-    PENDING,
+internal enum class AuthStatusKind(val colorHex: String) {
+    CONNECTED("#4CAF50"),
+    DISCONNECTED("#F44336"),
+    PENDING("#FFC107"),
 }
+
+internal fun statusDotHtml(text: String, kind: AuthStatusKind): String =
+    statusDotHtml(text, kind.colorHex)
 
 internal data class QuotaSettingsAuthUiState(
     val headerText: String,
