@@ -53,6 +53,7 @@ class PassThroughSubscriptionProxyProvider(
     private val jsonResponseTransformer: ((SubscriptionProxyRequest, String) -> String)? = null,
     private val sseDataTransformer: ((SubscriptionProxyRequest, String) -> String)? = null,
     private val sseLineTransformer: ((SubscriptionProxyRequest, String) -> String?)? = null,
+    private val sseStreamEnd: ((SubscriptionProxyRequest) -> String?)? = null,
     private val sseStreamComplete: ((SubscriptionProxyRequest) -> Unit)? = null,
     private val responseHeadersObserver:
         (SubscriptionProxyRequest, Map<String, List<String>>) -> Unit =
@@ -309,6 +310,15 @@ class PassThroughSubscriptionProxyProvider(
                         flush()
                     }
                 }
+                sseStreamEnd
+                    ?.invoke(request)
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { ending ->
+                        val bytes = ending.toByteArray(StandardCharsets.UTF_8)
+                        write(bytes)
+                        AccessLogFields.addResponseBytes(ctx, bytes.size.toLong())
+                        flush()
+                    }
             }
         } finally {
             sseStreamComplete?.invoke(request)
