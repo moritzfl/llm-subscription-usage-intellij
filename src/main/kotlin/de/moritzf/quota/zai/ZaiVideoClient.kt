@@ -69,7 +69,7 @@ open class ZaiVideoClient(
             )
         }
         if (!waitForCompletion) {
-            return McpJson.providerJsonOrRaw(startBody)
+            return McpJson.providerJson(startBody)
         }
         val id =
             taskId(startBody)
@@ -171,7 +171,7 @@ open class ZaiVideoClient(
                 throw ZaiQuotaException("Z.ai video poll failed (HTTP $status).", status, lastBody)
             }
             when (taskStatus(lastBody)?.uppercase(Locale.ROOT)) {
-                "SUCCESS" -> return McpJson.providerJsonOrRaw(lastBody)
+                "SUCCESS" -> return McpJson.providerJson(lastBody)
                 "FAIL",
                 "FAILED",
                 "ERROR" -> throw ZaiQuotaException("Z.ai video generation failed.", 200, lastBody)

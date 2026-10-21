@@ -69,7 +69,7 @@ open class KimiWebSearchClient(
             )
         }
 
-        return KimiWebSearchFetchResult(McpJson.providerJsonOrRaw(body), usableCredentials)
+        return KimiWebSearchFetchResult(McpJson.providerJson(body), usableCredentials)
     }
 
     private fun searchRequest(

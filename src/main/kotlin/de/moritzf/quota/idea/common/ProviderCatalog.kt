@@ -54,6 +54,7 @@ import de.moritzf.quota.mistral.MistralQuota
 import de.moritzf.quota.ollama.OllamaQuota
 import de.moritzf.quota.ollama.OllamaResetSchedule
 import de.moritzf.quota.opencode.OpenCodeQuota
+import de.moritzf.quota.opencode.OpenCodeQuotaClient
 import de.moritzf.quota.shared.ProviderQuota
 import de.moritzf.quota.supergrok.SuperGrokQuota
 import de.moritzf.quota.zai.ZaiQuota
@@ -530,6 +531,7 @@ internal object ProviderCatalog {
                 mcpQuota =
                     UsageQuotaMcpRegistration(
                         emptyMessage = "No OpenCode usage response available",
+                        export = OpenCodeQuotaClient::mcpResponse,
                         json = { service, _ ->
                             val quota =
                                 service.getLastQuota(QuotaProviderType.OPEN_CODE) as? OpenCodeQuota
@@ -849,11 +851,7 @@ internal object ProviderCatalog {
                 ),
             quotaFactory = if (liteLlm) { account -> LiteLlmQuotaProvider(account.id) } else null,
             mcpQuota =
-                if (liteLlm)
-                    UsageQuotaMcpRegistration(
-                        "No key budget response available",
-                        export = de.moritzf.quota.litellm.LiteLlmQuota::safeQuotaJson,
-                    )
+                if (liteLlm) UsageQuotaMcpRegistration("No key budget response available")
                 else null,
             snapshotCodec =
                 if (liteLlm) EnvelopeQuotaCodec(de.moritzf.quota.litellm.LiteLlmQuota.serializer())

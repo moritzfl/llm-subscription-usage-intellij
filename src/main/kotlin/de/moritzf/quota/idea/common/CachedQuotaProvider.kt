@@ -12,12 +12,15 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
     protected val lastErrorRef = AtomicReference<String?>()
     protected val lastRawJsonRef = AtomicReference<String?>()
     private val lastErrorTransientRef = AtomicBoolean(false)
+    private val lastRefreshHasResponse = AtomicBoolean(false)
 
     override fun getLastQuota(): Q? = lastQuotaRef.get()
 
     override fun getLastError(): String? = lastErrorRef.get()
 
     override fun isLastErrorTransient(): Boolean = lastErrorTransientRef.get()
+
+    override fun hasResponseForLastRefresh(): Boolean = lastRefreshHasResponse.get()
 
     override fun getLastRawJson(): String? {
         lastRawJsonRef.get()?.let {
@@ -54,6 +57,7 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
         lastErrorRef.set(error)
         lastErrorTransientRef.set(false)
         lastRawJsonRef.set(null)
+        lastRefreshHasResponse.set(false)
     }
 
     protected fun storeQuota(quota: Q, rawJson: String?) {
@@ -61,6 +65,7 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
         lastErrorRef.set(null)
         lastErrorTransientRef.set(false)
         lastRawJsonRef.set(rawJson)
+        lastRefreshHasResponse.set(rawJson != null)
     }
 
     /**
@@ -97,6 +102,7 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
         // clearData() is the only path that drops success state (logout / not configured).
         lastErrorRef.set(error)
         lastErrorTransientRef.set(transient && error != null)
+        lastRefreshHasResponse.set(rawJson != null)
         if (rawJson != null) {
             lastRawJsonRef.set(rawJson)
         }

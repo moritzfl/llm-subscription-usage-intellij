@@ -63,7 +63,7 @@ open class ZaiImageClient(
         }
         val output = resolveOutput(targetFile, baseDirectory)
         if (output == null) {
-            return McpJson.providerJsonOrRaw(responseBody)
+            return McpJson.providerJson(responseBody)
         }
         val url =
             firstImageUrl(responseBody)

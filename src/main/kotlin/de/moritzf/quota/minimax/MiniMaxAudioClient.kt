@@ -126,7 +126,7 @@ open class MiniMaxAudioClient(
             )
         }
         checkBaseResp(responseBody, "MiniMax voice list failed")
-        return McpJson.providerJsonOrRaw(responseBody)
+        return McpJson.providerJson(responseBody)
     }
 
     open fun transcribe(
@@ -198,7 +198,7 @@ open class MiniMaxAudioClient(
                 body,
             )
         }
-        return McpJson.providerJsonOrRaw(body)
+        return McpJson.providerJson(body)
     }
 
     private fun postJson(apiKey: String, uri: URI, body: String): HttpRequest {

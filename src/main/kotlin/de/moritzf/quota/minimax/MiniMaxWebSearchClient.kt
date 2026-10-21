@@ -95,7 +95,7 @@ open class MiniMaxWebSearchClient(
             runCatching {
                 JsonSupport.json.parseToJsonElement(body) as? JsonObject
             }
-                .getOrNull() ?: return McpJson.providerJsonOrRaw(body)
+                .getOrNull() ?: return McpJson.providerJson(body)
 
         val baseResp = root.obj("base_resp")
         val statusCode = baseResp?.int("status_code") ?: 0

@@ -18,25 +18,26 @@ internal object RawResponseRedactor {
             "access_token",
             "refresh_token",
             "id_token",
-            "token",
             "api_key",
             "apikey",
             "credentials",
             "password",
             "secret",
         )
-    private val tokenCountNames =
-        setOf(
-            "total_tokens",
-            "input_tokens",
-            "output_tokens",
-            "prompt_tokens",
-            "completion_tokens",
-            "cached_tokens",
-            "reasoning_tokens",
-        )
-    private val sensitiveNameFragments = listOf("secret", "password", "cookie")
     private val camelCase = Regex("([a-z])([A-Z])")
+    // Generic key/token fields can be hashes, cache IDs, or pagination cursors, not credentials.
+    private val credentialSuffixes =
+        listOf(
+            "_api_key",
+            "_access_token",
+            "_refresh_token",
+            "_id_token",
+            "_session_token",
+            "_csrf_token",
+            "_secret",
+            "_password",
+            "_cookie",
+        )
     // Java's header validation can echo the entire malformed value, including quotes/newlines.
     private val invalidHeader = Regex("(?is)(invalid header value:\\s*).*")
     private const val DIAGNOSTIC_VALUE =
@@ -63,6 +64,7 @@ internal object RawResponseRedactor {
         extraSensitiveNames: Set<String>,
         secret: String?,
         depth: Int,
+        sensitiveValue: Boolean = false,
     ): JsonElement =
         when (element) {
             is JsonObject ->
@@ -70,19 +72,27 @@ internal object RawResponseRedactor {
                     element.forEach { (key, value) ->
                         put(
                             key,
-                            if (isSensitiveName(key, extraSensitiveNames)) JsonPrimitive(REDACTED)
-                            else redactElement(value, extraSensitiveNames, secret, depth),
+                            redactElement(
+                                value,
+                                extraSensitiveNames,
+                                secret,
+                                depth,
+                                isSensitiveName(key, extraSensitiveNames),
+                            ),
                         )
                     }
                 }
             is JsonArray ->
                 buildJsonArray {
-                    element.forEach { add(redactElement(it, extraSensitiveNames, secret, depth)) }
+                    element.forEach {
+                        add(redactElement(it, extraSensitiveNames, secret, depth, sensitiveValue))
+                    }
                 }
             is JsonPrimitive ->
                 if (element.isString)
                     JsonPrimitive(
-                        redactText(element.content, secret, extraSensitiveNames, depth + 1)
+                        if (sensitiveValue) REDACTED
+                        else redactText(element.content, secret, extraSensitiveNames, depth + 1)
                     )
                 else element
         }
@@ -161,9 +171,6 @@ internal object RawResponseRedactor {
         return normalized in exactSensitiveNames ||
             name in extraSensitiveNames ||
             normalized in extraSensitiveNames ||
-            normalized.endsWith("_key") ||
-            normalized.endsWith("key") && normalized.startsWith("api") ||
-            normalized.endsWith("_token") && normalized !in tokenCountNames ||
-            sensitiveNameFragments.any { normalized.contains(it) }
+            credentialSuffixes.any(normalized::endsWith)
     }
 }

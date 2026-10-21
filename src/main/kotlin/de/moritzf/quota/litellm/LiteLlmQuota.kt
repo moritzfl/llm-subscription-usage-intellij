@@ -1,17 +1,12 @@
 package de.moritzf.quota.litellm
 
-import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.ProviderQuota
 import de.moritzf.quota.shared.RawResponseRedactor
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.doubleOrNull
 
 /** The virtual key's USD budget, not an assertion about inherited team/user limits. */
 @Serializable
@@ -66,49 +61,10 @@ data class LiteLlmQuota(
             )
         }
 
-        // Settings-only diagnostics. MCP must use safeQuotaJson instead.
+        // Keep the complete provider document for settings and MCP, including unknown quota fields.
+        // Header-only /key/info returns a non-reusable key hash; redact actual echoed credentials.
         internal fun responseJson(response: JsonElement, apiKey: String? = null): String =
-            RawResponseRedactor.redact(
-                    response,
-                    setOf("key", "token", "metadata", "config"),
-                    apiKey?.trim(),
-                )
-                .toString()
-
-        /** /key/info is credential metadata, so MCP exports only validated quota scalars. */
-        internal fun safeQuotaJson(raw: String): String {
-            val root =
-                runCatching { JsonSupport.json.parseToJsonElement(raw) }.getOrNull() as? JsonObject
-            val info = root?.get("info") as? JsonObject
-            val safe =
-                info.orEmpty().filter { (name, value) ->
-                    when {
-                        name !in SAFE_FIELDS -> false
-                        value is JsonNull -> true
-                        value !is JsonPrimitive -> false
-                        name in NUMBER_FIELDS ->
-                            value.doubleOrNull?.let { it.isFinite() && it >= 0 } == true
-                        name == "blocked" -> value.booleanOrNull != null
-                        name == "budget_duration" ->
-                            value.isString && BUDGET_DURATION.matches(value.content)
-                        else -> value.isString && instant(value.content) != null
-                    }
-                }
-            return JsonObject(mapOf("info" to JsonObject(safe))).toString()
-        }
-
-        private val NUMBER_FIELDS =
-            setOf("spend", "max_budget", "temp_budget_increase", "tpm_limit", "rpm_limit")
-        private val SAFE_FIELDS =
-            NUMBER_FIELDS +
-                setOf(
-                    "budget_duration",
-                    "budget_reset_at",
-                    "temp_budget_expiry",
-                    "blocked",
-                    "expires",
-                )
-        private val BUDGET_DURATION = Regex("[0-9]+(?:s|m|h|d|w|mo)")
+            RawResponseRedactor.redact(response, secret = apiKey?.trim()).toString()
 
         private fun instant(value: String?): Instant? = value?.let {
             runCatching { Instant.parse(it) }.getOrNull()

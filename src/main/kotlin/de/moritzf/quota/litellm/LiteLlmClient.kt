@@ -3,6 +3,7 @@ package de.moritzf.quota.litellm
 import de.moritzf.proxy.subscription.OpenAiCompatibleApiKeySubscriptionProxyProvider.StaticModel
 import de.moritzf.quota.compatible.CompatibleEndpoint
 import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.shared.RawResponseRedactor
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -76,11 +77,7 @@ class LiteLlmClient(
                 HttpResponse.BodyHandlers.ofString(),
             )
         val json = runCatching { JsonSupport.json.parseToJsonElement(response.body()) }.getOrNull()
-        val raw =
-            LiteLlmQuota.responseJson(
-                json ?: buildJsonObject { put("raw_response", response.body()) },
-                key,
-            )
+        val raw = RawResponseRedactor.redactText(response.body(), key.trim())
         if (response.statusCode() !in 200..299) {
             throw LiteLlmResponseException(
                 "LiteLLM ${uri.path.substringAfterLast('/')} unavailable (HTTP ${response.statusCode()}). Check key permissions and the gateway URL.",

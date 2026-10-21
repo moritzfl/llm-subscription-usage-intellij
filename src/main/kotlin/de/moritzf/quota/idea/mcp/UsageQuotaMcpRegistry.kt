@@ -3,6 +3,8 @@ package de.moritzf.quota.idea.mcp
 import de.moritzf.quota.idea.common.ProviderCatalog
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
+import de.moritzf.quota.shared.McpJson
+import de.moritzf.quota.shared.RawResponseRedactor
 
 internal data class UsageQuotaMcpRegistration(
     val emptyMessage: String,
@@ -15,7 +17,11 @@ internal data class UsageQuotaMcpRegistration(
         service: QuotaUsageService,
         type: QuotaProviderType,
         accountId: String,
-    ): String? = (service.getLastResponseJson(accountId) ?: json(service, type))?.let(export)
+    ): String? =
+        (service.getLastResponseJson(accountId) ?: json(service, type))
+            ?.let(RawResponseRedactor::redactText)
+            ?.let(export)
+            ?.let(McpJson::providerJson)
 }
 
 /** Facade over [ProviderCatalog] for MCP quota JSON export. */

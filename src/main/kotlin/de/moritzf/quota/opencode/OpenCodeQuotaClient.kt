@@ -1,6 +1,7 @@
 package de.moritzf.quota.opencode
 
 import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.shared.McpJson
 import de.moritzf.quota.shared.lenientDoubleOrNull
 import java.net.URI
 import java.net.http.HttpClient
@@ -201,11 +202,26 @@ open class OpenCodeQuotaClient(
                     .associate { (name, body) ->
                         name to
                             (runCatching { JsonSupport.json.parseToJsonElement(body) }.getOrNull()
-                                ?: JsonObject(mapOf("raw_response" to JsonPrimitive(body))))
+                                ?: JsonPrimitive(body))
                     }
             return sections
                 .takeIf { it.isNotEmpty() }
                 ?.let { JsonSupport.json.encodeToString(JsonObject(it)) }
+        }
+
+        /**
+         * Settings keep failed source bodies; MCP represents unparseable sources as JSON errors.
+         */
+        internal fun mcpResponse(raw: String): String {
+            val root =
+                runCatching { JsonSupport.json.parseToJsonElement(raw) }.getOrNull() as? JsonObject
+                    ?: return McpJson.providerJson(raw)
+            val sections = root.mapValues { (_, value) ->
+                if (value is JsonPrimitive && value.isString)
+                    JsonSupport.json.parseToJsonElement(McpJson.providerJson(value.content))
+                else value
+            }
+            return if (sections == root) raw else JsonObject(sections).toString()
         }
     }
 }

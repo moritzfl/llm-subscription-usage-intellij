@@ -7,10 +7,11 @@ internal object McpJson {
     fun error(message: String): String =
         JsonSupport.json.encodeToString(McpErrorResponse(RawResponseRedactor.redactText(message)))
 
-    fun providerJsonOrRaw(body: String): String {
+    /** Known non-JSON formats must be parsed by the provider before reaching this boundary. */
+    fun providerJson(body: String): String {
         return runCatching { JsonSupport.json.parseToJsonElement(body) }
             .map { body }
-            .getOrElse { JsonSupport.json.encodeToString(McpRawProviderResponse(body)) }
+            .getOrElse { error("Provider response could not be parsed as JSON.") }
     }
 
     fun accountToolsStatus(
@@ -75,9 +76,6 @@ internal data class McpVisionResultResponse(
     val model: String,
     val content: String,
 )
-
-@Serializable
-private data class McpRawProviderResponse(@SerialName("raw_response") val rawResponse: String)
 
 @Serializable
 private data class McpAccountsToolsStatusResponse(

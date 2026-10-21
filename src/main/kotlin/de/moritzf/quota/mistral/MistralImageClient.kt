@@ -68,7 +68,7 @@ open class MistralImageClient(
         }
         val output = resolveOutput(targetFile, baseDirectory)
         if (output == null) {
-            return McpJson.providerJsonOrRaw(responseBody)
+            return McpJson.providerJson(responseBody)
         }
         val fileId =
             firstToolFileId(responseBody)

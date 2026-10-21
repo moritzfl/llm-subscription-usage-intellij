@@ -39,7 +39,7 @@ open class SuperGrokAudioClient(
         val request =
             multipartStt(token, localFile, url.takeIf { it.isNotEmpty() }, language, diarize)
         return parseOk(sendString(request), "Grok speech-to-text failed") {
-            McpJson.providerJsonOrRaw(it)
+            McpJson.providerJson(it)
         }
     }
 
@@ -130,9 +130,7 @@ open class SuperGrokAudioClient(
                 .header("User-Agent", USER_AGENT)
                 .GET()
                 .build()
-        return parseOk(sendString(request), "Grok voice list failed") {
-            McpJson.providerJsonOrRaw(it)
-        }
+        return parseOk(sendString(request), "Grok voice list failed") { McpJson.providerJson(it) }
     }
 
     private fun multipartStt(

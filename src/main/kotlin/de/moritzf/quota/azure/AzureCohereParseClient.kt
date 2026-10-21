@@ -224,7 +224,7 @@ internal class AzureCohereParseClient(
                 progress.update(1, 1, "Converted 1 of 1 pages")
             }
             if (markdownOutput == null && responses.size == 1)
-                return McpJson.providerJsonOrRaw(responses.single())
+                return McpJson.providerJson(responses.single())
             val markdown = pages.joinToString("\n\n")
             if (markdownOutput == null)
                 return DocumentMarkdown.resultJson(markdown, null, pageCount = pages.size)

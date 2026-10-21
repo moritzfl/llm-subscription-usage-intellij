@@ -64,7 +64,7 @@ open class SuperGrokWebSearchClient(
                 body,
             )
         }
-        return McpJson.providerJsonOrRaw(body)
+        return McpJson.providerJson(body)
     }
 
     private fun searchRequest(

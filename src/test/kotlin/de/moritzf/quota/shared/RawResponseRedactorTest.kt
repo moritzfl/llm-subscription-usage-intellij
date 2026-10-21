@@ -14,7 +14,7 @@ class RawResponseRedactorTest {
     @Test
     fun redactsCredentialsInsideEmbeddedJsonWithoutChangingItsType() {
         val embedded =
-            """{"accessToken":"access-value","nested":[{"token":"token-value","usage":42}]}"""
+            """{"accessToken":"access-value","nested":[{"refreshToken":"token-value","usage":42}]}"""
         val response = buildJsonObject {
             put("profile", embedded)
             put("total_tokens", 123)
@@ -36,9 +36,21 @@ class RawResponseRedactorTest {
                 "{ \"remaining\": 12, \"models\": [\"mistral\"] }",
                 "Request failed (HTTP 429). Retry later.",
                 "API key missing. Log in from settings.",
+                """{"api_key":{"identity":{"api_key":{"id":"key-id","name":"Work","future_field":{"quota":42}}},"rate_limits":{"remaining":17}},"key":"key-hash","token":"token-hash","cache_key":"cache-id","next_token":"cursor","secret_id":"reference","total_tokens":123}""",
             )) {
             assertEquals(raw, RawResponseRedactor.redact(raw))
         }
+    }
+
+    @Test
+    fun redactsCredentialValuesWithoutDiscardingObjectsOrScalarQuotaData() {
+        val raw =
+            """{"api_key":{"id":"key-id","name":"Work","access_token":"hidden"},"credentials":{"id":"login-id","password":"hidden"},"api_keys":[{"api_key":"hidden","name":"Work"}],"secret":null,"token":123,"remaining":false}"""
+        val expected = raw.replace("hidden", "[REDACTED]")
+        assertEquals(
+            JsonSupport.json.parseToJsonElement(expected),
+            JsonSupport.json.parseToJsonElement(RawResponseRedactor.redactText(raw)),
+        )
     }
 
     @Test

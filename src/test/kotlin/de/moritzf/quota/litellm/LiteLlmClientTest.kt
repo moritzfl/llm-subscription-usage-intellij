@@ -104,18 +104,44 @@ class LiteLlmClientTest {
         server({ path, auth ->
             calls += path to auth
             200 to
-                """{"key":"secret-key","gateway_version":"1.80.0","info":{"token":"secret-hash","spend":12.5,"max_budget":50,"budget_reset_at":"2030-10-01T00:00:00","blocked":false,"models":["company-chat"],"model_spend":{"company-chat":12.5},"team_id":"engineering","metadata":{"api_key":"secret"},"config":{"nested_secret":"secret"}}}"""
+                """{"key":"secret-key","gateway_version":"1.80.0","info":{"token":"key-hash","spend":12.5,"max_budget":50,"budget_reset_at":"2030-10-01T00:00:00","blocked":false,"models":["company-chat"],"model_spend":{"company-chat":12.5},"team_id":"engineering","metadata":{"api_key":"secret","department":"engineering"},"config":{"nested_secret":"secret","region":"eu"}}}"""
         }) { endpoint ->
             val quota = LiteLlmClient(endpoint).quota("secret-key")
             assertEquals(listOf("/gateway%20one/key/info" to "Bearer secret-key"), calls.toList())
             assertEquals(0.25, quota.usageFraction())
             assertEquals("2030-10-01T00:00:00Z", quota.resetsAt.toString())
-            assertFalse(quota.rawJson!!.contains("secret"))
+            assertFalse(quota.rawJson!!.contains("secret-key"))
             val raw = JsonSupport.json.parseToJsonElement(quota.rawJson!!).jsonObject
             assertEquals("[REDACTED]", raw["key"]!!.jsonPrimitive.content)
-            assertEquals("[REDACTED]", raw["info"]!!.jsonObject["token"]!!.jsonPrimitive.content)
-            assertEquals("[REDACTED]", raw["info"]!!.jsonObject["metadata"]!!.jsonPrimitive.content)
-            assertEquals("[REDACTED]", raw["info"]!!.jsonObject["config"]!!.jsonPrimitive.content)
+            assertEquals("key-hash", raw["info"]!!.jsonObject["token"]!!.jsonPrimitive.content)
+            assertEquals(
+                "[REDACTED]",
+                raw["info"]!!
+                    .jsonObject["metadata"]!!
+                    .jsonObject["api_key"]!!
+                    .jsonPrimitive
+                    .content,
+            )
+            assertEquals(
+                "engineering",
+                raw["info"]!!
+                    .jsonObject["metadata"]!!
+                    .jsonObject["department"]!!
+                    .jsonPrimitive
+                    .content,
+            )
+            assertEquals(
+                "[REDACTED]",
+                raw["info"]!!
+                    .jsonObject["config"]!!
+                    .jsonObject["nested_secret"]!!
+                    .jsonPrimitive
+                    .content,
+            )
+            assertEquals(
+                "eu",
+                raw["info"]!!.jsonObject["config"]!!.jsonObject["region"]!!.jsonPrimitive.content,
+            )
             assertEquals("1.80.0", raw["gateway_version"]!!.jsonPrimitive.content)
             assertEquals("engineering", raw["info"]!!.jsonObject["team_id"]!!.jsonPrimitive.content)
             assertTrue(raw["info"]!!.jsonObject.containsKey("model_spend"))
@@ -153,11 +179,13 @@ class LiteLlmClientTest {
                     }
                 assertFalse(failure.rawResponse.contains("secret-key"))
                 val expected = response.replace("secret-key", "[REDACTED]")
-                val raw = JsonSupport.json.parseToJsonElement(failure.rawResponse)
                 if (response.startsWith("{")) {
-                    assertEquals(JsonSupport.json.parseToJsonElement(expected), raw)
+                    assertEquals(
+                        JsonSupport.json.parseToJsonElement(expected),
+                        JsonSupport.json.parseToJsonElement(failure.rawResponse),
+                    )
                 } else {
-                    assertEquals(expected, raw.jsonObject["raw_response"]!!.jsonPrimitive.content)
+                    assertEquals(expected, failure.rawResponse)
                 }
             }
         }
@@ -199,26 +227,16 @@ class LiteLlmClientTest {
     }
 
     @Test
-    fun mcpAllowsOnlyValidatedQuotaScalarsEvenForUnexpectedSensitiveFields() {
+    fun retainsHashesMetadataAndUnknownQuotaShapesWhileRedactingKnownCredentials() {
         val raw =
-            """{"key":"secret-key","new_credential":"secret","info":{"spend":12.5,"max_budget":"50","blocked":false,"budget_reset_at":"2030-10-01T00:00:00","budget_duration":"30d","expires":null,"token":"secret-hash","future_field":"secret","metadata":{"secret":"secret"},"tpm_limit":{"token":"secret"},"rpm_limit":["secret"],"temp_budget_increase":"secret","temp_budget_expiry":"secret"}}"""
+            """{"key":"key-hash","info":{"token":"token-hash","spend":{"currency":"EUR","amount":12.5},"max_budget":"50","blocked":false,"metadata":{"team":"engineering","reference_key":"key-id"},"config":{"region":"eu"},"future_pools":[{"model":"fable-5","remaining":17}],"echo":"actual-key"},"future_top_level":{"remaining":42}}"""
+        val quota = LiteLlmQuota.parse(JsonSupport.json.parseToJsonElement(raw), "actual-key")
+        assertNull(quota.spend)
+        assertEquals(50.0, quota.maxBudget)
         assertEquals(
-            JsonSupport.json.parseToJsonElement(
-                """{"info":{"spend":12.5,"max_budget":"50","blocked":false,"budget_reset_at":"2030-10-01T00:00:00","budget_duration":"30d","expires":null}}"""
-            ),
-            JsonSupport.json.parseToJsonElement(LiteLlmQuota.safeQuotaJson(raw)),
+            JsonSupport.json.parseToJsonElement(raw.replace("actual-key", "[REDACTED]")),
+            JsonSupport.json.parseToJsonElement(quota.rawJson!!),
         )
-        for (response in
-            listOf(
-                "invalid-json",
-                "null",
-                "[]",
-                "{}",
-                """{"info":[]}""",
-                """{"info":{"spend":"NaN","max_budget":"Infinity","blocked":"secret","budget_duration":"secret"}}""",
-            )) {
-            assertEquals("""{"info":{}}""", LiteLlmQuota.safeQuotaJson(response))
-        }
     }
 
     @Test

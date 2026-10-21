@@ -14,6 +14,7 @@ class CompatibleSettingsPanelTest {
         onEdt {
             val requests = mutableListOf<Pair<String, String?>>()
             var status = 200
+            var plainResponse: String? = null
             val server =
                 com.sun.net.httpserver.HttpServer.create(
                     java.net.InetSocketAddress("127.0.0.1", 0),
@@ -23,10 +24,11 @@ class CompatibleSettingsPanelTest {
                 requests +=
                     exchange.requestURI.path to exchange.requestHeaders.getFirst("Authorization")
                 val bytes =
-                    (if (status == 200)
-                            """{"key":"secret-key","request_id":"budget-123","info":{"spend":12.5,"max_budget":50,"models":["company-chat"],"token":"secret-hash","metadata":{"api_key":"secret"}}}"""
-                        else
-                            """{"error":{"code":"key_info_forbidden","message":"No budget access"}}""")
+                    (plainResponse
+                            ?: if (status == 200)
+                                """{"key":"key-hash","request_id":"budget-123","info":{"spend":12.5,"max_budget":50,"models":["company-chat"],"token":"token-hash","metadata":{"api_key":"secret","team":"engineering"}}}"""
+                            else
+                                """{"error":{"code":"key_info_forbidden","message":"No budget access"}}""")
                         .toByteArray()
                 exchange.sendResponseHeaders(status, bytes.size.toLong())
                 exchange.responseBody.use { it.write(bytes) }
@@ -59,7 +61,7 @@ class CompatibleSettingsPanelTest {
                                 override fun clearData(error: String?) = Unit
 
                                 override fun getLastRawJson() =
-                                    """{"diagnostic":"gateway-details","info":{"spend":${index + 1},"future_credential":"secret-for-LLM"}}"""
+                                    """{"diagnostic":"gateway-details","info":{"spend":${index + 1},"future_pool":{"remaining":17}}}"""
                             }
                         },
                     settingsProvider = { settings },
@@ -104,11 +106,11 @@ class CompatibleSettingsPanelTest {
                         )
                     )
                 assertEquals(
-                    """{"info":{"spend":2}}""",
+                    """{"diagnostic":"gateway-details","info":{"spend":2,"future_pool":{"remaining":17}}}""",
                     mcp.jsonForAccount(usage, QuotaProviderType.LITELLM, "b"),
                 )
                 assertEquals(
-                    """{"info":{"spend":1}}""",
+                    """{"diagnostic":"gateway-details","info":{"spend":1,"future_pool":{"remaining":17}}}""",
                     mcp.jsonForAccount(usage, QuotaProviderType.LITELLM, "missing"),
                 )
                 panel.apiKeyField.text = "draft-key"
@@ -121,7 +123,9 @@ class CompatibleSettingsPanelTest {
                 )
                 assertTrue(viewer.text.contains("\"spend\": 12.5"))
                 assertFalse(viewer.text.contains("secret"))
-                assertTrue(viewer.text.contains("\"token\": \"[REDACTED]\""))
+                assertTrue(viewer.text.contains("\"token\": \"token-hash\""))
+                assertTrue(viewer.text.contains("\"key\": \"key-hash\""))
+                assertTrue(viewer.text.contains("engineering"))
                 assertTrue(viewer.text.contains("budget-123"))
                 assertTrue(viewer.text.contains("company-chat"))
                 panel.updateResponseArea()
@@ -140,6 +144,11 @@ class CompatibleSettingsPanelTest {
                 assertTrue(viewer.text.contains("key_info_forbidden"))
                 assertFalse(viewer.text.contains("secret"))
                 assertFalse(viewer.text.contains("\"spend\""))
+                plainResponse = "<html>Gateway unavailable for saved-key</html>"
+                status = 502
+                budget.doClick(0)
+                assertTrue(viewer.text.contains("<html>Gateway unavailable for [REDACTED]</html>"))
+                assertFalse(viewer.text.contains("raw_response"))
             } finally {
                 panel.dispose()
                 usage.dispose()

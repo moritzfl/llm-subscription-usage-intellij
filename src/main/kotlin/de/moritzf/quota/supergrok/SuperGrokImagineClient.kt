@@ -60,7 +60,7 @@ open class SuperGrokImagineClient(
         val responseBody =
             postJson(token, IMAGES_GENERATIONS_PATH, body, requestTimeoutSeconds = 120)
         if (outputTarget?.path == null) {
-            return McpJson.providerJsonOrRaw(responseBody)
+            return McpJson.providerJson(responseBody)
         }
         return writeFirstImageToFile(responseBody, outputTarget.path, outputTarget.format!!)
     }
@@ -95,7 +95,7 @@ open class SuperGrokImagineClient(
             )
         val responseBody = postJson(token, IMAGES_EDITS_PATH, body, requestTimeoutSeconds = 120)
         if (outputTarget?.path == null) {
-            return McpJson.providerJsonOrRaw(responseBody)
+            return McpJson.providerJson(responseBody)
         }
         return writeFirstImageToFile(responseBody, outputTarget.path, outputTarget.format!!)
     }
@@ -131,7 +131,7 @@ open class SuperGrokImagineClient(
             )
         val startBody = postJson(token, VIDEOS_GENERATIONS_PATH, body, requestTimeoutSeconds = 60)
         if (!waitForCompletion) {
-            return McpJson.providerJsonOrRaw(startBody)
+            return McpJson.providerJson(startBody)
         }
         val requestId =
             extractRequestId(startBody)
@@ -190,7 +190,7 @@ open class SuperGrokImagineClient(
                 "done",
                 "completed",
                 "succeeded",
-                "success" -> return McpJson.providerJsonOrRaw(body)
+                "success" -> return McpJson.providerJson(body)
                 "failed",
                 "expired",
                 "error" ->

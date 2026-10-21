@@ -62,7 +62,7 @@ open class ZaiAudioClient(
                 body,
             )
         }
-        return McpJson.providerJsonOrRaw(body)
+        return McpJson.providerJson(body)
     }
 
     private fun send(request: HttpRequest): HttpResponse<String> {

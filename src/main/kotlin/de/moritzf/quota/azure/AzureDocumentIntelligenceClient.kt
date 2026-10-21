@@ -153,7 +153,7 @@ internal class AzureDocumentIntelligenceClient(
         val markdown =
             (result["content"] as? JsonPrimitive)?.contentOrNull
                 ?: throw AzureOcrException("Document Intelligence returned no markdown.")
-        if (markdownOutput == null) return McpJson.providerJsonOrRaw(jsonText)
+        if (markdownOutput == null) return McpJson.providerJson(jsonText)
 
         val figures = (result["figures"] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }
         DocumentImageWriter(

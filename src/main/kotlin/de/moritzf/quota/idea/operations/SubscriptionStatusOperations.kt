@@ -87,13 +87,16 @@ internal fun SubscriptionOperations.quotaResult(
     usageService.refreshBlocking(account.id)
 
     val error = usageService.getLastError(account.id)
-    if (!error.isNullOrBlank()) {
+    if (
+        !error.isNullOrBlank() &&
+            usageService.providerForAccount(account.id)?.hasResponseForLastRefresh() != true
+    ) {
         return errorResult(error)
     }
 
     val payload = registration.jsonForAccount(usageService, type, account.id)
     if (payload.isNullOrBlank()) {
-        return errorResult(registration.emptyMessage)
+        return errorResult(error?.takeIf { it.isNotBlank() } ?: registration.emptyMessage)
     }
     return payload
 }

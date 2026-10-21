@@ -113,7 +113,7 @@ open class ZaiOcrClient(
         if (knownPages > 0)
             progress.update(knownPages, knownPages, "Converted $knownPages of $knownPages pages")
         if (markdownOutput == null) {
-            return McpJson.providerJsonOrRaw(response.body)
+            return McpJson.providerJson(response.body)
         }
         val written =
             writeMarkdown(

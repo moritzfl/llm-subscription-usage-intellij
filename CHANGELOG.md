@@ -3,12 +3,13 @@
 ## [Unreleased]
 
 - Add proxy settings links to every proxy-capable provider.
-- Redact credentials from MCP errors, including malformed authentication headers and echoed upstream error bodies.
+- Redact credentials from MCP errors and quota exports, including embedded JSON, malformed authentication headers, and echoed upstream error bodies; preserve complete provider responses, metadata, and quota fields the UI does not yet recognize.
+- Return fresh provider JSON through MCP even when UI quota parsing fails. Parse documented non-JSON formats into structured JSON; unparseable responses produce JSON errors while settings retain the original diagnostics.
 - Add named OpenAI-compatible API connections for Junie, AI Chat, and chat-adapted code completion, with independent endpoints and API keys in Password Safe.
 - Discover models automatically or enter manual IDs; validate URLs and test a model before Apply. Cancel discards connection edits.
 - Keep custom endpoint model namespaces separate and leave unknown capabilities and prices unclaimed; quota tracking is unavailable for generic APIs.
 - Add opt-in image and native-PDF models with tests against unsaved connection values, MCP tools, and proxy multimodal input.
-- Add LiteLLM gateways with model capability/pricing discovery, Responses support, and virtual-key budget tracking. Settings show full redacted quota diagnostics with refresh/copy actions; MCP exposes only validated quota fields.
+- Add LiteLLM gateways with model capability/pricing discovery, Responses support, and virtual-key budget tracking. Settings show full quota diagnostics with refresh/copy actions; MCP retains the complete provider response with actual credentials redacted.
 - Show a neutral indicator and connection details with local proxy status when only quota-less APIs are configured.
 - Run document and vision tests against the selected account and current unsaved models, keys, and connection settings.
 - Test AI Completion with unsaved settings through shared FIM/provider logic, without applying settings or starting a local proxy.

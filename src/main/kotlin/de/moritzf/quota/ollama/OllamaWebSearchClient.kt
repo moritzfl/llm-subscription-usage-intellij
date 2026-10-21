@@ -49,7 +49,7 @@ open class OllamaWebSearchClient(
                 body,
             )
         }
-        return McpJson.providerJsonOrRaw(body)
+        return McpJson.providerJson(body)
     }
 
     open fun webFetch(apiKey: String, url: String): String {
@@ -77,7 +77,7 @@ open class OllamaWebSearchClient(
                 body,
             )
         }
-        return McpJson.providerJsonOrRaw(body)
+        return McpJson.providerJson(body)
     }
 
     private fun searchRequest(apiKey: String, query: String, limit: Int): HttpRequest {

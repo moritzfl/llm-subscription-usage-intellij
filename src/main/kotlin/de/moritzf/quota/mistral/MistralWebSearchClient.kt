@@ -60,7 +60,7 @@ open class MistralWebSearchClient(
                 responseBody,
             )
         }
-        return McpJson.providerJsonOrRaw(responseBody)
+        return McpJson.providerJson(responseBody)
     }
 
     private fun send(request: HttpRequest): HttpResponse<String> {

@@ -28,19 +28,17 @@ class McpJsonTest {
     fun returnsProviderJsonWhenBodyIsJson() {
         val body = """{"provider":"ok","items":[1,2]}"""
 
-        assertEquals(body, McpJson.providerJsonOrRaw(body))
+        assertEquals(body, McpJson.providerJson(body))
     }
 
     @Test
-    fun wrapsProviderTextWhenBodyIsNotJson() {
+    fun reportsUnparseableProviderResponsesInsteadOfWrappingRawText() {
         val result =
-            JsonSupport.json.parseToJsonElement(
-                McpJson.providerJsonOrRaw("temporarily unavailable")
-            )
+            JsonSupport.json.parseToJsonElement(McpJson.providerJson("temporarily unavailable"))
 
         assertEquals(
-            "temporarily unavailable",
-            result.jsonObject["raw_response"]!!.jsonPrimitive.content,
+            "Provider response could not be parsed as JSON.",
+            result.jsonObject["error"]!!.jsonPrimitive.content,
         )
     }
 }

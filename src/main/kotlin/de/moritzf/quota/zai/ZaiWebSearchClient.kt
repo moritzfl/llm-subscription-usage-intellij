@@ -43,7 +43,7 @@ open class ZaiWebSearchClient(
                 body,
             )
         }
-        return McpJson.providerJsonOrRaw(body)
+        return McpJson.providerJson(body)
     }
 
     open fun webFetch(apiKey: String, url: String): String {
@@ -65,7 +65,7 @@ open class ZaiWebSearchClient(
                 body,
             )
         }
-        return McpJson.providerJsonOrRaw(body)
+        return McpJson.providerJson(body)
     }
 
     private fun searchRequest(

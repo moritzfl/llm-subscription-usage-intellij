@@ -30,6 +30,12 @@ interface QuotaProvider {
 
     fun getLastRawJson(): String? = null
 
+    /**
+     * Distinguishes a new response the UI could not parse from cached data after a failed fetch.
+     */
+    fun hasResponseForLastRefresh(): Boolean =
+        getLastError().isNullOrBlank() && getLastRawJson() != null
+
     fun currentUsageFraction(): Double? = null
 
     fun cachedUsageFraction(settings: QuotaSettingsState): Double? = null

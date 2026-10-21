@@ -52,7 +52,7 @@ open class MistralAudioClient(
 
                 else -> throw MistralQuotaException("Provide audioUrl or a local audio file path.")
             }
-        return parseOk(response, "Mistral speech-to-text failed") { McpJson.providerJsonOrRaw(it) }
+        return parseOk(response, "Mistral speech-to-text failed") { McpJson.providerJson(it) }
     }
 
     open fun synthesize(
@@ -139,7 +139,7 @@ open class MistralAudioClient(
                 .GET()
                 .build()
         val response = sendString(request)
-        return parseOk(response, "Mistral voice list failed") { McpJson.providerJsonOrRaw(it) }
+        return parseOk(response, "Mistral voice list failed") { McpJson.providerJson(it) }
     }
 
     private fun multipartTranscription(

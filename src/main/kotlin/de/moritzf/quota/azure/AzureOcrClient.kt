@@ -181,7 +181,7 @@ internal class AzureOcrClient(
             } else convertPart(source, 1, 1, 1)
             if (writer != null) return JsonSupport.json.encodeToString(writer.commit())
         }
-        if (responses.size == 1) return McpJson.providerJsonOrRaw(checkNotNull(singleResponse))
+        if (responses.size == 1) return McpJson.providerJson(checkNotNull(singleResponse))
         // Keep each upstream response intact when no output file was requested.
         return JsonSupport.json.encodeToString(
             AzureOcrChunkResults(responses.last().pageTo, responses)

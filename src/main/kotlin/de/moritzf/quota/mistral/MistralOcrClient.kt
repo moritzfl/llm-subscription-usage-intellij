@@ -66,7 +66,7 @@ open class MistralOcrClient(
             throw httpError("Mistral OCR failed", status, responseBody)
         }
         if (markdownOutput == null) {
-            return McpJson.providerJsonOrRaw(responseBody)
+            return McpJson.providerJson(responseBody)
         }
         val written =
             writeMarkdown(

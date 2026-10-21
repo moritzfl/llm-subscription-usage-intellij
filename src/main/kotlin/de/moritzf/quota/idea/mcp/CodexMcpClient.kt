@@ -271,7 +271,7 @@ class CodexMcpClient(
                 )
             if (response.statusCode() in 200..299) {
                 CodexMcpResponse(
-                    McpJson.providerJsonOrRaw(String(response.body(), Charsets.UTF_8)),
+                    McpJson.providerJson(String(response.body(), Charsets.UTF_8)),
                     false,
                 )
             } else {
