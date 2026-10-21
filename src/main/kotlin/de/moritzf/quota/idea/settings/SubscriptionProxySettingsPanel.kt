@@ -20,6 +20,7 @@ import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
+import com.intellij.util.ui.WrapLayout
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.proxy.fim.FimModels
@@ -34,6 +35,7 @@ import de.moritzf.quota.idea.openai.OpenAiProxyService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import java.awt.Desktop
 import java.awt.Dimension
+import java.awt.FlowLayout
 import java.awt.Font
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
@@ -68,6 +70,13 @@ internal class SubscriptionProxySettingsPanel(
         QuotaSettingsState.SUBSCRIPTION_PROXY_SUPPORTED_PROVIDERS.associateWithTo(linkedMapOf()) {
             provider ->
             JBCheckBox(provider.displayName)
+        }
+    // Flow as many provider checkboxes as the detail pane allows, then wrap. Fixed rows left a
+    // ragged block and wasted horizontal space.
+    private val providerBoxesPanel =
+        JPanel(WrapLayout(FlowLayout.LEFT, JBUI.scale(12), JBUI.scale(4))).apply {
+            isOpaque = false
+            providerCheckBoxes.values.forEach(::add)
         }
     private val initializedProviderSelections = mutableSetOf<QuotaProviderType>()
     private var configuredProviderTypes: Set<QuotaProviderType> = emptySet()
@@ -293,10 +302,8 @@ internal class SubscriptionProxySettingsPanel(
                         cell(logsStatusLabel)
                     }
                     separator()
-                    providerCheckBoxes.values.chunked(3).forEachIndexed { index, boxes ->
-                        row(if (index == 0) "Providers:" else "") {
-                            boxes.forEach { checkBox -> cell(checkBox).gap(RightGap.SMALL) }
-                        }
+                    row("Providers:") {
+                        cell(providerBoxesPanel).align(AlignX.FILL).resizableColumn()
                     }
                     row { cell(providerStatusLabel) }
                     row { cell(proxyStatusLabel) }

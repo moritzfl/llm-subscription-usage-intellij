@@ -163,6 +163,7 @@ internal class CompatibleSettingsPanel(
                         "Apply this connection, then enable its provider in proxy settings for chat and code completion. LiteLLM can also report key budgets."
                     )
                 }
+                row { cell(proxySettingsLinkHost()).align(AlignX.FILL).resizableColumn() }
                 responseRow =
                     row {
                             cell(createResponseSection(responseViewer))

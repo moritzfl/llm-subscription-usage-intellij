@@ -253,7 +253,15 @@ class CompatibleSettingsPanelTest {
                 component.components.filterIsInstance<java.awt.Container>().forEach(::layout)
             }
             repeat(2) { layout(panel) }
-            val scroll = panel.components.filterIsInstance<javax.swing.JScrollPane>().single()
+            // The outer vertical viewport contains the manual model IDs, unlike the horizontal
+            // form scroll and the model IDs text area's own scroll.
+            val scroll =
+                descendants(panel).filterIsInstance<javax.swing.JScrollPane>().single {
+                    val view = it.viewport.view
+                    view is javax.swing.Scrollable &&
+                        view !== panel.modelIdsField &&
+                        SwingUtilities.isDescendingFrom(panel.modelIdsField, view)
+                }
             val content = scroll.viewport.view as javax.swing.JComponent
             fun reveal(control: javax.swing.JComponent) {
                 content.scrollRectToVisible(
@@ -428,9 +436,37 @@ class CompatibleSettingsPanelTest {
         }
     }
 
+    @Test
+    fun proxySettingsLinkMatchesStandardProvidersInsideScrollableContent() = onEdt {
+        val panel = CompatibleSettingsPanel({ null }, { _, _ -> }, Executor { it.run() }, { it() })
+        try {
+            panel.showProxySettingsLink {}
+
+            val link =
+                descendants(panel)
+                    .filterIsInstance<com.intellij.ui.components.ActionLink>()
+                    .single()
+            assertEquals("Open proxy settings", link.text)
+            // Match the standard layout: the link sits in the scrolling content, directly above
+            // the quota section, not pinned above the viewport.
+            assertTrue(
+                generateSequence(link.parent) { it.parent }
+                    .any { it is com.intellij.ui.components.JBScrollPane },
+                "Proxy link must render inside the scrollable provider content",
+            )
+        } finally {
+            panel.dispose()
+        }
+    }
+
     private fun account(id: String) =
         ProviderAccount(id, QuotaProviderType.OPENAI_COMPATIBLE.id, id).apply {
             setExtra(ProviderAccount.EXTRA_COMPATIBLE_BASE_URL, "https://example.com/v1")
+        }
+
+    private fun descendants(root: java.awt.Container): Sequence<java.awt.Component> =
+        root.components.asSequence().flatMap {
+            sequenceOf(it) + if (it is java.awt.Container) descendants(it) else emptySequence()
         }
 
     private fun onEdt(block: () -> Unit) {

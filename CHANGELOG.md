@@ -2,21 +2,16 @@
 
 ## [Unreleased]
 
-- Add proxy settings links to every proxy-capable provider.
-- Redact credentials from MCP errors and quota exports, including embedded JSON, malformed authentication headers, and echoed upstream error bodies; preserve complete provider responses, metadata, and quota fields the UI does not yet recognize.
-- Return fresh provider JSON through MCP even when UI quota parsing fails. Parse documented non-JSON formats into structured JSON; unparseable responses produce JSON errors while settings retain the original diagnostics.
-- Add named OpenAI-compatible API connections for Junie, AI Chat, and chat-adapted code completion, with independent endpoints and API keys in Password Safe.
-- Discover models automatically or enter manual IDs; validate URLs and test a model before Apply. Cancel discards connection edits.
-- Keep custom endpoint model namespaces separate and leave unknown capabilities and prices unclaimed; quota tracking is unavailable for generic APIs.
-- Add opt-in image and native-PDF models with tests against unsaved connection values, MCP tools, and proxy multimodal input.
-- Add LiteLLM gateways with model capability/pricing discovery, Responses support, and virtual-key budget tracking. Settings show full quota diagnostics with refresh/copy actions; MCP retains the complete provider response with actual credentials redacted.
-- Show a neutral indicator and connection details with local proxy status when only quota-less APIs are configured.
-- Run document and vision tests against the selected account and current unsaved models, keys, and connection settings.
-- Test AI Completion with unsaved settings through shared FIM/provider logic, without applying settings or starting a local proxy.
-- Standardize vision/document model help, settings and dialog titles, and model-test messages across providers through the IntelliJ message bundle.
-- Modernize coroutine timeout and delay calls, remove unused helpers and byte-payload value semantics, and simplify redundant Kotlin constructs.
-- Keep credential saves, clears, and logouts tied to the clicked account, and preserve unsaved fields and model choices when credentials finish loading or accounts change.
-- Close abandoned FIM response bodies on cancellation and move blocking response reads and cleanup off request threads.
+## [1.22.0] - 2026-10-21
+
+- Add named OpenAI-compatible API connections for Junie, AI Chat, and chat-adapted code completion, with independent endpoints and API keys in Password Safe. Models are discovered automatically or entered manually, and URLs and models can be tested before Apply; Cancel discards edits.
+- Add LiteLLM gateways with model capability and pricing discovery, Responses support, and virtual-key budget tracking. Check key budgets before Apply and inspect full quota diagnostics with refresh and copy actions.
+- Use opt-in image and native-PDF models on these connections, with vision, document, and AI completion tests against the current unsaved settings.
+- Show a neutral indicator with connection details and local proxy status when only quota-less APIs are configured.
+- Link proxy settings from every proxy-capable provider; provider checkboxes fill the available width and wrap when needed.
+- Return complete provider quota responses through MCP, including unknown fields and new quota pools the UI does not display, even when the UI cannot parse the response shape. Redact credentials from MCP errors and quota exports.
+- Keep unsaved fields and model choices while credentials load or accounts change, and keep credential saves, clears, and logouts tied to the clicked account.
+- Close canceled AI completion requests immediately.
 
 ## [1.21.1] - 2026-10-14
 
@@ -714,7 +709,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.21.1...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.22.0...HEAD
+[1.22.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.21.1...1.22.0
 [1.21.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.21.0...1.21.1
 [1.21.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.20.1...1.21.0
 [1.20.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.20.0...1.20.1

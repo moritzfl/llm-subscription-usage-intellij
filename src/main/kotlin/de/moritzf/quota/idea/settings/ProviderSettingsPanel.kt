@@ -54,6 +54,7 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
             isOpaque = false
             isVisible = false
         }
+    private val proxyLinkHost = BorderLayoutPanel().apply { isOpaque = false }
 
     protected fun accountKey(type: de.moritzf.quota.idea.common.QuotaProviderType): String =
         boundAccountId.ifBlank {
@@ -72,8 +73,20 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
         routingHost.repaint()
     }
 
+    /**
+     * Host for the proxy link. It must sit directly above the quota response, because the response
+     * grows and a bottom-pinned action loses visibility.
+     */
+    protected fun proxySettingsLinkHost(): JComponent = proxyLinkHost
+
     fun showProxySettingsLink(openProxySettings: () -> Unit) {
-        addToBottom(panel { row { link(message("settings.proxy.open")) { openProxySettings() } } })
+        proxyLinkHost.removeAll()
+        proxyLinkHost.addToCenter(
+            panel { row { link(message("settings.proxy.open")) { openProxySettings() } } }
+                .apply { border = JBUI.Borders.emptyTop(6) }
+        )
+        proxyLinkHost.revalidate()
+        proxyLinkHost.repaint()
     }
 
     open fun testConnection(): ProviderTestConnection =
@@ -175,13 +188,23 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
         addToCenter(
             BorderLayoutPanel().apply {
                 isOpaque = false
-                addToTop(routingHost)
+                addToTop(
+                    BorderLayoutPanel().apply {
+                        isOpaque = false
+                        addToTop(routingHost)
+                        addToCenter(proxyLinkHost)
+                    }
+                )
                 addToCenter(response)
             }
         )
     }
 
-    /** Long connection forms wrap to the detail pane and scroll vertically as one surface. */
+    /**
+     * Long connection forms wrap to the detail pane and scroll vertically as one surface. Panels
+     * using this layout place [proxySettingsLinkHost] directly above their quota response, matching
+     * the standard layout.
+     */
     protected fun installScrollable(config: JComponent, response: JComponent) {
         // DSL section separators can retain their previous width as a minimum after layout.
         config.minimumSize = Dimension(0, 0)
