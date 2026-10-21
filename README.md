@@ -136,7 +136,7 @@ Use your subscriptions or API-key connections in clients that support OpenAI-com
 2. Use **Copy Base URL** and **Copy API Key** to configure your client. Use the URL **without `/v1`**.
 3. For Junie, add a LiteLLM provider with those details; models are discovered automatically.
 
-The proxy serves `/v1/chat/completions`, `/v1/responses` where supported, `/v1/completions` for FIM, `/v1/models`, and LiteLLM-style `/v1/model/info`. Image generation, speech, and transcription routes use the same base URL and provider-prefixed model IDs.
+The proxy serves `/v1/chat/completions`, `/v1/responses` where supported, `/v1/completions` for FIM, `/v1/models`, and LiteLLM-style `/v1/model/info`. Image generation, speech, and transcription routes use the same base URL and provider-prefixed model IDs. OpenCode Gemini models are bridged through Google `generateContent`, including streaming, tool calls, and inline image/PDF parts.
 
 ### Connect another API
 

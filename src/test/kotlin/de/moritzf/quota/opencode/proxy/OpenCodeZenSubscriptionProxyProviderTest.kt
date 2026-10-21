@@ -546,11 +546,128 @@ class OpenCodeZenSubscriptionProxyProviderTest {
         }
     }
 
+    @Test
+    fun geminiConsoleModelProxiesGenerateContentAndStreams() {
+        Upstream(includeGoogle = true).use { upstream ->
+            val provider =
+                OpenCodeZenSubscriptionProxyProvider(
+                    consoleSessionProvider = {
+                        OpenCodeConsoleSession("account", "oauth", "org_a") { null }
+                    },
+                    consoleEndpoint = upstream.endpoint,
+                )
+            withProxy(provider) { port ->
+                val ids =
+                    JsonHelper.JSON.parseToJsonElement(get(port, "/v1/models").body())
+                        .jsonObject["data"]!!
+                        .jsonArray
+                        .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                assertTrue("oc-zen-gemini" in ids, ids.toString())
+
+                val chat =
+                    post(
+                        port,
+                        "/v1/chat/completions",
+                        """{"model":"oc-zen-gemini","messages":[{"role":"system","content":"You are Junie"},{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"submit","description":"Submit","parameters":{"type":"object","properties":{}}}}],"tool_choice":"auto","max_tokens":64,"reasoning_effort":"low"}""",
+                    )
+                assertEquals(200, chat.statusCode(), chat.body())
+                val chatBody = JsonHelper.JSON.parseToJsonElement(chat.body()).jsonObject
+                assertEquals("chat.completion", chatBody["object"]!!.jsonPrimitive.content)
+                assertEquals(
+                    "hello",
+                    chatBody["choices"]!!
+                        .jsonArray
+                        .first()
+                        .jsonObject["message"]!!
+                        .jsonObject["content"]!!
+                        .jsonPrimitive
+                        .content,
+                )
+                val generate = upstream.requests.last { it.path.contains(":generateContent") }
+                assertEquals(
+                    "/inference/google/v1beta/models/gemini-3.8-flash:generateContent",
+                    generate.path,
+                )
+                assertEquals("Bearer oauth", generate.authorization)
+                assertEquals("org_a", generate.inferenceOrganization)
+                val upstreamBody = JsonHelper.JSON.parseToJsonElement(generate.body).jsonObject
+                assertEquals(
+                    "You are Junie",
+                    upstreamBody["systemInstruction"]!!
+                        .jsonObject["parts"]!!
+                        .jsonArray
+                        .first()
+                        .jsonObject["text"]!!
+                        .jsonPrimitive
+                        .content,
+                )
+                assertEquals(
+                    "hi",
+                    upstreamBody["contents"]!!
+                        .jsonArray
+                        .first()
+                        .jsonObject["parts"]!!
+                        .jsonArray
+                        .first()
+                        .jsonObject["text"]!!
+                        .jsonPrimitive
+                        .content,
+                )
+                assertEquals(
+                    "submit",
+                    upstreamBody["tools"]!!
+                        .jsonArray
+                        .first()
+                        .jsonObject["functionDeclarations"]!!
+                        .jsonArray
+                        .first()
+                        .jsonObject["name"]!!
+                        .jsonPrimitive
+                        .content,
+                )
+                assertEquals(
+                    "64",
+                    upstreamBody["generationConfig"]!!
+                        .jsonObject["maxOutputTokens"]!!
+                        .jsonPrimitive
+                        .content,
+                )
+                assertEquals(
+                    "low",
+                    upstreamBody["generationConfig"]!!
+                        .jsonObject["thinkingConfig"]!!
+                        .jsonObject["thinkingLevel"]!!
+                        .jsonPrimitive
+                        .content,
+                )
+
+                val streamed =
+                    post(
+                        port,
+                        "/v1/chat/completions",
+                        """{"model":"oc-zen-gemini","stream":true,"messages":[{"role":"user","content":"hi"}]}""",
+                    )
+                assertEquals(200, streamed.statusCode(), streamed.body())
+                assertTrue(streamed.body().contains("chat.completion.chunk"), streamed.body())
+                assertTrue(streamed.body().contains("hel"), streamed.body())
+                assertTrue(streamed.body().contains("lo"), streamed.body())
+                assertTrue(streamed.body().endsWith("data: [DONE]\n\n"), streamed.body())
+                val streamCall =
+                    upstream.requests.last { it.path.contains(":streamGenerateContent") }
+                assertEquals(
+                    "/inference/google/v1beta/models/gemini-3.8-flash:streamGenerateContent",
+                    streamCall.path,
+                )
+            }
+        }
+    }
+
     private class Upstream(
         private var rejectInference: Boolean = false,
         private var rejectConfig: Boolean = false,
         private val useZenBase: Boolean = false,
         private val includeGoProvider: Boolean = false,
+        private val includeGoogle: Boolean = false,
     ) : AutoCloseable {
         data class Request(
             val path: String,
@@ -589,10 +706,18 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                     else rejectInference.also { rejectInference = false }
                 val responses = path.endsWith("/responses")
                 val messagesStream = path.endsWith("/messages") && body.contains("\"stream\":true")
+                val googleStream = path.contains(":streamGenerateContent")
+                val googleSync = path.contains(":generateContent") && !googleStream
                 val result =
                     when {
                         reject -> """{"error":"unauthorized"}"""
                         config -> config(headers.getFirst("x-org-id"))
+                        googleStream ->
+                            "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"hel\"}]}}]}\n\n" +
+                                "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"lo\"}]}}]}\n\n" +
+                                "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[]},\"finishReason\":\"STOP\"}],\"usageMetadata\":{\"promptTokenCount\":3,\"candidatesTokenCount\":2,\"totalTokenCount\":5}}\n\n"
+                        googleSync ->
+                            """{"candidates":[{"content":{"role":"model","parts":[{"text":"hello"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":3,"candidatesTokenCount":2,"totalTokenCount":5}}"""
                         responses ->
                             "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\n" +
                                 "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"hello\"}]}],\"usage\":{\"input_tokens\":1,\"output_tokens\":2,\"total_tokens\":3}}}\n\ndata: [DONE]\n\n"
@@ -609,7 +734,8 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                     }
                 exchange.responseHeaders.set(
                     "Content-Type",
-                    if ((responses || messagesStream) && !reject) "text/event-stream"
+                    if (((responses || messagesStream || googleStream) && !reject))
+                        "text/event-stream"
                     else "application/json",
                 )
                 val bytes = result.toByteArray()
@@ -620,6 +746,15 @@ class OpenCodeZenSubscriptionProxyProviderTest {
         }
 
         private fun config(org: String?): String {
+            val google =
+                if (!includeGoogle) ""
+                else
+                    ""","gemini":{
+                "modelID":"gemini-3.8-flash",
+                "package":"@opencode/ai/providers/google",
+                "settings":{"baseURL":"http://127.0.0.1:${server.address.port}/inference/google/v1beta"},
+                "capabilities":{"tools":true,"input":["text","image","pdf"],"output":["text"]},
+                "limit":{"context":1048576,"output":65536}}"""
             val go =
                 if (!includeGoProvider) ""
                 else
@@ -637,7 +772,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                 "chat":{"modelID":"chat-native","capabilities":{"tools":true,"input":["text"],"output":["text"]}},
                 "gpt":{"package":"aisdk:@ai-sdk/openai","limit":{"context":100000,"output":10000}},
                 "claude":{"package":"aisdk:@ai-sdk/anthropic","settings":{"baseURL":"http://127.0.0.1:${server.address.port}/inference/anthropic/v1"}},
-                "disabled":{"disabled":true}
+                "disabled":{"disabled":true}$google
             }}$go}}"""
         }
 

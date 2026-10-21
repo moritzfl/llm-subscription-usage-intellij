@@ -19,6 +19,7 @@ import java.net.http.HttpResponse
 import java.time.Duration
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 
 /** A request-scoped login. Refresh stays pinned to its account and organization. */
 class OpenCodeConsoleSession(
@@ -46,6 +47,7 @@ internal class OpenCodeConsoleProxy(
 
     private var catalog: Catalog? = null
     private val anthropicBridge = GitHubCopilotClaudeChatBridge(bridgeModel = { true })
+    private val googleBridge = GoogleGeminiChatBridge()
 
     @Synchronized
     fun models(session: OpenCodeConsoleSession): List<OpenCodeConsoleModel> {
@@ -125,6 +127,48 @@ internal class OpenCodeConsoleProxy(
                 ctx.header(OpenCodeRequestHeaders.SESSION),
                 request.body,
             )
+        if (request.route == SubscriptionProxyRoute.CHAT_COMPLETIONS && configured.google) {
+            val stream = isStream(request)
+            val delegate =
+                PassThroughSubscriptionProxyProvider(
+                    id = OpenCodeZenSubscriptionProxyProvider.ID,
+                    displayName = "OpenCode Zen",
+                    litellmProvider = "opencode",
+                    baseUri = configured.baseUri,
+                    accessTokenProvider = { session.accessToken },
+                    tokenRefresher = { stale -> stale?.let(session::refresh) },
+                    modelMappingsProvider = { emptyList() },
+                    defaultHeaders = configured.headers,
+                    requestHeadersProvider = {
+                        clientHeaders +
+                            mapOf(
+                                "Accept" to if (stream) "text/event-stream" else "application/json"
+                            )
+                    },
+                    upstreamUrlProvider = { req ->
+                        googleBridge
+                            .generateContentUri(
+                                configured.baseUri,
+                                configured.model.upstreamId,
+                                isStream(req),
+                            )
+                            .toString()
+                    },
+                    requestBodyTransformer = { req, body ->
+                        googleBridge.openAiChatToGoogleBody(req, body, configured.body)
+                    },
+                    jsonResponseTransformer = { req, body ->
+                        googleBridge.googleResponseToOpenAiChat(req, body)
+                    },
+                    sseLineTransformer = googleBridge::openAiChatSseLine,
+                    sseStreamEnd = googleBridge::openAiChatSseEnd,
+                    sseStreamComplete = { googleBridge.clearStreamState(it.requestId) },
+                    httpClient = httpClient,
+                    requestLogger = requestLogger,
+                )
+            delegate.handle(ctx, scoped)
+            return
+        }
         if (
             request.route == SubscriptionProxyRoute.CHAT_COMPLETIONS &&
                 configured.nativeRoute == SubscriptionProxyRoute.RESPONSES
@@ -222,4 +266,7 @@ internal class OpenCodeConsoleProxy(
             )
         delegate.handle(ctx, scoped)
     }
+
+    private fun isStream(request: SubscriptionProxyRequest): Boolean =
+        (request.body["stream"] as? JsonPrimitive)?.booleanOrNull == true
 }

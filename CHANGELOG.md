@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Proxy Gemini models from OpenCode Go and Zen by bridging the Google generateContent API, including streaming, tool calls with thought signatures, vision/PDF parts, and Junie-compatible chat requests.
+
 ## [1.22.0] - 2026-10-21
 
 - Add named OpenAI-compatible API connections for Junie, AI Chat, and chat-adapted code completion, with independent endpoints and API keys in Password Safe. Models are discovered automatically or entered manually, and URLs and models can be tested before Apply; Cancel discards edits.

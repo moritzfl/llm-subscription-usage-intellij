@@ -72,6 +72,7 @@ internal data class OpenCodeConsoleModel(
     val body: JsonObject,
     val supportsPdf: Boolean = false,
     val pdfCapabilityKnown: Boolean = false,
+    val google: Boolean = false,
 ) {
     val targetUri: URI
         get() = URI.create(baseUri.toString().trimEnd('/') + nativeRoute.normalizedPath)
@@ -79,17 +80,31 @@ internal data class OpenCodeConsoleModel(
     companion object {
         fun documentModelIds(models: List<OpenCodeConsoleModel>): List<String> =
             de.moritzf.quota.shared.DocumentModelChoices.pdfOrAll(
-                models.map { it.model.upstreamId },
-                models.filter { it.supportsPdf }.map { it.model.upstreamId }.toSet(),
-                models.filter { it.pdfCapabilityKnown }.map { it.model.upstreamId }.toSet(),
+                // Native document/vision paths post OpenAI/Anthropic payloads directly; Gemini is
+                // proxy-only.
+                models.filterNot { it.google }.map { it.model.upstreamId },
+                models.filter { !it.google && it.supportsPdf }.map { it.model.upstreamId }.toSet(),
+                models
+                    .filter { !it.google && it.pdfCapabilityKnown }
+                    .map { it.model.upstreamId }
+                    .toSet(),
             )
 
         /** Only models the console lists with image input; unknown stays out, vision is opt-in. */
         fun visionModelIds(models: List<OpenCodeConsoleModel>): List<String> =
-            models.filter { it.model.supportsVision == true }.map { it.model.upstreamId }
+            models
+                .filterNot { it.google }
+                .filter { it.model.supportsVision == true }
+                .map { it.model.upstreamId }
 
         const val GO_MODELS_URL = "https://opencode.ai/zen/go/v1/models"
         const val ZEN_MODELS_URL = "https://opencode.ai/zen/v1/models"
+
+        private val GOOGLE_PACKAGES =
+            setOf(
+                "aisdk:@ai-sdk/google",
+                "@opencode/ai/providers/google",
+            )
 
         fun parse(
             body: String,
@@ -194,18 +209,21 @@ internal data class OpenCodeConsoleModel(
             model: ConsoleModel,
         ): OpenCodeConsoleModel? {
             if (model.disabled) return null
+            val packageName = model.packageName ?: provider.packageName
+            val google = packageName in GOOGLE_PACKAGES
             val nativeRoute =
-                when (model.packageName ?: provider.packageName) {
-                    "aisdk:@ai-sdk/openai-compatible",
-                    "@opencode/ai/providers/openai-compatible" ->
+                when {
+                    google -> SubscriptionProxyRoute.CHAT_COMPLETIONS
+                    packageName == "aisdk:@ai-sdk/openai-compatible" ||
+                        packageName == "@opencode/ai/providers/openai-compatible" ->
                         SubscriptionProxyRoute.CHAT_COMPLETIONS
-                    "aisdk:@ai-sdk/openai",
-                    "@opencode/ai/providers/openai",
-                    "@opencode/ai/providers/openai-compatible-responses" ->
+                    packageName == "aisdk:@ai-sdk/openai" ||
+                        packageName == "@opencode/ai/providers/openai" ||
+                        packageName == "@opencode/ai/providers/openai-compatible-responses" ->
                         SubscriptionProxyRoute.RESPONSES
-                    "aisdk:@ai-sdk/anthropic",
-                    "@opencode/ai/providers/anthropic",
-                    "@opencode/ai/providers/anthropic-compatible" ->
+                    packageName == "aisdk:@ai-sdk/anthropic" ||
+                        packageName == "@opencode/ai/providers/anthropic" ||
+                        packageName == "@opencode/ai/providers/anthropic-compatible" ->
                         SubscriptionProxyRoute.ANTHROPIC_MESSAGES
                     else -> return null
                 }
@@ -221,7 +239,7 @@ internal data class OpenCodeConsoleModel(
                 "Invalid OpenCode inference URL"
             }
             val pool = poolFor(providerId, uri) ?: return null
-            return entry(id, model.modelID ?: id, model, provider, nativeRoute, uri, pool)
+            return entry(id, model.modelID ?: id, model, provider, nativeRoute, uri, pool, google)
         }
 
         private fun entry(
@@ -232,6 +250,7 @@ internal data class OpenCodeConsoleModel(
             nativeRoute: SubscriptionProxyRoute,
             uri: URI,
             pool: OpenCodePool,
+            google: Boolean,
         ): OpenCodeConsoleModel {
             return OpenCodeConsoleModel(
                 model =
@@ -242,7 +261,10 @@ internal data class OpenCodeConsoleModel(
                         providerName = poolLabel(pool),
                         litellmProvider = "opencode",
                         supportedRoutes =
-                            setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, nativeRoute),
+                            buildSet {
+                                add(SubscriptionProxyRoute.CHAT_COMPLETIONS)
+                                if (!google) add(nativeRoute)
+                            },
                         supportsFunctionCalling = model.capabilities?.tools ?: true,
                         supportsToolChoice = model.capabilities?.tools ?: true,
                         supportsVision = model.capabilities?.input?.contains("image") == true,
@@ -255,6 +277,7 @@ internal data class OpenCodeConsoleModel(
                 body = JsonObject(provider.body + model.body),
                 supportsPdf = model.capabilities?.input?.contains("pdf") == true,
                 pdfCapabilityKnown = model.capabilities?.input?.isNotEmpty() == true,
+                google = google,
             )
         }
 
