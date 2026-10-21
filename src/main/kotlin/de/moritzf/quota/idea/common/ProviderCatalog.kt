@@ -848,6 +848,13 @@ internal object ProviderCatalog {
                     independentProxyAccounts = true,
                 ),
             quotaFactory = if (liteLlm) { account -> LiteLlmQuotaProvider(account.id) } else null,
+            mcpQuota =
+                if (liteLlm)
+                    UsageQuotaMcpRegistration(
+                        "No key budget response available",
+                        export = de.moritzf.quota.litellm.LiteLlmQuota::safeQuotaJson,
+                    )
+                else null,
             snapshotCodec =
                 if (liteLlm) EnvelopeQuotaCodec(de.moritzf.quota.litellm.LiteLlmQuota.serializer())
                 else null,

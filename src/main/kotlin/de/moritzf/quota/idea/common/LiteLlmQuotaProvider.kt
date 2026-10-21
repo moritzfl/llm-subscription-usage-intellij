@@ -5,6 +5,7 @@ import de.moritzf.quota.idea.compatible.compatibleEndpoint
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.litellm.LiteLlmClient
 import de.moritzf.quota.litellm.LiteLlmQuota
+import de.moritzf.quota.litellm.LiteLlmResponseException
 
 internal class LiteLlmQuotaProvider(override val accountId: String) :
     CachedQuotaProvider<LiteLlmQuota>() {
@@ -26,7 +27,15 @@ internal class LiteLlmQuotaProvider(override val accountId: String) :
                     endpoint == compatibleEndpoint(settings.account(accountId)) &&
                         key == CompatibleApiKeyStore.forAccount(accountId).load()
                 ) {
-                    storeQuota(quota, quota.rawJson)
+                    if (quota.hasUsageState()) {
+                        storeQuota(quota, quota.rawJson)
+                    } else {
+                        storeError(
+                            QuotaBundle.message("quota.litellm.unavailable"),
+                            rawJson = quota.rawJson,
+                            transient = true,
+                        )
+                    }
                 }
             }
         } catch (failure: Exception) {
@@ -38,6 +47,7 @@ internal class LiteLlmQuotaProvider(override val accountId: String) :
                 ) {
                     storeError(
                         "Key budget unavailable. Check LiteLLM /key/info permissions. Chat can still be used.",
+                        rawJson = (failure as? LiteLlmResponseException)?.rawResponse,
                         transient = true,
                     )
                 }

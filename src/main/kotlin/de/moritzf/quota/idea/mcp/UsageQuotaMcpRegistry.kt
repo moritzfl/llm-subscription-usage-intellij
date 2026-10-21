@@ -6,10 +6,17 @@ import de.moritzf.quota.idea.common.QuotaUsageService
 
 internal data class UsageQuotaMcpRegistration(
     val emptyMessage: String,
-    val json: (QuotaUsageService, QuotaProviderType) -> String? = { service, type ->
+    private val json: (QuotaUsageService, QuotaProviderType) -> String? = { service, type ->
         service.getLastResponseJson(type)
     },
-)
+    private val export: (String) -> String = { it },
+) {
+    fun jsonForAccount(
+        service: QuotaUsageService,
+        type: QuotaProviderType,
+        accountId: String,
+    ): String? = (service.getLastResponseJson(accountId) ?: json(service, type))?.let(export)
+}
 
 /** Facade over [ProviderCatalog] for MCP quota JSON export. */
 internal object UsageQuotaMcpRegistry {

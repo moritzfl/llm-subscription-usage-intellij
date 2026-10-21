@@ -18,7 +18,9 @@ class LiteLlmClient(
     fun enrichModels(apiKey: String, models: List<StaticModel>): List<StaticModel> {
         val entries =
             try {
-                (get(endpoint.uri("model/info"), apiKey)["data"] as? JsonArray).orEmpty()
+                ((get(endpoint.uri("model/info"), apiKey) as? JsonObject)?.get("data")
+                        as? JsonArray)
+                    .orEmpty()
             } catch (cancelled: InterruptedException) {
                 Thread.currentThread().interrupt()
                 throw cancelled
@@ -59,9 +61,9 @@ class LiteLlmClient(
     }
 
     fun quota(apiKey: String): LiteLlmQuota =
-        LiteLlmQuota.parse(get(endpoint.managementUri("key/info"), apiKey))
+        LiteLlmQuota.parse(get(endpoint.managementUri("key/info"), apiKey), apiKey)
 
-    private fun get(uri: URI, key: String): JsonObject {
+    private fun get(uri: URI, key: String): JsonElement {
         require(key.isNotBlank()) { "Enter a LiteLLM virtual key." }
         val response =
             httpClient.send(
@@ -73,13 +75,24 @@ class LiteLlmClient(
                     .build(),
                 HttpResponse.BodyHandlers.ofString(),
             )
-        check(response.statusCode() in 200..299) {
-            "LiteLLM ${uri.path.substringAfterLast('/')} unavailable (HTTP ${response.statusCode()}). Check key permissions and the gateway URL."
+        val json = runCatching { JsonSupport.json.parseToJsonElement(response.body()) }.getOrNull()
+        val raw =
+            LiteLlmQuota.responseJson(
+                json ?: buildJsonObject { put("raw_response", response.body()) },
+                key,
+            )
+        if (response.statusCode() !in 200..299) {
+            throw LiteLlmResponseException(
+                "LiteLLM ${uri.path.substringAfterLast('/')} unavailable (HTTP ${response.statusCode()}). Check key permissions and the gateway URL.",
+                raw,
+            )
         }
-        return JsonSupport.json.parseToJsonElement(response.body()) as? JsonObject
-            ?: error("LiteLLM returned an invalid response.")
+        return json ?: throw LiteLlmResponseException("LiteLLM returned an invalid response.", raw)
     }
 }
+
+internal class LiteLlmResponseException(message: String, val rawResponse: String) :
+    IllegalStateException(message)
 
 internal fun JsonObject.text(key: String) = (get(key) as? JsonPrimitive)?.contentOrNull
 

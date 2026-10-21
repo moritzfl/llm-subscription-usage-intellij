@@ -16,9 +16,11 @@ import de.moritzf.quota.compatible.CompatibleEndpoint
 import de.moritzf.quota.compatible.proxy.CompatibleSubscriptionProxyProvider
 import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.compatible.CompatibleApiKeyStore
 import de.moritzf.quota.idea.compatible.isCompatibleConnection
 import de.moritzf.quota.idea.ui.QuotaUiUtil
+import de.moritzf.quota.litellm.LiteLlmResponseException
 import de.moritzf.quota.shared.DocumentModels
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JButton
@@ -71,6 +73,7 @@ internal class CompatibleSettingsPanel(
             prepare = ::prepareDocumentTest,
         )
     private val budgetStatus = JBLabel().apply { minimumSize = java.awt.Dimension(0, 16) }
+    private val responseViewer = createResponseViewer()
     private val budgetButton =
         JButton("Check key budget").apply { addActionListener { checkBudget() } }
     private val cancelButton =
@@ -97,6 +100,7 @@ internal class CompatibleSettingsPanel(
     private var manualGroup: com.intellij.ui.dsl.builder.CollapsibleRow? = null
     private var budgetRow: com.intellij.ui.dsl.builder.Row? = null
     private var budgetStatusRow: com.intellij.ui.dsl.builder.Row? = null
+    private var responseRow: com.intellij.ui.dsl.builder.Row? = null
 
     init {
         // Let model fields shrink in narrow panes while keeping their test buttons alongside them.
@@ -159,6 +163,13 @@ internal class CompatibleSettingsPanel(
                         "Apply this connection, then enable its provider in proxy settings for chat and code completion. LiteLLM can also report key budgets."
                     )
                 }
+                responseRow =
+                    row {
+                            cell(createResponseSection(responseViewer))
+                                .align(AlignX.FILL)
+                                .resizableColumn()
+                        }
+                        .visible(false)
             },
         )
         val listener =
@@ -173,6 +184,7 @@ internal class CompatibleSettingsPanel(
                     discovered = emptyList()
                     declaredVision = emptyList()
                     budgetStatus.text = ""
+                    if (e.document !== modelIdsField.document) showBudgetResponse(null, null)
                     updateModelChoices()
                     updateStatus()
                     val error = endpointError()
@@ -226,7 +238,9 @@ internal class CompatibleSettingsPanel(
         budgetStatus.isVisible = budgetButton.isVisible
         budgetRow?.visible(budgetButton.isVisible)
         budgetStatusRow?.visible(budgetButton.isVisible)
+        responseRow?.visible(budgetButton.isVisible)
         budgetStatus.text = ""
+        showBudgetResponse(null, null)
         val cached = keys[account.id]
         apiKeyField.isEnabled = cached != null
         apiKeyField.text = cached?.value.orEmpty()
@@ -247,6 +261,7 @@ internal class CompatibleSettingsPanel(
                         apiKeyField.isEnabled = true
                         updating = false
                         updateStatus()
+                        updateResponseArea()
                         refreshTimer.restart()
                     }
                 } catch (failure: Exception) {
@@ -278,7 +293,36 @@ internal class CompatibleSettingsPanel(
         updateButtons()
     }
 
-    override fun updateResponseArea() = Unit
+    override fun updateResponseArea() {
+        val account =
+            boundAccount?.takeIf { it.providerType() == QuotaProviderType.LITELLM } ?: return
+        // Background quota belongs to the applied connection, not an unsaved URL or key.
+        val key = keys[account.id] ?: return
+        if (key.value != key.saved) return
+        val saved = QuotaSettingsState.getInstance().account(account.id) ?: return
+        if (
+            saved.extra(ProviderAccount.EXTRA_COMPATIBLE_BASE_URL) !=
+                baseUrlField.text.trim().trimEnd('/')
+        )
+            return
+        val service = QuotaUsageService.getInstance()
+        showBudgetResponse(
+            service.getLastResponseJson(account.id),
+            service.getLastError(account.id),
+        )
+    }
+
+    private fun showBudgetResponse(raw: String?, error: String?) {
+        responseViewer.text =
+            when {
+                error != null && !raw.isNullOrBlank() ->
+                    "${message("settings.quota.response.error", error)}\n\n$raw"
+                error != null -> message("settings.quota.response.error", error)
+                raw.isNullOrBlank() -> message("settings.litellm.response.empty")
+                else -> raw
+            }
+        responseViewer.caretPosition = 0
+    }
 
     fun writeTo(account: ProviderAccount) {
         if (account.id != shownAccountId) return
@@ -405,12 +449,21 @@ internal class CompatibleSettingsPanel(
                 requestTask.onEdt(gen) {
                     busy = false
                     budgetStatus.text = "<html>${QuotaUiUtil.escapeHtml(quota.budgetText())}</html>"
-                    setStatus("Key budget loaded. Team/user limits may also apply.")
+                    showBudgetResponse(quota.rawJson, null)
+                    setStatus(
+                        if (quota.hasUsageState())
+                            "Key budget loaded. Team/user limits may also apply."
+                        else message("quota.litellm.unavailable")
+                    )
                 }
             } catch (failure: Exception) {
                 if (TestDialogTask.isCancellation(failure)) return@start
                 requestTask.onEdt(gen) {
                     busy = false
+                    showBudgetResponse(
+                        (failure as? LiteLlmResponseException)?.rawResponse,
+                        failureMessage(failure),
+                    )
                     setStatus(failureMessage(failure), true)
                 }
             }

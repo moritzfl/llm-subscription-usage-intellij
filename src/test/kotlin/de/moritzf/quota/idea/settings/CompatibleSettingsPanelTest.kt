@@ -10,6 +10,144 @@ import kotlin.test.assertTrue
 
 class CompatibleSettingsPanelTest {
     @Test
+    fun liteLlmResponseUsesSelectedAccountAndSanitizedDraftBudgetWithoutLeakingOldResults() =
+        onEdt {
+            val requests = mutableListOf<Pair<String, String?>>()
+            var status = 200
+            val server =
+                com.sun.net.httpserver.HttpServer.create(
+                    java.net.InetSocketAddress("127.0.0.1", 0),
+                    0,
+                )
+            server.createContext("/") { exchange ->
+                requests +=
+                    exchange.requestURI.path to exchange.requestHeaders.getFirst("Authorization")
+                val bytes =
+                    (if (status == 200)
+                            """{"key":"secret-key","request_id":"budget-123","info":{"spend":12.5,"max_budget":50,"models":["company-chat"],"token":"secret-hash","metadata":{"api_key":"secret"}}}"""
+                        else
+                            """{"error":{"code":"key_info_forbidden","message":"No budget access"}}""")
+                        .toByteArray()
+                exchange.sendResponseHeaders(status, bytes.size.toLong())
+                exchange.responseBody.use { it.write(bytes) }
+            }
+            server.start()
+            val accounts =
+                listOf("a", "b").map { id ->
+                    ProviderAccount(id, QuotaProviderType.LITELLM.id, id).apply {
+                        setExtra(
+                            ProviderAccount.EXTRA_COMPATIBLE_BASE_URL,
+                            "http://127.0.0.1:${server.address.port}/v1",
+                        )
+                    }
+                }
+            val settings = QuotaSettingsState().apply { this.accounts = accounts.toMutableList() }
+            val app =
+                com.intellij.openapi.application.ApplicationManager.getApplication()
+                    as com.intellij.mock.MockApplication
+            app.registerService(QuotaSettingsState::class.java, settings)
+            val usage =
+                de.moritzf.quota.idea.common.QuotaUsageService(
+                    providers =
+                        accounts.mapIndexed { index, account ->
+                            object : de.moritzf.quota.idea.common.QuotaProvider {
+                                override val type = QuotaProviderType.LITELLM
+                                override val accountId = account.id
+
+                                override fun refresh() = Unit
+
+                                override fun clearData(error: String?) = Unit
+
+                                override fun getLastRawJson() =
+                                    """{"diagnostic":"gateway-details","info":{"spend":${index + 1},"future_credential":"secret-for-LLM"}}"""
+                            }
+                        },
+                    settingsProvider = { settings },
+                    updatePublisher = {},
+                    scheduleOnInit = false,
+                )
+            app.registerService(de.moritzf.quota.idea.common.QuotaUsageService::class.java, usage)
+            val panel =
+                CompatibleSettingsPanel(
+                    { "saved-key" },
+                    { _, _ -> error("Must not save drafts") },
+                    Executor { it.run() },
+                    { it() },
+                )
+            fun descendants(root: java.awt.Container): Sequence<java.awt.Component> =
+                root.components.asSequence().flatMap {
+                    sequenceOf(it) +
+                        if (it is java.awt.Container) descendants(it) else emptySequence()
+                }
+            val viewer =
+                descendants(panel).filterIsInstance<javax.swing.JTextArea>().single {
+                    !it.isEditable
+                }
+            val budget =
+                descendants(panel).filterIsInstance<javax.swing.JButton>().single {
+                    it.text == "Check key budget"
+                }
+            fun select(account: ProviderAccount) {
+                panel.boundAccountId = account.id
+                panel.boundAccount = account
+                panel.updateFields()
+                panel.updateResponseArea()
+            }
+            try {
+                select(accounts.first())
+                assertTrue(viewer.text.contains("\"spend\": 1"))
+                assertTrue(viewer.text.contains("gateway-details"))
+                val mcp =
+                    checkNotNull(
+                        de.moritzf.quota.idea.mcp.UsageQuotaMcpRegistry.get(
+                            QuotaProviderType.LITELLM
+                        )
+                    )
+                assertEquals(
+                    """{"info":{"spend":2}}""",
+                    mcp.jsonForAccount(usage, QuotaProviderType.LITELLM, "b"),
+                )
+                assertEquals(
+                    """{"info":{"spend":1}}""",
+                    mcp.jsonForAccount(usage, QuotaProviderType.LITELLM, "missing"),
+                )
+                panel.apiKeyField.text = "draft-key"
+                panel.updateResponseArea()
+                assertFalse(viewer.text.contains("\"spend\""))
+                budget.doClick(0)
+                assertEquals(
+                    listOf<Pair<String, String?>>("/key/info" to "Bearer draft-key"),
+                    requests,
+                )
+                assertTrue(viewer.text.contains("\"spend\": 12.5"))
+                assertFalse(viewer.text.contains("secret"))
+                assertTrue(viewer.text.contains("\"token\": \"[REDACTED]\""))
+                assertTrue(viewer.text.contains("budget-123"))
+                assertTrue(viewer.text.contains("company-chat"))
+                panel.updateResponseArea()
+                assertTrue(
+                    viewer.text.contains("\"spend\": 12.5"),
+                    "Saved quota must not replace draft results",
+                )
+                panel.baseUrlField.text = "http://127.0.0.1:${server.address.port}/draft/v1"
+                assertFalse(viewer.text.contains("\"spend\""))
+                select(accounts.last())
+                assertTrue(viewer.text.contains("\"spend\": 2"))
+                assertFalse(viewer.text.contains("12.5"))
+                status = 403
+                budget.doClick(0)
+                assertTrue(viewer.text.contains("HTTP 403"))
+                assertTrue(viewer.text.contains("key_info_forbidden"))
+                assertFalse(viewer.text.contains("secret"))
+                assertFalse(viewer.text.contains("\"spend\""))
+            } finally {
+                panel.dispose()
+                usage.dispose()
+                server.stop(0)
+            }
+        }
+
+    @Test
     fun mediaSelectionsAreOptInStayInDraftsAndTestsCaptureUnsavedConnectionValues() = onEdt {
         val requests = java.util.concurrent.CopyOnWriteArrayList<Triple<String, String?, String>>()
         val server =

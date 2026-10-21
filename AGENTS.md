@@ -46,7 +46,7 @@
 ## Providers
 
 - Register each provider once in `ProviderCatalog` (`ProviderDescriptor`: quota factory, snapshot codec, settings/UI factories, MCP quota export, capability flags, credential probes).
-- Quota registrations are optional for proxy-only providers. OpenAI-compatible/LiteLLM accounts share transport and settings, keep stable account-scoped model IDs, and never fail over across endpoints. Unknown model capabilities/prices stay unset; vision/PDF selections are opt-in. URL/model/key edits are drafts until Apply. LiteLLM key info must never persist/export echoed keys or credential metadata.
+- Quota registrations are optional for proxy-only providers. OpenAI-compatible/LiteLLM accounts share transport and settings, keep stable account-scoped model IDs, and never fail over across endpoints. Unknown model capabilities/prices stay unset; vision/PDF selections are opt-in. URL/model/key edits are drafts until Apply. LiteLLM settings keep full redacted key-info responses in memory; MCP exports only allowlisted, type-validated quota fields. Never persist/export echoed keys or credential metadata.
 - `QuotaProviderRegistry`, `ProviderSettingsRegistry`, `ProviderUiRegistry`, and `UsageQuotaMcpRegistry` are facades over the catalog — do not add parallel per-provider maps.
 - Keep `QuotaProviderType` as the catalog / MCP type id. Runtime logins are `ProviderAccount` rows (`id`, `typeId`, `name`, `isDefault`, `allowFailover`). Migrated first accounts keep `id == type.id`.
 - Settings list is add/remove accounts, not a fixed type inventory. Names are unique per type; Apply blocks duplicates/blanks. Show the name only when that type has two or more accounts.

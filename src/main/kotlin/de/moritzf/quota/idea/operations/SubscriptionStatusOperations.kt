@@ -91,8 +91,7 @@ internal fun SubscriptionOperations.quotaResult(
         return errorResult(error)
     }
 
-    val payload =
-        usageService.getLastResponseJson(account.id) ?: registration.json(usageService, type)
+    val payload = registration.jsonForAccount(usageService, type, account.id)
     if (payload.isNullOrBlank()) {
         return errorResult(registration.emptyMessage)
     }

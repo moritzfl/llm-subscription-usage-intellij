@@ -8,16 +8,11 @@ import de.moritzf.quota.openai.RateLimitResetCredit
 import de.moritzf.quota.openai.UsageWindow
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.ProviderQuota
+import de.moritzf.quota.shared.RawResponseRedactor
 import java.time.Duration
 import kotlin.time.Instant
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
 
 /**
  * Encodes provider quotas to JSON for persistent caching and decodes them back. New providers
@@ -78,69 +73,6 @@ private data class CachedQuotaEnvelope<Q>(
     val quota: Q,
     val rawResponse: String? = null,
 )
-
-internal object RawResponseRedactor {
-    private const val REDACTED = "[REDACTED]"
-    private val exactSensitiveNames =
-        setOf(
-            "authorization",
-            "proxy_authorization",
-            "cookie",
-            "set_cookie",
-            "access_token",
-            "refresh_token",
-            "id_token",
-            "api_key",
-            "apikey",
-            "password",
-            "secret",
-        )
-    private val tokenCountNames =
-        setOf(
-            "total_tokens",
-            "input_tokens",
-            "output_tokens",
-            "prompt_tokens",
-            "completion_tokens",
-            "cached_tokens",
-            "reasoning_tokens",
-        )
-    private val sensitiveNameFragments = listOf("secret", "password", "cookie")
-
-    fun redact(raw: String?): String? {
-        if (raw.isNullOrBlank()) return raw
-        val element =
-            runCatching { JsonSupport.json.parseToJsonElement(raw) }.getOrNull() ?: return raw
-        return runCatching { redactElement(element).toString() }.getOrDefault(raw)
-    }
-
-    private fun redactElement(element: JsonElement): JsonElement {
-        return when (element) {
-            is JsonObject ->
-                buildJsonObject {
-                    element.forEach { (key, value) ->
-                        put(
-                            key,
-                            if (isSensitiveName(key)) JsonPrimitive(REDACTED)
-                            else redactElement(value),
-                        )
-                    }
-                }
-            is JsonArray -> buildJsonArray { element.forEach { add(redactElement(it)) } }
-            else -> element
-        }
-    }
-
-    private fun isSensitiveName(name: String): Boolean {
-        val normalized =
-            name.replace(Regex("([a-z])([A-Z])"), "$1_$2").lowercase().replace('-', '_')
-        return normalized in exactSensitiveNames ||
-            normalized.endsWith("_key") ||
-            normalized.endsWith("key") && normalized.startsWith("api") ||
-            normalized.endsWith("_token") && normalized !in tokenCountNames ||
-            sensitiveNameFragments.any { normalized.contains(it) }
-    }
-}
 
 /** OpenAI keeps a bespoke cache shape that flattens windows to epoch-millis timestamps. */
 internal object OpenAiQuotaCodec : QuotaCodec<OpenAiCodexQuota> {

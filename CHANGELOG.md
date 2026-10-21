@@ -7,7 +7,7 @@
 - Discover models automatically or enter manual IDs; validate URLs and test a model before Apply. Cancel discards connection edits.
 - Keep custom endpoint model namespaces separate and leave unknown capabilities and prices unclaimed; quota tracking is unavailable for generic APIs.
 - Add opt-in image and native-PDF models with tests against unsaved connection values, MCP tools, and proxy multimodal input.
-- Add LiteLLM gateways using the shared API transport, with model capability/pricing discovery, Responses support, and virtual-key budget tracking.
+- Add LiteLLM gateways with model capability/pricing discovery, Responses support, and virtual-key budget tracking. Settings show full redacted quota diagnostics with refresh/copy actions; MCP exposes only validated quota fields.
 - Show a neutral indicator and connection details with local proxy status when only quota-less APIs are configured.
 - Run document and vision tests against the selected account and current unsaved models, keys, and connection settings.
 - Test AI Completion with unsaved settings through shared FIM/provider logic, without applying settings or starting a local proxy.
