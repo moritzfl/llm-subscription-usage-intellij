@@ -1,5 +1,7 @@
 package de.moritzf.quota.github.proxy
 
+import de.moritzf.proxy.media.RemoteImageHop
+import de.moritzf.proxy.media.SafeRemoteImageFetcher
 import java.net.URI
 import kotlin.test.Test
 import kotlin.test.assertEquals

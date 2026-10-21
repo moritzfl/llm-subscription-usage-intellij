@@ -1,5 +1,7 @@
 package de.moritzf.quota.github.proxy
 
+import de.moritzf.proxy.media.RemoteImageHop
+import de.moritzf.proxy.media.SafeRemoteImageFetcher
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.subscription.SubscriptionProxyRequest
 import de.moritzf.proxy.subscription.SubscriptionProxyRoute
