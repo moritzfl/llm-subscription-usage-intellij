@@ -93,7 +93,12 @@ internal class OpenCodeConsoleProxy(
                 .timeout(Duration.ofSeconds(30))
                 .header("Authorization", "Bearer ${session.accessToken}")
                 .header("Accept", "application/json")
-                .apply { session.organizationId?.let { header("x-org-id", it) } }
+                .apply {
+                    session.organizationId?.let {
+                        header("x-org-id", it)
+                        header("x-opencode-org-id", it)
+                    }
+                }
                 .GET()
                 .build()
         return httpClient.send(request, HttpResponse.BodyHandlers.ofString())

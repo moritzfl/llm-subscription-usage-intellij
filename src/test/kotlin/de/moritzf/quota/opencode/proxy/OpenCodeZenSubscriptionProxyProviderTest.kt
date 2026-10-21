@@ -101,6 +101,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                 assertEquals("/console/api/v2/config", config.path)
                 assertEquals("Bearer oauth-access", config.authorization)
                 assertEquals("org_a", config.organization)
+                assertEquals("org_a", config.inferenceOrganization)
                 val chat =
                     post(
                         port,
