@@ -1,79 +1,42 @@
 # Agent Notes
 
-## Project
+## Project and credentials
 
-- This is an IntelliJ Platform plugin named `LLM Subscription Usage`.
-- Main code is Kotlin under `src/main/kotlin`; tests are under `src/test/kotlin`.
-- Keep production and test sources Kotlin-only; Java libraries remain usable through JVM interop.
-- The plugin tracks LLM subscription quotas, exposes MCP tools, syncs IntelliJ MCP server URLs, and runs a local OpenAI-compatible subscription proxy.
-- Build target is JVM 21 with Kotlin API/language version 2.3 to match IntelliJ 2026.1 bundled Kotlin.
-- Credentials and API keys belong in IntelliJ Password Safe. Never add secrets, raw tokens, or generated logs to git.
-- Auth is self-maintained: browser login or keys the user enters in this plugin. Never read, write, watch, or import auth files other tools put on disk (Codex `auth.json`, ChatGPT local, OS stores of other apps). Do not add “import from ~/.codex” or similar.
-- Antigravity is a CLI exception: quota-only through the official `agy` CLI (1.1.11+), using its own login. Invoke the documented JSON usage report; never inspect its credentials, internal APIs, or conversation files. One current CLI account only.
-- Azure is a separate CLI exception: one plugin entry, through documented `az account list` and `az account get-access-token` only. Never read `~/.azure`. Do not call `az account set`. Do not extend CLI-backed auth to other providers or build a general CLI-provider framework.
+- `LLM Subscription Usage`: IntelliJ plugin for subscription quotas, MCP tools/server-URL sync, and a local subscription proxy. Production/tests are Kotlin-only in `src/main/kotlin` and `src/test/kotlin`; Java libraries are usable via interop. Target JVM 21, Kotlin API/language 2.3 (IntelliJ 2026.1).
+- Store credentials in IntelliJ Password Safe. Authentication belongs to this plugin: browser login or user-entered keys. Never access other tools' auth files/stores, including Codex `auth.json` and ChatGPT local credentials.
+- CLI exceptions only: Antigravity uses the documented `agy` 1.1.11+ JSON usage report, quota-only, one current CLI login; never inspect credentials, internal APIs, or conversations. Azure uses one plugin entry and documented `az account list`/`az account get-access-token`; never read `~/.azure` or call `az account set`. Do not generalize CLI-backed auth.
 
-## Validation
+## Validation and boundaries
 
-- Format Kotlin sources and Gradle Kotlin scripts with `./gradlew ktfmtFormat` (KotlinLang style). `./gradlew ktfmtCheck` verifies formatting and is included in `check` and CI.
-- Use focused tests during edits, for example `./gradlew test --tests some.TestName`.
-- Architecture boundaries use ArchUnit/JUnit 5 against production bytecode (`ArchitectureBoundariesTest`), including Kotlin-generated classes. Keep exceptions to documented class pairs; do not replace rules with source/import scans.
-- Shared quota code may use external libraries and other shared code, but must not depend on provider, proxy, or IDE implementations. Provider-independent PDF helpers belong in `quota.shared.document`.
-- In proxy tests, stop servers with `gracePeriodMillis = 0` after request assertions; retain bounded waits for genuinely concurrent work.
-- Use coroutine virtual time for polling/timeout tests instead of real waits.
-- Before committing broad changes, run `./gradlew test`, `./gradlew verifyPlugin`, `./gradlew buildPlugin`, and `rtk git diff --check`.
-- `verifyPlugin` warnings for `IntelliJVirtualThreads.ofVirtual()` are expected unless production runtime actually changed.
-- Prefer sequential Gradle runs. If parallel Gradle work corrupts Kotlin incremental state, run `./gradlew --stop` and rerun sequentially.
-- `build/`, plugin verifier reports, request logs, and generated plugin ZIPs are artifacts; do not stage them.
+- Format with `./gradlew ktfmtFormat`; verify with `./gradlew ktfmtCheck` (also in `check`/CI). During edits use focused `./gradlew test --tests some.TestName`. Before broad commits run `./gradlew test verifyPlugin buildPlugin --no-parallel` and `rtk git diff --check`. Keep Gradle runs sequential.
+- `ArchitectureBoundariesTest` uses ArchUnit/JUnit 5 on production bytecode, including generated classes. Exceptions must name documented class pairs; do not substitute source/import scans. Shared quota code may depend on libraries/shared code, never provider/proxy/IDE implementations. Shared PDF helpers belong in `quota.shared.document`.
+- Use coroutine virtual time for polling/timeouts. Stop proxy test servers with `gracePeriodMillis = 0` after assertions; keep bounded waits for genuinely concurrent work.
+- Preserve IntelliJ runtime APIs, including `IntelliJVirtualThreads.ofVirtual()`; its verifier warnings are expected. Intentional `@Suppress("UnstableApiUsage")` is acceptable.
+- Standalone JavaExec needs `sourceSets.main.compileClasspath` plus explicit Kotlin stdlib; `runtimeClasspath` lacks IDE-supplied libraries (including Ktor/SLF4J). Fix standalone classpaths/shims, not plugin production code or packaging, unless IDE runtime also fails. Shims must stay out of the plugin.
 
-## Runtime Boundaries
+## Provider responses and MCP
 
-- Keep IntelliJ-specific production code intact for plugin runtime. Do not replace `IntelliJVirtualThreads.ofVirtual()` with JDK `Thread.ofVirtual()` just to make standalone Gradle tasks work.
-- `@Suppress("UnstableApiUsage")` is acceptable around IntelliJ APIs intentionally used by the plugin.
-- The IDE supplies IntelliJ classes and bundled libraries such as `com.intellij.*`, Ktor server classes, and SLF4J at plugin runtime.
-- Standalone JavaExec proxy tasks must include `sourceSets.main.compileClasspath` and an explicit Kotlin stdlib runtime because `runtimeClasspath` alone is not enough outside the IDE.
-- If standalone proxy tasks fail with `NoClassDefFoundError` for IntelliJ, Kotlin, Ktor, or SLF4J classes, fix standalone Gradle classpaths first. Do not change plugin production code or packaging unless IDE runtime is also broken.
-- Any IntelliJ-behavior shim must be standalone-only. It must not affect the packaged IntelliJ plugin.
+- **Settings:** retain complete raw responses in any format, including plain text/HTML and bodies the UI cannot parse.
+- **MCP:** pass usable provider JSON through directly. Preserve unknown fields, non-reusable key hashes/IDs, metadata, and quota pools absent from the UI. This includes LiteLLM `/key/info`. Redact actual credentials/auth headers; never use quota-field allowlists or reconstruct responses from UI summaries. Test provider-native fields.
+- MCP output must be valid JSON. Parse documented non-JSON formats into meaningful structured JSON; never use a `raw_response` envelope. Unparseable responses produce JSON errors; original diagnostics remain in settings. Parsing failure in the UI must not hide usable provider JSON from MCP.
+- Multiple sources get a minimal, separately named JSON wrapper: e.g. Mistral `session` contains billing/Vibe/subscription; `api_key` contains identity/rate limits. Preserve complete segments, parse non-JSON sources such as subscription HTML, and keep usable segments when optional sources fail. Do not flatten or merge away provider fields.
+- Use Kotlin serialization for plugin-owned JSON. Parse upstream data only as needed for errors/auth retries, documented non-JSON formats, or unusable responses. MCP annotations stay in the facade; execution in `idea.operations`, shared auth/account policy in `AccountOperations`. Preserve cancellation before adapting errors.
 
-## MCP JSON
+## Providers and proxy
 
-- MCP quota and web search tools should return provider JSON directly when the provider response is already usable JSON.
-- Do not normalize provider JSON into plugin-owned shapes just to make it prettier. Tests for web search should prefer provider-native response fields.
-- If a provider response is not JSON, wrap it as plugin-owned JSON such as `{"raw_response":"..."}` so MCP tools still return valid JSON text.
-- Use Kotlin serialization for plugin-owned MCP JSON, including tool status, plugin errors, raw-response wrappers, and request payload DTOs.
-- Keep upstream response parsing minimal. Parse only for required error detection, authentication retry decisions, documented non-JSON formats, or unusable responses.
-- Keep MCP annotations in the toolset facade and execution in `idea.operations`. Share account/auth policy through `AccountOperations`; preserve cancellation before adapting errors to JSON.
+- `ProviderCatalog` is the sole registration source (factories, codecs, UI, MCP, capabilities, credential probes). Registries are facades, not parallel maps. Proxy-only providers need no quota registration. Keep MCP enums synchronized with capabilities (`ProviderCatalogTest`); local `PDFBOX` has no catalog entry.
+- `QuotaProviderType` identifies provider types; `ProviderAccount` identifies logins. Migrated first accounts retain `id == type.id`. Settings add/remove accounts; names must be nonblank/unique per type and appear only for multiple accounts of that type.
+- OpenAI-compatible/LiteLLM accounts share transport/settings, retain stable account-scoped model IDs, and never fail over across endpoints. Unknown capabilities/prices stay unset; vision/native PDF are opt-in. Every provider's vision model defaults to `-` (off); document defaults are provider-specific.
+- New providers need type/indicator IDs, one catalog entry, icon, applicable MCP enum/dispatch and standalone env wiring, tests, `plugin.xml`, README table, and Unreleased changelog entry.
+- Proxy payload adaptation is separate from MCP pass-through. Preserve `/v1/chat/completions`, `/v1/responses`, `/v1/completions` (FIM enabled with proxy), `/v1/models`, `/v1/model/info`, and supported unprefixed variants.
+- Prefer official live model discovery. Keep OpenAI/Codex's curated list aligned with the Codex UI until discovery is authoritative. Use `models.dev` only for explicitly separated subscription catalogs lacking usable first-party discovery. Without a provider default, choose the alphabetically latest advertised model ID.
+- Proxy defaults use `subscriptionProxy`; IDE construction uses catalog `ideProxyFactory`/`IdeProxyFactories`. Resolve accounts once per request; bind refresh/save, endpoint/region, and rate-limit attribution to that account. `StandaloneSubscriptionProxy` stays env-based, without IntelliJ services. Kimi device identity is injected from `KimiDeviceIdStore` in IDE wiring, process-stable standalone.
 
-## Providers
+## Settings and commits
 
-- Register each provider once in `ProviderCatalog` (`ProviderDescriptor`: quota factory, snapshot codec, settings/UI factories, MCP quota export, capability flags, credential probes).
-- Quota registrations are optional for proxy-only providers. OpenAI-compatible/LiteLLM accounts share transport and settings, keep stable account-scoped model IDs, and never fail over across endpoints. Unknown model capabilities/prices stay unset; vision/PDF selections are opt-in. URL/model/key edits are drafts until Apply. LiteLLM settings keep full redacted key-info responses in memory; MCP exports only allowlisted, type-validated quota fields. Never persist/export echoed keys or credential metadata.
-- `QuotaProviderRegistry`, `ProviderSettingsRegistry`, `ProviderUiRegistry`, and `UsageQuotaMcpRegistry` are facades over the catalog — do not add parallel per-provider maps.
-- Keep `QuotaProviderType` as the catalog / MCP type id. Runtime logins are `ProviderAccount` rows (`id`, `typeId`, `name`, `isDefault`, `allowFailover`). Migrated first accounts keep `id == type.id`.
-- Settings list is add/remove accounts, not a fixed type inventory. Names are unique per type; Apply blocks duplicates/blanks. Show the name only when that type has two or more accounts.
-- Capability flags drive proxy-supported lists and MCP status. Keep MCP param enums (`ListSearchProvider`, `WebFetchProvider`, `ImageGenerationProvider`, `SpeechToTextProvider`, `TextToSpeechProvider`, `DocumentToMarkdownProvider`, `VisionProvider`) in sync with capabilities (`ProviderCatalogTest` enforces this). `DocumentToMarkdownProvider.PDFBOX` is the local text-extraction exception and has no catalog entry.
-- Vision (`subscription_vision`) is opt-in per account: every provider's vision model defaults to `-` (off) in settings, unlike document models which have provider defaults.
-- New provider checklist: `QuotaProviderType` (+ `QuotaIndicatorSource` if shown in the status bar), one `ProviderCatalog` entry (including `ideProxyFactory` when `subscriptionProxy`), icon/`QuotaIcons`, MCP enum + tool dispatch arm if needed, standalone env wiring if proxy CLI, tests, `plugin.xml` + `README` table, changelog.
-
-## Proxy Providers
-
-- Keep proxy behavior separate from MCP behavior. The proxy may normalize, transform, or adapt payloads for OpenAI, Anthropic, or LiteLLM compatibility.
-- The local proxy should preserve compatibility for `/v1/chat/completions`, `/v1/responses`, `/v1/completions` (FIM adapter, on when the proxy is on), `/v1/models`, `/v1/model/info`, and their unprefixed route variants where supported.
-- OpenAI/Codex model discovery is not authoritative enough for the advertised proxy list. Keep the curated OpenAI/Codex list aligned with the Codex UI unless a better authoritative endpoint is found.
-- For providers with usable official model endpoints, such as SuperGrok/xAI and GitHub Copilot, prefer live discovery over hardcoded model fallbacks.
-- `models.dev` may be used as a model catalog only when it explicitly separates subscription providers from API-key providers and the subscription provider has no usable first-party endpoint for discovering current subscription model IDs.
-- When no provider-declared default exists, choose a default from advertised models by taking the alphabetically latest model id rather than hardcoding a recommendation.
-- Proxy enablement defaults come from `ProviderCapabilities.subscriptionProxy` via the catalog; IDE construction uses `ideProxyFactory` / `ProviderCatalog.createIdeProxyProviders` (`IdeProxyFactories`). Standalone CLI proxy wiring stays env-based in `StandaloneSubscriptionProxy` (no IntelliJ services).
-- IDE proxy delegates are account-bound. Resolve once per request; keep token refresh/save, endpoint/region, and rate-limit attribution on that account.
-- Kimi clients receive device identity from `KimiDeviceIdStore` in IDE wiring; standalone clients share a process-stable ID. Keep IntelliJ persistence out of provider clients.
-
-## Settings And Releases
-
-- IDE UI text belongs in `messages/OpenAiUsageQuotaBundle.properties`, accessed through `QuotaBundle.message` (`DynamicBundle`, `@PropertyKey`). Reuse shared model-help keys across providers; keep protocol values, model IDs, and provider JSON out of the UI bundle.
-- Provider state is mostly map/list based in `QuotaSettingsState`; avoid adding per-provider fields unless persistence or migration requires them.
-- Quota cache writes use synchronized snapshot methods. Settings UI builds `QuotaSettingsDraft`; `SettingsApplyCoordinator` owns commit/follow-up actions and publishes one settings event.
-- Document, vision, and FIM test dialogs share `TestDialogTask` and `TestDialogUi`; queued UI results must be generation-checked.
-- Settings tests capture draft account, model, target, and keys on the EDT. Never require Apply or temporarily install drafts into application settings. Completion tests call shared provider/FIM logic directly, without a local proxy server.
-- Do not keep backwards-compat decode paths just to revive old cached quota snapshots. If the cache shape changes, drop unreadable entries and wait for the next live refresh.
-- Add changelog entries under `## [Unreleased]`. Do not edit released changelog sections unless explicitly requested.
-- Keep this file concise and update it when project-level agent guidance changes.
-- Do not push unless explicitly requested.
+- UI text belongs in `messages/OpenAiUsageQuotaBundle.properties` via `QuotaBundle.message`; reuse shared help keys. Protocol values, model IDs, and provider JSON stay out of the bundle.
+- Use map/list-based `QuotaSettingsState`, synchronized quota snapshot writes, and `QuotaSettingsDraft`. `SettingsApplyCoordinator` owns commit/follow-up actions and one settings event. URL/model/key edits remain drafts until Apply.
+- Document/vision/FIM dialogs share `TestDialogTask`/`TestDialogUi` and generation-check queued results. Tests capture draft account/model/target/keys on the EDT without Apply or temporary global settings. Completion tests call shared provider/FIM logic without a proxy server.
+- Drop unreadable cached quotas after schema changes; do not add compatibility decoders for disposable snapshots.
+- Changelog changes go under `## [Unreleased]`; released sections require explicit permission. Never stage secrets, logs, `build/`, verifier reports, or generated ZIPs. Do not push unless requested.
+- Keep these notes focused on lasting project constraints; update them when those constraints change.
