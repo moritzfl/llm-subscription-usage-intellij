@@ -36,7 +36,7 @@ internal class KimiSettingsPanel(
     private val statusLabelDefaultForeground: Color? = null,
 ) : ProviderSettingsPanel() {
     private val statusLabel = JBLabel().apply { isVisible = false }
-    private val visionModelCombo = VisionModelCombo()
+    override val visionModelCombo = VisionModelCombo()
     private var modelRefreshGeneration = 0
     private val loginButton = createActionLink("Log In")
     private val cancelLoginButton = createActionLink("Cancel Login")
@@ -197,10 +197,6 @@ internal class KimiSettingsPanel(
         updateStatus()
         refreshVisionModels()
     }
-
-    fun visionModelForStorage(): String? = visionModelCombo.storedValue()
-
-    fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
 
     private fun showVisionModels(
         discovered: List<String>,

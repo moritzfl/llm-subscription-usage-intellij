@@ -198,7 +198,7 @@ class CompatibleSettingsPanelTest {
             assertTrue(panel.differsFrom(row))
             val vision = panel.prepareVisionTest("image-model")
             val document = panel.prepareDocumentTest("pdf-model")
-            panel.writeTo(row)
+            panel.writeAccountFields(row)
             panel.boundAccount = account("b")
             panel.updateFields()
             assertEquals("-", panel.visionModel.selected())
@@ -364,11 +364,11 @@ class CompatibleSettingsPanelTest {
             panel.apiKeyField.text = "draft-a"
             panel.baseUrlField.text = "https://changed.example/v1"
             panel.modelIdsField.text = "custom-model"
-            panel.writeTo(a)
+            panel.writeAccountFields(a)
             load(b)
             assertEquals("saved-b", String(panel.apiKeyField.password))
             panel.apiKeyField.text = "draft-b"
-            panel.writeTo(b)
+            panel.writeAccountFields(b)
             load(a)
             assertEquals("draft-a", String(panel.apiKeyField.password))
             assertEquals("https://changed.example/v1", panel.baseUrlField.text)

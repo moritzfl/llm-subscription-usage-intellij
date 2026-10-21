@@ -47,13 +47,13 @@ internal class MistralSettingsPanel(
             columns = 40
             toolTipText = "Mistral API key for MCP search, images, and OCR"
         }
-    private val documentModelCombo =
+    override val documentModelCombo =
         DocumentModelCombo(MistralOcrClient.DEFAULT_MODEL, vision = false)
     private val sessionNameDraft = credentialDraft(sessionNameField)
     private val sessionValueDraft = credentialDraft(sessionValueField)
     private val csrfDraft = credentialDraft(csrfField)
     private val apiKeyDraft = credentialDraft(apiKeyField)
-    private val visionModelCombo = VisionModelCombo()
+    override val visionModelCombo = VisionModelCombo()
     private var modelRefreshGeneration = 0
     private val statusLabel = JBLabel().apply { isVisible = false }
     private val responseViewer = createResponseViewer()
@@ -211,14 +211,6 @@ internal class MistralSettingsPanel(
                 )
         }
     }
-
-    fun documentModelForStorage(): String? = documentModelCombo.storedValue()
-
-    fun documentModelDiffers(saved: String?): Boolean = documentModelCombo.differs(saved)
-
-    fun visionModelForStorage(): String? = visionModelCombo.storedValue()
-
-    fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
 
     override fun updateStatus() {
         val isCurrent = accountUiGuard()

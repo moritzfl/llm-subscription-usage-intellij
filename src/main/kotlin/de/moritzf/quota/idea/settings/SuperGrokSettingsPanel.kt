@@ -34,8 +34,8 @@ internal class SuperGrokSettingsPanel(
     private val modalityComponentProvider: () -> JComponent?,
     private val statusLabelDefaultForeground: Color? = null,
 ) : ProviderSettingsPanel() {
-    private val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
-    private val visionModelCombo = VisionModelCombo()
+    override val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
+    override val visionModelCombo = VisionModelCombo()
     private val statusLabel = JBLabel().apply { isVisible = false }
     private var modelRefreshGeneration = 0
     private val loginButton = createActionLink("Log In with xAI/Grok")
@@ -209,14 +209,6 @@ internal class SuperGrokSettingsPanel(
         updateResponseArea()
         refreshDocumentModels()
     }
-
-    fun documentModelForStorage(): String? = documentModelCombo.storedValue()
-
-    fun documentModelDiffers(saved: String?): Boolean = documentModelCombo.differs(saved)
-
-    fun visionModelForStorage(): String? = visionModelCombo.storedValue()
-
-    fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
 
     private fun showDocumentModels(
         discovered: List<String>,

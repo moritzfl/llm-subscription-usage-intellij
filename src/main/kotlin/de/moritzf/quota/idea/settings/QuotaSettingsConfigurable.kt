@@ -36,7 +36,6 @@ import de.moritzf.quota.idea.ui.settings.AccountDetailsSplitter
 import de.moritzf.quota.idea.ui.settings.AccountListPanel
 import de.moritzf.quota.idea.ui.settings.ProviderListStatus
 import de.moritzf.quota.idea.ui.settings.ProviderReorderPanel
-import de.moritzf.quota.minimax.MiniMaxRegionPreference
 import de.moritzf.quota.shared.ProviderQuota
 import java.awt.CardLayout
 import java.awt.Component
@@ -588,8 +587,8 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
                 }
                 accountListPanel?.acceptPendingChanges()
                 proxyPanel.refreshAfterApply()
-                gitHubPanel().updateFields()
-                ollamaPanel().updateFields()
+                providerPanelsByType[QuotaProviderType.GITHUB]?.updateFields()
+                providerPanelsByType[QuotaProviderType.OLLAMA]?.updateFields()
             }
 
             onReset {
@@ -801,204 +800,23 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
     }
 
     private fun persistAccountFields(account: ProviderAccount) {
-        providerPanelsByType[account.providerType()]
-            ?.takeIf { it.boundAccountId == account.id }
-            ?.let { panel ->
-                val key = panel.testConnection().apiKeyOverride
-                if (key == null) testApiKeyDrafts.remove(account.id)
-                else testApiKeyDrafts[account.id] = key
-            }
-        account.hiddenFromPopup =
-            providerPanelsByType[account.providerType()]?.popupVisibilityToggle?.isHidden == true
-        when (account.providerType()) {
-            QuotaProviderType.OPENAI_COMPATIBLE,
-            QuotaProviderType.LITELLM ->
-                (providerPanelsByType[account.providerType()] as CompatibleSettingsPanel).writeTo(
-                    account
-                )
-            QuotaProviderType.ANTIGRAVITY ->
-                account.setExtra(
-                    ProviderAccount.EXTRA_AGY_EXECUTABLE,
-                    antigravityPanel().normalizedExecutablePath(),
-                )
-            QuotaProviderType.AZURE -> {
-                val panel = azurePanel()
-                account.setExtra(
-                    ProviderAccount.EXTRA_AZURE_EXECUTABLE,
-                    panel.normalizedExecutablePath(),
-                )
-                account.setExtra(ProviderAccount.EXTRA_AZURE_SUBSCRIPTION, panel.subscriptionId())
-                account.setExtra(ProviderAccount.EXTRA_AZURE_RESOURCE, panel.resourceName())
-                account.setExtra(ProviderAccount.EXTRA_AZURE_ENDPOINT, panel.endpoint())
-                account.setExtra(ProviderAccount.EXTRA_AZURE_LOCATION, panel.locationId())
-                account.setExtra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS, panel.deploymentNames())
-                account.setExtra(ProviderAccount.EXTRA_VISION_MODEL, panel.visionModelForStorage())
-                account.setExtra(
-                    ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT,
-                    panel.ocrDeploymentForStorage(),
-                )
-            }
-            QuotaProviderType.GITHUB -> {
-                account.setExtra(
-                    ProviderAccount.EXTRA_GITHUB_HOST,
-                    gitHubPanel().normalizedEnterpriseHostForStorage().ifEmpty { null },
-                )
-                account.setExtra(
-                    ProviderAccount.EXTRA_DOCUMENT_MODEL,
-                    gitHubPanel().documentModelForStorage(),
-                )
-                account.setExtra(
-                    ProviderAccount.EXTRA_VISION_MODEL,
-                    gitHubPanel().visionModelForStorage(),
-                )
-            }
-            QuotaProviderType.MINIMAX ->
-                (miniMaxPanel().regionComboBox.selectedItem as? MiniMaxRegionPreference)?.let {
-                    account.setExtra(ProviderAccount.EXTRA_MINIMAX_REGION, it.name)
-                }
-            QuotaProviderType.OPEN_CODE -> {
-                account.setExtra(
-                    ProviderAccount.EXTRA_OPENCODE_WORKSPACE,
-                    openCodePanel().selectedWorkspaceId(),
-                )
-                account.setExtra(
-                    ProviderAccount.EXTRA_DOCUMENT_MODEL,
-                    openCodePanel().documentModelForStorage(),
-                )
-                account.setExtra(
-                    ProviderAccount.EXTRA_VISION_MODEL,
-                    openCodePanel().visionModelForStorage(),
-                )
-            }
-            QuotaProviderType.OLLAMA -> {
-                account.setExtra(
-                    ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET,
-                    ollamaPanel().normalizedMonthlyResetForStorage(),
-                )
-                account.setExtra(
-                    ProviderAccount.EXTRA_VISION_MODEL,
-                    ollamaPanel().visionModelForStorage(),
-                )
-            }
-            QuotaProviderType.MISTRAL -> {
-                account.setExtra(
-                    ProviderAccount.EXTRA_DOCUMENT_MODEL,
-                    mistralPanel().documentModelForStorage(),
-                )
-                account.setExtra(
-                    ProviderAccount.EXTRA_VISION_MODEL,
-                    mistralPanel().visionModelForStorage(),
-                )
-            }
-            QuotaProviderType.ZAI -> {
-                account.setExtra(
-                    ProviderAccount.EXTRA_DOCUMENT_MODEL,
-                    zaiPanel().documentModelForStorage(),
-                )
-                account.setExtra(
-                    ProviderAccount.EXTRA_VISION_MODEL,
-                    zaiPanel().visionModelForStorage(),
-                )
-            }
-            QuotaProviderType.OPEN_AI -> {
-                account.setExtra(
-                    ProviderAccount.EXTRA_DOCUMENT_MODEL,
-                    openAiPanel().documentModelForStorage(),
-                )
-                account.setExtra(
-                    ProviderAccount.EXTRA_VISION_MODEL,
-                    openAiPanel().visionModelForStorage(),
-                )
-            }
-            QuotaProviderType.SUPERGROK -> {
-                account.setExtra(
-                    ProviderAccount.EXTRA_DOCUMENT_MODEL,
-                    superGrokPanel().documentModelForStorage(),
-                )
-                account.setExtra(
-                    ProviderAccount.EXTRA_VISION_MODEL,
-                    superGrokPanel().visionModelForStorage(),
-                )
-            }
-            QuotaProviderType.KIMI ->
-                account.setExtra(
-                    ProviderAccount.EXTRA_VISION_MODEL,
-                    kimiPanel().visionModelForStorage(),
-                )
-            else -> Unit
+        val panel = providerPanelsByType[account.providerType()]
+        if (panel != null && panel.boundAccountId == account.id) {
+            val key = panel.testConnection().apiKeyOverride
+            if (key == null) testApiKeyDrafts.remove(account.id)
+            else testApiKeyDrafts[account.id] = key
         }
+        account.hiddenFromPopup = panel?.popupVisibilityToggle?.isHidden == true
+        panel?.writeAccountFields(account)
     }
 
     private fun selectedAccountExtrasModified(state: QuotaSettingsState): Boolean {
         val selected = accountListPanel?.selectedAccount() ?: return false
+        val panel = providerPanelsByType[selected.providerType()] ?: return false
         val persisted = state.account(selected.id)
-        val toggle = providerPanelsByType[selected.providerType()]?.popupVisibilityToggle
-        if (
-            toggle != null &&
-                toggle.isHidden != (persisted?.hiddenFromPopup ?: selected.hiddenFromPopup)
-        )
-            return true
-        return when (selected.providerType()) {
-            QuotaProviderType.OPENAI_COMPATIBLE,
-            QuotaProviderType.LITELLM ->
-                (providerPanelsByType[selected.providerType()] as CompatibleSettingsPanel)
-                    .differsFrom(persisted ?: selected)
-            QuotaProviderType.ANTIGRAVITY ->
-                antigravityPanel().executableField.text.trim() !=
-                    persisted?.extra(ProviderAccount.EXTRA_AGY_EXECUTABLE).orEmpty()
-            QuotaProviderType.AZURE -> azurePanel().differsFrom(persisted ?: selected)
-            QuotaProviderType.GITHUB ->
-                gitHubPanel().normalizedEnterpriseHostForStorage() !=
-                    state.githubHostFor(selected.id) ||
-                    gitHubPanel()
-                        .documentModelDiffers(
-                            persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)
-                        ) ||
-                    gitHubPanel()
-                        .visionModelDiffers(persisted?.extra(ProviderAccount.EXTRA_VISION_MODEL))
-            QuotaProviderType.MINIMAX ->
-                miniMaxPanel().regionComboBox.selectedItem as? MiniMaxRegionPreference !=
-                    state.miniMaxRegionFor(selected.id)
-            QuotaProviderType.OPEN_CODE ->
-                openCodePanel().selectedWorkspaceId() !=
-                    state.openCodeWorkspaceIdFor(selected.id) ||
-                    openCodePanel()
-                        .documentModelDiffers(
-                            persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)
-                        ) ||
-                    openCodePanel()
-                        .visionModelDiffers(persisted?.extra(ProviderAccount.EXTRA_VISION_MODEL))
-            QuotaProviderType.OLLAMA ->
-                ollamaPanel().monthlyResetField.text.trim() !=
-                    (persisted?.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET)
-                            ?: selected.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET))
-                        .orEmpty() ||
-                    ollamaPanel()
-                        .visionModelDiffers(persisted?.extra(ProviderAccount.EXTRA_VISION_MODEL))
-            QuotaProviderType.MISTRAL ->
-                mistralPanel()
-                    .documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)) ||
-                    mistralPanel()
-                        .visionModelDiffers(persisted?.extra(ProviderAccount.EXTRA_VISION_MODEL))
-            QuotaProviderType.ZAI ->
-                zaiPanel()
-                    .documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)) ||
-                    zaiPanel()
-                        .visionModelDiffers(persisted?.extra(ProviderAccount.EXTRA_VISION_MODEL))
-            QuotaProviderType.OPEN_AI ->
-                openAiPanel()
-                    .documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)) ||
-                    openAiPanel()
-                        .visionModelDiffers(persisted?.extra(ProviderAccount.EXTRA_VISION_MODEL))
-            QuotaProviderType.SUPERGROK ->
-                superGrokPanel()
-                    .documentModelDiffers(persisted?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)) ||
-                    superGrokPanel()
-                        .visionModelDiffers(persisted?.extra(ProviderAccount.EXTRA_VISION_MODEL))
-            QuotaProviderType.KIMI ->
-                kimiPanel().visionModelDiffers(persisted?.extra(ProviderAccount.EXTRA_VISION_MODEL))
-            else -> false
-        }
+        return panel.popupVisibilityToggle.isHidden !=
+            (persisted?.hiddenFromPopup ?: selected.hiddenFromPopup) ||
+            panel.accountFieldsModified(selected, persisted, state)
     }
 
     private fun captureProxyTestSettings(): ProxyTestSettings {
@@ -1019,39 +837,6 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
 
     private fun compatiblePanels(): List<CompatibleSettingsPanel> =
         providerPanelsByType.values.filterIsInstance<CompatibleSettingsPanel>()
-
-    private fun miniMaxPanel(): MiniMaxSettingsPanel =
-        providerPanelsByType.getValue(QuotaProviderType.MINIMAX) as MiniMaxSettingsPanel
-
-    private fun gitHubPanel(): GitHubSettingsPanel =
-        providerPanelsByType.getValue(QuotaProviderType.GITHUB) as GitHubSettingsPanel
-
-    private fun openCodePanel(): OpenCodeSettingsPanel =
-        providerPanelsByType.getValue(QuotaProviderType.OPEN_CODE) as OpenCodeSettingsPanel
-
-    private fun ollamaPanel(): OllamaSettingsPanel =
-        providerPanelsByType.getValue(QuotaProviderType.OLLAMA) as OllamaSettingsPanel
-
-    private fun antigravityPanel(): AntigravitySettingsPanel =
-        providerPanelsByType.getValue(QuotaProviderType.ANTIGRAVITY) as AntigravitySettingsPanel
-
-    private fun azurePanel(): AzureSettingsPanel =
-        providerPanelsByType.getValue(QuotaProviderType.AZURE) as AzureSettingsPanel
-
-    private fun mistralPanel(): MistralSettingsPanel =
-        providerPanelsByType.getValue(QuotaProviderType.MISTRAL) as MistralSettingsPanel
-
-    private fun zaiPanel(): ZaiSettingsPanel =
-        providerPanelsByType.getValue(QuotaProviderType.ZAI) as ZaiSettingsPanel
-
-    private fun openAiPanel(): OpenAiSettingsPanel =
-        providerPanelsByType.getValue(QuotaProviderType.OPEN_AI) as OpenAiSettingsPanel
-
-    private fun superGrokPanel(): SuperGrokSettingsPanel =
-        providerPanelsByType.getValue(QuotaProviderType.SUPERGROK) as SuperGrokSettingsPanel
-
-    private fun kimiPanel(): KimiSettingsPanel =
-        providerPanelsByType.getValue(QuotaProviderType.KIMI) as KimiSettingsPanel
 
     private fun normalizeTargets(targets: List<McpServerSyncTarget>): List<McpServerSyncTarget> {
         return targets.map { it.normalized() }

@@ -19,7 +19,7 @@ internal class MiniMaxSettingsPanel(
     private val modalityComponentProvider: () -> JComponent?,
     private val statusLabelDefaultForeground: Color? = null,
 ) : ProviderSettingsPanel() {
-    val regionComboBox = ComboBox(MiniMaxRegionPreference.entries.toTypedArray())
+    private val regionComboBox = ComboBox(MiniMaxRegionPreference.entries.toTypedArray())
     private val apiKeyField = JBPasswordField().apply { columns = 40 }
     private val apiKeyDraft = credentialDraft(apiKeyField)
     private val statusLabel = JBLabel().apply { isVisible = false }
@@ -39,6 +39,19 @@ internal class MiniMaxSettingsPanel(
             createResponseSection(responseViewer),
         )
     }
+
+    override fun writeAccountFields(account: ProviderAccount) {
+        selectedRegion()?.let { account.setExtra(ProviderAccount.EXTRA_MINIMAX_REGION, it.name) }
+    }
+
+    override fun accountFieldsModified(
+        account: ProviderAccount,
+        saved: ProviderAccount?,
+        state: QuotaSettingsState,
+    ): Boolean = selectedRegion() != state.miniMaxRegionFor(account.id)
+
+    private fun selectedRegion(): MiniMaxRegionPreference? =
+        regionComboBox.selectedItem as? MiniMaxRegionPreference
 
     override fun updateFields() {
         loadCredentialField()
@@ -73,7 +86,7 @@ internal class MiniMaxSettingsPanel(
             checkNotNull(boundAccount).snapshot().apply {
                 setExtra(
                     ProviderAccount.EXTRA_MINIMAX_REGION,
-                    (regionComboBox.selectedItem as? MiniMaxRegionPreference)?.name,
+                    selectedRegion()?.name,
                 )
             },
             String(apiKeyField.password).takeUnless { it == PLACEHOLDER },

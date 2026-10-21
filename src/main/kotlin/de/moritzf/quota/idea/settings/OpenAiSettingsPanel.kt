@@ -39,8 +39,8 @@ internal class OpenAiSettingsPanel(
             isVisible = false
             toolTipText = "Copy login URL to clipboard"
         }
-    private val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
-    private val visionModelCombo = VisionModelCombo()
+    override val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
+    override val visionModelCombo = VisionModelCombo()
     private val accountIdField = JBTextField().apply { isEditable = false }
     private val emailField = JBTextField().apply { isEditable = false }
     private val codexResponseViewer = createResponseViewer()
@@ -236,14 +236,6 @@ internal class OpenAiSettingsPanel(
         updateAuthUi()
         updateAccountFields()
     }
-
-    fun documentModelForStorage(): String? = documentModelCombo.storedValue()
-
-    fun documentModelDiffers(saved: String?): Boolean = documentModelCombo.differs(saved)
-
-    fun visionModelForStorage(): String? = visionModelCombo.storedValue()
-
-    fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
 
     override fun updateStatus() {
         updateAuthUi()

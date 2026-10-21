@@ -43,8 +43,8 @@ internal class OpenCodeSettingsPanel(
     private val userCodeLabel = JBLabel().apply { isVisible = false }
     private val workspaceComboBox = ComboBox<OpenCodeWorkspace>().shrinkable()
     private val workspaceStatus = JBLabel()
-    private val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
-    private val visionModelCombo = VisionModelCombo(groupUnverified = true)
+    override val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
+    override val visionModelCombo = VisionModelCombo(groupUnverified = true)
     private val testDocumentButton =
         documentTestButton(
             DocumentToMarkdownProvider.OPEN_CODE,
@@ -208,14 +208,6 @@ internal class OpenCodeSettingsPanel(
             createResponseSection(responseViewer),
         )
     }
-
-    fun documentModelForStorage(): String? = documentModelCombo.storedValue()
-
-    fun documentModelDiffers(saved: String?): Boolean = documentModelCombo.differs(saved)
-
-    fun visionModelForStorage(): String? = visionModelCombo.storedValue()
-
-    fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
 
     override fun updateFields() {
         documentModelCombo.show(
@@ -399,10 +391,23 @@ internal class OpenCodeSettingsPanel(
         }
     }
 
-    fun selectedWorkspaceId(): String? =
+    private fun selectedWorkspaceId(): String? =
         auth().load(accountId())?.accountId
             ?: (workspaceComboBox.selectedItem as? OpenCodeWorkspace)?.id
             ?: boundAccount?.extra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE)
+
+    override fun writeAccountFields(account: ProviderAccount) {
+        account.setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, selectedWorkspaceId())
+        super.writeAccountFields(account)
+    }
+
+    override fun accountFieldsModified(
+        account: ProviderAccount,
+        saved: ProviderAccount?,
+        state: QuotaSettingsState,
+    ): Boolean =
+        selectedWorkspaceId() != state.openCodeWorkspaceIdFor(account.id) ||
+            super.accountFieldsModified(account, saved, state)
 
     override fun updateResponseArea() {
         val service = QuotaUsageService.getInstance()

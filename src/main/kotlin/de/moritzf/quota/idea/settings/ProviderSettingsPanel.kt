@@ -89,6 +89,32 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
         proxyLinkHost.repaint()
     }
 
+    /** Per-account model pickers; [writeAccountFields] and [accountFieldsModified] cover them. */
+    protected open val documentModelCombo: DocumentModelCombo?
+        get() = null
+
+    protected open val visionModelCombo: VisionModelCombo?
+        get() = null
+
+    /** Writes the fields this panel edits for its bound account into [account]. */
+    open fun writeAccountFields(account: ProviderAccount) {
+        documentModelCombo?.let {
+            account.setExtra(ProviderAccount.EXTRA_DOCUMENT_MODEL, it.storedValue())
+        }
+        visionModelCombo?.let {
+            account.setExtra(ProviderAccount.EXTRA_VISION_MODEL, it.storedValue())
+        }
+    }
+
+    /** Whether those fields differ from [saved], the persisted copy of [account]. */
+    open fun accountFieldsModified(
+        account: ProviderAccount,
+        saved: ProviderAccount?,
+        state: QuotaSettingsState,
+    ): Boolean =
+        documentModelCombo?.differs(saved?.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL)) == true ||
+            visionModelCombo?.differs(saved?.extra(ProviderAccount.EXTRA_VISION_MODEL)) == true
+
     open fun testConnection(): ProviderTestConnection =
         ProviderTestConnection(checkNotNull(boundAccount) { message("modelTest.selectAccount") })
 

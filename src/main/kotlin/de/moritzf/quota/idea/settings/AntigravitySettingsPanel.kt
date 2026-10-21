@@ -13,7 +13,7 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 
 internal class AntigravitySettingsPanel : ProviderSettingsPanel() {
-    val executableField =
+    private val executableField =
         TextFieldWithBrowseButton().apply {
             addBrowseFolderListener(
                 null,
@@ -66,7 +66,19 @@ internal class AntigravitySettingsPanel : ProviderSettingsPanel() {
         )
     }
 
-    fun normalizedExecutablePath(): String? = executableField.text.trim().takeIf { it.isNotEmpty() }
+    override fun writeAccountFields(account: ProviderAccount) {
+        account.setExtra(
+            ProviderAccount.EXTRA_AGY_EXECUTABLE,
+            executableField.text.trim().takeIf { it.isNotEmpty() },
+        )
+    }
+
+    override fun accountFieldsModified(
+        account: ProviderAccount,
+        saved: ProviderAccount?,
+        state: QuotaSettingsState,
+    ): Boolean =
+        executableField.text.trim() != saved?.extra(ProviderAccount.EXTRA_AGY_EXECUTABLE).orEmpty()
 
     private fun detectExecutable() {
         val detected = AntigravityQuotaClient.findExecutable()

@@ -320,7 +320,7 @@ internal class CompatibleSettingsPanel(
         responseViewer.caretPosition = 0
     }
 
-    fun writeTo(account: ProviderAccount) {
+    override fun writeAccountFields(account: ProviderAccount) {
         if (account.id != shownAccountId) return
         account.setExtra(
             ProviderAccount.EXTRA_COMPATIBLE_BASE_URL,
@@ -334,6 +334,12 @@ internal class CompatibleSettingsPanel(
         account.setExtra(ProviderAccount.EXTRA_VISION_MODEL, visionModel.storedValue())
         account.setExtra(ProviderAccount.EXTRA_DOCUMENT_MODEL, documentModel.storedValue())
     }
+
+    override fun accountFieldsModified(
+        account: ProviderAccount,
+        saved: ProviderAccount?,
+        state: QuotaSettingsState,
+    ): Boolean = differsFrom(saved ?: account)
 
     fun differsFrom(account: ProviderAccount): Boolean =
         baseUrlField.text.trim().trimEnd('/') !=
@@ -413,7 +419,7 @@ internal class CompatibleSettingsPanel(
 
     override fun testConnection(): ProviderTestConnection =
         ProviderTestConnection(
-            checkNotNull(boundAccount).snapshot().also(::writeTo),
+            checkNotNull(boundAccount).snapshot().also(::writeAccountFields),
             if (apiKeyField.isEnabled) currentKey().orEmpty() else null,
         )
 

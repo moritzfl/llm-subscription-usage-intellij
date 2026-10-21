@@ -48,7 +48,7 @@ internal class OllamaSettingsPanel(
         }
     private val ollamaStatusLabel = JBLabel().apply { isVisible = false }
     private val apiKeyDraft = credentialDraft(apiKeyField)
-    private val visionModelCombo = VisionModelCombo()
+    override val visionModelCombo = VisionModelCombo()
     private val ollamaJsonViewer = createResponseViewer()
     private val validationGeneration = AtomicLong(0)
     private var modelRefreshGeneration = 0
@@ -95,7 +95,25 @@ internal class OllamaSettingsPanel(
         install(ollamaConfigPanel, createResponseSection(ollamaJsonViewer))
     }
 
-    fun normalizedMonthlyResetForStorage(): String? {
+    override fun writeAccountFields(account: ProviderAccount) {
+        account.setExtra(
+            ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET,
+            normalizedMonthlyResetForStorage(),
+        )
+        super.writeAccountFields(account)
+    }
+
+    override fun accountFieldsModified(
+        account: ProviderAccount,
+        saved: ProviderAccount?,
+        state: QuotaSettingsState,
+    ): Boolean =
+        monthlyResetField.text.trim() !=
+            (saved?.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET)
+                    ?: account.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET))
+                .orEmpty() || super.accountFieldsModified(account, saved, state)
+
+    private fun normalizedMonthlyResetForStorage(): String? {
         collapsePastedReset()
         val raw = monthlyResetField.text.trim()
         if (raw.isEmpty()) return null
@@ -141,15 +159,11 @@ internal class OllamaSettingsPanel(
         apiKeyDraft.show(id, if (apiKey.isNullOrBlank()) "" else API_KEY_PLACEHOLDER)
     }
 
-    fun visionModelForStorage(): String? = visionModelCombo.storedValue()
-
     override fun testConnection(): ProviderTestConnection =
         ProviderTestConnection(
             checkNotNull(boundAccount),
             String(apiKeyField.password).takeUnless { it == API_KEY_PLACEHOLDER },
         )
-
-    fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
 
     private fun showVisionModels(
         discovered: Map<String, Boolean?>,

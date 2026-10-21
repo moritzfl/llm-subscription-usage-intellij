@@ -59,7 +59,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
             }
             .shrinkable()
     private lateinit var documentHintRow: Row
-    private val visionModelCombo = VisionModelCombo(groupUnverified = true)
+    override val visionModelCombo = VisionModelCombo(groupUnverified = true)
     private var documentGroupHeaders: Map<String, ListSeparator> = emptyMap()
     private val accountCombo = ComboBox<AzureCliAccount>().shrinkable()
     private val status = JBLabel()
@@ -240,39 +240,44 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
         )
     }
 
-    fun normalizedExecutablePath(): String? = executableField.text.trim().takeIf { it.isNotEmpty() }
+    private fun normalizedExecutablePath(): String? =
+        executableField.text.trim().takeIf { it.isNotEmpty() }
 
     override fun testConnection(): ProviderTestConnection =
-        ProviderTestConnection(
-            checkNotNull(boundAccount).snapshot().apply {
-                setExtra(ProviderAccount.EXTRA_AZURE_EXECUTABLE, normalizedExecutablePath())
-                setExtra(ProviderAccount.EXTRA_AZURE_SUBSCRIPTION, subscriptionId())
-                setExtra(ProviderAccount.EXTRA_AZURE_RESOURCE, resourceName())
-                setExtra(ProviderAccount.EXTRA_AZURE_ENDPOINT, endpoint())
-                setExtra(ProviderAccount.EXTRA_AZURE_LOCATION, locationId())
-                setExtra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS, deploymentNames())
-                setExtra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT, ocrDeploymentForStorage())
-                setExtra(ProviderAccount.EXTRA_VISION_MODEL, visionModelForStorage())
-            }
-        )
+        ProviderTestConnection(checkNotNull(boundAccount).snapshot().also(::writeAccountFields))
 
-    fun subscriptionId(): String? = subscriptionField.text.trim().takeIf { it.isNotEmpty() }
+    override fun writeAccountFields(account: ProviderAccount) {
+        account.setExtra(ProviderAccount.EXTRA_AZURE_EXECUTABLE, normalizedExecutablePath())
+        account.setExtra(ProviderAccount.EXTRA_AZURE_SUBSCRIPTION, subscriptionId())
+        account.setExtra(ProviderAccount.EXTRA_AZURE_RESOURCE, resourceName())
+        account.setExtra(ProviderAccount.EXTRA_AZURE_ENDPOINT, endpoint())
+        account.setExtra(ProviderAccount.EXTRA_AZURE_LOCATION, locationId())
+        account.setExtra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS, deploymentNames())
+        account.setExtra(ProviderAccount.EXTRA_VISION_MODEL, visionModelCombo.storedValue())
+        account.setExtra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT, ocrDeploymentForStorage())
+    }
 
-    fun resourceName(): String? = resourceField.text.trim().takeIf { it.isNotEmpty() }
+    override fun accountFieldsModified(
+        account: ProviderAccount,
+        saved: ProviderAccount?,
+        state: QuotaSettingsState,
+    ): Boolean = differsFrom(saved ?: account)
 
-    fun endpoint(): String? = endpointField.text.trim().takeIf { it.isNotEmpty() }
+    private fun subscriptionId(): String? = subscriptionField.text.trim().takeIf { it.isNotEmpty() }
 
-    fun locationId(): String? = locationField.text.trim().takeIf { it.isNotEmpty() }
+    private fun resourceName(): String? = resourceField.text.trim().takeIf { it.isNotEmpty() }
 
-    fun deploymentNames(): String? = deploymentsField.text.trim().takeIf { it.isNotEmpty() }
+    private fun endpoint(): String? = endpointField.text.trim().takeIf { it.isNotEmpty() }
 
-    fun visionModelForStorage(): String? = visionModelCombo.storedValue()
+    private fun locationId(): String? = locationField.text.trim().takeIf { it.isNotEmpty() }
+
+    private fun deploymentNames(): String? = deploymentsField.text.trim().takeIf { it.isNotEmpty() }
 
     /**
      * "-" is stored so a later model list does not turn conversion back on. A new resource clears
      * it.
      */
-    fun ocrDeploymentForStorage(): String? {
+    private fun ocrDeploymentForStorage(): String? {
         val targetChanged =
             resourceName().orEmpty() !=
                 boundAccount?.extra(ProviderAccount.EXTRA_AZURE_RESOURCE).orEmpty() ||
@@ -285,7 +290,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
         return if (ocrOffExplicit || stored == NO_OCR) NO_OCR else null
     }
 
-    fun differsFrom(account: ProviderAccount?): Boolean {
+    private fun differsFrom(account: ProviderAccount?): Boolean {
         return normalizedExecutablePath().orEmpty() !=
             account?.extra(ProviderAccount.EXTRA_AZURE_EXECUTABLE).orEmpty() ||
             subscriptionId().orEmpty() !=

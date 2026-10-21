@@ -26,8 +26,8 @@ internal class ZaiSettingsPanel(
     private val modalityComponentProvider: () -> JComponent?,
     private val statusLabelDefaultForeground: Color? = null,
 ) : ProviderSettingsPanel() {
-    private val documentModelCombo = DocumentModelCombo(ZaiOcrClient.DEFAULT_MODEL, vision = false)
-    private val visionModelCombo = VisionModelCombo()
+    override val documentModelCombo = DocumentModelCombo(ZaiOcrClient.DEFAULT_MODEL, vision = false)
+    override val visionModelCombo = VisionModelCombo()
     private var modelRefreshGeneration = 0
     private val apiKeyField =
         JBPasswordField().apply {
@@ -120,14 +120,6 @@ internal class ZaiSettingsPanel(
             checkNotNull(boundAccount),
             String(apiKeyField.password).takeUnless { it == API_KEY_PLACEHOLDER },
         )
-
-    fun documentModelForStorage(): String? = documentModelCombo.storedValue()
-
-    fun documentModelDiffers(saved: String?): Boolean = documentModelCombo.differs(saved)
-
-    fun visionModelForStorage(): String? = visionModelCombo.storedValue()
-
-    fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
 
     private fun showDocumentModels(
         discovered: List<String>,

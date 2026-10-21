@@ -55,8 +55,8 @@ internal class GitHubSettingsPanel(
             toolTipText = "Copy the GitHub device code to clipboard"
         }
     private val userCodeLabel = JBLabel().apply { isVisible = false }
-    private val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
-    private val visionModelCombo = VisionModelCombo()
+    override val documentModelCombo = DocumentModelCombo(DocumentModels.OFF, vision = true)
+    override val visionModelCombo = VisionModelCombo()
     private val testDocumentButton =
         documentTestButton(
             DocumentToMarkdownProvider.GITHUB,
@@ -235,14 +235,6 @@ internal class GitHubSettingsPanel(
         )
     }
 
-    fun documentModelForStorage(): String? = documentModelCombo.storedValue()
-
-    fun documentModelDiffers(saved: String?): Boolean = documentModelCombo.differs(saved)
-
-    fun visionModelForStorage(): String? = visionModelCombo.storedValue()
-
-    fun visionModelDiffers(saved: String?): Boolean = visionModelCombo.differs(saved)
-
     override fun updateFields() {
         rememberAccount()
         val isCurrent = accountUiGuard()
@@ -383,10 +375,26 @@ internal class GitHubSettingsPanel(
         updateResponseArea()
     }
 
-    fun normalizedEnterpriseHostForStorage(): String {
+    private fun normalizedEnterpriseHostForStorage(): String {
         val normalized = GitHubQuotaClient.normalizedEnterpriseHost(enterpriseHostField.text)
         return if (normalized == "github.com") "" else normalized
     }
+
+    override fun writeAccountFields(account: ProviderAccount) {
+        account.setExtra(
+            ProviderAccount.EXTRA_GITHUB_HOST,
+            normalizedEnterpriseHostForStorage().ifEmpty { null },
+        )
+        super.writeAccountFields(account)
+    }
+
+    override fun accountFieldsModified(
+        account: ProviderAccount,
+        saved: ProviderAccount?,
+        state: QuotaSettingsState,
+    ): Boolean =
+        normalizedEnterpriseHostForStorage() != state.githubHostFor(account.id) ||
+            super.accountFieldsModified(account, saved, state)
 
     private fun setPending() {
         val text = "Clearing credentials..."
