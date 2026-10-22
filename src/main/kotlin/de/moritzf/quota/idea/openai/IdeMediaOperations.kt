@@ -93,7 +93,8 @@ internal class IdeMediaOperations(
                         mistralAudio.synthesize(
                             apiKey = mistralKey(AccountCapability.TEXT_TO_SPEECH),
                             text = input,
-                            targetFile = path.toString(),
+                            targetFile = path.fileName.toString(),
+                            baseDirectory = path.parent,
                             voiceId = voice,
                             model = model,
                             responseFormat = format,
@@ -107,8 +108,8 @@ internal class IdeMediaOperations(
                                 apiKey = key,
                                 region = region,
                                 text = input,
-                                targetFile = path.toString(),
-                                baseDirectory = null,
+                                targetFile = path.fileName.toString(),
+                                baseDirectory = path.parent,
                                 voiceId = voice,
                                 model = model,
                                 responseFormat = format,
@@ -122,7 +123,8 @@ internal class IdeMediaOperations(
                             codex(AccountCapability.TEXT_TO_SPEECH)
                                 .synthesize(
                                     text = input,
-                                    targetFile = path.toString(),
+                                    targetFile = path.fileName.toString(),
+                                    baseDirectory = path.parent,
                                     voiceId = voice,
                                     model = model,
                                     responseFormat = format,

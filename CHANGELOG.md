@@ -11,6 +11,7 @@
 - Ask MiniMax about images through the Token Plan's image understanding service, from `subscription_vision` and the settings' Test vision button. It is off until you select `coding-plan-vlm` as the vision model, and needs a local image file. The selection is saved with the account.
 - Report why Mistral's subscription allowances are missing when the subscription page fails without an error message, instead of leaving the section out of the response.
 - Fix Mistral text-to-speech, which failed with HTTP 400 because Voxtral 2 rejects the current preset voices: speech now uses Voxtral TTS 3 (`voxtral-mini-tts-3-0`, also advertised by the proxy). Speaker labels and audio URLs in Mistral transcription failed with HTTP 422; requests are now multipart and ask for the segment timestamps that speaker labels need.
+- Fix speech output through the local proxy (`/v1/audio/speech`) for Mistral, MiniMax, and OpenAI/Codex, which failed with "Provide targetFile so the audio is written to disk" before reaching the provider. SuperGrok speech was not affected.
 - Report SuperGrok's context window, output limit, and image input in the proxy's model info from xAI's model list.
 - Read context lengths that OpenAI-compatible servers report as `max_context_length`, `context_length`, or `max_model_len`, and Mistral's tool and image support; Mistral models that cannot chat no longer appear.
 - Read Ollama Cloud's tool and image support from its public model list, replacing a fixed list of models without tool calls, and hide models that cannot chat.
