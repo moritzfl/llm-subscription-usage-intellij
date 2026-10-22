@@ -4,6 +4,7 @@
 
 - Proxy Gemini models from OpenCode Go and Zen by bridging the Google generateContent API, including streaming, tool calls with thought signatures, vision/PDF parts, and Junie-compatible chat requests.
 - Use free Claude limit resets from the quota popup: resets offered in claude.ai Settings > Usage, and the weekly session reset (`/limit-reset`) when you hit the 5-hour limit. A confirmation shows what each reset refills before it is used.
+- Read context lengths that OpenAI-compatible servers report as `max_context_length`, `context_length`, or `max_model_len`, and Mistral's tool and image support; Mistral models that cannot chat no longer appear.
 - Read Ollama Cloud's tool and image support from its public model list, replacing a fixed list of models without tool calls, and hide models that cannot chat.
 - Leave model prices, parallel tool calling, and prompt caching unset in the proxy's model info when a provider does not report them, instead of claiming free models without those features. After a failed model discovery, the proxy tries again after 30 seconds instead of showing no models for 5 minutes.
 - Send Azure chat requests with tools to the Responses API for models that accept tools only there, such as GPT-6.1 Sol and GPT-6 Astra, and translate the answer back to chat. They rejected the chat route's `reasoning_effort: none` workaround.

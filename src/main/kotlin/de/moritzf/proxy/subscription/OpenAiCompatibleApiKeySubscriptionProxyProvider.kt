@@ -233,10 +233,16 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
             (item["id"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() } ?: return null
         val modelType = (item["object"] as? JsonPrimitive)?.contentOrNull
         if (modelType == "embedding" || modelType == "embeddings") return null
+        // Mistral reports what a model can do; models that cannot chat are left out.
+        val capabilities = item["capabilities"] as? JsonObject
+        if (capabilities?.let { boolField(it, "completion_chat") } == false) return null
+        val tools = capabilities?.let { boolField(it, "function_calling") }
         return StaticModel(
             id = id,
-            maxInputTokens =
-                intField(item, "max_input_tokens") ?: intField(item, "max_context_window_tokens"),
+            supportsFunctionCalling = tools ?: true,
+            supportsToolChoice = tools ?: true,
+            supportsVision = capabilities?.let { boolField(it, "vision") } ?: false,
+            maxInputTokens = CONTEXT_FIELDS.firstNotNullOfOrNull { intField(item, it) },
             maxOutputTokens = intField(item, "max_output_tokens"),
             isDefault = boolField(item, "is_default") ?: boolField(item, "default") ?: false,
         )
@@ -276,6 +282,19 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
                 "/openai-usage-quota-intellij/subscription-proxy-openai-compatible-requests"
 
         private fun String?.trimmedOrNull(): String? = this?.trim()?.takeIf { it.isNotBlank() }
+
+        /**
+         * Context window names, in order: LiteLLM style, Mistral (`max_context_length`), OpenRouter
+         * (`context_length`), and vLLM (`max_model_len`).
+         */
+        private val CONTEXT_FIELDS =
+            listOf(
+                "max_input_tokens",
+                "max_context_window_tokens",
+                "max_context_length",
+                "context_length",
+                "max_model_len",
+            )
 
         private fun intField(item: JsonObject, name: String): Int? {
             return (item[name] as? JsonPrimitive)?.contentOrNull?.toIntOrNull()

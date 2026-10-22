@@ -230,7 +230,8 @@ class OllamaSubscriptionProxyProviderTest {
                 assertEquals(200, response.statusCode(), response.body())
                 val generate = generateSequence {
                     upstream.requests.poll(2, TimeUnit.SECONDS)
-                }.first { it.path == "/api/generate" }
+                }
+                    .first { it.path == "/api/generate" }
                 assertTrue(generate.body.contains("\"prompt\""), generate.body)
                 assertTrue(generate.body.contains("\"suffix\""), generate.body)
                 assertTrue(response.body().contains("\"text\""), response.body())
@@ -405,7 +406,8 @@ class OllamaSubscriptionProxyProviderTest {
                     assertEquals(200, response.statusCode(), response.body())
                     val generate = generateSequence {
                         upstream.requests.poll(2, TimeUnit.SECONDS)
-                    }.first { it.path == "/api/generate" }
+                    }
+                        .first { it.path == "/api/generate" }
                     assertEquals("Bearer ollama-key", generate.firstHeader("Authorization"))
                     val body = JsonHelper.JSON.parseToJsonElement(generate.body).jsonObject
                     assertEquals("deepseek-v4.1-flash", body["model"]!!.jsonPrimitive.content)

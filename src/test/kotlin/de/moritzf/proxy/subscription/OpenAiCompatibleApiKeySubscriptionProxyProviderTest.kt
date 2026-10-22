@@ -79,6 +79,72 @@ class OpenAiCompatibleApiKeySubscriptionProxyProviderTest {
     }
 
     @Test
+    fun readsContextLengthsAndMistralCapabilities() {
+        TestUpstream(
+                modelsBody =
+                    """
+                    {"object":"list","data":[
+                      {"id":"mistral-medium-2508","object":"model","max_context_length":131072,
+                       "capabilities":{"completion_chat":true,"completion_fim":false,"function_calling":true,"vision":true},
+                       "aliases":["mistral-medium-latest"]},
+                      {"id":"codestral-2508","object":"model","max_context_length":256000,
+                       "capabilities":{"completion_chat":true,"completion_fim":true,"function_calling":false,"vision":false}},
+                      {"id":"mistral-moderation-2411","object":"model",
+                       "capabilities":{"completion_chat":false,"function_calling":false}},
+                      {"id":"router-model","object":"model","context_length":65536},
+                      {"id":"vllm-model","object":"model","max_model_len":"32768"},
+                      {"id":"plain-model","object":"model","capabilities":["chat"]}
+                    ]}
+                    """
+                        .trimIndent()
+            )
+            .use { upstream ->
+                val models =
+                    OpenAiCompatibleApiKeySubscriptionProxyProvider(
+                            id = "test-provider",
+                            displayName = "Test Provider",
+                            litellmProvider = "test-provider",
+                            baseUri = upstream.baseUri,
+                            apiKeyProvider = { "provider-key" },
+                            localIdPrefix = "test-",
+                            requestLogDir =
+                                Files.createTempDirectory("api-key-provider-test-logs").toString(),
+                        )
+                        .fetchModels("provider-key")
+                        .associateBy { it.id }
+
+                assertEquals(
+                    listOf(
+                        "mistral-medium-2508",
+                        "codestral-2508",
+                        "router-model",
+                        "vllm-model",
+                        "plain-model",
+                    ),
+                    models.keys.toList(),
+                    "models that cannot chat are left out",
+                )
+                val medium = models.getValue("mistral-medium-2508")
+                assertEquals(131072, medium.maxInputTokens)
+                assertEquals(true, medium.supportsFunctionCalling)
+                assertEquals(true, medium.supportsVision)
+                val codestral = models.getValue("codestral-2508")
+                assertEquals(false, codestral.supportsFunctionCalling)
+                assertEquals(false, codestral.supportsToolChoice)
+                assertEquals(65536, models.getValue("router-model").maxInputTokens)
+                assertEquals(32768, models.getValue("vllm-model").maxInputTokens)
+                val plain = models.getValue("plain-model")
+                assertEquals(null, plain.maxInputTokens)
+                assertEquals(
+                    true,
+                    plain.supportsFunctionCalling,
+                    "unreported tools keep the default",
+                )
+                assertEquals(false, plain.supportsVision)
+            }
+    }
+
+    @Test
     fun advertisesStaticModelsWhenDiscoveryIsDisabled() {
         TestUpstream().use { upstream ->
             val proxy =
