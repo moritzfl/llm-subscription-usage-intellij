@@ -13,8 +13,10 @@ import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.idea.auth.OAuthConnectionState
 import de.moritzf.quota.idea.auth.QuotaAuthService
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
+import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.shared.JsonSupport
 import java.awt.Color
 import java.awt.event.KeyAdapter
@@ -242,7 +244,11 @@ internal class ClaudeSettingsPanel(
         val authService = QuotaAuthService.getInstance()
         val loggedIn = authService.isLoggedIn(accountId(), QuotaProviderType.CLAUDE)
         val inProgress = authService.isLoginInProgress(accountId(), QuotaProviderType.CLAUDE)
-        val error = QuotaUsageService.getInstance().getLastError(accountId())
+        val error =
+            QuotaUsageService.getInstance().getLastError(accountId())?.let { error ->
+                listOfNotNull(error, lastSuccessWhileRateLimited()?.let { "$it." })
+                    .joinToString(" ")
+            }
         val connection = authService.connectionState(accountId(), QuotaProviderType.CLAUDE)
         val uiState =
             QuotaSettingsAuthUiState.create(
@@ -272,12 +278,31 @@ internal class ClaudeSettingsPanel(
         }
     }
 
+    /** "Last successful update: 5 minutes ago" while Claude rate limits the quota refresh. */
+    private fun lastSuccessWhileRateLimited(): String? {
+        val service = QuotaUsageService.getInstance()
+        if (service.getResponseJsonBeforeRateLimit(accountId()) == null) return null
+        val fetchedAt = (service.getLastQuota(accountId()) as? ClaudeQuota)?.fetchedAt
+        return QuotaUiUtil.formatInstant(fetchedAt)?.let {
+            message("settings.quota.response.lastSuccess", it)
+        }
+    }
+
     override fun updateResponseArea() {
-        val quota = QuotaUsageService.getInstance().getLastQuota(accountId()) as? ClaudeQuota
-        val error = QuotaUsageService.getInstance().getLastError(accountId())
-        val rawJson = QuotaUsageService.getInstance().getLastResponseJson(accountId())
+        val service = QuotaUsageService.getInstance()
+        val quota = service.getLastQuota(accountId()) as? ClaudeQuota
+        val error = service.getLastError(accountId())
+        val rawJson = service.getLastResponseJson(accountId())
+        val beforeRateLimit = service.getResponseJsonBeforeRateLimit(accountId())
         jsonViewer.text =
             when {
+                error != null && beforeRateLimit != null ->
+                    rateLimitedResponseText(
+                        error,
+                        lastSuccessWhileRateLimited(),
+                        rawJson,
+                        beforeRateLimit,
+                    )
                 error != null && !rawJson.isNullOrBlank() -> "Error: $error\n\n$rawJson"
                 error != null -> "Error: $error"
                 quota == null -> "No Claude response yet."
@@ -306,3 +331,29 @@ internal class ClaudeSettingsPanel(
         return ActionLink(text).apply { autoHideOnDisable = false }
     }
 }
+
+/**
+ * Both responses while rate limited: the rate-limit response, unless the provider sent no body, and
+ * the latest response before it.
+ */
+internal fun rateLimitedResponseText(
+    error: String,
+    lastSuccess: String?,
+    rawJson: String?,
+    beforeRateLimit: String,
+): String =
+    listOfNotNull(
+            listOfNotNull(message("settings.quota.response.error", error), lastSuccess)
+                .joinToString("\n"),
+            rawJson
+                ?.takeIf { it.isNotBlank() && it != beforeRateLimit }
+                ?.let {
+                    message("settings.quota.response.rateLimited") +
+                        "\n" +
+                        JsonSupport.prettyResponse(it)
+                },
+            message("settings.quota.response.beforeRateLimit") +
+                "\n" +
+                JsonSupport.prettyResponse(beforeRateLimit),
+        )
+        .joinToString("\n\n")

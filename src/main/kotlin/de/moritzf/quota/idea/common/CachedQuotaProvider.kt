@@ -13,6 +13,8 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
     protected val lastRawJsonRef = AtomicReference<String?>()
     private val lastErrorTransientRef = AtomicBoolean(false)
     private val lastRefreshHasResponse = AtomicBoolean(false)
+    private val lastRefreshRateLimited = AtomicBoolean(false)
+    private val lastRawJsonNotRateLimitedRef = AtomicReference<String?>()
 
     override fun getLastQuota(): Q? = lastQuotaRef.get()
 
@@ -30,6 +32,9 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
         return QuotaSnapshotCache.encodePlain(type, quota)
     }
 
+    override fun getRawJsonBeforeRateLimit(): String? =
+        lastRawJsonNotRateLimitedRef.get()?.takeIf { lastRefreshRateLimited.get() }
+
     override fun currentUsageFraction(): Double? = lastQuotaRef.get()?.usageFraction()
 
     override fun cachedUsageFraction(settings: QuotaSettingsState): Double? =
@@ -45,6 +50,8 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
         val cached = decodeCached(settings)
         lastQuotaRef.set(cached)
         lastRawJsonRef.set(cached?.rawJson)
+        lastRawJsonNotRateLimitedRef.set(cached?.rawJson)
+        lastRefreshRateLimited.set(false)
     }
 
     override fun persistToCache(settings: QuotaSettingsState) {
@@ -58,6 +65,8 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
         lastErrorTransientRef.set(false)
         lastRawJsonRef.set(null)
         lastRefreshHasResponse.set(false)
+        lastRefreshRateLimited.set(false)
+        lastRawJsonNotRateLimitedRef.set(null)
     }
 
     protected fun storeQuota(quota: Q, rawJson: String?) {
@@ -66,6 +75,8 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
         lastErrorTransientRef.set(false)
         lastRawJsonRef.set(rawJson)
         lastRefreshHasResponse.set(rawJson != null)
+        lastRefreshRateLimited.set(false)
+        if (rawJson != null) lastRawJsonNotRateLimitedRef.set(rawJson)
     }
 
     /**
@@ -94,17 +105,33 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
      * that resolves itself.
      */
     protected fun storeFetchFailure(statusCode: Int, error: String?, rawJson: String? = null) {
-        storeError(error, rawJson, transient = isTransientFetchFailure(statusCode))
+        storeError(
+            error,
+            rawJson,
+            transient = isTransientFetchFailure(statusCode),
+            rateLimited = isRateLimitFailure(statusCode),
+        )
     }
 
-    protected fun storeError(error: String?, rawJson: String? = null, transient: Boolean = false) {
+    /**
+     * A [rateLimited] response is kept as the last response, while the one before it stays
+     * available through [getRawJsonBeforeRateLimit].
+     */
+    protected fun storeError(
+        error: String?,
+        rawJson: String? = null,
+        transient: Boolean = false,
+        rateLimited: Boolean = false,
+    ) {
         // Keep the last good quota so transient network blips do not blank the UI/MCP.
         // clearData() is the only path that drops success state (logout / not configured).
         lastErrorRef.set(error)
         lastErrorTransientRef.set(transient && error != null)
         lastRefreshHasResponse.set(rawJson != null)
+        lastRefreshRateLimited.set(rateLimited)
         if (rawJson != null) {
             lastRawJsonRef.set(rawJson)
+            if (!rateLimited) lastRawJsonNotRateLimitedRef.set(rawJson)
         }
     }
 

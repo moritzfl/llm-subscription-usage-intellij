@@ -11,6 +11,8 @@ private const val HTTP_SERVER_ERROR = 500
  * Everything else — expired logins, rejected keys, unreadable payloads — needs the user to act and
  * is therefore reported right away.
  */
+internal fun isRateLimitFailure(statusCode: Int): Boolean = statusCode == HTTP_TOO_MANY_REQUESTS
+
 internal fun isTransientFetchFailure(statusCode: Int): Boolean {
     return statusCode == 0 ||
         statusCode == HTTP_REQUEST_TIMEOUT ||

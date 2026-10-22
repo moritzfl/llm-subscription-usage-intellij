@@ -107,6 +107,9 @@ class QuotaUsageService(
     fun getLastResponseJson(accountId: String): String? =
         providerForAccount(accountId)?.getLastRawJson()
 
+    fun getResponseJsonBeforeRateLimit(accountId: String): String? =
+        providerForAccount(accountId)?.getRawJsonBeforeRateLimit()
+
     /**
      * The error the status bar and popup should show. A temporary failure is hidden while a reading
      * is available: the quota stays visible with its "Updated" time instead of being replaced by a

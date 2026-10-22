@@ -110,6 +110,39 @@ class ClaudeQuotaProviderTest {
     }
 
     @Test
+    fun rateLimitKeepsTheLastResponseThatWasNotRateLimited() {
+        val responses =
+            ArrayDeque<() -> ClaudeQuota>(
+                listOf(
+                    { ClaudeQuota(rawJson = """{"first":true}""") },
+                    { throw ClaudeQuotaException("rate limited", 429, """{"limit":1}""") },
+                    { throw ClaudeQuotaException("rate limited", 429, null) },
+                    { throw ClaudeQuotaException("server error", 500, """{"server":1}""") },
+                    { throw ClaudeQuotaException("rate limited", 429, """{"limit":2}""") },
+                    { ClaudeQuota(rawJson = """{"second":true}""") },
+                )
+            )
+        val provider =
+            ClaudeQuotaProvider(
+                client = FakeClaudeClient { responses.removeFirst()() },
+                tokenProvider = { "token" },
+                tokenRefresher = { null },
+            )
+
+        fun refresh(): Pair<String?, String?> {
+            provider.refresh()
+            return provider.getLastRawJson() to provider.getRawJsonBeforeRateLimit()
+        }
+
+        assertEquals("""{"first":true}""" to null, refresh())
+        assertEquals("""{"limit":1}""" to """{"first":true}""", refresh())
+        assertEquals("""{"limit":1}""" to """{"first":true}""", refresh())
+        assertEquals("""{"server":1}""" to null, refresh())
+        assertEquals("""{"limit":2}""" to """{"server":1}""", refresh())
+        assertEquals("""{"second":true}""" to null, refresh())
+    }
+
+    @Test
     fun refreshSurfacesErrorWhenRateLimitHasNoPreviousData() {
         val provider =
             ClaudeQuotaProvider(
