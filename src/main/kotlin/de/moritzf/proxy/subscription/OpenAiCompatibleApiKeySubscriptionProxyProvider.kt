@@ -10,6 +10,7 @@ import java.nio.file.Path
 import java.time.Duration
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -160,6 +161,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
         if (cached != null && now - cached.fetchedAt < modelCacheTtl) {
             return cached.models
         }
+        var fetchedAt = now
         val models =
             try {
                 if (discoverModels) fetchModels(token)
@@ -170,9 +172,14 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
             } catch (cancelled: java.util.concurrent.CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
+                // Keep the last list; without one, try again soon instead of hiding every model
+                // for the whole cache lifetime.
+                if (cached == null) {
+                    fetchedAt = now - modelCacheTtl + minOf(FAILED_DISCOVERY_RETRY, modelCacheTtl)
+                }
                 cached?.models.orEmpty()
             }
-        modelCache = ModelCache(models, now, token)
+        modelCache = ModelCache(models, fetchedAt, token)
         return models
     }
 
@@ -243,10 +250,10 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
         val maxInputTokens: Int? = null,
         val maxOutputTokens: Int? = null,
         val isDefault: Boolean = false,
-        val supportsParallelFunctionCalling: Boolean? = false,
-        val supportsPromptCaching: Boolean? = false,
-        val inputCostPerToken: Double? = 0.0,
-        val outputCostPerToken: Double? = 0.0,
+        val supportsParallelFunctionCalling: Boolean? = null,
+        val supportsPromptCaching: Boolean? = null,
+        val inputCostPerToken: Double? = null,
+        val outputCostPerToken: Double? = null,
         val supportsPdfInput: Boolean? = null,
     )
 
@@ -263,6 +270,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
                 "Content-Type" to JsonHelper.JSON_CONTENT_TYPE,
             )
         private val CACHE_TTL = 5.minutes
+        private val FAILED_DISCOVERY_RETRY = 30.seconds
         private val DEFAULT_REQUEST_LOG_DIR =
             System.getProperty("java.io.tmpdir") +
                 "/openai-usage-quota-intellij/subscription-proxy-openai-compatible-requests"
