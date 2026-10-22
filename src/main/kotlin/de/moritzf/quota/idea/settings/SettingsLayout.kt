@@ -2,6 +2,9 @@ package de.moritzf.quota.idea.settings
 
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.dsl.builder.Align
+import com.intellij.ui.dsl.builder.Cell
+import com.intellij.ui.dsl.builder.Row
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.components.BorderLayoutPanel
 import de.moritzf.quota.idea.ui.QuotaUiUtil
@@ -9,6 +12,7 @@ import java.awt.Container
 import java.awt.Dimension
 import java.awt.Rectangle
 import javax.swing.JComponent
+import javax.swing.JLabel
 import javax.swing.JScrollPane
 import javax.swing.JViewport
 import javax.swing.ScrollPaneConstants
@@ -90,6 +94,14 @@ private fun Container.invalidateSubtree() {
     invalidate()
     components.forEach { if (it is Container) it.invalidateSubtree() else it.invalidate() }
 }
+
+/**
+ * A full-width cell for a [wrappingHtml] or [statusDotHtml] label. Baseline alignment would size
+ * the form for the label at its preferred width but lay it out at the real one, so a wrapped last
+ * line spilled out of the form.
+ */
+internal fun <T : JLabel> Row.statusCell(label: T): Cell<T> =
+    cell(label).align(Align.FILL).resizableColumn()
 
 /** Label text that wraps to the label's width. Place the label with `align(AlignX.FILL)`. */
 internal fun wrappingHtml(text: String): String = "<html>${QuotaUiUtil.escapeHtml(text)}</html>"

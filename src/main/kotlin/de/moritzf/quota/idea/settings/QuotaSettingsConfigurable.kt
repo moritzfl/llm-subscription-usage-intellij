@@ -696,7 +696,7 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
                 )
             }
 
-            row { cell(mcpServerStatusLabel!!).resizableColumn().align(AlignX.FILL) }
+            row { statusCell(mcpServerStatusLabel!!) }
 
             row {
                 comment(

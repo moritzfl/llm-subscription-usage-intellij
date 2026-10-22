@@ -29,7 +29,7 @@ internal class AntigravitySettingsPanel : ProviderSettingsPanel() {
     init {
         install(
             panel {
-                row { cell(status).align(AlignX.FILL).resizableColumn() }
+                row { statusCell(status) }
                 row {
                     comment(
                         "Uses the current Antigravity CLI login. Install AGY 1.1.11 or later and run agy in a terminal to sign in."

@@ -61,7 +61,7 @@ internal class MistralSettingsPanel(
     init {
         install(
             panel {
-                row { cell(statusLabel).align(AlignX.FILL).resizableColumn() }
+                row { statusCell(statusLabel) }
                 row {
                     text(
                         "Quota cookies from admin.mistral.ai / console.mistral.ai → DevTools → Application → Cookies. Copy each name/value."

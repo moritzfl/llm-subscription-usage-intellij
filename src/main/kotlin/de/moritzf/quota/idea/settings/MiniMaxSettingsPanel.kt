@@ -28,7 +28,7 @@ internal class MiniMaxSettingsPanel(
     init {
         install(
             panel {
-                row { cell(statusLabel).align(AlignX.FILL).resizableColumn() }
+                row { statusCell(statusLabel) }
                 row("Region:") { cell(regionComboBox) }
                 row("Subscription key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
                 row {

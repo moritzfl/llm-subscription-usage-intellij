@@ -279,7 +279,7 @@ internal class SubscriptionProxySettingsPanel(
                         cell(copyProxyApiKeyButton).gap(RightGap.SMALL)
                         cell(generateProxyApiKeyButton)
                     }
-                    row { cell(proxyApiKeyHintLabel).align(AlignX.FILL).resizableColumn() }
+                    row { statusCell(proxyApiKeyHintLabel) }
                     row {
                         cell(proxyLogRequestsCheckBox)
                             .comment(
@@ -290,14 +290,14 @@ internal class SubscriptionProxySettingsPanel(
                     }
                     row {
                         cell(showLogsButton).gap(RightGap.SMALL)
-                        cell(logsStatusLabel).align(AlignX.FILL).resizableColumn()
+                        statusCell(logsStatusLabel)
                     }
                     separator()
                     row("Providers:") {
                         cell(providerBoxesPanel).align(AlignX.FILL).resizableColumn()
                     }
-                    row { cell(providerStatusLabel).align(AlignX.FILL).resizableColumn() }
-                    row { cell(proxyStatusLabel).align(AlignX.FILL).resizableColumn() }
+                    row { statusCell(providerStatusLabel) }
+                    row { statusCell(proxyStatusLabel) }
                     separator()
                     row {
                         cell(
@@ -378,7 +378,7 @@ internal class SubscriptionProxySettingsPanel(
                                 )
                         }
                         row { cell(testFimButton) }
-                        row { cell(fimSetupStatusLabel).align(AlignX.FILL).resizableColumn() }
+                        row { statusCell(fimSetupStatusLabel) }
                     }
                 }
             }

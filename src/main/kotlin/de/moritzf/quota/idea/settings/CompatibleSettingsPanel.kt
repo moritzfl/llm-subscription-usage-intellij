@@ -108,7 +108,7 @@ internal class CompatibleSettingsPanel(
                 row("Base URL:") { cell(baseUrlField).align(AlignX.FILL).resizableColumn() }
                 row { comment("API root, including /v1 when required.") }
                 row("API key:") { cell(apiKeyField).align(AlignX.FILL).resizableColumn() }
-                row { cell(keyHint).align(AlignX.FILL).resizableColumn() }
+                row { statusCell(keyHint) }
             },
             panel {
                 group("Models") {
@@ -116,7 +116,7 @@ internal class CompatibleSettingsPanel(
                         cell(refreshButton)
                         cell(cancelButton)
                     }
-                    row { cell(status).align(AlignX.FILL).resizableColumn() }
+                    row { statusCell(status) }
                     row("Model:") {
                         cell(modelCombo).align(AlignX.FILL).resizableColumn()
                         cell(testButton)
@@ -138,7 +138,7 @@ internal class CompatibleSettingsPanel(
                     row { comment(message("settings.model.document.nativePdf.help")) }
                 }
                 budgetRow = row { cell(budgetButton) }
-                budgetStatusRow = row { cell(budgetStatus).align(AlignX.FILL).resizableColumn() }
+                budgetStatusRow = row { statusCell(budgetStatus) }
                 manualGroup =
                     collapsibleGroup(message("settings.compatible.group.modelIds")) {
                             row {

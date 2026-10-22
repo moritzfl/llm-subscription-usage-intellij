@@ -173,7 +173,7 @@ internal class OpenAiSettingsPanel(
 
         val usageTrackingConfigPanel = panel {
             row {
-                cell(statusLabel).align(AlignX.FILL).resizableColumn().gap(RightGap.SMALL)
+                statusCell(statusLabel).gap(RightGap.SMALL)
                 cell(copyUrlButton)
             }
             row {

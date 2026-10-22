@@ -41,7 +41,7 @@ internal class ZaiSettingsPanel(
 
     init {
         val configPanel = panel {
-            row { cell(zaiStatusLabel).align(AlignX.FILL).resizableColumn() }
+            row { statusCell(zaiStatusLabel) }
             row("API key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
             row(message("settings.model.document.label")) {
                 cell(documentModelCombo.combo)

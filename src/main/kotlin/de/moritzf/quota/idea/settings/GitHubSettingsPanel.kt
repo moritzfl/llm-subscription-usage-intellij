@@ -205,7 +205,7 @@ internal class GitHubSettingsPanel(
                     cell(enterpriseHostField).resizableColumn().align(AlignX.FILL)
                 }
                 row {
-                    cell(statusLabel).align(AlignX.FILL).resizableColumn().gap(RightGap.SMALL)
+                    statusCell(statusLabel).gap(RightGap.SMALL)
                     cell(copyUrlButton).gap(RightGap.SMALL)
                     cell(copyCodeButton)
                 }

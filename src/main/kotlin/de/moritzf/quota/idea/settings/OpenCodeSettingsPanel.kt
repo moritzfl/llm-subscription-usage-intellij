@@ -170,7 +170,7 @@ internal class OpenCodeSettingsPanel(
         install(
             panel {
                 row {
-                    cell(statusLabel).align(AlignX.FILL).resizableColumn().gap(RightGap.SMALL)
+                    statusCell(statusLabel).gap(RightGap.SMALL)
                     cell(copyUrlButton)
                 }
                 row { cell(userCodeLabel) }
@@ -187,7 +187,7 @@ internal class OpenCodeSettingsPanel(
                 row("Organization:") {
                     cell(workspaceComboBox).resizableColumn().align(AlignX.FILL)
                 }
-                row { cell(workspaceStatus).align(AlignX.FILL).resizableColumn() }
+                row { statusCell(workspaceStatus) }
                 row { text("To change a browser-scoped organization, sign in again.") }
                 row(message("settings.model.document.label")) {
                     cell(documentModelCombo.combo)

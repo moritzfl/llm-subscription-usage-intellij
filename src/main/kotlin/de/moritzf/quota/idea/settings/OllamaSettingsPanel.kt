@@ -55,7 +55,7 @@ internal class OllamaSettingsPanel(
 
     init {
         val ollamaConfigPanel = panel {
-            row { cell(ollamaStatusLabel).align(AlignX.FILL).resizableColumn() }
+            row { statusCell(ollamaStatusLabel) }
             row {
                 text(
                     "Create an API key at ollama.com/settings/keys. Used for quota, MCP web search, and the local proxy."

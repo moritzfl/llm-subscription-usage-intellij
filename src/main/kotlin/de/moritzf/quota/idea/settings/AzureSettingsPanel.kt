@@ -126,7 +126,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
         endpointField.document.addDocumentListener(targetChanged)
         install(
             panel {
-                row { cell(status).align(AlignX.FILL).resizableColumn() }
+                row { statusCell(status) }
                 row {
                     comment(
                         "Uses a signed-in Azure CLI identity. Run az login in a terminal. " +
