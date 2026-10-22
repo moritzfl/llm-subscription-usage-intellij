@@ -150,6 +150,36 @@ internal fun getLimitWarning(quota: OpenAiCodexQuota?): String? {
 
 @Language("RegExp") private const val SELF_SERVE_PREFIX_REGEX = "(?i)^self_serve[_\\s]*"
 
+/**
+ * The plan name Codex shows in /status for a ChatGPT plan type, such as "Pro 100" for `prolite`;
+ * unknown types are title-cased.
+ */
+internal fun codexPlanLabel(planType: String): String =
+    when (planType.trim().lowercase()) {
+        "free" -> "Free"
+        "go" -> "Go"
+        "plus" -> "Plus"
+        "pro" -> "Pro 200"
+        "prolite" -> "Pro 100"
+        "promax" -> "Pro 500"
+        "team",
+        "self_serve_business_usage_based" -> "Business"
+        "self_serve_business_prolite" -> "Business Premium"
+        "business",
+        "ent26",
+        "enterprise",
+        "hc",
+        "enterprise_cbp_usage_based" -> "Enterprise"
+        "enterprise_cbp_automation" -> "Enterprise (Automation)"
+        "edu",
+        "education" -> "Edu"
+        "edu_plus" -> "Edu Plus"
+        "edu_pro" -> "Edu Pro"
+        "sci" -> "Academic Researchers"
+        "sci_plus" -> "Academic Researchers Plus"
+        else -> planType.toDisplayLabel()
+    }
+
 internal fun String.toDisplayLabel(): String {
     return trim()
         .replace(Regex(SELF_SERVE_PREFIX_REGEX), "")

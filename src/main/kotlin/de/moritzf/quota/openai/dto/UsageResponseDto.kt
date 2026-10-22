@@ -57,6 +57,8 @@ data class UsageResponseDto(
     }
 }
 
+private const val RESERVE_LIMIT_NAME = "gpt-reserve"
+
 @Serializable
 data class AdditionalRateLimitDto(
     @SerialName("limit_name") val limitName: String? = null,
@@ -65,9 +67,13 @@ data class AdditionalRateLimitDto(
 ) {
     fun toExtraRateLimits(usedIds: MutableSet<String>): List<OpenAiExtraRateLimit> {
         val source = firstNonEmpty(limitName, meteredFeature) ?: return emptyList()
-        val baseTitle = displayTitle(source)
+        val generatedTitle = displayTitle(source)
+        // Codex names the gpt-reserve pool Luna Reserve; its id stays gpt-reserve.
+        val baseTitle =
+            if (limitName.equals(RESERVE_LIMIT_NAME, ignoreCase = true)) "Luna Reserve"
+            else generatedTitle
         val baseId =
-            slug(baseTitle).takeIf { it.isNotEmpty() }
+            slug(generatedTitle).takeIf { it.isNotEmpty() }
                 ?: slug(source).takeIf { it.isNotEmpty() }
                 ?: return emptyList()
         return listOfNotNull(

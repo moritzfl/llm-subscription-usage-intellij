@@ -113,7 +113,7 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
                         quota.hasSpendControlDetail()
                 titleLabel.isVisible = hasMainData
                 if (hasMainData) {
-                    val planLabel = quota.planType?.toDisplayLabel()
+                    val planLabel = quota.planType?.let(::codexPlanLabel)
                     titleLabel.text = sectionTitle("Codex", planLabel)
                 }
 

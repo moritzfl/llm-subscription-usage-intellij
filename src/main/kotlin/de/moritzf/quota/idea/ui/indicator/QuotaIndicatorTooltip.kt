@@ -6,7 +6,7 @@ import de.moritzf.quota.cursor.CursorQuota
 import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.ui.QuotaUiUtil
-import de.moritzf.quota.idea.ui.popup.toDisplayLabel
+import de.moritzf.quota.idea.ui.popup.codexPlanLabel
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.mistral.MistralQuota
@@ -82,7 +82,7 @@ internal fun buildIndicatorTooltip(
 internal fun indicatorPlanName(quota: ProviderQuota?): String? {
     val raw =
         when (quota) {
-            is OpenAiCodexQuota -> quota.planType?.toDisplayLabel()
+            is OpenAiCodexQuota -> quota.planType?.let(::codexPlanLabel)
             is ClaudeQuota -> quota.plan
             is CursorQuota -> quota.planName.ifBlank { quota.membershipType }
             is GitHubQuota -> quota.plan

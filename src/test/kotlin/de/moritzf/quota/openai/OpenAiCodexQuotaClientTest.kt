@@ -196,6 +196,32 @@ class OpenAiCodexQuotaClientTest {
     }
 
     @Test
+    fun reservePoolIsNamedLunaReserveAndKeepsItsId() {
+        val json =
+            """
+            {"plan_type":"plus","rate_limit":{"allowed":false,"limit_reached":true,
+              "primary_window":{"used_percent":100,"limit_window_seconds":18000,"reset_at":1793000000}},
+             "additional_rate_limits":[{"limit_name":"gpt-reserve","metered_feature":"base_model_inference",
+              "normal_model_slug":"gpt-6-luna",
+              "rate_limit":{"allowed":true,"limit_reached":false,
+                "primary_window":{"used_percent":12,"limit_window_seconds":18000,"reset_at":1793003600},
+                "secondary_window":{"used_percent":48,"limit_window_seconds":604800,"reset_at":1793400000}}}]}
+            """
+                .trimIndent()
+
+        val quota = newClientReturning(200, json).fetchQuota("token", "account-1")
+
+        assertEquals(
+            listOf("Luna Reserve 5-hour", "Luna Reserve Weekly"),
+            quota.extraRateLimits.map { it.title },
+        )
+        assertTrue(
+            quota.extraRateLimits.all { it.id.startsWith("gpt-reserve") },
+            quota.extraRateLimits.map { it.id }.toString(),
+        )
+    }
+
+    @Test
     fun fetchQuotaThrowsWhenNoUsageStateIsPresent() {
         @Language("JSON")
         val json =

@@ -91,7 +91,7 @@ class OpenAiPopupContentBuilderTest {
 
         section.update(quota, error = null, visible = true)
 
-        assertTrue(section.components.any { it.containsLabel("Codex (Business Prolite)") })
+        assertTrue(section.components.any { it.containsLabel("Codex (Business Premium)") })
     }
 
     @Test

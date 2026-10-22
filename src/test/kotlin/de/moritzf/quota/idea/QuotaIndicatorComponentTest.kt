@@ -111,7 +111,7 @@ class QuotaIndicatorComponentTest {
 
         assertEquals("available", indicatorBarDisplayText(quota, error = null, loggedIn = true))
         assertEquals(-1, indicatorDisplayPercent(quota, error = null, loggedIn = true))
-        assertEquals("OpenAI • Business Usage Based", tooltip(QuotaProviderType.OPEN_AI, quota))
+        assertEquals("OpenAI • Business", tooltip(QuotaProviderType.OPEN_AI, quota))
     }
 
     @Test
@@ -120,7 +120,7 @@ class QuotaIndicatorComponentTest {
         assertEquals("100%", indicatorBarDisplayText(quota, error = null, loggedIn = true))
         assertEquals(100, indicatorDisplayPercent(quota, error = null, loggedIn = true))
         assertEquals(
-            "OpenAI • Business Usage Based • 100%",
+            "OpenAI • Business • 100%",
             tooltip(QuotaProviderType.OPEN_AI, quota),
         )
     }
