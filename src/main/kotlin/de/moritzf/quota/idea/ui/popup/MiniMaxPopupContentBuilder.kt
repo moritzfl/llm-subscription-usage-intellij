@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.ui.popup
 
 import com.intellij.util.ui.JBUI
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.ui.indicator.QuotaPeriodDurations
@@ -19,6 +20,8 @@ internal class MiniMaxPopupSection : ProviderPopupSection() {
         }
     private val sessionBlock = WindowBlockPanel(3)
     private val weeklyBlock = WindowBlockPanel(5)
+    private val videoBlock = WindowBlockPanel(5)
+    private val videoWeeklyBlock = WindowBlockPanel(5)
 
     init {
         isOpaque = false
@@ -27,6 +30,8 @@ internal class MiniMaxPopupSection : ProviderPopupSection() {
         add(titleLabel)
         add(sessionBlock)
         add(weeklyBlock)
+        add(videoBlock)
+        add(videoWeeklyBlock)
         hideAll()
     }
 
@@ -69,9 +74,41 @@ internal class MiniMaxPopupSection : ProviderPopupSection() {
                 quota.sessionUsage?.let {
                     sessionBlock.updateMiniMax(it, "Session", QuotaPeriodDurations.ROLLING_5H)
                 } ?: sessionBlock.clear()
-                quota.weeklyUsage?.let {
-                    weeklyBlock.updateMiniMax(it, "Weekly", QuotaPeriodDurations.WEEKLY)
-                } ?: weeklyBlock.clear()
+                val boost =
+                    quota.weeklyBoost?.let {
+                        message("quota.minimax.weekly.boost", (it * 100).roundToInt())
+                    }
+                when {
+                    quota.weeklyUsage != null ->
+                        weeklyBlock.updateMiniMax(
+                            quota.weeklyUsage,
+                            "Weekly",
+                            QuotaPeriodDurations.WEEKLY,
+                            boost,
+                        )
+                    quota.weeklyUnlimited ->
+                        weeklyBlock.showUnavailable(
+                            message("quota.minimax.weekly.title"),
+                            message("quota.minimax.unlimited"),
+                        )
+                    else -> weeklyBlock.clear()
+                }
+                quota.videoUsage?.let {
+                    videoBlock.updateMiniMax(
+                        it,
+                        "Video",
+                        QuotaPeriodDurations.ROLLING_5H,
+                        prefix = message("quota.minimax.video"),
+                    )
+                } ?: videoBlock.clear()
+                quota.videoWeeklyUsage?.let {
+                    videoWeeklyBlock.updateMiniMax(
+                        it,
+                        "Video",
+                        QuotaPeriodDurations.WEEKLY,
+                        prefix = message("quota.minimax.video"),
+                    )
+                } ?: videoWeeklyBlock.clear()
             }
         }
     }
@@ -85,16 +122,21 @@ internal class MiniMaxPopupSection : ProviderPopupSection() {
         titleLabel.isVisible = false
         sessionBlock.isVisible = false
         weeklyBlock.isVisible = false
+        videoBlock.isVisible = false
+        videoWeeklyBlock.isVisible = false
     }
 
     private fun WindowBlockPanel.updateMiniMax(
         window: MiniMaxUsageWindow,
         label: String,
         period: java.time.Duration,
+        note: String? = null,
+        prefix: String? = null,
     ) {
         val percent = clampPercent(window.usagePercent.roundToInt())
         val resetText = QuotaUiUtil.formatReset(window.resetsAt)
         var info = "$percent% used"
+        if (note != null) info += " ($note)"
         if (resetText != null) {
             info += " - $resetText"
         } else {
@@ -102,6 +144,7 @@ internal class MiniMaxPopupSection : ProviderPopupSection() {
                 info += " ($it)"
             }
         }
-        update(describeDurationLimitLabel(window.periodDuration ?: period, label), info, percent)
+        val title = describeDurationLimitLabel(window.periodDuration ?: period, label)
+        update(listOfNotNull(prefix, title).joinToString(" "), info, percent)
     }
 }

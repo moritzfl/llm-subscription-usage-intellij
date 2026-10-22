@@ -33,6 +33,7 @@ open class MiniMaxQuotaClient(
                 return quota
             } catch (exception: MiniMaxQuotaException) {
                 lastException = exception
+                // A rejected key is rejected on every endpoint.
                 if (exception.statusCode == 401 || exception.statusCode == 403) throw exception
             }
         }
@@ -92,6 +93,7 @@ open class MiniMaxQuotaClient(
     companion object {
         private const val STATUS_EXHAUSTED = 2
         private const val STATUS_UNLIMITED = 3
+        private val AUTH_STATUS_CODES = setOf(401, 403, 1004, 2049)
         private const val MILLIS_EPOCH_THRESHOLD = 10_000_000_000L
 
         private val GLOBAL_ENDPOINTS =
@@ -104,6 +106,7 @@ open class MiniMaxQuotaClient(
             )
         private val CN_ENDPOINTS =
             listOf(
+                URI.create("https://api.minimax.cn/v1/token_plan/remains"),
                 URI.create("https://api.minimaxi.com/v1/token_plan/remains"),
                 URI.create("https://api.minimaxi.com/v1/api/openplatform/coding_plan/remains"),
                 URI.create("https://api.minimaxi.com/v1/coding_plan/remains"),
@@ -124,14 +127,14 @@ open class MiniMaxQuotaClient(
             val statusCode = dto.baseResp?.statusCode ?: 0
             val statusMessage = dto.baseResp?.statusMsg.orEmpty()
             if (statusCode != 0) {
+                // 1004 is a missing or rejected key and 2049 an invalid one, both with HTTP 200.
                 if (
-                    statusCode == 401 ||
-                        statusCode == 403 ||
+                    statusCode in AUTH_STATUS_CODES ||
                         statusMessage.contains("auth", ignoreCase = true)
                 ) {
                     throw MiniMaxQuotaException(
                         "Session expired. Check your MiniMax subscription key.",
-                        statusCode,
+                        401,
                         body,
                     )
                 }
@@ -144,45 +147,71 @@ open class MiniMaxQuotaClient(
 
             val item =
                 dto.modelRemains.firstOrNull { it.modelName.equals("general", ignoreCase = true) }
+                    ?: dto.modelRemains.firstOrNull { !it.isVideo() }
                     ?: dto.modelRemains.firstOrNull()
                     ?: throw MiniMaxQuotaException("Could not parse usage data.", 200, body)
             val countdownIsMillis = countdownUsesMillis(item)
+            val video = dto.modelRemains.firstOrNull { it !== item && it.isVideo() && it.inPlan() }
 
             return MiniMaxQuota(
                 plan = normalizePlan(inferPlan(item, region), region),
                 region = region,
-                sessionUsage =
-                    parseWindow(
-                        total = item.currentIntervalTotalCount,
-                        explicitUsed = item.currentIntervalUsedCount,
-                        usageCount = item.currentIntervalUsageCount,
-                        remainingCount = item.currentIntervalRemainingCount,
-                        remainsCount = item.currentIntervalRemainsCount,
-                        remainingPercent = item.currentIntervalRemainingPercent,
-                        status = item.currentIntervalStatus,
-                        startTime = item.startTime,
-                        endTime = item.endTime,
-                        remainsTime = item.remainsTime,
-                        countdownIsMillis = countdownIsMillis,
-                        required = true,
-                    ),
-                weeklyUsage =
-                    parseWindow(
-                        total = item.currentWeeklyTotalCount,
-                        explicitUsed = item.currentWeeklyUsedCount,
-                        usageCount = item.currentWeeklyUsageCount,
-                        remainingCount = item.currentWeeklyRemainingCount,
-                        remainsCount = item.currentWeeklyRemainsCount,
-                        remainingPercent = item.currentWeeklyRemainingPercent,
-                        status = item.currentWeeklyStatus,
-                        startTime = item.weeklyStartTime,
-                        endTime = item.weeklyEndTime,
-                        remainsTime = item.weeklyRemainsTime,
-                        countdownIsMillis = countdownIsMillis,
-                        required = false,
-                    ),
+                weeklyUnlimited = item.currentWeeklyStatus == STATUS_UNLIMITED && item.inPlan(),
+                weeklyBoost =
+                    (item.weeklyBoostPermille ?: item.weeklyBoostPermill)
+                        ?.takeIf { it > 0 && it != 1000.0 }
+                        ?.let { it / 1000.0 },
+                videoUsage = video?.intervalWindow(countdownUsesMillis(video), required = true),
+                videoWeeklyUsage = video?.weeklyWindow(countdownUsesMillis(video)),
+                sessionUsage = item.intervalWindow(countdownIsMillis, required = true),
+                weeklyUsage = item.weeklyWindow(countdownIsMillis),
             )
         }
+
+        private fun MiniMaxRemainDto.isVideo(): Boolean =
+            modelName.equals("video", ignoreCase = true)
+
+        /** A lane outside the plan reports zero totals and unlimited status in both windows. */
+        private fun MiniMaxRemainDto.inPlan(): Boolean =
+            !(currentIntervalStatus == STATUS_UNLIMITED &&
+                currentWeeklyStatus == STATUS_UNLIMITED &&
+                (currentIntervalTotalCount ?: 0L) == 0L &&
+                (currentWeeklyTotalCount ?: 0L) == 0L)
+
+        private fun MiniMaxRemainDto.intervalWindow(
+            countdownIsMillis: Boolean,
+            required: Boolean,
+        ): MiniMaxUsageWindow? =
+            parseWindow(
+                total = currentIntervalTotalCount,
+                explicitUsed = currentIntervalUsedCount,
+                usageCount = currentIntervalUsageCount,
+                remainingCount = currentIntervalRemainingCount,
+                remainsCount = currentIntervalRemainsCount,
+                remainingPercent = currentIntervalRemainingPercent,
+                status = currentIntervalStatus,
+                startTime = startTime,
+                endTime = endTime,
+                remainsTime = remainsTime,
+                countdownIsMillis = countdownIsMillis,
+                required = required,
+            )
+
+        private fun MiniMaxRemainDto.weeklyWindow(countdownIsMillis: Boolean): MiniMaxUsageWindow? =
+            parseWindow(
+                total = currentWeeklyTotalCount,
+                explicitUsed = currentWeeklyUsedCount,
+                usageCount = currentWeeklyUsageCount,
+                remainingCount = currentWeeklyRemainingCount,
+                remainsCount = currentWeeklyRemainsCount,
+                remainingPercent = currentWeeklyRemainingPercent,
+                status = currentWeeklyStatus,
+                startTime = weeklyStartTime,
+                endTime = weeklyEndTime,
+                remainsTime = weeklyRemainsTime,
+                countdownIsMillis = countdownIsMillis,
+                required = false,
+            )
 
         private fun parseWindow(
             total: Long?,
@@ -381,6 +410,12 @@ private data class MiniMaxRemainDto(
     @SerialName("weekly_end_time") val weeklyEndTime: Long? = null,
     @SerialName("weekly_remains_time") val weeklyRemainsTime: Long? = null,
     @SerialName("current_subscribe_title") val currentSubscribeTitle: String? = null,
+    @Serializable(with = LenientDoubleOrNullSerializer::class)
+    @SerialName("weekly_boost_permille")
+    val weeklyBoostPermille: Double? = null,
+    @Serializable(with = LenientDoubleOrNullSerializer::class)
+    @SerialName("weekly_boost_permill")
+    val weeklyBoostPermill: Double? = null,
     @SerialName("plan_name") val planName: String? = null,
     val plan: String? = null,
 )

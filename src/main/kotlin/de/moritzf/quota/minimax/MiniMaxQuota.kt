@@ -11,11 +11,19 @@ data class MiniMaxQuota(
     val plan: String = "",
     val sessionUsage: MiniMaxUsageWindow? = null,
     val weeklyUsage: MiniMaxUsageWindow? = null,
+    /** The weekly window has no cap. */
+    val weeklyUnlimited: Boolean = false,
+    /** Weekly allowance relative to the plan's base tier, such as 1.5 for a 150% boost. */
+    val weeklyBoost: Double? = null,
+    /** The video lane: a short window (daily or longer) and its weekly window. */
+    val videoUsage: MiniMaxUsageWindow? = null,
+    val videoWeeklyUsage: MiniMaxUsageWindow? = null,
     val region: MiniMaxRegion = MiniMaxRegion.GLOBAL,
     override var fetchedAt: Instant? = null,
     @Transient override var rawJson: String? = null,
 ) : ProviderQuota {
-    override fun hasUsageState(): Boolean = sessionUsage != null || weeklyUsage != null
+    override fun hasUsageState(): Boolean =
+        sessionUsage != null || weeklyUsage != null || weeklyUnlimited || videoUsage != null
 
     override fun usageFraction(): Double? {
         val windows = listOfNotNull(sessionUsage?.usagePercent, weeklyUsage?.usagePercent)
@@ -25,6 +33,8 @@ data class MiniMaxQuota(
     override fun activityWindows(): Map<String, Double> = buildMap {
         sessionUsage?.usagePercent?.let { put("session", it / 100.0) }
         weeklyUsage?.usagePercent?.let { put("weekly", it / 100.0) }
+        videoUsage?.usagePercent?.let { put("video", it / 100.0) }
+        videoWeeklyUsage?.usagePercent?.let { put("videoWeekly", it / 100.0) }
     }
 }
 

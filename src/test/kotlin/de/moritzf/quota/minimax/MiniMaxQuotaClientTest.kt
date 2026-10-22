@@ -267,6 +267,75 @@ class MiniMaxQuotaClientTest {
     }
 
     @Test
+    fun readsTheVideoLaneAndTheWeeklyBoost() {
+        val quota =
+            MiniMaxQuotaClient.parseQuota(
+                """{"model_remains":[
+                  {"start_time":1782043200000,"end_time":1782057600000,"remains_time":7003536,
+                   "current_interval_total_count":0,"current_interval_usage_count":0,"model_name":"general",
+                   "current_weekly_total_count":0,"current_weekly_usage_count":0,
+                   "weekly_start_time":1781452800000,"weekly_end_time":1782057600000,"weekly_remains_time":7003536,
+                   "current_interval_status":1,"current_interval_remaining_percent":100,
+                   "current_weekly_status":1,"current_weekly_remaining_percent":70,"weekly_boost_permille":1500},
+                  {"start_time":1781971200000,"end_time":1782057600000,"remains_time":21600000,
+                   "current_interval_total_count":3,"current_interval_usage_count":1,"model_name":"video",
+                   "current_weekly_total_count":21,"current_weekly_usage_count":21,
+                   "weekly_start_time":1781452800000,"weekly_end_time":1782057600000,"weekly_remains_time":7003536,
+                   "current_interval_status":1,"current_interval_remaining_percent":33,
+                   "current_weekly_status":1,"current_weekly_remaining_percent":100}],
+                 "base_resp":{"status_code":0,"status_msg":"success"}}""",
+                MiniMaxRegion.GLOBAL,
+            )
+
+        assertEquals(30.0, quota.weeklyUsage?.usagePercent, "the boost does not change used share")
+        assertEquals(1.5, quota.weeklyBoost)
+        val video = assertNotNull(quota.videoUsage)
+        assertEquals(67.0, video.usagePercent)
+        assertEquals(86_400_000L, video.periodDurationMs, "the video window is daily")
+        assertEquals(0.0, quota.videoWeeklyUsage?.usagePercent)
+        assertEquals(0.3, quota.usageFraction(), "video has its own pool")
+        assertEquals(0.67, quota.activityWindows()["video"]!!, 0.0001)
+    }
+
+    @Test
+    fun laneOutsideThePlanIsHiddenAndAnUncappedWeekIsUnlimited() {
+        val quota =
+            MiniMaxQuotaClient.parseQuota(
+                """{"base_resp":{"status_code":0,"status_msg":"success"},"model_remains":[
+                 {"model_name":"general","current_interval_total_count":0,"current_interval_usage_count":0,
+                  "current_weekly_total_count":0,"current_weekly_usage_count":0,
+                  "current_interval_status":1,"current_interval_remaining_percent":96,
+                  "current_weekly_status":3,"current_weekly_remaining_percent":100,"weekly_boost_permill":"2000"},
+                 {"model_name":"video","current_interval_total_count":0,"current_interval_usage_count":0,
+                  "current_weekly_total_count":0,"current_weekly_usage_count":0,
+                  "current_interval_status":3,"current_interval_remaining_percent":100,
+                  "current_weekly_status":3,"current_weekly_remaining_percent":100}]}""",
+                MiniMaxRegion.GLOBAL,
+            )
+
+        assertNull(quota.videoUsage)
+        assertNull(quota.videoWeeklyUsage)
+        assertNull(quota.weeklyUsage)
+        assertTrue(quota.weeklyUnlimited)
+        assertEquals(2.0, quota.weeklyBoost)
+        assertEquals(4.0, quota.sessionUsage?.usagePercent)
+    }
+
+    @Test
+    fun rejectedKeysWithHttp200AreAuthErrors() {
+        for (code in listOf(1004, 2049)) {
+            val exception =
+                assertFailsWith<MiniMaxQuotaException> {
+                    MiniMaxQuotaClient.parseQuota(
+                        """{"base_resp":{"status_code":$code,"status_msg":"login fail: Please carry the API secret key in the 'Authorization' field of the request header"}}""",
+                        MiniMaxRegion.GLOBAL,
+                    )
+                }
+            assertEquals(401, exception.statusCode, "stops trying the other endpoints")
+        }
+    }
+
+    @Test
     fun parseQuotaOmitsNullWeeklyWindow() {
         val body =
             """
