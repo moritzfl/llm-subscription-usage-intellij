@@ -161,12 +161,19 @@ open class OpenCodeQuotaClient(
             }
             if (listOf("fiveHour", "week", "month").none { meters.containsKey(it) })
                 return unreadable()
+            fun flag(value: JsonElement?) = (value as? JsonPrimitive)?.booleanOrNull == true
+            val canceled = flag(root["cancelAtPeriodEnd"]) || flag(access["cancelAtPeriodEnd"])
+            val endsAt =
+                (access["endsAt"] as? JsonPrimitive)?.contentOrNull?.let {
+                    runCatching { Instant.parse(it) }.getOrNull()
+                }
             return OpenCodeQuota(
                 rollingUsage = window("fiveHour"),
                 weeklyUsage = window("week"),
                 monthlyUsage = window("month"),
                 useBalance = useBalance,
                 product = (root["product"] as? JsonPrimitive)?.contentOrNull,
+                endsAt = endsAt?.takeIf { canceled },
                 warnings = warnings,
             )
         }

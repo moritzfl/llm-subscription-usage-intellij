@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.ui.popup
 
 import com.intellij.util.ui.JBUI
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.ui.indicator.clampPercent
@@ -19,6 +20,7 @@ internal class OpenCodePopupSection : ProviderPopupSection() {
         createSectionTitleLabel(OPENCODE_GO_LABEL, QuotaIcons.OPENCODE).apply {
             border = JBUI.Borders.emptyTop(0)
         }
+    private val endsLabel = createMutedLabel("").apply { border = JBUI.Borders.emptyTop(2) }
     private val balanceLabel = createMutedLabel("").apply { border = JBUI.Borders.emptyTop(2) }
     private val rollingBlock = WindowBlockPanel(3)
     private val weeklyBlock = WindowBlockPanel(5)
@@ -29,6 +31,7 @@ internal class OpenCodePopupSection : ProviderPopupSection() {
         add(separator)
         add(errorLabel)
         add(titleLabel)
+        add(endsLabel)
         add(balanceLabel)
         add(rollingBlock)
         add(weeklyBlock)
@@ -71,6 +74,25 @@ internal class OpenCodePopupSection : ProviderPopupSection() {
                         if (quota.hasUsageState()) "OpenCode ${quota.plan ?: "Go"}"
                         else OPENCODE_ZEN_LABEL
                     )
+                val endsAt = quota.endsAt.takeIf { quota.hasUsageState() }
+                endsLabel.isVisible = endsAt != null
+                if (endsAt != null) {
+                    endsLabel.text =
+                        message(
+                            "quota.opencode.canceled",
+                            java.time.format.DateTimeFormatter.ofLocalizedDate(
+                                    java.time.format.FormatStyle.MEDIUM
+                                )
+                                .format(
+                                    java.time.LocalDate.ofInstant(
+                                        java.time.Instant.ofEpochMilli(
+                                            endsAt.toEpochMilliseconds()
+                                        ),
+                                        java.time.ZoneId.systemDefault(),
+                                    )
+                                ),
+                        )
+                }
                 val balanceText = quota.availableBalance?.let(QuotaUiUtil::formatOpenCodeBalance)
                 balanceLabel.isVisible = balanceText != null
                 if (balanceText != null) {
@@ -98,6 +120,7 @@ internal class OpenCodePopupSection : ProviderPopupSection() {
 
     private fun hideContent() {
         titleLabel.isVisible = false
+        endsLabel.isVisible = false
         balanceLabel.isVisible = false
         rollingBlock.isVisible = false
         weeklyBlock.isVisible = false

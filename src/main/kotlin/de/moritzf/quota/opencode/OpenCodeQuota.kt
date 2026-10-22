@@ -16,6 +16,8 @@ data class OpenCodeQuota(
     val useBalance: Boolean = false,
     /** Go subscription product from the Console, such as `go`. */
     val product: String? = null,
+    /** When a canceled Go subscription stops; null while it renews. */
+    val endsAt: Instant? = null,
     var availableBalance: Long? = null,
     override var fetchedAt: Instant? = null,
     @Transient override var rawJson: String? = null,

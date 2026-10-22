@@ -38,6 +38,28 @@ class OpenCodeQuotaClientTest {
     }
 
     @Test
+    fun canceledSubscriptionReportsWhenItEnds() {
+        val renewing = OpenCodeQuotaClient.parseQuotaResponse(GO_STATUS, now)
+        val canceled =
+            OpenCodeQuotaClient.parseQuotaResponse(
+                GO_STATUS.replace(
+                    """"useBalance":false""",
+                    """"useBalance":false,"cancelAtPeriodEnd":true""",
+                ),
+                now,
+            )
+        val canceledInAccess =
+            OpenCodeQuotaClient.parseQuotaResponse(
+                GO_STATUS.replace(""""access":{""", """"access":{"cancelAtPeriodEnd":true,"""),
+                now,
+            )
+
+        assertNull(renewing.endsAt)
+        assertEquals(Instant.parse("2026-10-19T00:00:00Z"), canceled.endsAt)
+        assertEquals(Instant.parse("2026-10-19T00:00:00Z"), canceledInAccess.endsAt)
+    }
+
+    @Test
     fun missingResetsAndMetersRemainAbsentAndExhaustionIsNotClamped() {
         val body =
             """{"access":{"meters":{"fiveHour":{"usedMicroCents":"101","limitMicroCents":"100","resetsAt":null}}}}"""
