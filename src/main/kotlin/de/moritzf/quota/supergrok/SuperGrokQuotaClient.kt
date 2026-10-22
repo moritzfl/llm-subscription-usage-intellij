@@ -41,13 +41,18 @@ open class SuperGrokQuotaClient(
             getJson(token, WEEKLY_BILLING_PATH, required = true)
                 ?: throw SuperGrokQuotaException("Grok billing response changed.")
         val settingsJson = getJson(token, SETTINGS_PATH, required = false)
+        val autoTopUpJson = runCatching {
+            getJson(token, AUTO_TOP_UP_PATH, required = false)
+        }
+            .getOrNull()
         val resetTokens = fetchResetTokens(token)
 
-        val rawJson = combinedRawJson(weeklyJson, settingsJson, resetTokens)
+        val rawJson = combinedRawJson(weeklyJson, settingsJson, resetTokens, autoTopUpJson)
 
         val quota =
             try {
-                parseQuota(weeklyJson, settingsJson).copy(resetTokens = resetTokens)
+                parseQuota(weeklyJson, settingsJson)
+                    .copy(resetTokens = resetTokens, autoTopUp = parseAutoTopUp(autoTopUpJson))
             } catch (exception: SuperGrokQuotaException) {
                 throw SuperGrokQuotaException(
                     exception.message ?: "Grok billing response changed.",
@@ -249,6 +254,7 @@ open class SuperGrokQuotaClient(
 
         private const val WEEKLY_BILLING_PATH = "billing?format=credits"
         private const val SETTINGS_PATH = "settings"
+        private const val AUTO_TOP_UP_PATH = "auto-topup-rule"
         private const val TOKEN_AUTH_HEADER = "xai-grok-cli"
         private const val GRPC_WEB_CONTENT_TYPE = "application/grpc-web+proto"
         private const val AUTH_SOURCE = "xai-oauth-cli-proxy"
@@ -276,6 +282,7 @@ open class SuperGrokQuotaClient(
             val isUnified = config.booleanValue("isUnifiedBillingUser") == true
             val periodType = period?.stringValue("type")
             val onDemandCap = config.unitValue("onDemandCap") ?: 0L
+            val productUsage = productUsage(config, usagePercent)
             // Unused/new periods often omit creditUsagePercent entirely. With a known
             // period window, treat that as 0% used so the UI can show reset timing.
             val reported = usagePercent != null
@@ -298,6 +305,9 @@ open class SuperGrokQuotaClient(
                         )
                     },
                 onDemandCap = onDemandCap,
+                onDemandUsed = config.cents("onDemandUsed")?.takeIf { onDemandCap > 0 },
+                prepaidBalance = config.cents("prepaidBalance"),
+                productUsage = productUsage,
                 isUnifiedBilling = isUnified,
                 periodType = periodType.orEmpty(),
                 fetchedAt = fetchedAt,
@@ -308,12 +318,16 @@ open class SuperGrokQuotaClient(
             weeklyBillingJson: String,
             settingsJson: String?,
             resetTokens: List<SuperGrokResetToken> = emptyList(),
+            autoTopUpJson: String? = null,
         ): String {
             return buildJsonObject {
                 put("authSource", AUTH_SOURCE)
                 put("billing", rawElement(weeklyBillingJson))
                 if (!settingsJson.isNullOrBlank()) {
                     put("settings", rawElement(settingsJson))
+                }
+                if (!autoTopUpJson.isNullOrBlank()) {
+                    put("autoTopup", rawElement(autoTopUpJson))
                 }
                 if (resetTokens.isNotEmpty()) {
                     put(
@@ -341,13 +355,17 @@ open class SuperGrokQuotaClient(
                 ?.takeIf { it.isNotBlank() }
         }
 
+        /**
+         * Product shares add up to the total; their sum stands in when the total is missing. The
+         * largest share alone under-reports.
+         */
         private fun resolveUsagePercent(config: JsonObject, used: Long, limit: Long): Double? {
             config.doubleValue("creditUsagePercent")?.let {
                 return it
             }
-            (config["productUsage"] as? JsonArray)
-                ?.mapNotNull { (it as? JsonObject)?.doubleValue("usagePercent") }
-                ?.maxOrNull()
+            productShares(config)
+                .takeIf { it.isNotEmpty() }
+                ?.sumOf { it.usagePercent }
                 ?.let {
                     return it
                 }
@@ -355,6 +373,47 @@ open class SuperGrokQuotaClient(
                 return used.toDouble() / limit.toDouble() * 100.0
             }
             return null
+        }
+
+        private fun productShares(config: JsonObject): List<SuperGrokProductUsage> =
+            (config["productUsage"] as? JsonArray).orEmpty().mapNotNull { element ->
+                val item = element as? JsonObject ?: return@mapNotNull null
+                val product = item.stringValue("product")?.takeIf { it.isNotBlank() }
+                val percent = item.doubleValue("usagePercent")?.takeIf { it.isFinite() } ?: 0.0
+                product?.let { SuperGrokProductUsage(it, percent) }
+            }
+
+        /** The breakdown, kept only when its shares add up to the total within a point. */
+        private fun productUsage(config: JsonObject, total: Double?): List<SuperGrokProductUsage> {
+            val shares = productShares(config)
+            if (shares.isEmpty() || total == null) return emptyList()
+            return shares
+                .takeIf { kotlin.math.abs(it.sumOf { share -> share.usagePercent } - total) <= 1.0 }
+                .orEmpty()
+        }
+
+        /**
+         * Billing stores credit amounts in cents, top-ups as negative values; an empty object is a
+         * zero amount.
+         */
+        private fun JsonObject.cents(name: String): Long? {
+            val value = this[name] ?: return null
+            if (value is JsonObject && value["val"] == null) return 0
+            return unitValue(name)?.let(Math::abs)
+        }
+
+        /** An enabled rule, or null when the rule is off, missing, or unreadable. */
+        internal fun parseAutoTopUp(json: String?): SuperGrokAutoTopUp? {
+            val root =
+                runCatching { JsonSupport.json.parseToJsonElement(json.orEmpty()) }.getOrNull()
+                    as? JsonObject ?: return null
+            val rule = root.objectValue("rule") ?: return null
+            if (rule.booleanValue("enabled") != true) return null
+            return SuperGrokAutoTopUp(
+                amountCents = rule.cents("topupAmount") ?: return null,
+                thresholdCents = rule.cents("minBeforeHittingSl"),
+                monthlyMaxCents = rule.cents("maxAmountPerMonth"),
+            )
         }
 
         private fun billingConfig(json: String): JsonObject {

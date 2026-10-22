@@ -128,6 +128,69 @@ class SuperGrokQuotaClientTest {
     }
 
     @Test
+    fun productSharesAddUpWhenTheTotalIsMissing() {
+        val quota =
+            SuperGrokQuotaClient.parseQuota(
+                """{"config":{"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","start":"2026-09-20T18:42:45.537749+00:00","end":"2026-09-27T18:42:45.537749+00:00"},
+                "productUsage":[{"product":"GrokChat","usagePercent":4.0},{"product":"GrokBuild","usagePercent":2.0}]}}"""
+            )
+
+        assertEquals(6.0, quota.creditUsage?.usagePercent)
+        assertEquals(2, quota.productUsage.size)
+    }
+
+    @Test
+    fun readsPrepaidBalancePayAsYouGoAndTheProductBreakdown() {
+        val quota =
+            SuperGrokQuotaClient.parseQuota(
+                """{"config":{
+                  "currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","start":"2026-09-20T18:42:45.537749+00:00","end":"2026-09-27T18:42:45.537749+00:00"},
+                  "creditUsagePercent":100,"onDemandCap":{"val":5000},"onDemandUsed":{"val":"1000"},
+                  "productUsage":[{"product":"GrokChat","usagePercent":60.0},{"product":"GrokBuild","usagePercent":40.0}],
+                  "isUnifiedBillingUser":true,"prepaidBalance":{"val":-1446}}}"""
+            )
+        val empty =
+            SuperGrokQuotaClient.parseQuota(
+                """{"config":{"creditUsagePercent":6,"prepaidBalance":{},"onDemandCap":{"val":0},
+                  "productUsage":[{"product":"GrokChat","usagePercent":40.0}]}}"""
+            )
+
+        assertEquals(1446L, quota.prepaidBalance, "top-ups are stored as negative cents")
+        assertEquals(5000L, quota.onDemandCap)
+        assertEquals(1000L, quota.onDemandUsed)
+        assertEquals(
+            listOf(
+                SuperGrokProductUsage("GrokChat", 60.0),
+                SuperGrokProductUsage("GrokBuild", 40.0),
+            ),
+            quota.productUsage,
+        )
+        assertEquals(0L, empty.prepaidBalance)
+        assertEquals(null, empty.onDemandUsed, "no pay as you go without a cap")
+        assertTrue(empty.productUsage.isEmpty(), "a breakdown that does not add up is dropped")
+    }
+
+    @Test
+    fun autoTopUpRuleIsReadOnlyWhenEnabled() {
+        assertEquals(
+            SuperGrokAutoTopUp(2000, 500, 10000),
+            SuperGrokQuotaClient.parseAutoTopUp(
+                """{"rule":{"enabled":true,"topupAmount":{"val":2000},"maxAmountPerMonth":{"val":10000},"minBeforeHittingSl":{"val":500}}}"""
+            ),
+        )
+        for (json in
+            listOf(
+                "{}",
+                """{"rule":null}""",
+                """{"rule":{"topupAmount":{"val":500},"minBeforeHittingSl":{}}}""",
+                "null",
+                null,
+            )) {
+            assertEquals(null, SuperGrokQuotaClient.parseAutoTopUp(json), json)
+        }
+    }
+
+    @Test
     fun unifiedPercentOnlyWindowIsNotExhaustedAtLowUsage() {
         val window =
             SuperGrokUsageWindow(
@@ -160,6 +223,7 @@ class SuperGrokQuotaClientTest {
             listOf(
                 "https://grok.test/v1/billing?format=credits",
                 "https://grok.test/v1/settings",
+                "https://grok.test/v1/auto-topup-rule",
                 SuperGrokQuotaClient.DEFAULT_RESET_LIST_URI.toString(),
             ),
             httpClient.requests.map { it.uri().toString() },
@@ -177,11 +241,11 @@ class SuperGrokQuotaClientTest {
         }
         assertEquals(
             "Bearer token-123",
-            httpClient.requests[2].headers().firstValue("Authorization").orElse(null),
+            httpClient.requests[3].headers().firstValue("Authorization").orElse(null),
         )
         assertEquals(
             "application/grpc-web+proto",
-            httpClient.requests[2].headers().firstValue("Content-Type").orElse(null),
+            httpClient.requests[3].headers().firstValue("Content-Type").orElse(null),
         )
         assertTrue(quota.rawJson?.contains("\"billing\"") == true)
         assertTrue(quota.rawJson?.contains("\"settings\"") == true)

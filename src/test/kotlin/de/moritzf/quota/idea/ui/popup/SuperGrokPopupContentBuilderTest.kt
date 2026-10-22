@@ -41,6 +41,53 @@ class SuperGrokPopupContentBuilderTest {
     }
 
     @Test
+    fun showsPayAsYouGoInDollarsWithBalanceAndProductBreakdown() {
+        val section = SuperGrokPopupSection()
+        section.update(
+            SuperGrokQuota(
+                creditUsage =
+                    de.moritzf.quota.supergrok.SuperGrokUsageWindow(
+                        label = "Weekly credits",
+                        usagePercent = 100.0,
+                    ),
+                onDemandCap = 5000,
+                onDemandUsed = 1000,
+                prepaidBalance = 1446,
+                productUsage =
+                    listOf(
+                        de.moritzf.quota.supergrok.SuperGrokProductUsage("GrokChat", 60.0),
+                        de.moritzf.quota.supergrok.SuperGrokProductUsage("GrokBuild", 40.0),
+                    ),
+                autoTopUp = de.moritzf.quota.supergrok.SuperGrokAutoTopUp(2000, 500),
+            ),
+            null,
+            true,
+        )
+
+        val blocks = section.components.filterIsInstance<WindowBlockPanel>().filter { it.isVisible }
+        val texts =
+            blocks.flatMap { block ->
+                block.components.filterIsInstance<javax.swing.JLabel>().map { it.text }
+            } +
+                section.components
+                    .filterIsInstance<javax.swing.JLabel>()
+                    .filter { it.isVisible }
+                    .map { it.text }
+        assertTrue("Pay as you go" in texts, texts.toString())
+        assertTrue("$10.00 of $50.00 used" in texts, texts.toString())
+        assertTrue(
+            "Prepaid balance: $14.46 • Auto top-up: $20.00 below $5.00" in texts,
+            texts.toString(),
+        )
+        val tooltip =
+            blocks.first().components.filterIsInstance<TruncatingPopupLabel>().last().detailTooltip
+        assertTrue(
+            tooltip!!.contains("Grok Chat: 60%") && tooltip.contains("Grok Build: 40%"),
+            tooltip,
+        )
+    }
+
+    @Test
     fun hidesResetLinkWhenNoTokensRemain() {
         val section = SuperGrokPopupSection()
         section.update(

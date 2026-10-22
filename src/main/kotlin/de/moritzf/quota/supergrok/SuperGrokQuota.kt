@@ -11,7 +11,14 @@ data class SuperGrokQuota(
     val plan: String = "",
     val authSource: String = "",
     val creditUsage: SuperGrokUsageWindow? = null,
+    /** Pay-as-you-go cap and spend in USD cents. */
     val onDemandCap: Long? = null,
+    val onDemandUsed: Long? = null,
+    /** Bought credits in USD cents, used once the included credits run out. */
+    val prepaidBalance: Long? = null,
+    /** Share of the included credits per product, such as Grok Chat or Grok Build. */
+    val productUsage: List<SuperGrokProductUsage> = emptyList(),
+    val autoTopUp: SuperGrokAutoTopUp? = null,
     val isUnifiedBilling: Boolean = false,
     val periodType: String = "",
     val resetTokens: List<SuperGrokResetToken> = emptyList(),
@@ -22,6 +29,16 @@ data class SuperGrokQuota(
 
     override fun usageFraction(): Double? = creditUsage?.usagePercent?.let { it / 100.0 }
 }
+
+@Serializable data class SuperGrokProductUsage(val product: String, val usagePercent: Double)
+
+/** Automatic credit purchase: [amountCents] whenever the balance drops below [thresholdCents]. */
+@Serializable
+data class SuperGrokAutoTopUp(
+    val amountCents: Long,
+    val thresholdCents: Long? = null,
+    val monthlyMaxCents: Long? = null,
+)
 
 @Serializable
 data class SuperGrokUsageWindow(

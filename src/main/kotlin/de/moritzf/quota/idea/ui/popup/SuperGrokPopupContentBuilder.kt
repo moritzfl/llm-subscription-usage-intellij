@@ -28,6 +28,7 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
             border = JBUI.Borders.emptyTop(0)
         }
     private val blocks = listOf(WindowBlockPanel(3), WindowBlockPanel(5))
+    private val balanceLabel = createMutedLabel("").apply { border = JBUI.Borders.emptyTop(2) }
     private val resetTokensPanel =
         JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(3), 0)).apply {
             isOpaque = false
@@ -40,6 +41,7 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
         add(errorLabel)
         add(titleLabel)
         blocks.forEach(::add)
+        add(balanceLabel)
         add(resetTokensPanel)
         hideAll()
     }
@@ -75,11 +77,33 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
                 titleLabel.text = sectionTitle("SuperGrok", quota.plan.takeIf { it.isNotBlank() })
                 blocks.forEach { it.clear() }
                 if (usage != null) {
-                    blocks[0].updateSuperGrok(usage)
+                    blocks[0].updateSuperGrok(usage, productTooltip(quota))
                 }
                 quota.onDemandCap
                     ?.takeIf { it > 0 }
-                    ?.let { cap -> blocks.getOrNull(1)?.update("Pay as you go", "Cap $cap", 0) }
+                    ?.let { cap ->
+                        val used = quota.onDemandUsed ?: 0
+                        blocks[1].update(
+                            message("quota.supergrok.payg.title"),
+                            message("quota.supergrok.payg.used", usd(used), usd(cap)),
+                            clampPercent((used * 100.0 / cap).roundToInt()),
+                        )
+                    }
+                val balance =
+                    listOfNotNull(
+                        quota.prepaidBalance?.let { message("quota.supergrok.prepaid", usd(it)) },
+                        quota.autoTopUp?.let { rule ->
+                            rule.thresholdCents?.let {
+                                message(
+                                    "quota.supergrok.autoTopUp.below",
+                                    usd(rule.amountCents),
+                                    usd(it),
+                                )
+                            } ?: message("quota.supergrok.autoTopUp", usd(rule.amountCents))
+                        },
+                    )
+                balanceLabel.isVisible = balance.isNotEmpty()
+                balanceLabel.text = balance.joinToString(" • ")
                 updateResetTokens(quota.resetTokens)
             }
         }
@@ -93,6 +117,7 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
     private fun hideContent() {
         titleLabel.isVisible = false
         blocks.forEach { it.isVisible = false }
+        balanceLabel.isVisible = false
         resetTokensPanel.isVisible = false
     }
 
@@ -158,11 +183,23 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
         }
     }
 
-    private fun WindowBlockPanel.updateSuperGrok(window: SuperGrokUsageWindow) {
+    private fun WindowBlockPanel.updateSuperGrok(window: SuperGrokUsageWindow, tooltip: String?) {
         val percent = clampPercent(window.usagePercent.roundToInt())
         val resetText = QuotaUiUtil.formatReset(window.resetsAt)
         var info = "$percent% used"
         if (resetText != null) info += " - $resetText"
-        update(window.label.ifBlank { "Credits" }, info, percent)
+        update(window.label.ifBlank { "Credits" }, info, percent, tooltip)
     }
+
+    /** Usage per product, such as "Grok Chat: 4%". */
+    private fun productTooltip(quota: SuperGrokQuota): String? =
+        quota.productUsage
+            .takeIf { it.isNotEmpty() }
+            ?.joinToString("<br>", "<html>", "</html>") { product ->
+                val name = product.product.replace(Regex("(?<=[a-z])(?=[A-Z])"), " ")
+                QuotaUiUtil.escapeHtml("$name: ${clampPercent(product.usagePercent.roundToInt())}%")
+            }
+
+    private fun usd(cents: Long): String =
+        String.format(java.util.Locale.ROOT, "%.2f", cents / 100.0)
 }
