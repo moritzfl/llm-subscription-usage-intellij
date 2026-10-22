@@ -32,6 +32,27 @@ class MistralQuotaClientTest {
     }
 
     @Test
+    fun subscriptionFailuresWithoutAMessageStillNameTheirType() {
+        assertEquals(
+            "Subscription page could not be read (IllegalStateException).",
+            MistralQuotaClient.failureText(IllegalStateException()),
+        )
+        assertEquals(
+            "not found",
+            MistralQuotaClient.failureText(MistralQuotaException("not found")),
+        )
+        val raw =
+            MistralQuotaClient.buildRawResponse(
+                "{}",
+                null,
+                null,
+                null,
+                subscriptionError = MistralQuotaClient.failureText(java.io.IOException()),
+            )
+        assertTrue(raw.contains("\"subscription_error\""), raw)
+    }
+
+    @Test
     fun buildRawResponseOmitsMissingSides() {
         val sessionOnly =
             MistralQuotaClient.buildRawResponse("""{"vibe_usage":0}""", null, null, null)

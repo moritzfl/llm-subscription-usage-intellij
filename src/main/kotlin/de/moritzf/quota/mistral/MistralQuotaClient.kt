@@ -128,7 +128,7 @@ open class MistralQuotaClient(
                 probe?.let(::rateLimitHeaders),
                 billingError?.message,
                 budgets,
-                subscriptionAttempt.exceptionOrNull()?.message,
+                subscriptionAttempt.exceptionOrNull()?.let(::failureText),
             )
         return quota
     }
@@ -271,6 +271,11 @@ open class MistralQuotaClient(
         private const val MINUTE_MS = 60_000L
         private const val PROBE_BODY =
             """{"model":"mistral-small-latest","messages":[{"role":"user","content":"."}],"max_tokens":1}"""
+
+        /** A failure without a message still names its type, so a missing segment is explained. */
+        internal fun failureText(failure: Throwable): String =
+            failure.message?.takeIf { it.isNotBlank() }
+                ?: "Subscription page could not be read (${failure.javaClass.simpleName})."
 
         internal fun buildRawResponse(
             billingBody: String?,
