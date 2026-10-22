@@ -255,6 +255,53 @@ class KimiWebSearchClientTest {
             }
     }
 
+    @Test
+    fun fetchesPagesAsMarkdownWrappedInJson() {
+        TestKimiServer().use { server ->
+            val result =
+                newClient(server)
+                    .webFetch(KimiCredentials(accessToken = "kimi-token"), "example.com")
+
+            val body = parseObject(result.body)
+            assertEquals("https://example.com", body["url"]!!.jsonPrimitive.content)
+            assertEquals("markdown", body["format"]!!.jsonPrimitive.content)
+            assertEquals(
+                "# Example Domain\n\nThis domain is for use in examples.",
+                body["content"]!!.jsonPrimitive.content,
+            )
+            val request = assertNotNull(server.requests.poll(2, TimeUnit.SECONDS))
+            assertEquals("POST", request.method)
+            assertEquals("/fetch", request.path)
+            assertEquals("Bearer kimi-token", request.firstHeader("Authorization"))
+            assertEquals("text/markdown", request.firstHeader("Accept"))
+            assertEquals("search-device", request.firstHeader("X-Msh-Device-Id"))
+            assertEquals(
+                "https://example.com",
+                parseObject(request.body)["url"]!!.jsonPrimitive.content,
+            )
+        }
+    }
+
+    @Test
+    fun fetchReportsErrorsAndRejectsNonHttpUrls() {
+        TestKimiServer(fetchStatus = 502, fetchBody = "bad gateway").use { server ->
+            val client = newClient(server)
+            val failure =
+                assertFailsWith<KimiQuotaException> {
+                    client.webFetch(
+                        KimiCredentials(accessToken = "kimi-token"),
+                        "https://example.com",
+                    )
+                }
+            assertEquals("Kimi web fetch failed (HTTP 502). Try again later.", failure.message)
+            assertEquals("bad gateway", failure.rawBody)
+
+            assertFailsWith<KimiQuotaException> {
+                client.webFetch(KimiCredentials(accessToken = "kimi-token"), "file:///etc/passwd")
+            }
+        }
+    }
+
     private fun newClient(server: TestKimiServer): KimiWebSearchClient {
         return KimiWebSearchClient(
             deviceId = "search-device",
@@ -270,6 +317,8 @@ class KimiWebSearchClientTest {
         searchResponses: List<Pair<Int, String>>? = null,
         private val tokenBody: String = "{\"access_token\":\"fresh-token\",\"expires_in\":3600}",
         private val tokenStatus: Int = 200,
+        private val fetchBody: String = "# Example Domain\n\nThis domain is for use in examples.",
+        private val fetchStatus: Int = 200,
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
         private val queuedSearchResponses =
@@ -293,6 +342,7 @@ class KimiWebSearchClientTest {
                 val (status, body) =
                     when (exchange.requestURI.rawPath) {
                         "/search" -> nextSearchResponse()
+                        "/fetch" -> fetchStatus to fetchBody
                         "/token" -> tokenStatus to tokenBody
                         else -> 404 to "{}"
                     }

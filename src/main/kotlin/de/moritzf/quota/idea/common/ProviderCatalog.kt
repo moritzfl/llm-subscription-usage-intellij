@@ -295,6 +295,7 @@ internal object ProviderCatalog {
                 capabilities =
                     ProviderCapabilities(
                         webSearch = WebSearchCapability.LIST,
+                        webFetch = true,
                         vision = true,
                         subscriptionProxy = true,
                     ),

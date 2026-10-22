@@ -67,6 +67,7 @@ internal fun SubscriptionOperations.subscription_web_fetch(
     return when (provider) {
         WebFetchProvider.OLLAMA -> ollamaWebFetch(url)
         WebFetchProvider.ZAI -> zaiWebFetch(url)
+        WebFetchProvider.KIMI -> kimiWebFetch(url)
     }
 }
 
@@ -130,6 +131,38 @@ internal fun SubscriptionOperations.kimiWebSearch(
     } catch (exception: Exception) {
         exception.rethrowIfCancellation()
         searchError(exception.message ?: "Kimi web search failed.")
+    }
+}
+
+internal fun SubscriptionOperations.kimiWebFetch(url: String): String {
+    val account =
+        try {
+            de.moritzf.quota.idea.settings.AccountResolver.resolve(
+                QuotaProviderType.KIMI,
+                capability = AccountCapability.WEB_SEARCH,
+            )
+        } catch (exception: de.moritzf.quota.idea.settings.AccountResolveException) {
+            exception.rethrowIfCancellation()
+            return errorResult(exception.message ?: "Kimi login required. Log in from settings.")
+        }
+    val store = KimiCredentialsStore.forAccount(account.id)
+    val credentials = store.loadBlocking()
+    if (credentials?.isUsable() != true) {
+        return errorResult("Kimi login required. Log in from settings.")
+    }
+    return try {
+        val result = kimiSearchClient.webFetch(credentials, url)
+        if (result.credentials != credentials) {
+            store.save(result.credentials)
+        }
+        result.body
+    } catch (exception: KimiQuotaException) {
+        exception.rethrowIfCancellation()
+        noteSpendRateLimit(account.id, exception.statusCode)
+        errorResult(exception.message ?: "Kimi web fetch failed.")
+    } catch (exception: Exception) {
+        exception.rethrowIfCancellation()
+        errorResult(exception.message ?: "Kimi web fetch failed.")
     }
 }
 

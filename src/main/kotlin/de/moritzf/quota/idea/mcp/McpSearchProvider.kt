@@ -52,6 +52,7 @@ enum class VideoGenerationProvider(val providerType: QuotaProviderType) {
 enum class WebFetchProvider(val providerType: QuotaProviderType) {
     OLLAMA(QuotaProviderType.OLLAMA),
     ZAI(QuotaProviderType.ZAI),
+    KIMI(QuotaProviderType.KIMI),
 }
 
 /**

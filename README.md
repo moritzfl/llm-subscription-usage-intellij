@@ -99,7 +99,7 @@ Enable IntelliJ's built-in MCP server to make these tools available to connected
 | `subscription_tools_status` | Check which accounts and tools are ready |
 | `codex_web_search` / `supergrok_web_search` / `mistral_web_search` | Get a web-search answer from the named provider |
 | `subscription_web_search` | Get search results from Kimi, Z.ai, MiniMax, or Ollama |
-| `subscription_web_fetch` | Read a web page through Ollama or Z.ai |
+| `subscription_web_fetch` | Read a web page through Ollama, Z.ai, or Kimi |
 | `subscription_document_to_markdown` | Convert documents with a configured model or local PDFBox |
 | `subscription_vision` | Ask questions about an image using your selected vision model |
 | `subscription_image_generation` / `subscription_image_edit` | Generate images; edit existing images through SuperGrok |
