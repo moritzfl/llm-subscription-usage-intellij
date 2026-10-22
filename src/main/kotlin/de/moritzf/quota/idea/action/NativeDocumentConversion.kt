@@ -17,6 +17,7 @@ import de.moritzf.quota.idea.github.GitHubCredentialsStore
 import de.moritzf.quota.idea.opencode.OpenCodeAuthService
 import de.moritzf.quota.idea.settings.ProviderAccount
 import de.moritzf.quota.idea.settings.QuotaSettingsState
+import de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel
 import de.moritzf.quota.opencode.proxy.OpenCodeConsoleProxy
 import de.moritzf.quota.opencode.proxy.OpenCodeConsoleSession
 import de.moritzf.quota.opencode.proxy.OpenCodeRequestHeaders
@@ -136,7 +137,12 @@ internal object NativeDocumentConversion {
                 auth.credentials(accountId, it)?.accessToken
             }
         val models =
-            OpenCodeConsoleProxy(httpClient, RequestLogger(false, Path.of("logs"))).models(session)
+            OpenCodeConsoleProxy(
+                    httpClient,
+                    RequestLogger(false, Path.of("logs")),
+                    pools = { OpenCodeConsoleModel.fetchPools() },
+                )
+                .models(session)
         val selected =
             model.trim().ifBlank { error("Select an OpenCode vision model in settings.") }
         val match =

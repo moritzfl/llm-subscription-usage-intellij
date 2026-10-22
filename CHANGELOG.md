@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 - Proxy Gemini models from OpenCode Go and Zen by bridging the Google generateContent API, including streaming, tool calls with thought signatures, vision/PDF parts, and Junie-compatible chat requests.
-- Keep advertising OpenCode Zen and Go models after the Console changed its model configuration to overrides only: the proxy now reads the workspace's gateway model lists, removes models the Console disabled, and sends each model to its native Chat Completions, Responses, Anthropic Messages, or Google endpoint.
+- Keep advertising OpenCode Zen and Go models after the Console changed its model configuration to overrides only: the proxy now reads the workspace's gateway model lists, removes models the Console disabled, and sends each model to its native Chat Completions, Responses, Anthropic Messages, or Google endpoint. The document and vision model pickers use the same list.
 - Use free Claude limit resets from the quota popup: resets offered in claude.ai Settings > Usage, and the weekly session reset (`/limit-reset`) when you hit the 5-hour limit. A confirmation shows what each reset refills before it is used.
 - Show when OpenCode Go is paused or its renewal payment failed, as the Console does. With "use balance" on and credit available, a reached Go limit is shown as billed to the balance and no longer makes the proxy skip the account.
 - Let `supergrok_web_search` also search posts on X with `includeXPosts`, the X search tool Grok's own CLI uses.

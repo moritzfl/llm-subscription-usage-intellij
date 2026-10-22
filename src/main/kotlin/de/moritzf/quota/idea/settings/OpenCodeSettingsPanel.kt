@@ -20,6 +20,7 @@ import de.moritzf.quota.idea.opencode.OpenCodeAuthService
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.opencode.OpenCodeWorkspace
+import de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel
 import de.moritzf.quota.opencode.proxy.OpenCodeConsoleProxy
 import de.moritzf.quota.opencode.proxy.OpenCodeConsoleSession
 import de.moritzf.quota.shared.DocumentModels
@@ -267,6 +268,7 @@ internal class OpenCodeSettingsPanel(
                 OpenCodeConsoleProxy(
                         HttpClient.newHttpClient(),
                         RequestLogger(false, Path.of("logs")),
+                        pools = { OpenCodeConsoleModel.fetchPools() },
                     )
                     .models(session)
             }
