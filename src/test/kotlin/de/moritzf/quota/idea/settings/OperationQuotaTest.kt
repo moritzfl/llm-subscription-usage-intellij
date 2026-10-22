@@ -94,6 +94,24 @@ class OperationQuotaTest {
     }
 
     @Test
+    fun openCodeGoLimitBillsTheBalanceWhileCreditLasts() {
+        val limited =
+            de.moritzf.quota.opencode.OpenCodeQuota(
+                rollingUsage =
+                    de.moritzf.quota.opencode.OpenCodeUsageWindow("rate-limited", 60, 100.0),
+                weeklyUsage = de.moritzf.quota.opencode.OpenCodeUsageWindow(usagePercent = 40.0),
+                useBalance = true,
+                availableCredit = 5_000_000,
+            )
+
+        val billed = OperationQuota.status(limited)
+        assertFalse(billed.exhausted)
+        assertEquals("5-hour", billed.limitingPool)
+        assertTrue(OperationQuota.status(limited.copy(availableCredit = 0)).exhausted)
+        assertTrue(OperationQuota.status(limited.copy(useBalance = false)).exhausted)
+    }
+
+    @Test
     fun kimiMonthlyExhaustionIsHardStopEvenWithSessionRemaining() {
         val quota =
             KimiQuota(

@@ -38,6 +38,60 @@ class OpenCodeQuotaClientTest {
     }
 
     @Test
+    fun readsPausedPaymentFailedAndEndedSubscriptions() {
+        val paused =
+            OpenCodeQuotaClient.parseQuotaResponse(
+                """{"product":"go-plus","useBalance":true,"renewalPending":true,"access":null}""",
+                now,
+            )
+        assertTrue(paused.paused)
+        assertTrue(paused.renewalPending)
+        assertEquals("Go Plus", paused.plan)
+        assertTrue(paused.useBalance)
+
+        val failed =
+            OpenCodeQuotaClient.parseQuotaResponse(
+                GO_STATUS.replace(
+                    """"useBalance":false""",
+                    """"useBalance":false,"renewalRetryAt":"2026-10-23T00:00:00Z"""",
+                ),
+                now,
+            )
+        assertTrue(failed.paymentFailed)
+        assertFalse(failed.paused)
+        assertTrue(
+            OpenCodeQuotaClient.parseQuotaResponse(
+                    GO_STATUS.replace(
+                        """"useBalance":false""",
+                        """"useBalance":false,"renewalAuthorizationRequired":true""",
+                    ),
+                    now,
+                )
+                .paymentFailed
+        )
+
+        val ended =
+            OpenCodeQuotaClient.parseQuotaResponse(
+                """{"product":"go","cancelAtPeriodEnd":true,"renewalStopReason":"cancelled_by_user","access":null}""",
+                now,
+            )
+        assertFalse(ended.paused)
+        assertNull(ended.plan)
+        assertFalse(OpenCodeQuotaClient.parseQuotaResponse("""{"access":null}""", now).paused)
+        assertFalse(OpenCodeQuotaClient.parseQuotaResponse(GO_STATUS, now).paymentFailed)
+    }
+
+    @Test
+    fun billingKeepsTheCreditThatALimitCanBillSeparately() {
+        assertEquals(
+            9_876_543_210L,
+            OpenCodeQuotaClient.parseAvailableCredit(BILLING_STATUS),
+        )
+        assertNull(OpenCodeQuotaClient.parseAvailableCredit("""{"balanceMicroCents":"5"}"""))
+        assertNull(OpenCodeQuotaClient.parseAvailableCredit("not json"))
+    }
+
+    @Test
     fun canceledSubscriptionReportsWhenItEnds() {
         val renewing = OpenCodeQuotaClient.parseQuotaResponse(GO_STATUS, now)
         val canceled =

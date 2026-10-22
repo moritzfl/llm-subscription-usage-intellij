@@ -103,19 +103,29 @@ internal object OperationQuota {
             }
             is OpenCodeQuota ->
                 fromPercentWindows(
-                    listOfNotNull(quota.rollingUsage, quota.weeklyUsage, quota.monthlyUsage).map {
-                        window ->
-                        val name =
-                            when {
-                                window === quota.rollingUsage -> "5-hour"
-                                window === quota.weeklyUsage -> "weekly"
-                                else -> "monthly"
-                            }
-                        val percent = if (window.isRateLimited) 100.0 else window.usagePercent
-                        NamedWindow(name, percent, null)
-                    },
-                    quota.fetchedAt,
-                )
+                        listOfNotNull(quota.rollingUsage, quota.weeklyUsage, quota.monthlyUsage)
+                            .map { window ->
+                                val name =
+                                    when {
+                                        window === quota.rollingUsage -> "5-hour"
+                                        window === quota.weeklyUsage -> "weekly"
+                                        else -> "monthly"
+                                    }
+                                val percent =
+                                    if (window.isRateLimited) 100.0 else window.usagePercent
+                                NamedWindow(name, percent, null)
+                            },
+                        quota.fetchedAt,
+                    )
+                    .let {
+                        // With balance billing on, Go keeps serving past a limit while credit
+                        // lasts.
+                        if (it.exhausted && quota.billsBalanceAtLimit()) {
+                            it.copy(exhausted = false, reason = null)
+                        } else {
+                            it
+                        }
+                    }
             is OllamaQuota ->
                 fromPercentWindows(
                     listOfNotNull(

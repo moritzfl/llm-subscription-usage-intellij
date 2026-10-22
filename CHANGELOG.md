@@ -4,6 +4,7 @@
 
 - Proxy Gemini models from OpenCode Go and Zen by bridging the Google generateContent API, including streaming, tool calls with thought signatures, vision/PDF parts, and Junie-compatible chat requests.
 - Use free Claude limit resets from the quota popup: resets offered in claude.ai Settings > Usage, and the weekly session reset (`/limit-reset`) when you hit the 5-hour limit. A confirmation shows what each reset refills before it is used.
+- Show when OpenCode Go is paused or its renewal payment failed, as the Console does. With "use balance" on and credit available, a reached Go limit is shown as billed to the balance and no longer makes the proxy skip the account.
 - Let `supergrok_web_search` also search posts on X with `includeXPosts`, the X search tool Grok's own CLI uses.
 - Edit images with OpenAI/Codex through `subscription_image_edit`, using the same image tool as image generation; the result is written to `targetFile` or a new file in the project.
 - Ask MiniMax about images through the Token Plan's image understanding service, from `subscription_vision` and the settings' Test vision button. It is off until you select `coding-plan-vlm` as the vision model, and needs a local image file.

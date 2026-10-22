@@ -47,6 +47,35 @@ class OpenCodePopupContentBuilderTest {
         assertFalse(labels(section).any { it.startsWith("Canceled") })
     }
 
+    @Test
+    fun showsPausedPaymentAndBalanceBillingStates() {
+        val section = OpenCodePopupSection()
+
+        section.update(OpenCodeQuota(product = "go-plus", paused = true), null, true)
+        assertTrue("OpenCode Go Plus" in labels(section), labels(section).toString())
+        assertTrue(
+            "Go Plus is paused. Open your subscription to restore access." in labels(section),
+            labels(section).toString(),
+        )
+
+        section.update(
+            OpenCodeQuota(rollingUsage = window, product = "go", paymentFailed = true),
+            null,
+            true,
+        )
+        assertTrue(labels(section).any { it.startsWith("Go renewal payment failed") })
+
+        val limited = OpenCodeUsageWindow("rate-limited", 60, 100.0)
+        section.update(
+            OpenCodeQuota(rollingUsage = limited, useBalance = true, availableCredit = 1),
+            null,
+            true,
+        )
+        assertTrue(labels(section).any { it.startsWith("Go limit reached. Requests are billed") })
+        section.update(OpenCodeQuota(rollingUsage = limited), null, true)
+        assertTrue("OpenCode limit reached" in labels(section))
+    }
+
     private fun labels(root: Container): List<String> =
         visible(root).filterIsInstance<JLabel>().map { it.text }
 

@@ -48,6 +48,7 @@ open class OpenCodeQuotaClient(
         billingBody?.let { body ->
             val billing = parseBilling(body)
             quota.availableBalance = billing.first
+            quota.availableCredit = parseAvailableCredit(body)
             billing.second?.let(warnings::add)
         }
         val rawGo = goBody ?: failedBodies["api/go/status"]
@@ -122,7 +123,30 @@ open class OpenCodeQuotaClient(
                 OpenCodeQuota(warnings = listOf("Go usage response could not be read"))
             if (root !is JsonObject) return unreadable()
             val useBalance = (root["useBalance"] as? JsonPrimitive)?.booleanOrNull ?: false
-            if (root["access"] == JsonNull) return OpenCodeQuota(useBalance = useBalance)
+            fun flag(value: JsonElement?) = (value as? JsonPrimitive)?.booleanOrNull == true
+            fun present(name: String) = root[name].let { it != null && it != JsonNull }
+            val product = (root["product"] as? JsonPrimitive)?.contentOrNull
+            val paymentFailed =
+                present("renewalRetryAt") ||
+                    present("renewalPaymentAttemptID") ||
+                    present("renewalPaymentAttemptId") ||
+                    flag(root["renewalAuthorizationRequired"])
+            if (root["access"] == JsonNull) {
+                // Without access a Go subscription is paused, unless the user canceled it and it
+                // ended.
+                val ended =
+                    flag(root["cancelAtPeriodEnd"]) &&
+                        (root["renewalStopReason"] as? JsonPrimitive)?.contentOrNull ==
+                            "cancelled_by_user"
+                val paused = !product.isNullOrBlank() && !ended
+                return OpenCodeQuota(
+                    useBalance = useBalance,
+                    product = product.takeIf { paused },
+                    paused = paused,
+                    renewalPending = paused && flag(root["renewalPending"]),
+                    paymentFailed = paused && paymentFailed,
+                )
+            }
             val access = root["access"] as? JsonObject ?: return unreadable()
             val meters = access["meters"] as? JsonObject ?: return unreadable()
             val warnings = mutableListOf<String>()
@@ -161,7 +185,6 @@ open class OpenCodeQuotaClient(
             }
             if (listOf("fiveHour", "week", "month").none { meters.containsKey(it) })
                 return unreadable()
-            fun flag(value: JsonElement?) = (value as? JsonPrimitive)?.booleanOrNull == true
             val canceled = flag(root["cancelAtPeriodEnd"]) || flag(access["cancelAtPeriodEnd"])
             val endsAt =
                 (access["endsAt"] as? JsonPrimitive)?.contentOrNull?.let {
@@ -172,13 +195,23 @@ open class OpenCodeQuotaClient(
                 weeklyUsage = window("week"),
                 monthlyUsage = window("month"),
                 useBalance = useBalance,
-                product = (root["product"] as? JsonPrimitive)?.contentOrNull,
+                product = product,
                 endsAt = endsAt?.takeIf { canceled },
+                paymentFailed = paymentFailed,
                 warnings = warnings,
             )
         }
 
         internal fun parseBillingBalance(body: String): Long? = parseBilling(body).first
+
+        internal fun parseAvailableCredit(body: String): Long? =
+            (runCatching { JsonSupport.json.parseToJsonElement(body) as? JsonObject }
+                    .getOrNull()
+                    ?.get("availableMicroCents") as? JsonPrimitive)
+                ?.content
+                ?.trim()
+                ?.toBigDecimalOrNull()
+                ?.let { runCatching { it.longValueExact() }.getOrNull() }
 
         private fun parseBilling(body: String): Pair<Long?, String?> {
             val root =

@@ -63,15 +63,26 @@ internal class OpenCodePopupSection : ProviderPopupSection() {
             }
             else -> {
                 val limitReached = isAnyLimitReached(quota)
-                val warnings =
-                    listOfNotNull("OpenCode limit reached".takeIf { limitReached }) + quota.warnings
+                val plan = quota.plan ?: "Go"
+                val state =
+                    when {
+                        quota.paused && quota.renewalPending ->
+                            message("quota.opencode.paused.renewing", plan)
+                        quota.paused -> message("quota.opencode.paused", plan)
+                        quota.paymentFailed -> message("quota.opencode.paymentFailed", plan)
+                        limitReached && quota.billsBalanceAtLimit() ->
+                            message("quota.opencode.limit.balance")
+                        limitReached -> "OpenCode limit reached"
+                        else -> null
+                    }
+                val warnings = listOfNotNull(state) + quota.warnings
                 errorLabel.isVisible = warnings.isNotEmpty()
                 errorLabel.text = warnings.joinToString("; ")
 
                 titleLabel.isVisible = true
                 titleLabel.text =
                     sectionTitle(
-                        if (quota.hasUsageState()) "OpenCode ${quota.plan ?: "Go"}"
+                        if (quota.hasUsageState() || quota.paused) "OpenCode $plan"
                         else OPENCODE_ZEN_LABEL
                     )
                 val endsAt = quota.endsAt.takeIf { quota.hasUsageState() }

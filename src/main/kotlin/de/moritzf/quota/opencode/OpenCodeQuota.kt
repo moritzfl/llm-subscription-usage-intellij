@@ -18,7 +18,17 @@ data class OpenCodeQuota(
     val product: String? = null,
     /** When a canceled Go subscription stops; null while it renews. */
     val endsAt: Instant? = null,
+    /** The Go subscription has no access, for example after an unpaid renewal. */
+    val paused: Boolean = false,
+    /** A paused renewal is still being paid. */
+    val renewalPending: Boolean = false,
+    /** The last renewal payment failed or needs authorization. */
+    val paymentFailed: Boolean = false,
     var availableBalance: Long? = null,
+    /**
+     * Credit that requests can spend, in micro cents; Go bills it past a limit with [useBalance].
+     */
+    var availableCredit: Long? = null,
     override var fetchedAt: Instant? = null,
     @Transient override var rawJson: String? = null,
     @Transient var rawGoJson: String? = null,
@@ -50,6 +60,9 @@ data class OpenCodeQuota(
     fun hasAvailableBalance(): Boolean {
         return availableBalance != null
     }
+
+    /** A reached Go limit bills the balance instead of stopping requests. */
+    fun billsBalanceAtLimit(): Boolean = useBalance && (availableCredit ?: 0) > 0
 
     /** "Go" or "Go Plus"; null without a Go subscription product. */
     val plan: String?
