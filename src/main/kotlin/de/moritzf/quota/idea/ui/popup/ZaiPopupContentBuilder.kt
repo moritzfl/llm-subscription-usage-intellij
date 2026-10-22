@@ -103,6 +103,14 @@ internal class ZaiPopupSection : ProviderPopupSection() {
         val resetText = QuotaUiUtil.formatReset(window.resetsAt)
         var info = "$percent% used"
         if (resetText != null) info += " - $resetText"
-        update(label, info, percent)
+        val details =
+            listOf("${window.used} / ${window.limit} calls") +
+                window.tools.map { (tool, calls) -> "$tool: $calls" }
+        update(
+            label,
+            info,
+            percent,
+            details.joinToString("<br>", "<html>", "</html>", transform = QuotaUiUtil::escapeHtml),
+        )
     }
 }

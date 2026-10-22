@@ -152,11 +152,22 @@ open class ZaiQuotaClient(
             val subscriptionReset = subscription?.nextRenewTime?.let(::parseResetDate)
 
             return ZaiQuota(
-                plan = subscription?.productName.orEmpty(),
+                plan =
+                    subscription?.productName?.takeIf { it.isNotBlank() }
+                        ?: quotaResponse.data
+                            ?.level
+                            ?.trim()
+                            ?.replaceFirstChar { it.uppercase() }
+                            .orEmpty(),
                 sessionUsage = session?.toUsageWindow(),
                 weeklyUsage = weekly?.toUsageWindow(),
+                // The tool limit carries its own reset; older responses only have the renewal date.
                 webSearchUsage =
-                    webSearch?.toCountUsageWindow(subscriptionReset ?: nextMonthStartUtc()),
+                    webSearch?.toCountUsageWindow(
+                        webSearch.nextResetTime?.let(Instant::fromEpochMilliseconds)
+                            ?: subscriptionReset
+                            ?: nextMonthStartUtc()
+                    ),
             )
         }
 
@@ -175,6 +186,14 @@ open class ZaiQuotaClient(
                 usagePercent = percentage ?: percentFromValues(currentValue, usage),
                 resetsAt = resetsAt,
                 periodDurationMs = durationMillis(),
+                tools =
+                    usageDetails
+                        .mapNotNull { detail ->
+                            detail.modelCode
+                                ?.takeIf { it.isNotBlank() }
+                                ?.let { it to (detail.usage ?: 0) }
+                        }
+                        .toMap(),
             )
         }
 
@@ -183,7 +202,8 @@ open class ZaiQuotaClient(
             return when (unit) {
                 1 -> value * 86_400_000L
                 3 -> value * 3_600_000L
-                5 -> value * 60_000L
+                // The MCP tool limit marks its monthly period with unit 5.
+                5 -> if (type == "TIME_LIMIT") value * 30L * 86_400_000L else value * 60_000L
                 6 -> value * 7L * 86_400_000L
                 else -> null
             }
@@ -251,7 +271,14 @@ private data class ZaiQuotaResponseDto(
     val success: Boolean? = null,
 )
 
-@Serializable private data class ZaiQuotaDataDto(val limits: List<ZaiLimitDto> = emptyList())
+@Serializable
+private data class ZaiQuotaDataDto(
+    val limits: List<ZaiLimitDto> = emptyList(),
+    val level: String? = null,
+)
+
+@Serializable
+private data class ZaiUsageDetailDto(val modelCode: String? = null, val usage: Long? = null)
 
 @Serializable
 private data class ZaiLimitDto(
@@ -263,4 +290,5 @@ private data class ZaiLimitDto(
     val remaining: Long? = null,
     @Serializable(with = LenientDoubleOrNullSerializer::class) val percentage: Double? = null,
     val nextResetTime: Long? = null,
+    val usageDetails: List<ZaiUsageDetailDto> = emptyList(),
 )

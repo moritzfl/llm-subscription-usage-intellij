@@ -99,8 +99,37 @@ class ZaiQuotaClientTest {
         assertEquals(1828, webSearchUsage.used)
         assertEquals(4000, webSearchUsage.limit)
         assertEquals(45.0, webSearchUsage.usagePercent)
-        assertEquals(60_000L, webSearchUsage.periodDurationMs)
+        assertEquals(30 * 86_400_000L, webSearchUsage.periodDurationMs)
         assertEquals(1773273600000, webSearchUsage.resetsAt?.toEpochMilliseconds())
+    }
+
+    @Test
+    fun toolLimitUsesItsOwnResetAndCountsCallsPerTool() {
+        val quotaJson =
+            """
+            {"code":200,"success":true,"data":{"level":"pro","limits":[
+             {"type":"TIME_LIMIT","unit":5,"number":1,"usage":1000,"currentValue":12,"remaining":988,
+              "percentage":1,"nextResetTime":1786489348996,"usageDetails":[
+               {"modelCode":"search-prime","usage":9},{"modelCode":"web-reader","usage":3},
+               {"modelCode":"zread","usage":0},{"usage":4},{"modelCode":"","usage":1}]},
+             {"type":"TOKENS_LIMIT","unit":3,"number":5,"percentage":42,"nextResetTime":1786493397235}]}}
+            """
+                .trimIndent()
+
+        val quota =
+            ZaiQuotaClient.parseQuota(
+                """{"success":true,"data":[{"productName":"GLM Coding Pro","status":"VALID","nextRenewTime":"2026-11-01"}]}""",
+                quotaJson,
+            )
+        val withoutSubscription =
+            ZaiQuotaClient.parseQuota("""{"success":true,"data":[]}""", quotaJson)
+
+        val tools = assertNotNull(quota.webSearchUsage)
+        assertEquals(1786489348996, tools.resetsAt?.toEpochMilliseconds())
+        assertEquals(mapOf("search-prime" to 9L, "web-reader" to 3L, "zread" to 0L), tools.tools)
+        assertEquals(5 * 3_600_000L, quota.sessionUsage?.periodDurationMs)
+        assertEquals("GLM Coding Pro", quota.plan)
+        assertEquals("Pro", withoutSubscription.plan)
     }
 
     @Test

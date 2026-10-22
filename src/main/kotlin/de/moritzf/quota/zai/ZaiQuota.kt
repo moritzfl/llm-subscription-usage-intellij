@@ -53,6 +53,8 @@ data class ZaiCountUsageWindow(
     val usagePercent: Double = 0.0,
     val resetsAt: Instant? = null,
     val periodDurationMs: Long? = null,
+    /** Calls per MCP tool, such as `search-prime` or `web-reader`. */
+    val tools: Map<String, Long> = emptyMap(),
 ) {
     @Transient val periodDuration: Duration? = periodDurationMs?.let(Duration::ofMillis)
 }
