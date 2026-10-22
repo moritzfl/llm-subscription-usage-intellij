@@ -17,6 +17,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 
@@ -48,11 +49,15 @@ open class CursorQuotaClient(
             getStripeProfile(accessToken, auth)
         }
             .getOrNull()
+        val sandJson = runCatching {
+            postDashboard(accessToken, "GetSandUsageStatus", auth, OPTIONAL_TIMEOUT)
+        }
+            .getOrNull()
 
-        val rawJson = buildRawJson(periodUsageJson, planInfoJson, profileJson)
+        val rawJson = buildRawJson(periodUsageJson, planInfoJson, profileJson, sandJson)
         val quota =
             try {
-                parseQuota(periodUsageJson, planInfoJson, profileJson, auth)
+                parseQuota(periodUsageJson, planInfoJson, profileJson, auth, sandJson)
             } catch (exception: CursorQuotaException) {
                 throw CursorQuotaException(
                     exception.message ?: "Usage response invalid.",
@@ -72,18 +77,48 @@ open class CursorQuotaClient(
     private fun fetchWebQuota(sessionCookie: String, auth: CursorAuth?): CursorQuota {
         val usageSummaryJson = getCookieRest("/api/usage-summary", sessionCookie)
         val userInfoJson = runCatching { getCookieRest("/api/auth/me", sessionCookie) }.getOrNull()
-        val userId =
-            userInfoJson?.let(::parseUserIdFromUserInfo)
-                ?: CursorSessionTokenParser.extractUserId(sessionCookie)
-        val requestUsageJson = userId?.let {
-            runCatching { getCookieRest("/api/usage?user=${encodeQueryValue(it)}", sessionCookie) }
-                .getOrNull()
-        }
+        // Combined plans report their spend through usage-status; the request lookup is legacy.
+        val unifiedJson =
+            if (isUnifiedUserPlan(usageSummaryJson)) {
+                optionalCookieRequest(
+                    cookieRequest("/api/dashboard/v2/usage-status?scope=user", sessionCookie).GET()
+                )
+            } else {
+                null
+            }
+        val requestUsageJson =
+            if (unifiedJson != null) null
+            else {
+                val userId =
+                    userInfoJson?.let(::parseUserIdFromUserInfo)
+                        ?: CursorSessionTokenParser.extractUserId(sessionCookie)
+                userId?.let {
+                    runCatching {
+                        getCookieRest("/api/usage?user=${encodeQueryValue(it)}", sessionCookie)
+                    }
+                        .getOrNull()
+                }
+            }
+        val sandJson =
+            optionalCookieRequest(
+                cookieRequest("/api/dashboard/get-sand-usage-status", sessionCookie)
+                    .header("Content-Type", "application/json")
+                    .header("Origin", webBaseUri.toString().trimEnd('/'))
+                    .POST(HttpRequest.BodyPublishers.ofString("{}"))
+            )
 
-        val rawJson = buildWebRawJson(usageSummaryJson, userInfoJson, requestUsageJson)
+        val rawJson =
+            buildWebRawJson(usageSummaryJson, userInfoJson, requestUsageJson, sandJson, unifiedJson)
         val quota =
             try {
-                parseUsageSummary(usageSummaryJson, userInfoJson, requestUsageJson, auth)
+                parseUsageSummary(
+                    usageSummaryJson,
+                    userInfoJson,
+                    requestUsageJson,
+                    auth,
+                    sandJson,
+                    unifiedJson,
+                )
             } catch (exception: CursorQuotaException) {
                 throw CursorQuotaException(
                     exception.message ?: "Usage response invalid.",
@@ -104,11 +139,12 @@ open class CursorQuotaClient(
         accessToken: String,
         method: String,
         auth: CursorAuth? = null,
+        timeout: Duration = Duration.ofSeconds(30),
     ): String {
         val builder =
             HttpRequest.newBuilder()
                 .uri(baseUri.resolve("/aiserver.v1.DashboardService/$method"))
-                .timeout(Duration.ofSeconds(30))
+                .timeout(timeout)
                 .header("Authorization", "Bearer $accessToken")
                 .header("Content-Type", "application/json")
         applySessionCookie(builder, auth)
@@ -125,6 +161,27 @@ open class CursorQuotaClient(
         applySessionCookie(builder, auth)
         return send(builder.GET().build())
     }
+
+    private fun cookieRequest(path: String, sessionCookie: String): HttpRequest.Builder =
+        HttpRequest.newBuilder()
+            .uri(webBaseUri.resolve(path))
+            .timeout(OPTIONAL_TIMEOUT)
+            .header("Accept", "application/json")
+            .header("Cookie", CursorSessionTokenParser.buildCookieHeader(sessionCookie))
+
+    /**
+     * Optional dashboard data: anything but a successful answer, including the redirect for a
+     * missing session or the 403 for a missing Origin, means no data rather than an expired login.
+     */
+    private fun optionalCookieRequest(builder: HttpRequest.Builder): String? = runCatching {
+        httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString())
+    }
+        .getOrElse { exception ->
+            if (exception is InterruptedException) Thread.currentThread().interrupt()
+            null
+        }
+        ?.takeIf { it.statusCode() in 200..299 }
+        ?.body()
 
     private fun getCookieRest(path: String, sessionCookie: String): String {
         val builder =
@@ -180,11 +237,15 @@ open class CursorQuotaClient(
 
         @JvmField val DEFAULT_WEB_BASE_URI: URI = URI.create("https://cursor.com")
 
+        private val OPTIONAL_TIMEOUT: Duration = Duration.ofSeconds(5)
+
         fun parseQuota(
             periodUsageJson: String,
             planInfoJson: String?,
             profileJson: String?,
             auth: CursorAuth? = null,
+            sandJson: String? = null,
+            now: Instant = Clock.System.now(),
         ): CursorQuota {
             val periodUsage =
                 JsonSupport.json.decodeFromString<CurrentPeriodUsageResponse>(periodUsageJson)
@@ -198,6 +259,13 @@ open class CursorQuotaClient(
                     .getOrNull()
             }
 
+            val sand = parseSand(sandJson)
+            val grok = sand?.toGrokUsage(now)
+            val weeklyReset =
+                planInfo
+                    ?.planInfo
+                    ?.takeIf { it.includedUsagePeriod?.isWeekly() == true }
+                    ?.let { parseTimestamp(it.includedUsageResetsAt) ?: grok?.resetsAt }
             val planUsage =
                 CursorPlanUsage(
                         totalPercentUsed = normalizePercent(periodUsage.planUsage.totalPercentUsed),
@@ -207,6 +275,7 @@ open class CursorQuotaClient(
                         limitUsd = periodUsage.planUsage.limit / 100.0,
                         billingCycleStart = parseTimestamp(periodUsage.billingCycleStart),
                         billingCycleEnd = parseTimestamp(periodUsage.billingCycleEnd),
+                        weeklyResetsAt = weeklyReset,
                     )
                     .takeIf { it.usagePercent() != null || it.totalSpendUsd > 0.0 }
 
@@ -230,9 +299,11 @@ open class CursorQuotaClient(
                     periodUsageJson,
                 )
             }
+            val merged = planInfo?.isMerged == true || sand?.isUnified == true
 
             return CursorQuota(
                 planName = planInfo?.planInfo?.planName.orEmpty(),
+                grokUsage = grok?.takeUnless { merged },
                 email = auth?.email.orEmpty(),
                 membershipType = profile?.membershipType ?: auth?.membershipType.orEmpty(),
                 planUsage = planUsage,
@@ -248,8 +319,14 @@ open class CursorQuotaClient(
             userInfoJson: String?,
             requestUsageJson: String?,
             auth: CursorAuth? = null,
+            sandJson: String? = null,
+            unifiedJson: String? = null,
+            now: Instant = Clock.System.now(),
         ): CursorQuota {
             val summary = JsonSupport.json.decodeFromString<UsageSummaryResponse>(usageSummaryJson)
+            val sand = parseSand(sandJson)
+            val grok = sand?.toGrokUsage(now)
+            val unified = summary.isUnifiedUserPlan() || sand?.isUnified == true
             // Supplementary documents only enrich the quota; if one is unparsable, keep the usage
             // data.
             val userInfo = userInfoJson?.let {
@@ -304,6 +381,8 @@ open class CursorQuotaClient(
                             limitUsd = planLimitUsd,
                             billingCycleStart = parseTimestamp(summary.billingCycleStart),
                             billingCycleEnd = parseTimestamp(summary.billingCycleEnd),
+                            // On combined plans the included pool is the weekly Grok Bot pool.
+                            weeklyResetsAt = grok?.resetsAt?.takeIf { unified },
                         )
                         .takeIf { it.usagePercent() != null || it.totalSpendUsd > 0.0 }
                 } else {
@@ -318,14 +397,19 @@ open class CursorQuotaClient(
                         CursorRequestUsage(used = used, limit = limit)
                     else null
                 }
-            val onDemandUsage = individualUsage?.onDemand.toUsage(scope = "personal")
+            // The summary reports no on-demand spend on combined plans; usage-status does.
+            val onDemandUsage =
+                unifiedJson?.let { parseUnifiedOnDemand(it, now) }
+                    ?: individualUsage?.onDemand.toUsage(scope = "personal")
             val teamOnDemandUsage = teamUsage?.onDemand.toUsage(scope = "team")
 
+            val grokUsage = grok?.takeUnless { unified || requestUsage != null }
             if (
                 planUsage == null &&
                     requestUsage == null &&
                     onDemandUsage == null &&
-                    teamOnDemandUsage == null
+                    teamOnDemandUsage == null &&
+                    grokUsage == null
             ) {
                 throw CursorQuotaException(
                     "Could not parse Cursor quota response.",
@@ -335,8 +419,17 @@ open class CursorQuotaClient(
             }
 
             return CursorQuota(
+                planName =
+                    if (summary.isUnifiedUserPlan()) {
+                        sand?.cursorPlanName?.takeIf { it.isNotBlank() }
+                            ?: summary.membershipType
+                                .orEmpty()
+                                .removePrefix("unified_")
+                                .replaceFirstChar { it.uppercase() }
+                    } else "",
                 email = userInfo?.email ?: auth?.email.orEmpty(),
                 membershipType = summary.membershipType ?: auth?.membershipType.orEmpty(),
+                grokUsage = grokUsage,
                 planUsage = planUsage,
                 onDemandUsage = onDemandUsage,
                 teamOnDemandUsage = teamOnDemandUsage,
@@ -351,11 +444,13 @@ open class CursorQuotaClient(
             periodUsageJson: String,
             planInfoJson: String?,
             profileJson: String?,
+            sandJson: String? = null,
         ): String {
             return buildJsonObject {
                 put("periodUsage", periodUsageJson)
                 planInfoJson?.let { put("planInfo", it) }
                 profileJson?.let { put("profile", it) }
+                sandJson?.let { put("sandUsage", it) }
             }
                 .toString()
         }
@@ -364,14 +459,74 @@ open class CursorQuotaClient(
             usageSummaryJson: String,
             userInfoJson: String?,
             requestUsageJson: String?,
+            sandJson: String? = null,
+            unifiedJson: String? = null,
         ): String {
             return buildJsonObject {
                 put("usageSummary", usageSummaryJson)
                 userInfoJson?.let { put("userInfo", it) }
                 requestUsageJson?.let { put("requestUsage", it) }
+                sandJson?.let { put("sandUsage", it) }
+                unifiedJson?.let { put("unifiedUsage", it) }
             }
                 .toString()
         }
+
+        /** Combined plans ("The X Subscription") bill one user-level pool. */
+        private fun isUnifiedUserPlan(usageSummaryJson: String): Boolean = runCatching {
+            JsonSupport.json
+                .decodeFromString<UsageSummaryResponse>(usageSummaryJson)
+                .isUnifiedUserPlan()
+        }
+            .getOrDefault(false)
+
+        private fun UsageSummaryResponse.isUnifiedUserPlan(): Boolean =
+            membershipType.orEmpty().lowercase().startsWith("unified_") &&
+                limitType.orEmpty().equals("user", ignoreCase = true)
+
+        private fun parseSand(json: String?): SandUsageResponse? = json?.let {
+            runCatching { JsonSupport.json.decodeFromString<SandUsageResponse>(it) }.getOrNull()
+        }
+
+        /**
+         * The Grok Bot allowance counts only with an included limit, or during an unexpired trial,
+         * which has no reset. The paid allowance resets weekly.
+         */
+        private fun SandUsageResponse.toGrokUsage(now: Instant): CursorGrokUsage? {
+            val percent = usagePercent?.takeIf { it.isFinite() } ?: return null
+            val hasLimit = includedLimitZero?.let { !it } ?: hasNonZeroIncludedLimit
+            val trialEnds = parseTimestamp(sandTrialExpiresAt)?.takeIf { it > now }
+            val trial = hasLimit != true && trialEnds != null
+            if (hasLimit != true && !trial) return null
+            return CursorGrokUsage(
+                usagePercent = percent.coerceIn(0.0, 100.0),
+                resetsAt = if (trial) null else parseTimestamp(nextResetTimestampUtc),
+                trialEndsAt = if (trial) trialEnds else null,
+            )
+        }
+
+        /** Monthly on-demand spend from usage-status, when it is available and current. */
+        private fun parseUnifiedOnDemand(json: String, now: Instant): CursorOnDemandUsage? {
+            val status =
+                runCatching { JsonSupport.json.decodeFromString<UnifiedUsageResponse>(json) }
+                    .getOrNull() ?: return null
+            if (status.availability != "available") return null
+            val monthly = status.monthlyUsage ?: return null
+            val used = monthly.usedCents?.takeIf { it.isFinite() && it >= 0 } ?: return null
+            val limit = monthly.limitCents?.takeIf { it.isFinite() && it >= 0 } ?: return null
+            val start = parseTimestamp(monthly.periodStart) ?: return null
+            val end = parseTimestamp(monthly.resetsAt) ?: return null
+            if (now < start || now >= end) return null
+            return CursorOnDemandUsage(
+                usedUsd = centsToUsd(used),
+                limitUsd = centsToUsd(limit),
+                remainingUsd = centsToUsd((limit - used).coerceAtLeast(0.0)),
+                scope = "personal",
+            )
+        }
+
+        private fun String.isWeekly(): Boolean =
+            contains("WEEKLY", ignoreCase = true) || this == "2"
 
         internal fun normalizeRawJson(json: String): String {
             return runCatching {
@@ -384,6 +539,8 @@ open class CursorQuotaClient(
                             "usageSummary",
                             "userInfo",
                             "requestUsage",
+                            "sandUsage",
+                            "unifiedUsage",
                         )
                         .any { key ->
                             val value = root[key] as? JsonPrimitive
@@ -578,7 +735,36 @@ private data class SpendLimitUsageResponse(
     val limitType: String = "",
 )
 
-@Serializable private data class PlanInfoResponse(val planInfo: PlanInfoDetails = PlanInfoDetails())
+@Serializable
+private data class PlanInfoResponse(
+    val planInfo: PlanInfoDetails = PlanInfoDetails(),
+    val isMerged: Boolean? = null,
+)
+
+@Serializable
+private data class SandUsageResponse(
+    @Serializable(with = LenientDoubleOrNullSerializer::class) val usagePercent: Double? = null,
+    val nextResetTimestampUtc: String? = null,
+    val includedLimitZero: Boolean? = null,
+    val hasNonZeroIncludedLimit: Boolean? = null,
+    val sandTrialExpiresAt: String? = null,
+    val isUnified: Boolean? = null,
+    val cursorPlanName: String? = null,
+)
+
+@Serializable
+private data class UnifiedUsageResponse(
+    val availability: String? = null,
+    val monthlyUsage: UnifiedMonthlyUsageResponse? = null,
+)
+
+@Serializable
+private data class UnifiedMonthlyUsageResponse(
+    @Serializable(with = LenientDoubleOrNullSerializer::class) val usedCents: Double? = null,
+    @Serializable(with = LenientDoubleOrNullSerializer::class) val limitCents: Double? = null,
+    val periodStart: String? = null,
+    val resetsAt: String? = null,
+)
 
 @Serializable
 private data class PlanInfoDetails(
@@ -586,7 +772,26 @@ private data class PlanInfoDetails(
     val includedAmountCents: Double = 0.0,
     val price: String = "",
     val billingCycleEnd: String = "",
+    /** A name such as INCLUDED_USAGE_PERIOD_WEEKLY, or the enum number. */
+    @Serializable(with = LenientStringSerializer::class) val includedUsagePeriod: String? = null,
+    @Serializable(with = LenientStringSerializer::class) val includedUsageResetsAt: String? = null,
 )
+
+/** Reads a string or a number as text, as proto JSON sends int64 and enum values either way. */
+private object LenientStringSerializer : kotlinx.serialization.KSerializer<String?> {
+    override val descriptor =
+        kotlinx.serialization.descriptors.PrimitiveSerialDescriptor(
+            "CursorLenientString",
+            kotlinx.serialization.descriptors.PrimitiveKind.STRING,
+        )
+
+    override fun deserialize(decoder: kotlinx.serialization.encoding.Decoder): String? =
+        ((decoder as kotlinx.serialization.json.JsonDecoder).decodeJsonElement() as? JsonPrimitive)
+            ?.contentOrNull
+
+    override fun serialize(encoder: kotlinx.serialization.encoding.Encoder, value: String?) =
+        encoder.encodeString(value.orEmpty())
+}
 
 @Serializable
 private data class StripeProfileResponse(

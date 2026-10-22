@@ -6,6 +6,7 @@ import de.moritzf.quota.cursor.CursorPlanUsage
 import de.moritzf.quota.cursor.CursorQuota
 import de.moritzf.quota.cursor.CursorRequestUsage
 import de.moritzf.quota.cursor.CursorSpendLimit
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.ui.indicator.clampPercent
@@ -28,6 +29,7 @@ internal class CursorPopupSection : ProviderPopupSection() {
     private val onDemandBlock = WindowBlockPanel(5)
     private val teamOnDemandBlock = WindowBlockPanel(5)
     private val spendBlock = WindowBlockPanel(5)
+    private val grokBlock = WindowBlockPanel(5)
 
     init {
         isOpaque = false
@@ -41,6 +43,7 @@ internal class CursorPopupSection : ProviderPopupSection() {
         add(onDemandBlock)
         add(teamOnDemandBlock)
         add(spendBlock)
+        add(grokBlock)
         hideAll()
     }
 
@@ -87,10 +90,18 @@ internal class CursorPopupSection : ProviderPopupSection() {
                     includedSpendBlock.clear()
                     includedUsageBlock.clear()
                     planUsage.autoPercentUsed?.let {
-                        autoBlock.updatePercentUsage(it, planUsage.billingCycleEnd, "Cursor Models")
+                        autoBlock.updatePercentUsage(
+                            it,
+                            planUsage.includedResetsAt(),
+                            "Cursor Models",
+                        )
                     } ?: autoBlock.clear()
                     planUsage.apiPercentUsed?.let {
-                        apiBlock.updatePercentUsage(it, planUsage.billingCycleEnd, "Other Models")
+                        apiBlock.updatePercentUsage(
+                            it,
+                            planUsage.includedResetsAt(),
+                            "Other Models",
+                        )
                     } ?: apiBlock.clear()
                 } else {
                     planUsage?.let { includedSpendBlock.updateIncludedSpend(it) }
@@ -104,7 +115,7 @@ internal class CursorPopupSection : ProviderPopupSection() {
                         planUsage?.usagePercent()?.let {
                             includedUsageBlock.updatePercentUsage(
                                 it,
-                                planUsage.billingCycleEnd,
+                                planUsage.includedResetsAt(),
                                 "Included",
                             )
                         } ?: includedUsageBlock.clear()
@@ -124,6 +135,22 @@ internal class CursorPopupSection : ProviderPopupSection() {
                     )
                 } ?: teamOnDemandBlock.clear()
                 spendLimit?.let { spendBlock.updateSpendLimit(it) } ?: spendBlock.clear()
+                quota.grokUsage?.let { grok ->
+                    val percent = clampPercent(grok.usagePercent.roundToInt())
+                    val detail =
+                        if (grok.trialEndsAt != null) {
+                            QuotaUiUtil.formatExpiry(grok.trialEndsAt)?.let {
+                                message("quota.cursor.grok.trial", it)
+                            }
+                        } else {
+                            QuotaUiUtil.formatReset(grok.resetsAt)
+                        }
+                    grokBlock.update(
+                        message("quota.cursor.grok.title"),
+                        listOfNotNull("$percent% used", detail).joinToString(" - "),
+                        percent,
+                    )
+                } ?: grokBlock.clear()
             }
         }
     }
@@ -142,6 +169,7 @@ internal class CursorPopupSection : ProviderPopupSection() {
         onDemandBlock.isVisible = false
         teamOnDemandBlock.isVisible = false
         spendBlock.isVisible = false
+        grokBlock.isVisible = false
     }
 
     private fun getLimitWarning(quota: CursorQuota): String? {

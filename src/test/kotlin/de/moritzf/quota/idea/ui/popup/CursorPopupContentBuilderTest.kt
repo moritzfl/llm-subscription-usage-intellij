@@ -88,6 +88,50 @@ class CursorPopupContentBuilderTest {
         assertFalse(section.visibleBlocks().any { it.title().contains("Models") })
     }
 
+    @Test
+    fun showsTheGrokBotAllowanceAndTheWeeklyIncludedReset() {
+        val section = CursorPopupSection()
+        val reset = kotlin.time.Clock.System.now() + kotlin.time.Duration.parse("2d")
+        section.update(
+            CursorQuota(
+                planUsage =
+                    CursorPlanUsage(
+                        autoPercentUsed = 40.0,
+                        billingCycleEnd = reset + kotlin.time.Duration.parse("20d"),
+                        weeklyResetsAt = reset,
+                    ),
+                grokUsage = de.moritzf.quota.cursor.CursorGrokUsage(60.0, reset),
+            ),
+            null,
+            true,
+        )
+
+        val blocks = section.visibleBlocks()
+        assertEquals(listOf("Cursor Models usage", "Grok Bot weekly"), blocks.map { it.title() })
+        val labels = blocks.flatMap { block ->
+            block.components.filterIsInstance<JLabel>().map { it.text }
+        }
+        assertTrue(
+            labels.any {
+                it.startsWith("40% used - Resets in 1d") || it.startsWith("40% used - Resets in 2d")
+            },
+            labels.toString(),
+        )
+        assertTrue(labels.any { it.startsWith("60% used - Resets in ") }, labels.toString())
+
+        section.update(
+            CursorQuota(
+                planUsage = CursorPlanUsage(autoPercentUsed = 40.0),
+                grokUsage = de.moritzf.quota.cursor.CursorGrokUsage(100.0, trialEndsAt = reset),
+            ),
+            null,
+            true,
+        )
+        val trial =
+            section.visibleBlocks().last().components.filterIsInstance<JLabel>().map { it.text }
+        assertTrue(trial.any { it.startsWith("100% used - Trial: Expires in ") }, trial.toString())
+    }
+
     private fun CursorPopupSection.visibleBlocks(): List<WindowBlockPanel> =
         components.filterIsInstance<WindowBlockPanel>().filter { it.isVisible }
 

@@ -16,6 +16,8 @@ data class CursorQuota(
     val onDemandUsage: CursorOnDemandUsage? = null,
     val teamOnDemandUsage: CursorOnDemandUsage? = null,
     val requestUsage: CursorRequestUsage? = null,
+    /** The Grok Bot weekly allowance; absent on combined plans, where it is the included pool. */
+    val grokUsage: CursorGrokUsage? = null,
     val displayMessage: String = "",
     val autoModelDisplayMessage: String = "",
     val apiModelDisplayMessage: String = "",
@@ -38,7 +40,10 @@ data class CursorQuota(
         onDemandUsage?.usagePercent()?.let {
             return it
         }
-        return teamOnDemandUsage?.usagePercent()
+        teamOnDemandUsage?.usagePercent()?.let {
+            return it
+        }
+        return grokUsage?.usagePercent
     }
 
     override fun hasUsageState(): Boolean =
@@ -46,7 +51,8 @@ data class CursorQuota(
             spendLimit != null ||
             onDemandUsage != null ||
             teamOnDemandUsage != null ||
-            requestUsage != null
+            requestUsage != null ||
+            grokUsage != null
 
     override fun usageFraction(): Double? = primaryUsagePercent()?.let { it / 100.0 }
 
@@ -61,8 +67,17 @@ data class CursorQuota(
         spendLimit?.usagePercent()?.let { put("spendLimit", it / 100.0) }
         onDemandUsage?.usagePercent()?.let { put("onDemand", it / 100.0) }
         teamOnDemandUsage?.usagePercent()?.let { put("teamOnDemand", it / 100.0) }
+        grokUsage?.usagePercent?.let { put("grok", it / 100.0) }
     }
 }
+
+/** The Grok Bot allowance: weekly when paid, or a trial until [trialEndsAt] without a reset. */
+@Serializable
+data class CursorGrokUsage(
+    val usagePercent: Double,
+    val resetsAt: Instant? = null,
+    val trialEndsAt: Instant? = null,
+)
 
 @Serializable
 data class CursorPlanUsage(
@@ -73,7 +88,14 @@ data class CursorPlanUsage(
     val limitUsd: Double = 0.0,
     val billingCycleStart: Instant? = null,
     val billingCycleEnd: Instant? = null,
+    /** Set when the included pool resets weekly rather than with the billing cycle. */
+    val weeklyResetsAt: Instant? = null,
 ) {
+    /**
+     * When the included pool refills: weekly on current plans, otherwise with the billing cycle.
+     */
+    fun includedResetsAt(): Instant? = weeklyResetsAt ?: billingCycleEnd
+
     // The API retains its old auto/api field names for the two independent model pools.
     fun modelPools(): Map<String, Double> = buildMap {
         autoPercentUsed?.let { put("Cursor Models", it) }

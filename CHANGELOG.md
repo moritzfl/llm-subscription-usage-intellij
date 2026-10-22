@@ -4,6 +4,7 @@
 
 - Proxy Gemini models from OpenCode Go and Zen by bridging the Google generateContent API, including streaming, tool calls with thought signatures, vision/PDF parts, and Junie-compatible chat requests.
 - Use free Claude limit resets from the quota popup: resets offered in claude.ai Settings > Usage, and the weekly session reset (`/limit-reset`) when you hit the 5-hour limit. A confirmation shows what each reset refills before it is used.
+- Show Cursor's Grok Bot weekly allowance (or its trial), and on the combined plans (Plus, Premium, Super, Ultra) show the plan name, the weekly reset of the shared included pool, and the on-demand spend the usage summary reports as zero.
 - Support international Kimi Code accounts (kimi.ai): choose the region before logging in, and quota, search, fetch, vision, and the proxy use that login's hosts.
 - Read Kimi Code's current model list format (`limit.context`, input modalities), so the proxy advertises the live Kimi models again instead of the single fallback model, and no longer invents context or output limits.
 - Read web pages with Kimi Code's fetch service through `subscription_web_fetch`.

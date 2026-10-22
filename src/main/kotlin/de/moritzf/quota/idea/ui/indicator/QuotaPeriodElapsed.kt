@@ -151,6 +151,9 @@ internal fun ClaudeUsageWindow.periodElapsedFraction(now: Instant = Clock.System
 }
 
 internal fun CursorPlanUsage.periodElapsedFraction(now: Instant = Clock.System.now()): Double? {
+    weeklyResetsAt?.let { reset ->
+        return computePeriodElapsedFraction(java.time.Duration.ofDays(7).toMillis(), reset, now)
+    }
     val end = billingCycleEnd ?: return null
     val start = billingCycleStart
     if (start != null) {

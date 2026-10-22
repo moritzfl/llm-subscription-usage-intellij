@@ -189,12 +189,12 @@ internal object OperationQuota {
                 // Either model pool may still be usable; one exhausted pool is not a hard stop.
                 val availablePool = plan?.modelPools()?.minByOrNull { it.value }
                 val window =
-                    availablePool?.let { NamedWindow(it.key, it.value, plan.billingCycleEnd) }
+                    availablePool?.let { NamedWindow(it.key, it.value, plan.includedResetsAt()) }
                         ?: quota.requestUsage?.usagePercent()?.let {
                             NamedWindow("requests", it, plan?.billingCycleEnd)
                         }
                         ?: plan?.usagePercent()?.let {
-                            NamedWindow("included", it, plan.billingCycleEnd)
+                            NamedWindow("included", it, plan.includedResetsAt())
                         }
                 fromPercentWindows(listOfNotNull(window), quota.fetchedAt)
             }

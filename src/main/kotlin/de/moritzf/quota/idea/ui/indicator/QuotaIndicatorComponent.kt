@@ -567,7 +567,7 @@ internal data class CursorIndicatorState(
 internal fun cursorIndicatorState(quota: CursorQuota): CursorIndicatorState? {
     val planUsage = quota.planUsage
     val percent = quota.primaryUsagePercent() ?: return null
-    val resetsAt = planUsage?.billingCycleEnd
+    val resetsAt = planUsage?.includedResetsAt() ?: quota.grokUsage?.resetsAt
     if (percent >= 100.0) {
         return CursorIndicatorState(percent = 100, resetsAt = resetsAt)
     }
