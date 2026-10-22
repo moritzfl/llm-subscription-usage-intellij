@@ -4,6 +4,7 @@
 
 - Proxy Gemini models from OpenCode Go and Zen by bridging the Google generateContent API, including streaming, tool calls with thought signatures, vision/PDF parts, and Junie-compatible chat requests.
 - Use free Claude limit resets from the quota popup: resets offered in claude.ai Settings > Usage, and the weekly session reset (`/limit-reset`) when you hit the 5-hour limit. A confirmation shows what each reset refills before it is used.
+- Send Azure chat requests with tools to the Responses API for models that accept tools only there, such as GPT-6.1 Sol and GPT-6 Astra, and translate the answer back to chat. They rejected the chat route's `reasoning_effort: none` workaround.
 - Name Codex plans the way Codex's /status does (for example Pro 100, Pro 500, Business Premium, Academic Researchers), and call the reserve pool Luna Reserve.
 - Show MiniMax's video lane, the weekly boost of older Token Plans, and uncapped weekly windows as unlimited; lanes outside the plan stay hidden. Rejected keys reported with HTTP 200 stop the endpoint fallback, and China accounts try `api.minimax.cn` first.
 - Show SuperGrok's pay-as-you-go spend in dollars (it showed the cap in cents), the prepaid balance, the auto top-up rule, and credit usage per product on hover. Missing totals add up the product shares instead of using the largest one.

@@ -136,6 +136,67 @@ class AzureProxyRequestTest {
     }
 
     @Test
+    fun gpt61SolToolCallsGoThroughResponsesAndComeBackAsChat() {
+        val requests = LinkedBlockingQueue<Pair<String, String>>()
+        TestUpstream { exchange, body ->
+            requests += exchange.requestURI.path to body
+            if (exchange.requestURI.path.endsWith("/responses")) {
+                val completed =
+                    """{"type":"response.completed","response":{"id":"resp_1","object":"response","status":"completed","model":"gpt-6.1-sol","output":[{"type":"function_call","id":"fc_1","call_id":"call_1","name":"answer","arguments":"{\"q\":1}"}],"usage":{"input_tokens":5,"output_tokens":3,"total_tokens":8}}}"""
+                val response = "event: response.completed\ndata: $completed\n\n".toByteArray()
+                exchange.responseHeaders.set("Content-Type", "text/event-stream")
+                exchange.responseHeaders.set("x-ratelimit-limit-tokens", "100")
+                exchange.responseHeaders.set("x-ratelimit-remaining-tokens", "70")
+                exchange.sendResponseHeaders(200, response.size.toLong())
+                exchange.responseBody.write(response)
+            } else {
+                reply(exchange)
+            }
+        }
+            .use { upstream ->
+                val config = config(upstream.url, "sol")
+                withProxy({ config }) { port ->
+                    val tools =
+                        """{"model":"az-gpt-6.1-sol","messages":[{"role":"user","content":"hi"}],"reasoning_effort":"high","tools":[{"type":"function","function":{"name":"answer","parameters":{"type":"object"}}}]}"""
+                    val response = postAsync(port, "gpt-6.1-sol", tools).get(10, TimeUnit.SECONDS)
+
+                    assertEquals(200, response.statusCode(), response.body())
+                    val (path, body) = assertNotNull(requests.poll(5, TimeUnit.SECONDS))
+                    assertEquals("/openai/v1/responses", path)
+                    val sent = Json.parseToJsonElement(body) as JsonObject
+                    assertEquals("gpt-6.1-sol", sent["model"]?.jsonPrimitive?.content)
+                    assertTrue("tools" in sent && "input" in sent, body)
+                    assertTrue(
+                        "\"none\"" !in body,
+                        "the chat-only reasoning workaround is not sent",
+                    )
+                    val chat = Json.parseToJsonElement(response.body()) as JsonObject
+                    assertTrue(response.body().contains("\"tool_calls\""), response.body())
+                    assertEquals("chat.completion", chat["object"]?.jsonPrimitive?.content)
+                    assertEquals(
+                        70.0,
+                        AzureLiveUsage.read(AzureLiveUsage.key(config.accountId, config.account))
+                            ?.remainingTokens,
+                    )
+
+                    val noTools =
+                        """{"model":"az-gpt-6.1-sol","messages":[{"role":"user","content":"hi"}]}"""
+                    assertEquals(
+                        200,
+                        postAsync(port, "gpt-6.1-sol", noTools)
+                            .get(5, TimeUnit.SECONDS)
+                            .statusCode(),
+                    )
+                    assertEquals(
+                        "/openai/v1/chat/completions",
+                        assertNotNull(requests.poll(5, TimeUnit.SECONDS)).first,
+                        "without tools chat stays on chat completions",
+                    )
+                }
+            }
+    }
+
+    @Test
     fun overlappingRequestsKeepTheirOwnAccountAndDeploymentCounters() {
         val slowStarted = CountDownLatch(1)
         val releaseSlow = CountDownLatch(1)

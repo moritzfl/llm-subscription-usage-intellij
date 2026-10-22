@@ -1,12 +1,15 @@
 package de.moritzf.quota.azure.proxy
 
 import de.moritzf.proxy.logging.RequestLogger
+import de.moritzf.proxy.model.CodexInstructionsProvider
+import de.moritzf.proxy.server.ChatCompletionsHandler
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.subscription.PassThroughSubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyModel
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyRequest
 import de.moritzf.proxy.subscription.SubscriptionProxyRoute
+import de.moritzf.proxy.usage.UsageTracker
 import de.moritzf.quota.azure.AZURE_DEPLOYMENT_NAME
 import de.moritzf.quota.azure.AzureAccountConfig
 import de.moritzf.quota.azure.AzureCli
@@ -101,6 +104,10 @@ internal class AzureSubscriptionProxyProvider(
         }
             .getOrNull()
         val key = AzureLiveUsage.key(config.accountId.ifBlank { accountKey }, config.account)
+        if (needsResponsesForTools(request)) {
+            chatThroughResponses(ctx, request, target.baseUrl, ::tokenOrNull, key)
+            return
+        }
         PassThroughSubscriptionProxyProvider(
                 id = ID,
                 displayName = DISPLAY_NAME,
@@ -120,6 +127,70 @@ internal class AzureSubscriptionProxyProvider(
                 requestLogger = requestLogger,
             )
             .handle(ctx, request)
+    }
+
+    /**
+     * Chat tool calls for models that accept tools only on Responses and reject the
+     * `reasoning_effort: none` the chat route needs, such as GPT-6.1 Sol and GPT-6 Astra.
+     */
+    private fun needsResponsesForTools(request: SubscriptionProxyRequest): Boolean =
+        request.route == SubscriptionProxyRoute.CHAT_COMPLETIONS &&
+            RESPONSES_TOOLS_MODEL.matches(request.model.upstreamId.lowercase()) &&
+            listOf("tools", "functions").any {
+                (request.body[it] as? JsonArray)?.isNotEmpty() == true
+            }
+
+    private suspend fun chatThroughResponses(
+        ctx: de.moritzf.proxy.server.ProxyCall,
+        request: SubscriptionProxyRequest,
+        baseUrl: String,
+        token: () -> String?,
+        usageKey: String,
+    ) {
+        val url = java.net.URI.create(azureUpstreamUrl(baseUrl, "responses"))
+        ChatCompletionsHandler(
+                requestLogger = requestLogger,
+                usageTracker = UsageTracker(),
+                responsesRequester = { payload, requestId, _ ->
+                    fun send(bearer: String?): java.net.http.HttpResponse<java.io.InputStream> {
+                        requestLogger.logUpstreamRequest(
+                            requestId,
+                            "POST",
+                            url.path,
+                            mapOf("Content-Type" to "application/json"),
+                            payload,
+                        )
+                        return httpClient.send(
+                            java.net.http.HttpRequest.newBuilder(url)
+                                .timeout(Duration.ofMinutes(15))
+                                .header("Authorization", "Bearer ${bearer.orEmpty()}")
+                                .header("Content-Type", "application/json")
+                                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(payload))
+                                .build(),
+                            java.net.http.HttpResponse.BodyHandlers.ofInputStream(),
+                        )
+                    }
+                    var response = send(token())
+                    if (response.statusCode() == 401) {
+                        response.body().close()
+                        response = send(token())
+                    }
+                    parseRateLimitHeaders(response.headers().map(), request.model.upstreamId)?.let {
+                        AzureLiveUsage.record(usageKey, it)
+                    }
+                    response
+                },
+                store = false,
+                configuredModels = null,
+                fullRequestLogging = false,
+                forwardPromptCacheHeaders = false,
+                instructionsProvider = CodexInstructionsProvider("You are a helpful assistant."),
+            )
+            .handleParsed(
+                ctx,
+                request.requestId,
+                JsonObject(request.body + ("model" to JsonPrimitive(request.model.upstreamId))),
+            )
     }
 
     private fun modelMappings(): List<PassThroughSubscriptionProxyProvider.ModelMapping> {
@@ -202,6 +273,8 @@ internal class AzureSubscriptionProxyProvider(
 
     companion object {
         private val REASONING_MODEL = Regex("gpt-[56](?:[.-].*)?")
+        private val RESPONSES_TOOLS_MODEL =
+            Regex("gpt-6\\.[1-9].*|gpt-6-astra.*|gpt-[7-9](?:[.-].*)?")
         const val ID = "azure"
         const val DISPLAY_NAME = "Azure"
         const val PREFIX = "az-"
