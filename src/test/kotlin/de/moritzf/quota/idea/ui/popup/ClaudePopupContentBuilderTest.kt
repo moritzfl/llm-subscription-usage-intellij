@@ -147,7 +147,11 @@ class ClaudePopupContentBuilderTest {
             null,
             true,
         )
-        assertTrue("Out of usage credits" in labels(section))
+        assertTrue(
+            "Extra usage off: out of usage credits" in labels(section),
+            labels(section).toString(),
+        )
+        assertFalse("Extra usage" in labels(section), "blocked extra usage has no heading")
         assertFalse(labels(section).any { it.startsWith("Usage credit balance") })
 
         section.update(

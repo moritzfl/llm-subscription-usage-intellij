@@ -47,6 +47,7 @@ internal class ClaudePopupSection : ProviderPopupSection() {
             isOpaque = false
         }
     private val extraBlock = WindowBlockPanel(5)
+    private val extraOffLabel = createMutedLabel("").apply { border = JBUI.Borders.emptyTop(2) }
     private val balanceLabel = createMutedLabel("").apply { border = JBUI.Borders.emptyTop(2) }
     private val resetsPanel =
         JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(3), 0)).apply {
@@ -67,6 +68,7 @@ internal class ClaudePopupSection : ProviderPopupSection() {
         add(resetsPanel)
         add(creditsPanel)
         add(extraBlock)
+        add(extraOffLabel)
         add(balanceLabel)
         hideAll()
     }
@@ -145,11 +147,16 @@ internal class ClaudePopupSection : ProviderPopupSection() {
                             }
                         extraBlock.update(extraTitle, info, percent)
                     }
-                    extra?.disabledReason != null &&
-                        extra.disabledReason != "overage_not_provisioned" ->
-                        extraBlock.showUnavailable(extraTitle, disabledReason(extra.disabledReason))
                     else -> extraBlock.clear()
                 }
+                // Like a credit balance elsewhere: extra usage that cannot be used is a footnote.
+                val offReason =
+                    extra
+                        ?.takeIf { it.isEnabled != true }
+                        ?.disabledReason
+                        ?.takeIf { it != "overage_not_provisioned" }
+                extraOffLabel.isVisible = offReason != null
+                if (offReason != null) extraOffLabel.text = disabledReason(offReason)
                 val balance = quota.creditBalance
                 balanceLabel.isVisible = balance != null
                 if (balance != null) {
@@ -181,6 +188,7 @@ internal class ClaudePopupSection : ProviderPopupSection() {
         routinesBlock.isVisible = false
         creditsPanel.isVisible = false
         extraBlock.isVisible = false
+        extraOffLabel.isVisible = false
         balanceLabel.isVisible = false
         resetsPanel.isVisible = false
     }
