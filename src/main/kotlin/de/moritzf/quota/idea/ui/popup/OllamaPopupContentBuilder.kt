@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.ui.popup
 
 import com.intellij.util.ui.JBUI
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.ui.indicator.QuotaPeriodDurations
@@ -22,6 +23,7 @@ internal class OllamaPopupSection : ProviderPopupSection() {
     private val sessionBlock = WindowBlockPanel(3)
     private val weeklyBlock = WindowBlockPanel(5)
     private val monthlyBlock = WindowBlockPanel(5)
+    private val purchasedLabel = createMutedLabel("").apply { border = JBUI.Borders.emptyTop(2) }
 
     init {
         isOpaque = false
@@ -31,6 +33,7 @@ internal class OllamaPopupSection : ProviderPopupSection() {
         add(sessionBlock)
         add(weeklyBlock)
         add(monthlyBlock)
+        add(purchasedLabel)
         hideAll()
     }
 
@@ -57,10 +60,12 @@ internal class OllamaPopupSection : ProviderPopupSection() {
                 monthlyBlock.showLoading("Monthly")
             }
             else -> {
+                // Bought credits take over once the monthly included credits run out.
                 val limitReached =
                     (quota.sessionUsage?.usagePercent ?: 0.0) >= 100.0 ||
                         (quota.weeklyUsage?.usagePercent ?: 0.0) >= 100.0 ||
-                        (quota.monthlyUsage?.usagePercent ?: 0.0) >= 100.0
+                        ((quota.monthlyUsage?.usagePercent ?: 0.0) >= 100.0 &&
+                            !quota.hasPurchasedCredits())
                 errorLabel.isVisible = limitReached
                 if (limitReached) {
                     errorLabel.text = "Ollama limit reached"
@@ -77,6 +82,15 @@ internal class OllamaPopupSection : ProviderPopupSection() {
                 quota.monthlyUsage?.let {
                     monthlyBlock.updateOllama(it, "Monthly", QuotaPeriodDurations.MONTHLY)
                 } ?: monthlyBlock.clear()
+                val purchased = quota.purchasedBalanceUsd
+                purchasedLabel.isVisible = purchased != null
+                if (purchased != null) {
+                    purchasedLabel.text =
+                        message(
+                            "quota.ollama.purchased",
+                            String.format(java.util.Locale.ROOT, "%.2f", purchased),
+                        )
+                }
             }
         }
     }
@@ -91,6 +105,7 @@ internal class OllamaPopupSection : ProviderPopupSection() {
         sessionBlock.isVisible = false
         weeklyBlock.isVisible = false
         monthlyBlock.isVisible = false
+        purchasedLabel.isVisible = false
     }
 
     private fun WindowBlockPanel.updateOllama(

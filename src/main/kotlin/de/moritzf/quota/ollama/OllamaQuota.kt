@@ -11,12 +11,20 @@ data class OllamaQuota(
     val sessionUsage: OllamaUsageWindow? = null,
     val weeklyUsage: OllamaUsageWindow? = null,
     val monthlyUsage: OllamaUsageWindow? = null,
+    /** Bought credits, used once the plan's included credits run out. */
+    val purchasedBalanceUsd: Double? = null,
     override var fetchedAt: Instant? = null,
     @Transient override var rawJson: String? = null,
 ) : ProviderQuota {
     override fun hasUsageState(): Boolean {
-        return sessionUsage != null || weeklyUsage != null || monthlyUsage != null
+        return sessionUsage != null ||
+            weeklyUsage != null ||
+            monthlyUsage != null ||
+            purchasedBalanceUsd != null
     }
+
+    /** Requests keep working past the included credits while bought credits remain. */
+    fun hasPurchasedCredits(): Boolean = (purchasedBalanceUsd ?: 0.0) > 0.0
 
     override fun usageFraction(): Double? {
         val windows =

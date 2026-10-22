@@ -108,6 +108,18 @@ class OperationQuotaTest {
     }
 
     @Test
+    fun ollamaPurchasedCreditsKeepTheAccountAvailableAfterIncludedCredits() {
+        val monthly = de.moritzf.quota.ollama.OllamaUsageWindow(usagePercent = 100.0)
+        val withCredits =
+            de.moritzf.quota.ollama.OllamaQuota(monthlyUsage = monthly, purchasedBalanceUsd = 5.0)
+        val without =
+            de.moritzf.quota.ollama.OllamaQuota(monthlyUsage = monthly, purchasedBalanceUsd = 0.0)
+
+        assertFalse(OperationQuota.status(withCredits, AccountCapability.PROXY).exhausted)
+        assertTrue(OperationQuota.status(without, AccountCapability.PROXY).exhausted)
+    }
+
+    @Test
     fun zaiWebSearchUsesSearchPoolNotTokenWindows() {
         val quota =
             ZaiQuota(

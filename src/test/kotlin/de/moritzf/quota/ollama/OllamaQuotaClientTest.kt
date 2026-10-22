@@ -7,6 +7,7 @@ import java.net.URI
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -123,6 +124,35 @@ class OllamaQuotaClientTest {
             assertEquals(60.0 - remaining, monthly.usedAmountUsd)
             assertNull(monthly.resetsAt)
         }
+    }
+
+    @Test
+    fun parseBalanceReadsPurchasedCreditsWithAndWithoutAnAllowance() {
+        val plan =
+            OllamaQuotaClient.parseQuota(
+                """{"included":{"balance_usd":45.60447,"allowance_usd":60,"period":{"from":"2026-10-02T18:08:50Z","until":"2026-11-02T18:08:50Z"}},"purchased":{"balance_usd":12.5}}"""
+            )
+        val purchasedOnly =
+            OllamaQuotaClient.parseQuota(
+                """{"included":{"balance_usd":0,"allowance_usd":0},"purchased":{"balance_usd":"7.25"}}"""
+            )
+        val legacy =
+            OllamaQuotaClient.parseQuota(
+                """{"included":{"session":{"remaining_percent":75}},"purchased":{"balance_usd":25}}"""
+            )
+        val none =
+            OllamaQuotaClient.parseQuota(
+                """{"included":{"balance_usd":0,"allowance_usd":60},"purchased":{"balance_usd":0}}"""
+            )
+
+        assertEquals(12.5, plan.purchasedBalanceUsd)
+        assertEquals(24.0, plan.monthlyUsage!!.usagePercent, 0.01)
+        assertEquals(7.25, purchasedOnly.purchasedBalanceUsd)
+        assertNull(purchasedOnly.monthlyUsage, "a plan without an allowance has no monthly window")
+        assertTrue(purchasedOnly.hasUsageState())
+        assertEquals(25.0, legacy.purchasedBalanceUsd)
+        assertEquals(0.0, none.purchasedBalanceUsd)
+        assertFalse(none.hasPurchasedCredits())
     }
 
     @Test

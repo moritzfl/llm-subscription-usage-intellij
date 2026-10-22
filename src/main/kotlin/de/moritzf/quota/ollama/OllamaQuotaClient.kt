@@ -184,8 +184,17 @@ open class OllamaQuotaClient(
                         usageJson,
                     )
 
-            if (root["included"] is JsonObject) {
-                return parseBalance(root["included"] as JsonObject, usageJson)
+            if (root["included"] is JsonObject || root["purchased"] is JsonObject) {
+                return parseBalance(
+                    root["included"] as? JsonObject ?: JsonObject(emptyMap()),
+                    JsonSupport.decodeSectionOrNull(
+                            root["purchased"],
+                            OllamaPurchasedDto.serializer(),
+                        )
+                        ?.balanceUsd
+                        ?.takeIf { it.isFinite() && it >= 0.0 },
+                    usageJson,
+                )
             }
 
             // Retain support for the former /api/usage limit format.
@@ -216,7 +225,15 @@ open class OllamaQuotaClient(
             )
         }
 
-        private fun parseBalance(included: JsonObject, body: String): OllamaQuota {
+        /**
+         * Included credits as the monthly window when the plan has an allowance; bought credits on
+         * their own. A plan without an allowance, such as Free, has only bought credits.
+         */
+        private fun parseBalance(
+            included: JsonObject,
+            purchasedUsd: Double?,
+            body: String,
+        ): OllamaQuota {
             fun window(key: String): OllamaUsageWindow? {
                 val limit =
                     JsonSupport.decodeSectionOrNull(
@@ -255,6 +272,7 @@ open class OllamaQuotaClient(
                     sessionUsage = window("session"),
                     weeklyUsage = window("weekly"),
                     monthlyUsage = monthlyUsage,
+                    purchasedBalanceUsd = purchasedUsd,
                 )
             if (!quota.hasUsageState()) {
                 throw OllamaQuotaException("Ollama balance response changed.", 200, body)
@@ -326,6 +344,13 @@ private data class OllamaIncludedCreditsDto(
     @Serializable(with = LenientDoubleOrNullSerializer::class)
     @SerialName("allowance_usd")
     val allowanceUsd: Double? = null,
+)
+
+@Serializable
+private data class OllamaPurchasedDto(
+    @Serializable(with = LenientDoubleOrNullSerializer::class)
+    @SerialName("balance_usd")
+    val balanceUsd: Double? = null
 )
 
 @Serializable

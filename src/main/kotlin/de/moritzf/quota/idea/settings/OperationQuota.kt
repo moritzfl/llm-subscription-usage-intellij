@@ -125,9 +125,10 @@ internal object OperationQuota {
                         quota.weeklyUsage?.let {
                             NamedWindow("weekly", it.usagePercent, it.resetsAt)
                         },
-                        quota.monthlyUsage?.let {
-                            NamedWindow("monthly", it.usagePercent, it.resetsAt)
-                        },
+                        // Bought credits keep requests working past the included credits.
+                        quota.monthlyUsage
+                            ?.takeUnless { quota.hasPurchasedCredits() }
+                            ?.let { NamedWindow("monthly", it.usagePercent, it.resetsAt) },
                     ),
                     quota.fetchedAt,
                 )
