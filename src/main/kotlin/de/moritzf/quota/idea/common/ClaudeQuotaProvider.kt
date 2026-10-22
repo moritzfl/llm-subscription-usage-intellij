@@ -3,8 +3,12 @@ package de.moritzf.quota.idea.common
 import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.claude.ClaudeQuotaClient
 import de.moritzf.quota.claude.ClaudeQuotaException
+import de.moritzf.quota.claude.ClaudeResetChoice
+import de.moritzf.quota.claude.ClaudeResetOutcome
+import de.moritzf.quota.claude.ClaudeResets
 import de.moritzf.quota.idea.auth.OAuthConnectionState
 import de.moritzf.quota.idea.auth.QuotaAuthService
+import java.util.concurrent.atomic.AtomicReference
 
 class ClaudeQuotaProvider(
     override val accountId: String = QuotaProviderType.CLAUDE.id,
@@ -26,6 +30,7 @@ class ClaudeQuotaProvider(
 ) : CachedQuotaProvider<ClaudeQuota>() {
     override val type = QuotaProviderType.CLAUDE
     override val notConfiguredMessage = "Claude login required. Log in from Claude settings."
+    private val organizationUuid = AtomicReference<String?>()
 
     override fun refresh() {
         val accessToken = tokenProvider()
@@ -36,7 +41,11 @@ class ClaudeQuotaProvider(
 
         try {
             val quota = fetchQuotaWithAuthRetry(accessToken) ?: return
-            storeQuota(quota, quota.rawJson)
+            val resets = fetchResets(quota)
+            storeQuota(
+                if (resets == quota.resets) quota else quota.copy(resets = resets),
+                quota.rawJson,
+            )
         } catch (exception: ClaudeQuotaException) {
             storeFetchFailure(
                 exception.statusCode,
@@ -45,6 +54,39 @@ class ClaudeQuotaProvider(
             )
         } catch (exception: Exception) {
             storeError(exception.message ?: "Request failed")
+        }
+    }
+
+    /** Best effort: when the read fails, the resets from the last reading stay. */
+    private fun fetchResets(quota: ClaudeQuota): ClaudeResets? {
+        val token = tokenProvider()?.takeIf { it.isNotBlank() } ?: return null
+        return try {
+            client.fetchResets(token, quota.atLimit())
+        } catch (exception: Exception) {
+            exception.rethrowIfCancellation()
+            lastQuotaRef.get()?.resets
+        }
+    }
+
+    /** Uses one reset and returns the server's answer; nothing was used unless it succeeded. */
+    fun redeemReset(choice: ClaudeResetChoice): ClaudeResetOutcome {
+        val accessToken =
+            tokenProvider()?.takeIf { it.isNotBlank() }
+                ?: throw ClaudeQuotaException(notConfiguredMessage)
+        val redeem = { token: String ->
+            val organization =
+                organizationUuid.get()
+                    ?: client.fetchOrganizationUuid(token).also { organizationUuid.set(it) }
+            client.redeemReset(token, organization, choice)
+        }
+        return try {
+            redeem(accessToken)
+        } catch (exception: ClaudeQuotaException) {
+            if (exception.statusCode != 401 && exception.statusCode != 403) throw exception
+            val refreshed =
+                tokenRefresher(accessToken)?.takeIf { it.isNotBlank() && it != accessToken }
+                    ?: throw exception
+            redeem(refreshed)
         }
     }
 

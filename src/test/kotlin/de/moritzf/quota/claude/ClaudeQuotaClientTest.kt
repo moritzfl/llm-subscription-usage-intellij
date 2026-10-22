@@ -1,5 +1,6 @@
 package de.moritzf.quota.claude
 
+import de.moritzf.quota.shared.JsonSupport
 import java.net.Authenticator
 import java.net.CookieHandler
 import java.net.ProxySelector
@@ -19,6 +20,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 class ClaudeQuotaClientTest {
     @Test
@@ -193,6 +196,202 @@ class ClaudeQuotaClientTest {
         assertEquals(401, exception.statusCode)
     }
 
+    @Test
+    fun parseResetsReadsOffersAndTheSessionReset() {
+        val resets =
+            ClaudeQuotaClient.parseResets(
+                """
+                {
+                  "cedar_ember": {
+                    "eligible": true,
+                    "next_grant_id": "weekly_gift",
+                    "grants": [
+                      { "id": "session_gift", "label": "Session reset", "resets_left": 1,
+                        "ends_at": "2026-11-01T00:00:00+00:00", "usable_now": false,
+                        "clears": ["five_hour"] },
+                      { "id": "weekly_gift", "label": "Weekly reset", "resets_left": 2,
+                        "usable_now": true, "clears": ["seven_day", "seven_day_opus"],
+                        "future_field": {} },
+                      { "id": "paused_gift", "resets_left": 1, "paused": true, "usable_now": true },
+                      { "id": "Not A Valid Id", "resets_left": 1, "usable_now": true },
+                      { "id": "broken", "resets_left": "many" }
+                    ]
+                  },
+                  "juniper_tide": {
+                    "eligible": true, "arm": "reset", "available": true,
+                    "weekly_resets_at": "2026-10-26T07:00:00+00:00"
+                  }
+                }
+                """
+            )!!
+
+        assertEquals(
+            listOf("session_gift", "weekly_gift", "paused_gift"),
+            resets.grants.map { it.id },
+        )
+        assertEquals("weekly_gift", resets.nextGrantId)
+        assertEquals(Instant.parse("2026-11-01T00:00:00Z"), resets.grants.first().endsAt)
+        assertEquals(listOf("seven_day", "seven_day_opus"), resets.grants[1].clears)
+        assertEquals(1 + 2 + 1, resets.availableCount())
+        assertEquals(
+            listOf(
+                ClaudeResetChoice.Session(
+                    ClaudeSessionReset(Instant.parse("2026-10-26T07:00:00Z"))
+                ),
+                ClaudeResetChoice.Grant(resets.grants[1]),
+            ),
+            resets.choices(),
+        )
+    }
+
+    @Test
+    fun parseResetsIgnoresControlArmsAndIneligibleOffers() {
+        assertNull(
+            ClaudeQuotaClient.parseResets(
+                """
+                {
+                  "cedar_ember": { "eligible": false, "grants": [
+                    { "id": "gift", "resets_left": 1, "usable_now": true } ] },
+                  "juniper_tide": { "eligible": true, "arm": "control", "available": true }
+                }
+                """
+            )
+        )
+        assertNull(ClaudeQuotaClient.parseResets("""{"cedar_ember": null, "juniper_tide": null}"""))
+        assertNull(ClaudeQuotaClient.parseResets("not json"))
+    }
+
+    @Test
+    fun fetchResetsReadsAtTheWallOnlyAtAUsageLimit() {
+        val httpClient = FakeHttpClient(FakeResponseSpec("{}"), FakeResponseSpec("{}"))
+        val client =
+            ClaudeQuotaClient(httpClient, URI.create("https://api.anthropic.test/api/oauth/usage"))
+
+        client.fetchResets("token-123", atLimit = false)
+        client.fetchResets("token-123", atLimit = true)
+
+        assertEquals(
+            listOf(
+                "https://api.anthropic.test/api/oauth/usage?cedar_ember=1&skip_spend=1",
+                "https://api.anthropic.test/api/oauth/usage?at_wall=1&skip_spend=1",
+            ),
+            httpClient.requests.map { it.uri().toString() },
+        )
+        assertEquals(
+            "Bearer token-123",
+            httpClient.requests.first().headers().firstValue("Authorization").orElse(null),
+        )
+    }
+
+    @Test
+    fun redeemResetPostsTheProgramAndGrantToTheOrganization() {
+        val httpClient =
+            FakeHttpClient(
+                FakeResponseSpec("""{"organization":{"uuid":"$ORGANIZATION"}}"""),
+                FakeResponseSpec("""{"result":"reset","resets_left":1}"""),
+                FakeResponseSpec("""{"result":"not_limited"}"""),
+                FakeResponseSpec("""{"error":"slow down"}""", status = 429),
+            )
+        val client =
+            ClaudeQuotaClient(httpClient, URI.create("https://api.anthropic.test/api/oauth/usage"))
+        val grant =
+            ClaudeResetGrant(
+                "weekly_gift",
+                "Weekly reset",
+                1,
+                null,
+                false,
+                true,
+                listOf("seven_day"),
+            )
+
+        val organization = client.fetchOrganizationUuid("token-123")
+        val granted = client.redeemReset("token-123", organization, ClaudeResetChoice.Grant(grant))
+        val session =
+            client.redeemReset(
+                "token-123",
+                organization,
+                ClaudeResetChoice.Session(ClaudeSessionReset(null)),
+            )
+        val busy =
+            client.redeemReset(
+                "token-123",
+                organization,
+                ClaudeResetChoice.Session(ClaudeSessionReset(null)),
+            )
+
+        assertEquals(ORGANIZATION, organization)
+        assertTrue(granted.succeeded)
+        assertEquals("not_limited", session.result)
+        assertEquals(ClaudeResetOutcome.RATE_LIMITED, busy.result)
+        assertEquals(
+            listOf("GET", "POST", "POST", "POST"),
+            httpClient.requests.map { it.method() },
+        )
+        assertEquals(
+            "https://api.anthropic.test/api/oauth/profile",
+            httpClient.requests.first().uri().toString(),
+        )
+        assertEquals(
+            "https://api.anthropic.test/api/organizations/$ORGANIZATION/reset_rate_limits",
+            httpClient.requests[1].uri().toString(),
+        )
+        val grantClaim = JsonSupport.json.parseToJsonElement(httpClient.requests[1].bodyText())
+        assertEquals("cedar_ember", grantClaim.jsonObject["program"]?.jsonPrimitive?.content)
+        assertEquals("weekly_gift", grantClaim.jsonObject["grant_id"]?.jsonPrimitive?.content)
+        assertTrue(
+            grantClaim.jsonObject["request_id"]?.jsonPrimitive?.content?.isNotBlank() == true
+        )
+        assertEquals(
+            mapOf("program" to "juniper_tide"),
+            JsonSupport.json
+                .parseToJsonElement(httpClient.requests[2].bodyText())
+                .jsonObject
+                .mapValues { it.value.jsonPrimitive.content },
+        )
+    }
+
+    @Test
+    fun redeemResetRefusesAnOrganizationIdThatIsNotAUuid() {
+        val httpClient = FakeHttpClient()
+        val client =
+            ClaudeQuotaClient(httpClient, URI.create("https://api.anthropic.test/api/oauth/usage"))
+
+        assertFailsWith<IllegalArgumentException> {
+            client.redeemReset(
+                "token-123",
+                "../admin",
+                ClaudeResetChoice.Session(ClaudeSessionReset(null)),
+            )
+        }
+        assertEquals(emptyList(), httpClient.requests)
+    }
+
+    private fun HttpRequest.bodyText(): String {
+        val bytes = java.io.ByteArrayOutputStream()
+        val done = java.util.concurrent.CountDownLatch(1)
+        bodyPublisher()
+            .orElseThrow()
+            .subscribe(
+                object : java.util.concurrent.Flow.Subscriber<java.nio.ByteBuffer> {
+                    override fun onSubscribe(subscription: java.util.concurrent.Flow.Subscription) =
+                        subscription.request(Long.MAX_VALUE)
+
+                    override fun onNext(item: java.nio.ByteBuffer) {
+                        val chunk = ByteArray(item.remaining())
+                        item.get(chunk)
+                        bytes.write(chunk)
+                    }
+
+                    override fun onError(throwable: Throwable) = done.countDown()
+
+                    override fun onComplete() = done.countDown()
+                }
+            )
+        done.await(5, java.util.concurrent.TimeUnit.SECONDS)
+        return bytes.toString(Charsets.UTF_8)
+    }
+
     private data class FakeResponseSpec(val body: String, val status: Int = 200)
 
     private class FakeHttpClient(private vararg val responses: FakeResponseSpec) : HttpClient() {
@@ -262,6 +461,7 @@ class ClaudeQuotaClientTest {
     }
 
     companion object {
+        private const val ORGANIZATION = "6f7d2a10-3c4b-4d5e-8f90-a1b2c3d4e5f6"
         private val USAGE_RESPONSE =
             """
             {

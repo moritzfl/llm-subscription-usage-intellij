@@ -3,6 +3,11 @@ package de.moritzf.quota.idea.common
 import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.claude.ClaudeQuotaClient
 import de.moritzf.quota.claude.ClaudeQuotaException
+import de.moritzf.quota.claude.ClaudeResetChoice
+import de.moritzf.quota.claude.ClaudeResetOutcome
+import de.moritzf.quota.claude.ClaudeResets
+import de.moritzf.quota.claude.ClaudeSessionReset
+import de.moritzf.quota.claude.ClaudeUsageWindow
 import de.moritzf.quota.idea.auth.OAuthConnectionState
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -311,7 +316,94 @@ class ClaudeQuotaProviderTest {
         assertEquals("permission denied", provider.getLastError())
     }
 
-    private class FakeClaudeClient(private val fetch: () -> ClaudeQuota) : ClaudeQuotaClient() {
+    @Test
+    fun refreshReadsResetsAtTheLimitAndKeepsThemWhenTheReadFails() {
+        val atLimit = mutableListOf<Boolean>()
+        val offer = ClaudeResets(sessionReset = ClaudeSessionReset(null))
+        var failResets = false
+        val provider =
+            ClaudeQuotaProvider(
+                client =
+                    FakeClaudeClient(
+                        fetchResets = { limited ->
+                            atLimit += limited
+                            if (failResets) throw ClaudeQuotaException("rate limited", 429)
+                            offer
+                        }
+                    ) {
+                        ClaudeQuota(fiveHourUsage = ClaudeUsageWindow(usagePercent = 100.0))
+                    },
+                tokenProvider = { "token" },
+                tokenRefresher = { null },
+            )
+
+        provider.refresh()
+        failResets = true
+        provider.refresh()
+
+        assertEquals(listOf(true, true), atLimit)
+        assertSame(offer, provider.getLastQuota()?.resets)
+        assertNull(provider.getLastError())
+    }
+
+    @Test
+    fun redeemResetLooksUpTheOrganizationOnceAndRetriesWithARefreshedToken() {
+        val profileTokens = mutableListOf<String>()
+        val claims = mutableListOf<Pair<String, String>>()
+        val provider =
+            ClaudeQuotaProvider(
+                client =
+                    FakeClaudeClient(
+                        organization = { token ->
+                            profileTokens += token
+                            ORGANIZATION
+                        },
+                        redeem = { token, organization ->
+                            claims += token to organization
+                            if (token == "old") throw ClaudeQuotaException("expired", 401)
+                            ClaudeResetOutcome(ClaudeResetOutcome.RESET)
+                        },
+                    ) {
+                        ClaudeQuota()
+                    },
+                tokenProvider = { "old" },
+                tokenRefresher = { "fresh" },
+            )
+        val choice = ClaudeResetChoice.Session(ClaudeSessionReset(null))
+
+        assertTrue(provider.redeemReset(choice).succeeded)
+        assertTrue(provider.redeemReset(choice).succeeded)
+
+        assertEquals(listOf("old"), profileTokens)
+        assertEquals(
+            listOf("old", "fresh", "old", "fresh").map { it to ORGANIZATION },
+            claims,
+        )
+    }
+
+    private class FakeClaudeClient(
+        private val fetchResets: (Boolean) -> ClaudeResets? = { null },
+        private val organization: (String) -> String = { ORGANIZATION },
+        private val redeem: (String, String) -> ClaudeResetOutcome = { _, _ ->
+            error("unexpected reset claim")
+        },
+        private val fetch: () -> ClaudeQuota,
+    ) : ClaudeQuotaClient() {
         override fun fetchQuota(accessToken: String?): ClaudeQuota = fetch()
+
+        override fun fetchResets(accessToken: String, atLimit: Boolean): ClaudeResets? =
+            fetchResets(atLimit)
+
+        override fun fetchOrganizationUuid(accessToken: String): String = organization(accessToken)
+
+        override fun redeemReset(
+            accessToken: String,
+            organizationUuid: String,
+            choice: ClaudeResetChoice,
+        ): ClaudeResetOutcome = redeem(accessToken, organizationUuid)
+    }
+
+    private companion object {
+        const val ORGANIZATION = "6f7d2a10-3c4b-4d5e-8f90-a1b2c3d4e5f6"
     }
 }

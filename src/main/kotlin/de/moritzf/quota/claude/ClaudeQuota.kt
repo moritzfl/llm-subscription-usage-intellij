@@ -22,7 +22,20 @@ data class ClaudeQuota(
     val extraUsage: ClaudeExtraUsage? = null,
     override var fetchedAt: Instant? = null,
     @Transient override var rawJson: String? = null,
+    /** Read separately from the usage windows and never cached, so no stale offer is shown. */
+    @Transient val resets: ClaudeResets? = null,
 ) : ProviderQuota {
+    /** At least one usage window is used up. */
+    fun atLimit(): Boolean =
+        (listOfNotNull(
+                fiveHourUsage,
+                sevenDayUsage,
+                sevenDaySonnetUsage,
+                sevenDayOpusUsage,
+                routinesUsage,
+            ) + scopedLimits)
+            .any { it.usagePercent >= 100.0 }
+
     override fun hasUsageState(): Boolean {
         return fiveHourUsage != null ||
             sevenDayUsage != null ||

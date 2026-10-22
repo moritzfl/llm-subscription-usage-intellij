@@ -7,6 +7,8 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.util.concurrency.AppExecutorUtil
+import de.moritzf.quota.claude.ClaudeResetChoice
+import de.moritzf.quota.claude.ClaudeResetOutcome
 import de.moritzf.quota.idea.settings.AccountResolver
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.ui.indicator.QuotaIndicatorData
@@ -290,6 +292,17 @@ class QuotaUsageService(
         val provider = providerForAccount(accountId) as? OpenAiQuotaProvider ?: return
         provider.consumeResetCredit(creditId)
         refreshProvider(accountId, forceUpdate = true)
+    }
+
+    /** Uses one Claude reset, then refreshes, since even a refused claim may reflect new limits. */
+    fun redeemClaudeReset(
+        choice: ClaudeResetChoice,
+        accountId: String,
+    ): ClaudeResetOutcome? {
+        val provider = providerForAccount(accountId) as? ClaudeQuotaProvider ?: return null
+        val outcome = provider.redeemReset(choice)
+        refreshProvider(accountId, forceUpdate = true)
+        return outcome
     }
 
     fun consumeSuperGrokReset(tokenId: String?, accountId: String) {

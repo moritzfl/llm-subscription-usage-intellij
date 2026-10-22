@@ -9,6 +9,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.net.http.HttpTimeoutException
 import java.time.Duration
+import java.util.UUID
 import kotlin.math.roundToLong
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -19,7 +20,9 @@ import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -53,18 +56,106 @@ open class ClaudeQuotaClient(
         return quota
     }
 
-    private fun getUsageJson(accessToken: String): String {
+    /**
+     * Reads the resets on offer the way Claude Code does. At a usage limit the `at_wall` read also
+     * reports the weekly session reset. Returns null when nothing is on offer.
+     */
+    open fun fetchResets(accessToken: String, atLimit: Boolean): ClaudeResets? {
+        val query = if (atLimit) "at_wall=1&skip_spend=1" else "cedar_ember=1&skip_spend=1"
+        val uri = URI.create("${usageUri.toString().substringBefore('?')}?$query")
+        return parseResets(checked(send(authorized(uri, accessToken).GET().build()), "reset"))
+    }
+
+    /** The login's organization, which reset claims are addressed to. */
+    open fun fetchOrganizationUuid(accessToken: String): String {
+        val request = authorized(usageUri.resolve(PROFILE_PATH), accessToken).GET().build()
+        val body = checked(send(request), "profile")
+        val organization =
+            runCatching { JsonSupport.json.parseToJsonElement(body) }.getOrNull() as? JsonObject
+        val uuid =
+            ((organization?.get("organization") as? JsonObject)?.get("uuid") as? JsonPrimitive)
+                ?.contentOrNull
+        return uuid?.takeIf(ORGANIZATION_UUID::matches)
+            ?: throw ClaudeQuotaException("Claude profile has no organization.", 200, body)
+    }
+
+    /** Uses one reset. It cannot be undone once the server answers `reset`. */
+    open fun redeemReset(
+        accessToken: String,
+        organizationUuid: String,
+        choice: ClaudeResetChoice,
+    ): ClaudeResetOutcome {
+        require(ORGANIZATION_UUID.matches(organizationUuid)) { "Invalid Claude organization id" }
+        val claim =
+            when (choice) {
+                is ClaudeResetChoice.Session -> ResetClaimDto(SESSION_RESET_PROGRAM)
+                is ClaudeResetChoice.Grant -> {
+                    require(GRANT_ID.matches(choice.grant.id)) { "Invalid Claude reset id" }
+                    ResetClaimDto(OFFER_PROGRAM, choice.grant.id, UUID.randomUUID().toString())
+                }
+            }
         val request =
-            HttpRequest.newBuilder()
-                .uri(usageUri)
-                .timeout(Duration.ofSeconds(30))
-                .header("Authorization", "Bearer $accessToken")
-                .header("Accept", "application/json")
-                .header("Content-Type", "application/json")
-                .header("anthropic-beta", OAUTH_BETA)
-                .header("User-Agent", USER_AGENT)
-                .GET()
+            authorized(
+                    usageUri.resolve("/api/organizations/$organizationUuid/reset_rate_limits"),
+                    accessToken,
+                )
+                .POST(
+                    HttpRequest.BodyPublishers.ofString(
+                        JsonSupport.json.encodeToString(ResetClaimDto.serializer(), claim)
+                    )
+                )
                 .build()
+        val response = send(request)
+        if (response.statusCode() == 429) {
+            return ClaudeResetOutcome(ClaudeResetOutcome.RATE_LIMITED)
+        }
+        val body = checked(response, "reset")
+        val answer =
+            JsonSupport.decodeSectionOrNull(
+                runCatching { JsonSupport.json.parseToJsonElement(body) }.getOrNull(),
+                ResetClaimResultDto.serializer(),
+            ) ?: throw ClaudeQuotaException("Claude reset response changed.", 200, body)
+        return ClaudeResetOutcome(answer.result ?: "unavailable")
+    }
+
+    private fun authorized(uri: URI, accessToken: String): HttpRequest.Builder =
+        HttpRequest.newBuilder()
+            .uri(uri)
+            .timeout(Duration.ofSeconds(30))
+            .header("Authorization", "Bearer $accessToken")
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .header("anthropic-beta", OAUTH_BETA)
+            .header("User-Agent", USER_AGENT)
+
+    private fun checked(response: HttpResponse<String>, action: String): String {
+        val status = response.statusCode()
+        val body = response.body()
+        when {
+            status == 401 || status == 403 ->
+                throw ClaudeQuotaException(
+                    "Claude rejected the $action request (HTTP $status).",
+                    status,
+                    body,
+                )
+            status == 429 ->
+                throw ClaudeQuotaException(
+                    "Claude rate limited the $action request. Try again in a minute.",
+                    status,
+                    body,
+                )
+            status !in 200..299 ->
+                throw ClaudeQuotaException(
+                    "Claude $action request failed (HTTP $status).",
+                    status,
+                    body,
+                )
+        }
+        return body
+    }
+
+    private fun getUsageJson(accessToken: String): String {
+        val request = authorized(usageUri, accessToken).GET().build()
 
         val response = send(request)
         val status = response.statusCode()
@@ -137,8 +228,60 @@ open class ClaudeQuotaClient(
 
         private const val OAUTH_BETA = "oauth-2025-04-20"
         private const val USER_AGENT = "claude-cli/2.1.87 (external, cli)"
+        private const val PROFILE_PATH = "/api/oauth/profile"
+        private const val OFFER_PROGRAM = "cedar_ember"
+        private const val SESSION_RESET_PROGRAM = "juniper_tide"
+        private val GRANT_ID = Regex("^[a-z0-9_-]{1,40}$")
+        private val ORGANIZATION_UUID =
+            Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
         private val FIVE_HOUR_MS = Duration.ofHours(5).toMillis()
         private val SEVEN_DAY_MS = Duration.ofDays(7).toMillis()
+
+        /**
+         * Resets on offer in a usage response read with `cedar_ember=1` or `at_wall=1`. Returns
+         * null when neither block offers anything. A malformed grant is dropped on its own.
+         */
+        fun parseResets(json: String): ClaudeResets? {
+            val root =
+                runCatching { JsonSupport.json.parseToJsonElement(json) }.getOrNull() as? JsonObject
+                    ?: return null
+            val offers =
+                JsonSupport.decodeSectionOrNull(root["cedar_ember"], ResetOffersDto.serializer())
+                    ?.takeIf { it.eligible == true }
+            val session =
+                JsonSupport.decodeSectionOrNull(root["juniper_tide"], SessionResetDto.serializer())
+                    ?.takeIf { it.arm == "reset" && it.available == true }
+            val grants =
+                JsonSupport.decodeListItemsLeniently(offers?.grants, ResetGrantDto.serializer())
+                    .mapNotNull { it.toGrant() }
+            if (grants.isEmpty() && session == null) return null
+            return ClaudeResets(
+                grants = grants,
+                nextGrantId = offers?.nextGrantId?.takeIf { id -> grants.any { it.id == id } },
+                sessionReset =
+                    session?.let { ClaudeSessionReset(parseInstantOrNull(it.weeklyResetsAt)) },
+            )
+        }
+
+        private fun ResetGrantDto.toGrant(): ClaudeResetGrant? {
+            val grantId = id?.takeIf(GRANT_ID::matches) ?: return null
+            return ClaudeResetGrant(
+                id = grantId,
+                label = label.orEmpty().trim(),
+                resetsLeft = (resetsLeft ?: 0).coerceAtLeast(0),
+                endsAt = parseInstantOrNull(endsAt),
+                paused = paused == true,
+                usableNow = usableNow == true,
+                clears =
+                    (clears as? JsonArray).orEmpty().mapNotNull {
+                        (it as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.content
+                    },
+            )
+        }
+
+        private fun parseInstantOrNull(value: String?): Instant? = value?.let {
+            runCatching { Instant.parse(it) }.getOrNull()
+        }
 
         fun parseQuota(
             usageJson: String,
@@ -367,6 +510,40 @@ private data class ClaudeExtraUsageDto(
     @Serializable(with = LenientDoubleOrNullSerializer::class) val utilization: Double? = null,
     val currency: String? = null,
 )
+
+@Serializable
+private data class ResetOffersDto(
+    val eligible: Boolean? = null,
+    val grants: JsonElement? = null,
+    @SerialName("next_grant_id") val nextGrantId: String? = null,
+)
+
+@Serializable
+private data class ResetGrantDto(
+    val id: String? = null,
+    val label: String? = null,
+    @SerialName("resets_left") val resetsLeft: Int? = null,
+    @SerialName("ends_at") val endsAt: String? = null,
+    val paused: Boolean? = null,
+    @SerialName("usable_now") val usableNow: Boolean? = null,
+    val clears: JsonElement? = null,
+)
+
+@Serializable
+private data class SessionResetDto(
+    val arm: String? = null,
+    val available: Boolean? = null,
+    @SerialName("weekly_resets_at") val weeklyResetsAt: String? = null,
+)
+
+@Serializable
+private data class ResetClaimDto(
+    val program: String,
+    @SerialName("grant_id") val grantId: String? = null,
+    @SerialName("request_id") val requestId: String? = null,
+)
+
+@Serializable private data class ResetClaimResultDto(val result: String? = null)
 
 /**
  * Credit amounts arrive as integers, decimals (`4403.0`), or numeric strings depending on the

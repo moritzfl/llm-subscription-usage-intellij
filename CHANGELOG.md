@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - Proxy Gemini models from OpenCode Go and Zen by bridging the Google generateContent API, including streaming, tool calls with thought signatures, vision/PDF parts, and Junie-compatible chat requests.
+- Use free Claude limit resets from the quota popup: resets offered in claude.ai Settings > Usage, and the weekly session reset (`/limit-reset`) when you hit the 5-hour limit. A confirmation shows what each reset refills before it is used.
 - Fit the settings to small dialogs: each tab scrolls on its own, help text and status messages wrap instead of widening the page, and the account list makes room for the details on narrow screens.
 
 ## [1.22.0] - 2026-10-21
