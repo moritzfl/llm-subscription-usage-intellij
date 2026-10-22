@@ -276,6 +276,7 @@ private fun createProviders(
                         KimiCredentials(
                             accessToken = accessToken.orEmpty(),
                             refreshToken = refreshToken.orEmpty(),
+                            region = env.value("KIMI_PROXY_REGION") ?: env.value("KIMI_REGION"),
                         )
                 },
                 fullRequestLogging = options.logRequests,

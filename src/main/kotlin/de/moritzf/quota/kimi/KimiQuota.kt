@@ -80,6 +80,11 @@ data class KimiCredentials(
     val expiresAtEpochSeconds: Double? = null,
     val scope: String? = null,
     val tokenType: String = "Bearer",
+    /** The [KimiRegion] id that issued the login; null for mainland logins. */
+    val region: String? = null,
 ) {
     fun isUsable(): Boolean = accessToken.isNotBlank() || refreshToken.isNotBlank()
+
+    val kimiRegion: KimiRegion
+        get() = KimiRegion.of(region)
 }

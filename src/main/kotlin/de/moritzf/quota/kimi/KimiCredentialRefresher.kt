@@ -17,7 +17,8 @@ import kotlinx.serialization.Serializable
 
 internal class KimiCredentialRefresher(
     private val httpClient: HttpClient,
-    private val tokenEndpoint: URI = TOKEN_ENDPOINT,
+    /** Overrides the login region's token endpoint, for tests. */
+    private val tokenEndpoint: URI? = null,
     private val deviceId: String = KimiDeviceHeaders.processDeviceId,
 ) {
     fun refreshIfNeeded(credentials: KimiCredentials): KimiCredentials {
@@ -47,7 +48,7 @@ internal class KimiCredentialRefresher(
             return awaitRefresh(winner)
         }
         try {
-            val refreshed = refreshCredentials(refreshToken)
+            val refreshed = refreshCredentials(refreshToken, credentials.region)
             created.complete(refreshed)
             return refreshed
         } catch (exception: Exception) {
@@ -58,7 +59,7 @@ internal class KimiCredentialRefresher(
         }
     }
 
-    private fun refreshCredentials(refreshToken: String): KimiCredentials {
+    private fun refreshCredentials(refreshToken: String, region: String?): KimiCredentials {
         val form =
             OAuthUrlCodec.formEncode(
                 "client_id" to CLIENT_ID,
@@ -67,7 +68,7 @@ internal class KimiCredentialRefresher(
             )
         val builder =
             HttpRequest.newBuilder()
-                .uri(tokenEndpoint)
+                .uri(tokenEndpoint ?: KimiRegion.of(region).tokenEndpoint)
                 .timeout(Duration.ofSeconds(30))
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .header("Accept", "application/json")
@@ -115,6 +116,7 @@ internal class KimiCredentialRefresher(
                 dto.expiresIn?.let { Clock.System.now().epochSeconds + it.toDouble() },
             scope = dto.scope,
             tokenType = dto.tokenType ?: "Bearer",
+            region = region,
         )
     }
 
@@ -130,7 +132,6 @@ internal class KimiCredentialRefresher(
     }
 
     private companion object {
-        val TOKEN_ENDPOINT: URI = URI.create("https://auth.kimi.com/api/oauth/token")
         const val CLIENT_ID = "17e5f671-d194-4dfb-9706-5516cb48c098"
         const val REFRESH_BUFFER_SECONDS = 300L
         private val inFlight = ConcurrentHashMap<String, CompletableFuture<KimiCredentials?>>()

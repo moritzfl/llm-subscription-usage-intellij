@@ -22,8 +22,9 @@ import kotlinx.serialization.json.contentOrNull
 
 open class KimiQuotaClient(
     private val httpClient: HttpClient = HttpClient.newHttpClient(),
-    private val usageEndpoint: URI = USAGE_ENDPOINT,
-    tokenEndpoint: URI = TOKEN_ENDPOINT,
+    /** Overrides the login region's endpoints, for tests. */
+    private val usageEndpoint: URI? = null,
+    tokenEndpoint: URI? = null,
     deviceId: String = KimiDeviceHeaders.processDeviceId,
 ) {
     private val credentialRefresher = KimiCredentialRefresher(httpClient, tokenEndpoint, deviceId)
@@ -34,7 +35,8 @@ open class KimiQuotaClient(
             fetchQuotaResponse(
                 usableCredentials.accessToken.ifBlank {
                     throw KimiQuotaException("Kimi login required. Log in from settings.")
-                }
+                },
+                usableCredentials.kimiRegion,
             )
         if (response.statusCode().isUnauthorized()) {
             usableCredentials =
@@ -48,7 +50,8 @@ open class KimiQuotaClient(
                 fetchQuotaResponse(
                     usableCredentials.accessToken.ifBlank {
                         throw KimiQuotaException("Kimi login required. Log in from settings.")
-                    }
+                    },
+                    usableCredentials.kimiRegion,
                 )
         }
 
@@ -74,10 +77,10 @@ open class KimiQuotaClient(
         return KimiFetchResult(quota, usableCredentials)
     }
 
-    private fun fetchQuotaResponse(accessToken: String): HttpResponse<String> {
+    private fun fetchQuotaResponse(accessToken: String, region: KimiRegion): HttpResponse<String> {
         val request =
             HttpRequest.newBuilder()
-                .uri(usageEndpoint)
+                .uri(usageEndpoint ?: region.api("usages"))
                 .timeout(Duration.ofSeconds(30))
                 .header("Authorization", "Bearer $accessToken")
                 .header("Accept", "application/json")
@@ -100,8 +103,6 @@ open class KimiQuotaClient(
     }
 
     companion object {
-        private val USAGE_ENDPOINT = URI.create("https://api.kimi.com/coding/v1/usages")
-        private val TOKEN_ENDPOINT = URI.create("https://auth.kimi.com/api/oauth/token")
         private val FIVE_HOURS = Duration.ofHours(5).toMillis()
         private val ONE_WEEK = Duration.ofDays(7).toMillis()
         private val RESET_TOLERANCE = 2.seconds

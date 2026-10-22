@@ -4,6 +4,8 @@ import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.ide.CopyPasteManager
+import com.intellij.openapi.ui.ComboBox
+import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.dsl.builder.AlignX
@@ -17,9 +19,9 @@ import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.kimi.KimiAuthService
 import de.moritzf.quota.idea.kimi.KimiCredentialsStore
 import de.moritzf.quota.kimi.KimiQuota
+import de.moritzf.quota.kimi.KimiRegion
 import de.moritzf.quota.shared.JsonSupport
 import java.awt.Color
-import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
@@ -47,6 +49,13 @@ internal class KimiSettingsPanel(
             toolTipText = "Copy Kimi verification URL to clipboard"
         }
     private val userCodeLabel = JBLabel().apply { isVisible = false }
+    private val regionCombo =
+        ComboBox(KimiRegion.entries.toTypedArray()).apply {
+            renderer =
+                SimpleListCellRenderer.create("") { region ->
+                    message("settings.kimi.region.${region.id}")
+                }
+        }
     private val responseViewer = createResponseViewer()
     private var verificationUrl: String? = null
     private var authStatusMessage: AuthStatusMessage? = null
@@ -63,7 +72,8 @@ internal class KimiSettingsPanel(
             val accountId = accountKey(QuotaProviderType.KIMI)
             val isCurrent = accountUiGuard()
             val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
-            val authService: AuthService = KimiAuthService.forAccount(accountId)
+            val authService = KimiAuthService.forAccount(accountId)
+            val region = regionCombo.selectedItem as? KimiRegion ?: KimiRegion.MAINLAND
             if (authService.isLoggedIn()) {
                 updateStatus()
                 return@addActionListener
@@ -73,6 +83,7 @@ internal class KimiSettingsPanel(
                 AuthStatusMessage("Opening browser...", false, AuthStatusKind.PENDING)
             updateStatus()
             authService.startLoginFlow(
+                region = region,
                 callback = { result ->
                     if (result.success) QuotaUsageService.getInstance().refreshAsync(accountId)
                     ApplicationManager.getApplication()
@@ -165,6 +176,10 @@ internal class KimiSettingsPanel(
                     cell(copyUrlButton)
                 }
                 row { cell(userCodeLabel) }
+                row(message("settings.kimi.region.label")) {
+                    cell(regionCombo)
+                        .comment(message("settings.kimi.region.help"), MAX_LINE_LENGTH_WORD_WRAP)
+                }
                 row {
                     cell(loginButton).gap(RightGap.SMALL)
                     cell(cancelLoginButton).gap(RightGap.SMALL)
@@ -211,10 +226,13 @@ internal class KimiSettingsPanel(
         val accountId = accountKey(QuotaProviderType.KIMI)
         val generation = ++modelRefreshGeneration
         ApplicationManager.getApplication().executeOnPooledThread {
-            val token = KimiCredentialsStore.forAccount(accountId).loadBlocking()?.accessToken
+            val credentials = KimiCredentialsStore.forAccount(accountId).loadBlocking()
+            val token = credentials?.accessToken
             val discovered =
                 if (token.isNullOrBlank()) emptyList()
-                else runCatching { fetchKimiVisionModelIds(token) }.getOrDefault(emptyList())
+                else
+                    runCatching { fetchKimiVisionModelIds(token, credentials.kimiRegion) }
+                        .getOrDefault(emptyList())
             ApplicationManager.getApplication()
                 .invokeLater(
                     {
@@ -265,6 +283,9 @@ internal class KimiSettingsPanel(
         statusLabel.foreground = statusLabelDefaultForeground ?: statusLabel.foreground
         statusLabel.isVisible = true
         loginButton.isEnabled = !inProgress && credentials?.isUsable() != true
+        // A login keeps the region that issued it; choose another region after logging out.
+        if (credentials?.isUsable() == true) regionCombo.selectedItem = credentials.kimiRegion
+        regionCombo.isEnabled = !inProgress && credentials?.isUsable() != true
         cancelLoginButton.isEnabled = inProgress
         logoutButton.isEnabled = !inProgress && credentials?.isUsable() == true
         if (!inProgress) {
@@ -317,9 +338,9 @@ internal class KimiSettingsPanel(
     }
 }
 
-private fun fetchKimiVisionModelIds(token: String): List<String> {
+private fun fetchKimiVisionModelIds(token: String, region: KimiRegion): List<String> {
     val request =
-        HttpRequest.newBuilder(URI.create("https://api.kimi.com/coding/v1/models"))
+        HttpRequest.newBuilder(region.api("models"))
             .timeout(Duration.ofSeconds(30))
             .header("Authorization", "Bearer $token")
             .header("Accept", "application/json")

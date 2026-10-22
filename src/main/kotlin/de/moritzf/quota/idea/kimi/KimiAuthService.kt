@@ -9,6 +9,7 @@ import de.moritzf.quota.idea.auth.AuthService
 import de.moritzf.quota.idea.auth.LoginResult
 import de.moritzf.quota.kimi.KimiDeviceTokenPollResult
 import de.moritzf.quota.kimi.KimiOAuthClient
+import de.moritzf.quota.kimi.KimiRegion
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -29,6 +30,13 @@ class KimiAuthService(
     override fun startLoginFlow(
         callback: (LoginResult) -> Unit,
         onVerificationUrl: ((String, String) -> Unit)?,
+    ) = startLoginFlow(KimiRegion.MAINLAND, callback, onVerificationUrl)
+
+    /** Logs in to [region]; the saved login keeps using that region's hosts. */
+    fun startLoginFlow(
+        region: KimiRegion,
+        callback: (LoginResult) -> Unit,
+        onVerificationUrl: ((String, String) -> Unit)?,
     ) {
         if (!loginInProgress.compareAndSet(false, true)) {
             callback(LoginResult.error("Login already in progress"))
@@ -37,7 +45,7 @@ class KimiAuthService(
         scope.launch {
             val result =
                 try {
-                    runLoginFlow(onVerificationUrl)
+                    runLoginFlow(region, onVerificationUrl)
                 } catch (exception: Exception) {
                     LOG.warn("Kimi login failed", exception)
                     LoginResult.error(exception.message ?: "Login failed")
@@ -65,8 +73,11 @@ class KimiAuthService(
         credentialsStore.clear()
     }
 
-    private fun runLoginFlow(onVerificationUrl: ((String, String) -> Unit)?): LoginResult {
-        val authorization = oauthClient.requestDeviceAuthorization()
+    private fun runLoginFlow(
+        region: KimiRegion,
+        onVerificationUrl: ((String, String) -> Unit)?,
+    ): LoginResult {
+        val authorization = oauthClient.requestDeviceAuthorization(region)
         if (authorization.deviceCode.isBlank() || authorization.verificationUriComplete.isBlank()) {
             return LoginResult.error("Kimi did not return a usable verification URL")
         }
@@ -86,7 +97,7 @@ class KimiAuthService(
         val startedAt = System.currentTimeMillis()
         val expiresAfterMs = authorization.expiresInSeconds.coerceAtLeast(1) * 1000L
         while (loginInProgress.get() && System.currentTimeMillis() - startedAt < expiresAfterMs) {
-            when (val result = oauthClient.pollDeviceToken(authorization.deviceCode)) {
+            when (val result = oauthClient.pollDeviceToken(authorization.deviceCode, region)) {
                 is KimiDeviceTokenPollResult.Authorized -> {
                     if (!loginInProgress.get()) {
                         return LoginResult.error("Login canceled")

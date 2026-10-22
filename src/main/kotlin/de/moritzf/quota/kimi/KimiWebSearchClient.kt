@@ -15,8 +15,9 @@ import kotlinx.serialization.json.put
 
 open class KimiWebSearchClient(
     private val httpClient: HttpClient = defaultHttpClient(),
-    private val searchEndpoint: URI = SEARCH_ENDPOINT,
-    tokenEndpoint: URI = TOKEN_ENDPOINT,
+    /** Overrides the login region's endpoints, for tests. */
+    private val searchEndpoint: URI? = null,
+    tokenEndpoint: URI? = null,
     private val deviceId: String = KimiDeviceHeaders.processDeviceId,
 ) {
     private val credentialRefresher = KimiCredentialRefresher(httpClient, tokenEndpoint, deviceId)
@@ -34,8 +35,8 @@ open class KimiWebSearchClient(
 
         val resultLimit = limit.coerceIn(MIN_LIMIT, MAX_LIMIT)
         val (body, usableCredentials) =
-            authorized(credentials, "Kimi web search") { token ->
-                searchRequest(token, trimmedQuery, resultLimit, includeContent)
+            authorized(credentials, "Kimi web search") { token, region ->
+                searchRequest(token, region, trimmedQuery, resultLimit, includeContent)
             }
         return KimiWebSearchFetchResult(McpJson.providerJson(body), usableCredentials)
     }
@@ -47,7 +48,9 @@ open class KimiWebSearchClient(
     open fun webFetch(credentials: KimiCredentials, url: String): KimiWebSearchFetchResult {
         val target = normalizeHttpUrl(url)
         val (markdown, usableCredentials) =
-            authorized(credentials, "Kimi web fetch") { token -> fetchRequest(token, target) }
+            authorized(credentials, "Kimi web fetch") { token, region ->
+                fetchRequest(token, region, target)
+            }
         val body = buildJsonObject {
             put("url", target)
             put("format", "markdown")
@@ -60,14 +63,14 @@ open class KimiWebSearchClient(
     private fun authorized(
         credentials: KimiCredentials,
         action: String,
-        request: (String) -> HttpRequest,
+        request: (String, KimiRegion) -> HttpRequest,
     ): Pair<String, KimiCredentials> {
         var usableCredentials = credentialRefresher.refreshIfNeeded(credentials)
         fun token() =
             usableCredentials.accessToken.ifBlank {
                 throw KimiQuotaException("Kimi login required. Log in from settings.")
             }
-        var response = send(request(token()))
+        var response = send(request(token(), usableCredentials.kimiRegion))
         if (response.statusCode().isUnauthorized()) {
             usableCredentials =
                 credentialRefresher.refresh(usableCredentials)
@@ -76,7 +79,7 @@ open class KimiWebSearchClient(
                         response.statusCode(),
                         response.body(),
                     )
-            response = send(request(token()))
+            response = send(request(token(), usableCredentials.kimiRegion))
         }
         val status = response.statusCode()
         val body = response.body()
@@ -97,10 +100,10 @@ open class KimiWebSearchClient(
         return body to usableCredentials
     }
 
-    private fun fetchRequest(accessToken: String, url: String): HttpRequest {
+    private fun fetchRequest(accessToken: String, region: KimiRegion, url: String): HttpRequest {
         val builder =
             HttpRequest.newBuilder()
-                .uri(searchEndpoint.resolve("fetch"))
+                .uri(searchEndpoint?.resolve("fetch") ?: region.api("fetch"))
                 .timeout(Duration.ofSeconds(120))
                 .header("Authorization", "Bearer $accessToken")
                 .header("Content-Type", "application/json")
@@ -113,6 +116,7 @@ open class KimiWebSearchClient(
 
     private fun searchRequest(
         accessToken: String,
+        region: KimiRegion,
         query: String,
         limit: Int,
         includeContent: Boolean,
@@ -129,7 +133,7 @@ open class KimiWebSearchClient(
 
         val builder =
             HttpRequest.newBuilder()
-                .uri(searchEndpoint)
+                .uri(searchEndpoint ?: region.api("search"))
                 .timeout(Duration.ofSeconds(180))
                 .header("Authorization", "Bearer $accessToken")
                 .header("Content-Type", "application/json")
@@ -163,8 +167,6 @@ open class KimiWebSearchClient(
         const val MAX_LIMIT = 20
         private const val SEARCH_TIMEOUT_SECONDS = 30
         private const val USER_AGENT = "KimiCLI/1.40.0"
-        private val SEARCH_ENDPOINT = URI.create("https://api.kimi.com/coding/v1/search")
-        private val TOKEN_ENDPOINT = URI.create("https://auth.kimi.com/api/oauth/token")
 
         internal fun normalizeHttpUrl(value: String): String {
             val trimmed = value.trim()

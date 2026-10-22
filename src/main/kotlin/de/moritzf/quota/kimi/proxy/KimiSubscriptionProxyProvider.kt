@@ -13,6 +13,7 @@ import de.moritzf.proxy.subscription.SubscriptionProxyRoute
 import de.moritzf.quota.kimi.KimiCredentialRefresher
 import de.moritzf.quota.kimi.KimiCredentials
 import de.moritzf.quota.kimi.KimiDeviceHeaders
+import de.moritzf.quota.kimi.KimiRegion
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -30,8 +31,9 @@ class KimiSubscriptionProxyProvider(
     private val credentialsProvider: () -> KimiCredentials?,
     private val credentialsSaver: (KimiCredentials) -> Unit = {},
     private val httpClient: HttpClient = HttpClient.newHttpClient(),
-    private val openAiCompatibleBaseUri: URI = OPENAI_COMPATIBLE_BASE_URI,
-    anthropicCompatibleBaseUri: URI = ANTHROPIC_COMPATIBLE_BASE_URI,
+    /** Override the login region's bases, for tests. */
+    private val openAiCompatibleBaseUri: URI? = null,
+    private val anthropicCompatibleBaseUri: URI? = null,
     private val modelsDevCatalogUri: URI? = MODELS_DEV_CATALOG_URI,
     fullRequestLogging: Boolean = false,
     requestLogDir: String = DEFAULT_REQUEST_LOG_DIR,
@@ -44,11 +46,14 @@ class KimiSubscriptionProxyProvider(
             id = ID,
             displayName = DISPLAY_NAME,
             litellmProvider = LITELLM_PROVIDER,
-            baseUri = openAiCompatibleBaseUri,
+            baseUri = openAiCompatibleBaseUri ?: KimiRegion.MAINLAND.apiBase,
             accessTokenProvider = ::accessToken,
             tokenRefresher = ::refreshAfterUnauthorized,
             modelMappingsProvider = ::modelMappings,
             defaultHeaders = defaultHeaders(deviceId),
+            upstreamUrlProvider = { request ->
+                if (openAiCompatibleBaseUri != null) null else regional(region().apiBase, request)
+            },
             requestBodyTransformer = ::chatRequestBody,
             httpClient = httpClient,
             requestLogger = requestLogger,
@@ -58,11 +63,15 @@ class KimiSubscriptionProxyProvider(
             id = ID,
             displayName = DISPLAY_NAME,
             litellmProvider = LITELLM_PROVIDER,
-            baseUri = anthropicCompatibleBaseUri,
+            baseUri = anthropicCompatibleBaseUri ?: KimiRegion.MAINLAND.anthropicBase,
             accessTokenProvider = ::accessToken,
             tokenRefresher = ::refreshAfterUnauthorized,
             modelMappingsProvider = ::modelMappings,
             defaultHeaders = defaultHeaders(deviceId),
+            upstreamUrlProvider = { request ->
+                if (anthropicCompatibleBaseUri != null) null
+                else regional(region().anthropicBase, request)
+            },
             httpClient = httpClient,
             requestLogger = requestLogger,
         )
@@ -119,6 +128,11 @@ class KimiSubscriptionProxyProvider(
                 )
         }
     }
+
+    private fun region(): KimiRegion = credentialsProvider()?.kimiRegion ?: KimiRegion.MAINLAND
+
+    private fun regional(base: URI, request: SubscriptionProxyRequest): String =
+        base.toString().trimEnd('/') + "/" + request.route.upstreamPath.trimStart('/')
 
     private fun chatRequestBody(request: SubscriptionProxyRequest, body: JsonObject): JsonObject {
         if (request.route != SubscriptionProxyRoute.CHAT_COMPLETIONS) return body
@@ -184,16 +198,17 @@ class KimiSubscriptionProxyProvider(
 
     private fun remoteModels(): List<RemoteModel> {
         val now = System.currentTimeMillis()
-        val cached = modelCache
+        val region = region()
+        val cached = modelCache?.takeIf { it.region == region }
         if (cached != null && now - cached.fetchedAtMillis < CACHE_TTL_MILLIS) {
             return cached.models
         }
         val token = accessToken() ?: return emptyList()
         val firstPartyModels = runCatching {
-            fetchModels(token)
+            fetchModels(token, region)
         }
             .getOrElse {
-                return cacheModels(cached?.models ?: DEFAULT_MODELS, now)
+                return cacheModels(cached?.models ?: DEFAULT_MODELS, now, region)
             }
         val models =
             if (firstPartyModels.hasConcreteModelIds()) {
@@ -202,7 +217,7 @@ class KimiSubscriptionProxyProvider(
                 val catalogModels =
                     modelsDevCatalogUri
                         ?.let { uri ->
-                            runCatching { fetchModelsDevCatalogModels(uri) }
+                            runCatching { fetchModelsDevCatalogModels(uri, region) }
                                 .getOrDefault(emptyList())
                         }
                         .orEmpty()
@@ -214,14 +229,13 @@ class KimiSubscriptionProxyProvider(
                     }
                 }
             }
-        return cacheModels(models.ifEmpty { cached?.models ?: DEFAULT_MODELS }, now)
+        return cacheModels(models.ifEmpty { cached?.models ?: DEFAULT_MODELS }, now, region)
     }
 
-    private fun fetchModels(token: String): List<RemoteModel> {
+    private fun fetchModels(token: String, region: KimiRegion): List<RemoteModel> {
+        val base = openAiCompatibleBaseUri ?: region.apiBase
         val request =
-            HttpRequest.newBuilder(
-                    URI.create(openAiCompatibleBaseUri.toString().trimEnd('/') + "/models")
-                )
+            HttpRequest.newBuilder(URI.create(base.toString().trimEnd('/') + "/models"))
                 .timeout(Duration.ofSeconds(30))
                 .header("Authorization", "Bearer $token")
                 .header("Accept", "application/json")
@@ -237,7 +251,7 @@ class KimiSubscriptionProxyProvider(
         return data.mapNotNull(::parseRemoteModel).distinctBy { it.id }
     }
 
-    private fun fetchModelsDevCatalogModels(uri: URI): List<RemoteModel> {
+    private fun fetchModelsDevCatalogModels(uri: URI, region: KimiRegion): List<RemoteModel> {
         val request =
             HttpRequest.newBuilder(uri)
                 .timeout(Duration.ofSeconds(30))
@@ -250,7 +264,7 @@ class KimiSubscriptionProxyProvider(
             JsonHelper.parseToJsonElementOrNull(response.body()) as? JsonObject
                 ?: return emptyList()
         // models.dev renames the Kimi Code catalog; its API address identifies it.
-        val api = OPENAI_COMPATIBLE_BASE_URI.toString()
+        val api = region.apiBase.toString()
         val provider =
             root.values.filterIsInstance<JsonObject>().firstOrNull {
                 stringField(it, "api")?.trimEnd('/') == api
@@ -313,8 +327,12 @@ class KimiSubscriptionProxyProvider(
         )
     }
 
-    private fun cacheModels(models: List<RemoteModel>, fetchedAtMillis: Long): List<RemoteModel> {
-        if (models.isNotEmpty()) modelCache = ModelCache(models, fetchedAtMillis)
+    private fun cacheModels(
+        models: List<RemoteModel>,
+        fetchedAtMillis: Long,
+        region: KimiRegion,
+    ): List<RemoteModel> {
+        if (models.isNotEmpty()) modelCache = ModelCache(models, fetchedAtMillis, region)
         return models
     }
 
@@ -340,6 +358,7 @@ class KimiSubscriptionProxyProvider(
     private data class ModelCache(
         val models: List<RemoteModel>,
         val fetchedAtMillis: Long,
+        val region: KimiRegion,
     )
 
     companion object {
@@ -366,8 +385,6 @@ class KimiSubscriptionProxyProvider(
                     isDefault = true,
                 )
             )
-        private val OPENAI_COMPATIBLE_BASE_URI = URI.create("https://api.kimi.com/coding/v1")
-        private val ANTHROPIC_COMPATIBLE_BASE_URI = URI.create("https://api.kimi.com/coding")
         private val MODELS_DEV_CATALOG_URI = URI.create("https://models.dev/api.json")
         private val DEFAULT_REQUEST_LOG_DIR =
             System.getProperty("java.io.tmpdir") +

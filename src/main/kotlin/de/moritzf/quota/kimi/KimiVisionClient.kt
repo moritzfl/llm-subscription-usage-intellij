@@ -12,8 +12,9 @@ import java.time.Duration
 /** Vision question-answering through the Kimi coding chat completions with the stored login. */
 open class KimiVisionClient(
     private val httpClient: HttpClient = defaultHttpClient(),
-    private val chatEndpoint: URI = CHAT_ENDPOINT,
-    tokenEndpoint: URI = TOKEN_ENDPOINT,
+    /** Overrides the login region's endpoints, for tests. */
+    private val chatEndpoint: URI? = null,
+    tokenEndpoint: URI? = null,
     private val deviceId: String = KimiDeviceHeaders.processDeviceId,
 ) {
     private val credentialRefresher = KimiCredentialRefresher(httpClient, tokenEndpoint, deviceId)
@@ -41,7 +42,16 @@ open class KimiVisionClient(
                 throw KimiQuotaException("Kimi login required. Log in from settings.")
             }
 
-        var response = send(chatRequest(accessToken, selectedModel, imageContent, trimmedPrompt))
+        var response =
+            send(
+                chatRequest(
+                    accessToken,
+                    usableCredentials.kimiRegion,
+                    selectedModel,
+                    imageContent,
+                    trimmedPrompt,
+                )
+            )
         if (response.statusCode().isUnauthorized()) {
             usableCredentials =
                 credentialRefresher.refresh(usableCredentials)
@@ -54,7 +64,16 @@ open class KimiVisionClient(
                 usableCredentials.accessToken.ifBlank {
                     throw KimiQuotaException("Kimi login required. Log in from settings.")
                 }
-            response = send(chatRequest(accessToken, selectedModel, imageContent, trimmedPrompt))
+            response =
+                send(
+                    chatRequest(
+                        accessToken,
+                        usableCredentials.kimiRegion,
+                        selectedModel,
+                        imageContent,
+                        trimmedPrompt,
+                    )
+                )
         }
         val status = response.statusCode()
         val body = response.body()
@@ -80,13 +99,14 @@ open class KimiVisionClient(
 
     private fun chatRequest(
         accessToken: String,
+        region: KimiRegion,
         model: String,
         imageContent: kotlinx.serialization.json.JsonObject,
         prompt: String,
     ): HttpRequest {
         val builder =
             HttpRequest.newBuilder()
-                .uri(chatEndpoint)
+                .uri(chatEndpoint ?: region.api("chat/completions"))
                 .timeout(Duration.ofSeconds(180))
                 .header("Authorization", "Bearer $accessToken")
                 .header("Content-Type", "application/json")
@@ -121,8 +141,6 @@ open class KimiVisionClient(
     )
 
     companion object {
-        private val CHAT_ENDPOINT = URI.create("https://api.kimi.com/coding/v1/chat/completions")
-        private val TOKEN_ENDPOINT = URI.create("https://auth.kimi.com/api/oauth/token")
         private const val USER_AGENT = "KimiCLI/1.40.0"
 
         fun createDefault(deviceId: String = KimiDeviceHeaders.processDeviceId): KimiVisionClient =

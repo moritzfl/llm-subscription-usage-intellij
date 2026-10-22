@@ -14,13 +14,16 @@ import kotlinx.serialization.Serializable
 
 class KimiOAuthClient(
     private val httpClient: HttpClient = HttpClient.newHttpClient(),
-    private val oauthHost: String = OAUTH_HOST,
+    /** Overrides the region's OAuth host, for tests. */
+    private val oauthHost: String? = null,
     private val deviceId: String = KimiDeviceHeaders.processDeviceId,
 ) {
-    fun requestDeviceAuthorization(): KimiDeviceAuthorization {
+    fun requestDeviceAuthorization(
+        region: KimiRegion = KimiRegion.MAINLAND
+    ): KimiDeviceAuthorization {
         val response =
             postForm(
-                "$oauthHost/api/oauth/device_authorization",
+                "${host(region)}/api/oauth/device_authorization",
                 mapOf("client_id" to CLIENT_ID),
             )
         val body = response.body()
@@ -52,10 +55,13 @@ class KimiOAuthClient(
         )
     }
 
-    fun pollDeviceToken(deviceCode: String): KimiDeviceTokenPollResult {
+    fun pollDeviceToken(
+        deviceCode: String,
+        region: KimiRegion = KimiRegion.MAINLAND,
+    ): KimiDeviceTokenPollResult {
         val response =
             postForm(
-                "$oauthHost/api/oauth/token",
+                "${host(region)}/api/oauth/token",
                 mapOf(
                     "client_id" to CLIENT_ID,
                     "device_code" to deviceCode,
@@ -84,6 +90,7 @@ class KimiOAuthClient(
                         dto.expiresIn?.let { Clock.System.now().epochSeconds + it.toDouble() },
                     scope = dto.scope,
                     tokenType = dto.tokenType ?: "Bearer",
+                    region = region.id.takeUnless { region == KimiRegion.MAINLAND },
                 )
             )
         }
@@ -101,6 +108,8 @@ class KimiOAuthClient(
                 )
         }
     }
+
+    private fun host(region: KimiRegion): String = oauthHost ?: region.oauthHost
 
     private fun postForm(url: String, parameters: Map<String, String>): HttpResponse<String> {
         val builder =
@@ -140,7 +149,6 @@ class KimiOAuthClient(
 
     companion object {
         const val CLIENT_ID = "17e5f671-d194-4dfb-9706-5516cb48c098"
-        private const val OAUTH_HOST = "https://auth.kimi.com"
     }
 }
 
