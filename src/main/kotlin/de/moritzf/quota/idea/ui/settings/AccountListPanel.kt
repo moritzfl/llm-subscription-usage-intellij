@@ -7,6 +7,7 @@ import com.intellij.ui.CollectionListModel
 import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
+import com.intellij.util.IconUtil
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import de.moritzf.quota.idea.common.ProviderCatalog
@@ -276,12 +277,15 @@ internal class AccountListPanel(
     companion object {
         private const val LIST_ICON_SIZE = 16
 
-        private fun scaledListIcon(type: QuotaProviderType, component: JComponent): Icon {
-            return ProviderReorderPanel.scaleToSize(
-                ProviderUiRegistry.forType(type).icon,
-                JBUI.scale(LIST_ICON_SIZE),
-                component,
-            )
-        }
+        private fun scaledListIcon(type: QuotaProviderType, component: JComponent): Icon =
+            providerIcon(type, JBUI.scale(LIST_ICON_SIZE), component)
     }
+}
+
+/** The provider's icon, scaled so its longer side is [size] pixels. */
+internal fun providerIcon(type: QuotaProviderType, size: Int, component: JComponent): Icon {
+    val icon = ProviderUiRegistry.forType(type).icon
+    val longerSide = maxOf(icon.iconWidth, icon.iconHeight)
+    if (longerSide <= 0 || longerSide == size) return icon
+    return IconUtil.scale(icon, component, size.toFloat() / longerSide)
 }

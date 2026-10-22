@@ -35,7 +35,7 @@ import de.moritzf.quota.idea.ui.indicator.*
 import de.moritzf.quota.idea.ui.settings.AccountDetailsSplitter
 import de.moritzf.quota.idea.ui.settings.AccountListPanel
 import de.moritzf.quota.idea.ui.settings.ProviderListStatus
-import de.moritzf.quota.idea.ui.settings.ProviderReorderPanel
+import de.moritzf.quota.idea.ui.settings.providerIcon
 import de.moritzf.quota.shared.ProviderQuota
 import java.awt.CardLayout
 import java.awt.Component
@@ -358,12 +358,7 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
             detailHeaderPanel?.isVisible = true
             val iconLabel = detailHeaderIcon
             if (iconLabel != null) {
-                iconLabel.icon =
-                    ProviderReorderPanel.scaleToSize(
-                        ProviderUiRegistry.forType(type).icon,
-                        JBUI.scale(DETAIL_HEADER_ICON_SIZE),
-                        iconLabel,
-                    )
+                iconLabel.icon = providerIcon(type, JBUI.scale(DETAIL_HEADER_ICON_SIZE), iconLabel)
             }
             detailHeaderName?.text =
                 accountListPanel?.listLabel(account)
@@ -394,13 +389,13 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
 
     private fun updateDetailHeaderReason(account: ProviderAccount) {
         val reason = detailHeaderReason ?: return
-        val snapshot = ProviderReorderPanel.statusSnapshot(account)
+        val snapshot = ProviderListStatus.snapshot(account)
         if (
             snapshot.status == ProviderListStatus.WARNING ||
                 snapshot.status == ProviderListStatus.ERROR
         ) {
             reason.text = "<html>${QuotaUiUtil.escapeHtml(snapshot.explanation)}</html>"
-            reason.foreground = ProviderReorderPanel.statusColor(snapshot.status)
+            reason.foreground = snapshot.status.color
             reason.isVisible = true
         } else {
             reason.isVisible = false
