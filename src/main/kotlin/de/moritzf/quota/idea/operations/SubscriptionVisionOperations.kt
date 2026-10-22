@@ -121,6 +121,18 @@ internal suspend fun SubscriptionOperations.subscription_vision(
         VisionProvider.OPEN_CODE -> openCodeVision(trimmedPrompt, localFile, chosen)
 
         VisionProvider.KIMI -> kimiVision(trimmedPrompt, imageUrl, localFile, chosen)
+
+        VisionProvider.MINIMAX -> {
+            val source = resolveOptionalPath(localFile)
+            withMiniMaxKey("MiniMax image analysis failed.", AccountCapability.VISION) { key, region
+                ->
+                McpJson.visionResult(
+                    provider.name,
+                    chosen,
+                    miniMaxVisionClient.ask(key, region, imageUrl, source, trimmedPrompt),
+                )
+            }
+        }
     }
 }
 

@@ -71,6 +71,7 @@ enum class VisionProvider(val providerType: QuotaProviderType) {
     OPEN_CODE(QuotaProviderType.OPEN_CODE),
     OLLAMA(QuotaProviderType.OLLAMA),
     KIMI(QuotaProviderType.KIMI),
+    MINIMAX(QuotaProviderType.MINIMAX),
 }
 
 /**

@@ -338,6 +338,7 @@ internal object ProviderCatalog {
                         imageGeneration = true,
                         speechToText = true,
                         textToSpeech = true,
+                        vision = true,
                         subscriptionProxy = true,
                     ),
                 quotaFactory = { MiniMaxQuotaProvider(accountId = it.id) },

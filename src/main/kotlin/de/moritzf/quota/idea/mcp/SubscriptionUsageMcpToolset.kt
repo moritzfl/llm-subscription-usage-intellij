@@ -348,7 +348,7 @@ class SubscriptionUsageMcpToolset : McpToolset {
         provider: VisionProvider = VisionProvider.OPEN_AI,
         @McpDescription(
             description =
-                "Public image URL. Leave blank when localFile is set. Azure, GitHub Copilot and OpenCode need a local file."
+                "Public image URL. Leave blank when localFile is set. Azure, GitHub Copilot, OpenCode, and MiniMax need a local file."
         )
         imageUrl: String? = null,
         @McpDescription(description = "Optional project-relative or absolute local image path.")

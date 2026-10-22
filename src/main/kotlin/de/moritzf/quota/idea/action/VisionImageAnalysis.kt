@@ -6,14 +6,21 @@ import de.moritzf.quota.idea.kimi.KimiCredentialsStore
 import de.moritzf.quota.idea.kimi.KimiDeviceIdStore
 import de.moritzf.quota.idea.mcp.CodexMcpClient
 import de.moritzf.quota.idea.mcp.VisionProvider
+import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
 import de.moritzf.quota.idea.mistral.MistralApiKeyStore
 import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
 import de.moritzf.quota.idea.settings.AccountCapability
 import de.moritzf.quota.idea.settings.AccountResolver
+import de.moritzf.quota.idea.settings.ProviderAccount
 import de.moritzf.quota.idea.settings.ProviderTestConnection
+import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.idea.settings.VisionModelSelection
 import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 import de.moritzf.quota.kimi.KimiVisionClient
+import de.moritzf.quota.minimax.MiniMaxQuotaException
+import de.moritzf.quota.minimax.MiniMaxRegion
+import de.moritzf.quota.minimax.MiniMaxRegionPreference
+import de.moritzf.quota.minimax.MiniMaxVisionClient
 import de.moritzf.quota.mistral.MistralVisionClient
 import de.moritzf.quota.ollama.OllamaVisionClient
 import de.moritzf.quota.shared.DocumentModels
@@ -139,6 +146,35 @@ internal object VisionImageAnalysis {
                         .ask(credentials, localFile = image, prompt = trimmedPrompt, model = chosen)
                 if (result.credentials != credentials) store.save(result.credentials)
                 result.answer
+            }
+
+            VisionProvider.MINIMAX -> {
+                val key =
+                    (connection?.apiKeyOverride
+                            ?: MiniMaxApiKeyStore.forAccount(account.id).loadBlocking())
+                        ?.takeIf(String::isNotBlank) ?: error("MiniMax subscription key missing.")
+                val preference =
+                    account
+                        .extra(ProviderAccount.EXTRA_MINIMAX_REGION)
+                        ?.let(MiniMaxRegionPreference::fromStorageValue)
+                        ?: QuotaSettingsState.getInstance().miniMaxRegionFor(account.id)
+                val regions =
+                    when (preference) {
+                        MiniMaxRegionPreference.CN -> listOf(MiniMaxRegion.CN)
+                        MiniMaxRegionPreference.GLOBAL -> listOf(MiniMaxRegion.GLOBAL)
+                        MiniMaxRegionPreference.AUTO ->
+                            listOf(MiniMaxRegion.GLOBAL, MiniMaxRegion.CN)
+                    }
+                var last: Exception? = null
+                for (region in regions) {
+                    try {
+                        return MiniMaxVisionClient.createDefault()
+                            .ask(key, region, localFile = image, prompt = trimmedPrompt)
+                    } catch (exception: MiniMaxQuotaException) {
+                        last = exception
+                    }
+                }
+                throw checkNotNull(last)
             }
 
             VisionProvider.GITHUB ->

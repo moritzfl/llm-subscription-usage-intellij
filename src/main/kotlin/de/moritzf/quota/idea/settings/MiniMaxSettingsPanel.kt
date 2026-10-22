@@ -6,12 +6,15 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.MAX_LINE_LENGTH_WORD_WRAP
 import com.intellij.ui.dsl.builder.panel
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.minimax.MiniMaxRegionPreference
+import de.moritzf.quota.minimax.MiniMaxVisionClient
 import java.awt.Color
 import javax.swing.JComponent
 
@@ -24,6 +27,7 @@ internal class MiniMaxSettingsPanel(
     private val apiKeyDraft = credentialDraft(apiKeyField)
     private val statusLabel = JBLabel().apply { isVisible = false }
     private val responseViewer = createResponseViewer()
+    override val visionModelCombo = VisionModelCombo()
 
     init {
         install(
@@ -31,6 +35,19 @@ internal class MiniMaxSettingsPanel(
                 row { statusCell(statusLabel) }
                 row("Region:") { cell(regionComboBox) }
                 row("Subscription key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
+                row(message("settings.model.vision.label")) {
+                    cell(visionModelCombo.combo)
+                        .align(AlignX.FILL)
+                        .resizableColumn()
+                        .comment(message("settings.model.vision.help"), MAX_LINE_LENGTH_WORD_WRAP)
+                    cell(
+                        visionTestButton(
+                            de.moritzf.quota.idea.mcp.VisionProvider.MINIMAX,
+                            visionModelCombo,
+                            modalityComponentProvider,
+                        )
+                    )
+                }
                 row {
                     button("Save") { saveKeysNow() }
                     button("Clear") { clearKeysNow() }
@@ -55,6 +72,10 @@ internal class MiniMaxSettingsPanel(
 
     override fun updateFields() {
         loadCredentialField()
+        visionModelCombo.show(
+            boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL),
+            listOf(MiniMaxVisionClient.MODEL),
+        )
         regionComboBox.selectedItem =
             boundAccount
                 ?.extra(ProviderAccount.EXTRA_MINIMAX_REGION)

@@ -44,7 +44,7 @@ Track and use your LLM subscriptions directly in IntelliJ IDEA.
 | OpenCode (Go / Zen) | Device code | ✓ | — | — | — | — | (✓) | ✓ | ✓ | (✓) |
 | Ollama Cloud | API key | ✓ | ✓ | — | — | — | — | ✓ | ✓ | ✓ |
 | Z.ai | API key | ✓ | ✓ | ✓ | ✓ | (✓) | ✓ | ✓ | ✓ | (✓) |
-| MiniMax | Subscription key | ✓ | ✓ | ✓ | — | ✓ | — | — | ✓ | (✓) |
+| MiniMax | Subscription key | ✓ | ✓ | ✓ | — | ✓ | — | ✓ | ✓ | (✓) |
 | Mistral | Session cookie + API key | ✓ | ✓ | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Kimi | Device code | ✓ | ✓ | — | — | — | — | ✓ | ✓ | (✓) |
 | Antigravity (Gemini / Claude / GPT) | AGY CLI login | ✓ | — | — | — | — | — | — | — | — |

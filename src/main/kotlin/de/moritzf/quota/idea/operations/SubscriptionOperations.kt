@@ -68,6 +68,8 @@ internal class SubscriptionOperations(
     val zaiAudioClient: ZaiAudioClient = ZaiAudioClient.createDefault(),
     val zaiVideoClient: ZaiVideoClient = ZaiVideoClient.createDefault(),
     val zaiVisionClient: ZaiVisionClient = ZaiVisionClient.createDefault(),
+    val miniMaxVisionClient: de.moritzf.quota.minimax.MiniMaxVisionClient =
+        de.moritzf.quota.minimax.MiniMaxVisionClient.createDefault(),
     val ollamaVisionClient: OllamaVisionClient = OllamaVisionClient.createDefault(),
     val kimiVisionClient: KimiVisionClient =
         KimiVisionClient.createDefault(KimiDeviceIdStore.get()),
