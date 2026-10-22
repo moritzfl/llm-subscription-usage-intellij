@@ -1,9 +1,11 @@
 package de.moritzf.quota.idea.ui.popup
 
 import com.intellij.util.ui.JBUI
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.ui.indicator.clampPercent
+import de.moritzf.quota.kimi.KimiExtraUsage
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.kimi.KimiUsageWindow
 import de.moritzf.quota.shared.ProviderQuota
@@ -20,6 +22,8 @@ internal class KimiPopupSection : ProviderPopupSection() {
     private val weeklyBlock = WindowBlockPanel(5)
     private val monthlyBlock = WindowBlockPanel(5)
     private val overallBlock = WindowBlockPanel(5)
+    private val extraBlock = WindowBlockPanel(5)
+    private val balanceLabel = createMutedLabel("").apply { border = JBUI.Borders.emptyTop(2) }
 
     init {
         isOpaque = false
@@ -30,6 +34,8 @@ internal class KimiPopupSection : ProviderPopupSection() {
         add(weeklyBlock)
         add(monthlyBlock)
         add(overallBlock)
+        add(extraBlock)
+        add(balanceLabel)
         hideAll()
     }
 
@@ -50,6 +56,8 @@ internal class KimiPopupSection : ProviderPopupSection() {
                 weeklyBlock.isVisible = false
                 monthlyBlock.isVisible = false
                 overallBlock.isVisible = false
+                extraBlock.isVisible = false
+                balanceLabel.isVisible = false
             }
 
             quota == null -> {
@@ -73,10 +81,21 @@ internal class KimiPopupSection : ProviderPopupSection() {
                     ?: sessionBlock.clear()
                 quota.weeklyUsage?.let { weeklyBlock.updateKimi(it, "Weekly") }
                     ?: weeklyBlock.clear()
-                quota.monthlyUsage?.let { monthlyBlock.updateKimi(it, "Monthly") }
-                    ?: monthlyBlock.clear()
+                quota.monthlyUsage?.let { monthly ->
+                    monthlyBlock.updateKimi(
+                        monthly,
+                        "Monthly",
+                        quota.monthlyCodeUsage?.let {
+                            message(
+                                "quota.kimi.monthly.code",
+                                clampPercent(it.usagePercent.roundToInt()),
+                            )
+                        },
+                    )
+                } ?: monthlyBlock.clear()
                 quota.totalUsage?.let { overallBlock.updateKimi(it, "Overall") }
                     ?: overallBlock.clear()
+                updateExtraUsage(quota.extraUsage)
             }
         }
     }
@@ -88,12 +107,51 @@ internal class KimiPopupSection : ProviderPopupSection() {
         weeklyBlock.isVisible = false
         monthlyBlock.isVisible = false
         overallBlock.isVisible = false
+        extraBlock.isVisible = false
+        balanceLabel.isVisible = false
     }
 
-    private fun WindowBlockPanel.updateKimi(window: KimiUsageWindow, label: String) {
+    private fun updateExtraUsage(extra: KimiExtraUsage?) {
+        balanceLabel.isVisible = extra != null
+        if (extra == null) {
+            extraBlock.clear()
+            return
+        }
+        val title = message("quota.kimi.extra.title")
+        val used = money(extra.usedCents, extra.currency)
+        val percent = extra.usagePercent
+        val limit = extra.limitCents
+        if (percent != null && limit != null) {
+            extraBlock.update(
+                title,
+                message("quota.kimi.extra.used", used, money(limit, extra.currency)),
+                clampPercent(percent.roundToInt()),
+            )
+        } else {
+            extraBlock.showUnavailable(title, message("quota.kimi.extra.uncapped", used))
+        }
+        balanceLabel.text =
+            message("quota.kimi.extra.balance", money(extra.balanceCents, extra.currency))
+    }
+
+    private fun money(cents: Long, currency: String): String {
+        val amount = String.format("%.2f", cents / 100.0)
+        return when (currency.uppercase()) {
+            "CNY" -> "¥$amount"
+            "USD" -> "\$$amount"
+            else -> "$amount ${currency.uppercase()}"
+        }
+    }
+
+    private fun WindowBlockPanel.updateKimi(
+        window: KimiUsageWindow,
+        label: String,
+        breakdown: String? = null,
+    ) {
         val percent = clampPercent(window.usagePercent.roundToInt())
         val resetText = QuotaUiUtil.formatReset(window.resetsAt)
         var info = "$percent% used"
+        if (breakdown != null) info += " ($breakdown)"
         if (resetText != null) info += " - $resetText"
         update(describeDurationLimitLabel(window.periodDuration, label), info, percent)
     }

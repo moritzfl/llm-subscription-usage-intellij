@@ -16,6 +16,9 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
 
 open class KimiQuotaClient(
     private val httpClient: HttpClient = HttpClient.newHttpClient(),
@@ -137,13 +140,56 @@ open class KimiQuotaClient(
                     weeklyUsage =
                         reconcile(window("limit_7d", ONE_WEEK), dto.usage?.toCounter(ONE_WEEK)),
                     monthlyUsage = window("limit_month_total"),
+                    monthlyCodeUsage = window("limit_month_code"),
+                    extraUsage = extraUsage(dto.boosterWallet),
                 )
             }
             return KimiQuota(
                 plan = plan,
                 sessionUsage = sessionCounter?.window,
                 totalUsage = dto.usage?.toCounter(null)?.window,
+                extraUsage = extraUsage(dto.boosterWallet),
             )
+        }
+
+        /**
+         * The booster wallet counts only as a funded BOOSTER balance. Wallet amounts are
+         * fixed-point with 1e6 units per cent; monthly prices are whole cents.
+         */
+        private fun extraUsage(wallet: JsonObject?): KimiExtraUsage? {
+            val balance = wallet?.get("balance") as? JsonObject ?: return null
+            if ((balance["type"] as? JsonPrimitive)?.contentOrNull != "BOOSTER") return null
+            val total = fixedPointCents(balance["amount"])?.takeIf { it > 0 } ?: return null
+            fun price(key: String): JsonObject? = wallet[key] as? JsonObject
+            fun cents(price: JsonObject?): Long? =
+                price
+                    ?.get("priceInCents")
+                    ?.lenientDoubleOrNull()
+                    ?.takeIf { it.isFinite() }
+                    ?.toLong()
+            fun currency(price: JsonObject?): String? =
+                (price?.get("currency") as? JsonPrimitive)?.contentOrNull?.takeIf {
+                    it.isNotBlank()
+                }
+            val limit = price("monthlyChargeLimit")
+            val used = price("monthlyUsed")
+            return KimiExtraUsage(
+                    balanceCents = fixedPointCents(balance["amountLeft"]) ?: 0,
+                    usedCents = cents(used) ?: 0,
+                    limitCents = cents(limit),
+                    limitEnabled =
+                        (wallet["monthlyChargeLimitEnabled"] as? JsonPrimitive)?.booleanOrNull ==
+                            true,
+                    currency = currency(limit) ?: currency(used) ?: "USD",
+                )
+                .takeIf { total > 0 }
+        }
+
+        private fun fixedPointCents(value: JsonElement?): Long? {
+            val raw =
+                value?.lenientDoubleOrNull()?.takeIf { it.isFinite() && it >= 0 } ?: return null
+            val cents = raw / 1_000_000.0
+            return if (cents > 0 && cents < 1) 1 else kotlin.math.round(cents).toLong()
         }
 
         /** A counted window, and whether its counts could be read. */
@@ -238,6 +284,7 @@ private data class KimiUsageResponseDto(
     val usage: KimiLimitDetailDto? = null,
     val limits: List<KimiLimitDto> = emptyList(),
     val user: KimiUserDto? = null,
+    val boosterWallet: JsonObject? = null,
 )
 
 @Serializable

@@ -174,6 +174,58 @@ class KimiQuotaClientTest {
     }
 
     @Test
+    fun readsTheMonthlyCodeShareAndTheBoosterWallet() {
+        val quota =
+            KimiQuotaClient.parseQuota(
+                """{"usages":{
+                  "limit_5h":{"used_ratio":0.3,"reset_time":"2026-09-11T18:00:00Z"},
+                  "limit_month_total":{"used_ratio":0.4,"reset_time":"2026-10-01T00:00:00Z"},
+                  "limit_month_code":{"used_ratio":"0.25","reset_time":"2026-10-01T00:00:00Z"}},
+                 "boosterWallet":{
+                  "balance":{"type":"BOOSTER","amount":"20000000000","amountLeft":"10000000000"},
+                  "monthlyChargeLimitEnabled":true,
+                  "monthlyChargeLimit":{"currency":"USD","priceInCents":"20000"},
+                  "monthlyUsed":{"currency":"USD","priceInCents":"5000"}}}"""
+            )
+
+        assertEquals(25.0, quota.monthlyCodeUsage?.usagePercent)
+        assertEquals(0.4, quota.usageFraction(), "the code share is not a separate limit")
+        assertEquals(
+            KimiExtraUsage(
+                balanceCents = 10_000,
+                usedCents = 5_000,
+                limitCents = 20_000,
+                limitEnabled = true,
+                currency = "USD",
+            ),
+            quota.extraUsage,
+        )
+        assertEquals(25.0, quota.extraUsage?.usagePercent)
+    }
+
+    @Test
+    fun boosterWalletEdgeCases() {
+        val tiny =
+            KimiQuotaClient.parseQuota(
+                """{"usages":{},"boosterWallet":{"balance":{"type":"BOOSTER","amount":"500000","amountLeft":"1"},
+                  "monthlyChargeLimitEnabled":false,"monthlyUsed":{"currency":"CNY","priceInCents":"0"}}}"""
+            )
+        val plan =
+            KimiQuotaClient.parseQuota(
+                """{"usages":{},"boosterWallet":{"balance":{"type":"PLAN"}}}"""
+            )
+        val empty =
+            KimiQuotaClient.parseQuota(
+                """{"usages":{},"boosterWallet":{"balance":{"type":"BOOSTER","amount":"0"}}}"""
+            )
+
+        assertEquals(KimiExtraUsage(balanceCents = 1, currency = "CNY"), tiny.extraUsage)
+        assertNull(tiny.extraUsage?.usagePercent, "no enabled cap")
+        assertNull(plan.extraUsage)
+        assertNull(empty.extraUsage)
+    }
+
+    @Test
     fun parseQuotaReportsInvalidPayload() {
         val body = "not json"
 

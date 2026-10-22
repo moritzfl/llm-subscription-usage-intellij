@@ -13,6 +13,10 @@ data class KimiQuota(
     val totalUsage: KimiUsageWindow? = null,
     val weeklyUsage: KimiUsageWindow? = null,
     val monthlyUsage: KimiUsageWindow? = null,
+    /** The coding share of [monthlyUsage]; a breakdown, not a separate limit. */
+    val monthlyCodeUsage: KimiUsageWindow? = null,
+    /** Paid usage beyond the plan from the booster wallet. */
+    val extraUsage: KimiExtraUsage? = null,
     override var fetchedAt: Instant? = null,
     @Transient override var rawJson: String? = null,
 ) : ProviderQuota {
@@ -50,6 +54,23 @@ data class KimiUsageWindow(
     val periodDurationMs: Long? = null,
 ) {
     @Transient val periodDuration: Duration? = periodDurationMs?.let(Duration::ofMillis)
+}
+
+/** Booster wallet amounts in cents of [currency]. */
+@Serializable
+data class KimiExtraUsage(
+    val balanceCents: Long = 0,
+    val usedCents: Long = 0,
+    val limitCents: Long? = null,
+    val limitEnabled: Boolean = false,
+    val currency: String = "USD",
+) {
+    /** Used share of the monthly cap; null without an enabled cap. */
+    val usagePercent: Double?
+        get() =
+            limitCents
+                ?.takeIf { limitEnabled && it > 0 }
+                ?.let { (usedCents.toDouble() / it * 100.0).coerceIn(0.0, 100.0) }
 }
 
 @Serializable
