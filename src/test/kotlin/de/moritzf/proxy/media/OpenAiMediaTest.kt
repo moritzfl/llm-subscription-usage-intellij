@@ -15,7 +15,7 @@ class OpenAiMediaTest {
             setOf("sg-grok-imagine-image"),
             OpenAiMedia.advertisedMediaIds(setOf("supergrok")),
         )
-        assertTrue("mi-voxtral-mini-tts-2603" in OpenAiMedia.advertisedMediaIds(setOf("mistral")))
+        assertTrue("mi-voxtral-mini-tts-3-0" in OpenAiMedia.advertisedMediaIds(setOf("mistral")))
         assertTrue(OpenAiMedia.isChatDiscoveryId("mistral-small-latest"))
         assertTrue(OpenAiMedia.isChatDiscoveryId("codestral-latest"))
         assertTrue(!OpenAiMedia.isChatDiscoveryId("voxtral-mini-tts-2603"))

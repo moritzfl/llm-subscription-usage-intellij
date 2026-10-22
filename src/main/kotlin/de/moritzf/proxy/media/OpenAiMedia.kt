@@ -31,7 +31,7 @@ internal object OpenAiMedia {
                 add(AdvertisedMediaModel("za-glm-asr-2512", "zai", "audio"))
             }
             if ("mistral" in providerIds) {
-                add(AdvertisedMediaModel("mi-voxtral-mini-tts-2603", "mistral", "audio"))
+                add(AdvertisedMediaModel("mi-voxtral-mini-tts-3-0", "mistral", "audio"))
                 add(AdvertisedMediaModel("mi-voxtral-mini-latest", "mistral", "audio"))
             }
             if ("openai" in providerIds) {

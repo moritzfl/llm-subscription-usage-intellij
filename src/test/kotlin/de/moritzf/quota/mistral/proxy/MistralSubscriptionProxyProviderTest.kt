@@ -42,7 +42,7 @@ class MistralSubscriptionProxyProviderTest {
                     listOf("mi-mistral-small-latest", "mi-codestral-latest"),
                     ids.filter { it !in OpenAiMedia.advertisedMediaIds(setOf("mistral")) },
                 )
-                assertTrue("mi-voxtral-mini-tts-2603" in ids)
+                assertTrue("mi-voxtral-mini-tts-3-0" in ids)
                 assertEquals(
                     "/v1/models",
                     assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path,

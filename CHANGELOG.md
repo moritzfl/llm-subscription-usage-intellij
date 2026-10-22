@@ -4,6 +4,7 @@
 
 - Proxy Gemini models from OpenCode Go and Zen by bridging the Google generateContent API, including streaming, tool calls with thought signatures, vision/PDF parts, and Junie-compatible chat requests.
 - Use free Claude limit resets from the quota popup: resets offered in claude.ai Settings > Usage, and the weekly session reset (`/limit-reset`) when you hit the 5-hour limit. A confirmation shows what each reset refills before it is used.
+- Fix Mistral text-to-speech, which failed with HTTP 400 because Voxtral 2 rejects the current preset voices: speech now uses Voxtral TTS 3 (`voxtral-mini-tts-3-0`, also advertised by the proxy). Speaker labels and audio URLs in Mistral transcription failed with HTTP 422; requests are now multipart and ask for the segment timestamps that speaker labels need.
 - Report SuperGrok's context window, output limit, and image input in the proxy's model info from xAI's model list.
 - Read context lengths that OpenAI-compatible servers report as `max_context_length`, `context_length`, or `max_model_len`, and Mistral's tool and image support; Mistral models that cannot chat no longer appear.
 - Read Ollama Cloud's tool and image support from its public model list, replacing a fixed list of models without tool calls, and hide models that cannot chat.

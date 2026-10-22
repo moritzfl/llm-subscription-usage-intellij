@@ -36,23 +36,33 @@ open class MistralAudioClient(
         model: String = DEFAULT_TRANSCRIBE_MODEL,
     ): String {
         val token = requireApiKey(apiKey)
-        val response =
+        val url = audioUrl?.trim()?.takeIf { it.isNotEmpty() }
+        val file =
             when {
-                !audioUrl?.trim().isNullOrEmpty() ->
-                    sendString(
-                        postJson(
-                            token,
-                            transcriptionsUri,
-                            transcriptionJson(model, audioUrl.trim(), language, diarize),
-                        )
-                    )
-
+                url != null -> null
                 localFile != null ->
-                    sendString(multipartTranscription(token, localFile, model, language, diarize))
-
+                    localFile.takeIf { Files.isRegularFile(it) }
+                        ?: throw MistralQuotaException("Local audio file was not found.")
                 else -> throw MistralQuotaException("Provide audioUrl or a local audio file path.")
             }
-        return parseOk(response, "Mistral speech-to-text failed") { McpJson.providerJson(it) }
+        val boundary = "----MistralAudio${UUID.randomUUID().toString().replace("-", "")}"
+        val request =
+            HttpRequest.newBuilder()
+                .uri(transcriptionsUri)
+                .timeout(Duration.ofSeconds(180))
+                .header("Authorization", "Bearer $token")
+                .header("Content-Type", "multipart/form-data; boundary=$boundary")
+                .POST(
+                    MultipartFilePublisher.of(
+                        boundary,
+                        transcriptionFields(model, url, language, diarize),
+                        file,
+                    )
+                )
+                .build()
+        return parseOk(sendString(request), "Mistral speech-to-text failed") {
+            McpJson.providerJson(it)
+        }
     }
 
     open fun synthesize(
@@ -142,31 +152,6 @@ open class MistralAudioClient(
         return parseOk(response, "Mistral voice list failed") { McpJson.providerJson(it) }
     }
 
-    private fun multipartTranscription(
-        apiKey: String,
-        path: Path,
-        model: String,
-        language: String?,
-        diarize: Boolean,
-    ): HttpRequest {
-        if (!Files.isRegularFile(path)) {
-            throw MistralQuotaException("Local audio file was not found.")
-        }
-        val boundary = "----MistralAudio${UUID.randomUUID().toString().replace("-", "")}"
-        val fields = buildList {
-            add("model" to model.trim().ifBlank { DEFAULT_TRANSCRIBE_MODEL })
-            add("diarize" to diarize.toString())
-            language?.trim()?.takeIf { it.isNotEmpty() }?.let { add("language" to it) }
-        }
-        return HttpRequest.newBuilder()
-            .uri(transcriptionsUri)
-            .timeout(Duration.ofSeconds(180))
-            .header("Authorization", "Bearer $apiKey")
-            .header("Content-Type", "multipart/form-data; boundary=$boundary")
-            .POST(MultipartFilePublisher.of(boundary, fields, path))
-            .build()
-    }
-
     private fun sendString(request: HttpRequest): HttpResponse<String> {
         return try {
             httpClient.send(request, HttpResponse.BodyHandlers.ofString())
@@ -210,7 +195,8 @@ open class MistralAudioClient(
 
     companion object {
         const val DEFAULT_TRANSCRIBE_MODEL = "voxtral-mini-latest"
-        const val DEFAULT_SPEECH_MODEL = "voxtral-mini-tts-2603"
+        /** Voxtral 3; the Voxtral 2 model rejects the current preset voices. */
+        const val DEFAULT_SPEECH_MODEL = "voxtral-mini-tts-3-0"
         const val DEFAULT_SPEECH_FORMAT = "mp3"
         private val TRANSCRIPTIONS_URI =
             URI.create("https://api.mistral.ai/v1/audio/transcriptions")
@@ -219,20 +205,23 @@ open class MistralAudioClient(
 
         fun createDefault(): MistralAudioClient = MistralAudioClient()
 
-        internal fun transcriptionJson(
+        /**
+         * Form fields of a transcription, which Mistral accepts only as multipart, also for an
+         * audio URL. Speaker labels need segment timestamps.
+         */
+        internal fun transcriptionFields(
             model: String,
-            fileUrl: String,
+            fileUrl: String?,
             language: String?,
             diarize: Boolean,
-        ): String {
-            return JsonSupport.json.encodeToString(
-                MistralTranscriptionRequestDto(
-                    model = model.trim().ifBlank { DEFAULT_TRANSCRIBE_MODEL },
-                    fileUrl = fileUrl,
-                    language = language?.trim()?.takeIf { it.isNotEmpty() },
-                    diarize = diarize,
-                )
-            )
+        ): List<Pair<String, String>> = buildList {
+            add("model" to model.trim().ifBlank { DEFAULT_TRANSCRIBE_MODEL })
+            fileUrl?.let { add("file_url" to it) }
+            language?.trim()?.takeIf { it.isNotEmpty() }?.let { add("language" to it) }
+            if (diarize) {
+                add("diarize" to "true")
+                add("timestamp_granularities" to "segment")
+            }
         }
 
         internal fun firstPresetVoiceId(body: String): String? {
@@ -293,14 +282,6 @@ open class MistralAudioClient(
         }
     }
 }
-
-@Serializable
-internal data class MistralTranscriptionRequestDto(
-    val model: String,
-    @SerialName("file_url") val fileUrl: String? = null,
-    val language: String? = null,
-    val diarize: Boolean = false,
-)
 
 @Serializable
 internal data class MistralSpeechRequestDto(

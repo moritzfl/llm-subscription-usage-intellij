@@ -63,17 +63,62 @@ class MistralToolClientTest {
     }
 
     @Test
-    fun transcriptionJsonUsesFileUrlAndOptionalLanguage() {
-        val json =
-            MistralAudioClient.transcriptionJson(
+    fun transcriptionFieldsUseFileUrlAndSegmentTimestampsForSpeakers() {
+        assertEquals(
+            listOf(
+                "model" to "voxtral-mini-latest",
+                "file_url" to "https://example.com/a.mp3",
+                "language" to "en",
+                "diarize" to "true",
+                "timestamp_granularities" to "segment",
+            ),
+            MistralAudioClient.transcriptionFields(
                 "voxtral-mini-latest",
                 "https://example.com/a.mp3",
                 "en",
                 true,
+            ),
+        )
+        assertEquals(
+            listOf("model" to MistralAudioClient.DEFAULT_TRANSCRIBE_MODEL),
+            MistralAudioClient.transcriptionFields(" ", null, " ", false),
+        )
+    }
+
+    @Test
+    fun audioUrlTranscriptionIsSentAsMultipartWithoutAFile() {
+        val captured = java.util.concurrent.LinkedBlockingQueue<Pair<String, String>>()
+        val server =
+            com.sun.net.httpserver.HttpServer.create(
+                java.net.InetSocketAddress(java.net.InetAddress.getLoopbackAddress(), 0),
+                0,
             )
-        assertTrue("file_url" in json && "https://example.com/a.mp3" in json)
-        assertTrue("\"language\"" in json && "en" in json)
-        assertTrue("\"diarize\"" in json && "true" in json)
+        server.createContext("/") { exchange ->
+            captured +=
+                exchange.requestHeaders.getFirst("Content-Type") to
+                    exchange.requestBody.readBytes().decodeToString()
+            val body = """{"text":"hi"}""".toByteArray()
+            exchange.sendResponseHeaders(200, body.size.toLong())
+            exchange.responseBody.use { it.write(body) }
+        }
+        server.start()
+        try {
+            val result =
+                MistralAudioClient(
+                        transcriptionsUri =
+                            java.net.URI.create("http://127.0.0.1:${server.address.port}/t")
+                    )
+                    .transcribe("key", audioUrl = "https://example.com/a.mp3", diarize = true)
+
+            assertTrue("\"hi\"" in result, result)
+            val (contentType, body) = captured.poll(5, java.util.concurrent.TimeUnit.SECONDS)!!
+            assertTrue(contentType.startsWith("multipart/form-data; boundary="), contentType)
+            assertTrue("name=\"file_url\"\r\n\r\nhttps://example.com/a.mp3" in body, body)
+            assertTrue("name=\"timestamp_granularities\"\r\n\r\nsegment" in body, body)
+            assertTrue("name=\"file\"" !in body, body)
+        } finally {
+            server.stop(0)
+        }
     }
 
     @Test
