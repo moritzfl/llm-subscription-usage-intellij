@@ -195,6 +195,31 @@ class CompatibleSubscriptionProxyTest {
     }
 
     @Test
+    fun exhaustedLiteLlmBudgetIsNamedInTheModelTest() {
+        Upstream().use { upstream ->
+            val provider = upstream.provider("one")
+            upstream.chatStatus = 422
+            upstream.errorBody =
+                """{"error":{"message":"Budget has been exceeded! Key=k Current cost: 10.1, Max budget: 10.0","type":"budget_exceeded","param":null,"code":"422"}}"""
+
+            val budget =
+                assertFailsWith<IllegalStateException> { provider.testModel("vendor/codestral") }
+            upstream.errorBody = """{"detail":[{"msg":"field required"}]}"""
+            val validation =
+                assertFailsWith<IllegalStateException> { provider.testModel("vendor/codestral") }
+
+            assertEquals(
+                "The key budget is exhausted (HTTP 422). Raise the budget or wait until it resets.",
+                budget.message,
+            )
+            assertTrue(
+                validation.message!!.startsWith("Model test failed (HTTP 422)"),
+                validation.message,
+            )
+        }
+    }
+
+    @Test
     fun failedDiscoveryIsCachedAndKeyRotationInvalidatesCatalog() {
         Upstream().use { upstream ->
             var key = "first-key"
@@ -463,6 +488,7 @@ class CompatibleSubscriptionProxyTest {
         var discoveryBody = "{\"data\":[{\"id\":\"vendor/codestral\"}]}"
         var chatStatus = 200
         var chatBody = CHAT
+        var errorBody = "{\"error\":{\"message\":\"secret-error-body\"}}"
         var streamBody = SSE
 
         init {
@@ -476,7 +502,7 @@ class CompatibleSubscriptionProxyTest {
                     body.isNotBlank() && parse(body)["stream"]?.jsonPrimitive?.content == "true"
                 val status = if (models) discoveryStatus else chatStatus
                 val payload =
-                    if (status != 200) "{\"error\":{\"message\":\"secret-error-body\"}}"
+                    if (status != 200) errorBody
                     else if (models) discoveryBody else if (stream) streamBody else chatBody
                 exchange.responseHeaders.set(
                     "Content-Type",

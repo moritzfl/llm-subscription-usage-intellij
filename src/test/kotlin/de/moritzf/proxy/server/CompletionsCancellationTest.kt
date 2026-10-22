@@ -161,6 +161,32 @@ class CompletionsCancellationTest {
         }
     }
 
+    @Test
+    fun liteLlmBudgetErrorsEndTheCompletionLikeRateLimits() {
+        val budget =
+            """{"error":{"message":"Budget has been exceeded! Key=my-alias Current cost: 10.01, Max budget: 10.0","type":"budget_exceeded","param":null,"code":"422"}}"""
+        val validation = """{"detail":[{"loc":["body","prompt"],"msg":"field required"}]}"""
+        for ((payload, expected) in listOf(budget to 200, validation to 422)) {
+            val input = payload.byteInputStream()
+            val body =
+                object : TrackedBody() {
+                    override fun read() = input.read()
+                }
+            val upstream =
+                PendingHttpClient().apply {
+                    response.complete(Response(body, 422, "application/json"))
+                }
+            withServer(upstream) { port, _ ->
+                HttpClient.newHttpClient().use { client ->
+                    val response =
+                        client.send(request(port, false), HttpResponse.BodyHandlers.ofString())
+                    assertEquals(expected, response.statusCode(), response.body())
+                    if (expected == 422) assertEquals(validation, response.body())
+                }
+            }
+        }
+    }
+
     private fun request(port: Int, stream: Boolean): HttpRequest =
         HttpRequest.newBuilder(URI("http://127.0.0.1:$port/v1/completions"))
             .timeout(java.time.Duration.ofSeconds(10))

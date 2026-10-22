@@ -272,6 +272,11 @@ class CompletionsHandler(
             if (upstream.statusCode() !in 200..<300) {
                 val errorBody =
                     runInterruptible(Dispatchers.IO) { JsonHelper.readUtf8Body(upstream.body()) }
+                if (LiteLlmBudgetError.isBudgetExceeded(upstream.statusCode(), errorBody)) {
+                    guard.noteQuotaError(key)
+                    writeEmptyCompletion(ctx, parsed.stream, advertised, requestId)
+                    return
+                }
                 if (parsed.stream) {
                     writeEmptyCompletion(ctx, true, advertised, requestId)
                 } else {

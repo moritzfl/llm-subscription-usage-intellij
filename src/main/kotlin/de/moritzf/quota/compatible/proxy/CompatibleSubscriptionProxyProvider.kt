@@ -1,6 +1,7 @@
 package de.moritzf.quota.compatible.proxy
 
 import de.moritzf.proxy.server.JsonHelper
+import de.moritzf.proxy.server.LiteLlmBudgetError
 import de.moritzf.proxy.subscription.OpenAiCompatibleApiKeySubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyRoute
@@ -128,6 +129,9 @@ class CompatibleSubscriptionProxyProvider(
                 HttpResponse.BodyHandlers.ofString(),
             )
         check(response.statusCode() in 200..299) {
+            if (LiteLlmBudgetError.isBudgetExceeded(response.statusCode(), response.body())) {
+                return@check BUDGET_EXCEEDED.format(response.statusCode())
+            }
             when (response.statusCode()) {
                 401,
                 403 ->
@@ -168,5 +172,8 @@ class CompatibleSubscriptionProxyProvider(
         const val ID = "openai-compatible"
 
         fun modelPrefix(accountId: String): String = "api-$accountId/"
+
+        private const val BUDGET_EXCEEDED =
+            "The key budget is exhausted (HTTP %d). Raise the budget or wait until it resets."
     }
 }
