@@ -26,6 +26,7 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream
 import org.apache.pdfbox.pdmodel.font.PDType1Font
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts
 import org.apache.pdfbox.text.PDFTextStripper
+import org.junit.jupiter.api.io.TempDir
 
 class ZaiOcrClientTest {
     @Test
@@ -42,8 +43,7 @@ class ZaiOcrClientTest {
     }
 
     @Test
-    fun resolveFileRejectsOversizedLocalDocument() {
-        val dir = Files.createTempDirectory("zai-ocr-big")
+    fun resolveFileRejectsOversizedLocalDocument(@TempDir dir: Path) {
         val pdf = dir.resolve("big.pdf")
         RandomAccessFile(pdf.toFile(), "rw").use {
             it.setLength(DocumentLimits.MAX_INLINE_BYTES + 1)

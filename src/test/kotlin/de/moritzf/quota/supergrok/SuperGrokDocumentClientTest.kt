@@ -8,6 +8,7 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.URI
 import java.nio.file.Files
+import java.nio.file.Path
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
@@ -19,6 +20,7 @@ import kotlin.test.assertTrue
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.junit.jupiter.api.io.TempDir
 
 class SuperGrokDocumentClientTest {
     @Test
@@ -32,8 +34,7 @@ class SuperGrokDocumentClientTest {
     }
 
     @Test
-    fun documentInputRejectsOversizedLocalFileWithoutFileId() {
-        val dir = Files.createTempDirectory("grok-doc-big")
+    fun documentInputRejectsOversizedLocalFileWithoutFileId(@TempDir dir: Path) {
         val pdf = dir.resolve("big.pdf")
         RandomAccessFile(pdf.toFile(), "rw").use {
             it.setLength(DocumentLimits.MAX_INLINE_BYTES + 1)

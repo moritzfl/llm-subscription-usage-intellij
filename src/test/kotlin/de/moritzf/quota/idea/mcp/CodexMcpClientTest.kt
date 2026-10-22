@@ -139,10 +139,9 @@ class CodexMcpClientTest {
     }
 
     @Test
-    fun rejectsOversizedLocalDocumentBeforeUpstream() {
+    fun rejectsOversizedLocalDocumentBeforeUpstream(@TempDir dir: Path) {
         TestUpstream().use { upstream ->
             val client = newClient(upstream.baseUri)
-            val dir = Files.createTempDirectory("codex-doc-big")
             val pdf = dir.resolve("big.pdf")
             RandomAccessFile(pdf.toFile(), "rw").use {
                 it.setLength(DocumentLimits.MAX_INLINE_BYTES + 1)
