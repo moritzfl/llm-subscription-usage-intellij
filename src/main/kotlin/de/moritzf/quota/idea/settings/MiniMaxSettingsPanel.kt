@@ -58,6 +58,7 @@ internal class MiniMaxSettingsPanel(
     }
 
     override fun writeAccountFields(account: ProviderAccount) {
+        super.writeAccountFields(account)
         selectedRegion()?.let { account.setExtra(ProviderAccount.EXTRA_MINIMAX_REGION, it.name) }
     }
 
@@ -65,7 +66,9 @@ internal class MiniMaxSettingsPanel(
         account: ProviderAccount,
         saved: ProviderAccount?,
         state: QuotaSettingsState,
-    ): Boolean = selectedRegion() != state.miniMaxRegionFor(account.id)
+    ): Boolean =
+        selectedRegion() != state.miniMaxRegionFor(account.id) ||
+            super.accountFieldsModified(account, saved, state)
 
     private fun selectedRegion(): MiniMaxRegionPreference? =
         regionComboBox.selectedItem as? MiniMaxRegionPreference
