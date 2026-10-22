@@ -73,7 +73,10 @@ internal class GitHubPopupSection : ProviderPopupSection() {
 
                 val premium = quota.premiumInteractions
                 val onBudget =
-                    premium != null && premium.usagePercent >= 100.0 && premium.overageAvailable()
+                    premium != null &&
+                        premium.usagePercent >= 100.0 &&
+                        premium.overageAvailable() &&
+                        !quota.isManagedPlan()
                 val limitReached =
                     quota.limitedWindows().any {
                         it.usagePercent >= 100.0 && !(it === premium && onBudget)

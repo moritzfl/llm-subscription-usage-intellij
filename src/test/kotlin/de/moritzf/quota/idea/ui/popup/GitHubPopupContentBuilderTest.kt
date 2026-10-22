@@ -68,6 +68,38 @@ class GitHubPopupContentBuilderTest {
     }
 
     @Test
+    fun managedPlanStopsAtTheIncludedAmountEvenWithABudget() {
+        val section = GitHubPopupSection()
+        section.update(
+            GitHubQuota(
+                plan = "Copilot Business",
+                premiumInteractions =
+                    GitHubUsageWindow(
+                        label = "AI credits",
+                        usagePercent = 100.0,
+                        overagePermitted = true,
+                        overageUsed = 0.0,
+                        overageLimit = 1000.0,
+                    ),
+            ),
+            error = null,
+            visible = true,
+        )
+
+        val texts =
+            section.components.flatMap { component ->
+                listOfNotNull((component as? javax.swing.JLabel)?.takeIf { it.isVisible }?.text) +
+                    ((component as? WindowBlockPanel)
+                            ?.takeIf { it.isVisible }
+                            ?.components
+                            .orEmpty())
+                        .mapNotNull { (it as? javax.swing.JLabel)?.text }
+            }
+        assertTrue("GitHub Copilot limit reached" in texts, texts.toString())
+        assertFalse("Included usage is used up; extra usage is in use" in texts)
+    }
+
+    @Test
     fun showsEndedSubscriptionMessage() {
         val section = GitHubPopupSection()
         val quota =
