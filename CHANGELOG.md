@@ -4,6 +4,7 @@
 
 - Proxy Gemini models from OpenCode Go and Zen by bridging the Google generateContent API, including streaming, tool calls with thought signatures, vision/PDF parts, and Junie-compatible chat requests.
 - Use free Claude limit resets from the quota popup: resets offered in claude.ai Settings > Usage, and the weekly session reset (`/limit-reset`) when you hit the 5-hour limit. A confirmation shows what each reset refills before it is used.
+- Edit images with OpenAI/Codex through `subscription_image_edit`, using the same image tool as image generation; the result is written to `targetFile` or a new file in the project.
 - Ask MiniMax about images through the Token Plan's image understanding service, from `subscription_vision` and the settings' Test vision button. It is off until you select `coding-plan-vlm` as the vision model, and needs a local image file.
 - Fix Mistral text-to-speech, which failed with HTTP 400 because Voxtral 2 rejects the current preset voices: speech now uses Voxtral TTS 3 (`voxtral-mini-tts-3-0`, also advertised by the proxy). Speaker labels and audio URLs in Mistral transcription failed with HTTP 422; requests are now multipart and ask for the segment timestamps that speaker labels need.
 - Report SuperGrok's context window, output limit, and image input in the proxy's model info from xAI's model list.

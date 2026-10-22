@@ -24,9 +24,21 @@ internal suspend fun SubscriptionOperations.subscription_image_edit(
     model: String = "",
 ): String {
     if (!maskUrl.isNullOrBlank()) {
-        return errorResult("xAI image edits do not support masks. Send the source image only.")
+        return errorResult("Image edits do not support masks. Send the source image only.")
     }
     return when (provider) {
+        ImageEditProvider.OPEN_AI ->
+            codexResult(
+                codexClient(AccountCapability.IMAGE_GENERATION)
+                    .imageEdit(
+                        prompt,
+                        imageUrl,
+                        resolveOptionalPath(localFile),
+                        targetFile,
+                        projectBaseDirectory(),
+                        model,
+                    )
+            )
         ImageEditProvider.SUPERGROK ->
             superGrokImageEdit(prompt, imageUrl, localFile, targetFile, model)
     }

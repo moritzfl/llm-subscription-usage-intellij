@@ -457,6 +457,57 @@ class CodexMcpClientTest {
     }
 
     @Test
+    fun imageEditSendsTheSourceImageWithThePromptAndWritesTheResult(@TempDir tempDir: Path) {
+        TestUpstream(
+                responseBody =
+                    sse(
+                        """{"type":"response.output_item.done","item":{"type":"image_generation_call","id":"ig_1","status":"completed","revised_prompt":"make it blue","result":"$TEST_PNG_BASE64"}}""",
+                        """{"type":"response.completed","response":{"id":"resp_1"}}""",
+                    )
+            )
+            .use { upstream ->
+                val source = tempDir.resolve("in.png")
+                Files.write(source, java.util.Base64.getDecoder().decode(TEST_PNG_BASE64))
+                val client = newClient(upstream.baseUri)
+
+                val response =
+                    client.imageEdit(
+                        " make it blue ",
+                        localFile = source,
+                        targetFile = "out/edited.png",
+                        baseDirectory = tempDir,
+                        model = "gpt-image-2",
+                    )
+
+                assertFalse(response.isError, response.body)
+                assertEquals(
+                    tempDir.resolve("out/edited.png").toString(),
+                    parseObject(response.body)["output_file"]!!.jsonPrimitive.content,
+                )
+                assertTrue(Files.exists(tempDir.resolve("out/edited.png")))
+                val body =
+                    parseObject(assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).body)
+                val content = body["input"]!!.jsonArray[0].jsonObject["content"]!!.jsonArray
+                assertEquals("input_image", content[0].jsonObject["type"]!!.jsonPrimitive.content)
+                assertTrue(
+                    content[0]
+                        .jsonObject["image_url"]!!
+                        .jsonPrimitive
+                        .content
+                        .startsWith("data:image/png;base64,")
+                )
+                assertEquals("make it blue", content[1].jsonObject["text"]!!.jsonPrimitive.content)
+                val tool = body["tools"]!!.jsonArray[0].jsonObject
+                assertEquals("image_generation", tool["type"]!!.jsonPrimitive.content)
+                assertEquals("gpt-image-2", tool["model"]!!.jsonPrimitive.content)
+
+                val missing = client.imageEdit("x", baseDirectory = tempDir)
+                assertTrue(missing.isError)
+                assertNull(upstream.requests.poll(300, TimeUnit.MILLISECONDS))
+            }
+    }
+
+    @Test
     fun defaultImageFileNamesAreUnique() {
         assertNotEquals(DefaultOutputFiles.image(), DefaultOutputFiles.image())
     }

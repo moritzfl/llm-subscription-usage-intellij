@@ -490,6 +490,7 @@ internal object ProviderCatalog {
                     ProviderCapabilities(
                         webSearch = WebSearchCapability.ANSWER,
                         imageGeneration = true,
+                        imageEdit = true,
                         speechToText = true,
                         textToSpeech = true,
                         documentToMarkdown = true,

@@ -111,6 +111,41 @@ class CodexMcpClient(
         }
     }
 
+    /**
+     * Edits one image with the image_generation tool, which edits when the input carries an image,
+     * and writes the result like [imageGeneration].
+     */
+    fun imageEdit(
+        prompt: String,
+        imageUrl: String? = null,
+        localFile: Path? = null,
+        targetFile: String? = null,
+        baseDirectory: Path? = null,
+        model: String = "",
+    ): CodexMcpResponse {
+        val trimmedPrompt = prompt.trim()
+        if (trimmedPrompt.isBlank()) {
+            return CodexMcpResponse(errorJson("Edit prompt is required."), true)
+        }
+        val image =
+            when (val input = inputImage(imageUrl, localFile)) {
+                is ImageInput.Ready -> input.content
+                is ImageInput.Invalid -> return CodexMcpResponse(errorJson(input.message), true)
+            }
+        val outputTarget =
+            resolveImageOutput(targetFile, baseDirectory)
+                ?: return CodexMcpResponse(
+                    errorJson("Provide targetFile so the image is written to disk."),
+                    true,
+                )
+        outputTarget.error?.let {
+            return CodexMcpResponse(errorJson(it), true)
+        }
+        return postResponses(imageEditRequest(trimmedPrompt, image, model)) { body ->
+            parseImageGenerationToFileResponse(body, outputTarget.path!!, outputTarget.format!!)
+        }
+    }
+
     fun documentToMarkdown(
         documentUrl: String? = null,
         localFile: Path? = null,
@@ -183,43 +218,10 @@ class CodexMcpClient(
         if (trimmedPrompt.isBlank()) {
             return CodexMcpResponse(errorJson("Image prompt is required."), true)
         }
-        val url = imageUrl?.trim().orEmpty()
         val imageContent =
-            when {
-                url.isNotEmpty() ->
-                    buildJsonObject {
-                        put("type", "input_image")
-                        put("image_url", url)
-                    }
-
-                localFile != null && Files.isRegularFile(localFile) -> {
-                    val bytes = Files.readAllBytes(localFile)
-                    val mime = mimeType(localFile, bytes)
-                    if (!mime.startsWith("image/")) {
-                        return CodexMcpResponse(
-                            errorJson(
-                                "Provide an image file. Use subscription_document_to_markdown for documents."
-                            ),
-                            true,
-                        )
-                    }
-                    DocumentLimits.inlineOverflowMessage(localFile)?.let {
-                        return CodexMcpResponse(errorJson(it), true)
-                    }
-                    buildJsonObject {
-                        put("type", "input_image")
-                        put(
-                            "image_url",
-                            "data:$mime;base64,${Base64.getEncoder().encodeToString(bytes)}",
-                        )
-                    }
-                }
-
-                else ->
-                    return CodexMcpResponse(
-                        errorJson("Provide imageUrl or a local image file path."),
-                        true,
-                    )
+            when (val input = inputImage(imageUrl, localFile)) {
+                is ImageInput.Ready -> input.content
+                is ImageInput.Invalid -> return CodexMcpResponse(errorJson(input.message), true)
             }
         val selectedModel = model.trim().ifBlank { DEFAULT_CHAT_MODEL }
         return postResponses(visionRequest(imageContent, selectedModel, trimmedPrompt)) { body ->
@@ -517,6 +519,78 @@ class CodexMcpClient(
             }
             if (options.includeSources) {
                 putJsonArray("include") { add("web_search_call.action.sources") }
+            }
+            put("store", false)
+            put("stream", true)
+        }
+    }
+
+    private sealed interface ImageInput {
+        data class Ready(val content: JsonObject) : ImageInput
+
+        data class Invalid(val message: String) : ImageInput
+    }
+
+    private fun inputImage(imageUrl: String?, localFile: Path?): ImageInput {
+        val url = imageUrl?.trim().orEmpty()
+        if (url.isNotEmpty()) {
+            return ImageInput.Ready(
+                buildJsonObject {
+                    put("type", "input_image")
+                    put("image_url", url)
+                }
+            )
+        }
+        if (localFile == null || !Files.isRegularFile(localFile)) {
+            return ImageInput.Invalid("Provide imageUrl or a local image file path.")
+        }
+        val bytes = Files.readAllBytes(localFile)
+        val mime = mimeType(localFile, bytes)
+        if (!mime.startsWith("image/")) {
+            return ImageInput.Invalid(
+                "Provide an image file. Use subscription_document_to_markdown for documents."
+            )
+        }
+        DocumentLimits.inlineOverflowMessage(localFile)?.let {
+            return ImageInput.Invalid(it)
+        }
+        return ImageInput.Ready(
+            buildJsonObject {
+                put("type", "input_image")
+                put("image_url", "data:$mime;base64,${Base64.getEncoder().encodeToString(bytes)}")
+            }
+        )
+    }
+
+    private fun imageEditRequest(prompt: String, image: JsonObject, model: String): JsonObject {
+        return buildJsonObject {
+            put("model", FAST_CHAT_MODEL)
+            put("instructions", IMAGE_EDIT_INSTRUCTIONS)
+            putJsonArray("input") {
+                add(
+                    buildJsonObject {
+                        put("type", "message")
+                        put("role", "user")
+                        putJsonArray("content") {
+                            add(image)
+                            add(
+                                buildJsonObject {
+                                    put("type", "input_text")
+                                    put("text", prompt)
+                                }
+                            )
+                        }
+                    }
+                )
+            }
+            putJsonArray("tools") {
+                add(
+                    buildJsonObject {
+                        put("type", "image_generation")
+                        put("output_format", "png")
+                        model.trim().takeIf { it.isNotEmpty() }?.let { put("model", it) }
+                    }
+                )
             }
             put("store", false)
             put("stream", true)
@@ -1082,6 +1156,8 @@ class CodexMcpClient(
             "You are a concise assistant. Use web search when needed."
         private const val IMAGE_GENERATION_INSTRUCTIONS =
             "Use the image_generation tool to satisfy image requests. Return no extra commentary."
+        private const val IMAGE_EDIT_INSTRUCTIONS =
+            "Use the image_generation tool to edit the provided image as requested. Return no extra commentary."
         private const val DOCUMENT_INSTRUCTIONS = DocumentImageGrounding.INSTRUCTIONS
         private const val DOCUMENT_PROMPT = DocumentImageGrounding.PROMPT
         private val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "gif", "webp")

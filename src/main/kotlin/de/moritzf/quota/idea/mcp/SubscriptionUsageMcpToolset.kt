@@ -184,11 +184,14 @@ class SubscriptionUsageMcpToolset : McpToolset {
     @McpTool(name = "subscription_image_edit")
     @McpDescription(
         description =
-            "Edits an existing image with SuperGrok/xAI JSON image edits. Provide imageUrl or localFile. Masks are not supported. Returns a URL or writes targetFile. Never returns base64."
+            "Edits an existing image. Provide imageUrl or localFile. Masks are not supported. SuperGrok returns a URL or writes targetFile; OpenAI/Codex writes targetFile or a unique image-<uuid>.png in the project. Never returns base64."
     )
     suspend fun subscription_image_edit(
         @McpDescription(description = "Edit prompt.") prompt: String,
-        @McpDescription(description = "Provider. Only SuperGrok is supported.")
+        @McpDescription(
+            description =
+                "Provider to use. Supported providers are derived from the ImageEditProvider enum."
+        )
         provider: ImageEditProvider = ImageEditProvider.SUPERGROK,
         @McpDescription(description = "Public source image URL. Leave blank when localFile is set.")
         imageUrl: String? = null,

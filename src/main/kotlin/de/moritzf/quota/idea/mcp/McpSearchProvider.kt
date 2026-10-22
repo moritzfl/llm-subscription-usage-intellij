@@ -18,7 +18,8 @@ enum class ListSearchProvider(val providerType: QuotaProviderType) {
  * parameter derives valid values from this enum.
  */
 enum class ImageEditProvider(val providerType: QuotaProviderType) {
-    SUPERGROK(QuotaProviderType.SUPERGROK)
+    OPEN_AI(QuotaProviderType.OPEN_AI),
+    SUPERGROK(QuotaProviderType.SUPERGROK),
 }
 
 enum class ImageGenerationProvider(val providerType: QuotaProviderType) {

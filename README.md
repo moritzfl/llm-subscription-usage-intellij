@@ -102,7 +102,7 @@ Enable IntelliJ's built-in MCP server to make these tools available to connected
 | `subscription_web_fetch` | Read a web page through Ollama, Z.ai, or Kimi |
 | `subscription_document_to_markdown` | Convert documents with a configured model or local PDFBox |
 | `subscription_vision` | Ask questions about an image using your selected vision model |
-| `subscription_image_generation` / `subscription_image_edit` | Generate images; edit existing images through SuperGrok |
+| `subscription_image_generation` / `subscription_image_edit` | Generate images; edit existing images through OpenAI/Codex or SuperGrok |
 | `subscription_svg_to_png` | Convert a local SVG to PNG without a subscription |
 | `subscription_speech_to_text` | Transcribe audio |
 | `subscription_text_to_speech` / `subscription_list_voices` | Generate speech audio and choose a voice |
