@@ -5,6 +5,7 @@
 - Proxy Gemini models from OpenCode Go and Zen by bridging the Google generateContent API, including streaming, tool calls with thought signatures, vision/PDF parts, and Junie-compatible chat requests.
 - Use free Claude limit resets from the quota popup: resets offered in claude.ai Settings > Usage, and the weekly session reset (`/limit-reset`) when you hit the 5-hour limit. A confirmation shows what each reset refills before it is used.
 - Show whether OpenCode Go is on the Go or Go Plus plan in the quota popup and status bar tooltip.
+- Read Claude usage and limit resets with one request per refresh, and pause after a rate limit for as long as Claude asks (otherwise 5 minutes, doubling up to an hour), as Claude Code does. Weekly limits scoped to a surface, such as Cowork, are no longer dropped.
 - When Claude rate limits the quota refresh, Claude settings show the rate-limit response, the last response before it, and how long ago the last successful update was.
 - Fit the settings to small dialogs: each tab scrolls on its own, help text and status messages wrap instead of widening the page, and the account list makes room for the details on narrow screens.
 

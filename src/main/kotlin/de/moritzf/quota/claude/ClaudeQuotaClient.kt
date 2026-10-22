@@ -38,7 +38,15 @@ open class ClaudeQuotaClient(
             accessToken?.trim()?.takeIf { it.isNotBlank() }
                 ?: throw ClaudeQuotaException("Claude login required. Log in from Claude settings.")
 
-        val body = getUsageJson(token)
+        // One request per refresh: the `cedar_ember` read returns the usage windows together with
+        // the resets on offer. A server that rejects the flag gets the plain read instead.
+        val body =
+            try {
+                getUsageJson(token, usageQuery(RESETS_QUERY))
+            } catch (exception: ClaudeQuotaException) {
+                if (exception.statusCode != 400) throw exception
+                getUsageJson(token, usageUri)
+            }
         val quota =
             try {
                 parseQuota(body)
@@ -52,19 +60,15 @@ open class ClaudeQuotaClient(
             } catch (exception: Exception) {
                 throw ClaudeQuotaException("Claude usage response changed.", 200, body, exception)
             }
-        quota.rawJson = body
-        return quota
+        return quota.copy(resets = parseResets(body)).also { it.rawJson = body }
     }
 
     /**
-     * Reads the resets on offer the way Claude Code does. At a usage limit the `at_wall` read also
-     * reports the weekly session reset. Returns null when nothing is on offer.
+     * The read Claude Code makes at a usage limit, which alone reports the weekly session reset.
+     * Returns null when nothing is on offer.
      */
-    open fun fetchResets(accessToken: String, atLimit: Boolean): ClaudeResets? {
-        val query = if (atLimit) "at_wall=1&skip_spend=1" else "cedar_ember=1&skip_spend=1"
-        val uri = URI.create("${usageUri.toString().substringBefore('?')}?$query")
-        return parseResets(checked(send(authorized(uri, accessToken).GET().build()), "reset"))
-    }
+    open fun fetchAtLimitResets(accessToken: String): ClaudeResets? =
+        parseResets(getUsageJson(accessToken, usageQuery(AT_LIMIT_QUERY)))
 
     /** The login's organization, which reset claims are addressed to. */
     open fun fetchOrganizationUuid(accessToken: String): String {
@@ -78,6 +82,9 @@ open class ClaudeQuotaClient(
         return uuid?.takeIf(ORGANIZATION_UUID::matches)
             ?: throw ClaudeQuotaException("Claude profile has no organization.", 200, body)
     }
+
+    private fun usageQuery(query: String): URI =
+        URI.create("${usageUri.toString().substringBefore('?')}?$query")
 
     /** Uses one reset. It cannot be undone once the server answers `reset`. */
     open fun redeemReset(
@@ -143,6 +150,7 @@ open class ClaudeQuotaClient(
                     "Claude rate limited the $action request. Try again in a minute.",
                     status,
                     body,
+                    retryAfter = retryAfter(response),
                 )
             status !in 200..299 ->
                 throw ClaudeQuotaException(
@@ -154,8 +162,8 @@ open class ClaudeQuotaClient(
         return body
     }
 
-    private fun getUsageJson(accessToken: String): String {
-        val request = authorized(usageUri, accessToken).GET().build()
+    private fun getUsageJson(accessToken: String, uri: URI): String {
+        val request = authorized(uri, accessToken).GET().build()
 
         val response = send(request)
         val status = response.statusCode()
@@ -179,9 +187,10 @@ open class ClaudeQuotaClient(
         }
         if (status == 429) {
             throw ClaudeQuotaException(
-                "Claude usage API rate limited. Try again later.",
+                "Claude usage API rate limited.",
                 status,
                 body,
+                retryAfter = retryAfter(response),
             )
         }
         if (status !in 200..299) {
@@ -229,6 +238,8 @@ open class ClaudeQuotaClient(
         private const val OAUTH_BETA = "oauth-2025-04-20"
         private const val USER_AGENT = "claude-cli/2.1.87 (external, cli)"
         private const val PROFILE_PATH = "/api/oauth/profile"
+        private const val RESETS_QUERY = "cedar_ember=1"
+        private const val AT_LIMIT_QUERY = "at_wall=1&skip_spend=1"
         private const val OFFER_PROGRAM = "cedar_ember"
         private const val SESSION_RESET_PROGRAM = "juniper_tide"
         private val GRANT_ID = Regex("^[a-z0-9_-]{1,40}$")
@@ -261,6 +272,27 @@ open class ClaudeQuotaClient(
                 sessionReset =
                     session?.let { ClaudeSessionReset(parseInstantOrNull(it.weeklyResetsAt)) },
             )
+        }
+
+        /** Seconds or an HTTP date, as `Retry-After` allows; null when absent or unreadable. */
+        internal fun retryAfter(
+            response: HttpResponse<*>,
+            now: java.time.Instant = java.time.Instant.now(),
+        ): Duration? {
+            val raw = response.headers().firstValue("Retry-After").orElse(null)?.trim()
+            if (raw.isNullOrEmpty()) return null
+            raw.toLongOrNull()?.let { seconds ->
+                return Duration.ofSeconds(seconds).takeUnless { it.isNegative }
+            }
+            val date =
+                runCatching {
+                    java.time.ZonedDateTime.parse(
+                        raw,
+                        java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME,
+                    )
+                }
+                    .getOrNull() ?: return null
+            return Duration.between(now, date.toInstant()).takeUnless { it.isNegative }
         }
 
         private fun ResetGrantDto.toGrant(): ClaudeResetGrant? {
@@ -373,7 +405,7 @@ open class ClaudeQuotaClient(
                     limit.scope?.let { scope ->
                         scope.model?.displayName?.takeIf { it.isNotBlank() }
                             ?: scope.model?.id?.takeIf { it.isNotBlank() }
-                            ?: scope.surface?.takeIf { it.isNotBlank() }
+                            ?: scope.surfaceName?.takeIf { it.isNotBlank() }
                     } ?: return@mapNotNull null
                 val group = limit.group?.takeIf { it.isNotBlank() } ?: limit.kind
                 val groupLabel =
@@ -489,8 +521,19 @@ private data class ClaudeLimitDto(
 @Serializable
 private data class ClaudeLimitScopeDto(
     val model: ClaudeLimitModelDto? = null,
-    val surface: String? = null,
-)
+    /** `{"display_name": …}` in current responses; a plain string in older ones. */
+    val surface: JsonElement? = null,
+) {
+    val surfaceName: String?
+        get() =
+            when (val value = surface) {
+                is JsonObject ->
+                    (value["display_name"] as? JsonPrimitive)?.contentOrNull
+                        ?: (value["id"] as? JsonPrimitive)?.contentOrNull
+                is JsonPrimitive -> value.takeIf { it.isString }?.contentOrNull
+                else -> null
+            }
+}
 
 @Serializable
 private data class ClaudeLimitModelDto(

@@ -9,6 +9,11 @@ import de.moritzf.quota.claude.ClaudeResets
 import de.moritzf.quota.idea.auth.OAuthConnectionState
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Instant
 
 class ClaudeQuotaProvider(
     override val accountId: String = QuotaProviderType.CLAUDE.id,
@@ -27,10 +32,12 @@ class ClaudeQuotaProvider(
         QuotaAuthService.getInstance()
             .requireReconnect(accountId, QuotaProviderType.CLAUDE, rejectedToken)
     },
+    private val clock: () -> Instant = { Clock.System.now() },
 ) : CachedQuotaProvider<ClaudeQuota>() {
     override val type = QuotaProviderType.CLAUDE
     override val notConfiguredMessage = "Claude login required. Log in from Claude settings."
     private val organizationUuid = AtomicReference<String?>()
+    private val rateLimit = AtomicReference<RateLimitPause?>()
 
     override fun refresh() {
         val accessToken = tokenProvider()
@@ -38,18 +45,26 @@ class ClaudeQuotaProvider(
             storeMissingAccessToken(connectionStateProvider(), TOKEN_UNAVAILABLE_MESSAGE)
             return
         }
+        // Like Claude Code, do not ask again while the usage API is rate limiting this login.
+        if (rateLimit.get()?.let { it.token == accessToken && clock() < it.until } == true) return
 
         try {
             val quota = fetchQuotaWithAuthRetry(accessToken) ?: return
-            val resets = fetchResets(quota)
+            rateLimit.set(null)
+            val resets =
+                if (quota.atLimit()) ClaudeResets.merge(quota.resets, fetchAtLimitResets())
+                else quota.resets
             storeQuota(
                 if (resets == quota.resets) quota else quota.copy(resets = resets),
                 quota.rawJson,
             )
         } catch (exception: ClaudeQuotaException) {
+            val message = exception.message ?: "Request failed"
             storeFetchFailure(
                 exception.statusCode,
-                exception.message ?: "Request failed",
+                if (exception.statusCode == 429)
+                    pauseAfterRateLimit(exception, message, accessToken)
+                else message,
                 exception.rawBody,
             )
         } catch (exception: Exception) {
@@ -57,14 +72,42 @@ class ClaudeQuotaProvider(
         }
     }
 
-    /** Best effort: when the read fails, the resets from the last reading stay. */
-    private fun fetchResets(quota: ClaudeQuota): ClaudeResets? {
+    /**
+     * Pauses usage reads for the server's `Retry-After`, otherwise for 5 minutes doubling with each
+     * rate limit in a row, at most an hour. Returns the error with the time of the next attempt.
+     */
+    private fun pauseAfterRateLimit(
+        exception: ClaudeQuotaException,
+        message: String,
+        token: String,
+    ): String {
+        val previous = rateLimit.get()?.takeIf { it.token == token }
+        val count = (previous?.count ?: 0) + 1
+        val requested = exception.retryAfter?.toMillis()?.takeIf { it > 0 }?.milliseconds
+        val backoff = RATE_LIMIT_PAUSE * (1 shl (count - 1).coerceAtMost(4))
+        val pause = minOf(requested ?: backoff, MAX_RATE_LIMIT_PAUSE)
+        val until = clock() + pause
+        rateLimit.set(RateLimitPause(until, count, token))
+        val time =
+            java.time.LocalTime.ofInstant(
+                    java.time.Instant.ofEpochMilli(until.toEpochMilliseconds()),
+                    java.time.ZoneId.systemDefault(),
+                )
+                .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+        return "$message Next try at $time."
+    }
+
+    /** Best effort: when the read fails, the session reset from the last reading stays. */
+    private fun fetchAtLimitResets(): ClaudeResets? {
         val token = tokenProvider()?.takeIf { it.isNotBlank() } ?: return null
         return try {
-            client.fetchResets(token, quota.atLimit())
+            client.fetchAtLimitResets(token)
         } catch (exception: Exception) {
             exception.rethrowIfCancellation()
-            lastQuotaRef.get()?.resets
+            if (exception is ClaudeQuotaException && exception.statusCode == 429) {
+                pauseAfterRateLimit(exception, "", token)
+            }
+            lastQuotaRef.get()?.resets?.let { ClaudeResets(sessionReset = it.sessionReset) }
         }
     }
 
@@ -124,8 +167,12 @@ class ClaudeQuotaProvider(
         }
     }
 
+    private data class RateLimitPause(val until: Instant, val count: Int, val token: String)
+
     private companion object {
         private const val TOKEN_UNAVAILABLE_MESSAGE =
             "Claude token could not be refreshed. Trying again with the next update."
+        private val RATE_LIMIT_PAUSE = 5.minutes
+        private val MAX_RATE_LIMIT_PAUSE = 1.hours
     }
 }

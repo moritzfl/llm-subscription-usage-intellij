@@ -26,6 +26,20 @@ data class ClaudeResets(
             .sortedByDescending { it.id == nextGrantId }
             .forEach { add(ClaudeResetChoice.Grant(it)) }
     }
+
+    companion object {
+        /**
+         * Grants from the regular read, completed by an at-the-limit read, which alone reports the
+         * session reset. Returns null when neither offers anything.
+         */
+        fun merge(regular: ClaudeResets?, atLimit: ClaudeResets?): ClaudeResets? {
+            val grantSource = regular?.takeIf { it.grants.isNotEmpty() } ?: atLimit
+            val sessionReset = atLimit?.sessionReset ?: regular?.sessionReset
+            val grants = grantSource?.grants.orEmpty()
+            if (grants.isEmpty() && sessionReset == null) return null
+            return ClaudeResets(grants, grantSource?.nextGrantId, sessionReset)
+        }
+    }
 }
 
 data class ClaudeResetGrant(

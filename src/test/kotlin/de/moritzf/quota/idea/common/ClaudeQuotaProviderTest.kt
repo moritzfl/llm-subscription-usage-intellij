@@ -4,6 +4,7 @@ import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.claude.ClaudeQuotaClient
 import de.moritzf.quota.claude.ClaudeQuotaException
 import de.moritzf.quota.claude.ClaudeResetChoice
+import de.moritzf.quota.claude.ClaudeResetGrant
 import de.moritzf.quota.claude.ClaudeResetOutcome
 import de.moritzf.quota.claude.ClaudeResets
 import de.moritzf.quota.claude.ClaudeSessionReset
@@ -16,6 +17,10 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 class ClaudeQuotaProviderTest {
     @Test
@@ -122,15 +127,18 @@ class ClaudeQuotaProviderTest {
                     { ClaudeQuota(rawJson = """{"second":true}""") },
                 )
             )
+        var now = START
         val provider =
             ClaudeQuotaProvider(
                 client = FakeClaudeClient { responses.removeFirst()() },
                 tokenProvider = { "token" },
                 tokenRefresher = { null },
+                clock = { now },
             )
 
         fun refresh(): Pair<String?, String?> {
             provider.refresh()
+            now += 2.hours
             return provider.getLastRawJson() to provider.getRawJsonBeforeRateLimit()
         }
 
@@ -157,7 +165,138 @@ class ClaudeQuotaProviderTest {
         provider.refresh()
 
         assertNull(provider.getLastQuota())
-        assertEquals("Claude usage API rate limited.", provider.getLastError())
+        assertTrue(
+            provider
+                .getLastError()!!
+                .matches(Regex("""Claude usage API rate limited\. Next try at \d\d:\d\d\.""")),
+            provider.getLastError(),
+        )
+    }
+
+    @Test
+    fun rateLimitPausesUsageReadsWithGrowingBackoff() {
+        var now = START
+        val fetches = mutableListOf<Instant>()
+        var limited = true
+        val provider =
+            ClaudeQuotaProvider(
+                client =
+                    FakeClaudeClient {
+                        fetches += now
+                        if (limited) throw ClaudeQuotaException("rate limited", 429)
+                        ClaudeQuota(rawJson = "{}")
+                    },
+                tokenProvider = { "token" },
+                tokenRefresher = { null },
+                clock = { now },
+            )
+
+        // Every minute for two hours: 5, 10, 20, 40, then the one-hour cap between reads.
+        repeat(120) {
+            provider.refresh()
+            now += 1.minutes
+        }
+
+        assertEquals(
+            listOf(0, 5, 15, 35, 75).map { START + it.minutes },
+            fetches,
+        )
+        limited = false
+        now = fetches.last() + 1.hours
+        provider.refresh()
+        assertNull(provider.getLastError())
+        // A successful read ends the backoff: the next rate limit pauses for 5 minutes again.
+        limited = true
+        provider.refresh()
+        val afterSuccess = now
+        now += 4.minutes
+        provider.refresh()
+        now += 1.minutes
+        provider.refresh()
+        assertEquals(
+            listOf(afterSuccess, afterSuccess, afterSuccess + 5.minutes),
+            fetches.takeLast(3),
+        )
+    }
+
+    @Test
+    fun rateLimitHonorsRetryAfterUpToAnHour() {
+        var now = START
+        var retryAfter = java.time.Duration.ofSeconds(90)
+        var fetches = 0
+        val provider =
+            ClaudeQuotaProvider(
+                client =
+                    FakeClaudeClient {
+                        fetches++
+                        throw ClaudeQuotaException("rate limited", 429, retryAfter = retryAfter)
+                    },
+                tokenProvider = { "token" },
+                tokenRefresher = { null },
+                clock = { now },
+            )
+
+        provider.refresh()
+        now += 89.seconds
+        provider.refresh()
+        assertEquals(1, fetches)
+        now += 1.seconds
+        provider.refresh()
+        assertEquals(2, fetches)
+
+        retryAfter = java.time.Duration.ofHours(3)
+        now += 2.minutes
+        provider.refresh()
+        now += 59.minutes
+        provider.refresh()
+        assertEquals(3, fetches)
+        now += 1.minutes
+        provider.refresh()
+        assertEquals(4, fetches)
+    }
+
+    @Test
+    fun rateLimitPauseDoesNotApplyToAnotherLogin() {
+        var token = "first"
+        var fetches = 0
+        val provider =
+            ClaudeQuotaProvider(
+                client =
+                    FakeClaudeClient {
+                        fetches++
+                        throw ClaudeQuotaException("rate limited", 429)
+                    },
+                tokenProvider = { token },
+                tokenRefresher = { null },
+                clock = { START },
+            )
+
+        provider.refresh()
+        provider.refresh()
+        token = "second"
+        provider.refresh()
+
+        assertEquals(2, fetches)
+    }
+
+    @Test
+    fun otherFailuresDoNotPauseUsageReads() {
+        var fetches = 0
+        val provider =
+            ClaudeQuotaProvider(
+                client =
+                    FakeClaudeClient {
+                        fetches++
+                        throw ClaudeQuotaException("server error", 500)
+                    },
+                tokenProvider = { "token" },
+                tokenRefresher = { null },
+                clock = { START },
+            )
+
+        repeat(3) { provider.refresh() }
+
+        assertEquals(3, fetches)
     }
 
     @Test
@@ -350,33 +489,51 @@ class ClaudeQuotaProviderTest {
     }
 
     @Test
-    fun refreshReadsResetsAtTheLimitAndKeepsThemWhenTheReadFails() {
-        val atLimit = mutableListOf<Boolean>()
-        val offer = ClaudeResets(sessionReset = ClaudeSessionReset(null))
+    fun refreshReadsTheSessionResetOnlyAtTheLimitAndKeepsItWhenTheReadFails() {
+        var now = START
+        var atLimitReads = 0
+        var percent = 100.0
+        val session = ClaudeSessionReset(null)
+        val grant = ClaudeResetGrant("gift", "", 1, null, false, true, listOf("seven_day"))
         var failResets = false
         val provider =
             ClaudeQuotaProvider(
                 client =
                     FakeClaudeClient(
-                        fetchResets = { limited ->
-                            atLimit += limited
+                        fetchAtLimitResets = {
+                            atLimitReads++
                             if (failResets) throw ClaudeQuotaException("rate limited", 429)
-                            offer
+                            ClaudeResets(sessionReset = session)
                         }
                     ) {
-                        ClaudeQuota(fiveHourUsage = ClaudeUsageWindow(usagePercent = 100.0))
+                        ClaudeQuota(
+                            fiveHourUsage = ClaudeUsageWindow(usagePercent = percent),
+                            resets = ClaudeResets(listOf(grant)),
+                        )
                     },
                 tokenProvider = { "token" },
                 tokenRefresher = { null },
+                clock = { now },
             )
 
         provider.refresh()
+        assertEquals(ClaudeResets(listOf(grant), null, session), provider.getLastQuota()?.resets)
+
         failResets = true
         provider.refresh()
-
-        assertEquals(listOf(true, true), atLimit)
-        assertSame(offer, provider.getLastQuota()?.resets)
+        assertEquals(ClaudeResets(listOf(grant), null, session), provider.getLastQuota()?.resets)
         assertNull(provider.getLastError())
+
+        // The failed at-limit read was rate limited, so usage reads pause too.
+        provider.refresh()
+        assertEquals(2, atLimitReads)
+
+        now += 1.hours
+        failResets = false
+        percent = 40.0
+        provider.refresh()
+        assertEquals(2, atLimitReads, "below the limit only the regular read is made")
+        assertEquals(ClaudeResets(listOf(grant)), provider.getLastQuota()?.resets)
     }
 
     @Test
@@ -415,7 +572,7 @@ class ClaudeQuotaProviderTest {
     }
 
     private class FakeClaudeClient(
-        private val fetchResets: (Boolean) -> ClaudeResets? = { null },
+        private val fetchAtLimitResets: () -> ClaudeResets? = { null },
         private val organization: (String) -> String = { ORGANIZATION },
         private val redeem: (String, String) -> ClaudeResetOutcome = { _, _ ->
             error("unexpected reset claim")
@@ -424,8 +581,7 @@ class ClaudeQuotaProviderTest {
     ) : ClaudeQuotaClient() {
         override fun fetchQuota(accessToken: String?): ClaudeQuota = fetch()
 
-        override fun fetchResets(accessToken: String, atLimit: Boolean): ClaudeResets? =
-            fetchResets(atLimit)
+        override fun fetchAtLimitResets(accessToken: String): ClaudeResets? = fetchAtLimitResets()
 
         override fun fetchOrganizationUuid(accessToken: String): String = organization(accessToken)
 
@@ -438,5 +594,6 @@ class ClaudeQuotaProviderTest {
 
     private companion object {
         const val ORGANIZATION = "6f7d2a10-3c4b-4d5e-8f90-a1b2c3d4e5f6"
+        val START = Instant.parse("2026-10-22T10:00:00Z")
     }
 }
