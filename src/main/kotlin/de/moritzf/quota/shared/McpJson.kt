@@ -32,11 +32,40 @@ internal object McpJson {
         )
     }
 
+    /**
+     * The last good provider response while the provider rate-limits usage reads, marked stale with
+     * the rate-limit error and when the response was read.
+     */
+    fun rateLimitedQuota(response: String, error: String, fetchedAt: kotlin.time.Instant?): String =
+        JsonSupport.json.encodeToString(
+            McpStaleQuotaResponse(
+                McpStaleQuota(
+                    reason = "rate_limited",
+                    error = RawResponseRedactor.redactText(error),
+                    fetchedAt = fetchedAt?.toString(),
+                ),
+                JsonSupport.json.parseToJsonElement(response),
+            )
+        )
+
     /** Wrapper for a vision model's answer; provider answers are plain text, not provider JSON. */
     fun visionResult(provider: String, model: String, content: String): String {
         return JsonSupport.json.encodeToString(McpVisionResultResponse(provider, model, content))
     }
 }
+
+@Serializable
+internal data class McpStaleQuotaResponse(
+    val stale: McpStaleQuota,
+    val response: kotlinx.serialization.json.JsonElement,
+)
+
+@Serializable
+internal data class McpStaleQuota(
+    val reason: String,
+    val error: String,
+    @SerialName("fetched_at") val fetchedAt: String? = null,
+)
 
 @Serializable
 internal data class McpAccountToolStatus(

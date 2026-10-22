@@ -37,6 +37,12 @@ interface QuotaProvider {
     fun getRawJsonBeforeRateLimit(): String? = null
 
     /**
+     * While the last refresh was rate limited, the last successful response (also one restored from
+     * the cache); otherwise null. Unlike [getRawJsonBeforeRateLimit], never an error body.
+     */
+    fun getLastGoodRawJsonWhileRateLimited(): String? = null
+
+    /**
      * Distinguishes a new response the UI could not parse from cached data after a failed fetch.
      */
     fun hasResponseForLastRefresh(): Boolean =

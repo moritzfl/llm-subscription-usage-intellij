@@ -87,6 +87,11 @@ internal fun SubscriptionOperations.quotaResult(
     usageService.refreshBlocking(account.id)
 
     val error = usageService.getLastError(account.id)
+    if (!error.isNullOrBlank()) {
+        rateLimitedFallback(usageService, registration, account.id, error)?.let {
+            return it
+        }
+    }
     if (
         !error.isNullOrBlank() &&
             usageService.providerForAccount(account.id)?.hasResponseForLastRefresh() != true
@@ -99,6 +104,24 @@ internal fun SubscriptionOperations.quotaResult(
         return errorResult(error?.takeIf { it.isNotBlank() } ?: registration.emptyMessage)
     }
     return payload
+}
+
+/** While the provider rate-limits usage reads, the last good response marked as stale. */
+private fun rateLimitedFallback(
+    usageService: QuotaUsageService,
+    registration: UsageQuotaMcpRegistration,
+    accountId: String,
+    error: String,
+): String? {
+    val good = usageService.getLastGoodResponseWhileRateLimited(accountId) ?: return null
+    return runCatching {
+        McpJson.rateLimitedQuota(
+            registration.exportJson(good),
+            error,
+            usageService.getLastQuota(accountId)?.fetchedAt,
+        )
+    }
+        .getOrNull()
 }
 
 internal fun SubscriptionOperations.accountStatus(

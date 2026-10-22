@@ -116,6 +116,40 @@ class ClaudeQuotaProviderTest {
     }
 
     @Test
+    fun rateLimitOffersTheLastSuccessfulResponseNeverAnErrorBody() {
+        val responses =
+            ArrayDeque<() -> ClaudeQuota>(
+                listOf(
+                    { ClaudeQuota(rawJson = """{"first":true}""") },
+                    { throw ClaudeQuotaException("rate limited", 429, """{"limit":1}""") },
+                    { throw ClaudeQuotaException("server error", 500, """{"server":1}""") },
+                    { throw ClaudeQuotaException("rate limited", 429, """{"limit":2}""") },
+                    { ClaudeQuota(rawJson = """{"second":true}""") },
+                )
+            )
+        var now = START
+        val provider =
+            ClaudeQuotaProvider(
+                client = FakeClaudeClient { responses.removeFirst()() },
+                tokenProvider = { "token" },
+                tokenRefresher = { null },
+                clock = { now },
+            )
+
+        fun refresh(): String? {
+            provider.refresh()
+            now += 2.hours
+            return provider.getLastGoodRawJsonWhileRateLimited()
+        }
+
+        assertEquals(null, refresh(), "not rate limited")
+        assertEquals("""{"first":true}""", refresh())
+        assertEquals(null, refresh(), "a server error is no rate limit")
+        assertEquals("""{"first":true}""", refresh(), "the 500 body is not a good response")
+        assertEquals(null, refresh())
+    }
+
+    @Test
     fun rateLimitKeepsTheLastResponseThatWasNotRateLimited() {
         val responses =
             ArrayDeque<() -> ClaudeQuota>(

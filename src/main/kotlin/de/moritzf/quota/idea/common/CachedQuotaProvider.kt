@@ -15,6 +15,7 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
     private val lastRefreshHasResponse = AtomicBoolean(false)
     private val lastRefreshRateLimited = AtomicBoolean(false)
     private val lastRawJsonNotRateLimitedRef = AtomicReference<String?>()
+    private val lastGoodRawJsonRef = AtomicReference<String?>()
 
     override fun getLastQuota(): Q? = lastQuotaRef.get()
 
@@ -35,6 +36,9 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
     override fun getRawJsonBeforeRateLimit(): String? =
         lastRawJsonNotRateLimitedRef.get()?.takeIf { lastRefreshRateLimited.get() }
 
+    override fun getLastGoodRawJsonWhileRateLimited(): String? =
+        lastGoodRawJsonRef.get()?.takeIf { lastRefreshRateLimited.get() }
+
     override fun currentUsageFraction(): Double? = lastQuotaRef.get()?.usageFraction()
 
     override fun cachedUsageFraction(settings: QuotaSettingsState): Double? =
@@ -51,6 +55,7 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
         lastQuotaRef.set(cached)
         lastRawJsonRef.set(cached?.rawJson)
         lastRawJsonNotRateLimitedRef.set(cached?.rawJson)
+        lastGoodRawJsonRef.set(cached?.rawJson)
         lastRefreshRateLimited.set(false)
     }
 
@@ -67,6 +72,7 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
         lastRefreshHasResponse.set(false)
         lastRefreshRateLimited.set(false)
         lastRawJsonNotRateLimitedRef.set(null)
+        lastGoodRawJsonRef.set(null)
     }
 
     protected fun storeQuota(quota: Q, rawJson: String?) {
@@ -77,6 +83,7 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
         lastRefreshHasResponse.set(rawJson != null)
         lastRefreshRateLimited.set(false)
         if (rawJson != null) lastRawJsonNotRateLimitedRef.set(rawJson)
+        lastGoodRawJsonRef.set(rawJson)
     }
 
     /**

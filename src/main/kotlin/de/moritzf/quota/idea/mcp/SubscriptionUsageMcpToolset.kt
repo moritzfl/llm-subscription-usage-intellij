@@ -19,7 +19,7 @@ class SubscriptionUsageMcpToolset : McpToolset {
     @McpTool(name = "subscription_quota")
     @McpDescription(
         description =
-            "Returns the latest subscription quota response JSON for the selected provider."
+            "Returns the latest subscription quota response JSON for the selected provider. While the provider rate-limits usage reads, returns {stale:{reason, error, fetched_at}, response:<last good response>}."
     )
     suspend fun subscription_quota(
         @McpDescription(

@@ -95,7 +95,7 @@ Enable IntelliJ's built-in MCP server to make these tools available to connected
 
 | Tool | What it does |
 |---|---|
-| `subscription_quota` | Check usage for a provider or account |
+| `subscription_quota` | Check usage for a provider or account; while the provider rate-limits usage reads, the last good reading marked stale |
 | `subscription_tools_status` | Check which accounts and tools are ready |
 | `codex_web_search` / `supergrok_web_search` / `mistral_web_search` | Get a web-search answer from the named provider |
 | `subscription_web_search` | Get search results from Kimi, Z.ai, MiniMax, or Ollama |

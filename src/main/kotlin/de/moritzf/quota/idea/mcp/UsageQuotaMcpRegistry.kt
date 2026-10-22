@@ -17,11 +17,11 @@ internal data class UsageQuotaMcpRegistration(
         service: QuotaUsageService,
         type: QuotaProviderType,
         accountId: String,
-    ): String? =
-        (service.getLastResponseJson(accountId) ?: json(service, type))
-            ?.let(RawResponseRedactor::redactText)
-            ?.let(export)
-            ?.let(McpJson::providerJson)
+    ): String? = (service.getLastResponseJson(accountId) ?: json(service, type))?.let(::exportJson)
+
+    /** A raw provider response as MCP JSON: credentials redacted, then the provider export. */
+    fun exportJson(raw: String): String =
+        raw.let(RawResponseRedactor::redactText).let(export).let(McpJson::providerJson)
 }
 
 /** Facade over [ProviderCatalog] for MCP quota JSON export. */
