@@ -8,6 +8,7 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
@@ -100,6 +101,9 @@ internal data class OpenCodeConsoleModel(
         const val GO_MODELS_URL = "https://opencode.ai/inference/go/v1/models"
         const val ZEN_MODELS_URL = "https://opencode.ai/inference/v1/models"
 
+        /** Keep the last usable catalogs while a gateway request fails or times out. */
+        private val lastPools = AtomicReference<OpenCodePools?>(null)
+
         private val GOOGLE_PACKAGES =
             setOf(
                 "aisdk:@ai-sdk/google",
@@ -116,9 +120,10 @@ internal data class OpenCodeConsoleModel(
             // Do not invent the other pool's URL when that provider is already in the config.
             val configured =
                 providers.mapNotNull { (id, provider) -> poolForProvider(id, provider) }.toSet()
+            val disabled = disabledModels(providers)
             val parsed = providers.flatMap { (providerId, provider) ->
                 provider.models.mapNotNull { (id, model) ->
-                    toModel(providerId, provider, id, model)
+                    runCatching { toModel(providerId, provider, id, model) }.getOrNull()
                 }
             }
             // The Console config is an overlay: it carries only overrides and disabled
@@ -138,26 +143,41 @@ internal data class OpenCodeConsoleModel(
                         .firstOrNull { (id, value) -> poolForProvider(id, value) == pool }
                         ?.value
                 val upstreamIds = presentUpstream.getOrPut(pool) { mutableSetOf() }
+                val disabledIds = disabled[pool].orEmpty()
                 poolIds(pools, pool).mapNotNull { id ->
                     val localId = localId(pool, id)
                     val model = provider?.models?.get(id)
                     val upstreamId = model?.modelID ?: id
-                    if (localId in present || upstreamId in upstreamIds || model?.disabled == true)
+                    if (
+                        localId in present ||
+                            id in disabledIds ||
+                            upstreamId in disabledIds ||
+                            upstreamId in upstreamIds ||
+                            model?.disabled == true
+                    )
                         return@mapNotNull null
-                    synthesized(pool, id, model, provider)?.also {
-                        present += localId
-                        upstreamIds += it.model.upstreamId
-                    }
+                    runCatching { synthesized(pool, id, model, provider) }
+                        .getOrNull()
+                        ?.also {
+                            present += localId
+                            upstreamIds += it.model.upstreamId
+                        }
                 }
             }
             return withPoolTwins(parsed + synthesized, pools, configured)
         }
 
         fun fetchPools(httpClient: HttpClient = HttpClient.newHttpClient()): OpenCodePools {
-            return OpenCodePools(
-                fetchIds(httpClient, GO_MODELS_URL),
-                fetchIds(httpClient, ZEN_MODELS_URL),
-            )
+            val go = fetchIds(httpClient, GO_MODELS_URL)
+            val zen = fetchIds(httpClient, ZEN_MODELS_URL)
+            val previous = lastPools.get()
+            val merged =
+                OpenCodePools(
+                    go = go.ifEmpty { previous?.go.orEmpty() },
+                    zen = zen.ifEmpty { previous?.zen.orEmpty() },
+                )
+            if (merged.go.isNotEmpty() || merged.zen.isNotEmpty()) lastPools.set(merged)
+            return merged
         }
 
         internal fun poolOf(uri: URI): OpenCodePool? {
@@ -175,6 +195,23 @@ internal data class OpenCodeConsoleModel(
                 "opencode" -> OpenCodePool.ZEN
                 else -> null
             }
+
+        /** Disabled entries may use an alias key; collect both the catalog id and upstream id. */
+        private fun disabledModels(
+            providers: Map<String, ConsoleProvider>
+        ): Map<OpenCodePool, Set<String>> {
+            val disabled = mutableMapOf<OpenCodePool, MutableSet<String>>()
+            providers.forEach { (providerId, provider) ->
+                val pool = poolForProvider(providerId, provider) ?: return@forEach
+                provider.models.forEach { (id, model) ->
+                    if (!model.disabled) return@forEach
+                    val ids = disabled.getOrPut(pool) { mutableSetOf() }
+                    ids += id
+                    model.modelID?.let(ids::add)
+                }
+            }
+            return disabled
+        }
 
         private fun poolForProvider(
             providerId: String,
@@ -276,7 +313,7 @@ internal data class OpenCodeConsoleModel(
             provider: ConsoleProvider?,
         ): OpenCodeConsoleModel? {
             val config = model ?: ConsoleModel()
-            val packageName = config.packageName ?: provider?.packageName
+            val packageName = config.packageName
             val upstreamId = config.modelID ?: id
             val wireRoute = wireRoute(packageName, upstreamId, pool) ?: return null
             return entry(
@@ -335,7 +372,8 @@ internal data class OpenCodeConsoleModel(
                 modelId.startsWith("claude-") ->
                     WireRoute(SubscriptionProxyRoute.ANTHROPIC_MESSAGES)
                 modelId.startsWith("grok-") -> WireRoute(SubscriptionProxyRoute.RESPONSES)
-                modelId.startsWith("muse-spark-") -> WireRoute(SubscriptionProxyRoute.RESPONSES)
+                modelId.startsWith("muse-spark-") || modelId.startsWith("muse-wonder-") ->
+                    WireRoute(SubscriptionProxyRoute.RESPONSES)
                 // Console serves qwen3.8-max as Chat Completions, Go as Anthropic Messages.
                 modelId == "qwen3.8-max" ->
                     WireRoute(

@@ -372,6 +372,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                                 "claude-sonnet-5",
                                 "gpt-6-luna",
                                 "gemini-4-argon",
+                                "muse-wonder-1.0",
                                 "claude-opus-5",
                             ),
                         go = setOf("glm-5.3", "minimax-m3", "grok-4.6"),
@@ -385,6 +386,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                 "oc-zen-claude-sonnet-5",
                 "oc-zen-gpt-6-luna",
                 "oc-zen-gemini-4-argon",
+                "oc-zen-muse-wonder-1.0",
                 "oc-go-glm-5.3",
                 "oc-go-minimax-m3",
                 "oc-go-grok-4.6",
@@ -406,6 +408,10 @@ class OpenCodeZenSubscriptionProxyProviderTest {
         )
         assertTrue(models["oc-zen-gemini-4-argon"]!!.google)
         assertEquals(
+            SubscriptionProxyRoute.RESPONSES,
+            models["oc-zen-muse-wonder-1.0"]!!.nativeRoute,
+        )
+        assertEquals(
             "https://opencode.ai/inference/go/anthropic/v1",
             models["oc-go-minimax-m3"]!!.baseUri.toString(),
         )
@@ -417,6 +423,64 @@ class OpenCodeZenSubscriptionProxyProviderTest {
             "/inference/go/anthropic/v1/messages",
             models["oc-go-minimax-m3"]!!.targetUri.path,
         )
+    }
+
+    @Test
+    fun providerPackageDoesNotFlattenGatewayRoutes() {
+        val body =
+            """{"providers":{
+            "opencode":{"package":"aisdk:@ai-sdk/openai-compatible","models":{}},
+            "opencode-go":{"models":{}}
+        }}"""
+        val models =
+            OpenCodeConsoleModel.parse(
+                    body,
+                    OpenCodePools(zen = setOf("gpt-6-luna", "claude-sonnet-5")),
+                )
+                .associateBy { it.model.localId }
+
+        assertEquals(
+            SubscriptionProxyRoute.RESPONSES,
+            models["oc-zen-gpt-6-luna"]!!.nativeRoute,
+        )
+        assertEquals(
+            SubscriptionProxyRoute.ANTHROPIC_MESSAGES,
+            models["oc-zen-claude-sonnet-5"]!!.nativeRoute,
+        )
+    }
+
+    @Test
+    fun disabledAliasHidesGatewayModel() {
+        val body =
+            """{"providers":{
+            "opencode":{"models":{
+                "my-claude":{"modelID":"claude-sonnet-5","disabled":true},
+                "gpt-6-luna":{}
+            }},
+            "opencode-go":{"models":{}}
+        }}"""
+        val models =
+            OpenCodeConsoleModel.parse(
+                body,
+                OpenCodePools(zen = setOf("claude-sonnet-5", "gpt-6-luna")),
+            )
+
+        assertFalse(models.any { it.model.localId == "oc-zen-claude-sonnet-5" })
+        assertTrue(models.any { it.model.localId == "oc-zen-gpt-6-luna" })
+    }
+
+    @Test
+    fun malformedOverrideDoesNotDropTheGatewayCatalog() {
+        val body =
+            """{"providers":{
+            "opencode":{"models":{
+                "broken":{"settings":{"baseURL":"://bad"}}
+            }},
+            "opencode-go":{"models":{}}
+        }}"""
+        val models = OpenCodeConsoleModel.parse(body, OpenCodePools(zen = setOf("gpt-6-luna")))
+
+        assertEquals(listOf("oc-zen-gpt-6-luna"), models.map { it.model.localId })
     }
 
     @Test
@@ -469,11 +533,11 @@ class OpenCodeZenSubscriptionProxyProviderTest {
         )
         assertTrue("oc-go-hy3" in models)
         assertEquals(
-            SubscriptionProxyRoute.CHAT_COMPLETIONS,
+            SubscriptionProxyRoute.ANTHROPIC_MESSAGES,
             models["oc-go-qwen3.6-plus"]!!.nativeRoute,
         )
         assertEquals(
-            "https://opencode.ai/inference/go/openai/v1",
+            "https://opencode.ai/inference/go/anthropic/v1",
             models["oc-go-qwen3.6-plus"]!!.baseUri.toString(),
         )
         assertFalse("oc-go-qwen3.5-plus" in models)
