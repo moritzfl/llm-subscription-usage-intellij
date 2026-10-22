@@ -120,6 +120,31 @@ class OperationQuotaTest {
     }
 
     @Test
+    fun copilotAdditionalBudgetKeepsIndividualPlansAvailable() {
+        fun quota(plan: String, overageUsed: Double = 10.0) =
+            de.moritzf.quota.github.GitHubQuota(
+                plan = plan,
+                premiumInteractions =
+                    de.moritzf.quota.github.GitHubUsageWindow(
+                        label = "AI credits",
+                        usagePercent = 100.0,
+                        overagePermitted = true,
+                        overageUsed = overageUsed,
+                        overageLimit = 1000.0,
+                    ),
+            )
+
+        assertFalse(OperationQuota.status(quota("Copilot Pro"), AccountCapability.PROXY).exhausted)
+        assertTrue(
+            OperationQuota.status(quota("Copilot Pro", 1000.0), AccountCapability.PROXY).exhausted
+        )
+        assertTrue(
+            OperationQuota.status(quota("Copilot Business"), AccountCapability.PROXY).exhausted,
+            "organizations stop at the included amount",
+        )
+    }
+
+    @Test
     fun zaiWebSearchUsesSearchPoolNotTokenWindows() {
         val quota =
             ZaiQuota(

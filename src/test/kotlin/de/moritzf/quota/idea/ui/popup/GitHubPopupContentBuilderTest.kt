@@ -24,10 +24,47 @@ class GitHubPopupContentBuilderTest {
         section.update(quota, error = null, visible = true)
 
         val blocks = section.components.filterIsInstance<WindowBlockPanel>()
-        assertEquals(3, blocks.size)
+        assertEquals(4, blocks.size)
         assertTrue(blocks[0].isVisible)
         assertFalse(blocks[1].isVisible)
         assertFalse(blocks[2].isVisible)
+    }
+
+    @Test
+    fun showsTheAdditionalBudgetOnceIncludedUsageIsUsedUp() {
+        val section = GitHubPopupSection()
+        section.update(
+            GitHubQuota(
+                plan = "Copilot Pro",
+                premiumInteractions =
+                    GitHubUsageWindow(
+                        label = "AI credits",
+                        usagePercent = 100.0,
+                        overagePermitted = true,
+                        overageUsed = 250.5,
+                        overageLimit = 1000.0,
+                    ),
+            ),
+            error = null,
+            visible = true,
+        )
+
+        val texts =
+            section.components.flatMap { component ->
+                listOfNotNull((component as? javax.swing.JLabel)?.takeIf { it.isVisible }?.text) +
+                    ((component as? WindowBlockPanel)
+                            ?.takeIf { it.isVisible }
+                            ?.components
+                            .orEmpty())
+                        .mapNotNull { (it as? javax.swing.JLabel)?.text }
+            }
+        assertTrue(
+            "Included usage is used up; the additional budget is in use" in texts,
+            texts.toString(),
+        )
+        assertTrue("Additional budget" in texts, texts.toString())
+        assertTrue("250.5 of 1000 used" in texts, texts.toString())
+        assertFalse("GitHub Copilot limit reached" in texts)
     }
 
     @Test

@@ -3,6 +3,7 @@ package de.moritzf.quota.github
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -61,6 +62,48 @@ class GitHubQuotaClientTest {
         assertEquals("AI credits", premium.label)
         assertEquals(25.0, premium.usagePercent)
         assertEquals("2026-10-20T08:00:00Z", premium.resetsAt.toString())
+    }
+
+    @Test
+    fun creditPoolUsesTheRemainingAmountAndReadsTheAdditionalBudget() {
+        // Live shape: credits_used stays 0 while 0.6 credits were used.
+        val quota =
+            GitHubQuotaClient.parseQuota(
+                """{"copilot_plan":"individual","token_based_billing":true,
+                  "quota_reset_date_utc":"2026-11-01T00:00:00.000Z",
+                  "quota_snapshots":{
+                    "premium_interactions":{"overage_count":250.5,"overage_permitted":true,
+                      "percent_remaining":99.7,"quota_id":"premium_interactions","quota_remaining":199.4,
+                      "unlimited":false,"has_quota":true,"quota_reset_at":0,"token_based_billing":true,
+                      "credits_used":0,"overage_entitlement":1000,"remaining":199,"entitlement":200},
+                    "chat":{"overage_count":7,"overage_permitted":true,"entitlement":100,"percent_remaining":50}}}"""
+            )
+
+        val premium = assertNotNull(quota.premiumInteractions)
+        assertEquals(0.6, premium.used, 0.0001)
+        assertEquals(0.3, premium.usagePercent, 0.0001)
+        assertTrue(premium.overagePermitted)
+        assertEquals(250.5, premium.overageUsed)
+        assertEquals(1000.0, premium.overageLimit)
+        assertTrue(premium.overageAvailable())
+        val chat = assertNotNull(quota.chat)
+        assertFalse(chat.overagePermitted, "only the premium pool draws on the budget")
+        assertNull(chat.overageUsed)
+    }
+
+    @Test
+    fun additionalBudgetRunsOut() {
+        fun window(count: Double, cap: Double?, permitted: Boolean = true) =
+            de.moritzf.quota.github.GitHubUsageWindow(
+                overagePermitted = permitted,
+                overageUsed = count,
+                overageLimit = cap,
+            )
+
+        assertTrue(window(10.0, 1000.0).overageAvailable())
+        assertFalse(window(1000.0, 1000.0).overageAvailable())
+        assertTrue(window(5000.0, 0.0).overageAvailable(), "no cap set")
+        assertFalse(window(0.0, 1000.0, permitted = false).overageAvailable())
     }
 
     @Test

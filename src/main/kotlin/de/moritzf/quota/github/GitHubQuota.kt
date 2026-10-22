@@ -45,6 +45,11 @@ data class GitHubQuota(
             ?.let { put("completions", it / 100.0) }
     }
 
+    /** Business and Enterprise plans, whose organization manages the budget. */
+    fun isManagedPlan(): Boolean =
+        plan.equals("Copilot Business", ignoreCase = true) ||
+            plan.equals("Copilot Enterprise", ignoreCase = true)
+
     /** Windows in display priority order, limited ones first. */
     fun limitedWindows(): List<GitHubUsageWindow> =
         listOfNotNull(premiumInteractions, chat, completions).filterNot { it.unlimited }
@@ -66,8 +71,21 @@ data class GitHubUsageWindow(
     val unlimited: Boolean = false,
     val resetsAt: Instant? = null,
     val periodDurationMs: Long? = null,
+    /** Usage beyond the included amount is allowed and billed to the additional budget. */
+    val overagePermitted: Boolean = false,
+    /** Usage beyond the included amount this period, in the same unit as [limit]. */
+    val overageUsed: Double? = null,
+    /** The additional budget; null or 0 when the server sets no cap. */
+    val overageLimit: Double? = null,
 ) {
     @Transient val periodDuration: Duration? = periodDurationMs?.let(Duration::ofMillis)
+
+    /** Requests keep working past the included amount while the additional budget lasts. */
+    fun overageAvailable(): Boolean {
+        if (!overagePermitted) return false
+        val cap = overageLimit?.takeIf { it > 0.0 } ?: return true
+        return (overageUsed ?: 0.0) < cap
+    }
 }
 
 @Serializable

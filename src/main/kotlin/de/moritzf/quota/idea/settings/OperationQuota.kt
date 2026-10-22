@@ -176,6 +176,13 @@ internal object OperationQuota {
                                 it.unlimited
                             }
                         } else quota.limitedWindows())
+                        // Individual plans keep working on the additional budget; managed plans
+                        // stop at the included amount, as Copilot itself does.
+                        .filterNot {
+                            it === quota.premiumInteractions &&
+                                it.overageAvailable() &&
+                                !quota.isManagedPlan()
+                        }
                         .map {
                             NamedWindow(
                                 it.label.ifBlank { "premium" },

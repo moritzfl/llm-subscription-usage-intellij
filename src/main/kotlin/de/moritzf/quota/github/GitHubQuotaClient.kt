@@ -134,6 +134,7 @@ open class GitHubQuotaClient(
                     if (creditBased) "AI credits" else "Premium requests",
                     paidResetsAt,
                     creditBased,
+                    withOverage = true,
                 )
             val chat =
                 dto.quotaSnapshots
@@ -159,10 +160,12 @@ open class GitHubQuotaClient(
             )
         }
 
+        /** Only the premium pool draws on the additional budget ([withOverage]). */
         private fun GitHubQuotaSnapshotDto.toWindow(
             label: String,
             resetsAt: Instant?,
             creditBased: Boolean = false,
+            withOverage: Boolean = false,
         ): GitHubUsageWindow? {
             val reset = quotaResetAt?.takeIf { it > 0 }?.let(Instant::fromEpochSeconds) ?: resetsAt
             if (unlimited == true) {
@@ -182,8 +185,10 @@ open class GitHubQuotaClient(
                         ?: quotaRemaining
                         ?: percentRemaining?.let { total * it / 100.0 })
                     ?.coerceAtLeast(0.0)
+            // credits_used covers only accounts without a user budget; the remaining amount is
+            // reported for all.
             val used =
-                (creditsUsed?.takeIf { usesCredits } ?: remaining?.let { total - it })
+                (remaining?.let { total - it } ?: creditsUsed?.takeIf { usesCredits })
                     ?.coerceAtLeast(0.0) ?: return null
             val percent =
                 percentRemaining?.takeIf { usesCredits }?.let { (100.0 - it).coerceIn(0.0, 100.0) }
@@ -195,6 +200,10 @@ open class GitHubQuotaClient(
                 usagePercent = percent,
                 resetsAt = reset,
                 periodDurationMs = MONTH_DURATION_MS,
+                overagePermitted = withOverage && overagePermitted == true,
+                overageUsed = overageCount?.takeIf { withOverage && it.isFinite() && it >= 0.0 },
+                overageLimit =
+                    overageEntitlement?.takeIf { withOverage && it.isFinite() && it >= 0.0 },
             )
         }
 
@@ -293,6 +302,13 @@ private data class GitHubQuotaSnapshotDto(
     @SerialName("quota_reset_at") val quotaResetAt: Long? = null,
     @SerialName("token_based_billing") val tokenBasedBilling: Boolean? = null,
     val unlimited: Boolean? = null,
+    @SerialName("overage_permitted") val overagePermitted: Boolean? = null,
+    @SerialName("overage_count")
+    @Serializable(with = LenientDoubleOrNullSerializer::class)
+    val overageCount: Double? = null,
+    @SerialName("overage_entitlement")
+    @Serializable(with = LenientDoubleOrNullSerializer::class)
+    val overageEntitlement: Double? = null,
 )
 
 @Serializable

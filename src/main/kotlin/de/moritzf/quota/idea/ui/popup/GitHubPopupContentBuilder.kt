@@ -4,6 +4,7 @@ import com.intellij.util.ui.JBUI
 import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.github.GitHubSubscriptionState
 import de.moritzf.quota.github.GitHubUsageWindow
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.ui.indicator.clampPercent
@@ -22,6 +23,7 @@ internal class GitHubPopupSection : ProviderPopupSection() {
     private val premiumBlock = WindowBlockPanel(3)
     private val chatBlock = WindowBlockPanel(5)
     private val completionsBlock = WindowBlockPanel(5)
+    private val budgetBlock = WindowBlockPanel(5)
 
     init {
         isOpaque = false
@@ -31,6 +33,7 @@ internal class GitHubPopupSection : ProviderPopupSection() {
         add(premiumBlock)
         add(chatBlock)
         add(completionsBlock)
+        add(budgetBlock)
         hideAll()
     }
 
@@ -68,11 +71,20 @@ internal class GitHubPopupSection : ProviderPopupSection() {
                     return
                 }
 
-                val limitReached = quota.limitedWindows().any { it.usagePercent >= 100.0 }
-                errorLabel.isVisible = limitReached
-                if (limitReached) {
-                    errorLabel.text = "GitHub Copilot limit reached"
-                }
+                val premium = quota.premiumInteractions
+                val onBudget =
+                    premium != null && premium.usagePercent >= 100.0 && premium.overageAvailable()
+                val limitReached =
+                    quota.limitedWindows().any {
+                        it.usagePercent >= 100.0 && !(it === premium && onBudget)
+                    }
+                errorLabel.isVisible = limitReached || onBudget
+                errorLabel.text =
+                    when {
+                        limitReached -> "GitHub Copilot limit reached"
+                        onBudget -> message("quota.github.budget.inUse")
+                        else -> ""
+                    }
 
                 titleLabel.isVisible = true
                 titleLabel.text =
@@ -80,6 +92,22 @@ internal class GitHubPopupSection : ProviderPopupSection() {
                 bindWindow(premiumBlock, quota.premiumInteractions)
                 bindWindow(chatBlock, quota.chat)
                 bindWindow(completionsBlock, quota.completions)
+                val budget = premium?.overageLimit?.takeIf { premium.overagePermitted && it > 0.0 }
+                if (budget != null) {
+                    val used = premium.overageUsed ?: 0.0
+                    val percent = clampPercent((used / budget * 100.0).roundToInt())
+                    budgetBlock.update(
+                        message("quota.github.budget.title"),
+                        message(
+                            "quota.github.budget.used",
+                            formatAmount(used),
+                            formatAmount(budget),
+                        ),
+                        percent,
+                    )
+                } else {
+                    budgetBlock.clear()
+                }
             }
         }
     }
@@ -109,7 +137,12 @@ internal class GitHubPopupSection : ProviderPopupSection() {
         premiumBlock.isVisible = false
         chatBlock.isVisible = false
         completionsBlock.isVisible = false
+        budgetBlock.isVisible = false
     }
+
+    private fun formatAmount(value: Double): String =
+        if (value == Math.rint(value)) value.toLong().toString()
+        else String.format(java.util.Locale.ROOT, "%.1f", value)
 
     private fun WindowBlockPanel.updateGitHub(window: GitHubUsageWindow) {
         val percent = clampPercent(window.usagePercent.roundToInt())
