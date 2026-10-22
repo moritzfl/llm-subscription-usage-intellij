@@ -149,11 +149,15 @@ internal data class OpenCodeConsoleModel(
         private fun poolFor(providerId: String, uri: URI): OpenCodePool? =
             poolOf(uri) ?: providerPool(providerId)
 
-        private fun isGoPath(path: String): Boolean =
-            path.contains("/inference/go/") || path.endsWith("/inference/go")
+        /** The Console still serves `/zen/…` base URLs next to `/inference/…`; both name a pool. */
+        private val POOL_ROOTS = listOf("/inference", "/zen")
+
+        private fun isGoPath(path: String): Boolean = POOL_ROOTS.any {
+            path.contains("$it/go/") || path.endsWith("$it/go")
+        }
 
         private fun isZenPath(path: String): Boolean =
-            !isGoPath(path) && (path.contains("/inference/") || path.endsWith("/inference"))
+            !isGoPath(path) && POOL_ROOTS.any { path.contains("$it/") || path.endsWith(it) }
 
         internal fun localId(pool: OpenCodePool?, modelId: String): String =
             when (pool) {
@@ -165,23 +169,18 @@ internal data class OpenCodeConsoleModel(
         internal fun rewritePoolBase(uri: URI, target: OpenCodePool): URI? {
             val raw = uri.toString().trimEnd('/')
             val path = uri.path.trimEnd('/')
+            val root =
+                POOL_ROOTS.firstOrNull { raw.contains("$it/") || raw.endsWith(it) } ?: return null
             val rewritten =
                 when (target) {
                     OpenCodePool.GO ->
-                        if (isGoPath(path)) {
-                            return null
-                        } else if (raw.contains("/inference/")) {
-                            raw.replace("/inference/", "/inference/go/")
-                        } else {
-                            return null
-                        }
+                        if (isGoPath(path) || !raw.contains("$root/")) return null
+                        else raw.replaceFirst("$root/", "$root/go/")
                     OpenCodePool.ZEN ->
-                        if (raw.contains("/inference/go/")) {
-                            raw.replace("/inference/go/", "/inference/")
-                        } else if (raw.endsWith("/inference/go")) {
-                            raw.removeSuffix("/go")
-                        } else {
-                            return null
+                        when {
+                            raw.contains("$root/go/") -> raw.replaceFirst("$root/go/", "$root/")
+                            raw.endsWith("$root/go") -> raw.removeSuffix("/go")
+                            else -> return null
                         }
                 }
             return runCatching { URI.create(rewritten) }.getOrNull()

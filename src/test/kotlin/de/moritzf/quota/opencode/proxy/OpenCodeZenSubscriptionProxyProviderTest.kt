@@ -550,6 +550,88 @@ class OpenCodeZenSubscriptionProxyProviderTest {
     }
 
     @Test
+    fun poolsAndTwinUrlsCoverZenAndInferenceBaseUrls() {
+        fun uri(value: String) = URI.create(value)
+        assertEquals(
+            OpenCodePool.ZEN,
+            OpenCodeConsoleModel.poolOf(uri("https://opencode.ai/zen/v1")),
+        )
+        assertEquals(
+            OpenCodePool.GO,
+            OpenCodeConsoleModel.poolOf(uri("https://opencode.ai/zen/go/v1")),
+        )
+        assertEquals(
+            OpenCodePool.GO,
+            OpenCodeConsoleModel.poolOf(uri("https://opencode.ai/inference/go/anthropic/v1")),
+        )
+        assertNull(OpenCodeConsoleModel.poolOf(uri("https://opencode.ai/citizen/v1")))
+        assertEquals(
+            uri("https://opencode.ai/zen/go/v1"),
+            OpenCodeConsoleModel.rewritePoolBase(
+                uri("https://opencode.ai/zen/v1"),
+                OpenCodePool.GO,
+            ),
+        )
+        assertEquals(
+            uri("https://opencode.ai/zen/v1"),
+            OpenCodeConsoleModel.rewritePoolBase(
+                uri("https://opencode.ai/zen/go/v1"),
+                OpenCodePool.ZEN,
+            ),
+        )
+        assertEquals(
+            uri("https://opencode.ai/inference/go/openai/v1"),
+            OpenCodeConsoleModel.rewritePoolBase(
+                uri("https://opencode.ai/inference/openai/v1"),
+                OpenCodePool.GO,
+            ),
+        )
+        assertNull(
+            OpenCodeConsoleModel.rewritePoolBase(
+                uri("https://opencode.ai/zen/go/v1"),
+                OpenCodePool.GO,
+            )
+        )
+    }
+
+    @Test
+    fun consoleZenBaseUrlsAreAdvertisedWhateverTheProviderId() {
+        Upstream(zenProviderId = "opencode-zen", zenBasePath = "zen/v1").use { upstream ->
+            val provider =
+                OpenCodeZenSubscriptionProxyProvider(
+                    consoleSessionProvider = {
+                        OpenCodeConsoleSession("account", "oauth", "org_a") { null }
+                    },
+                    consoleEndpoint = upstream.endpoint,
+                    pools = { OpenCodePools(go = setOf("chat")) },
+                )
+            withProxy(provider) { port ->
+                val ids =
+                    JsonHelper.JSON.parseToJsonElement(get(port, "/v1/models").body())
+                        .jsonObject["data"]!!
+                        .jsonArray
+                        .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                assertTrue("oc-zen-chat" in ids && "oc-zen-gpt" in ids, ids.toString())
+                assertTrue("oc-go-chat" in ids, ids.toString())
+
+                val go =
+                    post(
+                        port,
+                        "/v1/chat/completions",
+                        """{"model":"oc-go-chat","messages":[{"role":"user","content":"hi"}]}""",
+                    )
+                assertEquals(200, go.statusCode(), go.body())
+                assertEquals(
+                    listOf("/zen/go/v1/chat/completions"),
+                    upstream.requests
+                        .filter { it.path.endsWith("/chat/completions") }
+                        .map { it.path },
+                )
+            }
+        }
+    }
+
+    @Test
     fun geminiConsoleModelProxiesGenerateContentAndStreams() {
         Upstream(includeGoogle = true).use { upstream ->
             val provider =
@@ -670,6 +752,8 @@ class OpenCodeZenSubscriptionProxyProviderTest {
         private var rejectConfig: Boolean = false,
         private val includeGoProvider: Boolean = false,
         private val includeGoogle: Boolean = false,
+        private val zenProviderId: String = "opencode",
+        private val zenBasePath: String = "inference/openai/v1",
     ) : AutoCloseable {
         data class Request(
             val path: String,
@@ -767,9 +851,9 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                     "chat":{},
                     "mini":{"package":"aisdk:@ai-sdk/anthropic","settings":{"baseURL":"http://127.0.0.1:${server.address.port}/inference/go/anthropic/v1"}}
                 }}"""
-            return """{"providers":{"opencode":{
+            return """{"providers":{"$zenProviderId":{
             "package":"aisdk:@ai-sdk/openai-compatible",
-            "settings":{"baseURL":"http://127.0.0.1:${server.address.port}/inference/openai/v1"},
+            "settings":{"baseURL":"http://127.0.0.1:${server.address.port}/$zenBasePath"},
             "headers":{"x-opencode-org-id":"$org"},"models":{
                 "chat":{"modelID":"chat-native","capabilities":{"tools":true,"input":["text"],"output":["text"]}},
                 "gpt":{"package":"aisdk:@ai-sdk/openai","limit":{"context":100000,"output":10000}},
