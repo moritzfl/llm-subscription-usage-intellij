@@ -114,13 +114,43 @@ internal data class OpenCodeConsoleModel(
             // Console Zen is provider "opencode" (/inference/…). Go is "opencode-go"
             // (/inference/go/…).
             // Do not invent the other pool's URL when that provider is already in the config.
-            val configured = providers.keys.mapNotNull(::providerPool).toSet()
+            val configured =
+                providers.mapNotNull { (id, provider) -> poolForProvider(id, provider) }.toSet()
             val parsed = providers.flatMap { (providerId, provider) ->
                 provider.models.mapNotNull { (id, model) ->
                     toModel(providerId, provider, id, model)
                 }
             }
-            return withPoolTwins(parsed, pools, configured)
+            // The Console config is an overlay: it carries only overrides and disabled
+            // entries. The gateway /models lists are the actual pool catalogs.
+            val present = parsed.mapTo(mutableSetOf()) { it.model.localId }
+            val presentUpstream =
+                parsed
+                    .mapNotNull { model ->
+                        poolOfLocalId(model.model.localId)?.let { it to model.model.upstreamId }
+                    }
+                    .groupBy({ it.first }, { it.second })
+                    .mapValues { (_, ids) -> ids.toMutableSet() }
+                    .toMutableMap()
+            val synthesized = configured.flatMap { pool ->
+                val provider =
+                    providers.entries
+                        .firstOrNull { (id, value) -> poolForProvider(id, value) == pool }
+                        ?.value
+                val upstreamIds = presentUpstream.getOrPut(pool) { mutableSetOf() }
+                poolIds(pools, pool).mapNotNull { id ->
+                    val localId = localId(pool, id)
+                    val model = provider?.models?.get(id)
+                    val upstreamId = model?.modelID ?: id
+                    if (localId in present || upstreamId in upstreamIds || model?.disabled == true)
+                        return@mapNotNull null
+                    synthesized(pool, id, model, provider)?.also {
+                        present += localId
+                        upstreamIds += it.model.upstreamId
+                    }
+                }
+            }
+            return withPoolTwins(parsed + synthesized, pools, configured)
         }
 
         fun fetchPools(httpClient: HttpClient = HttpClient.newHttpClient()): OpenCodePools {
@@ -146,8 +176,29 @@ internal data class OpenCodeConsoleModel(
                 else -> null
             }
 
+        private fun poolForProvider(
+            providerId: String,
+            provider: ConsoleProvider,
+        ): OpenCodePool? =
+            providerPool(providerId)
+                ?: provider.settings?.baseURL?.let {
+                    runCatching { poolOf(URI.create(it)) }.getOrNull()
+                }
+
         private fun poolFor(providerId: String, uri: URI): OpenCodePool? =
             poolOf(uri) ?: providerPool(providerId)
+
+        private fun poolIds(pools: OpenCodePools, pool: OpenCodePool): Set<String> =
+            when (pool) {
+                OpenCodePool.GO -> pools.go
+                OpenCodePool.ZEN -> pools.zen
+            }
+
+        /** Protocol the gateway speaks for a model, independent of our local proxy route. */
+        private data class WireRoute(
+            val route: SubscriptionProxyRoute,
+            val google: Boolean = false,
+        )
 
         /** The Console still serves `/zen/…` base URLs next to `/inference/…`; both name a pool. */
         private val POOL_ROOTS = listOf("/inference", "/zen")
@@ -164,6 +215,15 @@ internal data class OpenCodeConsoleModel(
                 OpenCodePool.GO -> "oc-go-$modelId"
                 OpenCodePool.ZEN -> "oc-zen-$modelId"
                 null -> "oc-$modelId"
+            }
+
+        private fun poolOfLocalId(localId: String): OpenCodePool? =
+            when {
+                localId.startsWith(OpenCodeZenSubscriptionProxyProvider.GO_PREFIX) ->
+                    OpenCodePool.GO
+                localId.startsWith(OpenCodeZenSubscriptionProxyProvider.ZEN_PREFIX) ->
+                    OpenCodePool.ZEN
+                else -> null
             }
 
         internal fun rewritePoolBase(uri: URI, target: OpenCodePool): URI? {
@@ -194,25 +254,44 @@ internal data class OpenCodeConsoleModel(
         ): OpenCodeConsoleModel? {
             if (model.disabled) return null
             val packageName = model.packageName ?: provider.packageName
-            val google = packageName in GOOGLE_PACKAGES
-            val nativeRoute =
-                when {
-                    google -> SubscriptionProxyRoute.CHAT_COMPLETIONS
-                    packageName == "aisdk:@ai-sdk/openai-compatible" ||
-                        packageName == "@opencode/ai/providers/openai-compatible" ->
-                        SubscriptionProxyRoute.CHAT_COMPLETIONS
-                    packageName == "aisdk:@ai-sdk/openai" ||
-                        packageName == "@opencode/ai/providers/openai" ||
-                        packageName == "@opencode/ai/providers/openai-compatible-responses" ->
-                        SubscriptionProxyRoute.RESPONSES
-                    packageName == "aisdk:@ai-sdk/anthropic" ||
-                        packageName == "@opencode/ai/providers/anthropic" ||
-                        packageName == "@opencode/ai/providers/anthropic-compatible" ->
-                        SubscriptionProxyRoute.ANTHROPIC_MESSAGES
-                    else -> return null
-                }
-            val base = model.settings?.baseURL ?: provider.settings?.baseURL ?: return null
-            val uri = URI.create(base)
+            val upstreamId = model.modelID ?: id
+            val explicitBase = model.settings?.baseURL ?: provider.settings?.baseURL
+            val pool =
+                explicitBase?.let {
+                    runCatching { poolFor(providerId, URI.create(it)) }.getOrNull()
+                } ?: providerPool(providerId) ?: return null
+            val wireRoute = wireRoute(packageName, upstreamId, pool) ?: return null
+            val uri = explicitBase?.let(::inferenceUri) ?: defaultBase(pool, wireRoute)
+            return entry(id, upstreamId, model, provider, wireRoute, uri, pool)
+        }
+
+        /**
+         * The Console config is sparse: it lists overrides and disabled models, while the gateways
+         * serve the full pool catalog. Build the missing entries from the gateway list.
+         */
+        private fun synthesized(
+            pool: OpenCodePool,
+            id: String,
+            model: ConsoleModel?,
+            provider: ConsoleProvider?,
+        ): OpenCodeConsoleModel? {
+            val config = model ?: ConsoleModel()
+            val packageName = config.packageName ?: provider?.packageName
+            val upstreamId = config.modelID ?: id
+            val wireRoute = wireRoute(packageName, upstreamId, pool) ?: return null
+            return entry(
+                id,
+                upstreamId,
+                config,
+                provider ?: ConsoleProvider(),
+                wireRoute,
+                defaultBase(pool, wireRoute),
+                pool,
+            )
+        }
+
+        private fun inferenceUri(value: String): URI {
+            val uri = URI.create(value)
             require(
                 uri.scheme in setOf("https", "http") &&
                     uri.host != null &&
@@ -222,8 +301,68 @@ internal data class OpenCodeConsoleModel(
             ) {
                 "Invalid OpenCode inference URL"
             }
-            val pool = poolFor(providerId, uri) ?: return null
-            return entry(id, model.modelID ?: id, model, provider, nativeRoute, uri, pool, google)
+            return uri
+        }
+
+        /**
+         * Explicit Console packages win. The public model lists carry no package, so infer the
+         * gateway protocol from the model id, matching the Console's own routing.
+         */
+        private fun wireRoute(
+            packageName: String?,
+            modelId: String,
+            pool: OpenCodePool,
+        ): WireRoute? {
+            when (packageName) {
+                in GOOGLE_PACKAGES ->
+                    return WireRoute(SubscriptionProxyRoute.CHAT_COMPLETIONS, true)
+                "aisdk:@ai-sdk/openai-compatible",
+                "@opencode/ai/providers/openai-compatible" ->
+                    return WireRoute(SubscriptionProxyRoute.CHAT_COMPLETIONS)
+                "aisdk:@ai-sdk/openai",
+                "@opencode/ai/providers/openai",
+                "@opencode/ai/providers/openai-compatible-responses" ->
+                    return WireRoute(SubscriptionProxyRoute.RESPONSES)
+                "aisdk:@ai-sdk/anthropic",
+                "@opencode/ai/providers/anthropic",
+                "@opencode/ai/providers/anthropic-compatible" ->
+                    return WireRoute(SubscriptionProxyRoute.ANTHROPIC_MESSAGES)
+                null -> Unit
+                else -> return null
+            }
+            return when {
+                modelId.startsWith("gpt-") -> WireRoute(SubscriptionProxyRoute.RESPONSES)
+                modelId.startsWith("claude-") ->
+                    WireRoute(SubscriptionProxyRoute.ANTHROPIC_MESSAGES)
+                modelId.startsWith("grok-") -> WireRoute(SubscriptionProxyRoute.RESPONSES)
+                modelId.startsWith("muse-spark-") -> WireRoute(SubscriptionProxyRoute.RESPONSES)
+                // Console serves qwen3.8-max as Chat Completions, Go as Anthropic Messages.
+                modelId == "qwen3.8-max" ->
+                    WireRoute(
+                        if (pool == OpenCodePool.GO) SubscriptionProxyRoute.ANTHROPIC_MESSAGES
+                        else SubscriptionProxyRoute.CHAT_COMPLETIONS
+                    )
+                modelId.startsWith("qwen") -> WireRoute(SubscriptionProxyRoute.ANTHROPIC_MESSAGES)
+                // MiniMax uses Anthropic Messages on Go and Chat Completions on Console.
+                pool == OpenCodePool.GO && modelId.startsWith("minimax-") ->
+                    WireRoute(SubscriptionProxyRoute.ANTHROPIC_MESSAGES)
+                modelId.startsWith("gemini-") ->
+                    WireRoute(SubscriptionProxyRoute.CHAT_COMPLETIONS, true)
+                else -> WireRoute(SubscriptionProxyRoute.CHAT_COMPLETIONS)
+            }
+        }
+
+        private fun defaultBase(pool: OpenCodePool, wireRoute: WireRoute): URI {
+            val root =
+                if (pool == OpenCodePool.GO) "https://opencode.ai/inference/go"
+                else "https://opencode.ai/inference"
+            val path =
+                when {
+                    wireRoute.google -> "google/v1beta"
+                    wireRoute.route == SubscriptionProxyRoute.ANTHROPIC_MESSAGES -> "anthropic/v1"
+                    else -> "openai/v1"
+                }
+            return URI.create("$root/$path")
         }
 
         private fun entry(
@@ -231,11 +370,12 @@ internal data class OpenCodeConsoleModel(
             upstreamId: String,
             model: ConsoleModel,
             provider: ConsoleProvider,
-            nativeRoute: SubscriptionProxyRoute,
+            wireRoute: WireRoute,
             uri: URI,
             pool: OpenCodePool,
-            google: Boolean,
         ): OpenCodeConsoleModel {
+            val nativeRoute = wireRoute.route
+            val google = wireRoute.google
             return OpenCodeConsoleModel(
                 model =
                     SubscriptionProxyModel(

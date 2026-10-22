@@ -353,6 +353,73 @@ class OpenCodeZenSubscriptionProxyProviderTest {
         )
 
     @Test
+    fun sparseConsoleConfigUsesGatewayCatalogs() {
+        val body =
+            """{"providers":{
+            "opencode":{"models":{
+                "grok-build-0.1":{"package":"aisdk:@ai-sdk/openai-compatible"},
+                "claude-opus-5":{"disabled":true}
+            }},
+            "opencode-go":{"models":{}}
+        }}"""
+        val models =
+            OpenCodeConsoleModel.parse(
+                    body,
+                    OpenCodePools(
+                        zen =
+                            setOf(
+                                "grok-build-0.1",
+                                "claude-sonnet-5",
+                                "gpt-6-luna",
+                                "gemini-4-argon",
+                                "claude-opus-5",
+                            ),
+                        go = setOf("glm-5.3", "minimax-m3", "grok-4.6"),
+                    ),
+                )
+                .associateBy { it.model.localId }
+
+        assertEquals(
+            setOf(
+                "oc-zen-grok-build-0.1",
+                "oc-zen-claude-sonnet-5",
+                "oc-zen-gpt-6-luna",
+                "oc-zen-gemini-4-argon",
+                "oc-go-glm-5.3",
+                "oc-go-minimax-m3",
+                "oc-go-grok-4.6",
+            ),
+            models.keys,
+        )
+        assertFalse("oc-zen-claude-opus-5" in models)
+        assertEquals(
+            "https://opencode.ai/inference/openai/v1",
+            models["oc-zen-grok-build-0.1"]!!.baseUri.toString(),
+        )
+        assertEquals(
+            SubscriptionProxyRoute.RESPONSES,
+            models["oc-zen-gpt-6-luna"]!!.nativeRoute,
+        )
+        assertEquals(
+            SubscriptionProxyRoute.ANTHROPIC_MESSAGES,
+            models["oc-zen-claude-sonnet-5"]!!.nativeRoute,
+        )
+        assertTrue(models["oc-zen-gemini-4-argon"]!!.google)
+        assertEquals(
+            "https://opencode.ai/inference/go/anthropic/v1",
+            models["oc-go-minimax-m3"]!!.baseUri.toString(),
+        )
+        assertEquals(
+            "/inference/go/openai/v1/chat/completions",
+            models["oc-go-glm-5.3"]!!.targetUri.path,
+        )
+        assertEquals(
+            "/inference/go/anthropic/v1/messages",
+            models["oc-go-minimax-m3"]!!.targetUri.path,
+        )
+    }
+
+    @Test
     fun consoleGoProviderKeepsItsOwnUrlAndPackage() {
         val body =
             """{"providers":{
@@ -401,13 +468,57 @@ class OpenCodeZenSubscriptionProxyProviderTest {
             models["oc-go-minimax-m3"]!!.nativeRoute,
         )
         assertTrue("oc-go-hy3" in models)
-        assertFalse("oc-go-qwen3.6-plus" in models)
+        assertEquals(
+            SubscriptionProxyRoute.CHAT_COMPLETIONS,
+            models["oc-go-qwen3.6-plus"]!!.nativeRoute,
+        )
+        assertEquals(
+            "https://opencode.ai/inference/go/openai/v1",
+            models["oc-go-qwen3.6-plus"]!!.baseUri.toString(),
+        )
+        assertFalse("oc-go-qwen3.5-plus" in models)
         assertFalse(
             models.keys.any {
                 it.startsWith("oc-") && !it.startsWith("oc-go-") && !it.startsWith("oc-zen-")
             }
         )
-        assertEquals(5, models.size)
+        assertEquals(6, models.size)
+    }
+
+    @Test
+    fun sparseConsoleConfigAdvertisesGatewayModelsThroughProxy() {
+        Upstream(sparseConfig = true).use { upstream ->
+            val provider =
+                OpenCodeZenSubscriptionProxyProvider(
+                    consoleSessionProvider = {
+                        OpenCodeConsoleSession("account", "oauth", "org_a") { null }
+                    },
+                    consoleEndpoint = upstream.endpoint,
+                    pools = {
+                        OpenCodePools(
+                            zen = setOf("grok-build-0.1", "disabled-chat", "claude-sonnet-5"),
+                            go = setOf("glm-5.3", "minimax-m3", "grok-4.6"),
+                        )
+                    },
+                )
+            withProxy(provider) { port ->
+                val ids =
+                    JsonHelper.JSON.parseToJsonElement(get(port, "/v1/models").body())
+                        .jsonObject["data"]!!
+                        .jsonArray
+                        .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                assertEquals(
+                    setOf(
+                        "oc-zen-grok-build-0.1",
+                        "oc-zen-claude-sonnet-5",
+                        "oc-go-glm-5.3",
+                        "oc-go-minimax-m3",
+                        "oc-go-grok-4.6",
+                    ),
+                    ids.toSet(),
+                )
+            }
+        }
     }
 
     @Test
@@ -754,6 +865,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
         private val includeGoogle: Boolean = false,
         private val zenProviderId: String = "opencode",
         private val zenBasePath: String = "inference/openai/v1",
+        private val sparseConfig: Boolean = false,
     ) : AutoCloseable {
         data class Request(
             val path: String,
@@ -832,6 +944,14 @@ class OpenCodeZenSubscriptionProxyProviderTest {
         }
 
         private fun config(org: String?): String {
+            if (sparseConfig)
+                return """{"providers":{
+                "opencode":{"headers":{"x-opencode-org-id":"$org"},"models":{
+                    "grok-build-0.1":{"package":"aisdk:@ai-sdk/openai-compatible"},
+                    "disabled-chat":{"disabled":true}
+                }},
+                "opencode-go":{"headers":{"x-opencode-org-id":"$org"},"models":{}}
+            }}"""
             val google =
                 if (!includeGoogle) ""
                 else
