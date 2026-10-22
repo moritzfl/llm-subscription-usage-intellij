@@ -98,8 +98,6 @@ class KimiSubscriptionProxyProvider(
             supportsToolChoice = true,
             supportsVision = true,
             supportsPromptCaching = true,
-            maxInputTokens = MAX_INPUT_TOKENS,
-            maxOutputTokens = MAX_OUTPUT_TOKENS,
         )
     }
 
@@ -251,27 +249,43 @@ class KimiSubscriptionProxyProvider(
         val root =
             JsonHelper.parseToJsonElementOrNull(response.body()) as? JsonObject
                 ?: return emptyList()
-        val provider = root[MODELS_DEV_PROVIDER_ID] as? JsonObject ?: return emptyList()
-        if (stringField(provider, "api")?.trimEnd('/') != MODELS_DEV_PROVIDER_API)
-            return emptyList()
+        // models.dev renames the Kimi Code catalog; its API address identifies it.
+        val api = OPENAI_COMPATIBLE_BASE_URI.toString()
+        val provider =
+            root.values.filterIsInstance<JsonObject>().firstOrNull {
+                stringField(it, "api")?.trimEnd('/') == api
+            } ?: return emptyList()
         val models = provider["models"] as? JsonObject ?: return emptyList()
         return models.mapNotNull { (id, element) -> parseModelsDevModel(id, element) }
     }
 
+    /**
+     * A model from Kimi Code's list. Current responses give `limit.context` and input `modalities`;
+     * older ones `context_length` and `supports_*_in` flags. Kimi Code requires a positive context
+     * length.
+     */
     private fun parseRemoteModel(element: JsonElement): RemoteModel? {
         val item = element as? JsonObject ?: return null
         val id = stringField(item, "id") ?: return null
-        val maxInputTokens = intField(item, "context_length") ?: return null
+        val limits = item["limit"] as? JsonObject
+        val maxInputTokens =
+            limits?.let { intField(it, "context") }
+                ?: intField(item, "context_length")
+                ?: return null
         if (maxInputTokens <= 0) return null
-        val supportsToolUse = boolField(item, "supports_tool_use") ?: true
+        val modalities = (item["modalities"] as? JsonObject)?.get("input") as? JsonArray
         return RemoteModel(
             id = id,
             maxInputTokens = maxInputTokens,
-            maxOutputTokens = intField(item, "max_output_tokens") ?: MAX_OUTPUT_TOKENS,
-            supportsToolUse = supportsToolUse,
+            maxOutputTokens =
+                (limits?.let { intField(it, "output") } ?: intField(item, "max_output_tokens"))
+                    ?.takeIf { it > 0 },
+            supportsToolUse = boolField(item, "supports_tool_use") ?: true,
             supportsVision =
-                boolField(item, "supports_image_in") == true ||
-                    boolField(item, "supports_video_in") == true,
+                if (modalities != null) inputModality(item, "image") || inputModality(item, "video")
+                else
+                    boolField(item, "supports_image_in") == true ||
+                        boolField(item, "supports_video_in") == true,
             isDefault = id == MODEL_ID,
         )
     }
@@ -289,9 +303,8 @@ class KimiSubscriptionProxyProvider(
             id = id,
             maxInputTokens = maxInputTokens,
             maxOutputTokens =
-                limits?.let { intField(it, "output") }
-                    ?: intField(item, "max_output_tokens")
-                    ?: MAX_OUTPUT_TOKENS,
+                (limits?.let { intField(it, "output") } ?: intField(item, "max_output_tokens"))
+                    ?.takeIf { it > 0 },
             supportsToolUse = boolField(item, "tool_call") ?: true,
             supportsVision =
                 boolField(item, "attachment") == true ||
@@ -317,8 +330,8 @@ class KimiSubscriptionProxyProvider(
 
     private data class RemoteModel(
         val id: String,
-        val maxInputTokens: Int,
-        val maxOutputTokens: Int,
+        val maxInputTokens: Int?,
+        val maxOutputTokens: Int?,
         val supportsToolUse: Boolean,
         val supportsVision: Boolean,
         val isDefault: Boolean = false,
@@ -335,22 +348,19 @@ class KimiSubscriptionProxyProvider(
         const val MODEL_ID = "kimi-for-coding"
         private const val DISPLAY_NAME = "Kimi Code"
         private const val LITELLM_PROVIDER = "kimi"
-        private const val MODELS_DEV_PROVIDER_ID = "kimi-for-coding"
-        private const val MODELS_DEV_PROVIDER_API = "https://api.kimi.com/coding/v1"
-        private const val MAX_INPUT_TOKENS = 262_144
-        private const val MAX_OUTPUT_TOKENS = 65_536
         private const val CACHE_TTL_MILLIS = 5 * 60 * 1000L
         private val SUPPORTED_ROUTES =
             setOf(
                 SubscriptionProxyRoute.CHAT_COMPLETIONS,
                 SubscriptionProxyRoute.ANTHROPIC_MESSAGES,
             )
+        /** Used only while the model list cannot be read; limits stay unknown. */
         private val DEFAULT_MODELS =
             listOf(
                 RemoteModel(
                     id = MODEL_ID,
-                    maxInputTokens = MAX_INPUT_TOKENS,
-                    maxOutputTokens = MAX_OUTPUT_TOKENS,
+                    maxInputTokens = null,
+                    maxOutputTokens = null,
                     supportsToolUse = true,
                     supportsVision = true,
                     isDefault = true,

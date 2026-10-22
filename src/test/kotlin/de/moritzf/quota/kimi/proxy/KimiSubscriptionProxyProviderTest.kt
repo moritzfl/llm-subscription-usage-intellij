@@ -50,6 +50,45 @@ class KimiSubscriptionProxyProviderTest {
     }
 
     @Test
+    fun readsTheCurrentKimiCodeModelFormat() {
+        TestUpstream(
+                modelsBody =
+                    """{"data":[
+                      {"id":"kimi-for-coding","display_name":"Kimi For Coding",
+                       "limit":{"context":1000000,"output":32768},
+                       "modalities":{"input":["text","image"]},
+                       "reasoning":{"type":"effort","effort":{"valid":["low","high"],"default":"high"}},
+                       "protocol":"openai"},
+                      {"id":"k3","limit":{"context":262144},"modalities":{"input":["text"]},
+                       "supports_tool_use":false},
+                      {"id":"no-context","modalities":{"input":["text"]}}]}"""
+            )
+            .use { upstream ->
+                val proxy = newProxy(upstream)
+                try {
+                    proxy.server.start()
+                    val info =
+                        JsonHelper.JSON.parseToJsonElement(get(proxy.port, "/v1/model/info").body())
+                            .jsonObject["data"]!!
+                            .jsonArray
+                            .associateBy { it.jsonObject["model_name"]!!.jsonPrimitive.content }
+                    assertEquals(setOf("ki-kimi-for-coding", "ki-k3"), info.keys)
+                    val coding =
+                        info.getValue("ki-kimi-for-coding").jsonObject["model_info"]!!.jsonObject
+                    assertEquals("1000000", coding["max_input_tokens"]!!.jsonPrimitive.content)
+                    assertEquals("32768", coding["max_output_tokens"]!!.jsonPrimitive.content)
+                    assertEquals("true", coding["supports_vision"]!!.jsonPrimitive.content)
+                    val k3 = info.getValue("ki-k3").jsonObject["model_info"]!!.jsonObject
+                    assertEquals("false", k3["supports_vision"]!!.jsonPrimitive.content)
+                    assertEquals("false", k3["supports_function_calling"]!!.jsonPrimitive.content)
+                    assertNull(k3["max_output_tokens"], "unknown output limits stay unset")
+                } finally {
+                    proxy.server.stop(gracePeriodMillis = 0)
+                }
+            }
+    }
+
+    @Test
     fun augmentsManagedDefaultModelFromModelsDevKimiCodeCatalog() {
         TestUpstream(modelsBody = managedModelsBody("kimi-for-coding")).use { upstream ->
             TestModelsDevCatalog().use { catalog ->

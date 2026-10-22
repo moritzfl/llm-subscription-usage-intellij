@@ -4,6 +4,7 @@
 
 - Proxy Gemini models from OpenCode Go and Zen by bridging the Google generateContent API, including streaming, tool calls with thought signatures, vision/PDF parts, and Junie-compatible chat requests.
 - Use free Claude limit resets from the quota popup: resets offered in claude.ai Settings > Usage, and the weekly session reset (`/limit-reset`) when you hit the 5-hour limit. A confirmation shows what each reset refills before it is used.
+- Read Kimi Code's current model list format (`limit.context`, input modalities), so the proxy advertises the live Kimi models again instead of the single fallback model, and no longer invents context or output limits.
 - Read web pages with Kimi Code's fetch service through `subscription_web_fetch`.
 - Show Kimi's monthly coding share and booster-wallet extra usage (monthly spend, cap, and balance).
 - Show an exhausted Kimi 5-hour window when the usage ratio says 0% but Kimi's counter for the same window is used up, and read Kimi counters that report used rather than remaining requests.
