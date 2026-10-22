@@ -155,9 +155,7 @@ internal class ZaiSettingsPanel(
                     emptyList()
                 } else {
                     DocumentModels.fetchModelIds(
-                        URI.create(
-                            "${ZaiSubscriptionProxyProvider.DEFAULT_UPSTREAM_BASE_URI}/models"
-                        ),
+                        URI.create("${ZaiSubscriptionProxyProvider.STANDARD_API_BASE_URI}/models"),
                         key,
                     )
                 }
