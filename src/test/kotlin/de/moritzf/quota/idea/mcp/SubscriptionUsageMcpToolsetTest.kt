@@ -118,7 +118,14 @@ class SubscriptionUsageMcpToolsetTest {
 
         assertEquals(listOf("supergrok_web_search"), searchTools.map { it.mcpName() })
         assertEquals(
-            listOf(String::class, String::class, String::class, String::class, Int::class),
+            listOf(
+                String::class,
+                String::class,
+                String::class,
+                String::class,
+                Int::class,
+                Boolean::class,
+            ),
             searchTools.single().mcpParamClassifiers(),
         )
     }

@@ -23,6 +23,7 @@ open class SuperGrokWebSearchClient(
         allowedDomains: String? = null,
         excludedDomains: String? = null,
         maxOutputTokens: Int = DEFAULT_MAX_OUTPUT_TOKENS,
+        includeXPosts: Boolean = false,
     ): String {
         val trimmedQuery = query.trim()
         if (trimmedQuery.isBlank()) {
@@ -47,7 +48,17 @@ open class SuperGrokWebSearchClient(
         }
         val outputTokens = maxOutputTokens.coerceIn(MIN_MAX_OUTPUT_TOKENS, MAX_MAX_OUTPUT_TOKENS)
         val response =
-            send(searchRequest(token, trimmedQuery, trimmedModel, allowed, excluded, outputTokens))
+            send(
+                searchRequest(
+                    token,
+                    trimmedQuery,
+                    trimmedModel,
+                    allowed,
+                    excluded,
+                    outputTokens,
+                    includeXPosts,
+                )
+            )
         val status = response.statusCode()
         val body = response.body()
         if (status == 401 || status == 403) {
@@ -74,14 +85,20 @@ open class SuperGrokWebSearchClient(
         allowedDomains: List<String>,
         excludedDomains: List<String>,
         maxOutputTokens: Int,
+        includeXPosts: Boolean,
     ): HttpRequest {
         val filters = searchFilters(allowedDomains, excludedDomains)
+        // X search is a separate hosted tool; the domain filters apply to web search only.
+        val tools = buildList {
+            add(GrokResponsesToolDto(type = "web_search", filters = filters))
+            if (includeXPosts) add(GrokResponsesToolDto(type = "x_search"))
+        }
         val body =
             JsonSupport.json.encodeToString(
                 GrokResponsesRequestDto(
                     model = model,
                     input = listOf(GrokResponsesInputDto(role = "user", content = query)),
-                    tools = listOf(GrokResponsesToolDto(type = "web_search", filters = filters)),
+                    tools = tools,
                     maxOutputTokens = maxOutputTokens,
                 )
             )

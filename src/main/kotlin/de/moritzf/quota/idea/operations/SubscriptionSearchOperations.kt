@@ -42,8 +42,16 @@ internal suspend fun SubscriptionOperations.supergrok_web_search(
     allowedDomains: String? = null,
     excludedDomains: String? = null,
     maxOutputTokens: Int = SuperGrokWebSearchClient.DEFAULT_MAX_OUTPUT_TOKENS,
+    includeXPosts: Boolean = false,
 ): String {
-    return supergrokWebSearch(query, model, allowedDomains, excludedDomains, maxOutputTokens)
+    return supergrokWebSearch(
+        query,
+        model,
+        allowedDomains,
+        excludedDomains,
+        maxOutputTokens,
+        includeXPosts,
+    )
 }
 
 internal suspend fun SubscriptionOperations.subscription_web_search(
@@ -85,6 +93,7 @@ internal suspend fun SubscriptionOperations.supergrokWebSearch(
     allowedDomains: String?,
     blockedDomains: String?,
     maxOutputTokens: Int,
+    includeXPosts: Boolean = false,
 ): String {
     return withSuperGrokAuth("Grok web search failed.") { accessToken ->
         superGrokSearchClient.webSearch(
@@ -94,6 +103,7 @@ internal suspend fun SubscriptionOperations.supergrokWebSearch(
             allowedDomains,
             blockedDomains,
             maxOutputTokens,
+            includeXPosts,
         )
     }
 }

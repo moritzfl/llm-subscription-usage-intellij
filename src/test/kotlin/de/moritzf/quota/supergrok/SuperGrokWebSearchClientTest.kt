@@ -100,6 +100,45 @@ class SuperGrokWebSearchClientTest {
     }
 
     @Test
+    fun xPostsAddTheXSearchToolWithoutTheDomainFilters() {
+        TestGrokServer(responseBody = """{"id":"resp-2","output":[]}""").use { server ->
+            newClient(server)
+                .webSearch(
+                    accessToken = "grok-token",
+                    query = "launch reactions",
+                    excludedDomains = "reddit.com",
+                    includeXPosts = true,
+                )
+
+            val tools =
+                parseObject(assertNotNull(server.requests.poll(2, TimeUnit.SECONDS)).body)[
+                        "tools"]!!
+                    .jsonArray
+            assertEquals(
+                listOf("web_search", "x_search"),
+                tools.map { it.jsonObject["type"]!!.jsonPrimitive.content },
+            )
+            assertEquals(
+                "reddit.com",
+                tools[0]
+                    .jsonObject["filters"]!!
+                    .jsonObject["excluded_domains"]!!
+                    .jsonArray[0]
+                    .jsonPrimitive
+                    .content,
+            )
+            assertNull(tools[1].jsonObject["filters"])
+
+            newClient(server).webSearch(accessToken = "grok-token", query = "plain")
+            val plain =
+                parseObject(assertNotNull(server.requests.poll(2, TimeUnit.SECONDS)).body)[
+                        "tools"]!!
+                    .jsonArray
+            assertEquals(1, plain.size, "X stays off unless asked for")
+        }
+    }
+
+    @Test
     fun rejectsBlankQueriesBeforeCallingUpstream() {
         TestGrokServer().use { server ->
             val client = newClient(server)

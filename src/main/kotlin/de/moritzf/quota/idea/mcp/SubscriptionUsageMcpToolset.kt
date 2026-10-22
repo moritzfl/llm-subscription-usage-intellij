@@ -125,6 +125,11 @@ class SubscriptionUsageMcpToolset : McpToolset {
                 "Maximum output tokens for the Grok answer. Values are clamped to Grok's safe local range."
         )
         maxOutputTokens: Int = SuperGrokWebSearchClient.DEFAULT_MAX_OUTPUT_TOKENS,
+        @McpDescription(
+            description =
+                "When true, Grok also searches posts on X. Domain filters apply to the web only."
+        )
+        includeXPosts: Boolean = false,
     ): String {
         return interruptibleOperation {
             operations.supergrok_web_search(
@@ -133,6 +138,7 @@ class SubscriptionUsageMcpToolset : McpToolset {
                 allowedDomains,
                 excludedDomains,
                 maxOutputTokens,
+                includeXPosts,
             )
         }
     }
