@@ -5,6 +5,7 @@ import de.moritzf.quota.supergrok.SuperGrokQuota
 import de.moritzf.quota.supergrok.SuperGrokResetToken
 import javax.swing.JPanel
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.time.Clock
@@ -59,9 +60,29 @@ class SuperGrokPopupContentBuilderTest {
                         de.moritzf.quota.supergrok.SuperGrokProductUsage("GrokBuild", 40.0),
                     ),
                 autoTopUp = de.moritzf.quota.supergrok.SuperGrokAutoTopUp(2000, 500),
+                resetTokens = listOf(SuperGrokResetToken("restok_1")),
             ),
             null,
             true,
+        )
+        val order =
+            section.components
+                .filter { it.isVisible }
+                .map {
+                    when {
+                        it is JPanel && it.components.any { child -> child is ActionLink } ->
+                            "reset"
+                        it is WindowBlockPanel ->
+                            it.components.filterIsInstance<javax.swing.JLabel>().first().text
+                        it is javax.swing.JLabel -> it.text.substringBefore(":")
+                        else -> null
+                    }
+                }
+                .filterNotNull()
+        assertEquals(
+            listOf("Weekly credits", "reset", "Extra usage", "Credit balance"),
+            order.dropWhile { it != "Weekly credits" },
+            order.toString(),
         )
 
         val blocks = section.components.filterIsInstance<WindowBlockPanel>().filter { it.isVisible }
@@ -73,10 +94,10 @@ class SuperGrokPopupContentBuilderTest {
                     .filterIsInstance<javax.swing.JLabel>()
                     .filter { it.isVisible }
                     .map { it.text }
-        assertTrue("Pay as you go" in texts, texts.toString())
+        assertTrue("Extra usage" in texts, texts.toString())
         assertTrue("$10.00 of $50.00 used" in texts, texts.toString())
         assertTrue(
-            "Prepaid balance: $14.46 • Auto top-up: $20.00 below $5.00" in texts,
+            "Credit balance: $14.46 • Auto top-up: $20.00 below $5.00" in texts,
             texts.toString(),
         )
         val tooltip =

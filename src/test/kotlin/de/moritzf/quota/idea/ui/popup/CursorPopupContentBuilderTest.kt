@@ -132,6 +132,34 @@ class CursorPopupContentBuilderTest {
         assertTrue(trial.any { it.startsWith("100% used - Trial: Expires in ") }, trial.toString())
     }
 
+    @Test
+    fun extraUsageComesLastAfterTheIncludedAllowances() {
+        val section = CursorPopupSection()
+        section.update(
+            CursorQuota(
+                planUsage = CursorPlanUsage(autoPercentUsed = 40.0),
+                onDemandUsage =
+                    de.moritzf.quota.cursor.CursorOnDemandUsage(usedUsd = 12.5, limitUsd = 50.0),
+                teamOnDemandUsage =
+                    de.moritzf.quota.cursor.CursorOnDemandUsage(usedUsd = 100.0, limitUsd = 100.0),
+                grokUsage = de.moritzf.quota.cursor.CursorGrokUsage(10.0),
+            ),
+            null,
+            true,
+        )
+
+        assertEquals(
+            listOf("Cursor Models usage", "Grok Bot weekly", "Extra usage", "Extra usage (team)"),
+            section.visibleBlocks().map { it.title() },
+        )
+        assertTrue(
+            section.visibleBlocks()[2].components.filterIsInstance<JLabel>().any {
+                it.text.startsWith("\$12.50 of \$50.00 used")
+            }
+        )
+        assertEquals(listOf("Cursor team extra usage limit reached"), section.warnings())
+    }
+
     private fun CursorPopupSection.visibleBlocks(): List<WindowBlockPanel> =
         components.filterIsInstance<WindowBlockPanel>().filter { it.isVisible }
 

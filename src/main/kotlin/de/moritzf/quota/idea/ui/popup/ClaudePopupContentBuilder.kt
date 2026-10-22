@@ -64,10 +64,10 @@ internal class ClaudePopupSection : ProviderPopupSection() {
         add(modelBlock)
         add(scopedLimitsPanel)
         add(routinesBlock)
+        add(resetsPanel)
         add(creditsPanel)
         add(extraBlock)
         add(balanceLabel)
-        add(resetsPanel)
         hideAll()
     }
 
@@ -116,29 +116,33 @@ internal class ClaudePopupSection : ProviderPopupSection() {
                 updateCredits(quota)
                 val extra = quota.extraUsage
                 val currency = extra?.currency?.takeIf { it.isNotBlank() } ?: "USD"
-                val extraTitle = message("quota.claude.extra.title")
+                val extraTitle = message("quota.extra.title")
                 when {
                     extra?.isEnabled == true && extra.unlimited -> {
-                        val used =
-                            extra.usedMajor?.let { String.format("%.2f %s used", it, currency) }
                         extraBlock.showUnavailable(
                             extraTitle,
-                            listOfNotNull(message("quota.claude.extra.unlimited"), used)
-                                .joinToString(" • "),
+                            extra.usedMajor?.let {
+                                message(
+                                    "quota.extra.uncapped",
+                                    QuotaUiUtil.formatMoney(it, currency),
+                                )
+                            } ?: message("quota.extra.noCap"),
                         )
                     }
                     extra?.isEnabled == true -> {
                         val percent = extra.usagePercent?.roundToInt()?.let(::clampPercent) ?: 0
                         val used = extra.usedMajor
                         val limit = extra.monthlyLimitMajor
-                        val money =
+                        val info =
                             if (used != null && limit != null) {
-                                String.format("%.2f / %.2f %s", used, limit, currency)
+                                message(
+                                    "quota.extra.used",
+                                    QuotaUiUtil.formatMoney(used, currency),
+                                    QuotaUiUtil.formatMoney(limit, currency),
+                                )
                             } else {
-                                null
+                                "$percent% used"
                             }
-                        var info = "$percent% used"
-                        if (money != null) info += " • $money"
                         extraBlock.update(extraTitle, info, percent)
                     }
                     extra?.disabledReason != null &&
@@ -151,8 +155,8 @@ internal class ClaudePopupSection : ProviderPopupSection() {
                 if (balance != null) {
                     balanceLabel.text =
                         message(
-                            "quota.claude.credit.balance",
-                            String.format("%.2f %s", balance.major, balance.currency),
+                            "quota.credit.balance",
+                            QuotaUiUtil.formatMoney(balance.major, balance.currency),
                         )
                 }
                 if (primary == null && extra?.isEnabled != true && quota.credits.isEmpty()) {
@@ -353,9 +357,9 @@ internal class ClaudePopupSection : ProviderPopupSection() {
                 listOfNotNull(
                         if (used != null && limit != null)
                             message(
-                                "quota.claude.credit.dollars",
-                                String.format("%.2f", used),
-                                String.format("%.2f", limit),
+                                "quota.extra.used",
+                                QuotaUiUtil.formatMoney(used),
+                                QuotaUiUtil.formatMoney(limit),
                             )
                         else "$percent% used",
                         if (credit.renews) QuotaUiUtil.formatReset(credit.endsAt)

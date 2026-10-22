@@ -448,8 +448,7 @@ internal fun openCodeBarDisplayText(quota: OpenCodeQuota?, error: String?): Stri
 
     val state =
         openCodeIndicatorState(quota)
-            ?: return quota.availableBalance?.let { "$${QuotaUiUtil.formatOpenCodeBalance(it)}" }
-                ?: "no data"
+            ?: return quota.availableBalance?.let(QuotaUiUtil::formatOpenCodeBalance) ?: "no data"
 
     val reset = formatOpenCodeResetTime(state.resetInSec)
     val text = "${state.percent}%"

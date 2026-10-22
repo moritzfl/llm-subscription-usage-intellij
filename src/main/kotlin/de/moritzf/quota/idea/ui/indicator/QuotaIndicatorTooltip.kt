@@ -312,8 +312,8 @@ private fun cursorWindowKind(quota: CursorQuota): String? {
         quota.requestUsage?.usagePercent() != null -> "Requests"
         quota.planUsage?.usagePercent() != null -> "Included"
         quota.spendLimit?.usagePercent() != null -> "Spend"
-        quota.onDemandUsage?.usagePercent() != null -> "On-demand"
-        quota.teamOnDemandUsage?.usagePercent() != null -> "Team"
+        quota.onDemandUsage?.usagePercent() != null -> "Extra"
+        quota.teamOnDemandUsage?.usagePercent() != null -> "Team extra"
         else -> null
     }
 }

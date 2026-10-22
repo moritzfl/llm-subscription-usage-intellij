@@ -117,31 +117,25 @@ internal class KimiPopupSection : ProviderPopupSection() {
             extraBlock.clear()
             return
         }
-        val title = message("quota.kimi.extra.title")
+        val title = message("quota.extra.title")
         val used = money(extra.usedCents, extra.currency)
         val percent = extra.usagePercent
         val limit = extra.limitCents
         if (percent != null && limit != null) {
             extraBlock.update(
                 title,
-                message("quota.kimi.extra.used", used, money(limit, extra.currency)),
+                message("quota.extra.used", used, money(limit, extra.currency)),
                 clampPercent(percent.roundToInt()),
             )
         } else {
-            extraBlock.showUnavailable(title, message("quota.kimi.extra.uncapped", used))
+            extraBlock.showUnavailable(title, message("quota.extra.uncapped", used))
         }
         balanceLabel.text =
-            message("quota.kimi.extra.balance", money(extra.balanceCents, extra.currency))
+            message("quota.credit.balance", money(extra.balanceCents, extra.currency))
     }
 
-    private fun money(cents: Long, currency: String): String {
-        val amount = String.format("%.2f", cents / 100.0)
-        return when (currency.uppercase()) {
-            "CNY" -> "¥$amount"
-            "USD" -> "\$$amount"
-            else -> "$amount ${currency.uppercase()}"
-        }
-    }
+    private fun money(cents: Long, currency: String): String =
+        QuotaUiUtil.formatMoney(cents / 100.0, currency)
 
     private fun WindowBlockPanel.updateKimi(
         window: KimiUsageWindow,

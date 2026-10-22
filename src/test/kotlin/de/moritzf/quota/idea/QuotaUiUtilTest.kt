@@ -39,10 +39,22 @@ class QuotaUiUtilTest {
 
     @Test
     fun formatOpenCodeBalanceConvertsFractionalUnitsToDollars() {
-        assertEquals("12.35", QuotaUiUtil.formatOpenCodeBalance(1_234_567_890L))
-        assertEquals("0.00", QuotaUiUtil.formatOpenCodeBalance(0L))
-        assertEquals("0.01", QuotaUiUtil.formatOpenCodeBalance(1_000_000L))
-        assertEquals("100.00", QuotaUiUtil.formatOpenCodeBalance(10_000_000_000L))
+        assertEquals("\$12.35", QuotaUiUtil.formatOpenCodeBalance(1_234_567_890L))
+        assertEquals("\$0.00", QuotaUiUtil.formatOpenCodeBalance(0L))
+        assertEquals("\$0.01", QuotaUiUtil.formatOpenCodeBalance(1_000_000L))
+        assertEquals("\$100.00", QuotaUiUtil.formatOpenCodeBalance(10_000_000_000L))
+        assertEquals("-\$0.01", QuotaUiUtil.formatOpenCodeBalance(-567_814L))
+    }
+
+    @Test
+    fun formatMoneyPutsTheSignBeforeTheCurrency() {
+        assertEquals("\$14.46", QuotaUiUtil.formatMoney(14.456))
+        assertEquals("-\$3.50", QuotaUiUtil.formatMoney(-3.5, "usd"))
+        assertEquals("\$0.00", QuotaUiUtil.formatMoney(-0.001))
+        assertEquals("€1.25", QuotaUiUtil.formatMoney(1.25, "EUR"))
+        assertEquals("¥5.00", QuotaUiUtil.formatMoney(5.0, "CNY"))
+        assertEquals("5.00 CHF", QuotaUiUtil.formatMoney(5.0, "chf"))
+        assertEquals("\$2.00", QuotaUiUtil.formatMoney(2.0, null))
     }
 
     @Test

@@ -32,10 +32,10 @@ internal class OpenCodePopupSection : ProviderPopupSection() {
         add(errorLabel)
         add(titleLabel)
         add(endsLabel)
-        add(balanceLabel)
         add(rollingBlock)
         add(weeklyBlock)
         add(monthlyBlock)
+        add(balanceLabel)
         hideAll()
     }
 
@@ -107,12 +107,7 @@ internal class OpenCodePopupSection : ProviderPopupSection() {
                 val balanceText = quota.availableBalance?.let(QuotaUiUtil::formatOpenCodeBalance)
                 balanceLabel.isVisible = balanceText != null
                 if (balanceText != null) {
-                    balanceLabel.text =
-                        if (quota.hasUsageState()) {
-                            "Available balance: $$balanceText"
-                        } else {
-                            "Available credits: $$balanceText"
-                        }
+                    balanceLabel.text = message("quota.credit.balance", balanceText)
                 }
                 quota.rollingUsage?.let { rollingBlock.updateOpenCode(it, "5h rolling") }
                     ?: rollingBlock.clear()

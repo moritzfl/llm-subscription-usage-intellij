@@ -40,10 +40,10 @@ internal class CursorPopupSection : ProviderPopupSection() {
         add(includedUsageBlock)
         add(autoBlock)
         add(apiBlock)
+        add(grokBlock)
         add(onDemandBlock)
         add(teamOnDemandBlock)
         add(spendBlock)
-        add(grokBlock)
         hideAll()
     }
 
@@ -125,13 +125,17 @@ internal class CursorPopupSection : ProviderPopupSection() {
                 }
 
                 quota.onDemandUsage?.let {
-                    onDemandBlock.updateOnDemandUsage(it, planUsage?.billingCycleEnd, "On-demand")
+                    onDemandBlock.updateOnDemandUsage(
+                        it,
+                        planUsage?.billingCycleEnd,
+                        message("quota.extra.title"),
+                    )
                 } ?: onDemandBlock.clear()
                 quota.teamOnDemandUsage?.let {
                     teamOnDemandBlock.updateOnDemandUsage(
                         it,
                         planUsage?.billingCycleEnd,
-                        "Team on-demand",
+                        message("quota.extra.team.title"),
                     )
                 } ?: teamOnDemandBlock.clear()
                 spendLimit?.let { spendBlock.updateSpendLimit(it) } ?: spendBlock.clear()
@@ -187,10 +191,10 @@ internal class CursorPopupSection : ProviderPopupSection() {
             }
         }
         if ((quota.onDemandUsage?.usagePercent() ?: 0.0) >= 100.0) {
-            return "Cursor on-demand limit reached"
+            return "Cursor extra usage limit reached"
         }
         if ((quota.teamOnDemandUsage?.usagePercent() ?: 0.0) >= 100.0) {
-            return "Cursor team on-demand limit reached"
+            return "Cursor team extra usage limit reached"
         }
         if ((quota.spendLimit?.usagePercent() ?: 0.0) >= 100.0) {
             return "Cursor team spend limit reached"
@@ -244,13 +248,17 @@ internal class CursorPopupSection : ProviderPopupSection() {
         val percent = usage.usagePercent()?.roundToInt()?.let(::clampPercent) ?: 0
         var info =
             if (usage.limitUsd != null && usage.limitUsd > 0.0) {
-                "$${formatUsd(usage.usedUsd)} / $${formatUsd(usage.limitUsd)} used"
+                message(
+                    "quota.extra.used",
+                    QuotaUiUtil.formatMoney(usage.usedUsd),
+                    QuotaUiUtil.formatMoney(usage.limitUsd),
+                )
             } else {
-                "$${formatUsd(usage.usedUsd)} used"
+                "${QuotaUiUtil.formatMoney(usage.usedUsd)} used"
             }
         val remaining = usage.remainingUsd
         if (remaining != null && remaining > 0.0) {
-            info += " ($${formatUsd(remaining)} remaining)"
+            info += " (${QuotaUiUtil.formatMoney(remaining)} remaining)"
         }
         QuotaUiUtil.formatReset(resetsAt)?.let { info += " - $it" }
         update(label, info, percent)

@@ -59,10 +59,10 @@ class GitHubPopupContentBuilderTest {
                         .mapNotNull { (it as? javax.swing.JLabel)?.text }
             }
         assertTrue(
-            "Included usage is used up; the additional budget is in use" in texts,
+            "Included usage is used up; extra usage is in use" in texts,
             texts.toString(),
         )
-        assertTrue("Additional budget" in texts, texts.toString())
+        assertTrue("Extra usage" in texts, texts.toString())
         assertTrue("250.5 of 1000 used" in texts, texts.toString())
         assertFalse("GitHub Copilot limit reached" in texts)
     }

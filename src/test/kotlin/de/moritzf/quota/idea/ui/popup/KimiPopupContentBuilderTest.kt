@@ -38,7 +38,6 @@ class KimiPopupContentBuilderTest {
     @Test
     fun showsTheCodeShareAndExtraUsage() {
         val section = KimiPopupSection()
-        val amount = { cents: Double -> String.format("%.2f", cents) }
 
         section.update(
             KimiQuota(
@@ -56,8 +55,8 @@ class KimiPopupContentBuilderTest {
             true,
         )
         assertTrue("40% used (code 25%)" in labels(section), labels(section).toString())
-        assertTrue("\$${amount(50.0)} of \$${amount(200.0)} used this month" in labels(section))
-        assertTrue("Booster balance: \$${amount(100.0)}" in labels(section))
+        assertTrue("\$50.00 of \$200.00 used" in labels(section), labels(section).toString())
+        assertEquals("Credit balance: \$100.00", labels(section).last())
 
         section.update(
             KimiQuota(
@@ -67,7 +66,7 @@ class KimiPopupContentBuilderTest {
             null,
             true,
         )
-        assertTrue("¥${amount(12.34)} used this month • No monthly cap" in labels(section))
+        assertTrue("¥12.34 used • No monthly cap" in labels(section), labels(section).toString())
         assertTrue("40% used" in labels(section))
     }
 

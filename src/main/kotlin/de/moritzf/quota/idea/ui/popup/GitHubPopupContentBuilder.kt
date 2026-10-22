@@ -82,7 +82,7 @@ internal class GitHubPopupSection : ProviderPopupSection() {
                 errorLabel.text =
                     when {
                         limitReached -> "GitHub Copilot limit reached"
-                        onBudget -> message("quota.github.budget.inUse")
+                        onBudget -> message("quota.extra.inUse")
                         else -> ""
                     }
 
@@ -97,12 +97,8 @@ internal class GitHubPopupSection : ProviderPopupSection() {
                     val used = premium.overageUsed ?: 0.0
                     val percent = clampPercent((used / budget * 100.0).roundToInt())
                     budgetBlock.update(
-                        message("quota.github.budget.title"),
-                        message(
-                            "quota.github.budget.used",
-                            formatAmount(used),
-                            formatAmount(budget),
-                        ),
+                        message("quota.extra.title"),
+                        message("quota.extra.used", formatAmount(used), formatAmount(budget)),
                         percent,
                     )
                 } else {

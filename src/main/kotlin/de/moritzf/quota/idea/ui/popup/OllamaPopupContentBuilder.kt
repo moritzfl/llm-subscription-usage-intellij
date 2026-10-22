@@ -86,10 +86,7 @@ internal class OllamaPopupSection : ProviderPopupSection() {
                 purchasedLabel.isVisible = purchased != null
                 if (purchased != null) {
                     purchasedLabel.text =
-                        message(
-                            "quota.ollama.purchased",
-                            String.format(java.util.Locale.ROOT, "%.2f", purchased),
-                        )
+                        message("quota.credit.balance", QuotaUiUtil.formatMoney(purchased))
                 }
             }
         }

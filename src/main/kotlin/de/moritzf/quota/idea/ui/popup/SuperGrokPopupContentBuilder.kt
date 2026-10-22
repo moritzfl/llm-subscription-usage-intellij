@@ -27,7 +27,8 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
         createSectionTitleLabel("SuperGrok", QuotaIcons.SUPERGROK).apply {
             border = JBUI.Borders.emptyTop(0)
         }
-    private val blocks = listOf(WindowBlockPanel(3), WindowBlockPanel(5))
+    private val creditsBlock = WindowBlockPanel(3)
+    private val extraBlock = WindowBlockPanel(5)
     private val balanceLabel = createMutedLabel("").apply { border = JBUI.Borders.emptyTop(2) }
     private val resetTokensPanel =
         JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(3), 0)).apply {
@@ -40,9 +41,10 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
         add(separator)
         add(errorLabel)
         add(titleLabel)
-        blocks.forEach(::add)
-        add(balanceLabel)
+        add(creditsBlock)
         add(resetTokensPanel)
+        add(extraBlock)
+        add(balanceLabel)
         hideAll()
     }
 
@@ -64,7 +66,7 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
                 hideAll()
                 titleLabel.isVisible = true
                 titleLabel.text = sectionTitle("SuperGrok")
-                blocks.getOrNull(0)?.showLoading("Monthly credits")
+                creditsBlock.showLoading("Monthly credits")
             }
             else -> {
                 val usage = quota.creditUsage
@@ -75,23 +77,24 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
                 }
                 titleLabel.isVisible = true
                 titleLabel.text = sectionTitle("SuperGrok", quota.plan.takeIf { it.isNotBlank() })
-                blocks.forEach { it.clear() }
+                creditsBlock.clear()
+                extraBlock.clear()
                 if (usage != null) {
-                    blocks[0].updateSuperGrok(usage, productTooltip(quota))
+                    creditsBlock.updateSuperGrok(usage, productTooltip(quota))
                 }
                 quota.onDemandCap
                     ?.takeIf { it > 0 }
                     ?.let { cap ->
                         val used = quota.onDemandUsed ?: 0
-                        blocks[1].update(
-                            message("quota.supergrok.payg.title"),
-                            message("quota.supergrok.payg.used", usd(used), usd(cap)),
+                        extraBlock.update(
+                            message("quota.extra.title"),
+                            message("quota.extra.used", usd(used), usd(cap)),
                             clampPercent((used * 100.0 / cap).roundToInt()),
                         )
                     }
                 val balance =
                     listOfNotNull(
-                        quota.prepaidBalance?.let { message("quota.supergrok.prepaid", usd(it)) },
+                        quota.prepaidBalance?.let { message("quota.credit.balance", usd(it)) },
                         quota.autoTopUp?.let { rule ->
                             rule.thresholdCents?.let {
                                 message(
@@ -116,7 +119,8 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
 
     private fun hideContent() {
         titleLabel.isVisible = false
-        blocks.forEach { it.isVisible = false }
+        creditsBlock.isVisible = false
+        extraBlock.isVisible = false
         balanceLabel.isVisible = false
         resetTokensPanel.isVisible = false
     }
@@ -200,6 +204,5 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
                 QuotaUiUtil.escapeHtml("$name: ${clampPercent(product.usagePercent.roundToInt())}%")
             }
 
-    private fun usd(cents: Long): String =
-        String.format(java.util.Locale.ROOT, "%.2f", cents / 100.0)
+    private fun usd(cents: Long): String = QuotaUiUtil.formatMoney(cents / 100.0)
 }

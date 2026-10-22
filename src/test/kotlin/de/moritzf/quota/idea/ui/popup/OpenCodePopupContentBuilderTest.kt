@@ -5,6 +5,7 @@ import de.moritzf.quota.opencode.OpenCodeUsageWindow
 import java.awt.Container
 import javax.swing.JLabel
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.time.Instant
@@ -27,6 +28,29 @@ class OpenCodePopupContentBuilderTest {
 
         section.update(OpenCodeQuota(availableBalance = 5_000_000L), null, true)
         assertTrue("OpenCode Zen" in labels(section))
+    }
+
+    @Test
+    fun creditBalanceClosesTheSectionWithTheSignBeforeTheDollar() {
+        val section = OpenCodePopupSection()
+
+        section.update(
+            OpenCodeQuota(
+                rollingUsage = window,
+                weeklyUsage = window,
+                monthlyUsage = window,
+                availableBalance = -567_814L,
+            ),
+            null,
+            true,
+        )
+        assertEquals("Credit balance: -\$0.01", labels(section).last(), labels(section).toString())
+
+        section.update(OpenCodeQuota(availableBalance = 1_234_567_890L), null, true)
+        assertEquals(
+            listOf("OpenCode Zen", "Credit balance: \$12.35"),
+            labels(section),
+        )
     }
 
     @Test

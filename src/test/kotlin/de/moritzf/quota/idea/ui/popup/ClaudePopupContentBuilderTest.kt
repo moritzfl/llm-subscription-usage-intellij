@@ -108,13 +108,11 @@ class ClaudePopupContentBuilderTest {
         assertTrue("Claude Code and Cowork credit" in texts)
         assertTrue(texts.any { it.startsWith("25% used - Expires in ") }, texts.toString())
         assertTrue("Fable credit" in texts)
-        val twenty = String.format("%.2f", 20.0)
-        val fifty = String.format("%.2f", 50.0)
         assertTrue(
-            texts.any { it.startsWith("\$$twenty of \$$fifty used - Resets in ") },
+            texts.any { it.startsWith("\$20.00 of \$50.00 used - Resets in ") },
             texts.toString(),
         )
-        assertTrue("Usage credit balance: ${String.format("%.2f", 12.34)} EUR" in texts)
+        assertEquals("Credit balance: €12.34", texts.last(), texts.toString())
         assertFalse(texts.contains("Claude limit reached"))
     }
 
@@ -137,7 +135,7 @@ class ClaudePopupContentBuilderTest {
             true,
         )
         assertTrue(
-            "No monthly cap • ${String.format("%.2f", 12.5)} USD used" in labels(section),
+            "\$12.50 used • No monthly cap" in labels(section),
             labels(section).toString(),
         )
 

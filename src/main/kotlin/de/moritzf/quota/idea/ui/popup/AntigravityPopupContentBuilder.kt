@@ -39,7 +39,11 @@ internal class AntigravityPopupSection : ProviderPopupSection() {
         val credits = (quota as? AntigravityQuota)?.remainingCredits.takeIf { error == null }
         creditsLabel.isVisible = credits != null
         if (credits != null) {
-            creditsLabel.text = message("quota.antigravity.credits", credits)
+            creditsLabel.text =
+                message(
+                    "quota.credit.balance",
+                    java.text.NumberFormat.getIntegerInstance().format(credits),
+                )
         }
         if (error == null && quota is AntigravityQuota) {
             for ((index, window) in quota.windows.withIndex()) {
@@ -73,7 +77,8 @@ internal class AntigravityPopupSection : ProviderPopupSection() {
         while (blocks.size <= index) {
             val block = WindowBlockPanel(if (blocks.isEmpty()) 3 else 5)
             blocks += block
-            add(block)
+            // Windows stay above the credit balance, which closes the section.
+            add(block, getComponentZOrder(creditsLabel))
         }
         return blocks[index]
     }

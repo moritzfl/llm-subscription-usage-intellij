@@ -17,16 +17,17 @@ class AntigravityPopupContentBuilderTest {
         val section = AntigravityPopupSection()
 
         section.update(AntigravityQuota(listOf(window), remainingCredits = 1250), null, true)
+        val texts = labels(section)
         assertTrue(
-            labels(section).any { it.startsWith("Credits remaining: 1") && it.endsWith("250") },
-            labels(section).toString(),
+            texts.last().startsWith("Credit balance: 1") && texts.last().endsWith("250"),
+            "the credit balance closes the section: $texts",
         )
 
         section.update(AntigravityQuota(listOf(window)), null, true)
-        assertFalse(labels(section).any { it.startsWith("Credits remaining") })
+        assertFalse(labels(section).any { it.startsWith("Credit balance") })
 
         section.update(AntigravityQuota(listOf(window), remainingCredits = 5), "AGY failed", true)
-        assertFalse(labels(section).any { it.startsWith("Credits remaining") })
+        assertFalse(labels(section).any { it.startsWith("Credit balance") })
     }
 
     private fun labels(root: Container): List<String> =

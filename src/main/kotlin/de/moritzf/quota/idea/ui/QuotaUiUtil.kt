@@ -159,12 +159,31 @@ object QuotaUiUtil {
         return if (minutes == 1L) "1 minute ago" else "$minutes minutes ago"
     }
 
+    /** OpenCode balances are micro cents; 1 dollar is 10^8 of them. */
     @JvmStatic
-    fun formatOpenCodeBalance(balance: Long): String {
-        return BigDecimal.valueOf(balance)
-            .movePointLeft(8)
-            .setScale(2, RoundingMode.HALF_UP)
-            .toPlainString()
+    fun formatOpenCodeBalance(balance: Long): String =
+        formatMoney(BigDecimal.valueOf(balance).movePointLeft(8))
+
+    /**
+     * A money amount with two decimals and the sign before the currency symbol: "\$12.35",
+     * "-\$0.01", "€1.25", "¥5.00"; currencies without a symbol follow the amount ("5.00 CHF").
+     */
+    @JvmStatic
+    fun formatMoney(amount: Double, currency: String? = "USD"): String =
+        formatMoney(BigDecimal.valueOf(amount), currency)
+
+    private fun formatMoney(amount: BigDecimal, currency: String? = "USD"): String {
+        val code = currency?.trim()?.uppercase().orEmpty().ifEmpty { "USD" }
+        val rounded = amount.setScale(2, RoundingMode.HALF_UP)
+        val digits = rounded.abs().toPlainString()
+        val sign = if (rounded.signum() < 0) "-" else ""
+        return when (code) {
+            "USD" -> "$sign\$$digits"
+            "EUR" -> "$sign€$digits"
+            "GBP" -> "$sign£$digits"
+            "CNY" -> "$sign¥$digits"
+            else -> "$sign$digits $code"
+        }
     }
 
     /** 1234 -> "1.2k", 46100000 -> "46.1M"; small values stay as-is. */
