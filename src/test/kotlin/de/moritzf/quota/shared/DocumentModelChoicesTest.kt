@@ -219,7 +219,7 @@ class DocumentModelChoicesTest {
                     supportedRoutes = emptySet(),
                 ),
             nativeRoute = de.moritzf.proxy.subscription.SubscriptionProxyRoute.CHAT_COMPLETIONS,
-            baseUri = java.net.URI.create("https://opencode.ai/zen/v1"),
+            baseUri = java.net.URI.create("https://opencode.ai/inference/v1"),
             headers = emptyMap(),
             body = kotlinx.serialization.json.JsonObject(emptyMap()),
             supportsPdf = pdf,

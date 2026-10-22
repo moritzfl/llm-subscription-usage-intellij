@@ -499,7 +499,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
 
     @Test
     fun zenConsoleUrlAlsoAdvertisesGoAndOldPrefixPrefersGo() {
-        Upstream(useZenBase = true).use { upstream ->
+        Upstream().use { upstream ->
             val provider =
                 OpenCodeZenSubscriptionProxyProvider(
                     consoleSessionProvider = {
@@ -533,7 +533,10 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                 assertEquals(200, legacy.statusCode(), legacy.body())
                 val calls = upstream.requests.filter { it.path.endsWith("/chat/completions") }
                 assertEquals(
-                    listOf("/zen/go/v1/chat/completions", "/zen/go/v1/chat/completions"),
+                    listOf(
+                        "/inference/go/openai/v1/chat/completions",
+                        "/inference/go/openai/v1/chat/completions",
+                    ),
                     calls.map { it.path },
                 )
                 assertTrue(
@@ -665,7 +668,6 @@ class OpenCodeZenSubscriptionProxyProviderTest {
     private class Upstream(
         private var rejectInference: Boolean = false,
         private var rejectConfig: Boolean = false,
-        private val useZenBase: Boolean = false,
         private val includeGoProvider: Boolean = false,
         private val includeGoogle: Boolean = false,
     ) : AutoCloseable {
@@ -767,7 +769,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                 }}"""
             return """{"providers":{"opencode":{
             "package":"aisdk:@ai-sdk/openai-compatible",
-            "settings":{"baseURL":"http://127.0.0.1:${server.address.port}/${if (useZenBase) "zen/v1" else "inference/openai/v1"}"},
+            "settings":{"baseURL":"http://127.0.0.1:${server.address.port}/inference/openai/v1"},
             "headers":{"x-opencode-org-id":"$org"},"models":{
                 "chat":{"modelID":"chat-native","capabilities":{"tools":true,"input":["text"],"output":["text"]}},
                 "gpt":{"package":"aisdk:@ai-sdk/openai","limit":{"context":100000,"output":10000}},

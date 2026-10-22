@@ -97,8 +97,8 @@ internal data class OpenCodeConsoleModel(
                 .filter { it.model.supportsVision == true }
                 .map { it.model.upstreamId }
 
-        const val GO_MODELS_URL = "https://opencode.ai/zen/go/v1/models"
-        const val ZEN_MODELS_URL = "https://opencode.ai/zen/v1/models"
+        const val GO_MODELS_URL = "https://opencode.ai/inference/go/v1/models"
+        const val ZEN_MODELS_URL = "https://opencode.ai/inference/v1/models"
 
         private val GOOGLE_PACKAGES =
             setOf(
@@ -149,20 +149,11 @@ internal data class OpenCodeConsoleModel(
         private fun poolFor(providerId: String, uri: URI): OpenCodePool? =
             poolOf(uri) ?: providerPool(providerId)
 
-        private fun isGoPath(path: String): Boolean {
-            return path.contains("/zen/go/") ||
-                path.endsWith("/zen/go") ||
-                path.contains("/inference/go/") ||
-                path.endsWith("/inference/go")
-        }
+        private fun isGoPath(path: String): Boolean =
+            path.contains("/inference/go/") || path.endsWith("/inference/go")
 
-        private fun isZenPath(path: String): Boolean {
-            if (isGoPath(path)) return false
-            return path.contains("/zen/") ||
-                path.endsWith("/zen") ||
-                path.contains("/inference/") ||
-                path.endsWith("/inference")
-        }
+        private fun isZenPath(path: String): Boolean =
+            !isGoPath(path) && (path.contains("/inference/") || path.endsWith("/inference"))
 
         internal fun localId(pool: OpenCodePool?, modelId: String): String =
             when (pool) {
@@ -179,19 +170,13 @@ internal data class OpenCodeConsoleModel(
                     OpenCodePool.GO ->
                         if (isGoPath(path)) {
                             return null
-                        } else if (raw.contains("/zen/")) {
-                            raw.replace("/zen/", "/zen/go/")
                         } else if (raw.contains("/inference/")) {
                             raw.replace("/inference/", "/inference/go/")
                         } else {
                             return null
                         }
                     OpenCodePool.ZEN ->
-                        if (raw.contains("/zen/go/")) {
-                            raw.replace("/zen/go/", "/zen/")
-                        } else if (raw.endsWith("/zen/go")) {
-                            raw.removeSuffix("/go")
-                        } else if (raw.contains("/inference/go/")) {
+                        if (raw.contains("/inference/go/")) {
                             raw.replace("/inference/go/", "/inference/")
                         } else if (raw.endsWith("/inference/go")) {
                             raw.removeSuffix("/go")
