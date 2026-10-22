@@ -1,5 +1,6 @@
 package de.moritzf.quota.antigravity
 
+import de.moritzf.quota.shared.JsonSupport
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.TimeUnit
@@ -41,12 +42,14 @@ class AntigravityQuotaClientTest {
     @EnabledOnOs(OS.MAC, OS.LINUX)
     fun invokesOnlyVersionAndStructuredUsageInDisposableWorkspace() {
         Files.writeString(directory.resolve("usage.json"), USAGE_REPORT)
+        Files.writeString(directory.resolve("credits.json"), CREDITS_REPORT)
         val binary =
             executable(
                 """
             if read -r ignored; then exit 44; fi
             printf '%s\n' "${'$'}AGY_CLI_DISABLE_AUTO_UPDATE" > ${quote(directory.resolve("auto-update"))}
             printf 'diagnostics' > agy.log
+            if [ "${'$'}2" = /credits ]; then cat ${quote(directory.resolve("credits.json"))}; exit 0; fi
             cat ${quote(directory.resolve("usage.json"))}
         """
                     .trimIndent()
@@ -54,28 +57,60 @@ class AntigravityQuotaClientTest {
 
         val quota = AntigravityQuotaClient(executableProvider = { binary }).fetchQuota()
 
-        assertEquals(USAGE_REPORT, quota.rawJson?.trim())
+        assertEquals(
+            JsonSupport.json.parseToJsonElement(
+                """{"usage":${USAGE_REPORT.trim()},"credits":$CREDITS_REPORT}"""
+            ),
+            JsonSupport.json.parseToJsonElement(quota.rawJson!!),
+        )
+        assertEquals(1250L, quota.remainingCredits)
         val cwd = Path.of(Files.readString(directory.resolve("cwd")).trim())
         assertFalse(Files.exists(cwd), "Temporary workspace and CLI diagnostics must be deleted")
         val args = Files.readAllLines(directory.resolve("args"))
-        assertEquals(
+        fun report(command: String) =
             listOf(
-                "--version",
                 "-p",
-                "/usage",
+                command,
                 "--output-format",
                 "json",
                 "--print-timeout",
                 "90s",
                 "--log-file",
-            ),
-            args.dropLast(1),
-        )
+                cwd.resolve("agy.log").toFile().canonicalPath,
+            )
         assertEquals(
-            cwd.resolve("agy.log").toFile().canonicalPath,
-            Path.of(args.last()).toFile().canonicalPath,
+            listOf("--version") + report("/usage") + report("/credits"),
+            args.mapIndexed { index, arg ->
+                if (index == 8 || index == 16) Path.of(arg).toFile().canonicalPath else arg
+            },
         )
         assertEquals("true", Files.readString(directory.resolve("auto-update")).trim())
+    }
+
+    @Test
+    @EnabledOnOs(OS.MAC, OS.LINUX)
+    fun failedCreditsReportKeepsTheUsage() {
+        Files.writeString(directory.resolve("usage.json"), USAGE_REPORT)
+        val binary =
+            executable(
+                """
+            if [ "${'$'}2" = /credits ]; then printf 'not signed in'; exit 1; fi
+            cat ${quote(directory.resolve("usage.json"))}
+        """
+                    .trimIndent()
+            )
+
+        val quota = AntigravityQuotaClient(executableProvider = { binary }).fetchQuota()
+
+        assertEquals(2, quota.windows.size)
+        assertNull(quota.remainingCredits)
+        assertEquals(
+            setOf("usage"),
+            (JsonSupport.json.parseToJsonElement(quota.rawJson!!)
+                    as kotlinx.serialization.json.JsonObject)
+                .keys,
+        )
+        assertTrue(quota.warnings.isEmpty(), "accounts without credits are not a problem")
     }
 
     @Test

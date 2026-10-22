@@ -4,7 +4,7 @@
 
 - `LLM Subscription Usage`: IntelliJ plugin for subscription quotas, MCP tools/server-URL sync, and a local subscription proxy. Production/tests are Kotlin-only in `src/main/kotlin` and `src/test/kotlin`; Java libraries are usable via interop. Target JVM 21, Kotlin API/language 2.3 (IntelliJ 2026.1).
 - Store credentials in IntelliJ Password Safe. Authentication belongs to this plugin: browser login or user-entered keys. Never access other tools' auth files/stores, including Codex `auth.json` and ChatGPT local credentials.
-- CLI exceptions only: Antigravity uses the documented `agy` 1.1.11+ JSON usage report, quota-only, one current CLI login; never inspect credentials, internal APIs, or conversations. Azure uses one plugin entry and documented `az account list`/`az account get-access-token`; never read `~/.azure` or call `az account set`. Do not generalize CLI-backed auth.
+- CLI exceptions only: Antigravity uses the documented `agy` 1.1.11+ JSON `/usage` and `/credits` reports, quota-only, one current CLI login; never inspect credentials, internal APIs, or conversations. Azure uses one plugin entry and documented `az account list`/`az account get-access-token`; never read `~/.azure` or call `az account set`. Do not generalize CLI-backed auth.
 
 ## Validation and boundaries
 

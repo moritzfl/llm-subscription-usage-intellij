@@ -20,6 +20,8 @@ data class AntigravityQuota(
     val warnings: List<String> = emptyList(),
     override var fetchedAt: Instant? = null,
     override var rawJson: String? = null,
+    /** G1 credits left from `/credits`; null when the account reports none. */
+    val remainingCredits: Long? = null,
 ) : ProviderQuota {
     override fun hasUsageState(): Boolean = windows.isNotEmpty()
 
@@ -122,6 +124,37 @@ internal fun parseAntigravityQuota(raw: String): AntigravityQuota {
     if (windows.isEmpty())
         throw AntigravityQuotaException("AGY returned no readable quota windows.")
     return AntigravityQuota(windows, warnings.distinct(), Clock.System.now(), raw)
+}
+
+/**
+ * Remaining credits from the CLI's structured `/credits` report. A missing or unreadable count
+ * means the account reports no credits, not a balance of zero.
+ */
+internal fun parseAntigravityCredits(raw: String): Long? {
+    val root =
+        runCatching { JsonSupport.json.parseToJsonElement(raw) as? JsonObject }.getOrNull()
+            ?: return null
+    val command = root["command"] as? JsonObject
+    if (root.text("status") != "SUCCESS" || command?.text("name") != "credits") return null
+    val credits = (command["data"] as? JsonObject)?.get("remaining_credits")
+    return credits
+        ?.lenientDoubleOrNull()
+        ?.takeIf { it.isFinite() && it >= 0 && it <= Long.MAX_VALUE }
+        ?.toLong()
+}
+
+/**
+ * The usage report, plus the credits report when it is JSON, as named segments for settings and
+ * MCP.
+ */
+internal fun antigravityRawResponse(usage: String, credits: String?): String {
+    val sections = buildMap {
+        put("usage", JsonSupport.json.parseToJsonElement(usage))
+        credits
+            ?.let { runCatching { JsonSupport.json.parseToJsonElement(it) }.getOrNull() }
+            ?.let { put("credits", it) }
+    }
+    return JsonObject(sections).toString()
 }
 
 private fun JsonObject.text(key: String): String? =

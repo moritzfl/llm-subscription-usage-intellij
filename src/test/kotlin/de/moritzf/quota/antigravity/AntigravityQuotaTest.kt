@@ -1,5 +1,6 @@
 package de.moritzf.quota.antigravity
 
+import de.moritzf.quota.shared.JsonSupport
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -8,6 +9,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
+import kotlinx.serialization.json.jsonObject
 
 class AntigravityQuotaTest {
     @Test
@@ -112,9 +114,53 @@ class AntigravityQuotaTest {
         }
     }
 
+    @Test
+    fun readsRemainingCreditsOnlyFromTheStructuredCreditsReport() {
+        assertEquals(1250L, parseAntigravityCredits(CREDITS_REPORT))
+        assertEquals(0L, parseAntigravityCredits(CREDITS_REPORT.replace("1250", "0")))
+        for (raw in
+            listOf(
+                "not json",
+                CREDITS_REPORT.replace("SUCCESS", "ERROR"),
+                CREDITS_REPORT.replace("\"name\":\"credits\"", "\"name\":\"usage\""),
+                CREDITS_REPORT.replace("1250", "null"),
+                CREDITS_REPORT.replace("1250", "-3"),
+                CREDITS_REPORT.replace("\"remaining_credits\":1250,", ""),
+            )) {
+            assertNull(parseAntigravityCredits(raw), raw)
+        }
+    }
+
+    @Test
+    fun rawResponseNamesTheUsageAndCreditsReports() {
+        val both =
+            JsonSupport.json
+                .parseToJsonElement(antigravityRawResponse(USAGE_REPORT, CREDITS_REPORT))
+                .jsonObject
+        val usageOnly =
+            JsonSupport.json
+                .parseToJsonElement(antigravityRawResponse(USAGE_REPORT, "not json"))
+                .jsonObject
+
+        assertEquals(setOf("usage", "credits"), both.keys)
+        assertEquals(JsonSupport.json.parseToJsonElement(CREDITS_REPORT), both["credits"])
+        assertEquals(setOf("usage"), usageOnly.keys)
+        assertEquals(
+            setOf("usage"),
+            JsonSupport.json
+                .parseToJsonElement(antigravityRawResponse(USAGE_REPORT, null))
+                .jsonObject
+                .keys,
+        )
+    }
+
     private fun report(groups: String) =
         """{"status":"SUCCESS","command":{"name":"usage","data":{"groups":[$groups]}}}"""
 }
+
+// Credits envelope as printed by agy 1.4.5, with the upgrade link kept generic.
+internal const val CREDITS_REPORT =
+    """{"conversation_id":"","status":"SUCCESS","response":"Remaining credits\t1250\n","duration_seconds":0,"num_turns":0,"usage":{"total_tokens":0},"command":{"name":"credits","data":{"remaining_credits":1250,"upgrade_uri":"https://antigravity.google/g1-upgrade"}}}"""
 
 // Native command envelope; no credentials or conversation identifiers.
 internal val USAGE_REPORT =

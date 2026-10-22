@@ -1,6 +1,8 @@
 package de.moritzf.quota.idea.ui.popup
 
+import com.intellij.util.ui.JBUI
 import de.moritzf.quota.antigravity.AntigravityQuota
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.shared.ProviderQuota
@@ -9,6 +11,7 @@ import kotlin.math.roundToInt
 internal class AntigravityPopupSection : ProviderPopupSection() {
     private val titleLabel = createSectionTitleLabel("Antigravity", QuotaIcons.ANTIGRAVITY)
     private val errorLabel = createWarningLabel("")
+    private val creditsLabel = createMutedLabel("").apply { border = JBUI.Borders.emptyTop(2) }
     private val blocks = mutableListOf<WindowBlockPanel>()
 
     init {
@@ -16,7 +19,9 @@ internal class AntigravityPopupSection : ProviderPopupSection() {
         add(createSeparatedBlock())
         add(titleLabel)
         add(errorLabel)
+        add(creditsLabel)
         errorLabel.isVisible = false
+        creditsLabel.isVisible = false
     }
 
     override fun update(quota: ProviderQuota?, error: String?, visible: Boolean) {
@@ -31,6 +36,11 @@ internal class AntigravityPopupSection : ProviderPopupSection() {
         errorLabel.text = warning.orEmpty()
         errorLabel.isVisible = warning != null
         blocks.forEach { it.clear() }
+        val credits = (quota as? AntigravityQuota)?.remainingCredits.takeIf { error == null }
+        creditsLabel.isVisible = credits != null
+        if (credits != null) {
+            creditsLabel.text = message("quota.antigravity.credits", credits)
+        }
         if (error == null && quota is AntigravityQuota) {
             for ((index, window) in quota.windows.withIndex()) {
                 val label = if (window.window == "weekly") "Weekly" else window.label

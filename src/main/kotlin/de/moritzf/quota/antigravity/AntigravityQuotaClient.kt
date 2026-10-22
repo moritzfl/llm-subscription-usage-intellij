@@ -31,12 +31,12 @@ class AntigravityQuotaClient(
                     "AGY 1.1.11 or later is required. Run agy update, then refresh."
                 )
             }
-            val raw =
+            fun report(command: String): String =
                 run(
                     executable,
                     listOf(
                         "-p",
-                        "/usage",
+                        command,
                         "--output-format",
                         "json",
                         "--print-timeout",
@@ -48,7 +48,18 @@ class AntigravityQuotaClient(
                     timeoutMillis,
                     MAX_OUTPUT_BYTES,
                 )
-            return parseAntigravityQuota(raw)
+            val usage = report("/usage")
+            val quota = parseAntigravityQuota(usage)
+            // Credits are optional: accounts without them, or a failed report, keep the usage.
+            val credits =
+                try {
+                    report("/credits")
+                } catch (_: AntigravityQuotaException) {
+                    null
+                }
+            return quota.copy(remainingCredits = credits?.let(::parseAntigravityCredits)).also {
+                it.rawJson = antigravityRawResponse(usage, credits)
+            }
         } finally {
             // Do not retain the CLI's generated diagnostics or workspace files.
             runCatching {
