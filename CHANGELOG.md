@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.23.0] - 2026-10-23
+
 - Proxy Gemini models from OpenCode Go and Zen by bridging the Google generateContent API, including streaming, tool calls with thought signatures, vision/PDF parts, and Junie-compatible chat requests.
 - Keep advertising OpenCode Zen and Go models after the Console changed its model configuration to overrides only: the proxy now reads the workspace's gateway model lists, removes models the Console disabled, and sends each model to its native Chat Completions, Responses, Anthropic Messages, or Google endpoint. The document and vision model pickers use the same list.
 - Use free Claude limit resets from the quota popup: resets offered in claude.ai Settings > Usage, and the weekly session reset (`/limit-reset`) when you hit the 5-hour limit. A confirmation shows what each reset refills before it is used.
@@ -747,7 +749,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.22.0...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.23.0...HEAD
+[1.23.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.22.0...1.23.0
 [1.22.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.21.1...1.22.0
 [1.21.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.21.0...1.21.1
 [1.21.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.20.1...1.21.0
