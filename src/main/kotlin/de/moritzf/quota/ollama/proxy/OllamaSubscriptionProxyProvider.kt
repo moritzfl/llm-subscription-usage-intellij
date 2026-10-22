@@ -20,8 +20,8 @@ import kotlinx.serialization.json.put
 
 class OllamaSubscriptionProxyProvider(
     apiKeyProvider: () -> String?,
-    httpClient: HttpClient = HttpClient.newHttpClient(),
-    upstreamBaseUri: URI = DEFAULT_UPSTREAM_BASE_URI,
+    private val httpClient: HttpClient = HttpClient.newHttpClient(),
+    private val upstreamBaseUri: URI = DEFAULT_UPSTREAM_BASE_URI,
     fullRequestLogging: Boolean = false,
     requestLogDir: String = DEFAULT_REQUEST_LOG_DIR,
 ) : SubscriptionProxyProvider {
@@ -33,7 +33,7 @@ class OllamaSubscriptionProxyProvider(
             baseUri = upstreamBaseUri,
             apiKeyProvider = apiKeyProvider,
             localIdPrefix = PREFIX,
-            modelTransformer = ::ollamaModelMetadata,
+            modelListEnricher = { _, models -> withCapabilities(models) },
             extraRoutesForModel = { id ->
                 if (
                     isDeepSeekNativeFimModel(id) || de.moritzf.proxy.fim.FimModels.isNativeFimId(id)
@@ -82,13 +82,40 @@ class OllamaSubscriptionProxyProvider(
         delegate.handle(ctx, request)
     }
 
-    private fun ollamaModelMetadata(
-        model: OpenAiCompatibleApiKeySubscriptionProxyProvider.StaticModel
-    ): OpenAiCompatibleApiKeySubscriptionProxyProvider.StaticModel {
-        return if (model.id in MODELS_WITHOUT_TOOL_CALLS) {
-            model.copy(supportsFunctionCalling = false, supportsToolChoice = false)
-        } else {
-            model
+    /**
+     * Tool and image support from Ollama's public model list, which also drops models that cannot
+     * chat. Without that list the discovered models stay as they are.
+     */
+    private fun withCapabilities(
+        models: List<OpenAiCompatibleApiKeySubscriptionProxyProvider.StaticModel>
+    ): List<OpenAiCompatibleApiKeySubscriptionProxyProvider.StaticModel> {
+        val capabilities = runCatching {
+            val response =
+                httpClient.send(
+                    java.net.http.HttpRequest.newBuilder(URI.create(tagsUrl(upstreamBaseUri)))
+                        .timeout(java.time.Duration.ofSeconds(15))
+                        .header("Accept", "application/json")
+                        .GET()
+                        .build(),
+                    java.net.http.HttpResponse.BodyHandlers.ofString(),
+                )
+            if (response.statusCode() in 200..299) parseCapabilities(response.body())
+            else emptyMap()
+        }
+            .getOrElse { exception ->
+                if (exception is InterruptedException) Thread.currentThread().interrupt()
+                emptyMap()
+            }
+        if (capabilities.isEmpty()) return models
+        return models.mapNotNull { model ->
+            val known = capabilities[model.id] ?: return@mapNotNull model
+            if ("completion" !in known) return@mapNotNull null
+            val tools = "tools" in known
+            model.copy(
+                supportsFunctionCalling = tools,
+                supportsToolChoice = tools,
+                supportsVision = "vision" in known,
+            )
         }
     }
 
@@ -101,19 +128,34 @@ class OllamaSubscriptionProxyProvider(
         private val DEFAULT_REQUEST_LOG_DIR =
             System.getProperty("java.io.tmpdir") +
                 "/openai-usage-quota-intellij/subscription-proxy-ollama-requests"
-        private val MODELS_WITHOUT_TOOL_CALLS =
-            setOf(
-                "deepseek-v3.2",
-                "gemini-3-flash-preview",
-                "gemma3:4b",
-                "nemotron-3-nano:30b",
-                "rnj-1:8b",
-            )
 
-        internal fun generateUrl(openAiV1Base: URI): String {
+        internal fun generateUrl(openAiV1Base: URI): String =
+            "${apiRoot(openAiV1Base)}/api/generate"
+
+        internal fun tagsUrl(openAiV1Base: URI): String = "${apiRoot(openAiV1Base)}/api/tags"
+
+        private fun apiRoot(openAiV1Base: URI): String {
             val raw = openAiV1Base.toString().trimEnd('/')
-            val root = if (raw.endsWith("/v1")) raw.dropLast(3).trimEnd('/') else raw
-            return "$root/api/generate"
+            return if (raw.endsWith("/v1")) raw.dropLast(3).trimEnd('/') else raw
+        }
+
+        /** Capabilities by model name, such as completion, tools, vision, or thinking. */
+        internal fun parseCapabilities(body: String): Map<String, Set<String>> {
+            val models =
+                (JsonHelper.parseToJsonElementOrNull(body) as? JsonObject)?.get("models")
+                    as? JsonArray ?: return emptyMap()
+            return models
+                .mapNotNull { entry ->
+                    val item = entry as? JsonObject ?: return@mapNotNull null
+                    val name =
+                        (item["model"] as? JsonPrimitive)?.contentOrNull
+                            ?: (item["name"] as? JsonPrimitive)?.contentOrNull
+                            ?: return@mapNotNull null
+                    val capabilities = item["capabilities"] as? JsonArray ?: return@mapNotNull null
+                    name to
+                        capabilities.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.toSet()
+                }
+                .toMap()
         }
 
         internal fun toGenerateRequest(body: JsonObject): JsonObject {

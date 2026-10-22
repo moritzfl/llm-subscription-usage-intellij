@@ -65,8 +65,10 @@ class OllamaSubscriptionProxyProviderTest {
                     )
 
                 assertEquals(200, chatResponse.statusCode())
-                val chatRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-                assertEquals("/v1/chat/completions", chatRequest.path)
+                val chatRequest = generateSequence {
+                    upstream.requests.poll(2, TimeUnit.SECONDS)
+                }
+                    .first { it.path == "/v1/chat/completions" }
                 assertEquals("Bearer ollama-key", chatRequest.firstHeader("Authorization"))
                 assertTrue(chatRequest.body.contains("\"model\":\"llama3.3\""), chatRequest.body)
             } finally {
@@ -109,6 +111,12 @@ class OllamaSubscriptionProxyProviderTest {
                     qwenInfo["supports_function_calling"]!!.jsonPrimitive.content.toBoolean()
                 )
                 assertTrue(qwenInfo["supports_tool_choice"]!!.jsonPrimitive.content.toBoolean())
+                assertTrue(gemmaInfo["supports_vision"]!!.jsonPrimitive.content.toBoolean())
+                assertFalse(qwenInfo["supports_vision"]!!.jsonPrimitive.content.toBoolean())
+                assertTrue(
+                    data.none { it.jsonObject["id"]!!.jsonPrimitive.content == "ol-clef:27b" },
+                    "models that cannot chat are dropped",
+                )
             } finally {
                 proxy.server.stop(gracePeriodMillis = 0)
             }
@@ -134,14 +142,31 @@ class OllamaSubscriptionProxyProviderTest {
                     "/v1/models",
                     assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)).path,
                 )
-                val chatRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-                assertEquals("/v1/chat/completions", chatRequest.path)
+                val chatRequest = generateSequence {
+                    upstream.requests.poll(2, TimeUnit.SECONDS)
+                }
+                    .first { it.path == "/v1/chat/completions" }
                 assertTrue(chatRequest.body.contains("\"model\":\"llama4\""), chatRequest.body)
                 assertFalse(chatRequest.body.contains("ol-llama4"), chatRequest.body)
             } finally {
                 proxy.server.stop(gracePeriodMillis = 0)
             }
         }
+    }
+
+    @Test
+    fun keepsDiscoveredModelsWhenTheCapabilityListIsUnavailable() {
+        assertEquals(
+            mapOf("a" to setOf("completion", "tools")),
+            OllamaSubscriptionProxyProvider.parseCapabilities(
+                """{"models":[{"model":"a","capabilities":["completion","tools"]},{"name":"b"},"x"]}"""
+            ),
+        )
+        assertEquals(emptyMap(), OllamaSubscriptionProxyProvider.parseCapabilities("not json"))
+        assertEquals(
+            "https://ollama.com/api/tags",
+            OllamaSubscriptionProxyProvider.tagsUrl(URI.create("https://ollama.com/v1")),
+        )
     }
 
     @Test
@@ -203,8 +228,9 @@ class OllamaSubscriptionProxyProviderTest {
                     )
 
                 assertEquals(200, response.statusCode(), response.body())
-                val generate = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-                assertEquals("/api/generate", generate.path)
+                val generate = generateSequence {
+                    upstream.requests.poll(2, TimeUnit.SECONDS)
+                }.first { it.path == "/api/generate" }
                 assertTrue(generate.body.contains("\"prompt\""), generate.body)
                 assertTrue(generate.body.contains("\"suffix\""), generate.body)
                 assertTrue(response.body().contains("\"text\""), response.body())
@@ -377,8 +403,9 @@ class OllamaSubscriptionProxyProviderTest {
                             ),
                         )
                     assertEquals(200, response.statusCode(), response.body())
-                    val generate = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-                    assertEquals("/api/generate", generate.path)
+                    val generate = generateSequence {
+                        upstream.requests.poll(2, TimeUnit.SECONDS)
+                    }.first { it.path == "/api/generate" }
                     assertEquals("Bearer ollama-key", generate.firstHeader("Authorization"))
                     val body = JsonHelper.JSON.parseToJsonElement(generate.body).jsonObject
                     assertEquals("deepseek-v4.1-flash", body["model"]!!.jsonPrimitive.content)
@@ -593,8 +620,16 @@ class OllamaSubscriptionProxyProviderTest {
                             "{\"id\":\"qwen3-coder-next\",\"object\":\"model\"}," +
                             "{\"id\":\"qwen3-coder-next-fim\",\"object\":\"model\"}," +
                             "{\"id\":\"deepseek-v4.1-flash\",\"object\":\"model\"}," +
+                            "{\"id\":\"clef:27b\",\"object\":\"model\"}," +
                             "{\"id\":\"nomic-embed-text\",\"object\":\"embedding\"}" +
                             "]}"
+                    } else if (path.endsWith("/api/tags")) {
+                        """{"models":[
+                          {"name":"llama3.3","model":"llama3.3","capabilities":["completion","tools"]},
+                          {"name":"gemma3:4b","model":"gemma3:4b","capabilities":["completion","vision"]},
+                          {"name":"qwen3-coder-next","model":"qwen3-coder-next","capabilities":["completion","tools"]},
+                          {"name":"deepseek-v4.1-flash","model":"deepseek-v4.1-flash","capabilities":["completion","tools","thinking"]},
+                          {"name":"clef:27b","model":"clef:27b","capabilities":["embedding"]}]}"""
                     } else if (path.endsWith("/api/generate")) {
                         JsonHelper.encodeToString(
                             buildJsonObject {
