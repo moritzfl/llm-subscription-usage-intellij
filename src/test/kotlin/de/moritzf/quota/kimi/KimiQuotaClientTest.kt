@@ -109,6 +109,71 @@ class KimiQuotaClientTest {
     }
 
     @Test
+    fun counterReplacesARatioThatMissesAnExhaustedWindow() {
+        // Real contradictory response from CodexBar issue #4306.
+        val quota =
+            KimiQuotaClient.parseQuota(
+                """{"limits":[{"window":{"duration":300,"timeUnit":"TIME_UNIT_MINUTE"},
+                  "detail":{"limit":"100","used":"100","resetTime":"2026-10-06T13:23:46.915474Z"}}],
+                 "usages":{"limit_5h":{"used_ratio":0,"reset_time":"2026-10-06T13:23:46Z"},
+                  "limit_month_total":{"used_ratio":0.5531,"reset_time":"2026-10-22T14:26:29Z"},
+                  "limit_month_code":{"used_ratio":0,"reset_time":"2026-10-22T14:26:29Z"}}}"""
+            )
+
+        assertEquals(100.0, quota.sessionUsage?.usagePercent)
+        assertEquals(100, quota.sessionUsage?.used)
+        assertEquals(55.31, quota.monthlyUsage!!.usagePercent, 0.0001)
+        assertNull(quota.weeklyUsage)
+    }
+
+    @Test
+    fun ratioStaysWhenTheCounterIsNotTheSameWindow() {
+        fun quota(detail: String, ratio: String = "0.1") =
+            KimiQuotaClient.parseQuota(
+                """{"limits":[{"window":{"duration":300,"timeUnit":"TIME_UNIT_MINUTE"},"detail":$detail}],
+                 "usages":{"limit_5h":{"used_ratio":$ratio,"reset_time":"2026-10-06T13:00:00Z"}}}"""
+            )
+
+        // Resets more than two seconds apart, a lower count, and unreadable counts keep the ratio.
+        assertEquals(
+            10.0,
+            quota("""{"limit":100,"used":90,"resetTime":"2026-10-06T13:00:03Z"}""")
+                .sessionUsage
+                ?.usagePercent,
+        )
+        assertEquals(
+            10.0,
+            quota("""{"limit":100,"used":5,"resetTime":"2026-10-06T13:00:00Z"}""")
+                .sessionUsage
+                ?.usagePercent,
+        )
+        assertEquals(
+            10.0,
+            quota("""{"limit":100,"resetTime":"2026-10-06T13:00:00Z"}""")
+                .sessionUsage
+                ?.usagePercent,
+        )
+        assertEquals(
+            90.0,
+            quota("""{"limit":100,"remaining":10,"reset_at":"2026-10-06T13:00:01Z"}""")
+                .sessionUsage
+                ?.usagePercent,
+        )
+    }
+
+    @Test
+    fun countersPreferUsedAndTreatUnreadableCountsAsNoUsage() {
+        val usedOnly = KimiQuotaClient.parseQuota("""{"usage":{"limit":"100","used":"19"}}""")
+        val numeric = KimiQuotaClient.parseQuota("""{"usage":{"limit":200,"remaining":50}}""")
+        val unreadable = KimiQuotaClient.parseQuota("""{"usage":{"limit":"100"}}""")
+
+        assertEquals(19.0, usedOnly.totalUsage?.usagePercent)
+        assertEquals(150, numeric.totalUsage?.used)
+        assertEquals(75.0, numeric.totalUsage?.usagePercent)
+        assertEquals(0.0, unreadable.totalUsage?.usagePercent)
+    }
+
+    @Test
     fun parseQuotaReportsInvalidPayload() {
         val body = "not json"
 

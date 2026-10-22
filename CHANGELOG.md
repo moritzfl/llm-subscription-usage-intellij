@@ -4,6 +4,7 @@
 
 - Proxy Gemini models from OpenCode Go and Zen by bridging the Google generateContent API, including streaming, tool calls with thought signatures, vision/PDF parts, and Junie-compatible chat requests.
 - Use free Claude limit resets from the quota popup: resets offered in claude.ai Settings > Usage, and the weekly session reset (`/limit-reset`) when you hit the 5-hour limit. A confirmation shows what each reset refills before it is used.
+- Show an exhausted Kimi 5-hour window when the usage ratio says 0% but Kimi's counter for the same window is used up, and read Kimi counters that report used rather than remaining requests.
 - Recognize exhausted LiteLLM budgets, which LiteLLM 1.104 reports as HTTP 422 instead of 429: AI completion backs off as for a rate limit, and connection tests name the exhausted key budget.
 - Use the Z.ai GLM Coding Plan endpoint for the proxy and the plan's hosted MCP servers for web search and page reading. The standard API and its REST search and reader bill the account balance even while plan quota remains. Proxy models come from the plan endpoint (GLM-5.3 and GLM-5.3-Flash when it lists none), and requests that turn GLM-5.3 thinking off get the lowest effort instead of an error.
 - Show the Z.ai MCP tool limit's own reset time and monthly period, with calls per tool on hover.

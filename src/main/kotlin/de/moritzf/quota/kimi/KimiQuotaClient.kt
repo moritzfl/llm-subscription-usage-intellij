@@ -2,6 +2,7 @@ package de.moritzf.quota.kimi
 
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.LenientDoubleOrNullSerializer
+import de.moritzf.quota.shared.lenientDoubleOrNull
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
@@ -9,9 +10,11 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
 open class KimiQuotaClient(
@@ -96,6 +99,9 @@ open class KimiQuotaClient(
     companion object {
         private val USAGE_ENDPOINT = URI.create("https://api.kimi.com/coding/v1/usages")
         private val TOKEN_ENDPOINT = URI.create("https://auth.kimi.com/api/oauth/token")
+        private val FIVE_HOURS = Duration.ofHours(5).toMillis()
+        private val ONE_WEEK = Duration.ofDays(7).toMillis()
+        private val RESET_TOLERANCE = 2.seconds
 
         fun parseQuota(body: String): KimiQuota {
             val dto =
@@ -104,8 +110,15 @@ open class KimiQuotaClient(
                 } catch (exception: Exception) {
                     throw KimiQuotaException("Could not parse usage data.", 200, body, exception)
                 }
-            // Migrated plans use ratios, not counted usage. The old limits array can still
-            // accompany this map and must not overwrite its more precise windows.
+            val plan = normalizeMembership(dto.user?.membership?.level)
+            val sessionLimit =
+                dto.limits.firstOrNull {
+                    it.window?.duration == 300L && it.window.timeUnit == "TIME_UNIT_MINUTE"
+                } ?: dto.limits.firstOrNull()
+            val sessionCounter =
+                sessionLimit?.detail?.toCounter(sessionLimit.window?.durationMillis() ?: FIVE_HOURS)
+            // Migrated plans use ratios. The counters that can still accompany them are used only
+            // where they show the same window more exhausted, which the ratio sometimes misses.
             dto.usages?.let { usages ->
                 fun window(key: String, durationMs: Long? = null): KimiUsageWindow? {
                     val entry =
@@ -114,43 +127,77 @@ open class KimiQuotaClient(
                     val ratio = entry.usedRatio?.takeIf { it >= 0.0 } ?: return null
                     return KimiUsageWindow(
                         usagePercent = ratio.coerceAtMost(1.0) * 100.0,
-                        resetsAt =
-                            entry.resetTime?.let { runCatching { Instant.parse(it) }.getOrNull() },
+                        resetsAt = parseInstant(entry.resetTime),
                         periodDurationMs = durationMs,
                     )
                 }
                 return KimiQuota(
-                    plan = normalizeMembership(dto.user?.membership?.level),
-                    sessionUsage = window("limit_5h", Duration.ofHours(5).toMillis()),
-                    weeklyUsage = window("limit_7d", Duration.ofDays(7).toMillis()),
+                    plan = plan,
+                    sessionUsage = reconcile(window("limit_5h", FIVE_HOURS), sessionCounter),
+                    weeklyUsage =
+                        reconcile(window("limit_7d", ONE_WEEK), dto.usage?.toCounter(ONE_WEEK)),
                     monthlyUsage = window("limit_month_total"),
                 )
             }
-            val total = dto.usage?.toWindow(null)
-            val sessionLimit =
-                dto.limits.firstOrNull {
-                    it.window?.duration == 300L && it.window.timeUnit == "TIME_UNIT_MINUTE"
-                } ?: dto.limits.firstOrNull()
-            val session = sessionLimit?.detail?.toWindow(sessionLimit.window?.durationMillis())
             return KimiQuota(
-                plan = normalizeMembership(dto.user?.membership?.level),
-                sessionUsage = session,
-                totalUsage = total,
+                plan = plan,
+                sessionUsage = sessionCounter?.window,
+                totalUsage = dto.usage?.toCounter(null)?.window,
             )
         }
 
-        private fun KimiLimitDetailDto.toWindow(durationMs: Long?): KimiUsageWindow {
-            val limitValue = limit?.toLongOrNull() ?: 0
-            val remainingValue = remaining?.toLongOrNull() ?: 0
-            val used = (limitValue - remainingValue).coerceAtLeast(0)
-            return KimiUsageWindow(
-                used = used,
-                limit = limitValue,
-                usagePercent =
-                    if (limitValue > 0) used.toDouble() / limitValue.toDouble() * 100.0 else 0.0,
-                resetsAt = resetTime?.let { runCatching { Instant.parse(it) }.getOrNull() },
-                periodDurationMs = durationMs,
+        /** A counted window, and whether its counts could be read. */
+        private data class Counter(val window: KimiUsageWindow, val reliable: Boolean)
+
+        /**
+         * The counter replaces the ratio only for the same window: equal length, readable counts, a
+         * higher percentage, and resets at most two seconds apart.
+         */
+        private fun reconcile(ratio: KimiUsageWindow?, counter: Counter?): KimiUsageWindow? {
+            if (ratio == null || counter == null || !counter.reliable) return ratio
+            val counted = counter.window
+            if (counted.periodDurationMs != ratio.periodDurationMs) return ratio
+            if (counted.usagePercent.coerceIn(0.0, 100.0) <= ratio.usagePercent) return ratio
+            val ratioReset = ratio.resetsAt ?: return ratio
+            val countedReset = counted.resetsAt ?: return ratio
+            if ((ratioReset - countedReset).absoluteValue > RESET_TOLERANCE) return ratio
+            return counted
+        }
+
+        /**
+         * Used is the reported count, otherwise limit minus remaining. Without either the counts
+         * are unreliable and show no usage rather than a full window.
+         */
+        private fun KimiLimitDetailDto.toCounter(durationMs: Long?): Counter? {
+            val limitValue = limit?.lenientDoubleOrNull()?.takeIf { it.isFinite() && it > 0 }
+            val resetsAt = parseInstant(resetTime ?: resetAt ?: resetTimeSnake ?: resetAtSnake)
+            if (limitValue == null) {
+                return Counter(KimiUsageWindow(resetsAt = resetsAt), reliable = false)
+            }
+            val usedValue =
+                used?.lenientDoubleOrNull()?.takeIf { it.isFinite() && it >= 0 }
+                    ?: remaining
+                        ?.lenientDoubleOrNull()
+                        ?.takeIf { it.isFinite() && it in 0.0..limitValue }
+                        ?.let { limitValue - it }
+                    ?: return Counter(
+                        KimiUsageWindow(limit = limitValue.toLong(), resetsAt = resetsAt),
+                        reliable = false,
+                    )
+            return Counter(
+                KimiUsageWindow(
+                    used = usedValue.toLong(),
+                    limit = limitValue.toLong(),
+                    usagePercent = usedValue / limitValue * 100.0,
+                    resetsAt = resetsAt,
+                    periodDurationMs = durationMs,
+                ),
+                reliable = true,
             )
+        }
+
+        private fun parseInstant(value: String?): Instant? = value?.let {
+            runCatching { Instant.parse(it) }.getOrNull()
         }
 
         private fun KimiWindowDto.durationMillis(): Long? {
@@ -213,11 +260,16 @@ private data class KimiWindowDto(
     val timeUnit: String? = null,
 )
 
+/** Counts arrive as numbers or numeric strings; the reset under several names. */
 @Serializable
 private data class KimiLimitDetailDto(
-    val limit: String? = null,
-    val remaining: String? = null,
+    val limit: JsonElement? = null,
+    val used: JsonElement? = null,
+    val remaining: JsonElement? = null,
     val resetTime: String? = null,
+    val resetAt: String? = null,
+    @SerialName("reset_time") val resetTimeSnake: String? = null,
+    @SerialName("reset_at") val resetAtSnake: String? = null,
 )
 
 @Serializable private data class KimiUserDto(val membership: KimiMembershipDto? = null)
