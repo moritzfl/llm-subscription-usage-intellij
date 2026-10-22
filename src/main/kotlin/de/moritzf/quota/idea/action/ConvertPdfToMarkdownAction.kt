@@ -8,7 +8,7 @@ import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
-import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
@@ -146,7 +146,7 @@ class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
                                         "PDF to Markdown",
                                     )
                                 } else {
-                                    FileEditorManager.getInstance(project).openFile(result, true)
+                                    OpenFileDescriptor(project, result).navigate(true)
                                     val notable =
                                         conversion.warnings.filter { warning ->
                                             warning != DocumentModels.PDFBOX_WARNING &&

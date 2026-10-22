@@ -52,8 +52,16 @@ internal class KimiSettingsPanel(
     private val regionCombo =
         ComboBox(KimiRegion.entries.toTypedArray()).apply {
             renderer =
-                SimpleListCellRenderer.create("") { region ->
-                    message("settings.kimi.region.${region.id}")
+                object : SimpleListCellRenderer<KimiRegion>() {
+                    override fun customize(
+                        list: javax.swing.JList<out KimiRegion>,
+                        value: KimiRegion?,
+                        index: Int,
+                        selected: Boolean,
+                        hasFocus: Boolean,
+                    ) {
+                        text = value?.let { message("settings.kimi.region.${it.id}") }.orEmpty()
+                    }
                 }
         }
     private val responseViewer = createResponseViewer()
