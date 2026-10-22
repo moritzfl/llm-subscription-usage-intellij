@@ -20,6 +20,13 @@ data class ClaudeQuota(
      */
     val scopedLimits: List<ClaudeUsageWindow> = emptyList(),
     val extraUsage: ClaudeExtraUsage? = null,
+    /**
+     * Credits outside the plan limits, such as a one-time Claude Code and Cowork credit. Using them
+     * up does not stop Claude, so they do not count toward the usage shown in the status bar.
+     */
+    val credits: List<ClaudeCredit> = emptyList(),
+    /** Prepaid usage-credit balance from the `spend` block, when the account has one. */
+    val creditBalance: ClaudeMoney? = null,
     override var fetchedAt: Instant? = null,
     @Transient override var rawJson: String? = null,
     /** Read separately from the usage windows and never cached, so no stale offer is shown. */
@@ -44,6 +51,7 @@ data class ClaudeQuota(
             sevenDayOauthAppsUsage != null ||
             routinesUsage != null ||
             scopedLimits.isNotEmpty() ||
+            credits.isNotEmpty() ||
             extraUsage?.isEnabled == true
     }
 
@@ -72,6 +80,9 @@ data class ClaudeQuota(
         scopedLimits.forEachIndexed { index, window ->
             put("scoped:${window.label.ifBlank { index.toString() }}", window.usagePercent / 100.0)
         }
+        credits.forEachIndexed { index, credit ->
+            put("credit:${credit.label.ifBlank { index.toString() }}", credit.usagePercent / 100.0)
+        }
     }
 
     fun primaryWindow(): ClaudeUsageWindow? {
@@ -84,6 +95,9 @@ data class ClaudeQuota(
     }
 }
 
+/** The login's organization and plan name, such as "Max 20x" (empty when unknown). */
+data class ClaudeProfile(val organizationUuid: String, val plan: String)
+
 @Serializable
 data class ClaudeUsageWindow(
     val label: String = "",
@@ -94,6 +108,26 @@ data class ClaudeUsageWindow(
     @Transient val periodDuration: Duration? = periodDurationMs?.let(Duration::ofMillis)
 }
 
+/**
+ * A credit pool. [endsAt] is when it expires, or when it refills if [renews]. Dollar amounts are
+ * present only when the server reports them.
+ */
+@Serializable
+data class ClaudeCredit(
+    val label: String,
+    val usagePercent: Double,
+    val usedDollars: Double? = null,
+    val limitDollars: Double? = null,
+    val endsAt: Instant? = null,
+    val renews: Boolean = false,
+)
+
+/** An amount in minor units, such as cents with [exponent] 2. */
+@Serializable
+data class ClaudeMoney(val amountMinor: Long, val currency: String, val exponent: Int = 2) {
+    @Transient val major: Double = amountMinor / Math.pow(10.0, exponent.toDouble())
+}
+
 @Serializable
 data class ClaudeExtraUsage(
     val isEnabled: Boolean = false,
@@ -101,6 +135,10 @@ data class ClaudeExtraUsage(
     val usedCredits: Long? = null,
     val usagePercent: Double? = null,
     val currency: String? = null,
+    /** Enabled without a monthly cap. */
+    val unlimited: Boolean = false,
+    /** Why usage credits cannot be used, such as `out_of_credits` or `org_spend_cap_reached`. */
+    val disabledReason: String? = null,
 ) {
     @Transient val monthlyLimitMajor: Double? = monthlyLimitCredits?.let { it / 100.0 }
 

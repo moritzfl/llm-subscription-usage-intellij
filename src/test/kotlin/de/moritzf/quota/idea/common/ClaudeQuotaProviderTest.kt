@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea.common
 
+import de.moritzf.quota.claude.ClaudeProfile
 import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.claude.ClaudeQuotaClient
 import de.moritzf.quota.claude.ClaudeQuotaException
@@ -300,6 +301,47 @@ class ClaudeQuotaProviderTest {
     }
 
     @Test
+    fun planComesFromTheProfileReadOnceADay() {
+        var now = START
+        val plans = ArrayDeque(listOf("Max 5x", "Max 20x"))
+        var profileReads = 0
+        var failProfile = false
+        val provider =
+            ClaudeQuotaProvider(
+                client =
+                    FakeClaudeClient(
+                        profile = {
+                            profileReads++
+                            if (failProfile) throw ClaudeQuotaException("busy", 429)
+                            ClaudeProfile(ORGANIZATION, plans.removeFirst())
+                        }
+                    ) {
+                        ClaudeQuota(fiveHourUsage = ClaudeUsageWindow(usagePercent = 1.0))
+                    },
+                tokenProvider = { "token" },
+                tokenRefresher = { null },
+                clock = { now },
+            )
+
+        provider.refresh()
+        now += 23.hours
+        provider.refresh()
+        assertEquals("Max 5x", provider.getLastQuota()?.plan)
+        assertEquals(1, profileReads)
+
+        now += 2.hours
+        failProfile = true
+        provider.refresh()
+        assertEquals("Max 5x", provider.getLastQuota()?.plan, "a failed read keeps the plan")
+        assertNull(provider.getLastError(), "the profile is optional")
+
+        failProfile = false
+        provider.refresh()
+        assertEquals("Max 20x", provider.getLastQuota()?.plan)
+        assertEquals(3, profileReads)
+    }
+
+    @Test
     fun refreshSurfacesNonRateLimitErrorEvenWithPreviousData() {
         val firstQuota = ClaudeQuota(rawJson = "{\"first\":true}")
         var fetchCount = 0
@@ -573,6 +615,7 @@ class ClaudeQuotaProviderTest {
 
     private class FakeClaudeClient(
         private val fetchAtLimitResets: () -> ClaudeResets? = { null },
+        private val profile: (String) -> ClaudeProfile = { ClaudeProfile(ORGANIZATION, "") },
         private val organization: (String) -> String = { ORGANIZATION },
         private val redeem: (String, String) -> ClaudeResetOutcome = { _, _ ->
             error("unexpected reset claim")
@@ -582,6 +625,8 @@ class ClaudeQuotaProviderTest {
         override fun fetchQuota(accessToken: String?): ClaudeQuota = fetch()
 
         override fun fetchAtLimitResets(accessToken: String): ClaudeResets? = fetchAtLimitResets()
+
+        override fun fetchProfile(accessToken: String): ClaudeProfile = profile(accessToken)
 
         override fun fetchOrganizationUuid(accessToken: String): String = organization(accessToken)
 

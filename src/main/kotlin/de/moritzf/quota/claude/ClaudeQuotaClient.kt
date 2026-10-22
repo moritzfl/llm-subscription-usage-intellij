@@ -23,6 +23,7 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -71,16 +72,29 @@ open class ClaudeQuotaClient(
         parseResets(getUsageJson(accessToken, usageQuery(AT_LIMIT_QUERY)))
 
     /** The login's organization, which reset claims are addressed to. */
-    open fun fetchOrganizationUuid(accessToken: String): String {
+    open fun fetchOrganizationUuid(accessToken: String): String =
+        fetchProfile(accessToken).organizationUuid
+
+    /** The login's organization and plan from the OAuth profile. */
+    open fun fetchProfile(accessToken: String): ClaudeProfile {
         val request = authorized(usageUri.resolve(PROFILE_PATH), accessToken).GET().build()
         val body = checked(send(request), "profile")
         val organization =
-            runCatching { JsonSupport.json.parseToJsonElement(body) }.getOrNull() as? JsonObject
+            (runCatching { JsonSupport.json.parseToJsonElement(body) }.getOrNull() as? JsonObject)
+                ?.get("organization") as? JsonObject
+        fun field(name: String): String? =
+            (organization?.get(name) as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
         val uuid =
-            ((organization?.get("organization") as? JsonObject)?.get("uuid") as? JsonPrimitive)
-                ?.contentOrNull
-        return uuid?.takeIf(ORGANIZATION_UUID::matches)
-            ?: throw ClaudeQuotaException("Claude profile has no organization.", 200, body)
+            field("uuid")?.takeIf(ORGANIZATION_UUID::matches)
+                ?: throw ClaudeQuotaException("Claude profile has no organization.", 200, body)
+        return ClaudeProfile(
+            uuid,
+            planLabel(
+                field("plan_display_name"),
+                field("organization_type"),
+                field("rate_limit_tier"),
+            ),
+        )
     }
 
     private fun usageQuery(query: String): URI =
@@ -241,6 +255,10 @@ open class ClaudeQuotaClient(
         private const val RESETS_QUERY = "cedar_ember=1"
         private const val AT_LIMIT_QUERY = "at_wall=1&skip_spend=1"
         private const val OFFER_PROGRAM = "cedar_ember"
+        /** Claude Code accepts only short plain plan names from the profile. */
+        private val PLAN_DISPLAY_NAME =
+            Regex("^[\\p{L}\\p{N}](?:[\\p{L}\\p{N} .+-]{0,38}[\\p{L}\\p{N}+])?$")
+        private val MAX_MULTIPLIER = Regex("max_(\\d+x)")
         private const val SESSION_RESET_PROGRAM = "juniper_tide"
         private val GRANT_ID = Regex("^[a-z0-9_-]{1,40}$")
         private val ORGANIZATION_UUID =
@@ -293,6 +311,32 @@ open class ClaudeQuotaClient(
                 }
                     .getOrNull() ?: return null
             return Duration.between(now, date.toInstant()).takeUnless { it.isNegative }
+        }
+
+        /**
+         * The plan name Claude Code shows: the profile's display name, otherwise the organization
+         * type with the Max usage multiplier from the rate-limit tier.
+         */
+        internal fun planLabel(
+            displayName: String?,
+            organizationType: String?,
+            rateLimitTier: String?,
+        ): String {
+            displayName?.trim()?.takeIf(PLAN_DISPLAY_NAME::matches)?.let {
+                return it
+            }
+            return when (organizationType) {
+                "claude_max" ->
+                    listOfNotNull(
+                            "Max",
+                            rateLimitTier?.let { MAX_MULTIPLIER.find(it)?.groupValues?.get(1) },
+                        )
+                        .joinToString(" ")
+                "claude_pro" -> "Pro"
+                "claude_team" -> "Team"
+                "claude_enterprise" -> "Enterprise"
+                else -> ""
+            }
         }
 
         private fun ResetGrantDto.toGrant(): ClaudeResetGrant? {
@@ -363,7 +407,24 @@ open class ClaudeQuotaClient(
                 payload.sevenDayOauthApps.toWindow("7-day OAuth apps", SEVEN_DAY_MS)
             val routines = firstRoutinesWindow(payload)
             val scopedLimits = scopedLimitWindows(payload)
-            val extraUsage = payload.extraUsage?.toExtraUsage()
+            val extraUsage =
+                payload.extraUsage?.toExtraUsage(
+                    unlimitedWhenEnabled =
+                        (root["extra_usage"] as? JsonObject)?.get("monthly_limit") == JsonNull
+                )
+            fun credit(key: String, fallbackLabel: String, oneTime: Boolean): ClaudeCredit? =
+                JsonSupport.decodeSectionOrNull(root[key], ClaudeCreditDto.serializer())
+                    ?.toCredit(fallbackLabel, oneTime)
+            val credits =
+                listOfNotNull(
+                    credit("cinder_cove", "Claude Code and Cowork credit", oneTime = true),
+                    credit("wattle_ember", "Credit", oneTime = false),
+                    credit("iguana_necktie", "Cloud credits", oneTime = false),
+                )
+            val creditBalance =
+                ((root["spend"] as? JsonObject)?.get("balance") as? JsonObject)?.let { balance ->
+                    JsonSupport.decodeSectionOrNull(balance, ClaudeMoneyDto.serializer())?.toMoney()
+                }
 
             val hasWindows =
                 listOfNotNull(
@@ -374,7 +435,7 @@ open class ClaudeQuotaClient(
                         sevenDayOauthApps,
                         routines,
                     )
-                    .isNotEmpty() || scopedLimits.isNotEmpty()
+                    .isNotEmpty() || scopedLimits.isNotEmpty() || credits.isNotEmpty()
             if (!hasWindows && extraUsage?.isEnabled != true) {
                 throw ClaudeQuotaException("Claude usage response changed.", 200, usageJson)
             }
@@ -389,8 +450,48 @@ open class ClaudeQuotaClient(
                 routinesUsage = routines,
                 scopedLimits = scopedLimits,
                 extraUsage = extraUsage,
+                credits = credits,
+                creditBalance = creditBalance,
                 fetchedAt = fetchedAt,
             )
+        }
+
+        /**
+         * A credit pool shown the way Claude Code's /usage does: dollars when reported, otherwise
+         * the server's utilization. A pool that refills names more than one period.
+         */
+        private fun ClaudeCreditDto.toCredit(
+            fallbackLabel: String,
+            oneTime: Boolean,
+        ): ClaudeCredit? {
+            val limit = limitDollars?.takeIf { it.isFinite() && it > 0 }
+            val used =
+                usedDollars?.takeIf { it.isFinite() && it >= 0 }
+                    ?: remainingDollars
+                        ?.takeIf { limit != null && it.isFinite() }
+                        ?.let { (limit!! - it).coerceAtLeast(0.0) }
+            val percent =
+                utilization?.takeIf { it.isFinite() }
+                    ?: if (limit != null && used != null) used / limit * 100.0 else null
+            percent ?: return null
+            val endsAt = parseInstantOrNull(resetsAt)
+            val lastPeriodEnd =
+                periods.orEmpty().takeIf { it.size >= 2 }?.last()?.endsAt?.let(::parseInstantOrNull)
+            return ClaudeCredit(
+                label = label?.trim()?.takeIf { it.isNotEmpty() } ?: fallbackLabel,
+                usagePercent = percent.coerceIn(0.0, 100.0),
+                usedDollars = used?.takeIf { limit != null },
+                limitDollars = limit,
+                endsAt = endsAt,
+                renews =
+                    !oneTime && endsAt != null && lastPeriodEnd != null && endsAt < lastPeriodEnd,
+            )
+        }
+
+        private fun ClaudeMoneyDto.toMoney(): ClaudeMoney? {
+            val amount = amountMinor ?: return null
+            val code = currency?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+            return ClaudeMoney(amount, code, (exponent ?: 2).coerceIn(0, 6))
         }
 
         /**
@@ -463,11 +564,14 @@ open class ClaudeQuotaClient(
             )
         }
 
-        private fun ClaudeExtraUsageDto.toExtraUsage(): ClaudeExtraUsage {
+        private fun ClaudeExtraUsageDto.toExtraUsage(
+            unlimitedWhenEnabled: Boolean
+        ): ClaudeExtraUsage {
             val limit = monthlyLimit
             val used = usedCredits
+            val unlimited = isEnabled == true && unlimitedWhenEnabled
             val percent =
-                utilization
+                utilization?.takeUnless { unlimited }
                     ?: if (limit != null && limit > 0 && used != null) {
                         (used.toDouble() / limit.toDouble() * 100.0).coerceIn(0.0, 100.0)
                     } else {
@@ -479,6 +583,8 @@ open class ClaudeQuotaClient(
                 usedCredits = used,
                 usagePercent = percent,
                 currency = currency,
+                unlimited = unlimited,
+                disabledReason = disabledReason?.trim()?.takeIf { it.isNotEmpty() },
             )
         }
     }
@@ -552,6 +658,39 @@ private data class ClaudeExtraUsageDto(
     val usedCredits: Long? = null,
     @Serializable(with = LenientDoubleOrNullSerializer::class) val utilization: Double? = null,
     val currency: String? = null,
+    @SerialName("disabled_reason") val disabledReason: String? = null,
+)
+
+@Serializable
+private data class ClaudeCreditDto(
+    val label: String? = null,
+    @Serializable(with = LenientDoubleOrNullSerializer::class) val utilization: Double? = null,
+    @SerialName("resets_at") val resetsAt: String? = null,
+    @SerialName("limit_dollars")
+    @Serializable(with = LenientDoubleOrNullSerializer::class)
+    val limitDollars: Double? = null,
+    @SerialName("used_dollars")
+    @Serializable(with = LenientDoubleOrNullSerializer::class)
+    val usedDollars: Double? = null,
+    @SerialName("remaining_dollars")
+    @Serializable(with = LenientDoubleOrNullSerializer::class)
+    val remainingDollars: Double? = null,
+    val periods: List<ClaudeCreditPeriodDto>? = null,
+)
+
+@Serializable
+private data class ClaudeCreditPeriodDto(
+    @SerialName("starts_at") val startsAt: String? = null,
+    @SerialName("ends_at") val endsAt: String? = null,
+)
+
+@Serializable
+private data class ClaudeMoneyDto(
+    @SerialName("amount_minor")
+    @Serializable(with = LenientCreditsSerializer::class)
+    val amountMinor: Long? = null,
+    val currency: String? = null,
+    val exponent: Int? = null,
 )
 
 @Serializable

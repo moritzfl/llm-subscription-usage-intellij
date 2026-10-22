@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea.common
 
+import de.moritzf.quota.claude.ClaudeProfile
 import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.claude.ClaudeQuotaClient
 import de.moritzf.quota.claude.ClaudeQuotaException
@@ -10,6 +11,7 @@ import de.moritzf.quota.idea.auth.OAuthConnectionState
 import de.moritzf.quota.idea.auth.QuotaAuthService
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
@@ -37,6 +39,7 @@ class ClaudeQuotaProvider(
     override val type = QuotaProviderType.CLAUDE
     override val notConfiguredMessage = "Claude login required. Log in from Claude settings."
     private val organizationUuid = AtomicReference<String?>()
+    private val profile = AtomicReference<CachedProfile?>()
     private val rateLimit = AtomicReference<RateLimitPause?>()
 
     override fun refresh() {
@@ -54,8 +57,10 @@ class ClaudeQuotaProvider(
             val resets =
                 if (quota.atLimit()) ClaudeResets.merge(quota.resets, fetchAtLimitResets())
                 else quota.resets
+            val plan = plan() ?: quota.plan
             storeQuota(
-                if (resets == quota.resets) quota else quota.copy(resets = resets),
+                if (resets == quota.resets && plan == quota.plan) quota
+                else quota.copy(resets = resets, plan = plan),
                 quota.rawJson,
             )
         } catch (exception: ClaudeQuotaException) {
@@ -108,6 +113,25 @@ class ClaudeQuotaProvider(
                 pauseAfterRateLimit(exception, "", token)
             }
             lastQuotaRef.get()?.resets?.let { ClaudeResets(sessionReset = it.sessionReset) }
+        }
+    }
+
+    /** The plan name, read from the profile once a day; best effort. */
+    private fun plan(): String? {
+        val cached = profile.get()
+        if (cached != null && clock() - cached.readAt < PROFILE_MAX_AGE) return cached.profile.plan
+        val token = tokenProvider()?.takeIf { it.isNotBlank() } ?: return cached?.profile?.plan
+        return try {
+            client
+                .fetchProfile(token)
+                .also {
+                    profile.set(CachedProfile(it, clock()))
+                    organizationUuid.set(it.organizationUuid)
+                }
+                .plan
+        } catch (exception: Exception) {
+            exception.rethrowIfCancellation()
+            cached?.profile?.plan
         }
     }
 
@@ -169,10 +193,13 @@ class ClaudeQuotaProvider(
 
     private data class RateLimitPause(val until: Instant, val count: Int, val token: String)
 
+    private data class CachedProfile(val profile: ClaudeProfile, val readAt: Instant)
+
     private companion object {
         private const val TOKEN_UNAVAILABLE_MESSAGE =
             "Claude token could not be refreshed. Trying again with the next update."
         private val RATE_LIMIT_PAUSE = 5.minutes
         private val MAX_RATE_LIMIT_PAUSE = 1.hours
+        private val PROFILE_MAX_AGE = 1.days
     }
 }

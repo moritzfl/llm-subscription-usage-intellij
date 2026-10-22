@@ -42,7 +42,12 @@ internal class ClaudePopupSection : ProviderPopupSection() {
             isOpaque = false
         }
     private val routinesBlock = WindowBlockPanel(5)
+    private val creditsPanel =
+        JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)).apply {
+            isOpaque = false
+        }
     private val extraBlock = WindowBlockPanel(5)
+    private val balanceLabel = createMutedLabel("").apply { border = JBUI.Borders.emptyTop(2) }
     private val resetsPanel =
         JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(3), 0)).apply {
             isOpaque = false
@@ -59,7 +64,9 @@ internal class ClaudePopupSection : ProviderPopupSection() {
         add(modelBlock)
         add(scopedLimitsPanel)
         add(routinesBlock)
+        add(creditsPanel)
         add(extraBlock)
+        add(balanceLabel)
         add(resetsPanel)
         hideAll()
     }
@@ -106,25 +113,49 @@ internal class ClaudePopupSection : ProviderPopupSection() {
                 updateScopedLimits(quota.scopedLimits)
                 quota.routinesUsage?.let { routinesBlock.updateClaude(it, "Daily Routines") }
                     ?: routinesBlock.clear()
+                updateCredits(quota)
                 val extra = quota.extraUsage
-                if (extra?.isEnabled == true) {
-                    val percent = extra.usagePercent?.roundToInt()?.let(::clampPercent) ?: 0
-                    val used = extra.usedMajor
-                    val limit = extra.monthlyLimitMajor
-                    val currency = extra.currency?.takeIf { it.isNotBlank() } ?: "USD"
-                    val money =
-                        if (used != null && limit != null) {
-                            String.format("%.2f / %.2f %s", used, limit, currency)
-                        } else {
-                            null
-                        }
-                    var info = "$percent% used"
-                    if (money != null) info += " • $money"
-                    extraBlock.update("Extra usage", info, percent)
-                } else {
-                    extraBlock.clear()
+                val currency = extra?.currency?.takeIf { it.isNotBlank() } ?: "USD"
+                val extraTitle = message("quota.claude.extra.title")
+                when {
+                    extra?.isEnabled == true && extra.unlimited -> {
+                        val used =
+                            extra.usedMajor?.let { String.format("%.2f %s used", it, currency) }
+                        extraBlock.showUnavailable(
+                            extraTitle,
+                            listOfNotNull(message("quota.claude.extra.unlimited"), used)
+                                .joinToString(" • "),
+                        )
+                    }
+                    extra?.isEnabled == true -> {
+                        val percent = extra.usagePercent?.roundToInt()?.let(::clampPercent) ?: 0
+                        val used = extra.usedMajor
+                        val limit = extra.monthlyLimitMajor
+                        val money =
+                            if (used != null && limit != null) {
+                                String.format("%.2f / %.2f %s", used, limit, currency)
+                            } else {
+                                null
+                            }
+                        var info = "$percent% used"
+                        if (money != null) info += " • $money"
+                        extraBlock.update(extraTitle, info, percent)
+                    }
+                    extra?.disabledReason != null &&
+                        extra.disabledReason != "overage_not_provisioned" ->
+                        extraBlock.showUnavailable(extraTitle, disabledReason(extra.disabledReason))
+                    else -> extraBlock.clear()
                 }
-                if (primary == null && extra?.isEnabled != true) {
+                val balance = quota.creditBalance
+                balanceLabel.isVisible = balance != null
+                if (balance != null) {
+                    balanceLabel.text =
+                        message(
+                            "quota.claude.credit.balance",
+                            String.format("%.2f %s", balance.major, balance.currency),
+                        )
+                }
+                if (primary == null && extra?.isEnabled != true && quota.credits.isEmpty()) {
                     fiveHourBlock.showLoading("Usage")
                 }
                 updateResets(quota.resets)
@@ -144,7 +175,9 @@ internal class ClaudePopupSection : ProviderPopupSection() {
         modelBlock.isVisible = false
         scopedLimitsPanel.isVisible = false
         routinesBlock.isVisible = false
+        creditsPanel.isVisible = false
         extraBlock.isVisible = false
+        balanceLabel.isVisible = false
         resetsPanel.isVisible = false
     }
 
@@ -301,6 +334,40 @@ internal class ClaudePopupSection : ProviderPopupSection() {
             ClaudeResetOutcome.RATE_LIMITED -> message("quota.claude.reset.result.$result")
             else -> message("quota.claude.reset.result.unavailable")
         }
+
+    private fun disabledReason(reason: String): String =
+        when (reason) {
+            "out_of_credits",
+            "org_spend_cap_reached",
+            "org_level_disabled_until" -> message("quota.claude.extra.disabled.$reason")
+            else -> message("quota.claude.extra.disabled.other", reason.replace('_', ' '))
+        }
+
+    private fun updateCredits(quota: ClaudeQuota) {
+        creditsPanel.removeAll()
+        quota.credits.forEach { credit ->
+            val percent = clampPercent(credit.usagePercent.roundToInt())
+            val used = credit.usedDollars
+            val limit = credit.limitDollars
+            val info =
+                listOfNotNull(
+                        if (used != null && limit != null)
+                            message(
+                                "quota.claude.credit.dollars",
+                                String.format("%.2f", used),
+                                String.format("%.2f", limit),
+                            )
+                        else "$percent% used",
+                        if (credit.renews) QuotaUiUtil.formatReset(credit.endsAt)
+                        else QuotaUiUtil.formatExpiry(credit.endsAt),
+                    )
+                    .joinToString(" - ")
+            creditsPanel.add(WindowBlockPanel(5).apply { update(credit.label, info, percent) })
+        }
+        creditsPanel.isVisible = quota.credits.isNotEmpty()
+        creditsPanel.revalidate()
+        creditsPanel.repaint()
+    }
 
     private fun updateScopedLimits(limits: List<ClaudeUsageWindow>) {
         scopedLimitsPanel.removeAll()

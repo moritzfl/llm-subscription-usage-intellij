@@ -1,6 +1,9 @@
 package de.moritzf.quota.idea.ui.popup
 
 import com.intellij.ui.components.ActionLink
+import de.moritzf.quota.claude.ClaudeCredit
+import de.moritzf.quota.claude.ClaudeExtraUsage
+import de.moritzf.quota.claude.ClaudeMoney
 import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.claude.ClaudeResetGrant
 import de.moritzf.quota.claude.ClaudeResets
@@ -68,6 +71,96 @@ class ClaudePopupContentBuilderTest {
 
         assertEquals(emptyList(), links(section))
         assertFalse(labels(section).any { it.startsWith("Resets available") })
+    }
+
+    @Test
+    fun showsPlanCreditsAndTheUsageCreditBalance() {
+        val section = ClaudePopupSection()
+
+        section.update(
+            ClaudeQuota(
+                plan = "Max 20x",
+                fiveHourUsage = window,
+                credits =
+                    listOf(
+                        ClaudeCredit(
+                            "Claude Code and Cowork credit",
+                            25.0,
+                            endsAt = Clock.System.now() + 3.days,
+                        ),
+                        ClaudeCredit(
+                            "Fable credit",
+                            40.0,
+                            20.0,
+                            50.0,
+                            Clock.System.now() + 3.days,
+                            renews = true,
+                        ),
+                    ),
+                creditBalance = ClaudeMoney(1234, "EUR"),
+            ),
+            null,
+            true,
+        )
+
+        val texts = labels(section)
+        assertTrue("Claude (Max 20x)" in texts, texts.toString())
+        assertTrue("Claude Code and Cowork credit" in texts)
+        assertTrue(texts.any { it.startsWith("25% used - Expires in ") }, texts.toString())
+        assertTrue("Fable credit" in texts)
+        val twenty = String.format("%.2f", 20.0)
+        val fifty = String.format("%.2f", 50.0)
+        assertTrue(
+            texts.any { it.startsWith("\$$twenty of \$$fifty used - Resets in ") },
+            texts.toString(),
+        )
+        assertTrue("Usage credit balance: ${String.format("%.2f", 12.34)} EUR" in texts)
+        assertFalse(texts.contains("Claude limit reached"))
+    }
+
+    @Test
+    fun showsUnlimitedAndBlockedUsageCredits() {
+        val section = ClaudePopupSection()
+
+        section.update(
+            ClaudeQuota(
+                fiveHourUsage = window,
+                extraUsage =
+                    ClaudeExtraUsage(
+                        isEnabled = true,
+                        usedCredits = 1250,
+                        currency = "USD",
+                        unlimited = true,
+                    ),
+            ),
+            null,
+            true,
+        )
+        assertTrue(
+            "No monthly cap • ${String.format("%.2f", 12.5)} USD used" in labels(section),
+            labels(section).toString(),
+        )
+
+        section.update(
+            ClaudeQuota(
+                fiveHourUsage = window,
+                extraUsage = ClaudeExtraUsage(disabledReason = "out_of_credits"),
+            ),
+            null,
+            true,
+        )
+        assertTrue("Out of usage credits" in labels(section))
+        assertFalse(labels(section).any { it.startsWith("Usage credit balance") })
+
+        section.update(
+            ClaudeQuota(
+                fiveHourUsage = window,
+                extraUsage = ClaudeExtraUsage(disabledReason = "overage_not_provisioned"),
+            ),
+            null,
+            true,
+        )
+        assertFalse("Extra usage" in labels(section), "not set up is not a blocked state")
     }
 
     private fun grant(

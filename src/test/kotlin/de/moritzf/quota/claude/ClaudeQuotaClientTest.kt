@@ -1,5 +1,6 @@
 package de.moritzf.quota.claude
 
+import de.moritzf.quota.shared.JsonSupport
 import java.net.Authenticator
 import java.net.CookieHandler
 import java.net.ProxySelector
@@ -19,6 +20,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 class ClaudeQuotaClientTest {
     @Test
@@ -423,6 +426,238 @@ class ClaudeQuotaClientTest {
             quota.scopedLimits.map { it.label to it.usagePercent },
         )
         assertEquals(Instant.parse("2026-10-29T07:00:00Z"), quota.scopedLimits.first().resetsAt)
+    }
+
+    @Test
+    fun parseQuotaReadsCreditPoolsOutsideThePlanLimits() {
+        val quota =
+            ClaudeQuotaClient.parseQuota(
+                """
+                {
+                  "five_hour": {"utilization": 90, "resets_at": null},
+                  "cinder_cove": {"utilization": 25, "resets_at": "2026-11-30T00:00:00Z"},
+                  "wattle_ember": {"label": "Fable credit", "utilization": null,
+                    "limit_dollars": 50, "used_dollars": 12.5, "remaining_dollars": 37.5,
+                    "resets_at": "2026-11-05T00:00:00Z",
+                    "periods": [
+                      {"starts_at": "2026-10-22T00:00:00Z", "ends_at": "2026-11-05T00:00:00Z"},
+                      {"starts_at": "2026-11-05T00:00:00Z", "ends_at": "2026-11-19T00:00:00Z"}
+                    ]},
+                  "iguana_necktie": {"limit_dollars": 20, "remaining_dollars": 15,
+                    "resets_at": "2026-12-01T00:00:00Z", "locked_reason": null},
+                  "unknown_pool": {"utilization": 99}
+                }
+                """
+            )
+
+        assertEquals(
+            listOf(
+                ClaudeCredit(
+                    "Claude Code and Cowork credit",
+                    25.0,
+                    endsAt = Instant.parse("2026-11-30T00:00:00Z"),
+                ),
+                ClaudeCredit(
+                    "Fable credit",
+                    25.0,
+                    12.5,
+                    50.0,
+                    Instant.parse("2026-11-05T00:00:00Z"),
+                    renews = true,
+                ),
+                ClaudeCredit(
+                    "Cloud credits",
+                    25.0,
+                    5.0,
+                    20.0,
+                    Instant.parse("2026-12-01T00:00:00Z"),
+                ),
+            ),
+            quota.credits,
+        )
+        // Credits are not plan limits: the status bar keeps showing the 5-hour window.
+        assertEquals(0.9, quota.usageFraction())
+        assertTrue(!quota.atLimit())
+    }
+
+    @Test
+    fun parseQuotaAcceptsAResponseWithOnlyACreditPool() {
+        val quota =
+            ClaudeQuotaClient.parseQuota(
+                """{"cinder_cove": {"utilization": 0, "resets_at": null}}"""
+            )
+
+        assertEquals(listOf("Claude Code and Cowork credit"), quota.credits.map { it.label })
+        assertTrue(quota.hasUsageState())
+    }
+
+    @Test
+    fun parseQuotaReadsUnlimitedAndBlockedUsageCredits() {
+        val unlimited =
+            ClaudeQuotaClient.parseQuota(
+                """
+                {"five_hour": {"utilization": 1}, "extra_usage": {"is_enabled": true,
+                  "monthly_limit": null, "used_credits": 1250, "utilization": null,
+                  "currency": "USD"}}
+                """
+            )
+        val capped =
+            ClaudeQuotaClient.parseQuota(
+                """
+                {"five_hour": {"utilization": 1}, "extra_usage": {"is_enabled": true,
+                  "used_credits": 1250, "currency": "USD"}}
+                """
+            )
+        val blocked =
+            ClaudeQuotaClient.parseQuota(
+                """
+                {"five_hour": {"utilization": 1}, "extra_usage": {"is_enabled": false,
+                  "disabled_reason": "out_of_credits"}}
+                """
+            )
+
+        assertEquals(true, unlimited.extraUsage?.unlimited)
+        assertEquals(12.5, unlimited.extraUsage?.usedMajor)
+        assertNull(unlimited.extraUsage?.usagePercent)
+        assertEquals(false, capped.extraUsage?.unlimited, "an absent cap is not an unlimited one")
+        assertEquals(false, blocked.extraUsage?.isEnabled)
+        assertEquals("out_of_credits", blocked.extraUsage?.disabledReason)
+    }
+
+    @Test
+    fun parseQuotaReadsThePrepaidBalanceFromTheSpendBlock() {
+        val quota =
+            ClaudeQuotaClient.parseQuota(
+                """
+                {"five_hour": {"utilization": 1},
+                 "spend": {"balance": {"amount_minor": 1234, "currency": "EUR", "exponent": 2},
+                           "auto_reload": null}}
+                """
+            )
+        val withoutBalance = ClaudeQuotaClient.parseQuota(DECIMAL_CREDITS_RESPONSE)
+
+        assertEquals(ClaudeMoney(1234, "EUR", 2), quota.creditBalance)
+        assertEquals(12.34, quota.creditBalance?.major)
+        assertNull(withoutBalance.creditBalance)
+    }
+
+    @Test
+    fun fetchProfileReadsTheOrganizationAndPlan() {
+        val httpClient =
+            FakeHttpClient(
+                FakeResponseSpec(
+                    """{"account": {"uuid": "a"}, "organization": {"uuid": "$ORGANIZATION",
+                       "organization_type": "claude_max", "rate_limit_tier": "default_claude_max_20x",
+                       "plan_display_name": null}}"""
+                )
+            )
+        val client =
+            ClaudeQuotaClient(httpClient, URI.create("https://api.anthropic.test/api/oauth/usage"))
+
+        assertEquals(ClaudeProfile(ORGANIZATION, "Max 20x"), client.fetchProfile("token-123"))
+        assertEquals(
+            "https://api.anthropic.test/api/oauth/profile",
+            httpClient.requests.single().uri().toString(),
+        )
+    }
+
+    @Test
+    fun planLabelPrefersTheProfileDisplayName() {
+        assertEquals("Max 5x", ClaudeQuotaClient.planLabel("Max 5x", "claude_max", null))
+        assertEquals(
+            "Max 20x",
+            ClaudeQuotaClient.planLabel("<b>spoof</b>", "claude_max", "default_claude_max_20x"),
+        )
+        assertEquals("Max", ClaudeQuotaClient.planLabel(null, "claude_max", "default_claude_ai"))
+        assertEquals("Pro", ClaudeQuotaClient.planLabel("", "claude_pro", null))
+        assertEquals("Team", ClaudeQuotaClient.planLabel(null, "claude_team", null))
+        assertEquals("Enterprise", ClaudeQuotaClient.planLabel(null, "claude_enterprise", null))
+        assertEquals("", ClaudeQuotaClient.planLabel(null, "claude_free", null))
+        assertEquals("", ClaudeQuotaClient.planLabel(" ", null, null))
+    }
+
+    @Test
+    fun redeemResetPostsTheProgramAndGrantToTheOrganization() {
+        val httpClient =
+            FakeHttpClient(
+                FakeResponseSpec("""{"organization":{"uuid":"$ORGANIZATION"}}"""),
+                FakeResponseSpec("""{"result":"reset","resets_left":1}"""),
+                FakeResponseSpec("""{"result":"not_limited"}"""),
+                FakeResponseSpec("""{"error":"slow down"}""", status = 429),
+            )
+        val client =
+            ClaudeQuotaClient(httpClient, URI.create("https://api.anthropic.test/api/oauth/usage"))
+        val grant =
+            ClaudeResetGrant(
+                "weekly_gift",
+                "Weekly reset",
+                1,
+                null,
+                false,
+                true,
+                listOf("seven_day"),
+            )
+
+        val organization = client.fetchOrganizationUuid("token-123")
+        val granted = client.redeemReset("token-123", organization, ClaudeResetChoice.Grant(grant))
+        val session =
+            client.redeemReset(
+                "token-123",
+                organization,
+                ClaudeResetChoice.Session(ClaudeSessionReset(null)),
+            )
+        val busy =
+            client.redeemReset(
+                "token-123",
+                organization,
+                ClaudeResetChoice.Session(ClaudeSessionReset(null)),
+            )
+
+        assertEquals(ORGANIZATION, organization)
+        assertTrue(granted.succeeded)
+        assertEquals("not_limited", session.result)
+        assertEquals(ClaudeResetOutcome.RATE_LIMITED, busy.result)
+        assertEquals(
+            listOf("GET", "POST", "POST", "POST"),
+            httpClient.requests.map { it.method() },
+        )
+        assertEquals(
+            "https://api.anthropic.test/api/oauth/profile",
+            httpClient.requests.first().uri().toString(),
+        )
+        assertEquals(
+            "https://api.anthropic.test/api/organizations/$ORGANIZATION/reset_rate_limits",
+            httpClient.requests[1].uri().toString(),
+        )
+        val grantClaim = JsonSupport.json.parseToJsonElement(httpClient.requests[1].bodyText())
+        assertEquals("cedar_ember", grantClaim.jsonObject["program"]?.jsonPrimitive?.content)
+        assertEquals("weekly_gift", grantClaim.jsonObject["grant_id"]?.jsonPrimitive?.content)
+        assertTrue(
+            grantClaim.jsonObject["request_id"]?.jsonPrimitive?.content?.isNotBlank() == true
+        )
+        assertEquals(
+            mapOf("program" to "juniper_tide"),
+            JsonSupport.json
+                .parseToJsonElement(httpClient.requests[2].bodyText())
+                .jsonObject
+                .mapValues { it.value.jsonPrimitive.content },
+        )
+    }
+
+    @Test
+    fun redeemResetRefusesAnOrganizationIdThatIsNotAUuid() {
+        val httpClient = FakeHttpClient()
+        val client =
+            ClaudeQuotaClient(httpClient, URI.create("https://api.anthropic.test/api/oauth/usage"))
+
+        assertFailsWith<IllegalArgumentException> {
+            client.redeemReset(
+                "token-123",
+                "../admin",
+                ClaudeResetChoice.Session(ClaudeSessionReset(null)),
+            )
+        }
+        assertEquals(emptyList(), httpClient.requests)
     }
 
     private fun HttpRequest.bodyText(): String {
