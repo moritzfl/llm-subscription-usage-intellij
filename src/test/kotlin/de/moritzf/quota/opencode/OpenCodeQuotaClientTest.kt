@@ -22,6 +22,19 @@ class OpenCodeQuotaClientTest {
         assertEquals(10800L, quota.rollingUsage?.resetInSec)
         assertEquals(86400L, quota.weeklyUsage?.resetInSec)
         assertEquals(2505600L, quota.monthlyUsage?.resetInSec)
+        assertEquals("Go", quota.plan)
+    }
+
+    @Test
+    fun readsGoPlusProduct() {
+        val quota =
+            OpenCodeQuotaClient.parseQuotaResponse(
+                GO_STATUS.replace(""""product":"go"""", """"product":"go-plus""""),
+                now,
+            )
+        assertEquals("go-plus", quota.product)
+        assertEquals("Go Plus", quota.plan)
+        assertNull(OpenCodeQuotaClient.parseQuotaResponse("""{"access":null}""", now).plan)
     }
 
     @Test
@@ -197,7 +210,7 @@ class OpenCodeQuotaClientTest {
 
     companion object {
         const val GO_STATUS =
-            """{"useBalance":false,"access":{"endsAt":"2026-10-19T00:00:00Z","meters":{
+            """{"product":"go","useBalance":false,"access":{"endsAt":"2026-10-19T00:00:00Z","meters":{
             "fiveHour":{"usedMicroCents":"300000000","limitMicroCents":"1200000000","resetsAt":"2026-09-20T03:00:00Z"},
             "week":{"usedMicroCents":"1200000000","limitMicroCents":"3000000000","resetsAt":"2026-09-21T00:00:00Z"},
             "month":{"usedMicroCents":"600000000","limitMicroCents":"6000000000","resetsAt":null}}}}"""

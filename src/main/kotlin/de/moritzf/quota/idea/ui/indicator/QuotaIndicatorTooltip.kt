@@ -88,6 +88,7 @@ internal fun indicatorPlanName(quota: ProviderQuota?): String? {
             is GitHubQuota -> quota.plan
             is KimiQuota -> quota.plan
             is MiniMaxQuota -> quota.plan
+            is OpenCodeQuota -> quota.plan
             is SuperGrokQuota -> quota.plan
             is ZaiQuota -> quota.plan
             else -> null

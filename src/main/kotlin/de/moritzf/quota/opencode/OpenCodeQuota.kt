@@ -14,6 +14,8 @@ data class OpenCodeQuota(
     val monthlyUsage: OpenCodeUsageWindow? = null,
     val mine: Boolean = false,
     val useBalance: Boolean = false,
+    /** Go subscription product from the Console, such as `go`. */
+    val product: String? = null,
     var availableBalance: Long? = null,
     override var fetchedAt: Instant? = null,
     @Transient override var rawJson: String? = null,
@@ -46,6 +48,15 @@ data class OpenCodeQuota(
     fun hasAvailableBalance(): Boolean {
         return availableBalance != null
     }
+
+    /** "Go" or "Go Plus"; null without a Go subscription product. */
+    val plan: String?
+        get() =
+            when {
+                product.isNullOrBlank() -> null
+                product.contains("plus", ignoreCase = true) -> "Go Plus"
+                else -> "Go"
+            }
 }
 
 /** Represents a single usage window from the OpenCode Go subscription. */

@@ -68,7 +68,8 @@ internal class OpenCodePopupSection : ProviderPopupSection() {
                 titleLabel.isVisible = true
                 titleLabel.text =
                     sectionTitle(
-                        if (quota.hasUsageState()) OPENCODE_GO_LABEL else OPENCODE_ZEN_LABEL
+                        if (quota.hasUsageState()) "OpenCode ${quota.plan ?: "Go"}"
+                        else OPENCODE_ZEN_LABEL
                     )
                 val balanceText = quota.availableBalance?.let(QuotaUiUtil::formatOpenCodeBalance)
                 balanceLabel.isVisible = balanceText != null

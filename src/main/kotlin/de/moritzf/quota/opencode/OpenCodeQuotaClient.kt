@@ -16,6 +16,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
 
 /** Reads Go meters and prepaid Zen balance from the Console JSON API. */
 open class OpenCodeQuotaClient(
@@ -165,6 +166,7 @@ open class OpenCodeQuotaClient(
                 weeklyUsage = window("week"),
                 monthlyUsage = window("month"),
                 useBalance = useBalance,
+                product = (root["product"] as? JsonPrimitive)?.contentOrNull,
                 warnings = warnings,
             )
         }

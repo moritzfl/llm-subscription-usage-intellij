@@ -241,6 +241,9 @@ class QuotaIndicatorTooltipTest {
                 ProviderAuthState.AUTHENTICATED,
             ),
         )
+        assertEquals("Go", indicatorPlanName(OpenCodeQuota(product = "go")))
+        assertEquals("Go Plus", indicatorPlanName(OpenCodeQuota(product = "go_plus")))
+        assertEquals("Go Plus", indicatorPlanName(OpenCodeQuota(product = "go-plus")))
         val ollamaReset =
             buildIndicatorTooltip(
                 QuotaProviderType.OLLAMA,
