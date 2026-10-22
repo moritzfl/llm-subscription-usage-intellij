@@ -104,6 +104,9 @@ class SuperGrokSubscriptionProxyProvider(
                 upstreamId = model.id,
                 supportedRoutes = SUPPORTED_ROUTES,
                 supportsPromptCaching = true,
+                supportsVision = model.supportsImages ?: true,
+                maxInputTokens = model.contextWindow,
+                maxOutputTokens = model.maxOutputTokens,
                 isDefault = model.isDefault,
             )
         }
@@ -166,16 +169,30 @@ class SuperGrokSubscriptionProxyProvider(
         val id =
             (item["id"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() } ?: return null
         if (!supportsTextInference(id, item)) return null
+        val inputModalities =
+            (item["input_modalities"] as? JsonArray)?.mapNotNull {
+                (it as? JsonPrimitive)?.contentOrNull
+            }
         return RemoteModel(
             id = id,
             isDefault = booleanField(item, "is_default") ?: booleanField(item, "default") ?: false,
+            contextWindow = CONTEXT_FIELDS.firstNotNullOfOrNull { intField(item, it) },
+            maxOutputTokens =
+                intField(item, "max_completion_tokens") ?: intField(item, "maxCompletionTokens"),
+            supportsImages = inputModalities?.let { "image" in it },
         )
     }
 
     private data class RemoteModel(
         val id: String,
         val isDefault: Boolean,
+        val contextWindow: Int? = null,
+        val maxOutputTokens: Int? = null,
+        val supportsImages: Boolean? = null,
     )
+
+    private fun intField(item: JsonObject, name: String): Int? =
+        (item[name] as? JsonPrimitive)?.contentOrNull?.toIntOrNull()?.takeIf { it > 0 }
 
     private fun booleanField(item: JsonObject, name: String): Boolean? {
         return (item[name] as? JsonPrimitive)?.booleanOrNull
@@ -207,6 +224,7 @@ class SuperGrokSubscriptionProxyProvider(
             setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, SubscriptionProxyRoute.RESPONSES)
         val DEFAULT_UPSTREAM_BASE_URI: URI = URI.create("https://api.x.ai/v1")
         private val CACHE_TTL = 5.minutes
+        private val CONTEXT_FIELDS = listOf("context_length", "context_window", "contextWindow")
         private val DEFAULT_REQUEST_LOG_DIR =
             System.getProperty("java.io.tmpdir") +
                 "/openai-usage-quota-intellij/subscription-proxy-supergrok-requests"

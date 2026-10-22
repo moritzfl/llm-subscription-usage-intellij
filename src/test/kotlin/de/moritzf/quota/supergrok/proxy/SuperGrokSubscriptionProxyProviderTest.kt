@@ -18,6 +18,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -101,6 +102,47 @@ class SuperGrokSubscriptionProxyProviderTest {
                     ids.filter { it !in OpenAiMedia.advertisedMediaIds(setOf("supergrok")) },
                 )
                 assertTrue("sg-grok-imagine-image" in ids)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun modelInfoCarriesContextLengthOutputCapAndImageInput() {
+        val modelsBody =
+            """{"object":"list","data":[
+              {"id":"grok-4.6","context_length":500000,"max_completion_tokens":"64000","input_modalities":["text","image"],
+               "prompt_text_token_price":20000,"completion_text_token_price":150000},
+              {"id":"grok-code-fast-2","context_window":256000,"input_modalities":["text"]},
+              {"id":"grok-mini"}]}"""
+        TestUpstream(modelsBody = modelsBody).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val info =
+                    JsonHelper.JSON.parseToJsonElement(get(proxy.port, "/v1/model/info").body())
+                        .jsonObject["data"]!!
+                        .jsonArray
+                        .associate {
+                            it.jsonObject["model_name"]!!.jsonPrimitive.content to
+                                it.jsonObject["model_info"]!!.jsonObject
+                        }
+
+                val frontier = info.getValue("sg-grok-4.6")
+                assertEquals("500000", frontier["max_input_tokens"]?.jsonPrimitive?.content)
+                assertEquals("64000", frontier["max_output_tokens"]?.jsonPrimitive?.content)
+                assertEquals("true", frontier["supports_vision"]?.jsonPrimitive?.content)
+                assertTrue(
+                    frontier["input_cost_per_token"]?.jsonPrimitive?.contentOrNull == null,
+                    "subscription prices stay unset",
+                )
+                val code = info.getValue("sg-grok-code-fast-2")
+                assertEquals("256000", code["max_input_tokens"]?.jsonPrimitive?.content)
+                assertEquals("false", code["supports_vision"]?.jsonPrimitive?.content)
+                val mini = info.getValue("sg-grok-mini")
+                assertTrue(mini["max_input_tokens"]?.jsonPrimitive?.contentOrNull == null)
+                assertEquals("true", mini["supports_vision"]?.jsonPrimitive?.content)
             } finally {
                 proxy.stop()
             }
