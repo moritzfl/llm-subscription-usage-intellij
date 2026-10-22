@@ -12,6 +12,7 @@
 - `ArchitectureBoundariesTest` uses ArchUnit/JUnit 5 on production bytecode, including generated classes. Exceptions must name documented class pairs; do not substitute source/import scans. Shared quota code may depend on libraries/shared code, never provider/proxy/IDE implementations. Shared PDF helpers belong in `quota.shared.document`.
 - Use coroutine virtual time for polling/timeouts. Stop proxy test servers with `gracePeriodMillis = 0` after assertions; keep bounded waits for genuinely concurrent work.
 - Preserve IntelliJ runtime APIs, including `IntelliJVirtualThreads.ofVirtual()`; its verifier warnings are expected. Intentional `@Suppress("UnstableApiUsage")` is acceptable.
+- Never use `@ApiStatus.Internal` platform APIs (for example `ActionToolbarImpl`), in production code or tests, including protected members reached by subclassing; Marketplace validation rejects them. `verifyPlugin` must report no internal API usages.
 - Standalone JavaExec needs `sourceSets.main.compileClasspath` plus explicit Kotlin stdlib; `runtimeClasspath` lacks IDE-supplied libraries (including Ktor/SLF4J). Fix standalone classpaths/shims, not plugin production code or packaging, unless IDE runtime also fails. Shims must stay out of the plugin.
 
 ## Provider responses and MCP
