@@ -18,7 +18,9 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -39,7 +41,13 @@ class MistralSubscriptionProxyProviderTest {
                         .jsonArray
                         .map { it.jsonObject["id"]!!.jsonPrimitive.content }
                 assertEquals(
-                    listOf("mi-mistral-small-latest", "mi-codestral-latest"),
+                    listOf(
+                        "mi-mistral-small-latest",
+                        "mi-codestral-latest",
+                        "mi-mistral-medium-3-5",
+                        "mi-zai-glm-5-3",
+                        "mi-ministral-8b-latest",
+                    ),
                     ids.filter { it !in OpenAiMedia.advertisedMediaIds(setOf("mistral")) },
                 )
                 assertTrue("mi-voxtral-mini-tts-3-0" in ids)
@@ -139,6 +147,163 @@ class MistralSubscriptionProxyProviderTest {
                 assertTrue(!chatRequest.body.contains("\"seed\""), chatRequest.body)
                 assertTrue(!chatRequest.body.contains("thinking"), chatRequest.body)
                 assertTrue(!chatRequest.body.contains("reasoning_effort"), chatRequest.body)
+            } finally {
+                proxy.server.stop(gracePeriodMillis = 0)
+            }
+        }
+    }
+
+    @Test
+    fun forwardsReasoningEffortToReasoningModelsAndReturnsThinkingAsReasoningContent() {
+        val chunked =
+            "{\"id\":\"chatcmpl_1\",\"object\":\"chat.completion\",\"choices\":[{\"index\":0," +
+                "\"message\":{\"role\":\"assistant\",\"tool_calls\":null,\"content\":[" +
+                "{\"type\":\"thinking\",\"thinking\":[{\"type\":\"text\",\"text\":\"17*23 is 391.\"}]}," +
+                "{\"type\":\"text\",\"text\":\"391\"}]},\"finish_reason\":\"stop\"}]}"
+        TestUpstream(chatReply = { "application/json" to chunked }).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.server.start()
+                get(proxy.port, "/v1/models")
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+
+                fun sentEffort(model: String, effort: String): String? {
+                    val response =
+                        post(
+                            proxy.port,
+                            "/v1/chat/completions",
+                            """{"model":"$model","messages":[{"role":"user","content":"17*23?"}],"reasoning_effort":"$effort"}""",
+                        )
+                    assertEquals(200, response.statusCode(), response.body())
+                    val sent = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                    return JsonHelper.JSON.parseToJsonElement(sent.body)
+                        .jsonObject["reasoning_effort"]
+                        ?.jsonPrimitive
+                        ?.content
+                }
+                // Mistral models switch reasoning on or off; GLM 5.3 has low/high/max.
+                assertEquals("high", sentEffort("mi-mistral-medium-3-5", "high"))
+                assertEquals("high", sentEffort("mi-mistral-medium-3-5", "medium"))
+                assertEquals("none", sentEffort("mi-mistral-medium-3-5", "low"))
+                assertEquals("low", sentEffort("mi-zai-glm-5-3", "none"))
+                assertEquals("high", sentEffort("mi-zai-glm-5-3", "xhigh"))
+                assertEquals("max", sentEffort("mi-zai-glm-5-3", "max"))
+                assertNull(sentEffort("mi-ministral-8b-latest", "high"))
+
+                val response =
+                    post(
+                        proxy.port,
+                        "/v1/chat/completions",
+                        """{"model":"mi-mistral-medium-3-5","messages":[{"role":"user","content":"17*23?"}],"reasoning_effort":"high"}""",
+                    )
+                assertEquals(200, response.statusCode(), response.body())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                val message =
+                    JsonHelper.JSON.parseToJsonElement(response.body())
+                        .jsonObject["choices"]!!
+                        .jsonArray[0]
+                        .jsonObject["message"]!!
+                        .jsonObject
+                assertEquals("391", message["content"]!!.jsonPrimitive.content)
+                assertEquals("17*23 is 391.", message["reasoning_content"]!!.jsonPrimitive.content)
+            } finally {
+                proxy.server.stop(gracePeriodMillis = 0)
+            }
+        }
+    }
+
+    @Test
+    fun streamsThinkingChunksAsReasoningContentDeltas() {
+        val stream =
+            "data: {\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":[{\"type\":\"text\",\"text\":\"think\"}]}]}}]}\n\n" +
+                "data: {\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"content\":[{\"type\":\"thinking\",\"thinking\":[{\"type\":\"text\",\"text\":\"ing\"}],\"closed\":true},{\"type\":\"text\",\"text\":\"39\"}]}}]}\n\n" +
+                "data: {\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"1\"},\"finish_reason\":\"stop\"}]}\n\n" +
+                "data: [DONE]\n\n"
+        TestUpstream(chatReply = { "text/event-stream" to stream }).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.server.start()
+                get(proxy.port, "/v1/models")
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+
+                val response =
+                    post(
+                        proxy.port,
+                        "/v1/chat/completions",
+                        """{"model":"mi-mistral-medium-3-5","stream":true,"messages":[{"role":"user","content":"17*23?"}],"reasoning_effort":"high"}""",
+                    )
+                assertEquals(200, response.statusCode(), response.body())
+                val deltas =
+                    response
+                        .body()
+                        .lines()
+                        .filter { it.startsWith("data: {") }
+                        .map {
+                            JsonHelper.JSON.parseToJsonElement(it.removePrefix("data: "))
+                                .jsonObject["choices"]!!
+                                .jsonArray[0]
+                                .jsonObject["delta"]!!
+                                .jsonObject
+                        }
+                assertEquals(
+                    "thinking",
+                    deltas.joinToString("") {
+                        it["reasoning_content"]?.jsonPrimitive?.content.orEmpty()
+                    },
+                )
+                assertEquals(
+                    "391",
+                    deltas.joinToString("") { it["content"]?.jsonPrimitive?.content.orEmpty() },
+                )
+                assertTrue(response.body().contains("data: [DONE]"), response.body())
+            } finally {
+                proxy.server.stop(gracePeriodMillis = 0)
+            }
+        }
+    }
+
+    @Test
+    fun replaysReasoningContentAsThinkingChunkOnlyForReasoningModels() {
+        TestUpstream().use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.server.start()
+                get(proxy.port, "/v1/models")
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+
+                fun sentAssistant(model: String): JsonObject {
+                    val response =
+                        post(
+                            proxy.port,
+                            "/v1/chat/completions",
+                            """{"model":"$model","messages":[{"role":"user","content":"17*23?"},{"role":"assistant","content":"391","reasoning_content":"17*23 is 391."},{"role":"user","content":"times 3?"}]}""",
+                        )
+                    assertEquals(200, response.statusCode(), response.body())
+                    val sent = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                    return JsonHelper.JSON.parseToJsonElement(sent.body)
+                        .jsonObject["messages"]!!
+                        .jsonArray[1]
+                        .jsonObject
+                }
+
+                val replayed = sentAssistant("mi-mistral-medium-3-5")
+                assertTrue("reasoning_content" !in replayed, replayed.toString())
+                val chunks = replayed["content"]!!.jsonArray
+                assertEquals("thinking", chunks[0].jsonObject["type"]!!.jsonPrimitive.content)
+                assertEquals(
+                    "17*23 is 391.",
+                    chunks[0]
+                        .jsonObject["thinking"]!!
+                        .jsonArray[0]
+                        .jsonObject["text"]!!
+                        .jsonPrimitive
+                        .content,
+                )
+                assertEquals("391", chunks[1].jsonObject["text"]!!.jsonPrimitive.content)
+
+                val stripped = sentAssistant("mi-ministral-8b-latest")
+                assertTrue("reasoning_content" !in stripped, stripped.toString())
+                assertEquals("391", stripped["content"]!!.jsonPrimitive.content)
             } finally {
                 proxy.server.stop(gracePeriodMillis = 0)
             }
@@ -282,7 +447,11 @@ class MistralSubscriptionProxyProviderTest {
 
     private data class TestProxy(val port: Int, val server: SubscriptionProxyServer)
 
-    private class TestUpstream : AutoCloseable {
+    private class TestUpstream(
+        private val chatReply: (String) -> Pair<String, String> = {
+            "application/json" to "{\"id\":\"chatcmpl_1\",\"choices\":[]}"
+        }
+    ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
         private val server =
             HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
@@ -298,21 +467,26 @@ class MistralSubscriptionProxyProviderTest {
                         body = body,
                     )
                 val path = exchange.requestURI.rawPath
-                val responseBody =
+                val (contentType, responseBody) =
                     if (path.endsWith("/models")) {
-                        "{\"object\":\"list\",\"data\":[" +
-                            "{\"id\":\"mistral-small-latest\",\"object\":\"model\"}," +
-                            "{\"id\":\"codestral-latest\",\"object\":\"model\"}," +
-                            "{\"id\":\"voxtral-mini-latest\",\"object\":\"model\"}," +
-                            "{\"id\":\"mistral-embed\",\"object\":\"embedding\"}" +
-                            "]}"
+                        "application/json" to
+                            "{\"object\":\"list\",\"data\":[" +
+                                "{\"id\":\"mistral-small-latest\",\"object\":\"model\"}," +
+                                "{\"id\":\"codestral-latest\",\"object\":\"model\"}," +
+                                "{\"id\":\"voxtral-mini-latest\",\"object\":\"model\"}," +
+                                "{\"id\":\"mistral-embed\",\"object\":\"embedding\"}," +
+                                "{\"id\":\"mistral-medium-3-5\",\"object\":\"model\",\"capabilities\":{\"completion_chat\":true,\"reasoning\":true}}," +
+                                "{\"id\":\"zai-glm-5-3\",\"object\":\"model\",\"capabilities\":{\"completion_chat\":true,\"reasoning\":true}}," +
+                                "{\"id\":\"ministral-8b-latest\",\"object\":\"model\",\"capabilities\":{\"completion_chat\":true,\"reasoning\":false}}" +
+                                "]}"
                     } else if (path.endsWith("/fim/completions")) {
-                        "{\"id\":\"fim_1\",\"object\":\"chat.completion\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"a + b\"},\"finish_reason\":\"stop\"}]}"
+                        "application/json" to
+                            "{\"id\":\"fim_1\",\"object\":\"chat.completion\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"a + b\"},\"finish_reason\":\"stop\"}]}"
                     } else {
-                        "{\"id\":\"chatcmpl_1\",\"choices\":[]}"
+                        chatReply(body)
                     }
                 val response = responseBody.toByteArray(Charsets.UTF_8)
-                exchange.responseHeaders.set("Content-Type", "application/json")
+                exchange.responseHeaders.set("Content-Type", contentType)
                 exchange.sendResponseHeaders(200, response.size.toLong())
                 exchange.responseBody.use { output -> output.write(response) }
             }

@@ -4,7 +4,6 @@ import de.moritzf.proxy.fim.FimModels
 import de.moritzf.proxy.media.OpenAiMedia
 import de.moritzf.proxy.server.CompletionsHandler
 import de.moritzf.proxy.server.JsonHelper
-import de.moritzf.proxy.server.remove
 import de.moritzf.proxy.subscription.OpenAiCompatibleApiKeySubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyRequest
@@ -40,29 +39,43 @@ class MistralSubscriptionProxyProvider(
                 if (FimModels.isNativeFimId(id)) setOf(SubscriptionProxyRoute.FIM_COMPLETIONS)
                 else emptySet()
             },
+            // reasoning_effort reaches only models whose catalog entry reports reasoning; see
+            // MistralThinking for the levels and the chunked answers those models return.
+            modelTransformer = { model ->
+                model.copy(
+                    reasoningEfforts =
+                        MistralThinking.reasoningEfforts(model.id, model.supportsReasoning)
+                )
+            },
             requestBodyTransformer = { request, body ->
-                if (
-                    request.route == SubscriptionProxyRoute.COMPLETIONS ||
-                        request.route == SubscriptionProxyRoute.FIM_COMPLETIONS
-                ) {
-                    buildJsonObject {
-                        body.forEach { (key, value) -> if (key != "stream") put(key, value) }
-                        put("stream", false)
-                    }
-                } else if (body["reasoning_effort"] != null) {
-                    body.remove("reasoning_effort")
-                } else {
-                    body
+                when (request.route) {
+                    SubscriptionProxyRoute.COMPLETIONS,
+                    SubscriptionProxyRoute.FIM_COMPLETIONS ->
+                        buildJsonObject {
+                            body.forEach { (key, value) -> if (key != "stream") put(key, value) }
+                            put("stream", false)
+                        }
+                    SubscriptionProxyRoute.CHAT_COMPLETIONS ->
+                        MistralThinking.requestBody(
+                            body,
+                            request.model.reasoningEfforts?.isNotEmpty() == true,
+                        )
+                    else -> body
                 }
             },
             jsonResponseTransformer = { request, raw ->
-                if (
-                    request.route == SubscriptionProxyRoute.COMPLETIONS ||
-                        request.route == SubscriptionProxyRoute.FIM_COMPLETIONS
-                ) {
-                    toTextCompletion(raw)
+                when (request.route) {
+                    SubscriptionProxyRoute.COMPLETIONS,
+                    SubscriptionProxyRoute.FIM_COMPLETIONS -> toTextCompletion(raw)
+                    SubscriptionProxyRoute.CHAT_COMPLETIONS -> MistralThinking.chatResponse(raw)
+                    else -> raw
+                }
+            },
+            sseDataTransformer = { request, data ->
+                if (request.route == SubscriptionProxyRoute.CHAT_COMPLETIONS) {
+                    MistralThinking.chatStreamData(data)
                 } else {
-                    raw
+                    data
                 }
             },
             httpClient = httpClient,
