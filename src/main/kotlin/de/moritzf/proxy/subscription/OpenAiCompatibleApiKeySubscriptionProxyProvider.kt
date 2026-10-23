@@ -40,6 +40,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
             body
         },
     private val jsonResponseTransformer: ((SubscriptionProxyRequest, String) -> String)? = null,
+    private val sseDataTransformer: ((SubscriptionProxyRequest, String) -> String)? = null,
     private val modelTransformer: (StaticModel) -> StaticModel = { it },
     private val includeModel: (String) -> Boolean = { true },
     private val extraRoutesForModel: (String) -> Set<SubscriptionProxyRoute> = { emptySet() },
@@ -73,6 +74,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
             upstreamUrlProvider = upstreamUrlProvider,
             requestBodyTransformer = requestBodyTransformer,
             jsonResponseTransformer = jsonResponseTransformer,
+            sseDataTransformer = sseDataTransformer,
             httpClient = httpClient,
             requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir)),
         )
@@ -114,6 +116,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
             supportsPromptCaching = model.supportsPromptCaching,
             inputCostPerToken = model.inputCostPerToken,
             outputCostPerToken = model.outputCostPerToken,
+            reasoningEfforts = model.acceptedReasoningEfforts(),
         )
     }
 
@@ -144,6 +147,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
                 maxInputTokens = model.maxInputTokens,
                 maxOutputTokens = model.maxOutputTokens,
                 isDefault = model.isDefault,
+                reasoningEfforts = model.acceptedReasoningEfforts(),
             )
         }
     }
@@ -245,6 +249,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
             maxInputTokens = CONTEXT_FIELDS.firstNotNullOfOrNull { intField(item, it) },
             maxOutputTokens = intField(item, "max_output_tokens"),
             isDefault = boolField(item, "is_default") ?: boolField(item, "default") ?: false,
+            supportsReasoning = capabilities?.let { boolField(it, "reasoning") },
         )
     }
 
@@ -261,7 +266,15 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
         val inputCostPerToken: Double? = null,
         val outputCostPerToken: Double? = null,
         val supportsPdfInput: Boolean? = null,
-    )
+        /** Mistral-style `capabilities.reasoning`; null when the endpoint does not say. */
+        val supportsReasoning: Boolean? = null,
+        /** Levels a provider knows the model accepts; see [SubscriptionProxyModel]. */
+        val reasoningEfforts: List<String>? = null,
+    ) {
+        /** A model reported as non-reasoning takes no effort; otherwise the levels are unknown. */
+        fun acceptedReasoningEfforts(): List<String>? =
+            reasoningEfforts ?: if (supportsReasoning == false) emptyList() else null
+    }
 
     private data class ModelCache(
         val models: List<StaticModel>,

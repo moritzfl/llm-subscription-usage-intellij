@@ -88,6 +88,7 @@ class PassThroughSubscriptionProxyProvider(
                 maxInputTokens = mapping.maxInputTokens,
                 maxOutputTokens = mapping.maxOutputTokens,
                 isDefault = mapping.isDefault,
+                reasoningEfforts = mapping.reasoningEfforts,
             )
         }
     }
@@ -144,7 +145,8 @@ class PassThroughSubscriptionProxyProvider(
     ): HttpRequest {
         val rewritten = rewriteModel(request.body, request.model.upstreamId)
         val sanitized = LiteLlmRequestSanitizer.sanitize(request.route, rewritten)
-        val upstreamBody = requestBodyTransformer(request, sanitized)
+        val adapted = adaptReasoningEffort(request.route, request.model.reasoningEfforts, sanitized)
+        val upstreamBody = requestBodyTransformer(request, adapted)
         val payload = JsonHelper.encodeToString(upstreamBody)
         val upstreamPath = upstreamRouteProvider(request).upstreamPath
         val targetUrl = resolveUpstreamUrl(request, upstreamPath)
@@ -346,6 +348,7 @@ class PassThroughSubscriptionProxyProvider(
         val maxInputTokens: Int? = null,
         val maxOutputTokens: Int? = null,
         val isDefault: Boolean = false,
+        val reasoningEfforts: List<String>? = null,
     )
 
     companion object {

@@ -29,6 +29,11 @@ data class SubscriptionProxyModel(
     val maxOutputTokens: Int? = null,
     val isDefault: Boolean = false,
     val supportsPdfInput: Boolean? = null,
+    /**
+     * Reasoning efforts the model accepts. Null when unknown: the client's value is forwarded.
+     * Empty when the model takes none: the value is dropped. Otherwise it moves to the closest one.
+     */
+    val reasoningEfforts: List<String>? = null,
 )
 
 data class SubscriptionProxyRequest(
