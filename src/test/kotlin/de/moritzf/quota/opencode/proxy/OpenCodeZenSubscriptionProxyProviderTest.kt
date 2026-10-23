@@ -189,6 +189,93 @@ class OpenCodeZenSubscriptionProxyProviderTest {
     }
 
     @Test
+    fun incompleteResponsesStreamIsReturnedAsLengthLimitedChatCompletion() {
+        Upstream(
+                responsesBody =
+                    "event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"partial\"}\n\n" +
+                        "event: response.incomplete\ndata: {\"type\":\"response.incomplete\",\"response\":{\"id\":\"resp_1\",\"status\":\"incomplete\",\"output\":[],\"usage\":{\"input_tokens\":1,\"output_tokens\":2}}}\n\n"
+            )
+            .use { upstream ->
+                val provider =
+                    OpenCodeZenSubscriptionProxyProvider(
+                        consoleSessionProvider = {
+                            OpenCodeConsoleSession("account", "oauth", "org_a") { null }
+                        },
+                        consoleEndpoint = upstream.endpoint,
+                    )
+                withProxy(provider) { port ->
+                    val chat =
+                        post(
+                            port,
+                            "/v1/chat/completions",
+                            """{"model":"oc-zen-gpt","messages":[{"role":"user","content":"hi"}],"max_tokens":16}""",
+                        )
+                    assertEquals(200, chat.statusCode(), chat.body())
+                    val body = JsonHelper.JSON.parseToJsonElement(chat.body()).jsonObject
+                    val choice = body["choices"]!!.jsonArray.first().jsonObject
+                    assertEquals("length", choice["finish_reason"]?.jsonPrimitive?.content)
+                    assertEquals(
+                        "partial",
+                        choice["message"]?.jsonObject?.get("content")?.jsonPrimitive?.content,
+                    )
+                }
+            }
+    }
+
+    @Test
+    fun quotaErrorInIncompleteResponsesStreamReturnsInsufficientQuota() {
+        Upstream(
+                responsesBody =
+                    "data: {\"type\":\"error\",\"sequence_number\":2,\"error\":{" +
+                        "\"type\":\"insufficient_quota\",\"code\":\"insufficient_quota\"," +
+                        "\"message\":\"You exceeded your current quota, please check your plan and billing details.\"," +
+                        "\"param\":null}}\n\n"
+            )
+            .use { upstream ->
+                val provider =
+                    OpenCodeZenSubscriptionProxyProvider(
+                        consoleSessionProvider = {
+                            OpenCodeConsoleSession("account", "oauth", "org_a") { null }
+                        },
+                        consoleEndpoint = upstream.endpoint,
+                    )
+                withProxy(provider) { port ->
+                    val chat =
+                        post(
+                            port,
+                            "/v1/chat/completions",
+                            """{"model":"oc-zen-gpt","messages":[{"role":"user","content":"hi"}]}""",
+                        )
+                    assertEquals(429, chat.statusCode(), chat.body())
+                    val error =
+                        JsonHelper.JSON.parseToJsonElement(chat.body())
+                            .jsonObject["error"]!!
+                            .jsonObject
+                    assertEquals(
+                        "insufficient_quota",
+                        error["type"]?.jsonPrimitive?.content,
+                    )
+                    assertTrue(
+                        error["message"]
+                            ?.jsonPrimitive
+                            ?.content
+                            .orEmpty()
+                            .contains("current quota"),
+                        chat.body(),
+                    )
+                    val streamed =
+                        post(
+                            port,
+                            "/v1/chat/completions",
+                            """{"model":"oc-zen-gpt","stream":true,"messages":[{"role":"user","content":"hi"}]}""",
+                        )
+                    assertEquals(200, streamed.statusCode(), streamed.body())
+                    assertTrue(streamed.body().contains("insufficient_quota"), streamed.body())
+                }
+            }
+    }
+
+    @Test
     fun adaptsClaudeCodeCompletionsThroughGoAndZenChatBridges() {
         Upstream().use { upstream ->
             val provider =
@@ -930,6 +1017,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
         private val zenProviderId: String = "opencode",
         private val zenBasePath: String = "inference/openai/v1",
         private val sparseConfig: Boolean = false,
+        private val responsesBody: String? = null,
     ) : AutoCloseable {
         data class Request(
             val path: String,
@@ -981,8 +1069,9 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                         googleSync ->
                             """{"candidates":[{"content":{"role":"model","parts":[{"text":"hello"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":3,"candidatesTokenCount":2,"totalTokenCount":5}}"""
                         responses ->
-                            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\n" +
-                                "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"hello\"}]}],\"usage\":{\"input_tokens\":1,\"output_tokens\":2,\"total_tokens\":3}}}\n\ndata: [DONE]\n\n"
+                            responsesBody
+                                ?: "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\n" +
+                                    "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"hello\"}]}],\"usage\":{\"input_tokens\":1,\"output_tokens\":2,\"total_tokens\":3}}}\n\ndata: [DONE]\n\n"
                         messagesStream ->
                             "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[]}}\n\n" +
                                 "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hel\"}}\n\n" +

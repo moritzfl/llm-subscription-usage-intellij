@@ -272,15 +272,27 @@ class ChatCompletionsHandler {
         requestBody: JsonObject,
     ) {
         val completedResponse =
-            runInterruptible(Dispatchers.IO) { collectCompletedResponse(upstreamBody) }
+            try {
+                runInterruptible(Dispatchers.IO) { collectCompletedResponse(upstreamBody) }
+            } catch (failure: IOException) {
+                // A 200 upstream stream without a usable response (empty or unparseable) is an
+                // upstream failure, not an unhandled proxy exception.
+                upstreamErrorMapper.writeResponse(
+                    ctx,
+                    requestLogger,
+                    requestId(ctx),
+                    upstreamErrorMapper.mapStreamFailure(failure.message),
+                )
+                return
+            }
         val upstreamStatus = completedResponse.stringPath("status", "")
         if ("failed" == upstreamStatus || "cancelled" == upstreamStatus) {
-            val errorMessage =
-                completedResponse
-                    .pathOrNull("error")
-                    .stringPath("message", "Upstream response $upstreamStatus.")
-            requestLogger.logClientResponse(requestId(ctx), 502, errorMessage)
-            toErrorResponse(ctx, errorMessage, 502, "upstream_error")
+            upstreamErrorMapper.writeResponse(
+                ctx,
+                requestLogger,
+                requestId(ctx),
+                upstreamErrorMapper.mapResponseFailure(completedResponse, upstreamStatus),
+            )
             return
         }
         val id = "chatcmpl_" + UUID.randomUUID()
@@ -350,10 +362,12 @@ class ChatCompletionsHandler {
         if (reasoningContent.isNotEmpty()) {
             message.put("reasoning_content", reasoningContent.toString())
         }
+        val status = completedResponse.stringPath("status", "")
         // Junie requires every assistant turn to contain a tool call. If the model
         // answered with plain text only, synthesize a call to the fallback tool
-        // (submit/answer) carrying that text.
-        if (junieNativeToolName != null && toolCalls.isEmpty()) {
+        // (submit/answer) carrying that text. Incomplete responses are truncated, so
+        // they must not be turned into a submitted answer.
+        if (junieNativeToolName != null && toolCalls.isEmpty() && "incomplete" != status) {
             toolCalls.add(chatToolCall(junieNativeToolName, collectedText))
         }
         if (legacyFunctionCallProtocol && !message.has("function_call") && !toolCalls.isEmpty()) {
@@ -362,7 +376,6 @@ class ChatCompletionsHandler {
             message.set("tool_calls", toolCalls)
         }
         val hasFunctionCall = message.has("function_call")
-        val status = completedResponse.stringPath("status", "")
         val finishReason =
             when (status) {
                 "completed" ->
@@ -594,9 +607,17 @@ class ChatCompletionsHandler {
                                     }
                                 }
                             }
-                            "response.completed" -> {
+                            // response.incomplete is the documented terminal event when the
+                            // model stops early (for example max_output_tokens); it carries the
+                            // same response payload as response.completed.
+                            "response.completed",
+                            "response.incomplete" -> {
                                 val response = parsed["response"] as? JsonObject
-                                val status = response.stringPath("status", "")
+                                val status =
+                                    response.stringPath("status", "").ifEmpty {
+                                        if ("response.incomplete" == eventType) "incomplete"
+                                        else "completed"
+                                    }
                                 val fr: String?
                                 var stopFinishDetails: MutableJsonObject? = null
                                 if (junieStreamingTextFallback) {
@@ -745,12 +766,28 @@ class ChatCompletionsHandler {
                                 }
                             }
                             "response.failed",
-                            "response.cancelled" -> {
+                            "response.cancelled",
+                            "error" -> {
                                 val response = parsed["response"] as? JsonObject
-                                val errorMsg =
-                                    response
-                                        .pathOrNull("error")
-                                        .stringPath("message", "Upstream response failed.")
+                                val errorBody =
+                                    when {
+                                        "error" == eventType -> JsonHelper.encodeToString(parsed)
+                                        response?.pathOrNull("error") is JsonObject ->
+                                            JsonHelper.encodeToString(
+                                                response.pathOrNull("error") as JsonObject
+                                            )
+                                        else ->
+                                            JsonHelper.encodeToString(
+                                                errorObject(
+                                                    "Upstream response ${response.stringPath("status", "failed")}.",
+                                                    "upstream_error",
+                                                    "502",
+                                                )
+                                            )
+                                    }
+                                // Quota and rate-limit failures keep their OpenAI error type so
+                                // streaming clients surface them instead of a silent truncation.
+                                val mapped = upstreamErrorMapper.mapStreamFailure(errorBody)
                                 // Emit a finish chunk with "stop" so the client stream terminates
                                 // cleanly,
                                 // then write an error SSE event with details.
@@ -762,15 +799,7 @@ class ChatCompletionsHandler {
                                     )
                                     finishSent[0] = true
                                 }
-                                val errPayload = createObjectNode()
-                                errPayload.set(
-                                    "error",
-                                    errorObject(errorMsg, "upstream_error", "502"),
-                                )
-                                val errLine =
-                                    "event: error\ndata: " +
-                                        JsonHelper.encodeToString(errPayload.build()) +
-                                        "\n\n"
+                                val errLine = "event: error\ndata: " + mapped.body + "\n\n"
                                 val errorBytes = errLine.toByteArray(StandardCharsets.UTF_8)
                                 os.write(errorBytes)
                                 addResponseBytes(ctx, errorBytes.size.toLong())

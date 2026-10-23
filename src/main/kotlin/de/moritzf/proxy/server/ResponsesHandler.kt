@@ -13,6 +13,7 @@ import de.moritzf.proxy.usage.UsageTracker
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.io.InputStream
 import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
@@ -142,15 +143,28 @@ class ResponsesHandler {
         } else {
             // Collect completed response from SSE.
             upstream.body().use { stream ->
-                var completed = SseCollector.collectCompletedResponse(stream)
+                var completed =
+                    try {
+                        SseCollector.collectCompletedResponse(stream)
+                    } catch (failure: IOException) {
+                        // A 200 upstream stream without a usable response (empty or unparseable)
+                        // is an upstream failure, not an unhandled proxy exception.
+                        upstreamErrorMapper.writeResponse(
+                            ctx,
+                            requestLogger,
+                            requestId,
+                            upstreamErrorMapper.mapStreamFailure(failure.message),
+                        )
+                        return
+                    }
                 val status = completed.stringPath("status", "")
                 if (status == "failed" || status == "cancelled") {
-                    val errorMessage =
-                        completed
-                            .pathOrNull("error")
-                            .stringPath("message", "Upstream response $status.")
-                    requestLogger.logClientResponse(requestId, 502, errorMessage)
-                    JsonHelper.toErrorResponse(ctx, errorMessage, 502, "upstream_error")
+                    upstreamErrorMapper.writeResponse(
+                        ctx,
+                        requestLogger,
+                        requestId,
+                        upstreamErrorMapper.mapResponseFailure(completed, status),
+                    )
                     return
                 }
                 if (JunieCommandProtocolCompat.isJunieRequest(expandedJson)) {

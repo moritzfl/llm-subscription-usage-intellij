@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Report quota and rate-limit errors that providers send inside an SSE stream instead of failing proxied requests with an uncaught "No completed response found in SSE stream" error. OpenAI-compatible `insufficient_quota` errors now reach the client with HTTP 429 (streaming clients get an `error` event), and truncated streams return their partial output with `finish_reason: "length"`.
+
 ## [1.23.0] - 2026-10-23
 
 - Proxy Gemini models from OpenCode Go and Zen by bridging the Google generateContent API, including streaming, tool calls with thought signatures, vision/PDF parts, and Junie-compatible chat requests.

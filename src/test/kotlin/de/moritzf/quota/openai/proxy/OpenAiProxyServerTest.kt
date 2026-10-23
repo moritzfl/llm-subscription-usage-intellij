@@ -1344,6 +1344,45 @@ class OpenAiProxyServerTest {
     }
 
     @Test
+    fun returnsLengthLimitedTextForIncompleteJunieChatWithoutSubmitToolCall() {
+        TestUpstream(responseBody = INCOMPLETE_RESPONSE_STREAM_WITH_TEXT_DELTAS).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val response =
+                    httpClient.send(
+                        HttpRequest.newBuilder(
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                            )
+                            .header("Authorization", "Bearer local-key")
+                            .header("Content-Type", "application/json")
+                            .POST(
+                                HttpRequest.BodyPublishers.ofString(
+                                    "{\"model\":\"gpt-5.5\",\"messages\":[" +
+                                        "{\"role\":\"system\",\"content\":\"You are Junie. " +
+                                        "You're working with a special interface.\"}," +
+                                        "{\"role\":\"user\",\"content\":\"test\"}]," +
+                                        "\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"submit\"," +
+                                        "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]}"
+                                )
+                            )
+                            .build(),
+                        HttpResponse.BodyHandlers.ofString(),
+                    )
+
+                assertEquals(200, response.statusCode())
+                val choice = parseObject(response.body())["choices"]!!.jsonArray[0].jsonObject
+                assertEquals("length", choice["finish_reason"]!!.jsonPrimitive.content)
+                val message = choice["message"]!!.jsonObject
+                assertEquals("pong", message["content"]!!.jsonPrimitive.content)
+                assertFalse("tool_calls" in message)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun convertsPlainJunieChatTextToSubmitCommandWithoutToolMetadata() {
         TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
             val proxy = newProxy(upstream.baseUri)
@@ -2875,6 +2914,15 @@ class OpenAiProxyServerTest {
                 "event: response.output_text.delta\n" +
                 "data: {\"type\":\"response.output_text.delta\",\"delta\":\"ng\"}\n\n" +
                 COMPLETED_RESPONSE_STREAM_WITH_TEXT
+        const val INCOMPLETE_RESPONSE_STREAM_WITH_TEXT_DELTAS =
+            "event: response.output_text.delta\n" +
+                "data: {\"type\":\"response.output_text.delta\",\"delta\":\"po\"}\n\n" +
+                "event: response.output_text.delta\n" +
+                "data: {\"type\":\"response.output_text.delta\",\"delta\":\"ng\"}\n\n" +
+                "event: response.incomplete\n" +
+                "data: {\"type\":\"response.incomplete\",\"response\":{\"id\":\"resp_1\"," +
+                "\"object\":\"response\",\"status\":\"incomplete\",\"output\":[]," +
+                "\"usage\":{\"input_tokens\":1,\"output_tokens\":2}}}\n\n"
         const val HOSTED_IMAGE_GENERATION_RESPONSE_STREAM =
             "event: response.output_item.done\n" +
                 "data: {\"type\":\"response.output_item.done\",\"item\":{\"id\":\"ig_1\"," +
