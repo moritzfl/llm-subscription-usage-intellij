@@ -26,6 +26,32 @@ class AnthropicReasoningTest {
     }
 
     @Test
+    fun claudeEffortFollowsTheModelVersion() {
+        // Effort arrived with 4.6; Sonnet 4.6 has no xhigh, so a tie moves to the lower level.
+        val sonnet46 = AnthropicReasoning.apply(body("xhigh"), "claude-sonnet-4.6")
+        assertEquals(
+            "high",
+            sonnet46["output_config"]!!.jsonObject["effort"]!!.jsonPrimitive.content,
+        )
+        val sonnet46Max = AnthropicReasoning.apply(body("max"), "claude-sonnet-4.6")
+        assertEquals(
+            "max",
+            sonnet46Max["output_config"]!!.jsonObject["effort"]!!.jsonPrimitive.content,
+        )
+        val opus47 = AnthropicReasoning.apply(body("xhigh"), "claude-opus-4.7")
+        assertEquals(
+            "xhigh",
+            opus47["output_config"]!!.jsonObject["effort"]!!.jsonPrimitive.content,
+        )
+        // Older Claude models keep no effort; forwarding would be rejected.
+        for (model in listOf("claude-sonnet-4.5", "claude-3.7-sonnet")) {
+            val older = AnthropicReasoning.apply(body("high"), model)
+            assertTrue("reasoning_effort" !in older, model)
+            assertTrue("output_config" !in older, model)
+        }
+    }
+
+    @Test
     fun qwenIsToldToStopThinkingOnNone() {
         val none = AnthropicReasoning.apply(body("none"), "qwen3.8-flash")
         assertEquals("disabled", none["thinking"]!!.jsonObject["type"]!!.jsonPrimitive.content)

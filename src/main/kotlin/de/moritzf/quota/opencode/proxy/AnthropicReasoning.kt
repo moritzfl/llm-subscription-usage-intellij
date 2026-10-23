@@ -21,9 +21,13 @@ internal object AnthropicReasoning {
         val effort = (body["reasoning_effort"] as? JsonPrimitive)?.contentOrNull ?: return body
         val family = family(modelId)
         val disabled = effort.trim().lowercase() in setOf("none", "minimal")
-        if (disabled && family == Family.CLAUDE) {
-            // Anthropic cannot turn thinking off on every model; `low` is the floor.
-            return withEffort(body, "low")
+        if (family == Family.CLAUDE) {
+            val levels = claudeEffortLevels(modelId) ?: return JsonObject(body - "reasoning_effort")
+            if (disabled) {
+                // Anthropic cannot turn thinking off on every model; `low` is the floor.
+                return withEffort(body, "low")
+            }
+            return ReasoningEffort.nearest(effort, levels)?.let { withEffort(body, it) } ?: body
         }
         if (disabled) {
             return when (family) {
@@ -36,6 +40,8 @@ internal object AnthropicReasoning {
         }
         val level = ReasoningEffort.nearest(effort, LEVELS) ?: return body
         val withEffort = withEffort(body, level)
+        // Qwen and MiniMax accept output_config.effort through the gateway; only their
+        // thinking switches differ.
         return if (family == Family.ADAPTIVE_ONLY) {
             JsonObject(withEffort + ("thinking" to adaptiveThinking()))
         } else {
@@ -73,6 +79,21 @@ internal object AnthropicReasoning {
         }
     }
 
+    /**
+     * Effort arrived with Claude 4.6. Sonnet 4.6 stops at `max`; Opus 4.7+, Sonnet 5, and Haiku 5
+     * also take `xhigh`. Older models keep no effort (thinking, if any, is client-controlled).
+     */
+    private fun claudeEffortLevels(modelId: String): List<String>? {
+        val match = CLAUDE_VERSION.find(modelId.lowercase()) ?: return null
+        val major = match.groupValues[1].toInt()
+        val minor = match.groupValues[2].toIntOrNull() ?: 0
+        return when {
+            major >= 5 || (major == 4 && minor >= 7) -> LEVELS
+            major == 4 && minor == 6 -> listOf("low", "medium", "high", "max")
+            else -> null
+        }
+    }
+
     private fun adaptiveThinking(): JsonObject = buildJsonObject {
         put("type", JsonPrimitive("adaptive"))
     }
@@ -80,4 +101,6 @@ internal object AnthropicReasoning {
     private fun disabledThinking(): JsonObject = buildJsonObject {
         put("type", JsonPrimitive("disabled"))
     }
+
+    private val CLAUDE_VERSION = Regex("^claude-[a-z]+-(\\d+)(?:\\.(\\d+))?")
 }
