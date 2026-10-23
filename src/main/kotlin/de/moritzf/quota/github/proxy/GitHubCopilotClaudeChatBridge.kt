@@ -460,6 +460,7 @@ internal class GitHubCopilotClaudeChatBridge(
         if (root.containsKey("error")) return body
         val content = root["content"] as? JsonArray
         val text = anthropicText(content)
+        val reasoning = anthropicThinking(content)
         val toolCalls = anthropicToolCalls(content)
         val legacyFunctionCall = legacyOpenAiFunctionCall(request, toolCalls)
         val finishReason =
@@ -490,6 +491,9 @@ internal class GitHubCopilotClaudeChatBridge(
                                         } else {
                                             put("content", text)
                                             if (toolCalls != null) put("tool_calls", toolCalls)
+                                        }
+                                        if (reasoning.isNotEmpty()) {
+                                            put("reasoning_content", reasoning)
                                         }
                                     },
                                 )
@@ -529,9 +533,11 @@ internal class GitHubCopilotClaudeChatBridge(
             "content_block_delta" -> {
                 val delta = root["delta"] as? JsonObject
                 val text = stringField(delta, "text").orEmpty()
+                val thinking = stringField(delta, "thinking").orEmpty()
                 val partialJson = stringField(delta, "partial_json").orEmpty()
                 when {
                     text.isNotEmpty() -> openAiChatChunk(request, content = text)
+                    thinking.isNotEmpty() -> openAiChatChunk(request, reasoning = thinking)
                     partialJson.isNotEmpty() ->
                         openAiToolCallArgumentsChunk(request, root, partialJson)
                     else -> openAiChatChunk(request)
@@ -675,6 +681,7 @@ internal class GitHubCopilotClaudeChatBridge(
         role: String? = null,
         content: String? = null,
         finishReason: String? = null,
+        reasoning: String? = null,
     ): String {
         return JsonHelper.encodeToString(
             buildJsonObject {
@@ -693,6 +700,7 @@ internal class GitHubCopilotClaudeChatBridge(
                                     buildJsonObject {
                                         role?.let { put("role", it) }
                                         content?.let { put("content", it) }
+                                        reasoning?.let { put("reasoning_content", it) }
                                     },
                                 )
                                 if (finishReason == null) put("finish_reason", JsonNull)
@@ -728,6 +736,14 @@ internal class GitHubCopilotClaudeChatBridge(
         return content.orEmpty().joinToString("") { block ->
             val item = block as? JsonObject ?: return@joinToString ""
             if (stringField(item, "type") == "text") stringField(item, "text").orEmpty() else ""
+        }
+    }
+
+    private fun anthropicThinking(content: JsonArray?): String {
+        return content.orEmpty().joinToString("") { block ->
+            val item = block as? JsonObject ?: return@joinToString ""
+            if (stringField(item, "type") == "thinking") stringField(item, "thinking").orEmpty()
+            else ""
         }
     }
 
