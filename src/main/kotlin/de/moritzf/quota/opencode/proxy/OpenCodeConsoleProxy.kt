@@ -254,7 +254,11 @@ internal class OpenCodeConsoleProxy(
                     val transformed =
                         if (bridge) anthropicBridge.openAiChatToAnthropicMessagesBody(req, body)
                         else body
-                    JsonObject(configured.body + transformed)
+                    val merged = JsonObject(configured.body + transformed)
+                    // Anthropic models control thinking with output_config.effort, not
+                    // reasoning_effort, which the bridge does not forward.
+                    if (bridge) AnthropicReasoning.apply(merged, configured.model.upstreamId)
+                    else merged
                 },
                 jsonResponseTransformer = { req, body ->
                     if (bridge) anthropicBridge.anthropicMessageToOpenAiChat(req, body) else body

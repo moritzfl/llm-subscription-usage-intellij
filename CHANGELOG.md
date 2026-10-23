@@ -9,6 +9,7 @@
 - Apply the ChatGPT backend's reasoning limits only to OpenAI/Codex. GitHub Copilot, Azure, and OpenCode Responses models now keep `low` and `none` for mini and Codex models, and `minimal` for GPT-5, instead of being raised to `medium` or `low`.
 - Forward `reasoning_effort` to Mistral models whose model list reports reasoning, such as Mistral Small, Medium 3.5, and Large 4, instead of always dropping it. Mistral models switch reasoning on (`high`) or off (`none`), and GLM 5.3 offers `low`, `high`, and `max`; other values move to the closest one. Mistral's thinking chunks now reach chat clients as `reasoning_content`, in normal and streamed answers, and `reasoning_content` that clients send back is replayed to Mistral as thinking.
 - Return the thinking of Anthropic-style models (OpenCode Claude, Qwen, and MiniMax models on the Messages API) to chat clients as `reasoning_content` instead of dropping it, in normal and streamed answers.
+- Forward `reasoning_effort` to Anthropic-style models: Claude takes `output_config.effort` (`low` for `none`/`minimal`, since thinking cannot be disabled everywhere), Qwen is told to stop thinking for `none`, and MiniMax gets adaptive thinking for the requested level.
 
 ## [1.23.0] - 2026-10-23
 
