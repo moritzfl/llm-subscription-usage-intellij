@@ -15,8 +15,9 @@ class ReasoningEffortTest {
         assertEquals("high", ReasoningEffort.nearest("max", gemini))
 
         val onOff = listOf("none", "high")
-        assertEquals("none", ReasoningEffort.nearest("low", onOff), "ties go to the lower level")
+        assertEquals("high", ReasoningEffort.nearest("low", onOff), "keep reasoning on a tie")
         assertEquals("high", ReasoningEffort.nearest("medium", onOff))
+        assertEquals("none", ReasoningEffort.nearest("none", onOff))
     }
 
     @Test

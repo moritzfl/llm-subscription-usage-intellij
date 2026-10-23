@@ -94,15 +94,18 @@ class ModelAliasResolverTest {
         assertEquals("low", api("gpt-5.4-mini", "low"))
         assertEquals("none", api("gpt-5.4-mini", "none"))
         assertEquals("none", api("gpt-5.1-codex", "none"))
-        // `minimal` stays for the original GPT-5 models, which document it, and maps to `low`
-        // elsewhere.
+        // `minimal` stays only for the original GPT-5, which documents it.
         assertEquals("minimal", api("gpt-5", "minimal"))
-        assertEquals("minimal", api("gpt-5-mini", "minimal"))
-        assertEquals("minimal", api("gpt-5-nano-2025-08-07", "minimal"))
+        assertEquals("low", api("gpt-5-mini", "minimal"))
+        assertEquals("low", api("gpt-5-nano-2025-08-07", "minimal"))
         assertEquals("low", api("gpt-5.5", "minimal"))
-        // Model capability limits hold on every upstream.
-        assertEquals("high", api("gpt-4o", "xhigh"))
-        assertEquals("xhigh", api("gpt-5.5", "max"))
+        // GPT-6 takes none..max; Grok stops at xhigh and has no `none`; Muse has no `none`.
+        assertEquals("none", api("gpt-6-luna", "none"))
         assertEquals("max", api("gpt-6-luna", "ultra"))
+        assertEquals("low", api("grok-4.6", "none"))
+        assertEquals("xhigh", api("grok-4.6", "max"))
+        assertEquals("minimal", api("muse-spark-1.3-contributor", "none"))
+        // Unknown families keep the conservative mapping.
+        assertEquals("high", api("gpt-4o", "xhigh"))
     }
 }
