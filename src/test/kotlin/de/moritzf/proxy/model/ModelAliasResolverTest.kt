@@ -84,4 +84,25 @@ class ModelAliasResolverTest {
         assertEquals("medium", resolver.clampReasoningEffort("gpt-5.4-mini", "low"))
         assertEquals("high", resolver.clampReasoningEffort("gpt-5.4-mini", "xhigh"))
     }
+
+    @Test
+    fun appliesChatGptBackendLimitsOnlyToTheChatGptBackend() {
+        fun api(model: String, effort: String) =
+            resolver.clampReasoningEffort(model, effort, chatGptBackend = false)
+
+        // Mini models and codex slugs accept the API's levels on Copilot, Azure, or OpenCode.
+        assertEquals("low", api("gpt-5.4-mini", "low"))
+        assertEquals("none", api("gpt-5.4-mini", "none"))
+        assertEquals("none", api("gpt-5.1-codex", "none"))
+        // `minimal` stays for the original GPT-5 models, which document it, and maps to `low`
+        // elsewhere.
+        assertEquals("minimal", api("gpt-5", "minimal"))
+        assertEquals("minimal", api("gpt-5-mini", "minimal"))
+        assertEquals("minimal", api("gpt-5-nano-2025-08-07", "minimal"))
+        assertEquals("low", api("gpt-5.5", "minimal"))
+        // Model capability limits hold on every upstream.
+        assertEquals("high", api("gpt-4o", "xhigh"))
+        assertEquals("xhigh", api("gpt-5.5", "max"))
+        assertEquals("max", api("gpt-6-luna", "ultra"))
+    }
 }

@@ -23,13 +23,22 @@ class ModelAliasResolver {
         return ResolvedModel(model, null)
     }
 
-    fun clampReasoningEffort(model: String?, requestedEffort: String?): String? {
+    /**
+     * [chatGptBackend] adds the limits observed on the ChatGPT Codex backend (mini models, `codex`
+     * slugs, and `minimal`). Other Responses upstreams, such as Copilot, Azure, or OpenCode, accept
+     * the OpenAI API's levels for the same models.
+     */
+    fun clampReasoningEffort(
+        model: String?,
+        requestedEffort: String?,
+        chatGptBackend: Boolean = true,
+    ): String? {
         if (requestedEffort.isNullOrBlank()) {
             return null
         }
         var effort = requestedEffort.trim().lowercase(Locale.ROOT)
         val modelName = model?.lowercase(Locale.ROOT).orEmpty()
-        if (isMiniModel(modelName)) {
+        if (chatGptBackend && isMiniModel(modelName)) {
             // Tested against the live Codex /responses endpoint: mini models accept only
             // medium/high reasoning. Keep the request-time clamp even if unsupported aliases
             // are not advertised, because clients can send stale or manual reasoning_effort values.
@@ -39,10 +48,10 @@ class ModelAliasResolver {
                 else -> "medium"
             }
         }
-        if (effort == "minimal") {
+        if (effort == "minimal" && (chatGptBackend || !acceptsMinimal(modelName))) {
             effort = "low"
         }
-        if (effort == "none" && isCodexModel(modelName)) {
+        if (effort == "none" && chatGptBackend && isCodexModel(modelName)) {
             return "low"
         }
         if ((effort == "max" || effort == "ultra") && !supportsMaxUltra(modelName)) {
@@ -64,6 +73,11 @@ class ModelAliasResolver {
 
     private fun isCodexModel(modelName: String): Boolean {
         return modelName.contains("codex")
+    }
+
+    /** The OpenAI API documents `minimal` for the original GPT-5 models only. */
+    private fun acceptsMinimal(modelName: String): Boolean {
+        return GPT_5_BASE_MODEL.matches(modelName)
     }
 
     private fun isLunaModel(modelName: String): Boolean {
@@ -90,6 +104,8 @@ class ModelAliasResolver {
     }
 
     companion object {
+        private val GPT_5_BASE_MODEL = Regex("gpt-5(?:-mini|-nano)?(?:-\\d{4}-\\d{2}-\\d{2})?")
+
         // Junie selects a reasoning tier by sending the model name with a "<base> (<level>)"
         // suffix. Strip the suffix back into base model + effort; the suffix is the user's
         // explicit tier choice, so it takes precedence over separate reasoning_effort.

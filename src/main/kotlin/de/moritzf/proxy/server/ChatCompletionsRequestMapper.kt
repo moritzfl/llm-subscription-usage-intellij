@@ -14,6 +14,7 @@ internal class ChatCompletionsRequestMapper(
     private val store: Boolean,
     private val instructionsProvider: CodexInstructionsProvider,
     private val modelAliasResolver: ModelAliasResolver,
+    private val chatGptBackend: Boolean = false,
 ) {
     fun build(
         chatBody: JsonObject,
@@ -157,7 +158,10 @@ internal class ChatCompletionsRequestMapper(
                     ?.let { (it as? JsonPrimitive)?.content }
         if (requestedEffort != null) {
             val reasoning = createObjectNode()
-            reasoning.put("effort", modelAliasResolver.clampReasoningEffort(model, requestedEffort))
+            reasoning.put(
+                "effort",
+                modelAliasResolver.clampReasoningEffort(model, requestedEffort, chatGptBackend),
+            )
             upstream.set("reasoning", reasoning)
         }
         val serviceTier = (chatBody["service_tier"] as? JsonPrimitive)?.contentOrNull?.trim()

@@ -6,6 +6,7 @@
 - Send OpenCode Gemini models a thinking level they accept. `reasoning_effort: minimal`, which Gemini 3.7/3.8 Flash, 3.1 Pro, and Gemini 4 reject, and `none` now use `low`; `xhigh` and `max` use `high` instead of the model's default. An effort the client sends now overrides the Console's default thinking level.
 - Forward `reasoning_effort` to GitHub Copilot Gemini models, moved to the low/medium/high levels they accept, instead of always dropping it.
 - Keep the `reasoning_effort` a client requests for Azure GPT-5/6 tool calls. These calls now use the Responses API, because chat accepts tools only with reasoning turned off and replaced the requested effort with `none`.
+- Apply the ChatGPT backend's reasoning limits only to OpenAI/Codex. GitHub Copilot, Azure, and OpenCode Responses models now keep `low` and `none` for mini and Codex models, and `minimal` for GPT-5, instead of being raised to `medium` or `low`.
 
 ## [1.23.0] - 2026-10-23
 
