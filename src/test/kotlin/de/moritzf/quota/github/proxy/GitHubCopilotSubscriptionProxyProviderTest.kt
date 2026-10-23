@@ -729,7 +729,10 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     )
                 assertEquals(200, gemini.statusCode(), gemini.body())
                 val geminiUpstream = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
-                assertFalse(geminiUpstream.body.contains("reasoning_effort"), geminiUpstream.body)
+                assertTrue(
+                    geminiUpstream.body.contains("\"reasoning_effort\":\"low\""),
+                    geminiUpstream.body,
+                )
                 assertTrue(geminiUpstream.body.contains("\"stop\""), geminiUpstream.body)
                 assertTrue(geminiUpstream.body.contains("\"max_tokens\":2112"), geminiUpstream.body)
             } finally {

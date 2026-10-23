@@ -1,5 +1,6 @@
 package de.moritzf.proxy.subscription
 
+import de.moritzf.proxy.model.ReasoningEffort
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.server.isTextual
 import de.moritzf.proxy.server.text
@@ -7,6 +8,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.put
 
@@ -17,8 +19,9 @@ import kotlinx.serialization.json.put
 object ChatUpstreamCompat {
     fun adaptChat(modelId: String, body: JsonObject): JsonObject {
         val omitted = omitUnsupportedChatFields(modelId, body)
-        if (!modelId.trim().lowercase().startsWith("gemini-") || !hasTools(omitted)) return omitted
-        return addTokenHeadroom(omitted)
+        if (!modelId.trim().lowercase().startsWith("gemini-")) return omitted
+        val gemini = geminiReasoningEffort(omitted)
+        return if (hasTools(gemini)) addTokenHeadroom(gemini) else gemini
     }
 
     fun omitUnsupportedChatFields(modelId: String, body: JsonObject): JsonObject {
@@ -35,10 +38,23 @@ object ChatUpstreamCompat {
             // Copilot chat rejects stop for these ids. Responses-bridged models already
             // emulate stop in ChatCompletionsHandler; this covers the chat path.
             if (id.startsWith("gpt-5-mini") || id.startsWith("kimi-k2.7")) add("stop")
-            // kimi-k2.7-code rejects any reasoning_effort. Copilot Gemini accepts only
-            // low/medium/high, counts that thinking against max_tokens, and then returns
-            // empty content for Junie's small cap. "none" is also rejected, so omit it.
-            if (id.startsWith("kimi-k2.7") || id.startsWith("gemini-")) add("reasoning_effort")
+            // kimi-k2.7-code rejects any reasoning_effort.
+            if (id.startsWith("kimi-k2.7")) add("reasoning_effort")
+        }
+    }
+
+    /**
+     * Copilot Gemini accepts only low/medium/high and rejects `none`, so other levels move to the
+     * closest accepted one instead of being dropped. Values outside the scale are omitted.
+     */
+    private fun geminiReasoningEffort(body: JsonObject): JsonObject {
+        if ("reasoning_effort" !in body) return body
+        val requested = (body["reasoning_effort"] as? JsonPrimitive)?.contentOrNull
+        val level = ReasoningEffort.nearest(requested, GEMINI_REASONING_EFFORTS)
+        if (level != null && level == requested) return body
+        return buildJsonObject {
+            body.forEach { (key, value) -> if (key != "reasoning_effort") put(key, value) }
+            if (level != null) put("reasoning_effort", level)
         }
     }
 
@@ -132,4 +148,5 @@ object ChatUpstreamCompat {
     private data class StopCut(val content: String, val sequence: String)
 
     private const val GEMINI_TOOL_REASONING_HEADROOM = 2_048
+    private val GEMINI_REASONING_EFFORTS = listOf("low", "medium", "high")
 }

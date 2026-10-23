@@ -24,7 +24,7 @@ class ChatUpstreamCompatTest {
 
         val gemini = ChatUpstreamCompat.omitUnsupportedChatFields("gemini-3.8-flash", body)
         assertTrue("stop" in gemini)
-        assertFalse("reasoning_effort" in gemini)
+        assertTrue("reasoning_effort" in gemini)
 
         val kimi = ChatUpstreamCompat.omitUnsupportedChatFields("kimi-k2.7-code", body)
         assertFalse("stop" in kimi)
@@ -47,6 +47,26 @@ class ChatUpstreamCompatTest {
             JsonHelper.parseToJsonElementOrNull("""{"max_tokens":64,"messages":[]}""")!!.jsonObject
         val noTools = ChatUpstreamCompat.adaptChat("gemini-3.8-flash", plain)
         assertEquals("64", noTools["max_tokens"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun movesGeminiReasoningEffortToTheClosestAcceptedLevel() {
+        fun effort(value: String?): String? {
+            val field = value?.let { ""","reasoning_effort":"$it"""" }.orEmpty()
+            val body = JsonHelper.parseToJsonElementOrNull("""{"messages":[]$field}""")!!.jsonObject
+            return ChatUpstreamCompat.adaptChat("gemini-3.8-flash", body)["reasoning_effort"]
+                ?.jsonPrimitive
+                ?.content
+        }
+        // Copilot Gemini accepts low/medium/high and rejects "none".
+        assertEquals("low", effort("none"))
+        assertEquals("low", effort("minimal"))
+        assertEquals("low", effort("low"))
+        assertEquals("medium", effort("medium"))
+        assertEquals("high", effort("high"))
+        assertEquals("high", effort("xhigh"))
+        assertEquals(null, effort("bogus"))
+        assertEquals(null, effort(null))
     }
 
     @Test
