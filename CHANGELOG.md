@@ -13,6 +13,7 @@
 - Use the reasoning levels each OpenAI API model actually accepts instead of the ChatGPT backend's limits: GPT-6 takes `none`..`max`, GPT-5.2–5.6 take `none`..`xhigh`, Grok stops at `xhigh` and has no `none`, and Muse Spark has no `none`. This applies to Copilot, Azure, and OpenCode Responses models.
 - Send Mistral's documented reasoning range (`none`..`xhigh`) for models that report reasoning, instead of only on/off. `max` becomes `xhigh`, GLM 5.3 keeps `low`/`high`/`max`.
 - Fit `reasoning_effort` to the levels GitHub Copilot lists per model (`capabilities.supports.reasoning_effort`), for chat, Responses, and `gh-auto` requests, instead of forwarding values the model rejects. The levels are cached with the model list.
+- Stop sending `reasoning_effort: none` to OpenCode's GLM-5.3 chat models. They are thinking-only and reject it with HTTP 400, so `none` now moves to `low`; DeepSeek, Kimi, and Ollama models accept every value and are sent unchanged.
 
 ## [1.23.0] - 2026-10-23
 

@@ -432,6 +432,14 @@ internal data class OpenCodeConsoleModel(
                         supportsVision = model.capabilities?.input?.contains("image") == true,
                         maxInputTokens = model.limit?.input ?: model.limit?.context,
                         maxOutputTokens = model.limit?.output,
+                        reasoningEfforts =
+                            if (!google && nativeRoute == SubscriptionProxyRoute.CHAT_COMPLETIONS) {
+                                chatReasoningEfforts(upstreamId)
+                            } else {
+                                // Messages and Responses models get their effort fitted on their
+                                // own protocol (AnthropicReasoning, ModelAliasResolver).
+                                null
+                            },
                     ),
                 nativeRoute = nativeRoute,
                 baseUri = uri,
@@ -476,6 +484,18 @@ internal data class OpenCodeConsoleModel(
                 else -> model.model.upstreamId
             }
         }
+
+        /**
+         * Probed on OpenCode Go (2026-10-23): GLM-5.3 is thinking-only and rejects
+         * `reasoning_effort: none` with HTTP 400; DeepSeek and Kimi accept every value, so they
+         * stay unknown and forward as sent.
+         */
+        private fun chatReasoningEfforts(upstreamId: String): List<String>? =
+            if (upstreamId.lowercase().startsWith("glm-")) {
+                listOf("low", "medium", "high", "xhigh", "max")
+            } else {
+                null
+            }
 
         private fun poolLabel(pool: OpenCodePool?): String =
             when (pool) {

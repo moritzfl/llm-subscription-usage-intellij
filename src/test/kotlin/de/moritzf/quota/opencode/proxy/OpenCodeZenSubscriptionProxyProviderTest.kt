@@ -5,6 +5,7 @@ import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.subscription.SubscriptionProxyRoute
 import de.moritzf.proxy.subscription.SubscriptionProxyServer
+import de.moritzf.proxy.subscription.adaptReasoningEffort
 import de.moritzf.quota.opencode.OpenCodeQuotaException
 import de.moritzf.quota.opencode.OpenCodeTestServer
 import java.net.InetSocketAddress
@@ -18,6 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.serialization.json.jsonArray
@@ -186,6 +188,34 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                 assertTrue(calls[1].body.contains("\"max_tokens\""))
             }
         }
+    }
+
+    @Test
+    fun thinkingOnlyGlmChatModelNeverGetsReasoningEffortNone() {
+        val config =
+            """{"providers":{"opencode":{"package":"aisdk:@ai-sdk/openai-compatible",
+               "settings":{"baseURL":"https://opencode.ai/inference/openai/v1"},"models":{
+                 "glm-5.3":{"modelID":"glm-5.3"}}}}}"""
+        val model =
+            assertNotNull(
+                OpenCodeConsoleModel.parse(config).firstOrNull { it.model.upstreamId == "glm-5.3" }
+            )
+        assertEquals(
+            listOf("low", "medium", "high", "xhigh", "max"),
+            model.model.reasoningEfforts,
+        )
+        // The shared fitting maps "none" to the lowest accepted level.
+        assertEquals(
+            "low",
+            adaptReasoningEffort(
+                    SubscriptionProxyRoute.CHAT_COMPLETIONS,
+                    model.model.reasoningEfforts,
+                    JsonHelper.JSON.parseToJsonElement("""{"reasoning_effort":"none"}""")
+                        .jsonObject,
+                )["reasoning_effort"]!!
+                .jsonPrimitive
+                .content,
+        )
     }
 
     @Test
