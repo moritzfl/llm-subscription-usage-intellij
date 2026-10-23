@@ -27,6 +27,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 
 /**
  * OpenAI v1 proxy for one Azure CLI account. Token comes from `az account get-access-token`,
@@ -130,15 +131,26 @@ internal class AzureSubscriptionProxyProvider(
     }
 
     /**
-     * Chat tool calls for models that accept tools only on Responses and reject the
-     * `reasoning_effort: none` the chat route needs, such as GPT-6.1 Sol and GPT-6 Astra.
+     * Chat tool calls that must use Responses: GPT-6.1 Sol and GPT-6 Astra accept tools only there,
+     * and other GPT-5/6 chat deployments accept tools only with `reasoning_effort: none`, which
+     * would overwrite an effort the client asked for.
      */
-    private fun needsResponsesForTools(request: SubscriptionProxyRequest): Boolean =
-        request.route == SubscriptionProxyRoute.CHAT_COMPLETIONS &&
-            RESPONSES_TOOLS_MODEL.matches(request.model.upstreamId.lowercase()) &&
-            listOf("tools", "functions").any {
-                (request.body[it] as? JsonArray)?.isNotEmpty() == true
-            }
+    private fun needsResponsesForTools(request: SubscriptionProxyRequest): Boolean {
+        if (request.route != SubscriptionProxyRoute.CHAT_COMPLETIONS || !hasTools(request.body)) {
+            return false
+        }
+        val id = request.model.upstreamId.lowercase()
+        return RESPONSES_TOOLS_MODEL.matches(id) ||
+            (REASONING_MODEL.matches(id) && requestsReasoning(request.body))
+    }
+
+    private fun hasTools(body: JsonObject): Boolean =
+        listOf("tools", "functions").any { (body[it] as? JsonArray)?.isNotEmpty() == true }
+
+    private fun requestsReasoning(body: JsonObject): Boolean {
+        val effort = (body["reasoning_effort"] as? JsonPrimitive)?.contentOrNull?.trim()
+        return !effort.isNullOrEmpty() && !effort.equals("none", ignoreCase = true)
+    }
 
     private suspend fun chatThroughResponses(
         ctx: de.moritzf.proxy.server.ProxyCall,
@@ -185,6 +197,11 @@ internal class AzureSubscriptionProxyProvider(
                 fullRequestLogging = false,
                 forwardPromptCacheHeaders = false,
                 instructionsProvider = CodexInstructionsProvider("You are a helpful assistant."),
+                // GPT-5/6 reasoning deployments reject sampling parameters, as on chat.
+                responsesBodyTransformer = { body ->
+                    body.remove("temperature")
+                    body.remove("top_p")
+                },
             )
             .handleParsed(
                 ctx,
@@ -232,9 +249,7 @@ internal class AzureSubscriptionProxyProvider(
         val reasoning = REASONING_MODEL.matches(id)
         val mistral = id.startsWith("mistral-")
         if (!reasoning && !mistral) return body
-        val reasoningTools =
-            reasoning &&
-                listOf("tools", "functions").any { (body[it] as? JsonArray)?.isNotEmpty() == true }
+        val reasoningTools = reasoning && hasTools(body)
         return buildJsonObject {
             body.forEach { (key, value) ->
                 when {

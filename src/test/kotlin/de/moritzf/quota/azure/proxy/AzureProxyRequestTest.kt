@@ -62,7 +62,7 @@ class AzureProxyRequestTest {
                     for (model in
                         listOf("gpt-5.6-luna", "gpt-5.6-sol", "gpt-6-luna", "gpt-6-sol")) {
                         val body =
-                            """{"model":"az-$model","messages":[],"max_tokens":64,"reasoning_effort":"low","tools":[{"type":"function","function":{"name":"answer"}}]}"""
+                            """{"model":"az-$model","messages":[],"max_tokens":64,"reasoning_effort":"none","tools":[{"type":"function","function":{"name":"answer"}}]}"""
                         assertEquals(
                             200,
                             postAsync(port, model, body).get(5, TimeUnit.SECONDS).statusCode(),
@@ -192,6 +192,44 @@ class AzureProxyRequestTest {
                         assertNotNull(requests.poll(5, TimeUnit.SECONDS)).first,
                         "without tools chat stays on chat completions",
                     )
+                }
+            }
+    }
+
+    @Test
+    fun requestedReasoningWithToolsGoesThroughResponsesInsteadOfBeingTurnedOff() {
+        val requests = LinkedBlockingQueue<Pair<String, String>>()
+        TestUpstream { exchange, body ->
+            requests += exchange.requestURI.path to body
+            val completed =
+                """{"type":"response.completed","response":{"id":"resp_1","object":"response","status":"completed","output":[{"type":"function_call","id":"fc_1","call_id":"call_1","name":"answer","arguments":"{}"}],"usage":{"input_tokens":5,"output_tokens":3}}}"""
+            val response = "event: response.completed\ndata: $completed\n\n".toByteArray()
+            exchange.responseHeaders.set("Content-Type", "text/event-stream")
+            exchange.sendResponseHeaders(200, response.size.toLong())
+            exchange.responseBody.write(response)
+        }
+            .use { upstream ->
+                withProxy({ config(upstream.url, "effort") }) { port ->
+                    for (model in listOf("gpt-5.6-luna", "gpt-6-sol")) {
+                        val body =
+                            """{"model":"az-$model","messages":[{"role":"user","content":"hi"}],"max_tokens":4096,"temperature":0.2,"top_p":0.9,"reasoning_effort":"high","tools":[{"type":"function","function":{"name":"answer","parameters":{"type":"object"}}}]}"""
+                        val response = postAsync(port, model, body).get(10, TimeUnit.SECONDS)
+
+                        assertEquals(200, response.statusCode(), response.body())
+                        assertTrue(response.body().contains("\"tool_calls\""), response.body())
+                        val (path, sentBody) = assertNotNull(requests.poll(5, TimeUnit.SECONDS))
+                        assertEquals("/openai/v1/responses", path)
+                        val sent = Json.parseToJsonElement(sentBody) as JsonObject
+                        assertEquals(
+                            "high",
+                            (sent["reasoning"] as JsonObject)["effort"]?.jsonPrimitive?.content,
+                        )
+                        assertEquals("4096", sent["max_output_tokens"]?.jsonPrimitive?.content)
+                        assertTrue(
+                            listOf("temperature", "top_p", "reasoning_effort").none { it in sent },
+                            sentBody,
+                        )
+                    }
                 }
             }
     }
