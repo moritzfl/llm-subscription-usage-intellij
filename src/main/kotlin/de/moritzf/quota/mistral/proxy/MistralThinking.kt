@@ -84,10 +84,16 @@ internal object MistralThinking {
 
     private fun adaptChoices(root: JsonObject, messageKey: String): JsonObject? {
         val choices = root["choices"] as? JsonArray ?: return null
-        val chunked = choices.any {
-            ((it as? JsonObject)?.get(messageKey) as? JsonObject)?.get("content") is JsonArray
+        // Only reasoning answers use thinking chunks; leave other chunk lists untouched.
+        val withThinking = choices.any { element ->
+            val content =
+                ((element as? JsonObject)?.get(messageKey) as? JsonObject)?.get("content")
+                    as? JsonArray
+            content?.any {
+                ((it as? JsonObject)?.get("type") as? JsonPrimitive)?.contentOrNull == "thinking"
+            } == true
         }
-        if (!chunked) return null
+        if (!withThinking) return null
         val adapted =
             JsonArray(
                 choices.map { element ->
