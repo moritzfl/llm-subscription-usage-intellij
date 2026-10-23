@@ -34,8 +34,15 @@ class ReasoningEffortRequestsTest {
 
         val adapted = adaptReasoningEffort(responses, listOf("none", "high"), body)
         val reasoning = adapted["reasoning"]!!.jsonObject
-        assertEquals("none", reasoning["effort"]!!.jsonPrimitive.content)
+        assertEquals("high", reasoning["effort"]!!.jsonPrimitive.content)
         assertEquals("auto", reasoning["summary"]!!.jsonPrimitive.content)
+
+        val noneBody = parse("""{"input":"hi","reasoning":{"effort":"none"}}""")
+        val noneAdapted = adaptReasoningEffort(responses, listOf("none", "high"), noneBody)
+        assertEquals(
+            "none",
+            noneAdapted["reasoning"]!!.jsonObject["effort"]!!.jsonPrimitive.content,
+        )
 
         val effortOnly = parse("""{"input":"hi","reasoning":{"effort":"low"}}""")
         assertTrue("reasoning" !in adaptReasoningEffort(responses, emptyList(), effortOnly))

@@ -11,6 +11,7 @@
 - Return the thinking of Anthropic-style models (OpenCode Claude, Qwen, and MiniMax models on the Messages API) to chat clients as `reasoning_content` instead of dropping it, in normal and streamed answers.
 - Forward `reasoning_effort` to Anthropic-style models: Claude takes `output_config.effort` (`low` for `none`/`minimal`, since thinking cannot be disabled everywhere), Qwen is told to stop thinking for `none`, and MiniMax gets adaptive thinking for the requested level.
 - Use the reasoning levels each OpenAI API model actually accepts instead of the ChatGPT backend's limits: GPT-6 takes `none`..`max`, GPT-5.2–5.6 take `none`..`xhigh`, Grok stops at `xhigh` and has no `none`, and Muse Spark has no `none`. This applies to Copilot, Azure, and OpenCode Responses models.
+- Send Mistral's documented reasoning range (`none`..`xhigh`) for models that report reasoning, instead of only on/off. `max` becomes `xhigh`, GLM 5.3 keeps `low`/`high`/`max`.
 
 ## [1.23.0] - 2026-10-23
 

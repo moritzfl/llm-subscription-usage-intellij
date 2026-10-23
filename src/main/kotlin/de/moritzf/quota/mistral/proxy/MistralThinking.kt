@@ -18,16 +18,16 @@ import kotlinx.serialization.json.put
  */
 internal object MistralThinking {
     /**
-     * Mistral's reasoning docs describe reasoning as on (`high`) or off (`none`), and the Vibe
-     * catalog lists exactly those levels; GLM 5.3 accepts `low`, `high`, and `max` but not `none`.
-     * Deprecated Magistral models always reason and keep getting no effort.
+     * Mistral documents `none`..`xhigh` for its reasoning chat models (the Vibe catalog narrows
+     * some to none/high); GLM 5.3 accepts `low`, `high`, and `max` but not `none`. Deprecated
+     * Magistral models always reason and keep getting no effort.
      */
     fun reasoningEfforts(modelId: String, supportsReasoning: Boolean?): List<String> {
         val id = modelId.lowercase()
         return when {
             supportsReasoning != true || id.startsWith("magistral-") -> emptyList()
             id.contains("glm") -> listOf("low", "high", "max")
-            else -> listOf("none", "high")
+            else -> listOf("none", "minimal", "low", "medium", "high", "xhigh")
         }
     }
 
