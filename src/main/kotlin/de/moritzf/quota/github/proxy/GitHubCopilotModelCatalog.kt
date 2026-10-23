@@ -28,6 +28,8 @@ internal data class GitHubCopilotRemoteModel(
     val maxInputTokens: Int?,
     val maxOutputTokens: Int?,
     val isDefault: Boolean,
+    /** Copilot's `capabilities.supports.reasoning_effort`; empty when the model takes none. */
+    val reasoningEfforts: List<String>? = null,
 )
 
 internal class GitHubCopilotModelCatalog(
@@ -137,6 +139,12 @@ internal class GitHubCopilotModelCatalog(
                             model.maxInputTokens?.let { put("maxInputTokens", it) }
                             model.maxOutputTokens?.let { put("maxOutputTokens", it) }
                             put("isDefault", model.isDefault)
+                            model.reasoningEfforts?.let { efforts ->
+                                put(
+                                    "reasoningEfforts",
+                                    JsonArray(efforts.map(::JsonPrimitive)),
+                                )
+                            }
                         }
                     }
                 ),
@@ -170,7 +178,13 @@ internal class GitHubCopilotModelCatalog(
             maxInputTokens = intField(item, "maxInputTokens"),
             maxOutputTokens = intField(item, "maxOutputTokens"),
             isDefault = boolField(item, "isDefault") ?: false,
+            reasoningEfforts = stringListField(item, "reasoningEfforts"),
         )
+    }
+
+    private fun stringListField(item: JsonObject, name: String): List<String>? {
+        val values = item[name] as? JsonArray ?: return null
+        return values.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
     }
 
     private fun mergeModels(
@@ -359,6 +373,10 @@ internal class GitHubCopilotModelCatalog(
                     ?: intField(limits, "max_prompt_tokens"),
             maxOutputTokens = intField(limits, "max_output_tokens"),
             isDefault = boolField(item, "is_default") ?: boolField(item, "default") ?: false,
+            reasoningEfforts =
+                (supports?.get("reasoning_effort") as? JsonArray)
+                    ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+                    ?.map { it.lowercase() },
         )
     }
 

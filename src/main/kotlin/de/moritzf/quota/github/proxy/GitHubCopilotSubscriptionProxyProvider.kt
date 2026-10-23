@@ -13,6 +13,7 @@ import de.moritzf.proxy.subscription.SubscriptionProxyModel
 import de.moritzf.proxy.subscription.SubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionProxyRequest
 import de.moritzf.proxy.subscription.SubscriptionProxyRoute
+import de.moritzf.proxy.subscription.adaptReasoningEffort
 import de.moritzf.proxy.transport.UrlResolver
 import de.moritzf.proxy.usage.UsageTracker
 import de.moritzf.quota.github.GitHubQuotaException
@@ -129,15 +130,16 @@ class GitHubCopilotSubscriptionProxyProvider(
         prefixedFallbackModel(localId, route)
 
     override suspend fun handle(ctx: ProxyCall, request: SubscriptionProxyRequest) {
-        if (request.model.upstreamId == GitHubCopilotAutoClient.MODEL_ID) {
-            handleAuto(ctx, request)
+        val fitted = request.fitReasoningEffort()
+        if (fitted.model.upstreamId == GitHubCopilotAutoClient.MODEL_ID) {
+            handleAuto(ctx, fitted)
             return
         }
-        if (request.route == SubscriptionProxyRoute.COMPLETIONS) {
-            completions.handle(ctx, request)
+        if (fitted.route == SubscriptionProxyRoute.COMPLETIONS) {
+            completions.handle(ctx, fitted)
             return
         }
-        if (shouldBridgeChatToResponses(request)) {
+        if (shouldBridgeChatToResponses(fitted)) {
             if (accessTokenProvider().trimmedOrNull() == null) {
                 JsonHelper.toErrorResponse(
                     ctx,
@@ -149,12 +151,22 @@ class GitHubCopilotSubscriptionProxyProvider(
             }
             chatCompletionsHandler.handleParsed(
                 ctx,
-                request.requestId,
-                request.bodyWithUpstreamModel(),
+                fitted.requestId,
+                fitted.bodyWithUpstreamModel(),
             )
             return
         }
-        delegate.handle(ctx, request)
+        delegate.handle(ctx, fitted)
+    }
+
+    /**
+     * Copilot lists `capabilities.supports.reasoning_effort` per model; move the client's effort to
+     * one of those levels. Chat-to-Responses models bypass the pass-through delegate, so this
+     * happens before routing.
+     */
+    private fun SubscriptionProxyRequest.fitReasoningEffort(): SubscriptionProxyRequest {
+        val fitted = adaptReasoningEffort(route, model.reasoningEfforts, body)
+        return if (fitted === body) this else copy(body = fitted)
     }
 
     private suspend fun handleAuto(ctx: ProxyCall, request: SubscriptionProxyRequest) {
@@ -209,7 +221,14 @@ class GitHubCopilotSubscriptionProxyProvider(
                     request.model.copy(
                         upstreamId = selected.id,
                         supportedRoutes = localSupportedRoutes(selected),
-                    )
+                        reasoningEfforts = selected.reasoningEfforts,
+                    ),
+                body =
+                    adaptReasoningEffort(
+                        request.route,
+                        selected.reasoningEfforts,
+                        request.body,
+                    ),
             )
         if (shouldBridgeChatToResponses(routed)) {
             createChatCompletionsHandler(selection)
@@ -256,6 +275,7 @@ class GitHubCopilotSubscriptionProxyProvider(
                 maxInputTokens = model.maxInputTokens,
                 maxOutputTokens = model.maxOutputTokens,
                 isDefault = model.isDefault,
+                reasoningEfforts = model.reasoningEfforts,
             )
         }
     }

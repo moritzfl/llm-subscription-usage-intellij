@@ -695,6 +695,67 @@ class GitHubCopilotSubscriptionProxyProviderTest {
     }
 
     @Test
+    fun fitsReasoningEffortToTheLevelsCopilotListsForEachModel() {
+        val catalog =
+            modelsBody(
+                listOf(
+                    copilotModel(
+                        "gemini-3.8-flash",
+                        family = "gemini-flash",
+                        reasoningEfforts = listOf("low", "medium", "high"),
+                    ),
+                    copilotModel(
+                        "gpt-5.4-mini",
+                        family = "gpt-mini",
+                        endpoints = listOf("/chat/completions", "/responses"),
+                        reasoningEfforts = listOf("medium", "high"),
+                    ),
+                )
+            )
+        TestUpstream(modelsBodyProvider = { catalog }).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                // Gemini chat: "minimal" moves to the lowest level Copilot lists.
+                val gemini =
+                    post(
+                        proxy.port,
+                        "/v1/chat/completions",
+                        "{\"model\":\"gh-gemini-3.8-flash\",\"reasoning_effort\":\"minimal\"," +
+                            "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                        bearer = true,
+                    )
+                assertEquals(200, gemini.statusCode(), gemini.body())
+                assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                val geminiUpstream = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertTrue(
+                    geminiUpstream.body.contains("\"reasoning_effort\":\"low\""),
+                    geminiUpstream.body,
+                )
+
+                // Responses-bridged: "low" moves up to "medium" before the mapper sees it.
+                val mini =
+                    post(
+                        proxy.port,
+                        "/v1/chat/completions",
+                        "{\"model\":\"gh-gpt-5.4-mini\",\"reasoning_effort\":\"low\"," +
+                            "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                        bearer = true,
+                    )
+                assertEquals(200, mini.statusCode(), mini.body())
+                val miniUpstream = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                assertEquals("/responses", miniUpstream.path)
+                assertTrue(
+                    miniUpstream.body.contains("\"effort\":\"medium\""),
+                    miniUpstream.body,
+                )
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
     fun dropsJunieFieldsCopilotChatRejects() {
         TestUpstream().use { upstream ->
             val proxy = newProxy(upstream.baseUri)
@@ -1882,6 +1943,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
             toolCalls: Boolean? = true,
             maxOutputTokens: Int? = 64_000,
             isDefault: Boolean = false,
+            reasoningEfforts: List<String>? = null,
         ): String {
             val endpointsJson = endpoints.joinToString(prefix = "[", postfix = "]") { "\"$it\"" }
             val policy = if (disabled) ",\"policy\":{\"state\":\"disabled\"}" else ""
@@ -1896,7 +1958,9 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 listOfNotNull(
                         toolCalls?.let { "\"tool_calls\":$it" },
                         "\"vision\":true",
-                        "\"reasoning_effort\":[\"medium\",\"high\"]",
+                        reasoningEfforts?.let { levels ->
+                            "\"reasoning_effort\":[" + levels.joinToString(",") { "\"$it\"" } + "]"
+                        },
                     )
                     .joinToString(",")
             return "{" +
