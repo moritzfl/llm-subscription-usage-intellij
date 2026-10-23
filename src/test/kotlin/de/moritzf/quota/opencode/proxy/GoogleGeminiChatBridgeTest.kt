@@ -129,10 +129,55 @@ class GoogleGeminiChatBridgeTest {
         assertEquals(64, generation["maxOutputTokens"]!!.jsonPrimitive.content.toInt())
         assertEquals(0.2, generation["temperature"]!!.jsonPrimitive.content.toDouble())
         assertEquals("</COMMAND>", generation["stopSequences"]!!.jsonArray[0].jsonPrimitive.content)
+        // The client's explicit effort overrides the Console's default thinking level.
         assertEquals(
-            "high",
+            "low",
             generation["thinkingConfig"]!!.jsonObject["thinkingLevel"]!!.jsonPrimitive.content,
         )
+    }
+
+    @Test
+    fun mapsReasoningEffortToThinkingLevelsEveryGeminiModelAccepts() {
+        fun thinking(
+            effort: String?,
+            configured: JsonObject = JsonObject(emptyMap()),
+        ): JsonObject? {
+            val effortField = effort?.let { ""","reasoning_effort":"$it"""" }.orEmpty()
+            val body =
+                """{"model":"oc-zen-gemini-3.8-flash","messages":[{"role":"user","content":"hi"}]$effortField}"""
+            return bridge
+                .openAiChatToGoogleBody(request(body), parse(body), configured)["generationConfig"]
+                ?.jsonObject
+                ?.get("thinkingConfig")
+                ?.jsonObject
+        }
+        fun level(effort: String?) = thinking(effort)?.get("thinkingLevel")?.jsonPrimitive?.content
+
+        // Gemini 3.8 Flash, 3.1 Pro, and Gemini 4 reject `minimal`, and thinking cannot be off.
+        assertEquals("low", level("none"))
+        assertEquals("low", level("minimal"))
+        assertEquals("low", level("low"))
+        assertEquals("medium", level("medium"))
+        assertEquals("high", level("high"))
+        assertEquals("high", level("xhigh"))
+        assertEquals("high", level("max"))
+        assertEquals(null, level("bogus"))
+        assertEquals(null, level(null))
+
+        val budget = buildJsonObject {
+            put(
+                "thinkingConfig",
+                buildJsonObject {
+                    put("thinkingBudget", 8192)
+                    put("includeThoughts", true)
+                },
+            )
+        }
+        val overridden = thinking("medium", budget)!!
+        assertEquals("medium", overridden["thinkingLevel"]!!.jsonPrimitive.content)
+        assertTrue("thinkingBudget" !in overridden)
+        assertEquals("true", overridden["includeThoughts"]!!.jsonPrimitive.content)
+        assertEquals(budget["thinkingConfig"], thinking(null, budget))
     }
 
     @Test

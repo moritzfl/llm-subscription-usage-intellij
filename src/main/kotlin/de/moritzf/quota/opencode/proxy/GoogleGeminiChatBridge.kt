@@ -2,6 +2,7 @@ package de.moritzf.quota.opencode.proxy
 
 import de.moritzf.proxy.media.RemoteImageHop
 import de.moritzf.proxy.media.SafeRemoteImageFetcher
+import de.moritzf.proxy.model.ReasoningEffort
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.subscription.SubscriptionProxyRequest
 import java.net.URI
@@ -668,19 +669,26 @@ internal class GoogleGeminiChatBridge {
         val configuredThinking =
             configured["thinkingConfig"] as? JsonObject
                 ?: configuredBody["thinkingConfig"] as? JsonObject
-        val reasoningEffort = stringField(body, "reasoning_effort")
+        val requestedLevel =
+            stringField(body, "reasoning_effort")?.let(::thinkingLevel)?.takeIf {
+                supportsThinkingLevelModel(model)
+            }
+        // The client's explicit effort wins over a Console default; a configured
+        // thinkingBudget must go because Gemini rejects it next to thinkingLevel.
         val thinking =
-            configuredThinking
-                ?: if (
-                    reasoningEffort != null &&
-                        supportsThinkingLevel(reasoningEffort) &&
-                        supportsThinkingLevelModel(model)
-                ) {
+            when {
+                requestedLevel == null -> configuredThinking
+                else ->
                     buildJsonObject {
-                        put("thinkingLevel", normalizeThinkingLevel(reasoningEffort))
-                        put("includeThoughts", false)
+                        configuredThinking?.forEach { (key, value) ->
+                            if (key != "thinkingLevel" && key != "thinkingBudget") put(key, value)
+                        }
+                        put("thinkingLevel", requestedLevel)
+                        if (configuredThinking?.containsKey("includeThoughts") != true) {
+                            put("includeThoughts", false)
+                        }
                     }
-                } else null
+            }
         val responseFormat = body["response_format"] as? JsonObject
         val schema =
             (responseFormat?.get("json_schema") as? JsonObject)?.let {
@@ -874,20 +882,17 @@ internal class GoogleGeminiChatBridge {
         return (streamOptions["include_usage"] as? JsonPrimitive)?.booleanOrNull == true
     }
 
-    private fun supportsThinkingLevel(effort: String): Boolean {
-        val normalized = effort.lowercase()
-        return normalized in setOf("minimal", "low", "medium", "high")
-    }
-
     private fun supportsThinkingLevelModel(model: String): Boolean {
         val match = Regex("^gemini(?:-live)?-(\\d+)", RegexOption.IGNORE_CASE).find(model)
         return (match?.groupValues?.get(1)?.toIntOrNull() ?: 3) >= 3
     }
 
-    private fun normalizeThinkingLevel(effort: String): String {
-        return effort.lowercase().takeIf { it in setOf("minimal", "low", "medium", "high") }
-            ?: "medium"
-    }
+    /**
+     * Gemini 3.7/3.8 Flash, 3.1 Pro, and Gemini 4 reject `minimal` and thinking cannot be turned
+     * off, so efforts map onto the levels every current Gemini chat model accepts.
+     */
+    private fun thinkingLevel(effort: String): String? =
+        ReasoningEffort.nearest(effort, GEMINI_THINKING_LEVELS)
 
     private fun contentText(content: JsonElement?): String {
         return when (content) {
@@ -935,6 +940,7 @@ internal class GoogleGeminiChatBridge {
         private const val SKIP_THOUGHT_SIGNATURE_VALIDATOR = "skip_thought_signature_validator"
         private const val MAX_REMEMBERED_SIGNATURES = 4096
         private const val MAX_REMOTE_MEDIA_BYTES = 20 * 1024 * 1024
+        private val GEMINI_THINKING_LEVELS = listOf("low", "medium", "high")
         private val CONTENT_FILTER_REASONS =
             setOf(
                 "IMAGE_SAFETY",

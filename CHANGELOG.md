@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - Report quota and rate-limit errors that providers send inside an SSE stream instead of failing proxied requests with an uncaught "No completed response found in SSE stream" error. OpenAI-compatible `insufficient_quota` errors now reach the client with HTTP 429 (streaming clients get an `error` event), truncated streams return their partial output with `finish_reason: "length"`, and the exhausted proxy account is marked rate-limited.
+- Send OpenCode Gemini models a thinking level they accept. `reasoning_effort: minimal`, which Gemini 3.7/3.8 Flash, 3.1 Pro, and Gemini 4 reject, and `none` now use `low`; `xhigh` and `max` use `high` instead of the model's default. An effort the client sends now overrides the Console's default thinking level.
 
 ## [1.23.0] - 2026-10-23
 
