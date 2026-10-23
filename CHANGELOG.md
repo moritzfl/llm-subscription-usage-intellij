@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- Report quota and rate-limit errors that providers send inside an SSE stream instead of failing proxied requests with an uncaught "No completed response found in SSE stream" error. OpenAI-compatible `insufficient_quota` errors now reach the client with HTTP 429 (streaming clients get an `error` event), and truncated streams return their partial output with `finish_reason: "length"`.
+- Report quota and rate-limit errors that providers send inside an SSE stream instead of failing proxied requests with an uncaught "No completed response found in SSE stream" error. OpenAI-compatible `insufficient_quota` errors now reach the client with HTTP 429 (streaming clients get an `error` event), truncated streams return their partial output with `finish_reason: "length"`, and the exhausted proxy account is marked rate-limited.
 
 ## [1.23.0] - 2026-10-23
 

@@ -52,7 +52,11 @@ internal class AccountBoundProxyProvider(
             return
         }
         entry.provider.handle(ctx, request)
-        val status = ctx.getAttribute(AccessLogFields.UPSTREAM_STATUS) ?: ctx.responseStatus()
-        if (status == 429) rateLimited(entry.account.id)
+        // Quota and rate-limit errors can arrive inside an HTTP 200 upstream SSE stream. The
+        // mapped client status is authoritative for account health, while the real upstream
+        // status stays available for the access log.
+        val clientStatus = ctx.responseStatus()
+        val upstreamStatus = ctx.getAttribute(AccessLogFields.UPSTREAM_STATUS)
+        if (clientStatus == 429 || upstreamStatus == 429) rateLimited(entry.account.id)
     }
 }

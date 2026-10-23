@@ -1,5 +1,6 @@
 package de.moritzf.quota.idea.common
 
+import de.moritzf.proxy.server.AccessLogFields
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.server.ProxyCall
 import de.moritzf.proxy.subscription.SubscriptionProxyModel
@@ -92,6 +93,78 @@ class AccountBoundProxyProviderTest {
             provider.models()
             provider.models()
             assertEquals(listOf("a", "b"), created)
+        } finally {
+            server.stop(gracePeriodMillis = 0)
+        }
+    }
+
+    @Test
+    fun marksAccountRateLimitedWhenQuotaErrorWasMappedOutOfA200Stream() {
+        val account = ProviderAccount(id = "a", typeId = "kimi")
+        val limited = mutableListOf<String>()
+        val provider =
+            AccountBoundProxyProvider(
+                QuotaProviderType.KIMI,
+                accounts = { listOf(account) },
+                resolve = { _, _ -> account },
+                rateLimited = { limited += it },
+                create = {
+                    object : SubscriptionProxyProvider {
+                        override val id = "kimi"
+                        override val displayName = "Kimi"
+
+                        override fun isConfigured() = true
+
+                        override fun models() =
+                            listOf(
+                                SubscriptionProxyModel(
+                                    "km-test",
+                                    "test",
+                                    id,
+                                    displayName,
+                                    "openai",
+                                    setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS),
+                                )
+                            )
+
+                        override suspend fun handle(
+                            ctx: ProxyCall,
+                            request: SubscriptionProxyRequest,
+                        ) {
+                            // Mirrors a quota error that reached the client through an HTTP 200
+                            // SSE stream and was mapped to 429 by UpstreamErrorMapper.
+                            AccessLogFields.upstreamStatus(ctx, 200)
+                            JsonHelper.toErrorResponse(
+                                ctx,
+                                "You exceeded your current quota.",
+                                429,
+                                "insufficient_quota",
+                            )
+                        }
+                    }
+                },
+            )
+        val server = SubscriptionProxyServer(0, { "key" }, { listOf(provider) })
+        server.start()
+        val port = kotlinx.coroutines.runBlocking { server.boundPort() }
+        try {
+            HttpClient.newHttpClient().use { client ->
+                val response =
+                    client.send(
+                        HttpRequest.newBuilder(URI("http://127.0.0.1:$port/v1/chat/completions"))
+                            .header("Authorization", "Bearer key")
+                            .header("Content-Type", "application/json")
+                            .POST(
+                                HttpRequest.BodyPublishers.ofString(
+                                    """{"model":"km-test","messages":[{"role":"user","content":"hi"}]}"""
+                                )
+                            )
+                            .build(),
+                        HttpResponse.BodyHandlers.ofString(),
+                    )
+                assertEquals(429, response.statusCode())
+            }
+            assertEquals(listOf("a"), limited)
         } finally {
             server.stop(gracePeriodMillis = 0)
         }
