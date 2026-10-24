@@ -1,6 +1,7 @@
 package de.moritzf.proxy.subscription
 
 import de.moritzf.proxy.logging.RequestLogger
+import de.moritzf.proxy.model.ReasoningCapabilities
 import de.moritzf.proxy.server.JsonHelper
 import java.net.URI
 import java.net.http.HttpClient
@@ -250,6 +251,8 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
             maxOutputTokens = intField(item, "max_output_tokens"),
             isDefault = boolField(item, "is_default") ?: boolField(item, "default") ?: false,
             supportsReasoning = capabilities?.let { boolField(it, "reasoning") },
+            // OpenRouter- or LiteLLM-style endpoints state the levels themselves.
+            reasoningEfforts = ReasoningCapabilities.fromModelEntry(item),
         )
     }
 

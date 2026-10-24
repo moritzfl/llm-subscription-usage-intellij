@@ -1,5 +1,6 @@
 package de.moritzf.quota.litellm
 
+import de.moritzf.proxy.model.ReasoningCapabilities
 import de.moritzf.proxy.subscription.OpenAiCompatibleApiKeySubscriptionProxyProvider.StaticModel
 import de.moritzf.quota.compatible.CompatibleEndpoint
 import de.moritzf.quota.shared.JsonSupport
@@ -57,6 +58,9 @@ class LiteLlmClient(
                     agreed { it.positiveInt("max_output_tokens") } ?: model.maxOutputTokens,
                 inputCostPerToken = agreed { it.nonNegative("input_cost_per_token") },
                 outputCostPerToken = agreed { it.nonNegative("output_cost_per_token") },
+                // Only when every deployment of the model group states the same levels.
+                reasoningEfforts =
+                    agreed { ReasoningCapabilities.fromLiteLlm(it) } ?: model.reasoningEfforts,
             )
         }
     }
