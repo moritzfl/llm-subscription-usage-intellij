@@ -50,6 +50,24 @@ class AzureSubscriptionProxyProviderTest {
     }
 
     @Test
+    fun advertisedDeploymentsCarryTheReasoningLevelsOfTheirModel() {
+        val provider =
+            provider(
+                deploymentNames = listOf("GPT-5.4-mini", "gpt-4o"),
+                resourceName = "azure-reasoning-levels-test",
+            )
+        val levels = provider.models().associate { it.upstreamId to it.reasoningEfforts }
+        assertEquals(listOf("none", "low", "medium", "high", "xhigh"), levels["GPT-5.4-mini"])
+        assertNull(levels["gpt-4o"], "unknown models forward the client's effort unchanged")
+        assertEquals(
+            listOf("none", "low", "medium", "high", "xhigh"),
+            provider
+                .fallbackModel("az-gpt-5.4-mini-2", SubscriptionProxyRoute.CHAT_COMPLETIONS)
+                ?.reasoningEfforts,
+        )
+    }
+
+    @Test
     fun onlyChatDeploymentsAreAdvertisedToJunie() {
         val provider =
             provider(
@@ -133,5 +151,6 @@ class AzureSubscriptionProxyProviderTest {
                     run = { _, _, _, _ -> error("az should not run while listing models") },
                 )
             },
+            remoteReasoningLevels = { null },
         )
 }

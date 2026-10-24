@@ -118,6 +118,8 @@ class ChatCompletionsHandler {
         // The ChatGPT Codex backend rejects retired slugs and some reasoning efforts. Copilot and
         // other Responses bridges reuse this handler with the OpenAI API's rules.
         chatGptBackend: Boolean = false,
+        // Levels the provider knows for an upstream model ID (e.g. an Azure deployment).
+        reasoningEffortLevels: (String) -> List<String>? = { null },
     ) {
         this.requestLogger = requestLogger
         this.usageTracker = usageTracker
@@ -133,6 +135,7 @@ class ChatCompletionsHandler {
                 instructionsProvider,
                 modelAliasResolver,
                 chatGptBackend,
+                reasoningEffortLevels,
             )
     }
 

@@ -2,6 +2,7 @@ package de.moritzf.proxy.server
 
 import de.moritzf.proxy.model.CodexInstructionsProvider
 import de.moritzf.proxy.model.ModelAliasResolver
+import de.moritzf.proxy.model.ReasoningEffort
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -15,6 +16,8 @@ internal class ChatCompletionsRequestMapper(
     private val instructionsProvider: CodexInstructionsProvider,
     private val modelAliasResolver: ModelAliasResolver,
     private val chatGptBackend: Boolean = false,
+    /** Levels a provider knows for the upstream model; null falls back to name-based clamping. */
+    private val reasoningEffortLevels: (String) -> List<String>? = { null },
 ) {
     fun build(
         chatBody: JsonObject,
@@ -157,8 +160,10 @@ internal class ChatCompletionsRequestMapper(
                     ?.takeUnless { it is JsonNull }
                     ?.let { (it as? JsonPrimitive)?.content }
         // A model that takes no effort, or a value outside the scale, sends no reasoning object.
-        val effort = requestedEffort?.let {
-            modelAliasResolver.clampReasoningEffort(model, it, chatGptBackend)
+        val effort = requestedEffort?.let { requested ->
+            val levels = reasoningEffortLevels(model)
+            if (levels != null) ReasoningEffort.fit(requested, levels)
+            else modelAliasResolver.clampReasoningEffort(model, requested, chatGptBackend)
         }
         if (effort != null) {
             val reasoning = createObjectNode()

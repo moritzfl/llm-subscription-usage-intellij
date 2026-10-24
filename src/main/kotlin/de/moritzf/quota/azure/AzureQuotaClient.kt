@@ -148,6 +148,7 @@ internal class AzureQuotaClient(
             }
         }
         val models = mutableListOf<String>()
+        val deploymentModels = linkedMapOf<String, String>()
         var modelsRead = false
         val deploymentBodies = linkedMapOf<String, String>()
         for (resource in matched.take(MAX_RESOURCES)) {
@@ -173,6 +174,9 @@ internal class AzureQuotaClient(
                 windows += deployments
                 if (target != null) {
                     models += deployments.map { it.id }.filter { AZURE_DEPLOYMENT_NAME.matches(it) }
+                    deployments.forEach { deployment ->
+                        deployment.modelName?.let { deploymentModels[deployment.id] = it }
+                    }
                     modelsRead = true
                 }
             }
@@ -213,7 +217,11 @@ internal class AzureQuotaClient(
             warnings += "Set a resource name or endpoint to use the local proxy."
         }
         if (modelsRead)
-            AzureModelCatalog.remember(catalogKey(config.subscriptionId, config), models.distinct())
+            AzureModelCatalog.remember(
+                catalogKey(config.subscriptionId, config),
+                models.distinct(),
+                deploymentModels,
+            )
         models += config.deploymentNames
         liveUsage()?.let { liveWindow(it, clock.now()) }?.let(windows::add)
         val distinctModels = models.distinct()
@@ -303,10 +311,16 @@ internal class AzureQuotaClient(
 
 internal object AzureModelCatalog {
     private val values = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
+    private val modelNames = java.util.concurrent.ConcurrentHashMap<String, Map<String, String>>()
 
-    fun remember(key: String, models: List<String>) {
-        if (key.isNotBlank()) values[key] = models
+    /** [names] maps deployment IDs to the model each one serves (ARM `properties.model.name`). */
+    fun remember(key: String, models: List<String>, names: Map<String, String> = emptyMap()) {
+        if (key.isBlank()) return
+        values[key] = models
+        modelNames[key] = names
     }
 
     fun read(key: String): List<String> = values[key].orEmpty()
+
+    fun modelName(key: String, deployment: String): String? = modelNames[key]?.get(deployment)
 }

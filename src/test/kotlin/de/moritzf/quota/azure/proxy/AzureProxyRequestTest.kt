@@ -6,6 +6,8 @@ import de.moritzf.proxy.subscription.SubscriptionProxyServer
 import de.moritzf.quota.azure.AzureAccountConfig
 import de.moritzf.quota.azure.AzureCli
 import de.moritzf.quota.azure.AzureLiveUsage
+import de.moritzf.quota.azure.AzureModelCatalog
+import de.moritzf.quota.azure.AzureQuotaClient
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -235,6 +237,73 @@ class AzureProxyRequestTest {
     }
 
     @Test
+    fun reasoningEffortFitsTheModelBehindACustomDeploymentName() {
+        val requests = LinkedBlockingQueue<Pair<String, String>>()
+        TestUpstream { exchange, body ->
+            requests += exchange.requestURI.path to body
+            if (exchange.requestURI.path.endsWith("/responses")) {
+                val completed =
+                    """{"type":"response.completed","response":{"id":"resp_1","object":"response","status":"completed","output":[{"type":"function_call","id":"fc_1","call_id":"call_1","name":"answer","arguments":"{}"}],"usage":{"input_tokens":5,"output_tokens":3}}}"""
+                val response = "event: response.completed\ndata: $completed\n\n".toByteArray()
+                exchange.responseHeaders.set("Content-Type", "text/event-stream")
+                exchange.sendResponseHeaders(200, response.size.toLong())
+                exchange.responseBody.write(response)
+            } else {
+                reply(exchange)
+            }
+        }
+            .use { upstream ->
+                val config = config(upstream.url, "names")
+                AzureModelCatalog.remember(
+                    AzureQuotaClient.catalogKey(config.account.subscriptionId, config.account),
+                    listOf("prod-chat", "acme-reasoner"),
+                    mapOf("prod-chat" to "gpt-5"),
+                )
+                val remote = { name: String ->
+                    if (name == "acme-reasoner") listOf("low", "high") else null
+                }
+                withProxy({ config }, remoteReasoningLevels = remote) { port ->
+                    fun send(deployment: String, body: String): Pair<String, JsonObject> {
+                        val response = postAsync(port, deployment, body).get(5, TimeUnit.SECONDS)
+                        assertEquals(200, response.statusCode(), response.body())
+                        val (path, sent) = assertNotNull(requests.poll(5, TimeUnit.SECONDS))
+                        return path to (Json.parseToJsonElement(sent) as JsonObject)
+                    }
+
+                    // GPT-5 tops out at high and has no none; the deployment name hides that.
+                    val (chatPath, chat) =
+                        send(
+                            "prod-chat",
+                            """{"model":"az-prod-chat","messages":[],"reasoning_effort":"xhigh","temperature":0.2}""",
+                        )
+                    assertEquals("/openai/v1/chat/completions", chatPath)
+                    assertEquals("high", chat["reasoning_effort"]?.jsonPrimitive?.content)
+                    assertTrue("temperature" !in chat, "GPT-5 is detected as a reasoning model")
+
+                    // Chat tools would need none, which GPT-5 rejects: use Responses instead.
+                    val (toolsPath, tools) =
+                        send(
+                            "prod-chat",
+                            """{"model":"az-prod-chat","messages":[{"role":"user","content":"hi"}],"reasoning_effort":"none","tools":[{"type":"function","function":{"name":"answer","parameters":{"type":"object"}}}]}""",
+                        )
+                    assertEquals("/openai/v1/responses", toolsPath)
+                    assertEquals(
+                        "minimal",
+                        (tools["reasoning"] as JsonObject)["effort"]?.jsonPrimitive?.content,
+                    )
+
+                    // Unknown names fall back to the public catalogs.
+                    val (_, remoteFit) =
+                        send(
+                            "acme-reasoner",
+                            """{"model":"az-acme-reasoner","messages":[],"reasoning_effort":"medium"}""",
+                        )
+                    assertEquals("high", remoteFit["reasoning_effort"]?.jsonPrimitive?.content)
+                }
+            }
+    }
+
+    @Test
     fun overlappingRequestsKeepTheirOwnAccountAndDeploymentCounters() {
         val slowStarted = CountDownLatch(1)
         val releaseSlow = CountDownLatch(1)
@@ -344,11 +413,17 @@ class AzureProxyRequestTest {
                 run = { _, _, _, _ -> """{"accessToken":"test-token","expires_on":4102444800}""" },
             )
         },
+        remoteReasoningLevels: (String) -> List<String>? = { null },
         action: (Int) -> Unit,
     ) {
         val logDir = Files.createTempDirectory("azure-proxy-test-logs").toString()
         val provider =
-            AzureSubscriptionProxyProvider(configProvider, cliFactory, requestLogDir = logDir)
+            AzureSubscriptionProxyProvider(
+                configProvider,
+                cliFactory,
+                requestLogDir = logDir,
+                remoteReasoningLevels = remoteReasoningLevels,
+            )
         val port = ServerSocket(0).use { it.localPort }
         val server =
             SubscriptionProxyServer(

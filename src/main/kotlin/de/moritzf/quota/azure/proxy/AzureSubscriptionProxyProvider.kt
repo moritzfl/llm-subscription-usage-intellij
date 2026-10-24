@@ -2,6 +2,8 @@ package de.moritzf.quota.azure.proxy
 
 import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.proxy.model.CodexInstructionsProvider
+import de.moritzf.proxy.model.KnownReasoningLevels
+import de.moritzf.proxy.model.ReasoningCatalogs
 import de.moritzf.proxy.server.ChatCompletionsHandler
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.subscription.PassThroughSubscriptionProxyProvider
@@ -41,6 +43,7 @@ internal class AzureSubscriptionProxyProvider(
     fullRequestLogging: Boolean = false,
     requestLogDir: String = "logs",
     private val httpClient: HttpClient = defaultClient(),
+    private val remoteReasoningLevels: (String) -> List<String>? = ReasoningCatalogs::levels,
 ) : SubscriptionProxyProvider {
     private val requestLogger = RequestLogger(fullRequestLogging, Path.of(requestLogDir))
 
@@ -52,6 +55,7 @@ internal class AzureSubscriptionProxyProvider(
 
     override fun models(): List<SubscriptionProxyModel> {
         if (!isConfigured()) return emptyList()
+        val config = configProvider()
         return modelMappings().map { mapping ->
             SubscriptionProxyModel(
                 localId = mapping.localId,
@@ -64,8 +68,25 @@ internal class AzureSubscriptionProxyProvider(
                 supportsToolChoice = true,
                 supportsVision = true,
                 isDefault = mapping.isDefault,
+                reasoningEfforts = reasoningLevels(config, mapping.upstreamId),
             )
         }
+    }
+
+    /** The model a deployment serves, from ARM `properties.model.name` when it was readable. */
+    private fun modelName(config: AzureProxyConfig?, deployment: String): String {
+        config ?: return deployment
+        val key = AzureQuotaClient.catalogKey(config.account.subscriptionId, config.account)
+        return AzureModelCatalog.modelName(key, deployment) ?: deployment
+    }
+
+    /**
+     * Azure states no reasoning levels, so this is best effort by model name: known families, then
+     * the OpenRouter and models.dev catalogs.
+     */
+    private fun reasoningLevels(config: AzureProxyConfig?, deployment: String): List<String>? {
+        val name = modelName(config, deployment)
+        return KnownReasoningLevels.forModel(name) ?: remoteReasoningLevels(name)
     }
 
     override fun fallbackModel(
@@ -105,7 +126,7 @@ internal class AzureSubscriptionProxyProvider(
         }
             .getOrNull()
         val key = AzureLiveUsage.key(config.accountId.ifBlank { accountKey }, config.account)
-        if (needsResponsesForTools(request)) {
+        if (needsResponsesForTools(config, request)) {
             chatThroughResponses(ctx, request, target.baseUrl, ::tokenOrNull, key)
             return
         }
@@ -118,7 +139,7 @@ internal class AzureSubscriptionProxyProvider(
                 tokenRefresher = { tokenOrNull() },
                 modelMappingsProvider = { emptyList() },
                 upstreamUrlProvider = { azureUpstreamUrl(target.baseUrl, it.route.upstreamPath) },
-                requestBodyTransformer = { req, body -> adaptChatRequest(req, body) },
+                requestBodyTransformer = { req, body -> adaptChatRequest(config, req, body) },
                 responseHeadersObserver = { req, headers ->
                     parseRateLimitHeaders(headers, req.model.upstreamId)?.let {
                         AzureLiveUsage.record(key, it)
@@ -133,15 +154,19 @@ internal class AzureSubscriptionProxyProvider(
     /**
      * Chat tool calls that must use Responses: GPT-6.1 Sol and GPT-6 Astra accept tools only there,
      * and other GPT-5/6 chat deployments accept tools only with `reasoning_effort: none`, which
-     * would overwrite an effort the client asked for.
+     * would overwrite an effort the client asked for or which the model (GPT-5) does not take.
      */
-    private fun needsResponsesForTools(request: SubscriptionProxyRequest): Boolean {
+    private fun needsResponsesForTools(
+        config: AzureProxyConfig,
+        request: SubscriptionProxyRequest,
+    ): Boolean {
         if (request.route != SubscriptionProxyRoute.CHAT_COMPLETIONS || !hasTools(request.body)) {
             return false
         }
-        val id = request.model.upstreamId.lowercase()
+        val id = modelName(config, request.model.upstreamId).lowercase()
+        val cannotTurnOff = request.model.reasoningEfforts?.let { "none" !in it } == true
         return RESPONSES_TOOLS_MODEL.matches(id) ||
-            (REASONING_MODEL.matches(id) && requestsReasoning(request.body))
+            (REASONING_MODEL.matches(id) && (requestsReasoning(request.body) || cannotTurnOff))
     }
 
     private fun hasTools(body: JsonObject): Boolean =
@@ -202,6 +227,8 @@ internal class AzureSubscriptionProxyProvider(
                     body.remove("temperature")
                     body.remove("top_p")
                 },
+                // Deployment names need not name the model; use the levels resolved for it.
+                reasoningEffortLevels = { request.model.reasoningEfforts },
             )
             .handleParsed(
                 ctx,
@@ -240,12 +267,17 @@ internal class AzureSubscriptionProxyProvider(
             supportsFunctionCalling = true,
             supportsToolChoice = true,
             supportsVision = true,
+            reasoningEfforts = reasoningLevels(configProvider(), upstreamId),
         )
     }
 
-    private fun adaptChatRequest(request: SubscriptionProxyRequest, body: JsonObject): JsonObject {
+    private fun adaptChatRequest(
+        config: AzureProxyConfig,
+        request: SubscriptionProxyRequest,
+        body: JsonObject,
+    ): JsonObject {
         if (request.route != SubscriptionProxyRoute.CHAT_COMPLETIONS) return body
-        val id = request.model.upstreamId.lowercase()
+        val id = modelName(config, request.model.upstreamId).lowercase()
         val reasoning = REASONING_MODEL.matches(id)
         val mistral = id.startsWith("mistral-")
         if (!reasoning && !mistral) return body
