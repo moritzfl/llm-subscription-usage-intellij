@@ -27,10 +27,10 @@ class AnthropicReasoningTest {
 
     @Test
     fun claudeEffortFollowsTheModelVersion() {
-        // Effort arrived with 4.6; Sonnet 4.6 has no xhigh, so a tie moves to the lower level.
+        // Effort arrived with 4.6; Sonnet 4.6 has no xhigh, so it rounds up to max.
         val sonnet46 = AnthropicReasoning.apply(body("xhigh"), "claude-sonnet-4.6")
         assertEquals(
-            "high",
+            "max",
             sonnet46["output_config"]!!.jsonObject["effort"]!!.jsonPrimitive.content,
         )
         val sonnet46Max = AnthropicReasoning.apply(body("max"), "claude-sonnet-4.6")

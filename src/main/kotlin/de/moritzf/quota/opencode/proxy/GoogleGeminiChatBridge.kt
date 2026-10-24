@@ -892,7 +892,7 @@ internal class GoogleGeminiChatBridge {
      * off, so efforts map onto the levels every current Gemini chat model accepts.
      */
     private fun thinkingLevel(effort: String): String? =
-        ReasoningEffort.nearest(effort, GEMINI_THINKING_LEVELS)
+        ReasoningEffort.fit(effort, GEMINI_THINKING_LEVELS)
 
     private fun contentText(content: JsonElement?): String {
         return when (content) {

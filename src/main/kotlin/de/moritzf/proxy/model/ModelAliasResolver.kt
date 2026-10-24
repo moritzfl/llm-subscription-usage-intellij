@@ -50,7 +50,7 @@ class ModelAliasResolver {
         }
         if (!chatGptBackend) {
             apiEffortLevels(modelName)?.let {
-                return ReasoningEffort.nearest(effort, it)
+                return ReasoningEffort.fit(effort, it)
             }
         }
         if (effort == "minimal" && (chatGptBackend || !acceptsMinimal(modelName))) {

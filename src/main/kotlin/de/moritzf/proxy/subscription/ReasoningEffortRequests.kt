@@ -19,7 +19,7 @@ internal fun adaptReasoningEffort(
         SubscriptionProxyRoute.CHAT_COMPLETIONS -> {
             if ("reasoning_effort" !in body) return body
             val requested = (body["reasoning_effort"] as? JsonPrimitive)?.contentOrNull
-            val level = ReasoningEffort.nearest(requested, levels)
+            val level = ReasoningEffort.fit(requested, levels)
             if (level != null && level == requested) body
             else
                 JsonObject(
@@ -31,7 +31,7 @@ internal fun adaptReasoningEffort(
             val reasoning = body["reasoning"] as? JsonObject ?: return body
             if ("effort" !in reasoning) return body
             val requested = (reasoning["effort"] as? JsonPrimitive)?.contentOrNull
-            val level = ReasoningEffort.nearest(requested, levels)
+            val level = ReasoningEffort.fit(requested, levels)
             if (level != null && level == requested) return body
             val adapted =
                 reasoning - "effort" + listOfNotNull(level?.let { "effort" to JsonPrimitive(it) })

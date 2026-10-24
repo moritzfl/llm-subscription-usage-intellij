@@ -50,7 +50,7 @@ object ChatUpstreamCompat {
     private fun geminiReasoningEffort(body: JsonObject): JsonObject {
         if ("reasoning_effort" !in body) return body
         val requested = (body["reasoning_effort"] as? JsonPrimitive)?.contentOrNull
-        val level = ReasoningEffort.nearest(requested, GEMINI_REASONING_EFFORTS)
+        val level = ReasoningEffort.fit(requested, GEMINI_REASONING_EFFORTS)
         if (level != null && level == requested) return body
         return buildJsonObject {
             body.forEach { (key, value) -> if (key != "reasoning_effort") put(key, value) }

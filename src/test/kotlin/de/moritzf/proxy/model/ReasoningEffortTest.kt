@@ -6,24 +6,40 @@ import kotlin.test.assertNull
 
 class ReasoningEffortTest {
     @Test
-    fun picksTheClosestSupportedLevel() {
+    fun roundsUpToTheWeakestSupportedLevelLikeLiteLlm() {
         val gemini = listOf("low", "medium", "high")
-        assertEquals("low", ReasoningEffort.nearest("none", gemini))
-        assertEquals("low", ReasoningEffort.nearest("minimal", gemini))
-        assertEquals("medium", ReasoningEffort.nearest("Medium", gemini))
-        assertEquals("high", ReasoningEffort.nearest("xhigh", gemini))
-        assertEquals("high", ReasoningEffort.nearest("max", gemini))
+        assertEquals("low", ReasoningEffort.fit("minimal", gemini))
+        assertEquals("medium", ReasoningEffort.fit("Medium", gemini))
+        assertEquals("high", ReasoningEffort.fit("xhigh", gemini), "strongest when none is enough")
 
+        val glm = listOf("low", "high", "max")
+        assertEquals("high", ReasoningEffort.fit("medium", glm))
+        assertEquals("max", ReasoningEffort.fit("xhigh", glm))
+    }
+
+    @Test
+    fun neverRoundsOntoNoneButTurnsNoneIntoTheWeakestLevel() {
         val onOff = listOf("none", "high")
-        assertEquals("high", ReasoningEffort.nearest("low", onOff), "keep reasoning on a tie")
-        assertEquals("high", ReasoningEffort.nearest("medium", onOff))
-        assertEquals("none", ReasoningEffort.nearest("none", onOff))
+        assertEquals("high", ReasoningEffort.fit("minimal", onOff))
+        assertEquals("high", ReasoningEffort.fit("low", onOff))
+        assertEquals("none", ReasoningEffort.fit("none", onOff))
+
+        // Grok and GLM-5.3 reject none; the weakest level beats an upstream error.
+        assertEquals("low", ReasoningEffort.fit("none", listOf("low", "medium", "high")))
+        assertEquals("none", ReasoningEffort.fit("high", listOf("none")))
+    }
+
+    @Test
+    fun reportsTheLowestLevel() {
+        assertEquals("none", ReasoningEffort.lowest(listOf("high", "none")))
+        assertEquals("minimal", ReasoningEffort.lowest(listOf("max", "minimal", "low")))
+        assertNull(ReasoningEffort.lowest(emptyList()))
     }
 
     @Test
     fun ignoresValuesOutsideTheScale() {
-        assertNull(ReasoningEffort.nearest("turbo", listOf("low", "high")))
-        assertNull(ReasoningEffort.nearest(null, listOf("low", "high")))
-        assertNull(ReasoningEffort.nearest("low", emptyList()))
+        assertNull(ReasoningEffort.fit("turbo", listOf("low", "high")))
+        assertNull(ReasoningEffort.fit(null, listOf("low", "high")))
+        assertNull(ReasoningEffort.fit("low", emptyList()))
     }
 }

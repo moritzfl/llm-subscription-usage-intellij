@@ -27,7 +27,7 @@ internal object AnthropicReasoning {
                 // Anthropic cannot turn thinking off on every model; `low` is the floor.
                 return withEffort(body, "low")
             }
-            return ReasoningEffort.nearest(effort, levels)?.let { withEffort(body, it) } ?: body
+            return ReasoningEffort.fit(effort, levels)?.let { withEffort(body, it) } ?: body
         }
         if (disabled) {
             return when (family) {
@@ -38,7 +38,7 @@ internal object AnthropicReasoning {
                     JsonObject(body - "reasoning_effort" + ("thinking" to disabledThinking()))
             }
         }
-        val level = ReasoningEffort.nearest(effort, LEVELS) ?: return body
+        val level = ReasoningEffort.fit(effort, LEVELS) ?: return body
         val withEffort = withEffort(body, level)
         // Qwen and MiniMax accept output_config.effort through the gateway; only their
         // thinking switches differ.

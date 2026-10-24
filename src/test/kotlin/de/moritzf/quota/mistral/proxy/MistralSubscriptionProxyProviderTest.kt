@@ -182,12 +182,14 @@ class MistralSubscriptionProxyProviderTest {
                         ?.content
                 }
                 // Mistral models switch reasoning on or off; GLM 5.3 has low/high/max.
+                // Mistral reasoning is on (high) or off (none); requests round up, never to none.
                 assertEquals("high", sentEffort("mi-mistral-medium-3-5", "high"))
-                assertEquals("medium", sentEffort("mi-mistral-medium-3-5", "medium"))
-                assertEquals("low", sentEffort("mi-mistral-medium-3-5", "low"))
+                assertEquals("high", sentEffort("mi-mistral-medium-3-5", "medium"))
+                assertEquals("high", sentEffort("mi-mistral-medium-3-5", "low"))
                 assertEquals("none", sentEffort("mi-mistral-medium-3-5", "none"))
+                // GLM 5.3 has low/high/max and no none.
                 assertEquals("low", sentEffort("mi-zai-glm-5-3", "none"))
-                assertEquals("high", sentEffort("mi-zai-glm-5-3", "xhigh"))
+                assertEquals("max", sentEffort("mi-zai-glm-5-3", "xhigh"))
                 assertEquals("max", sentEffort("mi-zai-glm-5-3", "max"))
                 assertNull(sentEffort("mi-ministral-8b-latest", "high"))
 
