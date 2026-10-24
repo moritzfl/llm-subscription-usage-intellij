@@ -56,11 +56,16 @@ class SubscriptionProxyServerTest {
                 val response = get(server.port, "/v1/models")
 
                 assertEquals(200, response.statusCode())
-                val ids =
-                    parseObject(response.body())["data"]!!.jsonArray.map {
-                        it.jsonObject["id"]!!.jsonPrimitive.content
-                    }
+                val data = parseObject(response.body())["data"]!!.jsonArray
+                val ids = data.map { it.jsonObject["id"]!!.jsonPrimitive.content }
                 assertEquals(listOf("grok-4.3"), ids)
+                // OpenRouter-style levels on the OpenAI-compatible list.
+                val reasoning = data[0].jsonObject["reasoning"]!!.jsonObject
+                assertEquals(false, reasoning["mandatory"]!!.jsonPrimitive.boolean)
+                assertEquals(
+                    listOf("high", "medium", "low", "none"),
+                    reasoning["supported_efforts"]!!.jsonArray.map { it.jsonPrimitive.content },
+                )
             } finally {
                 server.stop()
             }
@@ -198,6 +203,14 @@ class SubscriptionProxyServerTest {
                         .jsonPrimitive
                         .boolean,
                 )
+                val info = modelInfo["model_info"]!!.jsonObject
+                assertEquals(true, info["supports_reasoning"]!!.jsonPrimitive.boolean)
+                assertEquals(
+                    listOf("none", "low", "medium", "high", "xhigh"),
+                    info["reasoning_effort_levels"]!!.jsonArray.map { it.jsonPrimitive.content },
+                )
+                assertEquals(true, info["supports_xhigh_reasoning_effort"]!!.jsonPrimitive.boolean)
+                assertEquals(false, info["supports_max_reasoning_effort"]!!.jsonPrimitive.boolean)
             } finally {
                 server.stop()
             }

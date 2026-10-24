@@ -29,6 +29,7 @@ object KnownReasoningLevels {
             rule("gpt-5\\.1-codex", LOW_TO_HIGH),
             rule("gpt-5\\.[2-5]", NONE_TO_XHIGH),
             rule("gpt-5\\.1", NONE_TO_HIGH),
+            rule("gpt-reserve", NONE_TO_MAX),
             rule("gpt-5(?:-mini|-nano)?(?:-\\d{4}-\\d{2}-\\d{2})?$", MINIMAL_TO_HIGH),
             rule("gpt-oss|o[134](?:-|$)", LOW_TO_HIGH),
             // xAI

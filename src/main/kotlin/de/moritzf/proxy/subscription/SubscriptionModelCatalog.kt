@@ -7,7 +7,9 @@ class SubscriptionModelCatalog(private val providers: List<SubscriptionProxyProv
 
     init {
         val collected =
-            providers.filter { it.isConfigured() }.flatMap { provider -> provider.models() }
+            providers
+                .filter { it.isConfigured() }
+                .flatMap { provider -> provider.models().map { it.withKnownReasoningLevels() } }
         val duplicates = collected.groupBy { it.localId }.filterValues { it.size > 1 }.keys
         require(duplicates.isEmpty()) {
             "Duplicate advertised proxy model IDs: ${duplicates.sorted().joinToString(", ")}"
@@ -23,6 +25,7 @@ class SubscriptionModelCatalog(private val providers: List<SubscriptionProxyProv
                 .asSequence()
                 .filter { it.isConfigured() }
                 .firstNotNullOfOrNull { it.fallbackModel(requested, route) }
+                ?.withKnownReasoningLevels()
     }
 
     fun providerFor(model: SubscriptionProxyModel): SubscriptionProxyProvider? {

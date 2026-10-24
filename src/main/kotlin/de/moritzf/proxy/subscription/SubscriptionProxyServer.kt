@@ -4,6 +4,7 @@ import de.moritzf.proxy.fim.CompletionsConfig
 import de.moritzf.proxy.fim.FimModels
 import de.moritzf.proxy.logging.RequestLogger
 import de.moritzf.proxy.media.OpenAiMedia
+import de.moritzf.proxy.model.ReasoningCapabilities
 import de.moritzf.proxy.server.AccessLogFields
 import de.moritzf.proxy.server.ApiKeyStore
 import de.moritzf.proxy.server.CompletionsHandler
@@ -206,11 +207,19 @@ class SubscriptionProxyServer(
                 .filter(::isOpenAiCompatibleModel)
                 .map { model ->
                     linkedMapOf<String, Any>(
-                        "id" to model.localId,
-                        "object" to "model",
-                        "created" to 0,
-                        "owned_by" to model.providerId,
-                    )
+                            "id" to model.localId,
+                            "object" to "model",
+                            "created" to 0,
+                            "owned_by" to model.providerId,
+                        )
+                        .apply {
+                            // OpenRouter-style reasoning levels, next to LiteLLM's /model/info.
+                            model.reasoningEfforts?.let { levels ->
+                                ReasoningCapabilities.openRouterField(levels)?.let {
+                                    put("reasoning", it)
+                                }
+                            }
+                        }
                 }
                 .toMutableList()
         fimAliasModel()?.let { alias ->
@@ -466,6 +475,7 @@ class SubscriptionProxyServer(
         model.supportsToolChoice?.let { modelInfo["supports_tool_choice"] = it }
         model.supportsVision?.let { modelInfo["supports_vision"] = it }
         model.supportsPdfInput?.let { modelInfo["supports_pdf_input"] = it }
+        model.reasoningEfforts?.let { modelInfo.putAll(ReasoningCapabilities.liteLlmFields(it)) }
         model.supportsPromptCaching?.let { modelInfo["supports_prompt_caching"] = it }
         model.maxInputTokens?.let { modelInfo["max_input_tokens"] = it }
         model.maxOutputTokens?.let {

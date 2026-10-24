@@ -1,5 +1,7 @@
 package de.moritzf.proxy.subscription
 
+import de.moritzf.proxy.model.KnownReasoningLevels
+
 enum class SubscriptionProxyRoute(
     val normalizedPath: String,
     val upstreamPath: String,
@@ -34,7 +36,15 @@ data class SubscriptionProxyModel(
      * Empty when the model takes none: the value is dropped. Otherwise it moves to the closest one.
      */
     val reasoningEfforts: List<String>? = null,
-)
+) {
+    /**
+     * Fills [reasoningEfforts] from the known families when the provider states none, so the proxy
+     * advertises the levels it would fit to. Providers with first-party data keep theirs.
+     */
+    fun withKnownReasoningLevels(): SubscriptionProxyModel =
+        if (reasoningEfforts != null) this
+        else copy(reasoningEfforts = KnownReasoningLevels.forModel(upstreamId))
+}
 
 data class SubscriptionProxyRequest(
     val route: SubscriptionProxyRoute,
