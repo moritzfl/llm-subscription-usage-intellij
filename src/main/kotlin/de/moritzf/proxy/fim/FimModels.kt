@@ -1,5 +1,7 @@
 package de.moritzf.proxy.fim
 
+import de.moritzf.proxy.model.KnownReasoningLevels
+import de.moritzf.proxy.model.ReasoningEffort
 import de.moritzf.proxy.subscription.SubscriptionProxyModel
 import de.moritzf.proxy.subscription.SubscriptionProxyRoute
 
@@ -37,13 +39,24 @@ object FimModels {
     }
 
     fun fimReasoningEffort(model: SubscriptionProxyModel): String? {
-        return fimReasoningEffort(model.localId, model.upstreamId, model.providerId)
+        return fimReasoningEffort(
+            model.localId,
+            model.upstreamId,
+            model.providerId,
+            model.reasoningEfforts,
+        )
     }
 
+    /**
+     * Inline completions must not spend the token budget on thinking, so each model gets the least
+     * reasoning it accepts. The ChatGPT Codex backend has its own floor: `none` only where it was
+     * probed, `low` everywhere else.
+     */
     fun fimReasoningEffort(
         localId: String,
         upstreamId: String = "",
         providerId: String = "",
+        levels: List<String>? = null,
     ): String? {
         val blob = "$localId $upstreamId".lowercase()
         if ("non-reasoning" in blob || "nonreasoning" in blob) return null
@@ -51,11 +64,22 @@ object FimModels {
         // Ollama accepts reasoning_effort=none and returns the insert with no reasoning.
         if ((providerId == "ollama" || localId.startsWith("ol-")) && isDeepSeekReasoning(blob))
             return "none"
-        if (!supportsPriorityTier(localId, providerId)) return null
-        // ChatGPT Codex backend accepts none on gpt-6-sol and gpt-6-luna (0 reasoning tokens).
-        // gpt-6-astra rejects none. models.json still lists low as the picker floor.
-        return if (acceptsNoReasoning(blob)) "none" else "low"
+        if (isCodexBackend(localId, providerId)) {
+            // ChatGPT Codex backend accepts none on gpt-6-sol and gpt-6-luna (0 reasoning tokens).
+            // gpt-6-astra rejects none. models.json still lists low as the picker floor.
+            return if (acceptsNoReasoning(blob)) "none" else "low"
+        }
+        // SuperGrok's floor was probed as low; other providers take the model's own minimum.
+        if (supportsPriorityTier(localId, providerId)) return "low"
+        val known =
+            levels
+                ?: (upstreamId.ifBlank { localId }).let { KnownReasoningLevels.forModel(it) }
+                ?: return null
+        return ReasoningEffort.lowest(known)
     }
+
+    private fun isCodexBackend(localId: String, providerId: String): Boolean =
+        providerId.trim().lowercase() == "openai" || localId.trim().lowercase().startsWith("oa-")
 
     private fun isDeepSeekReasoning(blob: String): Boolean {
         return blob.contains("deepseek-v4") || blob.contains("deepseek-flash")

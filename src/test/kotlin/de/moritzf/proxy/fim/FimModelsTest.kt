@@ -67,7 +67,7 @@ class FimModelsTest {
     }
 
     @Test
-    fun fimReasoningEffortOnlyForGrokAndCodexReasoningModels() {
+    fun fimReasoningEffortUsesTheLeastReasoningEachModelAccepts() {
         assertEquals("low", FimModels.fimReasoningEffort("sg-grok-4.6", "grok-4.6", "supergrok"))
         assertEquals("low", FimModels.fimReasoningEffort("oa-gpt-6-astra", "gpt-6-astra", "openai"))
         assertEquals("none", FimModels.fimReasoningEffort("oa-gpt-6-sol", "gpt-6-sol", "openai"))
@@ -99,7 +99,16 @@ class FimModelsTest {
                 "ollama",
             ),
         )
-        assertNull(FimModels.fimReasoningEffort("ol-kimi-k3", "kimi-k3", "ollama"))
+        assertEquals("none", FimModels.fimReasoningEffort("ol-kimi-k3", "kimi-k3", "ollama"))
+        assertNull(
+            FimModels.fimReasoningEffort("ol-kimi-k3", "kimi-k3", "ollama", emptyList()),
+            "a model that takes no reasoning gets none",
+        )
+        assertEquals("low", FimModels.fimReasoningEffort("ol-glm-5.3", "glm-5.3", "ollama"))
+        assertEquals(
+            "low",
+            FimModels.fimReasoningEffort("oc-claude-sonnet-4-6", "claude-sonnet-4-6", "opencode"),
+        )
         assertNull(
             FimModels.fimReasoningEffort(
                 "api-custom/deepseek-v4",
