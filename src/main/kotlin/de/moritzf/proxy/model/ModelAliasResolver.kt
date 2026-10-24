@@ -49,7 +49,7 @@ class ModelAliasResolver {
             }
         }
         if (!chatGptBackend) {
-            apiEffortLevels(modelName)?.let {
+            KnownReasoningLevels.forModel(modelName)?.let {
                 return ReasoningEffort.fit(effort, it)
             }
         }
@@ -85,31 +85,6 @@ class ModelAliasResolver {
         return GPT_5_BASE_MODEL.matches(modelName)
     }
 
-    /**
-     * Reasoning levels of the OpenAI API and the OpenCode gateways, observed live on 2026-10-23:
-     * Grok 4.6 rejects `none` and `max`, Muse Spark rejects `none`, and GPT-6 rejects `minimal`.
-     * Null leaves the model family unknown, which keeps the conservative mapping below.
-     */
-    private fun apiEffortLevels(modelName: String): List<String>? {
-        return when {
-            GPT_6_MODEL.containsMatchIn(modelName) ->
-                listOf("none", "low", "medium", "high", "xhigh", "max")
-            GPT_56_MODEL.containsMatchIn(modelName) ->
-                listOf("none", "low", "medium", "high", "xhigh", "max")
-            GPT_52_TO_55_MODEL.containsMatchIn(modelName) ->
-                listOf("none", "low", "medium", "high", "xhigh")
-            modelName.startsWith("gpt-5-mini") || modelName.startsWith("gpt-5-nano") ->
-                listOf("low", "medium", "high")
-            GPT_5_BASE_MODEL.matches(modelName) -> listOf("minimal", "low", "medium", "high")
-            modelName.startsWith("gpt-5.1") -> listOf("none", "low", "medium", "high")
-            modelName.startsWith("grok-") -> listOf("low", "medium", "high", "xhigh")
-            modelName.startsWith("muse-") ->
-                listOf("minimal", "low", "medium", "high", "xhigh", "max")
-            modelName.startsWith("mai-") -> listOf("low", "medium", "high")
-            else -> null
-        }
-    }
-
     private fun isLunaModel(modelName: String): Boolean {
         return modelName.startsWith("gpt-6-luna") ||
             modelName.startsWith("gpt-5.6-luna") ||
@@ -135,9 +110,6 @@ class ModelAliasResolver {
 
     companion object {
         private val GPT_5_BASE_MODEL = Regex("gpt-5(?:-mini|-nano)?(?:-\\d{4}-\\d{2}-\\d{2})?")
-        private val GPT_6_MODEL = Regex("^gpt-[6-9](?:[.-]|$)")
-        private val GPT_56_MODEL = Regex("^gpt-5\\.6(?:[.-]|$)")
-        private val GPT_52_TO_55_MODEL = Regex("^gpt-5\\.[2-5](?:[.-]|$)")
 
         // Junie selects a reasoning tier by sending the model name with a "<base> (<level>)"
         // suffix. Strip the suffix back into base model + effort; the suffix is the user's

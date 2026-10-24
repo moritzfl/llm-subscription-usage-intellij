@@ -156,12 +156,13 @@ internal class ChatCompletionsRequestMapper(
                 ?: chatBody["reasoning_effort"]
                     ?.takeUnless { it is JsonNull }
                     ?.let { (it as? JsonPrimitive)?.content }
-        if (requestedEffort != null) {
+        // A model that takes no effort, or a value outside the scale, sends no reasoning object.
+        val effort = requestedEffort?.let {
+            modelAliasResolver.clampReasoningEffort(model, it, chatGptBackend)
+        }
+        if (effort != null) {
             val reasoning = createObjectNode()
-            reasoning.put(
-                "effort",
-                modelAliasResolver.clampReasoningEffort(model, requestedEffort, chatGptBackend),
-            )
+            reasoning.put("effort", effort)
             upstream.set("reasoning", reasoning)
         }
         val serviceTier = (chatBody["service_tier"] as? JsonPrimitive)?.contentOrNull?.trim()

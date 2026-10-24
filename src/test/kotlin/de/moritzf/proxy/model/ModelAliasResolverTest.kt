@@ -93,12 +93,16 @@ class ModelAliasResolverTest {
         // Mini models and codex slugs accept the API's levels on Copilot, Azure, or OpenCode.
         assertEquals("low", api("gpt-5.4-mini", "low"))
         assertEquals("none", api("gpt-5.4-mini", "none"))
-        assertEquals("none", api("gpt-5.1-codex", "none"))
-        // `minimal` stays only for the original GPT-5, which documents it.
+        assertEquals("none", api("gpt-5.3-codex", "none"))
+        // gpt-5.1-codex cannot turn reasoning off.
+        assertEquals("low", api("gpt-5.1-codex", "none"))
+        // `minimal` stays only for the original GPT-5 family, which documents it.
         assertEquals("minimal", api("gpt-5", "minimal"))
-        assertEquals("low", api("gpt-5-mini", "minimal"))
-        assertEquals("low", api("gpt-5-nano-2025-08-07", "minimal"))
+        assertEquals("minimal", api("gpt-5-mini", "minimal"))
+        assertEquals("minimal", api("gpt-5-nano-2025-08-07", "minimal"))
         assertEquals("low", api("gpt-5.5", "minimal"))
+        // A model without reasoning effort sends none.
+        assertEquals(null, api("kimi-k2.7-code", "high"))
         // GPT-6 takes none..max; Grok stops at xhigh and has no `none`; Muse has no `none`.
         assertEquals("none", api("gpt-6-luna", "none"))
         assertEquals("max", api("gpt-6-luna", "ultra"))
