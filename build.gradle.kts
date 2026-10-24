@@ -175,6 +175,8 @@ tasks {
     test {
         useJUnitPlatform()
         maxHeapSize = "2g"
+        // Tests never fetch the public OpenRouter or models.dev lists.
+        systemProperty("llm.subscription.reasoningCatalogs", "off")
     }
 
     register<JavaExec>("runStandaloneOpenAiProxy") {

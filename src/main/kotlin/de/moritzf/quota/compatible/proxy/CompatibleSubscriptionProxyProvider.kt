@@ -1,5 +1,7 @@
 package de.moritzf.quota.compatible.proxy
 
+import de.moritzf.proxy.model.KnownReasoningLevels
+import de.moritzf.proxy.model.ReasoningCatalogs
 import de.moritzf.proxy.server.JsonHelper
 import de.moritzf.proxy.server.LiteLlmBudgetError
 import de.moritzf.proxy.subscription.OpenAiCompatibleApiKeySubscriptionProxyProvider
@@ -30,6 +32,7 @@ class CompatibleSubscriptionProxyProvider(
     fullRequestLogging: Boolean = false,
     requestLogDir: String =
         System.getProperty("java.io.tmpdir") + "/openai-compatible-proxy-requests",
+    remoteReasoningLevels: (String) -> List<String>? = ReasoningCatalogs::levels,
 ) :
     SubscriptionProxyProvider by OpenAiCompatibleApiKeySubscriptionProxyProvider(
         id = if (endpoint.liteLlm) "litellm" else ID,
@@ -65,6 +68,11 @@ class CompatibleSubscriptionProxyProvider(
         modelRequestTimeout = Duration.ofSeconds(10),
         modelListEnricher =
             if (endpoint.liteLlm) LiteLlmClient(endpoint, httpClient)::enrichModels else null,
+        // Any model can sit behind a custom endpoint: when it states no levels, match the name
+        // against known families, then the OpenRouter and models.dev catalogs.
+        reasoningEffortsFallback = { id ->
+            KnownReasoningLevels.forModel(id) ?: remoteReasoningLevels(id)
+        },
         fullRequestLogging = fullRequestLogging,
         requestLogDir = requestLogDir,
     ) {

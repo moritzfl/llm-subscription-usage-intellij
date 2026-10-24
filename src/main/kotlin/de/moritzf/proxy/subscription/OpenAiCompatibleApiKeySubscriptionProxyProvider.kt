@@ -53,6 +53,8 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
     private val modelCacheTtl: kotlin.time.Duration = CACHE_TTL,
     private val modelRequestTimeout: Duration = Duration.ofSeconds(30),
     private val modelListEnricher: ((String, List<StaticModel>) -> List<StaticModel>)? = null,
+    /** Levels for models whose endpoint states none, e.g. from a known-model table. */
+    private val reasoningEffortsFallback: (String) -> List<String>? = { null },
 ) : SubscriptionProxyProvider {
     private val delegate =
         PassThroughSubscriptionProxyProvider(
@@ -117,7 +119,8 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
             supportsPromptCaching = model.supportsPromptCaching,
             inputCostPerToken = model.inputCostPerToken,
             outputCostPerToken = model.outputCostPerToken,
-            reasoningEfforts = model.acceptedReasoningEfforts(),
+            reasoningEfforts =
+                model.acceptedReasoningEfforts() ?: reasoningEffortsFallback(model.id),
         )
     }
 
@@ -148,7 +151,8 @@ class OpenAiCompatibleApiKeySubscriptionProxyProvider(
                 maxInputTokens = model.maxInputTokens,
                 maxOutputTokens = model.maxOutputTokens,
                 isDefault = model.isDefault,
-                reasoningEfforts = model.acceptedReasoningEfforts(),
+                reasoningEfforts =
+                    model.acceptedReasoningEfforts() ?: reasoningEffortsFallback(model.id),
             )
         }
     }
