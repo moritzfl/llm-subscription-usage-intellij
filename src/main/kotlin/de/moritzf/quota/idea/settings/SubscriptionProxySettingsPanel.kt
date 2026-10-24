@@ -252,10 +252,7 @@ internal class SubscriptionProxySettingsPanel(
             panel {
                 row {
                     cell(proxyEnabledCheckBox)
-                        .comment(
-                            "Lets Junie, AI Assistant, and other JetBrains AI features use your subscriptions and OpenAI-compatible APIs.",
-                            MAX_LINE_LENGTH_WORD_WRAP,
-                        )
+                        .comment(message("settings.proxy.intro"), MAX_LINE_LENGTH_WORD_WRAP)
                 }
                 row {
                     link("Open Providers & API keys") {
@@ -264,7 +261,7 @@ internal class SubscriptionProxySettingsPanel(
                         )
                     }
                 }
-                row { comment("Copy the URL and API key below into AI Assistant or Junie.") }
+                row { comment(message("settings.proxy.clients"), MAX_LINE_LENGTH_WORD_WRAP) }
                 indent {
                     row("Port:") {
                         cell(proxyPortField).gap(RightGap.SMALL)

@@ -130,7 +130,7 @@ IntelliJ's MCP server may change ports after a restart. Enable **Sync IntelliJ M
 
 ## OpenAI-compatible proxy
 
-Use your subscriptions or API-key connections in clients that support OpenAI-compatible or LiteLLM servers, including JetBrains AI Chat and Junie.
+The proxy serves your subscriptions and API-key connections as a local OpenAI- and LiteLLM-compatible API. Subscriptions do not offer such an API on their own, so this lets any client or app that takes a base URL and API key use them: JetBrains AI Chat and Junie (where it is tested), other tools, or an app you are developing against an AI API.
 
 1. Open the **Proxy** tab in the plugin settings, check **Enable local subscription proxy**, choose providers, and apply.
 2. Use **Copy Base URL** and **Copy API Key** to configure your client. Use the URL **without `/v1`**.
