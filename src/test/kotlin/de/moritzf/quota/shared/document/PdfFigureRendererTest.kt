@@ -481,6 +481,48 @@ class PdfFigureRendererTest {
         assertTrue(renderings[300] != "optimizeSpeed", renderings.toString())
     }
 
+    @Test
+    fun figureSvgKeepsOnlyVisibleShapesAndImagePixels() {
+        val image =
+            BufferedImage(600, 300, BufferedImage.TYPE_INT_RGB).apply {
+                for (y in 0 until height) for (x in 0 until width) {
+                    setRGB(x, y, Color(x * 255 / 599, y * 255 / 299, 128).rgb)
+                }
+            }
+        val document = PDDocument().apply { addPage(PDPage(PDRectangle(200f, 100f))) }
+        PDPageContentStream(document, document.getPage(0)).use {
+            it.drawImage(LosslessFactory.createFromImage(document, image), 0f, 0f, 200f, 100f)
+            it.setNonStrokingColor(Color(1, 2, 3))
+            it.addRect(0f, 0f, 20f, 100f)
+            it.fill()
+        }
+        val reference = PDFRenderer(document).renderImageWithDPI(0, 72f)
+        val page = directory.resolve("page.svg")
+        val figure = directory.resolve("figure.svg")
+        PdfFigureRenderer(document).use {
+            it.renderSvg(PdfFigureRegion(1, 0.0, 0.0, 1.0, 1.0), page, 0.0, 300)
+            it.renderSvg(PdfFigureRegion(1, 0.75, 0.0, 1.0, 1.0), figure, 0.0, 300)
+        }
+        assertTrue(Files.readString(page).contains("rgb(1,2,3)"))
+        assertFalse(Files.readString(figure).contains("rgb(1,2,3)"), "Shape outside the figure")
+        val embedded = embeddedPng(figure)
+        assertEquals(300, embedded.height)
+        assertTrue(embedded.width in 150..154, "Visible 50 pt plus edge pixels: ${embedded.width}")
+        val offset =
+            (0..image.width - embedded.width).single { x0 ->
+                (0 until embedded.width).all { x ->
+                    listOf(0, 150, 299).all { y ->
+                        embedded.getRGB(x, y) == image.getRGB(x0 + x, y)
+                    }
+                }
+            }
+        assertTrue(offset in 447..450, "Cropped at source resolution from x=$offset")
+        val actual = transcode(figure)
+        for ((x, y) in listOf(5 to 10, 25 to 50, 45 to 90)) {
+            assertColor(Color(reference.getRGB(150 + x, y)), Color(actual.getRGB(x, y)), "$x/$y")
+        }
+    }
+
     private fun transcode(svg: Path): BufferedImage =
         ByteArrayOutputStream().use { bytes ->
             PNGTranscoder()
