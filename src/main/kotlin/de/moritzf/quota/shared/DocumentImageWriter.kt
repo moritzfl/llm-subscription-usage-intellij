@@ -65,9 +65,14 @@ internal class DocumentImageWriter(
                 if (options.format == DocumentImageFormat.SVG) {
                     val svg = target(page, ordinal, "svg")
                     try {
-                        source.renderSvg(region, svg, options.paddingPoints)
+                        val rasterized =
+                            source.renderSvg(region, svg, options.paddingPoints, options.dpi)
                         svgCount++
-                        diagnostics += "$label: saved SVG from original PDF."
+                        diagnostics +=
+                            if (rasterized == 0) "$label: saved SVG from original PDF."
+                            else
+                                "$label: saved SVG from original PDF; $rasterized pattern or " +
+                                    "shading fill(s) without an SVG equivalent embedded as raster."
                         return retain(svg)
                     } catch (exception: Exception) {
                         rethrowCancellation(exception)

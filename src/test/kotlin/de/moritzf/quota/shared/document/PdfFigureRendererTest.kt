@@ -5,6 +5,8 @@ import de.moritzf.quota.shared.DocumentImageOptions
 import de.moritzf.quota.shared.DocumentImageWriter
 import de.moritzf.quota.shared.ProviderDocumentImage
 import java.awt.Color
+import java.awt.color.ColorSpace
+import java.awt.color.ICC_Profile
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -25,17 +27,25 @@ import org.apache.pdfbox.cos.COSArray
 import org.apache.pdfbox.cos.COSBoolean
 import org.apache.pdfbox.cos.COSDictionary
 import org.apache.pdfbox.cos.COSFloat
+import org.apache.pdfbox.cos.COSInteger
 import org.apache.pdfbox.cos.COSName
+import org.apache.pdfbox.cos.COSStream
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
+import org.apache.pdfbox.pdmodel.PDPatternContentStream
 import org.apache.pdfbox.pdmodel.PDResources
 import org.apache.pdfbox.pdmodel.common.PDRectangle
+import org.apache.pdfbox.pdmodel.common.function.PDFunction
 import org.apache.pdfbox.pdmodel.common.function.PDFunctionType2
 import org.apache.pdfbox.pdmodel.common.function.PDFunctionType3
 import org.apache.pdfbox.pdmodel.graphics.blend.BlendMode
+import org.apache.pdfbox.pdmodel.graphics.color.PDColor
 import org.apache.pdfbox.pdmodel.graphics.color.PDDeviceRGB
+import org.apache.pdfbox.pdmodel.graphics.color.PDICCBased
+import org.apache.pdfbox.pdmodel.graphics.color.PDPattern
 import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory
+import org.apache.pdfbox.pdmodel.graphics.pattern.PDTilingPattern
 import org.apache.pdfbox.pdmodel.graphics.shading.PDShadingType2
 import org.apache.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState
 import org.apache.pdfbox.rendering.PDFRenderer
@@ -105,8 +115,9 @@ class PdfFigureRendererTest {
                     regionClass,
                     Path::class.java,
                     Double::class.javaPrimitiveType,
+                    Int::class.javaPrimitiveType,
                 )
-                .invoke(renderer, region, target, 0.0)
+                .invoke(renderer, region, target, 0.0, 300)
         }
         assertTrue(Files.readString(target).contains("data:image/png;base64,"))
         val embedded = embeddedPng(target)
@@ -136,7 +147,7 @@ class PdfFigureRendererTest {
         val reference = PDFRenderer(document).renderImageWithDPI(0, 72f)
         PdfFigureRenderer(document).use {
             val region = PdfFigureRegion(1, 0.0, 0.0, 1.0, 1.0)
-            it.renderSvg(region, target, 0.0)
+            it.renderSvg(region, target, 0.0, 300)
             it.renderPng(region, png, 72, 0.0)
         }
         val embedded = embeddedPng(target)
@@ -155,18 +166,23 @@ class PdfFigureRendererTest {
         }
     }
 
-    private fun embeddedPng(target: Path): BufferedImage {
-        val svg =
+    private fun embeddedPng(target: Path): BufferedImage = embeddedPngs(target).first()
+
+    private fun embeddedPngs(target: Path): List<BufferedImage> =
+        svgImages(target).map {
+            val encoded =
+                it.getAttributeNS("http://www.w3.org/1999/xlink", "href").substringAfter("base64,")
+            ImageIO.read(Base64.getMimeDecoder().decode(encoded).inputStream())
+        }
+
+    private fun svgImages(target: Path): List<org.w3c.dom.Element> {
+        val images =
             DocumentBuilderFactory.newInstance()
                 .apply { isNamespaceAware = true }
                 .newDocumentBuilder()
                 .parse(target.toFile())
-        val element =
-            svg.getElementsByTagNameNS("http://www.w3.org/2000/svg", "image").item(0)
-                as org.w3c.dom.Element
-        val encoded =
-            element.getAttributeNS("http://www.w3.org/1999/xlink", "href").substringAfter("base64,")
-        return ImageIO.read(Base64.getMimeDecoder().decode(encoded).inputStream())
+                .getElementsByTagNameNS("http://www.w3.org/2000/svg", "image")
+        return (0 until images.length).map { images.item(it) as org.w3c.dom.Element }
     }
 
     @Test
@@ -201,7 +217,7 @@ class PdfFigureRendererTest {
                 val png = directory.resolve("$rotation.png")
                 val svg = directory.resolve("$rotation.svg")
                 renderer.renderPng(region, png, 72, 0.0)
-                renderer.renderSvg(region, svg, 0.0)
+                renderer.renderSvg(region, svg, 0.0, 300)
                 val xml = Files.readString(svg)
                 assertTrue(xml.contains("viewBox="))
                 assertFalse(xml.contains("data:image"), "Vector-only PDF must remain vector-only")
@@ -260,32 +276,83 @@ class PdfFigureRendererTest {
                     PdfFigureRegion(1, 0.0, 0.0, 1.0, 1.0, 100.0, 200.0),
                 )) {
                 assertFailsWith<IOException> {
-                    renderer.renderSvg(region, directory.resolve("bad.svg"), 0.0)
+                    renderer.renderSvg(region, directory.resolve("bad.svg"), 0.0, 300)
                 }
             }
         }
     }
 
-    @Test fun axialGradientKeepsColorsInSvg() = assertGradient(stitched = false)
+    @Test fun axialGradientKeepsColorsInSvg() = assertGradient { setFunction(redToBlue()) }
 
-    @Test fun stitchedGradientKeepsColorsInSvg() = assertGradient(stitched = true)
+    @Test
+    fun stitchedGradientKeepsColorsInSvg() = assertGradient {
+        setFunction(
+            PDFunctionType3(
+                COSDictionary().apply {
+                    setInt(COSName.FUNCTION_TYPE, 3)
+                    setItem(COSName.DOMAIN, numbers(0f, 1f))
+                    setItem(
+                        COSName.FUNCTIONS,
+                        COSArray().apply {
+                            add(redToBlue().cosObject)
+                            add(redToBlue().cosObject)
+                        },
+                    )
+                    setItem(COSName.BOUNDS, numbers(0.4f))
+                    setItem(COSName.ENCODE, numbers(0f, 1f, 1f, 0f))
+                }
+            )
+        )
+    }
 
-    private fun assertGradient(stitched: Boolean) {
+    /** Word/Office exports: ICC-based RGB with a sampled (type 0) function. */
+    @Test
+    fun iccGradientWithSampledFunctionKeepsColorsInSvg() = assertGradient {
+        val profile =
+            COSStream().apply {
+                setInt(COSName.N, 3)
+                createOutputStream().use {
+                    it.write(ICC_Profile.getInstance(ColorSpace.CS_sRGB).data)
+                }
+            }
+        colorSpace =
+            PDICCBased.create(
+                COSArray().apply {
+                    add(COSName.ICCBASED)
+                    add(profile)
+                },
+                null,
+            )
+        val samples =
+            COSStream().apply {
+                setInt(COSName.FUNCTION_TYPE, 0)
+                setItem(COSName.DOMAIN, numbers(0f, 1f))
+                setItem(COSName.RANGE, numbers(0f, 1f, 0f, 1f, 0f, 1f))
+                setItem(COSName.SIZE, COSArray().apply { add(COSInteger.get(3)) })
+                setInt(COSName.BITS_PER_SAMPLE, 8)
+                createOutputStream().use { it.write(byteArrayOf(-1, 0, 0, 0, -1, 0, 0, 0, -1)) }
+            }
+        setFunction(PDFunction.create(samples))
+    }
+
+    private fun numbers(vararg values: Float) =
+        COSArray().apply { values.forEach { add(COSFloat(it)) } }
+
+    private fun redToBlue() =
+        PDFunctionType2(
+            COSDictionary().apply {
+                setInt(COSName.FUNCTION_TYPE, 2)
+                setItem(COSName.DOMAIN, numbers(0f, 1f))
+                setItem(COSName.C0, numbers(1f, 0f, 0f))
+                setItem(COSName.C1, numbers(0f, 0f, 1f))
+                setFloat(COSName.N, 1f)
+            }
+        )
+
+    private fun assertGradient(configure: PDShadingType2.() -> Unit) {
         val document = PDDocument()
         val page = PDPage(PDRectangle(200f, 100f))
         document.addPage(page)
-        fun numbers(vararg values: Float) =
-            COSArray().apply { values.forEach { add(COSFloat(it)) } }
-        val function =
-            PDFunctionType2(
-                COSDictionary().apply {
-                    setInt(COSName.FUNCTION_TYPE, 2)
-                    setItem(COSName.DOMAIN, numbers(0f, 1f))
-                    setItem(COSName.C0, numbers(1f, 0f, 0f))
-                    setItem(COSName.C1, numbers(0f, 0f, 1f))
-                    setFloat(COSName.N, 1f)
-                }
-            )
         val shading =
             PDShadingType2(COSDictionary()).apply {
                 shadingType = 2
@@ -296,47 +363,138 @@ class PdfFigureRendererTest {
                         add(COSBoolean.TRUE)
                         add(COSBoolean.TRUE)
                     }
-                setFunction(
-                    if (!stitched) function
-                    else
-                        PDFunctionType3(
-                            COSDictionary().apply {
-                                setInt(COSName.FUNCTION_TYPE, 3)
-                                setItem(COSName.DOMAIN, numbers(0f, 1f))
-                                setItem(
-                                    COSName.FUNCTIONS,
-                                    COSArray().apply {
-                                        add(function.cosObject)
-                                        add(function.cosObject)
-                                    },
-                                )
-                                setItem(COSName.BOUNDS, numbers(0.4f))
-                                setItem(COSName.ENCODE, numbers(0f, 1f, 1f, 0f))
-                            }
-                        )
-                )
+                configure()
             }
         PDPageContentStream(document, page).use { it.shadingFill(shading) }
         val reference = PDFRenderer(document).renderImageWithDPI(0, 72f)
         val svg = directory.resolve("gradient.svg")
         PdfFigureRenderer(document).use {
-            it.renderSvg(PdfFigureRegion(1, 0.0, 0.0, 1.0, 1.0), svg, 0.0)
+            assertEquals(0, it.renderSvg(PdfFigureRegion(1, 0.0, 0.0, 1.0, 1.0), svg, 0.0, 300))
         }
-        val actual =
-            ByteArrayOutputStream().use { bytes ->
-                PNGTranscoder()
-                    .transcode(TranscoderInput(svg.toUri().toString()), TranscoderOutput(bytes))
-                ImageIO.read(bytes.toByteArray().inputStream())
-            }
+        val xml = Files.readString(svg)
+        assertTrue(xml.contains("<linearGradient"))
+        assertFalse(xml.contains("data:image"), "Gradient must stay vector")
+        val actual = transcode(svg)
         for (x in listOf(20, 100, 180)) {
-            val expected = Color(reference.getRGB(x, 50))
-            val exported = Color(actual.getRGB(x, 50))
-            assertTrue(
-                kotlin.math.abs(expected.red - exported.red) < 4 &&
-                    kotlin.math.abs(expected.blue - exported.blue) < 4,
-                "Gradient mismatch at $x: $expected / $exported",
+            assertColor(Color(reference.getRGB(x, 50)), Color(actual.getRGB(x, 50)), "x=$x")
+        }
+    }
+
+    @Test
+    fun tilingPatternRasterizesOnlyItsFillAtRequestedDpi() {
+        val document = PDDocument()
+        val page = PDPage(PDRectangle(200f, 100f)).apply { resources = PDResources() }
+        document.addPage(page)
+        val pattern =
+            PDTilingPattern().apply {
+                paintType = PDTilingPattern.PAINT_COLORED
+                tilingType = PDTilingPattern.TILING_CONSTANT_SPACING
+                bBox = PDRectangle(0f, 0f, 10f, 10f)
+                xStep = 10f
+                yStep = 10f
+                resources = PDResources()
+            }
+        PDPatternContentStream(pattern).use {
+            it.setNonStrokingColor(Color.RED)
+            it.addRect(0f, 0f, 5f, 10f)
+            it.fill()
+            it.setNonStrokingColor(Color.BLUE)
+            it.addRect(5f, 0f, 5f, 10f)
+            it.fill()
+        }
+        val patternName = page.resources.add(pattern)
+        PDPageContentStream(document, page).use {
+            it.setNonStrokingColor(PDColor(patternName, PDPattern(null)))
+            it.addRect(0f, 0f, 100f, 100f)
+            it.fill()
+            it.setNonStrokingColor(Color.GREEN)
+            it.addRect(100f, 0f, 100f, 100f)
+            it.fill()
+        }
+        val reference = PDFRenderer(document).renderImageWithDPI(0, 72f)
+        DocumentImageWriter(
+                directory.resolve("pattern.md"),
+                DocumentImageOptions(),
+                { PdfFigureRenderer(document) },
+            )
+            .use { writer ->
+                val result =
+                    writer.write(1, 1, PdfFigureRegion(1, 0.0, 0.0, 1.0, 1.0)) {
+                        error("Provider image not needed")
+                    }
+                assertTrue(result!!.endsWith(".svg"))
+                assertTrue(writer.warnings.isEmpty(), writer.warnings.toString())
+                assertTrue(writer.report.diagnostics.single().contains("1 pattern or shading"))
+                val svg = Path.of(writer.imageFiles.single())
+                val images = embeddedPngs(svg)
+                assertEquals(1, images.size, "Only the pattern fill may be rasterized")
+                assertEquals(417, images.single().width, "100 pt at 300 DPI")
+                val actual = transcode(svg)
+                for (x in listOf(2, 7, 52, 57, 150)) {
+                    assertColor(Color(reference.getRGB(x, 50)), Color(actual.getRGB(x, 50)), "x=$x")
+                }
+            }
+    }
+
+    @Test
+    fun nearestNeighbourScalingIsDecidedAtSeventyTwoDpi() {
+        fun checkerboard(width: Int, height: Int) =
+            BufferedImage(width, height, BufferedImage.TYPE_INT_RGB).apply {
+                for (y in 0 until height) for (x in 0 until width) {
+                    setRGB(x, y, if ((x + y) % 2 == 0) Color.BLACK.rgb else Color.WHITE.rgb)
+                }
+            }
+        val document = PDDocument().apply { addPage(PDPage(PDRectangle(200f, 100f))) }
+        PDPageContentStream(document, document.getPage(0)).use {
+            // A barcode-like image stays crisp; a scan denser than 72 DPI stays smooth.
+            it.drawImage(
+                LosslessFactory.createFromImage(document, checkerboard(20, 10)),
+                0f,
+                0f,
+                100f,
+                50f,
+            )
+            it.drawImage(
+                LosslessFactory.createFromImage(document, checkerboard(300, 150)),
+                100f,
+                0f,
+                100f,
+                50f,
             )
         }
+        val svg = directory.resolve("interpolation.svg")
+        PdfFigureRenderer(document).use {
+            it.renderSvg(PdfFigureRegion(1, 0.0, 0.0, 1.0, 1.0), svg, 0.0, 300)
+        }
+        val renderings =
+            svgImages(svg).associate { image ->
+                val width = image.getAttribute("width").toInt()
+                var node: org.w3c.dom.Node? = image
+                var rendering = ""
+                while (node is org.w3c.dom.Element && rendering.isEmpty()) {
+                    rendering = node.getAttribute("image-rendering")
+                    node = node.parentNode
+                }
+                width to rendering
+            }
+        assertEquals("optimizeSpeed", renderings[20])
+        assertTrue(renderings[300] != "optimizeSpeed", renderings.toString())
+    }
+
+    private fun transcode(svg: Path): BufferedImage =
+        ByteArrayOutputStream().use { bytes ->
+            PNGTranscoder()
+                .transcode(TranscoderInput(svg.toUri().toString()), TranscoderOutput(bytes))
+            ImageIO.read(bytes.toByteArray().inputStream())
+        }
+
+    private fun assertColor(expected: Color, actual: Color, label: String) {
+        assertTrue(
+            kotlin.math.abs(expected.red - actual.red) < 4 &&
+                kotlin.math.abs(expected.green - actual.green) < 4 &&
+                kotlin.math.abs(expected.blue - actual.blue) < 4,
+            "Color mismatch at $label: $expected / $actual",
+        )
     }
 
     @Test

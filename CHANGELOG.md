@@ -5,6 +5,7 @@
 - Fix Mistral OCR for PDFs over 1000 pages, which failed with "This document has 2136 pages, which is more than the maximum allowed of 1000". Local PDFs are now sent in requests of at most 30 pages and 50 MB, with page-based progress and cancellation between requests, and are no longer uploaded to your Mistral files. A document URL is still one request.
 - Keep converting when the OCR service cannot process one page. Mistral OCR on Azure stopped a 2136-page manual with "Failed to process PDF file" (HTTP 500), and Mistral itself timed out on the same page. Mistral, Z.ai, Azure Mistral OCR, and Document Intelligence now retry a slice that fails on the service side page by page, then send the failing page once more as a rendered image. Other errors still stop the conversion.
 - Convert long PDFs with Azure Document Intelligence in requests of at most 30 pages, so a long document no longer runs past the two-minute analysis limit.
+- Keep PDF figures as SVG when they use gradients or patterns. Gradients in ICC-based or other color spaces, and gradients built from sampled functions (common in Office exports), failed with "SVG gradient does not support ICCBased" and fell back to PNG; they are now converted to SVG gradients. Fills SVG cannot express, such as tiling patterns ("Unsupported SVG paint: TilingPaint") and radial or mesh shadings, are embedded as images at the export DPI, while the rest of the figure stays vector.
 
 ## [1.24.0] - 2026-10-24
 

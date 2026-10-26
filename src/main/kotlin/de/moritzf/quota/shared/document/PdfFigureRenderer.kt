@@ -16,10 +16,11 @@ import javax.xml.transform.stream.StreamResult
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
+import kotlin.math.min
+import kotlin.math.sqrt
 import org.apache.batik.dom.GenericDOMImplementation
 import org.apache.batik.svggen.ImageHandlerBase64Encoder
 import org.apache.batik.svggen.SVGGeneratorContext
-import org.apache.batik.svggen.SVGGraphics2D
 import org.apache.pdfbox.cos.COSDictionary
 import org.apache.pdfbox.cos.COSName
 import org.apache.pdfbox.pdmodel.PDDocument
@@ -77,8 +78,13 @@ internal class PdfFigureRenderer(private val document: PDDocument) : AutoCloseab
         PdfImageIoPlugins.ensureRegistered()
     }
 
-    fun renderSvg(region: PdfFigureRegion, target: Path, paddingPoints: Double) {
+    /**
+     * Returns how many fills had no SVG paint equivalent and were embedded as rasters. Canvas units
+     * are [dpi] pixels so PDFBox renders tiling patterns and those rasters at the PNG resolution.
+     */
+    fun renderSvg(region: PdfFigureRegion, target: Path, paddingPoints: Double, dpi: Int): Int {
         val crop = crop(region, paddingPoints)
+        val scale = min(dpi / 72.0, sqrt(MAX_PIXELS / (crop.width * crop.height)))
         val page = document.getPage(region.page - 1)
         // A page transparency group declares the compositing context, not an unsupported paint
         // operation.
@@ -89,11 +95,12 @@ internal class PdfFigureRenderer(private val document: PDDocument) : AutoCloseab
         val dom =
             GenericDOMImplementation.getDOMImplementation()
                 .createDocument("http://www.w3.org/2000/svg", "svg", null)
+        val paints = PdfSvgPaintHandler()
         val context =
             SVGGeneratorContext.createDefault(dom).apply {
                 comment =
                     "PDF figure exported from the original document; text is stored as outlines."
-                extensionHandler = PdfSvgPaintHandler()
+                extensionHandler = paints
                 // Batik's SPI can discover the IDE's writer, whose Batik types belong to another
                 // loader.
                 // Keep Batik's image/alpha handling but encode PNGs through the JDK's shared
@@ -106,19 +113,27 @@ internal class PdfFigureRenderer(private val document: PDDocument) : AutoCloseab
                         }
                     }
             }
-        val graphics = SVGGraphics2D(context, true)
+        val graphics = PdfSvgGraphics(context, paints, scale)
         val downscalingThreshold = renderer.imageDownscalingOptimizationThreshold
         try {
+            val width = crop.width * scale
+            val height = crop.height * scale
             graphics.background = Color.WHITE
-            graphics.svgCanvasSize = Dimension(ceil(crop.width).toInt(), ceil(crop.height).toInt())
-            graphics.clip(Rectangle2D.Double(0.0, 0.0, crop.width, crop.height))
-            graphics.translate(-crop.x, -crop.y)
+            graphics.svgCanvasSize = Dimension(ceil(width).toInt(), ceil(height).toInt())
+            graphics.clip(Rectangle2D.Double(0.0, 0.0, width, height))
+            graphics.translate(-crop.x * scale, -crop.y * scale)
             // SVG has no fixed output DPI. PDFBox's raster optimization would otherwise bake
-            // 72 DPI thumbnails into the SVG, permanently losing source image detail.
+            // thumbnails into the SVG, permanently losing source image detail.
             renderer.imageDownscalingOptimizationThreshold = 0f
-            renderer.renderPageToGraphics(region.page - 1, graphics, 1f, 1f, RenderDestination.VIEW)
+            renderer.renderPageToGraphics(
+                region.page - 1,
+                graphics,
+                scale.toFloat(),
+                scale.toFloat(),
+                RenderDestination.VIEW,
+            )
             val root = graphics.root
-            root.setAttribute("viewBox", "0 0 ${crop.width} ${crop.height}")
+            root.setAttribute("viewBox", "0 0 $width $height")
             root.setAttribute("width", crop.width.toString())
             root.setAttribute("height", crop.height.toString())
             root.setAttribute("overflow", "hidden")
@@ -130,6 +145,7 @@ internal class PdfFigureRenderer(private val document: PDDocument) : AutoCloseab
             Files.newBufferedWriter(target).use {
                 transformer.transform(DOMSource(root), StreamResult(it))
             }
+            return graphics.rasterizedFills
         } finally {
             renderer.imageDownscalingOptimizationThreshold = downscalingThreshold
             graphics.dispose()
