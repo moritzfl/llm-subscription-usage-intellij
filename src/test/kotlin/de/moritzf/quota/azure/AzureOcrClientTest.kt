@@ -16,6 +16,7 @@ import java.util.concurrent.CancellationException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Flow
 import java.util.concurrent.TimeUnit
+import javax.imageio.ImageIO
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -465,10 +466,86 @@ class AzureOcrClientTest {
                 )
             }
         assertTrue(error.message.orEmpty().contains("31–31"))
-        assertEquals(2, calls)
+        // The failed single-page PDF is retried once as an image before giving up.
+        assertEquals(3, calls)
         assertEquals("Existing document", Files.readString(output))
         assertEquals("Existing image", Files.readString(existingImage))
         Files.list(directory).use { assertEquals(3, it.count()) }
+    }
+
+    @Test
+    fun serverErrorIsolatesFailingPageAndSendsItAsImage() {
+        val source = directory.resolve("source.pdf")
+        val output = directory.resolve("result.md")
+        createPdf(source, 31)
+        val requests = mutableListOf<String>()
+        val client =
+            AzureOcrClient(
+                post = { request ->
+                    val document =
+                        JsonSupport.json
+                            .decodeFromString<MistralOcrRequestDto>(requestBody(request))
+                            .document
+                    val image = document.imageUrl
+                    if (image != null) {
+                        assertTrue(image.startsWith("data:image/png;base64,"))
+                        val png = Base64.getDecoder().decode(image.substringAfter("base64,"))
+                        assertTrue(ImageIO.read(png.inputStream()).width > 0)
+                        requests += "image"
+                        return@AzureOcrClient AzureOcrResponse(
+                            200,
+                            JsonSupport.json.encodeToString(
+                                MistralOcrResponseDto(listOf(MistralOcrPageDto("# Image page")))
+                            ),
+                        )
+                    }
+                    val bytes =
+                        Base64.getDecoder().decode(document.documentUrl!!.substringAfter("base64,"))
+                    val numbers =
+                        Loader.loadPDF(bytes).use { pdf ->
+                            val text = PDFTextStripper().getText(pdf)
+                            Regex("Page (\\d+)\\.").findAll(text).map { it.groupValues[1] }.toList()
+                        }
+                    requests += numbers.joinToString(",")
+                    if ("5" in numbers)
+                        AzureOcrResponse(500, """{"message":"Failed to process PDF file."}""")
+                    else
+                        AzureOcrResponse(
+                            200,
+                            JsonSupport.json.encodeToString(
+                                MistralOcrResponseDto(
+                                    numbers.map { MistralOcrPageDto("# Page $it") }
+                                )
+                            ),
+                        )
+                }
+            )
+
+        val result =
+            JsonSupport.json.decodeFromString<MistralOcrWriteResult>(
+                client.convertDocument(
+                    testCli(),
+                    azureAccountConfig(null, "test-resource", null, null, null),
+                    "mistral-ocr-4-0",
+                    localFile = source,
+                    outputFile = output,
+                )
+            )
+
+        assertEquals(
+            listOf((1..30).joinToString(",")) +
+                (1..5).map(Int::toString) +
+                "image" +
+                (6..31).map(Int::toString),
+            requests,
+        )
+        assertEquals(31, result.pages)
+        val headings =
+            Regex("(?m)^# (.+)$").findAll(Files.readString(output)).map { it.groupValues[1] }
+        assertEquals(
+            (1..4).map { "Page $it" } + "Image page" + (6..31).map { "Page $it" },
+            headings.toList(),
+        )
     }
 
     @Test

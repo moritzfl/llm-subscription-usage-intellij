@@ -10,17 +10,17 @@ import de.moritzf.quota.shared.DocumentImageOptions
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.McpJson
 import de.moritzf.quota.shared.OriginalPdf
-import java.io.ByteArrayOutputStream
+import de.moritzf.quota.shared.document.PdfOcrSlices
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.net.http.HttpTimeoutException
 import java.nio.file.Path
 import java.time.Duration
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import org.apache.pdfbox.Loader
-import org.apache.pdfbox.multipdf.PageExtractor
 
 internal class AzureOcrException(message: String, val statusCode: Int? = null) : Exception(message)
 
@@ -70,7 +70,7 @@ internal class AzureOcrClient(
             )
         }
         writer.use {
-            fun convertPart(part: AzureDocumentSource, from: Int, to: Int, total: Int) {
+            fun send(part: AzureDocumentSource, from: Int, to: Int, total: Int): AzureOcrResponse {
                 val detail = "Pages $from–$to of $total"
                 progress.update(from - 1, total, detail)
                 val document =
@@ -107,10 +107,14 @@ internal class AzureOcrClient(
                 val first = sendWithCliToken()
                 val response = if (first.status == 401) sendWithCliToken() else first
                 progress.update(from - 1, total, detail)
+                return response
+            }
+
+            fun accept(response: AzureOcrResponse, from: Int, to: Int, total: Int) {
                 if (response.status !in 200..299) {
                     val error = MistralOcrClient.mistralErrorDetail(response.body)
                     throw AzureOcrException(
-                        "Azure OCR failed for pages $from–$to (HTTP ${response.status})${error?.let { ": $it" }.orEmpty()}.",
+                        "Azure OCR failed for pages $from–$to (HTTP ${response.status})${error?.let { ": ${it.removeSuffix(".")}" }.orEmpty()}.",
                         response.status,
                     )
                 }
@@ -143,42 +147,21 @@ internal class AzureOcrClient(
             if (source.mime == "application/pdf") {
                 Loader.loadPDF(source.bytes).use { pdf ->
                     val total = pdf.numberOfPages
-                    if (total < 1) throw AzureOcrException("PDF has no pages.")
-                    var from = 1
-                    while (from <= total) {
-                        var to = minOf(from + MAX_PAGES_PER_REQUEST - 1, total)
-                        progress.update(from - 1, total, "Preparing pages $from–$to of $total")
-                        var part = source
-                        if (from != 1 || to != total) {
-                            while (true) {
-                                val bytes =
-                                    PageExtractor(pdf, from, to).extract().use { chunk ->
-                                        ByteArrayOutputStream().use { stream ->
-                                            chunk.save(stream)
-                                            stream.toByteArray()
-                                        }
-                                    }
-                                if (bytes.size <= AzureDocumentInput.MAX_DOCUMENT_BYTES) {
-                                    part = AzureDocumentSource(bytes, "application/pdf")
-                                    break
-                                }
-                                if (to == from)
-                                    throw AzureOcrException(
-                                        "PDF page $from exceeds Azure OCR's 20 MB request limit."
-                                    )
-                                to = from + (to - from) / 2
-                                progress.update(
-                                    from - 1,
-                                    total,
-                                    "Preparing pages $from–$to of $total",
-                                )
+                    SLICES.convert(pdf, progress, source.bytes) { bytes, mime, from, to, lastAttempt
+                        ->
+                        val response =
+                            try {
+                                send(AzureDocumentSource(bytes, mime), from, to, total)
+                            } catch (exception: HttpTimeoutException) {
+                                if (lastAttempt) throw exception
+                                return@convert false
                             }
-                        }
-                        convertPart(part, from, to, total)
-                        from = to + 1
+                        if (!lastAttempt && response.status in 500..599) return@convert false
+                        accept(response, from, to, total)
+                        true
                     }
                 }
-            } else convertPart(source, 1, 1, 1)
+            } else accept(send(source, 1, 1, 1), 1, 1, 1)
             if (writer != null) return JsonSupport.json.encodeToString(writer.commit())
         }
         if (responses.size == 1) return McpJson.providerJson(checkNotNull(singleResponse))
@@ -189,7 +172,10 @@ internal class AzureOcrClient(
     }
 
     companion object {
-        private const val MAX_PAGES_PER_REQUEST = 30
+        private val SLICES =
+            PdfOcrSlices("Azure OCR", 30, AzureDocumentInput.MAX_DOCUMENT_BYTES.toLong()) {
+                AzureOcrException(it)
+            }
     }
 }
 

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Keep converting when the OCR service cannot process one page. Mistral OCR on Azure stopped a 2136-page manual with "Failed to process PDF file" (HTTP 500), and Mistral itself timed out on the same page. Mistral, Z.ai, Azure Mistral OCR, and Document Intelligence now retry a slice that fails on the service side page by page, then send the failing page once more as a rendered image. Other errors still stop the conversion.
+
 ## [1.24.0] - 2026-10-24
 
 - Report quota and rate-limit errors that providers send inside an SSE stream instead of failing proxied requests with an uncaught "No completed response found in SSE stream" error. OpenAI-compatible `insufficient_quota` errors now reach the client with HTTP 429 (streaming clients get an `error` event), truncated streams return their partial output with `finish_reason: "length"`, and the exhausted proxy account is marked rate-limited.
