@@ -1,5 +1,5 @@
 [versions]
-kotlinx-serialization-json = "1.11.0"
+kotlinx-serialization-json = "1.12.0"
 # Pinned to the coroutines line bundled with the target IDE (2026.1). The test jar runs
 # without transitives against the platform core, so a newer test jar breaks at runtime.
 kotlinx-coroutines-test = "1.10.2"
