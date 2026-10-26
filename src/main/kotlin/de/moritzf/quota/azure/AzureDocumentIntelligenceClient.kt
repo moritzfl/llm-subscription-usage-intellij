@@ -1,5 +1,6 @@
 package de.moritzf.quota.azure
 
+import de.moritzf.quota.shared.DocumentConversionProgress
 import de.moritzf.quota.shared.DocumentImageOptions
 import de.moritzf.quota.shared.DocumentImageWriter
 import de.moritzf.quota.shared.DocumentMarkdown
@@ -8,6 +9,7 @@ import de.moritzf.quota.shared.McpJson
 import de.moritzf.quota.shared.OriginalPdf
 import de.moritzf.quota.shared.ProviderDocumentImage
 import de.moritzf.quota.shared.document.PdfFigureRegion
+import de.moritzf.quota.shared.document.PdfOcrSlices
 import de.moritzf.quota.shared.rewriteMarkdownImageLinks
 import java.net.URI
 import java.net.http.HttpClient
@@ -23,6 +25,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
+import org.apache.pdfbox.Loader
 
 /** Document Intelligence's prebuilt layout is a service model, not a Foundry deployment. */
 internal class AzureDocumentIntelligenceClient(
@@ -48,6 +51,7 @@ internal class AzureDocumentIntelligenceClient(
         outputFile: Path? = null,
         includeImages: Boolean = true,
         imageOptions: DocumentImageOptions = DocumentImageOptions(),
+        progress: DocumentConversionProgress = DocumentConversionProgress.NONE,
     ): String {
         val endpoint =
             azureDocumentIntelligenceUri(config)
@@ -58,12 +62,6 @@ internal class AzureDocumentIntelligenceClient(
         val markdownOutput = outputFile ?: DocumentMarkdown.defaultOutput(localFile)
         val writeImages = includeImages && markdownOutput != null
         val uri = URI.create(endpoint.toString() + if (writeImages) "&output=figures" else "")
-        val body =
-            JsonSupport.json.encodeToString(
-                AzureDocumentAnalyzeRequest(
-                    base64Source = Base64.getEncoder().encodeToString(source.bytes)
-                )
-            )
 
         fun request(
             uri: URI,
@@ -90,122 +88,193 @@ internal class AzureDocumentIntelligenceClient(
             return if (first.status == 401) sendWithToken() else first
         }
 
-        val started = request(uri, "POST", body)
-        if (started.status != 202)
-            throw azureDocumentError("Document Intelligence analysis", started)
-        val location =
-            started.header("Operation-Location")?.let { runCatching { URI(it) }.getOrNull() }
-                ?: throw AzureOcrException("Document Intelligence returned no analysis location.")
-        val prefix = "/documentintelligence/documentModels/prebuilt-layout/analyzeResults/"
-        if (
-            location.scheme != "https" ||
-                location.host != endpoint.host ||
-                location.port != -1 ||
-                !location.path.startsWith(prefix) ||
-                location.rawQuery != "api-version=2024-11-30" ||
-                !location.path.removePrefix(prefix).matches(Regex("[0-9a-fA-F-]{36}"))
-        )
-            throw AzureOcrException("Document Intelligence returned an invalid analysis location.")
-
-        val deadline = System.nanoTime() + Duration.ofSeconds(120).toNanos()
-        var delay = started.header("Retry-After")?.toLongOrNull()?.coerceIn(1, 10) ?: 2L
-        var resultBody: String? = null
-        while (System.nanoTime() < deadline) {
-            try {
-                Thread.sleep(delay * 1000)
-            } catch (_: InterruptedException) {
-                Thread.currentThread().interrupt()
-                throw AzureOcrException("Document Intelligence analysis was cancelled.")
-            }
-            val poll = request(location, "GET")
-            if (poll.status != 200) throw azureDocumentError("Document Intelligence result", poll)
-            val json =
-                runCatching {
-                    JsonSupport.json.parseToJsonElement(poll.body.decodeToString()) as? JsonObject
-                }
-                    .getOrNull()
+        /** With [retryable], a server-side failure returns null so its pages can be isolated. */
+        fun analyze(bytes: ByteArray, retryable: Boolean): AzureDocumentAnalysis? {
+            val body =
+                JsonSupport.json.encodeToString(
+                    AzureDocumentAnalyzeRequest(Base64.getEncoder().encodeToString(bytes))
+                )
+            val started = request(uri, "POST", body)
+            if (retryable && started.status in 500..599) return null
+            if (started.status != 202)
+                throw azureDocumentError("Document Intelligence analysis", started)
+            val location =
+                started.header("Operation-Location")?.let { runCatching { URI(it) }.getOrNull() }
                     ?: throw AzureOcrException(
-                        "Document Intelligence returned an invalid analysis result."
+                        "Document Intelligence returned no analysis location."
                     )
-            when ((json["status"] as? JsonPrimitive)?.contentOrNull?.lowercase()) {
-                "succeeded" -> {
-                    resultBody = poll.body.decodeToString()
-                    break
-                }
-
-                "failed",
-                "canceled" -> throw AzureOcrException("Document Intelligence analysis failed.")
-                "running",
-                "notstarted" ->
-                    delay = poll.header("Retry-After")?.toLongOrNull()?.coerceIn(1, 10) ?: 2L
-                else ->
-                    throw AzureOcrException(
-                        "Document Intelligence returned an unknown analysis status."
-                    )
-            }
-        }
-        val jsonText =
-            resultBody ?: throw AzureOcrException("Document Intelligence analysis timed out.")
-        val root = JsonSupport.json.parseToJsonElement(jsonText) as JsonObject
-        val result =
-            root["analyzeResult"] as? JsonObject
-                ?: throw AzureOcrException("Document Intelligence returned no document content.")
-        val markdown =
-            (result["content"] as? JsonPrimitive)?.contentOrNull
-                ?: throw AzureOcrException("Document Intelligence returned no markdown.")
-        if (markdownOutput == null) return McpJson.providerJson(jsonText)
-
-        val figures = (result["figures"] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }
-        DocumentImageWriter(
-                markdownOutput,
-                imageOptions,
-                OriginalPdf.bytes(source.bytes, source.mime),
+            val prefix = "/documentintelligence/documentModels/prebuilt-layout/analyzeResults/"
+            if (
+                location.scheme != "https" ||
+                    location.host != endpoint.host ||
+                    location.port != -1 ||
+                    !location.path.startsWith(prefix) ||
+                    location.rawQuery != "api-version=2024-11-30" ||
+                    !location.path.removePrefix(prefix).matches(Regex("[0-9a-fA-F-]{36}"))
             )
-            .use { images ->
-                val links = mutableMapOf<String, String?>()
-                if (writeImages) {
-                    figures.forEachIndexed { index, figure ->
-                        val id =
-                            (figure["id"] as? JsonPrimitive)?.contentOrNull?.takeIf {
-                                it.matches(Regex("[A-Za-z0-9._-]{1,100}"))
-                            } ?: return@forEachIndexed
-                        val region = azureFigureRegion(figure, result["pages"] as? JsonArray)
-                        links["figures/$id"] =
-                            images.write(region?.page ?: 1, index + 1, region) {
-                                val figureUri =
-                                    URI.create(
-                                        location.toString().substringBefore('?') +
-                                            "/figures/$id?api-version=2024-11-30"
-                                    )
-                                val image = request(figureUri, "GET")
-                                if (
-                                    image.status != 200 ||
-                                        image.body.size > AzureDocumentInput.MAX_DOCUMENT_BYTES ||
-                                        image.body.size < 8
-                                ) {
-                                    throw AzureOcrException(
-                                        "Could not retrieve Document Intelligence figure $id."
-                                    )
-                                }
-                                ProviderDocumentImage(image.body, "png")
-                            }
-                    }
+                throw AzureOcrException(
+                    "Document Intelligence returned an invalid analysis location."
+                )
+
+            val deadline = System.nanoTime() + Duration.ofSeconds(120).toNanos()
+            var delay = started.header("Retry-After")?.toLongOrNull()?.coerceIn(1, 10) ?: 2L
+            var resultBody: String? = null
+            while (System.nanoTime() < deadline) {
+                try {
+                    Thread.sleep(delay * 1000)
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    throw AzureOcrException("Document Intelligence analysis was cancelled.")
                 }
-                var content = rewriteMarkdownImageLinks(markdown, links)
-                content =
-                    Regex("!\\[([^]]*)]\\(figures/[^)]+\\)").replace(content) { it.groupValues[1] }
+                val poll = request(location, "GET")
+                if (retryable && poll.status in 500..599) return null
+                if (poll.status != 200)
+                    throw azureDocumentError("Document Intelligence result", poll)
                 val json =
-                    DocumentMarkdown.resultJson(
-                        content,
-                        markdownOutput,
-                        images.imageFiles,
-                        pageCount = (result["pages"] as? JsonArray)?.size,
-                        warnings = images.warnings,
-                        imageExport = images.report.takeIf { writeImages },
-                    )
-                images.commit()
-                return json
+                    runCatching {
+                        JsonSupport.json.parseToJsonElement(poll.body.decodeToString())
+                            as? JsonObject
+                    }
+                        .getOrNull()
+                        ?: throw AzureOcrException(
+                            "Document Intelligence returned an invalid analysis result."
+                        )
+                when ((json["status"] as? JsonPrimitive)?.contentOrNull?.lowercase()) {
+                    "succeeded" -> {
+                        resultBody = poll.body.decodeToString()
+                        break
+                    }
+
+                    "failed" ->
+                        if (retryable) return null
+                        else throw AzureOcrException("Document Intelligence analysis failed.")
+                    "canceled" -> throw AzureOcrException("Document Intelligence analysis failed.")
+                    "running",
+                    "notstarted" ->
+                        delay = poll.header("Retry-After")?.toLongOrNull()?.coerceIn(1, 10) ?: 2L
+                    else ->
+                        throw AzureOcrException(
+                            "Document Intelligence returned an unknown analysis status."
+                        )
+                }
             }
+            val jsonText =
+                resultBody
+                    ?: if (retryable) return null
+                    else throw AzureOcrException("Document Intelligence analysis timed out.")
+            val root = JsonSupport.json.parseToJsonElement(jsonText) as JsonObject
+            val result =
+                root["analyzeResult"] as? JsonObject
+                    ?: throw AzureOcrException(
+                        "Document Intelligence returned no document content."
+                    )
+            val markdown =
+                (result["content"] as? JsonPrimitive)?.contentOrNull
+                    ?: throw AzureOcrException("Document Intelligence returned no markdown.")
+            return AzureDocumentAnalysis(location, jsonText, result, markdown)
+        }
+
+        fun markdown(
+            analysis: AzureDocumentAnalysis,
+            images: DocumentImageWriter,
+            pageOffset: Int,
+        ): String {
+            val result = analysis.result
+            val links = mutableMapOf<String, String?>()
+            if (writeImages) {
+                val figures =
+                    (result["figures"] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }
+                figures.forEachIndexed { index, figure ->
+                    val id =
+                        (figure["id"] as? JsonPrimitive)?.contentOrNull?.takeIf {
+                            it.matches(Regex("[A-Za-z0-9._-]{1,100}"))
+                        } ?: return@forEachIndexed
+                    val region =
+                        azureFigureRegion(figure, result["pages"] as? JsonArray)?.let {
+                            it.copy(page = it.page + pageOffset)
+                        }
+                    links["figures/$id"] =
+                        images.write(region?.page ?: (pageOffset + 1), index + 1, region) {
+                            val figureUri =
+                                URI.create(
+                                    analysis.location.toString().substringBefore('?') +
+                                        "/figures/$id?api-version=2024-11-30"
+                                )
+                            val image = request(figureUri, "GET")
+                            if (
+                                image.status != 200 ||
+                                    image.body.size > AzureDocumentInput.MAX_DOCUMENT_BYTES ||
+                                    image.body.size < 8
+                            ) {
+                                throw AzureOcrException(
+                                    "Could not retrieve Document Intelligence figure $id."
+                                )
+                            }
+                            ProviderDocumentImage(image.body, "png")
+                        }
+                }
+            }
+            val content = rewriteMarkdownImageLinks(analysis.markdown, links)
+            return Regex("!\\[([^]]*)]\\(figures/[^)]+\\)").replace(content) { it.groupValues[1] }
+        }
+
+        // Without an output file the provider JSON is returned unchanged, so it stays one request.
+        val pdf =
+            if (markdownOutput != null && source.mime == "application/pdf")
+                runCatching { Loader.loadPDF(source.bytes) }.getOrNull()
+            else null
+        if (pdf == null) {
+            val analysis = checkNotNull(analyze(source.bytes, retryable = false))
+            if (markdownOutput == null) return McpJson.providerJson(analysis.json)
+            DocumentImageWriter(
+                    markdownOutput,
+                    imageOptions,
+                    OriginalPdf.bytes(source.bytes, source.mime),
+                )
+                .use { images ->
+                    val json =
+                        DocumentMarkdown.resultJson(
+                            markdown(analysis, images, 0),
+                            markdownOutput,
+                            images.imageFiles,
+                            pageCount = (analysis.result["pages"] as? JsonArray)?.size,
+                            warnings = images.warnings,
+                            imageExport = images.report.takeIf { writeImages },
+                        )
+                    images.commit()
+                    return json
+                }
+        }
+        pdf.use {
+            DocumentImageWriter(
+                    checkNotNull(markdownOutput),
+                    imageOptions,
+                    OriginalPdf.bytes(source.bytes, source.mime),
+                )
+                .use { images ->
+                    val total = pdf.numberOfPages
+                    val parts = mutableListOf<String>()
+                    SLICES.convert(pdf, progress, source.bytes) { bytes, _, from, to, lastAttempt ->
+                        progress.update(from - 1, total, "Pages $from–$to of $total")
+                        val analysis =
+                            analyze(bytes, retryable = !lastAttempt) ?: return@convert false
+                        parts += markdown(analysis, images, from - 1)
+                        progress.update(to, total, "Converted $to of $total pages")
+                        true
+                    }
+                    val json =
+                        DocumentMarkdown.resultJson(
+                            parts.joinToString("\n\n"),
+                            markdownOutput,
+                            images.imageFiles,
+                            pageCount = total,
+                            warnings = images.warnings,
+                            imageExport = images.report.takeIf { writeImages },
+                        )
+                    images.commit()
+                    return json
+                }
+        }
     }
 
     private fun azureDocumentError(
@@ -223,7 +292,25 @@ internal class AzureDocumentIntelligenceClient(
             response.status,
         )
     }
+
+    companion object {
+        private val SLICES =
+            PdfOcrSlices(
+                "Document Intelligence",
+                30,
+                AzureDocumentInput.MAX_DOCUMENT_BYTES.toLong(),
+            ) {
+                AzureOcrException(it)
+            }
+    }
 }
+
+private class AzureDocumentAnalysis(
+    val location: URI,
+    val json: String,
+    val result: JsonObject,
+    val markdown: String,
+)
 
 internal fun azureFigureRegion(figure: JsonObject, pages: JsonArray?): PdfFigureRegion? {
     val region =

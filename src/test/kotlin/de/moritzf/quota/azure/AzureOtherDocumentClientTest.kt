@@ -4,17 +4,30 @@ import de.moritzf.quota.mistral.MistralOcrWriteResult
 import de.moritzf.quota.shared.DocumentMarkdownWriteResult
 import de.moritzf.quota.shared.JsonSupport
 import java.awt.image.BufferedImage
+import java.io.ByteArrayOutputStream
+import java.net.http.HttpRequest
+import java.nio.ByteBuffer
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.Base64
 import java.util.concurrent.CancellationException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Flow
+import java.util.concurrent.TimeUnit
 import javax.imageio.ImageIO
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import org.apache.pdfbox.Loader
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
+import org.apache.pdfbox.pdmodel.PDPageContentStream
+import org.apache.pdfbox.pdmodel.font.PDType1Font
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts
+import org.apache.pdfbox.text.PDFTextStripper
+import org.junit.jupiter.api.io.TempDir
 
 class AzureOtherDocumentClientTest {
     private val config = azureAccountConfig(null, "my-resource", null, null, null)
@@ -401,6 +414,111 @@ class AzureOtherDocumentClientTest {
             Files.deleteIfExists(target)
             Files.deleteIfExists(source)
         }
+    }
+
+    @Test
+    fun documentIntelligenceIsolatesFailingPageAndSendsItAsImage(@TempDir directory: Path) {
+        val source = directory.resolve("source.pdf")
+        PDDocument().use { pdf ->
+            repeat(3) { index ->
+                val page = PDPage()
+                pdf.addPage(page)
+                PDPageContentStream(pdf, page).use { content ->
+                    content.beginText()
+                    content.setFont(PDType1Font(Standard14Fonts.FontName.HELVETICA), 12f)
+                    content.newLineAtOffset(40f, 700f)
+                    content.showText("Page ${index + 1}.")
+                    content.endText()
+                }
+            }
+            pdf.save(source.toFile())
+        }
+        val operation =
+            "https://my-resource.cognitiveservices.azure.com/documentintelligence/" +
+                "documentModels/prebuilt-layout/analyzeResults/11111111-1111-1111-1111-111111111111?api-version=2024-11-30"
+        val analyses = mutableListOf<String>()
+        val client =
+            AzureDocumentIntelligenceClient(
+                send = { request ->
+                    if (request.method() == "POST") {
+                        val bytes =
+                            Base64.getDecoder()
+                                .decode(
+                                    JsonSupport.json
+                                        .decodeFromString<AzureDocumentAnalyzeRequest>(
+                                            requestBody(request)
+                                        )
+                                        .base64Source
+                                )
+                        analyses +=
+                            if (ImageIO.read(bytes.inputStream()) != null) "image"
+                            else
+                                Loader.loadPDF(bytes).use { pdf ->
+                                    Regex("Page (\\d+)\\.")
+                                        .findAll(PDFTextStripper().getText(pdf))
+                                        .joinToString(",") { it.groupValues[1] }
+                                }
+                        AzureDocumentIntelligenceResponse(
+                            202,
+                            mapOf("Operation-Location" to operation, "Retry-After" to "1"),
+                            byteArrayOf(),
+                        )
+                    } else {
+                        val analysis = analyses.last()
+                        val body =
+                            if ("2" in analysis.split(',')) """{"status":"failed"}"""
+                            else {
+                                val title =
+                                    if (analysis == "image") "Image page" else "Page $analysis"
+                                """{"status":"succeeded","analyzeResult":{"content":"# $title","pages":[{"pageNumber":1}]}}"""
+                            }
+                        AzureDocumentIntelligenceResponse(200, emptyMap(), body.toByteArray())
+                    }
+                }
+            )
+
+        val result =
+            JsonSupport.json.decodeFromString<DocumentMarkdownWriteResult>(
+                client.convertDocument(
+                    cli(AZURE_COGNITIVE_SCOPE),
+                    config,
+                    localFile = source,
+                    includeImages = false,
+                )
+            )
+
+        assertEquals(listOf("1,2,3", "1", "2", "image", "3"), analyses)
+        assertEquals(3, result.pageCount)
+        assertEquals(
+            "# Page 1\n\n# Image page\n\n# Page 3",
+            Files.readString(directory.resolve("source.md")),
+        )
+    }
+
+    private fun requestBody(request: HttpRequest): String {
+        val output = ByteArrayOutputStream()
+        val completed = CountDownLatch(1)
+        request
+            .bodyPublisher()
+            .orElseThrow()
+            .subscribe(
+                object : Flow.Subscriber<ByteBuffer> {
+                    override fun onSubscribe(subscription: Flow.Subscription) =
+                        subscription.request(Long.MAX_VALUE)
+
+                    override fun onNext(item: ByteBuffer) {
+                        val bytes = ByteArray(item.remaining())
+                        item.get(bytes)
+                        output.write(bytes)
+                    }
+
+                    override fun onError(throwable: Throwable) = completed.countDown()
+
+                    override fun onComplete() = completed.countDown()
+                }
+            )
+        assertTrue(completed.await(5, TimeUnit.SECONDS))
+        return output.toString(Charsets.UTF_8)
     }
 
     private fun cli(scope: String) =

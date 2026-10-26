@@ -151,6 +151,7 @@ internal object PdfDocumentConversion {
                                     outputFile = output,
                                     includeImages = includeImages,
                                     imageOptions = imageOptions,
+                                    progress = progress,
                                 )
                         isAzureCohereSelection(selection) ->
                             AzureCohereParseClient()
