@@ -119,6 +119,7 @@ internal object PdfDocumentConversion {
                             includeImages = includeImages,
                             model = selectedModel(),
                             imageOptions = imageOptions,
+                            progress = progress,
                         )
                 }
                 DocumentToMarkdownProvider.AZURE -> {

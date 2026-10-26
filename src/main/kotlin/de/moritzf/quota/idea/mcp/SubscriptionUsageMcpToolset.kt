@@ -266,7 +266,7 @@ class SubscriptionUsageMcpToolset : McpToolset {
     @McpTool(name = "subscription_document_to_markdown")
     @McpDescription(
         description =
-            "Converts a PDF or image to markdown. Prefer a document or OCR provider (MISTRAL, ZAI, or a company model such as AZURE). Use OPEN_AI/Codex or SUPERGROK vision only when no OCR provider is available or explicitly requested. PDFBOX is local Apache PDFBox text extraction: free, no login, no OCR, no figures, and often the wrong reading order. Z.ai and Cohere split long local PDFs automatically. For large PDFs on Codex/SuperGrok/PDFBOX, use pageFrom/pageTo. With localFile, markdown defaults to <name>.md beside it. Images are never returned as base64."
+            "Converts a PDF or image to markdown. Prefer a document or OCR provider (MISTRAL, ZAI, or a company model such as AZURE). Use OPEN_AI/Codex or SUPERGROK vision only when no OCR provider is available or explicitly requested. PDFBOX is local Apache PDFBox text extraction: free, no login, no OCR, no figures, and often the wrong reading order. Mistral, Z.ai, and Azure split long local PDFs automatically. For large PDFs on Codex/SuperGrok/PDFBOX, use pageFrom/pageTo. With localFile, markdown defaults to <name>.md beside it. Images are never returned as base64."
     )
     suspend fun subscription_document_to_markdown(
         @McpDescription(
