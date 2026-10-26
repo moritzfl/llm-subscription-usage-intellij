@@ -266,8 +266,67 @@ class ZaiOcrClientTest {
                 )
             }
         assertTrue(error.message.orEmpty().contains("31–31"))
-        assertEquals(2, calls)
+        // The failed single-page PDF is retried once as an image before giving up.
+        assertEquals(3, calls)
         assertEquals("Existing document", Files.readString(output))
+    }
+
+    @Test
+    fun serverErrorIsolatesFailingPageAndSendsItAsImage(@TempDir dir: Path) {
+        val source = dir.resolve("source.pdf")
+        createPdf(source, 3)
+        val requests = mutableListOf<String>()
+        val client =
+            ZaiOcrClient(
+                post = { request ->
+                    val file =
+                        JsonSupport.json
+                            .decodeFromString<ZaiLayoutParsingRequestDto>(requestBody(request))
+                            .file
+                    val bytes = Base64.getDecoder().decode(file.substringAfter("base64,"))
+                    if (file.startsWith("data:image/png;base64,")) {
+                        requests += "image"
+                        return@ZaiOcrClient ZaiHttpResult(200, """{"md_results":"# Image page"}""")
+                    }
+                    val numbers =
+                        Loader.loadPDF(bytes).use { pdf ->
+                            Regex("Page (\\d+)\\.")
+                                .findAll(PDFTextStripper().getText(pdf))
+                                .map { it.groupValues[1].toInt() }
+                                .toList()
+                        }
+                    requests += numbers.joinToString(",")
+                    if (2 in numbers) ZaiHttpResult(500, """{"message":"nope"}""")
+                    else ZaiHttpResult(200, chunkBody(numbers.first(), numbers.last()))
+                }
+            )
+
+        client.convertDocument("token", localFile = source, includeImages = false)
+
+        assertEquals(listOf("1,2,3", "1", "2", "image", "3"), requests)
+        assertEquals(
+            "# Page 1\n\n# Image page\n\n# Page 3",
+            Files.readString(dir.resolve("source.md")),
+        )
+    }
+
+    @Test
+    fun clientErrorStopsWithoutPageFallback(@TempDir dir: Path) {
+        val source = dir.resolve("source.pdf")
+        createPdf(source, 3)
+        var calls = 0
+        val client =
+            ZaiOcrClient(
+                post = {
+                    calls++
+                    ZaiHttpResult(400, """{"message":"bad request"}""")
+                }
+            )
+
+        assertFailsWith<ZaiQuotaException> {
+            client.convertDocument("token", localFile = source, includeImages = false)
+        }
+        assertEquals(1, calls)
     }
 
     private fun chunkBody(from: Int, to: Int): String {

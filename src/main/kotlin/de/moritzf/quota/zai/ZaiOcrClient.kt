@@ -12,14 +12,15 @@ import de.moritzf.quota.shared.OriginalPdf
 import de.moritzf.quota.shared.ProviderDocumentImage
 import de.moritzf.quota.shared.document.PdfFigureRegion
 import de.moritzf.quota.shared.document.PdfFigureRenderer
+import de.moritzf.quota.shared.document.PdfOcrSlices
 import de.moritzf.quota.shared.document.PdfPages
 import de.moritzf.quota.shared.rewriteMarkdownImageLinks
-import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.net.http.HttpTimeoutException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
@@ -33,7 +34,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import org.apache.pdfbox.Loader
-import org.apache.pdfbox.multipdf.PageExtractor
 
 open class ZaiOcrClient(
     private val httpClient: HttpClient = defaultHttpClient(),
@@ -83,11 +83,10 @@ open class ZaiOcrClient(
         if (documentUrl.isNullOrBlank() && localFile != null && PdfPages.isPdf(localFile)) {
             DocumentLimits.inlineOverflowMessage(localFile)?.let { throw ZaiQuotaException(it) }
             val pages = PdfPages.pageCount(localFile)
-            val size = Files.size(localFile)
-            if (pages == null && size > MAX_PDF_BYTES) {
+            if (pages == null && Files.size(localFile) > MAX_PDF_BYTES) {
                 throw ZaiQuotaException("Could not read PDF page count.")
             }
-            if (pages != null && (pages > MAX_PAGES || size > MAX_PDF_BYTES)) {
+            if (pages != null) {
                 return convertPdfChunks(
                     token,
                     localFile,
@@ -139,53 +138,38 @@ open class ZaiOcrClient(
         total: Int,
     ): String {
         if (total < 1) throw ZaiQuotaException("PDF has no pages.")
-        val markdownOutput = outputFile ?: defaultMarkdownOutput(localFile)
-        val writeImages = includeImages && markdownOutput != null
-        val destination =
-            markdownOutput
-                ?: throw ZaiQuotaException(
-                    "Provide a local PDF so converted markdown can be saved."
-                )
+        val destination = outputFile ?: checkNotNull(defaultMarkdownOutput(localFile))
         val parts = mutableListOf<String>()
         val writer = DocumentImageWriter(destination, imageOptions, OriginalPdf.local(localFile))
         writer.use { images ->
             Loader.loadPDF(localFile.toFile()).use { pdf ->
-                var from = 1
-                while (from <= total) {
-                    var to = minOf(from + MAX_PAGES - 1, total)
-                    progress.update(from - 1, total, "Preparing pages $from–$to of $total")
-                    var bytes: ByteArray
-                    while (true) {
-                        bytes =
-                            PageExtractor(pdf, from, to).extract().use { chunk ->
-                                ByteArrayOutputStream().use { stream ->
-                                    chunk.save(stream)
-                                    stream.toByteArray()
-                                }
-                            }
-                        if (bytes.size <= MAX_PDF_BYTES) break
-                        if (to == from)
-                            throw ZaiQuotaException(
-                                "PDF page $from exceeds Z.ai OCR's 50 MB request limit."
-                            )
-                        to = from + (to - from) / 2
-                        progress.update(from - 1, total, "Preparing pages $from–$to of $total")
-                    }
-                    val detail = "Pages $from–$to of $total"
-                    progress.update(from - 1, total, detail)
+                val original =
+                    if (total <= MAX_PAGES && Files.size(localFile) <= MAX_PDF_BYTES)
+                        Files.readAllBytes(localFile)
+                    else null
+                SLICES.convert(pdf, progress, original) { bytes, mime, from, to, lastAttempt ->
+                    progress.update(from - 1, total, "Pages $from–$to of $total")
                     val response =
-                        request(
-                            token,
-                            model,
-                            "data:application/pdf;base64,${Base64.getEncoder().encodeToString(bytes)}",
-                            writeImages,
-                            from,
-                            to,
-                        )
+                        try {
+                            request(
+                                token,
+                                model,
+                                "data:$mime;base64,${Base64.getEncoder().encodeToString(bytes)}",
+                                includeImages,
+                                from,
+                                to,
+                            )
+                        } catch (exception: ZaiQuotaException) {
+                            val serverSide =
+                                exception.statusCode in 500..599 ||
+                                    exception.cause is HttpTimeoutException
+                            if (lastAttempt || !serverSide) throw exception
+                            return@convert false
+                        }
                     val parsed = decodeResponse(response.body, from, to)
                     val reported = reportedPages(parsed)
-                    val expected = to - from + 1
-                    if (reported != expected) {
+                    // A rendered page is one image, whatever page metadata Z.ai reports for it.
+                    if (mime == PdfOcrSlices.PDF && reported != to - from + 1) {
                         throw ZaiQuotaException(
                             "Z.ai OCR returned $reported pages for pages $from–$to; output was not saved.",
                             200,
@@ -193,7 +177,13 @@ open class ZaiOcrClient(
                         )
                     }
                     val markdown =
-                        applyResponse(parsed, writeImages, images, { downloadBytes(it) }, from - 1)
+                        applyResponse(
+                                parsed,
+                                includeImages,
+                                images,
+                                { downloadBytes(it) },
+                                from - 1,
+                            )
                             .trim()
                     if (markdown.isEmpty()) {
                         throw ZaiQuotaException(
@@ -204,7 +194,7 @@ open class ZaiOcrClient(
                     }
                     parts += markdown
                     progress.update(to, total, "Converted $to of $total pages")
-                    from = to + 1
+                    true
                 }
             }
             DocumentMarkdown.writeAtomically(destination, parts.joinToString("\n\n"))
@@ -215,7 +205,7 @@ open class ZaiOcrClient(
                     images.imageFiles,
                     total,
                     images.warnings,
-                    images.report.takeIf { writeImages },
+                    images.report.takeIf { includeImages },
                 )
             )
         }
@@ -300,6 +290,10 @@ open class ZaiOcrClient(
         const val DEFAULT_MODEL = de.moritzf.quota.shared.DocumentModels.ZAI_DEFAULT
         private const val MAX_PAGES = 30
         private const val MAX_PDF_BYTES = 50L * 1024 * 1024
+        private val SLICES =
+            PdfOcrSlices("Z.ai OCR", MAX_PAGES, MAX_PDF_BYTES, maxImageBytes = 10L * 1024 * 1024) {
+                ZaiQuotaException(it)
+            }
         private val LAYOUT_PARSING_URI = URI.create("https://api.z.ai/api/paas/v4/layout_parsing")
 
         fun createDefault(): ZaiOcrClient = ZaiOcrClient()
