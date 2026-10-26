@@ -7,6 +7,7 @@
 - Convert long PDFs with Azure Document Intelligence in requests of at most 30 pages, so a long document no longer runs past the two-minute analysis limit.
 - Keep PDF figures as SVG when they use gradients or patterns. Gradients in ICC-based or other color spaces, and gradients built from sampled functions (common in Office exports), failed with "SVG gradient does not support ICCBased" and fell back to PNG; they are now converted to SVG gradients. Fills SVG cannot express, such as tiling patterns ("Unsupported SVG paint: TilingPaint") and radial or mesh shadings, are embedded as images at the export DPI, while the rest of the figure stays vector.
 - Save only what a figure shows. Each exported SVG used to contain its whole PDF page, clipped to the figure, so four figures on one page meant four copies of the page; shapes outside the figure are now left out and embedded pictures are cropped to their visible part at full resolution.
+- Store a figure that repeats unchanged, such as a logo or header on many pages, once: figures whose exported file is byte-identical now link to the first copy, and the summary reports how many were reused.
 
 ## [1.24.0] - 2026-10-24
 

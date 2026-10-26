@@ -12,6 +12,8 @@ internal data class DocumentImageExportReport(
     val png: Int = 0,
     val provider: Int = 0,
     val failed: Int = 0,
+    /** Saved figures that link to a byte-identical earlier file instead of their own copy. */
+    val reused: Int = 0,
     val diagnostics: List<String> = emptyList(),
 ) {
     val succeeded: Int

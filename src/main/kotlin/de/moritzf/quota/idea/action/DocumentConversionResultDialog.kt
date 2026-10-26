@@ -94,6 +94,8 @@ internal fun documentConversionSummary(result: DocumentConversionResult): String
 
             DocumentImageFormat.PROVIDER -> append("Provider images: ${images.provider} saved.")
         }
+        if (images.reused > 0)
+            append("\nDuplicates: ${images.reused} reuse an identical earlier image file.")
         if (images.failed > 0) append("\nFailed images were omitted from Markdown.")
     }
 }

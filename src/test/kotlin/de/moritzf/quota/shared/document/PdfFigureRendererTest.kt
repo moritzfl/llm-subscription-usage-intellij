@@ -523,6 +523,39 @@ class PdfFigureRendererTest {
         }
     }
 
+    @Test
+    fun identicalFiguresShareOneFile() {
+        val document = quadrantPdf(0).also { quadrantPdf(0, it) }.also { quadrantPdf(90, it) }
+        DocumentImageWriter(
+                directory.resolve("duplicates.md"),
+                DocumentImageOptions(),
+                { PdfFigureRenderer(document) },
+            )
+            .use { writer ->
+                val region = { page: Int -> PdfFigureRegion(page, 0.0, 0.0, 0.5, 0.5) }
+                val first = writer.write(1, 1, region(1)) { error("Not needed") }
+                val repeated = writer.write(2, 1, region(2)) { error("Not needed") }
+                val rotated = writer.write(3, 1, region(3)) { error("Not needed") }
+                val provider = { ProviderDocumentImage(byteArrayOf(1, 2, 3), "png") }
+                val providerFirst = writer.write(4, 1, null, provider)
+                val providerRepeated = writer.write(5, 1, null, provider)
+                assertEquals(first, repeated)
+                assertTrue(rotated != first)
+                assertEquals(providerFirst, providerRepeated)
+                assertEquals(3, writer.imageFiles.size)
+                assertEquals(2, writer.report.reused)
+                assertEquals(3, writer.report.svg)
+                assertEquals(2, writer.report.provider)
+                assertTrue(
+                    writer.report.diagnostics.any {
+                        it.startsWith("Page 2, figure 1: identical to page-1-image-1.svg")
+                    }
+                )
+                val folder = Path.of(writer.imageFiles.first()).parent
+                Files.list(folder).use { assertEquals(3L, it.count()) }
+            }
+    }
+
     private fun transcode(svg: Path): BufferedImage =
         ByteArrayOutputStream().use { bytes ->
             PNGTranscoder()
@@ -629,7 +662,8 @@ class PdfFigureRendererTest {
                 assertEquals(1, report.png)
                 assertEquals(1, report.provider)
                 assertEquals(2, report.failed)
-                assertEquals(4, writer.imageFiles.size)
+                assertEquals(1, report.reused, "Page 1's second figure repeats its first")
+                assertEquals(3, writer.imageFiles.size)
                 assertTrue(report.diagnostics.any { it.contains("Provider download failed") })
                 assertTrue(report.diagnostics.any { it.contains("Invalid figure coordinates") })
             }
@@ -652,8 +686,7 @@ class PdfFigureRendererTest {
             }
     }
 
-    private fun quadrantPdf(rotation: Int): PDDocument {
-        val document = PDDocument()
+    private fun quadrantPdf(rotation: Int, document: PDDocument = PDDocument()): PDDocument {
         val page =
             PDPage(PDRectangle(400f, 400f)).apply {
                 cropBox = PDRectangle(50f, 75f, 200f, 100f)

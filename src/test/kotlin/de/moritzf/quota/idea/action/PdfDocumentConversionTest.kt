@@ -75,6 +75,7 @@ class PdfDocumentConversionTest {
                     png = 5,
                     provider = 3,
                     failed = 1,
+                    reused = 2,
                     diagnostics = listOf(trace),
                 )
             val response =
@@ -90,6 +91,7 @@ class PdfDocumentConversionTest {
             assertTrue(summary.contains("16 of 17 saved; 1 failed"))
             assertTrue(summary.contains("Requested SVG: 8 saved"))
             assertTrue(summary.contains("5 PNG at 300 DPI; 3 provider images"))
+            assertTrue(summary.contains("Duplicates: 2 reuse an identical earlier image file."))
             assertFalse(summary.contains("IllegalStateException"))
             assertTrue(documentConversionDetails(result).contains(trace.trim()))
             assertEquals(report, result.imageExport)

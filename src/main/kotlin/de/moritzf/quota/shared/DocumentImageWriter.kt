@@ -6,6 +6,8 @@ import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption.CREATE_NEW
+import java.security.MessageDigest
+import java.util.HexFormat
 
 internal class ProviderDocumentImage(val bytes: ByteArray, val extension: String)
 
@@ -24,6 +26,7 @@ internal class DocumentImageWriter(
     private var sourceError: String? = null
     private var committed = false
     private val files = mutableListOf<Path>()
+    private val byContent = mutableMapOf<String, Path>()
     val imageFiles: List<String>
         get() = files.map(Path::toString)
 
@@ -33,6 +36,7 @@ internal class DocumentImageWriter(
     private var pngCount = 0
     private var providerCount = 0
     private var failedCount = 0
+    private var reusedCount = 0
     val report: DocumentImageExportReport
         get() =
             DocumentImageExportReport(
@@ -42,6 +46,7 @@ internal class DocumentImageWriter(
                 pngCount,
                 providerCount,
                 failedCount,
+                reusedCount,
                 diagnostics.toList(),
             )
 
@@ -73,7 +78,7 @@ internal class DocumentImageWriter(
                             else
                                 "$label: saved SVG from original PDF; $rasterized pattern or " +
                                     "shading fill(s) without an SVG equivalent embedded as raster."
-                        return retain(svg)
+                        return retain(svg, label)
                     } catch (exception: Exception) {
                         rethrowCancellation(exception)
                         Files.deleteIfExists(svg)
@@ -88,7 +93,7 @@ internal class DocumentImageWriter(
                     source.renderPng(region, png, options.dpi, options.paddingPoints)
                     pngCount++
                     diagnostics += "$label: saved PNG from original PDF at ${options.dpi} DPI."
-                    return retain(png)
+                    return retain(png, label)
                 } catch (exception: Exception) {
                     rethrowCancellation(exception)
                     Files.deleteIfExists(png)
@@ -116,7 +121,7 @@ internal class DocumentImageWriter(
         Files.write(target, image.bytes, CREATE_NEW)
         providerCount++
         diagnostics += "$label: saved provider image ($extension)."
-        return retain(target)
+        return retain(target, label)
     }
 
     private fun warn(message: String, exception: Exception? = null) {
@@ -154,9 +159,25 @@ internal class DocumentImageWriter(
         return folder.resolve("page-$page-image-$ordinal.$extension")
     }
 
-    private fun retain(path: Path): String {
-        files.add(path)
-        return URI(null, null, "${path.parent.fileName}/${path.fileName}", null)
+    /** Links a byte-identical earlier image instead of keeping another copy. */
+    private fun retain(path: Path, label: String): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path))
+        val key =
+            "${path.fileName.toString().substringAfterLast('.')}:${HexFormat.of().formatHex(digest)}"
+        val existing = byContent[key]
+        val file =
+            if (existing == null) {
+                byContent[key] = path
+                files.add(path)
+                path
+            } else {
+                Files.delete(path)
+                reusedCount++
+                diagnostics +=
+                    "$label: identical to ${existing.fileName}; linked instead of a copy."
+                existing
+            }
+        return URI(null, null, "${file.parent.fileName}/${file.fileName}", null)
             .toASCIIString()
             .replace("(", "%28")
             .replace(")", "%29")
