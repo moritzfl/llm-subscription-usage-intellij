@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.24.1] - 2026-10-26
+
 - Fix Mistral OCR for PDFs over 1000 pages, which failed with "This document has 2136 pages, which is more than the maximum allowed of 1000". Local PDFs are now sent in requests of at most 30 pages and 50 MB, with page-based progress and cancellation between requests, and are no longer uploaded to your Mistral files. A document URL is still one request.
 - Keep converting when the OCR service cannot process one page. Mistral OCR on Azure stopped a 2136-page manual with "Failed to process PDF file" (HTTP 500), and Mistral itself timed out on the same page. Mistral, Z.ai, Azure Mistral OCR, and Document Intelligence now retry a slice that fails on the service side page by page, then send the failing page once more as a rendered image. Other errors still stop the conversion.
 - Convert long PDFs with Azure Document Intelligence in requests of at most 30 pages, so a long document no longer runs past the two-minute analysis limit.
@@ -772,7 +774,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.24.0...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.24.1...HEAD
+[1.24.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.24.0...1.24.1
 [1.24.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.23.0...1.24.0
 [1.23.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.22.0...1.23.0
 [1.22.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.21.1...1.22.0
