@@ -149,6 +149,7 @@ internal class AzureQuotaClient(
         }
         val models = mutableListOf<String>()
         val deploymentModels = linkedMapOf<String, String>()
+        val textCompletions = linkedSetOf<String>()
         var modelsRead = false
         val deploymentBodies = linkedMapOf<String, String>()
         for (resource in matched.take(MAX_RESOURCES)) {
@@ -177,6 +178,7 @@ internal class AzureQuotaClient(
                     deployments.forEach { deployment ->
                         deployment.modelName?.let { deploymentModels[deployment.id] = it }
                     }
+                    textCompletions += parseAzureTextCompletionDeployments(result.body)
                     modelsRead = true
                 }
             }
@@ -221,6 +223,7 @@ internal class AzureQuotaClient(
                 catalogKey(config.subscriptionId, config),
                 models.distinct(),
                 deploymentModels,
+                textCompletions,
             )
         models += config.deploymentNames
         liveUsage()?.let { liveWindow(it, clock.now()) }?.let(windows::add)
@@ -312,15 +315,28 @@ internal class AzureQuotaClient(
 internal object AzureModelCatalog {
     private val values = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
     private val modelNames = java.util.concurrent.ConcurrentHashMap<String, Map<String, String>>()
+    private val textCompletions = java.util.concurrent.ConcurrentHashMap<String, Set<String>>()
 
-    /** [names] maps deployment IDs to the model each one serves (ARM `properties.model.name`). */
-    fun remember(key: String, models: List<String>, names: Map<String, String> = emptyMap()) {
+    /**
+     * [names] maps deployment IDs to the model each one serves (ARM `properties.model.name`).
+     * [completions] lists deployments ARM reports as serving text completions.
+     */
+    fun remember(
+        key: String,
+        models: List<String>,
+        names: Map<String, String> = emptyMap(),
+        completions: Set<String> = emptySet(),
+    ) {
         if (key.isBlank()) return
         values[key] = models
         modelNames[key] = names
+        textCompletions[key] = completions
     }
 
     fun read(key: String): List<String> = values[key].orEmpty()
 
     fun modelName(key: String, deployment: String): String? = modelNames[key]?.get(deployment)
+
+    fun servesTextCompletions(key: String, deployment: String): Boolean =
+        textCompletions[key]?.contains(deployment) == true
 }

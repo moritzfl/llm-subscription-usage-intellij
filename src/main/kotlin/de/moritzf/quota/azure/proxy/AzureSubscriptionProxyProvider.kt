@@ -250,7 +250,13 @@ internal class AzureSubscriptionProxyProvider(
             PassThroughSubscriptionProxyProvider.ModelMapping(
                 localId = "$PREFIX$id",
                 upstreamId = id,
-                supportedRoutes = ROUTES,
+                // Chat-only deployments reject /completions, so FIM must be adapted through chat.
+                supportedRoutes =
+                    if (AzureModelCatalog.servesTextCompletions(key, id)) {
+                        ROUTES + SubscriptionProxyRoute.COMPLETIONS
+                    } else {
+                        ROUTES
+                    },
                 isDefault = id == defaultId,
             )
         }
@@ -326,11 +332,7 @@ internal class AzureSubscriptionProxyProvider(
         const val DISPLAY_NAME = "Azure"
         const val PREFIX = "az-"
         val ROUTES: Set<SubscriptionProxyRoute> =
-            setOf(
-                SubscriptionProxyRoute.CHAT_COMPLETIONS,
-                SubscriptionProxyRoute.RESPONSES,
-                SubscriptionProxyRoute.COMPLETIONS,
-            )
+            setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS, SubscriptionProxyRoute.RESPONSES)
 
         private fun defaultClient(): HttpClient =
             HttpClient.newBuilder()

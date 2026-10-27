@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Adapt FIM for Azure chat deployments through chat instead of listing them under "Native FIM". Every Azure deployment advertised the `/completions` route, so the FIM model picker listed GPT and Mistral chat deployments as native, and inline completions sent to them used `/completions`, which these deployments reject. Only deployments whose `properties.capabilities.completion` Azure reports as true now use native completions.
+
 ## [1.24.1] - 2026-10-26
 
 - Fix Mistral OCR for PDFs over 1000 pages, which failed with "This document has 2136 pages, which is more than the maximum allowed of 1000". Local PDFs are now sent in requests of at most 30 pages and 50 MB, with page-based progress and cancellation between requests, and are no longer uploaded to your Mistral files. A document URL is still one request.

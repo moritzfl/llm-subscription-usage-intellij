@@ -1,5 +1,6 @@
 package de.moritzf.quota.azure.proxy
 
+import de.moritzf.proxy.fim.FimModels
 import de.moritzf.proxy.subscription.OpenAiCompatibleApiKeySubscriptionProxyProvider
 import de.moritzf.proxy.subscription.SubscriptionModelCatalog
 import de.moritzf.proxy.subscription.SubscriptionProxyRoute
@@ -10,6 +11,8 @@ import java.net.URI
 import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 class AzureSubscriptionProxyProviderTest {
@@ -39,10 +42,13 @@ class AzureSubscriptionProxyProviderTest {
         assertEquals("az-gpt-4o", advertised.localId)
         assertEquals("gpt-4o", advertised.upstreamId)
         assertEquals(true, advertised.isDefault)
+        assertFalse(FimModels.isNativeFimId(advertised), "chat deployments adapt FIM via chat")
 
         val fallback =
             provider.fallbackModel("az-my-deployment", SubscriptionProxyRoute.CHAT_COMPLETIONS)
         assertEquals("my-deployment", fallback?.upstreamId)
+        assertFalse(FimModels.isNativeFimId(assertNotNull(fallback)))
+        assertNull(provider.fallbackModel("az-my-deployment", SubscriptionProxyRoute.COMPLETIONS))
         assertNull(provider.fallbackModel("../etc", SubscriptionProxyRoute.CHAT_COMPLETIONS))
         assertNull(provider.fallbackModel("my-deployment", SubscriptionProxyRoute.CHAT_COMPLETIONS))
         assertNull(provider.fallbackModel("az-../etc", SubscriptionProxyRoute.CHAT_COMPLETIONS))

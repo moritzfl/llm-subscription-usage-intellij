@@ -219,6 +219,21 @@ internal fun parseAzureDeployments(
     }
 }
 
+/**
+ * Deployments whose ARM `properties.capabilities.completion` is true: they serve `/completions`.
+ */
+internal fun parseAzureTextCompletionDeployments(raw: String): Set<String> {
+    val value = azureObject(raw)?.get("value") as? JsonArray ?: return emptySet()
+    return value.mapNotNullTo(linkedSetOf()) { element ->
+        val item = element as? JsonObject ?: return@mapNotNullTo null
+        val properties = item["properties"] as? JsonObject
+        val capabilities = properties?.get("capabilities") as? JsonObject
+        item.text("name")?.takeIf {
+            capabilities?.text("completion").equals("true", ignoreCase = true)
+        }
+    }
+}
+
 internal fun parseAzureQuotaTier(raw: String): String? {
     val root = azureObject(raw) ?: return null
     val value = root["value"] as? JsonArray

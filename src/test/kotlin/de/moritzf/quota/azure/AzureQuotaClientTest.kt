@@ -1,5 +1,6 @@
 package de.moritzf.quota.azure
 
+import de.moritzf.proxy.fim.FimModels
 import de.moritzf.quota.azure.proxy.AzureSubscriptionProxyProvider
 import java.nio.file.Path
 import java.util.UUID
@@ -54,6 +55,43 @@ class AzureQuotaClientTest {
         assertEquals(listOf("az-production-chat"), proxy(config).models().map { it.localId })
         assertTrue(calls.none { "/accounts/other/deployments?" in it })
         assertTrue(calls.none { "/locations/eastus/" in it })
+    }
+
+    @Test
+    fun onlyDeploymentsArmMarksForTextCompletionsUseNativeFim() {
+        val config =
+            AzureAccountConfig(endpoint = "https://selected.services.ai.azure.com/openai/v1")
+        AzureQuotaClient(
+                cli(),
+                AzureHttp { url, _ ->
+                    when {
+                        "/accounts?" in url -> resources()
+                        "/accounts/selected/deployments?" in url ->
+                            AzureHttpResult(
+                                200,
+                                """{"value":[
+        {"name":"gpt-6-luna","properties":{"model":{"format":"OpenAI","name":"gpt-6-luna"},
+         "capabilities":{"chatCompletion":"true","responses":"true","area":"EUR"}}},
+        {"name":"Mistral-Large-3","properties":{"model":{"format":"Mistral AI","name":"Mistral-Large-3"},
+         "capabilities":{"area":"EUR","chatCompletion":"true"}}},
+        {"name":"instruct","properties":{"model":{"format":"OpenAI","name":"gpt-35-turbo-instruct"},
+         "capabilities":{"completion":"true"}}}
+    ]}""",
+                            )
+                        else -> AzureHttpResult(403, "")
+                    }
+                },
+            )
+            .fetch(config)
+
+        assertEquals(
+            mapOf(
+                "az-gpt-6-luna" to false,
+                "az-Mistral-Large-3" to false,
+                "az-instruct" to true,
+            ),
+            proxy(config).models().associate { it.localId to FimModels.isNativeFimId(it) },
+        )
     }
 
     @Test
