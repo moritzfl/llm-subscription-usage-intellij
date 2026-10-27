@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Opt in to JetBrains Marketplace's Error Handler, so uncaught exceptions in the plugin are reported to the plugin's Exceptions tab after the user consents (or automatically, if the IDE sends reports automatically).
+
 ## [1.24.2] - 2026-10-27
 
 - Adapt FIM for Azure chat deployments through chat instead of listing them under "Native FIM". Every Azure deployment advertised the `/completions` route, so the FIM model picker listed GPT and Mistral chat deployments as native, and inline completions sent to them used `/completions`, which these deployments reject. Only deployments whose `properties.capabilities.completion` Azure reports as true now use native completions.
