@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-10-27
+
 - Opt in to JetBrains Marketplace's Error Handler, so uncaught exceptions in the plugin are reported to the plugin's Exceptions tab after the user consents (or automatically, if the IDE sends reports automatically).
 
 ## [1.24.2] - 2026-10-27
@@ -780,7 +782,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.24.2...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.25.0...HEAD
+[1.25.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.24.2...1.25.0
 [1.24.2]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.24.1...1.24.2
 [1.24.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.24.0...1.24.1
 [1.24.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.23.0...1.24.0
