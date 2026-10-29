@@ -22,6 +22,8 @@ data class MistralQuota(
      * API activity for the current month, including usage covered by the subscription allowance.
      */
     val apiUsage: MistralApiUsage? = null,
+    /** Prepaid credits used once the included monthly allowances are used up. */
+    val credits: MistralCredits? = null,
     override var fetchedAt: Instant? = null,
     @Transient override var rawJson: String? = null,
 ) : ProviderQuota {
@@ -32,7 +34,8 @@ data class MistralQuota(
             email.isNotBlank() ||
             tokenUsage != null ||
             requestUsage != null ||
-            apiUsage != null
+            apiUsage != null ||
+            credits != null
 
     fun displayWindow(): MistralUsageWindow? =
         listOfNotNull(includedApiUsage, monthlyUsage).maxByOrNull { it.usagePercent }
@@ -81,6 +84,18 @@ data class MistralUsageWindow(
     val payAsYouGoEnabled: Boolean? = null,
 ) {
     @Transient val periodDuration: Duration? = periodDurationMs?.let(Duration::ofMillis)
+}
+
+/** Prepaid credits, reported as wallet plus credit notes less usage that is not settled yet. */
+@Serializable
+data class MistralCredits(
+    val walletAmount: Double = 0.0,
+    val creditNotesAmount: Double = 0.0,
+    val ongoingUsageBalance: Double = 0.0,
+    val currency: String = "",
+) {
+    val availableAmount: Double
+        get() = walletAmount + creditNotesAmount - ongoingUsageBalance
 }
 
 /** Mistral reports currency codes in lower case; unknown codes are not shown as money. */

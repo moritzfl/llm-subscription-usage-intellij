@@ -61,6 +61,38 @@ class MistralQuotaClientTest {
     }
 
     @Test
+    fun parseCreditsSubtractsPendingUsageFromWalletAndNotes() {
+        val credits =
+            assertNotNull(
+                MistralQuotaClient.parseCredits(
+                    """{"wallet_amount":"10.5","credit_notes_amount":5,"ongoing_usage_balance":2.5,"currency":"eur"}"""
+                )
+            )
+        assertEquals(10.5, credits.walletAmount)
+        assertEquals(5.0, credits.creditNotesAmount)
+        assertEquals(2.5, credits.ongoingUsageBalance)
+        assertEquals(13.0, credits.availableAmount)
+        assertEquals("EUR", credits.currency)
+        assertTrue(MistralQuota(credits = credits).hasUsageState())
+    }
+
+    @Test
+    fun parseCreditsDefaultsMissingOptionalAmountsAndRejectsMissingBalance() {
+        val credits =
+            assertNotNull(
+                MistralQuotaClient.parseCredits("""{"wallet_amount":7,"currency":"USD"}""")
+            )
+        assertEquals(7.0, credits.availableAmount)
+        assertNull(MistralQuotaClient.parseCredits("""{"currency":"USD"}"""))
+        assertNull(MistralQuotaClient.parseCredits("""{"wallet_amount":7}"""))
+        assertNull(
+            MistralQuotaClient.parseCredits(
+                """{"wallet_amount":7,"ongoing_usage_balance":-1e999,"currency":"USD"}"""
+            )
+        )
+    }
+
+    @Test
     fun parseIdentityReadsOrgWorkspaceAndKeyName() {
         val body =
             """

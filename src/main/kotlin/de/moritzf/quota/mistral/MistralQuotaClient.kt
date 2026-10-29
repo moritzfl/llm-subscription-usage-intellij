@@ -2,6 +2,7 @@ package de.moritzf.quota.mistral
 
 import de.moritzf.quota.shared.JsonSupport
 import de.moritzf.quota.shared.LenientDoubleOrNullSerializer
+import de.moritzf.quota.shared.lenientDoubleOrNull
 import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
@@ -90,7 +91,30 @@ open class MistralQuotaClient(
         val monthly =
             MistralSubscriptionBudgets.window(budgets?.get("vibe_budget"))
                 ?: monthlyWindow(vibe, billing)
-        if (billingError != null && monthly == null && includedApi == null) throw billingError
+        val creditsAttempt = runCatching {
+            getAdminJson(
+                url = CREDITS_URI,
+                cookieHeader = session.cookieHeader,
+                csrfToken = session.csrfToken,
+                origin = "https://admin.mistral.ai",
+                referer = "https://admin.mistral.ai/organization/billing",
+            )
+        }
+        val creditsBody = creditsAttempt.getOrNull()
+        val creditsParse = creditsBody?.let {
+            runCatching {
+                parseCredits(it)
+                    ?: throw MistralQuotaException(
+                        "Mistral credits response did not include a balance."
+                    )
+            }
+        }
+        val credits = creditsParse?.getOrNull()
+        val creditsFailure = creditsAttempt.exceptionOrNull() ?: creditsParse?.exceptionOrNull()
+        val creditsError = creditsFailure?.let(::failureText)
+        if (billingError != null && monthly == null && includedApi == null && credits == null) {
+            throw billingError
+        }
         val apiUsage = billingBody?.let { body -> runCatching { parseApiUsage(body) }.getOrNull() }
         val identityBody =
             apiKey
@@ -118,6 +142,7 @@ open class MistralQuotaClient(
                 tokenUsage = tokenUsage,
                 requestUsage = requestUsage,
                 apiUsage = apiUsage,
+                credits = credits,
                 fetchedAt = now,
             )
         quota.rawJson =
@@ -129,6 +154,8 @@ open class MistralQuotaClient(
                 billingError?.message,
                 budgets,
                 subscriptionAttempt.exceptionOrNull()?.let(::failureText),
+                creditsBody,
+                creditsError,
             )
         return quota
     }
@@ -258,6 +285,7 @@ open class MistralQuotaClient(
         private val IDENTITY_URI: URI = URI.create("https://api.mistral.ai/v1/users/me")
         private val CHAT_URI: URI = URI.create("https://api.mistral.ai/v1/chat/completions")
         private val SUBSCRIPTION_URI: URI = URI.create("https://admin.mistral.ai/subscription")
+        private val CREDITS_URI: URI = URI.create("https://admin.mistral.ai/api/billing/credits")
         private val VIBE_USAGE_URI: URI =
             URI.create(
                 "https://console.mistral.ai/api-ui/trpc/billing.vibeUsage?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D"
@@ -285,6 +313,8 @@ open class MistralQuotaClient(
             billingError: String? = null,
             subscriptionBudgets: JsonObject? = null,
             subscriptionError: String? = null,
+            creditsBody: String? = null,
+            creditsError: String? = null,
         ): String {
             val session = buildJsonObject {
                 jsonOrRaw(billingBody)?.let { put("billing", it) }
@@ -292,6 +322,8 @@ open class MistralQuotaClient(
                 billingError?.takeIf { it.isNotBlank() }?.let { put("billing_error", it) }
                 subscriptionBudgets?.let { put("subscription", it) }
                 subscriptionError?.takeIf { it.isNotBlank() }?.let { put("subscription_error", it) }
+                jsonOrRaw(creditsBody)?.let { put("credits", it) }
+                creditsError?.takeIf { it.isNotBlank() }?.let { put("credits_error", it) }
             }
             val apiKey = buildJsonObject {
                 jsonOrRaw(identityBody)?.let { put("identity", it) }
@@ -538,6 +570,34 @@ open class MistralQuotaClient(
             } catch (exception: Exception) {
                 throw MistralQuotaException("Could not parse usage data.", 200, body, exception)
             }
+        }
+
+        /**
+         * Prepaid credits: the wallet plus credit notes, less usage that is not settled yet.
+         * Missing optional components count as zero; a missing wallet or currency is not a balance.
+         */
+        internal fun parseCredits(body: String): MistralCredits? {
+            val root =
+                runCatching { JsonSupport.json.parseToJsonElement(body) }.getOrNull() as? JsonObject
+                    ?: return null
+            val wallet =
+                root["wallet_amount"]?.lenientDoubleOrNull()?.takeIf { it.isFinite() }
+                    ?: return null
+            val notes =
+                root["credit_notes_amount"]?.let { it.lenientDoubleOrNull() ?: return null } ?: 0.0
+            val ongoing =
+                root["ongoing_usage_balance"]?.let { it.lenientDoubleOrNull() ?: return null }
+                    ?: 0.0
+            val currency =
+                normalizeMistralCurrency((root["currency"] as? JsonPrimitive)?.contentOrNull)
+                    ?: return null
+            if (!(wallet + notes - ongoing).isFinite()) return null
+            return MistralCredits(
+                walletAmount = wallet,
+                creditNotesAmount = notes,
+                ongoingUsageBalance = ongoing,
+                currency = currency,
+            )
         }
 
         internal fun monthlyWindow(

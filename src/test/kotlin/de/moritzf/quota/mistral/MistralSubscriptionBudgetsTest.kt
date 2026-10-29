@@ -41,6 +41,43 @@ class MistralSubscriptionBudgetsTest {
     }
 
     @Test
+    fun fetchReadsPrepaidCreditsAndKeepsTheirProviderJson() {
+        val http =
+            FakeHttpClient(
+                mapOf(
+                    "/subscription" to (200 to flight("a:{\"budget\":$BUDGETS}\n")),
+                    "/api/billing/credits" to (200 to CREDITS),
+                )
+            )
+        val quota =
+            MistralQuotaClient(http).fetchQuota("ory_session_test=test-token; csrftoken=test-csrf")
+        val credits = assertNotNull(quota.credits)
+        assertEquals(10.0, credits.walletAmount)
+        assertEquals(5.0, credits.creditNotesAmount)
+        assertEquals(2.5, credits.ongoingUsageBalance)
+        assertEquals(12.5, credits.availableAmount)
+        assertEquals("EUR", credits.currency)
+        assertTrue(quota.rawJson!!.contains("\"credits\""))
+        assertTrue(quota.rawJson!!.contains("provider_credit_field"))
+        val request = http.requests.single { it.uri().path == "/api/billing/credits" }
+        assertEquals(
+            "https://admin.mistral.ai/organization/billing",
+            request.headers().firstValue("Referer").orElse(null),
+        )
+        assertEquals("test-csrf", request.headers().firstValue("X-CSRFTOKEN").orElse(null))
+    }
+
+    @Test
+    fun missingCreditsLeaveTheAllowancesAndExplainTheGap() {
+        val http =
+            FakeHttpClient(mapOf("/subscription" to (200 to flight("a:{\"budget\":$BUDGETS}\n"))))
+        val quota = MistralQuotaClient(http).fetchQuota("ory_session_test=test-token")
+        assertEquals(12.75, quota.includedApiUsage?.limitAmount)
+        assertNull(quota.credits)
+        assertTrue(quota.rawJson!!.contains("credits_error"))
+    }
+
+    @Test
     fun fetchReadsAllowancesWithPluginSessionAndKeepsProviderBudgetJson() {
         val http =
             FakeHttpClient(
@@ -274,5 +311,7 @@ class MistralSubscriptionBudgetsTest {
     companion object {
         private const val BUDGETS =
             """{"api_budget":{"usage_percentage":93.25490196078431,"initial_budget":12.75,"currency":"EUR","reset_at":"2026-10-01T00:00:00Z","payg_enabled":true},"vibe_budget":{"usage_percentage":0,"initial_budget":127.5,"currency":"EUR","reset_at":"2026-10-01T00:00:00Z"}}"""
+        private const val CREDITS =
+            """{"wallet_amount":10.0,"credit_notes_amount":5.0,"ongoing_usage_balance":2.5,"currency":"eur","provider_credit_field":true}"""
     }
 }
