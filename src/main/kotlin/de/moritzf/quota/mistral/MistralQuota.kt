@@ -2,6 +2,8 @@ package de.moritzf.quota.mistral
 
 import de.moritzf.quota.shared.ProviderQuota
 import java.time.Duration
+import java.util.Currency
+import java.util.Locale
 import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
@@ -75,6 +77,14 @@ data class MistralUsageWindow(
     val usedAmount: Double? = null,
     val limitAmount: Double? = null,
     val currency: String? = null,
+    /** Whether usage beyond the included allowance may draw from prepaid credits. */
+    val payAsYouGoEnabled: Boolean? = null,
 ) {
     @Transient val periodDuration: Duration? = periodDurationMs?.let(Duration::ofMillis)
+}
+
+/** Mistral reports currency codes in lower case; unknown codes are not shown as money. */
+internal fun normalizeMistralCurrency(raw: String?): String? {
+    val code = raw?.trim()?.uppercase(Locale.ROOT)?.takeIf { it.isNotEmpty() } ?: return null
+    return code.takeIf { runCatching { Currency.getInstance(it) }.isSuccess }
 }

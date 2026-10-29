@@ -26,6 +26,21 @@ import kotlinx.serialization.json.JsonPrimitive
 
 class MistralSubscriptionBudgetsTest {
     @Test
+    fun readsLongFlightChunksWithoutOverflowingTheRegexStack() {
+        val stream = "a:{\"note\":\"${"x".repeat(200_000)}\",\"budget\":$BUDGETS}\n"
+        val budgets = assertNotNull(MistralSubscriptionBudgets.parse(flight(stream)))
+        assertEquals(12.75, MistralSubscriptionBudgets.window(budgets["api_budget"])?.limitAmount)
+    }
+
+    @Test
+    fun readsBudgetsInDeeplyNestedFlightDataWithoutRecursion() {
+        val deep = "[".repeat(10_000) + "]".repeat(10_000)
+        val stream = "a:{\"deep\":$deep,\"budget\":$BUDGETS}\n"
+        val budgets = assertNotNull(MistralSubscriptionBudgets.parse(flight(stream)))
+        assertEquals(12.75, MistralSubscriptionBudgets.window(budgets["api_budget"])?.limitAmount)
+    }
+
+    @Test
     fun fetchReadsAllowancesWithPluginSessionAndKeepsProviderBudgetJson() {
         val http =
             FakeHttpClient(
@@ -90,6 +105,7 @@ class MistralSubscriptionBudgetsTest {
         assertEquals(11.89, api.usedAmount!!, 1e-10)
         assertEquals(12.75, api.limitAmount)
         assertEquals("EUR", api.currency)
+        assertEquals(true, api.payAsYouGoEnabled)
         assertEquals(Instant.parse("2026-10-01T00:00:00Z"), api.resetsAt)
         assertEquals(30L * 86_400_000, api.periodDurationMs)
         assertEquals(0.0, vibe.usagePercent)
@@ -160,6 +176,15 @@ class MistralSubscriptionBudgetsTest {
         assertEquals(110.0, overage.usagePercent)
         assertEquals(16.5, overage.usedAmount)
         assertEquals(28L * 86_400_000, overage.periodDurationMs)
+        val reactDate =
+            assertNotNull(
+                MistralSubscriptionBudgets.window(
+                    JsonSupport.json.parseToJsonElement(
+                        """{"usage_percentage":5,"initial_budget":15,"currency":"EUR","reset_at":"${'$'}D2026-03-01T00:00:00.000Z"}"""
+                    )
+                )
+            )
+        assertEquals(Instant.parse("2026-03-01T00:00:00Z"), reactDate.resetsAt)
     }
 
     @Test
@@ -248,6 +273,6 @@ class MistralSubscriptionBudgetsTest {
 
     companion object {
         private const val BUDGETS =
-            """{"api_budget":{"usage_percentage":93.25490196078431,"initial_budget":12.75,"currency":"EUR","reset_at":"2026-10-01T00:00:00Z"},"vibe_budget":{"usage_percentage":0,"initial_budget":127.5,"currency":"EUR","reset_at":"2026-10-01T00:00:00Z"}}"""
+            """{"api_budget":{"usage_percentage":93.25490196078431,"initial_budget":12.75,"currency":"EUR","reset_at":"2026-10-01T00:00:00Z","payg_enabled":true},"vibe_budget":{"usage_percentage":0,"initial_budget":127.5,"currency":"EUR","reset_at":"2026-10-01T00:00:00Z"}}"""
     }
 }
