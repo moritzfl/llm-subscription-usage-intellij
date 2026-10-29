@@ -2,8 +2,11 @@
 
 ## [Unreleased]
 
-- Fix Mistral's included API and Vibe allowances disappearing when the subscription page contains a long Next.js Flight chunk: the chunk is now scanned without a recursive regular expression, which overflowed the stack.
-- Show whether Mistral's included monthly API allowance is used as `€1.23 / €12.75` and whether pay-as-you-go can draw from prepaid credits, and show the prepaid credit balance. Token, OCR, audio, connector, and text-to-speech totals move from the popup label into its hover text.
+## [1.26.0] - 2026-10-29
+
+- Fix Mistral's included API and Vibe allowances failing to load when the subscription page contains a long Next.js Flight chunk; the chunk is now scanned without a recursive regular expression that overflowed the stack.
+- Keep Mistral's status bar on the usable allowance: when one monthly pool is used up, the other one takes over as soon as it has usage instead of staying pinned at 100%.
+- Show Mistral's included monthly API allowance as `€1.23 / €12.75`, its prepaid credit balance, and whether pay-as-you-go can draw on those credits. Token, OCR, audio, connector, and text-to-speech totals move from the popup label into its hover text.
 
 ## [1.25.0] - 2026-10-27
 
@@ -785,7 +788,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.25.0...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.26.0...HEAD
+[1.26.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.25.0...1.26.0
 [1.25.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.24.2...1.25.0
 [1.24.2]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.24.1...1.24.2
 [1.24.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.24.0...1.24.1
