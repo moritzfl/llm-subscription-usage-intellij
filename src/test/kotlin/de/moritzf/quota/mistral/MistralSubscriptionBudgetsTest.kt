@@ -158,6 +158,38 @@ class MistralSubscriptionBudgetsTest {
     }
 
     @Test
+    fun exhaustedApiAllowanceYieldsToVibeOnceVibeHasUsage() {
+        val api =
+            MistralUsageWindow(
+                usagePercent = 100.0,
+                limitAmount = 12.75,
+                usedAmount = 12.75,
+                currency = "EUR",
+            )
+        val vibe =
+            MistralUsageWindow(
+                usagePercent = 2.0,
+                limitAmount = 127.5,
+                usedAmount = 2.55,
+                currency = "EUR",
+            )
+        val quota = MistralQuota(includedApiUsage = api, monthlyUsage = vibe)
+
+        assertSame(vibe, quota.displayWindow())
+        assertEquals("2%", mistralBarDisplayText(quota, null))
+
+        val unusedVibe = vibe.copy(usagePercent = 0.0, usedAmount = 0.0)
+        assertSame(api, quota.copy(monthlyUsage = unusedVibe).displayWindow())
+
+        val apiUsed = api.copy(usagePercent = 30.0, usedAmount = 3.825)
+        val exhaustedVibe = vibe.copy(usagePercent = 100.0, usedAmount = 127.5)
+        assertSame(
+            apiUsed,
+            quota.copy(includedApiUsage = apiUsed, monthlyUsage = exhaustedVibe).displayWindow(),
+        )
+    }
+
+    @Test
     fun zeroAllowanceUsageStaysAPercentageEvenWhenApiActivityExists() {
         val api =
             MistralUsageWindow(

@@ -37,9 +37,25 @@ data class MistralQuota(
             apiUsage != null ||
             credits != null
 
-    fun displayWindow(): MistralUsageWindow? =
-        listOfNotNull(includedApiUsage, monthlyUsage).maxByOrNull { it.usagePercent }
+    /**
+     * The API and Vibe allowances are independent. Once one is used up, follow the other one as
+     * soon as it has usage instead of keeping the indicator pinned at 100%; before that, keep the
+     * exhausted allowance visible.
+     */
+    fun displayWindow(): MistralUsageWindow? {
+        val api = includedApiUsage
+        val vibe = monthlyUsage
+        if (api != null && vibe != null) {
+            val apiExhausted = api.usagePercent >= 100.0
+            val vibeExhausted = vibe.usagePercent >= 100.0
+            when {
+                apiExhausted && !vibeExhausted && vibe.usagePercent > 0.0 -> return vibe
+                vibeExhausted && !apiExhausted && api.usagePercent > 0.0 -> return api
+            }
+        }
+        return listOfNotNull(api, vibe).maxByOrNull { it.usagePercent }
             ?: listOfNotNull(tokenUsage, requestUsage).maxByOrNull { it.usagePercent }
+    }
 
     override fun usageFraction(): Double? = displayWindow()?.usagePercent?.let { it / 100.0 }
 
