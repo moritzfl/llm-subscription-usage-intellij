@@ -283,8 +283,8 @@ internal class WindowBlockPanel(topInset: Int = 3) :
         isVisible = true
     }
 
-    fun showUnavailable(title: String, info: String) {
-        update(title, info, 0)
+    fun showUnavailable(title: String, info: String, detailTooltip: String? = null) {
+        update(title, info, 0, detailTooltip)
         progressBar.isVisible = false
     }
 

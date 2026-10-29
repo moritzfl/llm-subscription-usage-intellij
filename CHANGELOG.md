@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Fix Mistral's included API and Vibe allowances disappearing when the subscription page contains a long Next.js Flight chunk: the chunk is now scanned without a recursive regular expression, which overflowed the stack.
+- Show whether Mistral's included monthly API allowance is used as `€1.23 / €12.75` and whether pay-as-you-go can draw from prepaid credits, and show the prepaid credit balance. Token, OCR, audio, connector, and text-to-speech totals move from the popup label into its hover text.
+
 ## [1.25.0] - 2026-10-27
 
 - Opt in to JetBrains Marketplace's Error Handler, so uncaught exceptions in the plugin are reported to the plugin's Exceptions tab after the user consents (or automatically, if the IDE sends reports automatically).
