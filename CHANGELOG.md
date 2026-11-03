@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Fix "The slow operation may freeze UI" when logging out of OpenAI, Claude, or xAI/Grok in settings; the login is now removed from Password Safe in the background.
+- Fix a `NullPointerException` in a tooltip after clicking "Use reset…" in the status bar popup. The popup now closes before the reset confirmation for OpenAI, Claude, and SuperGrok opens.
+
 ## [1.27.0] - 2026-11-03
 
 - Optionally generate alt text for figures when converting a PDF to Markdown. Enable "Generate alt text with" in the conversion dialog, or pass `altTextProvider` to `subscription_document_to_markdown`, and each saved figure is described by that provider's vision model (one request per image; SVG figures are rasterized first). Failed descriptions keep the converter's alt text and are listed as warnings.
