@@ -2,6 +2,7 @@ package de.moritzf.quota.idea.ui.popup
 
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.ui.MessageDialogBuilder
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.ui.components.ActionLink
@@ -21,8 +22,10 @@ import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.ui.indicator.clampPercent
 import de.moritzf.quota.shared.ProviderQuota
+import java.awt.Component
 import java.awt.Cursor
 import java.awt.FlowLayout
+import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
 import kotlin.math.roundToInt
@@ -211,7 +214,11 @@ internal class ClaudePopupSection : ProviderPopupSection() {
             )
         } else {
             resetsPanel.add(
-                ActionLink(message("quota.claude.reset.use")) { chooseAndReset(choices) }
+                ActionLink(message("quota.claude.reset.use")) { event ->
+                        runOutsidePopup(event.source as JComponent) { parent ->
+                            chooseAndReset(parent, choices)
+                        }
+                    }
                     .apply {
                         icon = AllIcons.Actions.Restart
                         toolTipText = resetsTooltip(resets)
@@ -230,19 +237,20 @@ internal class ClaudePopupSection : ProviderPopupSection() {
         return lines.joinToString("<br>", "<html>", "</html>") { QuotaUiUtil.escapeHtml(it) }
     }
 
-    private fun chooseAndReset(choices: List<ClaudeResetChoice>) {
+    private fun chooseAndReset(parent: Component, choices: List<ClaudeResetChoice>) {
         val title = message("quota.claude.reset.dialog.title")
         val choice =
             if (choices.size == 1) {
-                val answer =
-                    Messages.showYesNoDialog(
-                        message("quota.claude.reset.confirm", detail(choices.single())),
-                        title,
-                        message("quota.reset.title"),
-                        "Cancel",
-                        AllIcons.Actions.Restart,
-                    )
-                if (answer != Messages.YES) return
+                val confirmed =
+                    MessageDialogBuilder.yesNo(
+                            title,
+                            message("quota.claude.reset.confirm", detail(choices.single())),
+                        )
+                        .yesText(message("quota.reset.title"))
+                        .noText("Cancel")
+                        .icon(AllIcons.Actions.Restart)
+                        .ask(parent)
+                if (!confirmed) return
                 choices.single()
             } else {
                 val labels = choices.map(::buttonLabel)
@@ -252,6 +260,7 @@ internal class ClaudePopupSection : ProviderPopupSection() {
                     } + "Cancel"
                 val index =
                     Messages.showDialog(
+                        parent,
                         message(
                             "quota.claude.reset.choose",
                             choices.joinToString("\n", transform = ::detail),
@@ -283,14 +292,14 @@ internal class ClaudePopupSection : ProviderPopupSection() {
                     if (outcome == null || outcome.succeeded) return@onSuccess
                     ApplicationManager.getApplication().invokeLater {
                         links.forEach { it.isEnabled = true }
-                        Messages.showInfoMessage(this, resultMessage(outcome.result), title)
+                        Messages.showInfoMessage(parent, resultMessage(outcome.result), title)
                     }
                 }
                 .onFailure { exception ->
                     ApplicationManager.getApplication().invokeLater {
                         links.forEach { it.isEnabled = true }
                         Messages.showErrorDialog(
-                            this,
+                            parent,
                             exception.message ?: message("quota.claude.reset.failed"),
                             title,
                         )

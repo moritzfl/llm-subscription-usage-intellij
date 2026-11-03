@@ -6,6 +6,7 @@ import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.VerticalFlowLayout
+import com.intellij.openapi.ui.popup.util.PopupUtil
 import com.intellij.ui.JBColor
 import com.intellij.ui.SeparatorComponent
 import com.intellij.ui.components.ActionLink
@@ -107,6 +108,20 @@ internal fun openSettings(project: Project, component: Component, beforeOpen: ()
             },
             modality,
         )
+}
+
+/**
+ * Runs [action] after closing the quota popup that contains [source]. A modal dialog opened from
+ * inside the popup outlives it, and a pending tooltip of the clicked link then shows for a
+ * component without a window. [action] receives the popup's owner as dialog parent.
+ */
+internal fun runOutsidePopup(source: JComponent, action: (parent: Component) -> Unit) {
+    val popup = PopupUtil.getPopupContainerFor(source)
+    val parent = popup?.owner ?: source
+    source.toolTipText = null
+    val modality = ModalityState.stateForComponent(parent)
+    popup?.cancel()
+    ApplicationManager.getApplication().invokeLater({ action(parent) }, modality)
 }
 
 internal fun describeWindowLabel(window: UsageWindow, fallbackLabel: String): String {

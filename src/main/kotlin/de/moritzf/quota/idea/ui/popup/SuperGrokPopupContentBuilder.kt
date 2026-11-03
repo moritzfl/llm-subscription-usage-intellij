@@ -2,6 +2,7 @@ package de.moritzf.quota.idea.ui.popup
 
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.ui.MessageDialogBuilder
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.ActionLink
 import com.intellij.util.ui.JBUI
@@ -14,8 +15,10 @@ import de.moritzf.quota.shared.ProviderQuota
 import de.moritzf.quota.supergrok.SuperGrokQuota
 import de.moritzf.quota.supergrok.SuperGrokResetToken
 import de.moritzf.quota.supergrok.SuperGrokUsageWindow
+import java.awt.Component
 import java.awt.Cursor
 import java.awt.FlowLayout
+import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
 import kotlin.math.roundToInt
@@ -133,7 +136,11 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
         }
         resetTokensPanel.add(JLabel("Resets available: ${resetTokens.size}"))
         resetTokensPanel.add(
-            ActionLink("Use reset…") { confirmAndReset(resetTokens.first().tokenId) }
+            ActionLink("Use reset…") { event ->
+                    runOutsidePopup(event.source as JComponent) { parent ->
+                        confirmAndReset(parent, resetTokens.first().tokenId)
+                    }
+                }
                 .apply {
                     icon = AllIcons.Actions.Restart
                     toolTipText =
@@ -147,16 +154,17 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
         resetTokensPanel.isVisible = true
     }
 
-    private fun confirmAndReset(tokenId: String) {
-        val result =
-            Messages.showYesNoDialog(
-                "Use one available SuperGrok weekly reset now?",
-                "Reset SuperGrok Limits",
-                message("quota.reset.title"),
-                "Cancel",
-                AllIcons.Actions.Restart,
-            )
-        if (result != Messages.YES) {
+    private fun confirmAndReset(parent: Component, tokenId: String) {
+        val confirmed =
+            MessageDialogBuilder.yesNo(
+                    "Reset SuperGrok Limits",
+                    "Use one available SuperGrok weekly reset now?",
+                )
+                .yesText(message("quota.reset.title"))
+                .noText("Cancel")
+                .icon(AllIcons.Actions.Restart)
+                .ask(parent)
+        if (!confirmed) {
             return
         }
         resetTokensPanel.components.filterIsInstance<ActionLink>().forEach { it.isEnabled = false }
@@ -178,7 +186,7 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
                 .onFailure { exception ->
                     ApplicationManager.getApplication().invokeLater {
                         Messages.showErrorDialog(
-                            this,
+                            parent,
                             exception.message ?: "Reset request failed",
                             "Reset SuperGrok Limits",
                         )

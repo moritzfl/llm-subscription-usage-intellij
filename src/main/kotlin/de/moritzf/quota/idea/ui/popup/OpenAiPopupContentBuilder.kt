@@ -2,6 +2,7 @@ package de.moritzf.quota.idea.ui.popup
 
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.ui.MessageDialogBuilder
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.ActionLink
 import com.intellij.util.ui.JBUI
@@ -20,9 +21,11 @@ import de.moritzf.quota.openai.hasDetail
 import de.moritzf.quota.openai.hasSpendControlDetail
 import de.moritzf.quota.openai.isAssignedCreditsQuota
 import de.moritzf.quota.shared.ProviderQuota
+import java.awt.Component
 import java.awt.Cursor
 import java.awt.FlowLayout
 import java.util.Locale
+import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
 import kotlin.math.roundToInt
@@ -228,7 +231,11 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
 
         resetCreditsPanel.add(JLabel("Resets available: $availableCount"))
         resetCreditsPanel.add(
-            ActionLink("Use reset…") { confirmAndReset(resetCredits.firstOrNull()?.creditId) }
+            ActionLink("Use reset…") { event ->
+                    runOutsidePopup(event.source as JComponent) { parent ->
+                        confirmAndReset(parent, resetCredits.firstOrNull()?.creditId)
+                    }
+                }
                 .apply {
                     icon = AllIcons.Actions.Restart
                     toolTipText =
@@ -243,16 +250,17 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
         resetCreditsPanel.isVisible = true
     }
 
-    private fun confirmAndReset(creditId: String?) {
-        val result =
-            Messages.showYesNoDialog(
-                "Use one available Codex usage limit reset now?",
-                "Reset Codex Limits",
-                message("quota.reset.title"),
-                "Cancel",
-                AllIcons.Actions.Restart,
-            )
-        if (result != Messages.YES) {
+    private fun confirmAndReset(parent: Component, creditId: String?) {
+        val confirmed =
+            MessageDialogBuilder.yesNo(
+                    "Reset Codex Limits",
+                    "Use one available Codex usage limit reset now?",
+                )
+                .yesText(message("quota.reset.title"))
+                .noText("Cancel")
+                .icon(AllIcons.Actions.Restart)
+                .ask(parent)
+        if (!confirmed) {
             return
         }
 
@@ -276,7 +284,7 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
                 .onFailure { exception ->
                     ApplicationManager.getApplication().invokeLater {
                         Messages.showErrorDialog(
-                            this,
+                            parent,
                             exception.message ?: "Reset request failed",
                             "Reset Codex Limits",
                         )
