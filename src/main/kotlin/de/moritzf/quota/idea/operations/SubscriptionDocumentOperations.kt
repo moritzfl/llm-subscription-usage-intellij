@@ -17,7 +17,16 @@ import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 import de.moritzf.quota.mistral.MistralQuotaException
 import de.moritzf.quota.shared.DocumentImageFormat
 import de.moritzf.quota.shared.DocumentImageOptions
+import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.shared.document.MarkdownAltText
 import de.moritzf.quota.zai.ZaiQuotaException
+import java.nio.file.Path
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.put
 
 internal suspend fun SubscriptionOperations.subscription_document_to_markdown(
     provider: DocumentToMarkdownProvider = DocumentToMarkdownProvider.MISTRAL,
@@ -32,6 +41,97 @@ internal suspend fun SubscriptionOperations.subscription_document_to_markdown(
     imageDpi: Int = 300,
     imagePaddingPoints: Double = 2.0,
     account: String? = null,
+    altTextProvider: VisionProvider? = null,
+): String {
+    val result =
+        convertDocumentToMarkdown(
+            provider,
+            documentUrl,
+            localFile,
+            outputFile,
+            includeImages,
+            model,
+            pageFrom,
+            pageTo,
+            imageFormat,
+            imageDpi,
+            imagePaddingPoints,
+            account,
+        )
+    if (altTextProvider == null) return result
+    if (!includeImages) return withWarnings(result, listOf("Alt text needs includeImages."))
+    return withAltText(result, altTextProvider)
+}
+
+/** Adds vision alt text to a successful file result; text-only and error results pass through. */
+internal fun withAltText(
+    result: String,
+    vision: VisionProvider,
+    describe: (VisionProvider, Path) -> String = { provider, image ->
+        de.moritzf.quota.idea.action.VisionImageAnalysis.analyze(
+            provider,
+            image,
+            MarkdownAltText.PROMPT,
+        )
+    },
+): String {
+    val json =
+        runCatching { JsonSupport.json.parseToJsonElement(result) as? JsonObject }.getOrNull()
+            ?: return result
+    if (json["error"] != null) return result
+    val output =
+        (json["output_file"] as? JsonPrimitive)?.contentOrNull
+            ?: return withWarnings(result, listOf("Alt text needs a Markdown output file."))
+    val report =
+        try {
+            MarkdownAltText.apply(Path.of(output)) { describe(vision, it) }
+        } catch (exception: Exception) {
+            exception.rethrowIfCancellation()
+            return withWarnings(
+                result,
+                listOf("Alt text failed: ${exception.message ?: exception.javaClass.simpleName}"),
+            )
+        }
+    val updated =
+        JsonObject(
+            json +
+                ("alt_text" to
+                    buildJsonObject {
+                        put("provider", vision.name)
+                        put("images", report.images)
+                        put("described", report.described)
+                    })
+        )
+    return withWarnings(
+        JsonSupport.json.encodeToString(JsonObject.serializer(), updated),
+        report.warnings,
+    )
+}
+
+private fun withWarnings(result: String, warnings: List<String>): String {
+    if (warnings.isEmpty()) return result
+    val json =
+        runCatching { JsonSupport.json.parseToJsonElement(result) as? JsonObject }.getOrNull()
+            ?: return result
+    val existing = (json["warnings"] as? JsonArray).orEmpty()
+    val updated =
+        JsonObject(json + ("warnings" to JsonArray(existing + warnings.map(::JsonPrimitive))))
+    return JsonSupport.json.encodeToString(JsonObject.serializer(), updated)
+}
+
+private suspend fun SubscriptionOperations.convertDocumentToMarkdown(
+    provider: DocumentToMarkdownProvider,
+    documentUrl: String?,
+    localFile: String?,
+    outputFile: String?,
+    includeImages: Boolean,
+    model: String,
+    pageFrom: Int,
+    pageTo: Int,
+    imageFormat: DocumentImageFormat,
+    imageDpi: Int,
+    imagePaddingPoints: Double,
+    account: String?,
 ): String {
     val imageOptions =
         try {

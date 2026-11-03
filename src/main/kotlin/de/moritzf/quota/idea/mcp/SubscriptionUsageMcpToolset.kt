@@ -320,6 +320,11 @@ class SubscriptionUsageMcpToolset : McpToolset {
                 "OpenAI-compatible or LiteLLM connection name/ID. Required when that provider has multiple connections. Uses the connection's upstream model ID."
         )
         account: String? = null,
+        @McpDescription(
+            description =
+                "Optional vision provider (VisionProvider enum) that writes alt text for every saved local figure, one request per image, using its vision model from settings. Leave blank to keep the converter's alt text. Needs includeImages and a Markdown output file; failures are returned in warnings."
+        )
+        altTextProvider: VisionProvider? = null,
     ): String {
         return interruptibleOperation {
             operations.subscription_document_to_markdown(
@@ -335,6 +340,7 @@ class SubscriptionUsageMcpToolset : McpToolset {
                 imageDpi,
                 imagePaddingPoints,
                 account,
+                altTextProvider,
             )
         }
     }

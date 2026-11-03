@@ -181,10 +181,12 @@ class SubscriptionUsageMcpToolsetTest {
                 Int::class,
                 Double::class,
                 String::class,
+                VisionProvider::class,
             ),
             tools.single().mcpParamClassifiers(),
         )
-        val imageOptions = tools.single().valueParameters.dropLast(1).takeLast(3)
+        assertTrue(tools.single().valueParameters.last().isOptional)
+        val imageOptions = tools.single().valueParameters.dropLast(2).takeLast(3)
         assertEquals(
             listOf("imageFormat", "imageDpi", "imagePaddingPoints"),
             imageOptions.map { it.name },
