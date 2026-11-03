@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.27.1] - 2026-11-03
+
 - Fix "The slow operation may freeze UI" when logging out of OpenAI, Claude, or xAI/Grok in settings; the login is now removed from Password Safe in the background.
 - Fix a `NullPointerException` in a tooltip after clicking "Use reset…" in the status bar popup. The popup now closes before the reset confirmation for OpenAI, Claude, and SuperGrok opens.
 
@@ -795,7 +797,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.27.0...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.27.1...HEAD
+[1.27.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.27.0...1.27.1
 [1.27.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.26.0...1.27.0
 [1.26.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.25.0...1.26.0
 [1.25.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.24.2...1.25.0
