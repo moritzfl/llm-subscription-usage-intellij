@@ -348,3 +348,15 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
         }
     }
 }
+
+/** Clears an OAuth login and its usage data. Call off the EDT: Password Safe writes are slow. */
+internal fun clearOAuthLogin(
+    accountId: String,
+    type: de.moritzf.quota.idea.common.QuotaProviderType,
+    usageError: String? = "Not logged in",
+): Boolean {
+    val cleared =
+        de.moritzf.quota.idea.auth.QuotaAuthService.getInstance().clearCredentials(accountId, type)
+    if (cleared) QuotaUsageService.getInstance().clearUsageData(accountId, usageError)
+    return cleared
+}

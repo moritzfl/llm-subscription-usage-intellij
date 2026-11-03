@@ -147,27 +147,36 @@ internal class ClaudeSettingsPanel(
         }
 
         logoutButton.addActionListener {
-            val cleared =
-                QuotaAuthService.getInstance()
-                    .clearCredentials(
-                        accountKey(QuotaProviderType.CLAUDE),
-                        QuotaProviderType.CLAUDE,
+            val accountId = accountKey(QuotaProviderType.CLAUDE)
+            val isCurrent = accountUiGuard()
+            val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
+            logoutButton.isEnabled = false
+            ApplicationManager.getApplication().executeOnPooledThread {
+                val cleared = clearOAuthLogin(accountId, QuotaProviderType.CLAUDE, null)
+                ApplicationManager.getApplication()
+                    .invokeLater(
+                        {
+                            if (!isCurrent()) return@invokeLater
+                            if (cleared) authCodeField.text = ""
+                            authStatusMessage =
+                                if (cleared) {
+                                    AuthStatusMessage(
+                                        "Logged out of Claude",
+                                        false,
+                                        AuthStatusKind.DISCONNECTED,
+                                    )
+                                } else {
+                                    AuthStatusMessage(
+                                        "Could not remove Claude login from Password Safe",
+                                        true,
+                                        AuthStatusKind.CONNECTED,
+                                    )
+                                }
+                            updateAuthUi()
+                        },
+                        modality,
                     )
-            if (cleared) {
-                QuotaUsageService.getInstance().clearUsageData(accountKey(QuotaProviderType.CLAUDE))
-                authCodeField.text = ""
             }
-            authStatusMessage =
-                if (cleared) {
-                    AuthStatusMessage("Logged out of Claude", false, AuthStatusKind.DISCONNECTED)
-                } else {
-                    AuthStatusMessage(
-                        "Could not remove Claude login from Password Safe",
-                        true,
-                        AuthStatusKind.CONNECTED,
-                    )
-                }
-            updateAuthUi()
         }
 
         val configPanel = panel {

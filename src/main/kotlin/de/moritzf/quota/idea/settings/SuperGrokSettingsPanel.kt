@@ -131,23 +131,35 @@ internal class SuperGrokSettingsPanel(
         }
 
         logoutButton.addActionListener {
-            val cleared =
-                QuotaAuthService.getInstance()
-                    .clearCredentials(accountId(), QuotaProviderType.SUPERGROK)
-            if (cleared) {
-                QuotaUsageService.getInstance().clearUsageData(accountId())
-            }
-            authStatusMessage =
-                if (cleared) {
-                    AuthStatusMessage("Logged out of xAI/Grok", false, AuthStatusKind.DISCONNECTED)
-                } else {
-                    AuthStatusMessage(
-                        "Could not remove xAI/Grok login from Password Safe",
-                        true,
-                        AuthStatusKind.CONNECTED,
+            val accountId = accountId()
+            val isCurrent = accountUiGuard()
+            val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
+            logoutButton.isEnabled = false
+            ApplicationManager.getApplication().executeOnPooledThread {
+                val cleared = clearOAuthLogin(accountId, QuotaProviderType.SUPERGROK, null)
+                ApplicationManager.getApplication()
+                    .invokeLater(
+                        {
+                            if (!isCurrent()) return@invokeLater
+                            authStatusMessage =
+                                if (cleared) {
+                                    AuthStatusMessage(
+                                        "Logged out of xAI/Grok",
+                                        false,
+                                        AuthStatusKind.DISCONNECTED,
+                                    )
+                                } else {
+                                    AuthStatusMessage(
+                                        "Could not remove xAI/Grok login from Password Safe",
+                                        true,
+                                        AuthStatusKind.CONNECTED,
+                                    )
+                                }
+                            updateAuthUi()
+                        },
+                        modality,
                     )
-                }
-            updateAuthUi()
+            }
         }
 
         val configPanel = panel {

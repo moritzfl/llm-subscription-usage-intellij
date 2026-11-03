@@ -148,26 +148,39 @@ internal class OpenAiSettingsPanel(
         }
 
         logoutButton.addActionListener {
-            val cleared =
-                QuotaAuthService.getInstance()
-                    .clearCredentials(accountKey(), QuotaProviderType.OPEN_AI)
-            if (cleared) {
-                QuotaUsageService.getInstance().clearUsageData(accountKey(), "Not logged in")
-            }
-            authStatusMessage =
-                if (cleared) {
-                    AuthStatusMessage("Logged out", false, AuthStatusKind.DISCONNECTED)
-                } else {
-                    AuthStatusMessage(
-                        "Could not remove login from Password Safe",
-                        true,
-                        AuthStatusKind.CONNECTED,
+            val accountId = accountKey()
+            val isCurrent = accountUiGuard()
+            val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
+            logoutButton.isEnabled = false
+            // Password Safe writes are slow operations and must stay off the EDT.
+            ApplicationManager.getApplication().executeOnPooledThread {
+                val cleared = clearOAuthLogin(accountId, QuotaProviderType.OPEN_AI)
+                ApplicationManager.getApplication()
+                    .invokeLater(
+                        {
+                            if (!isCurrent()) return@invokeLater
+                            authStatusMessage =
+                                if (cleared) {
+                                    AuthStatusMessage(
+                                        "Logged out",
+                                        false,
+                                        AuthStatusKind.DISCONNECTED,
+                                    )
+                                } else {
+                                    AuthStatusMessage(
+                                        "Could not remove login from Password Safe",
+                                        true,
+                                        AuthStatusKind.CONNECTED,
+                                    )
+                                }
+                            updateAuthUi()
+                            updateAccountFields()
+                            if (cleared) {
+                                onLogout?.invoke()
+                            }
+                        },
+                        modality,
                     )
-                }
-            updateAuthUi()
-            updateAccountFields()
-            if (cleared) {
-                onLogout?.invoke()
             }
         }
 
