@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-11-03
+
 - Optionally generate alt text for figures when converting a PDF to Markdown. Enable "Generate alt text with" in the conversion dialog, or pass `altTextProvider` to `subscription_document_to_markdown`, and each saved figure is described by that provider's vision model (one request per image; SVG figures are rasterized first). Failed descriptions keep the converter's alt text and are listed as warnings.
 
 ## [1.26.0] - 2026-10-29
@@ -790,7 +792,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.26.0...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.27.0...HEAD
+[1.27.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.26.0...1.27.0
 [1.26.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.25.0...1.26.0
 [1.25.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.24.2...1.25.0
 [1.24.2]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.24.1...1.24.2
