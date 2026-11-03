@@ -68,6 +68,7 @@ class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
         val source = Path.of(pdf.path)
         ApplicationManager.getApplication().executeOnPooledThread {
             val connections = PdfDocumentConversion.availableConnections()
+            val visionConnections = VisionImageAnalysis.availableConnections()
             ApplicationManager.getApplication().invokeLater {
                 if (project.isDisposed) return@invokeLater
                 if (connections.isEmpty()) {
@@ -78,13 +79,15 @@ class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
                     )
                     return@invokeLater
                 }
-                val dialog = ConvertPdfToMarkdownDialog(project, source, connections)
+                val dialog =
+                    ConvertPdfToMarkdownDialog(project, source, connections, visionConnections)
                 if (!dialog.showAndGet()) return@invokeLater
                 val destination = dialog.outputFile()
                 val provider = dialog.provider()
                 val accountId = dialog.accountId()
                 val includeImages = dialog.includeImages()
                 val imageOptions = dialog.imageOptions()
+                val altTextVision = dialog.altTextVision()
                 if (
                     Files.exists(destination) &&
                         Messages.showYesNoDialog(
@@ -102,6 +105,20 @@ class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
 
                             override fun run(indicator: ProgressIndicator) {
                                 indicator.isIndeterminate = true
+                                val progress =
+                                    de.moritzf.quota.shared.DocumentConversionProgress {
+                                        completed,
+                                        total,
+                                        detail ->
+                                        indicator.checkCanceled()
+                                        indicator.text = source.fileName.toString()
+                                        indicator.text2 =
+                                            "$detail (cancellation takes effect between requests)"
+                                        indicator.isIndeterminate = total <= 0
+                                        if (total > 0)
+                                            indicator.fraction =
+                                                (completed.toDouble() / total).coerceAtMost(0.99)
+                                    }
                                 conversion =
                                     PdfDocumentConversion.convert(
                                         provider,
@@ -110,19 +127,20 @@ class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
                                         includeImages,
                                         imageOptions,
                                         accountId = accountId,
-                                        progress = { completed, total, detail ->
-                                            indicator.checkCanceled()
-                                            indicator.text = source.fileName.toString()
-                                            indicator.text2 =
-                                                "$detail (cancellation takes effect between requests)"
-                                            indicator.isIndeterminate = total <= 0
-                                            if (total > 0)
-                                                indicator.fraction =
-                                                    (completed.toDouble() / total).coerceAtMost(
-                                                        0.99
-                                                    )
-                                        },
+                                        progress = progress,
                                     )
+                                if (includeImages && altTextVision != null) {
+                                    val altText =
+                                        PdfDocumentConversion.describeImages(
+                                            destination,
+                                            altTextVision,
+                                            progress,
+                                        )
+                                    conversion =
+                                        conversion.copy(
+                                            warnings = conversion.warnings + altText.warnings
+                                        )
+                                }
                                 // NIO writes bypass the VFS. Refresh images too, before opening
                                 // Markdown on the EDT.
                                 LocalFileSystem.getInstance()
@@ -189,6 +207,7 @@ private class ConvertPdfToMarkdownDialog(
     private val project: Project,
     private val source: Path,
     connections: List<DocumentConnection>,
+    visionConnections: List<VisionConnection>,
 ) : DialogWrapper(project) {
     private val defaultFileName = checkNotNull(DocumentMarkdown.defaultOutput(source)).fileName
     private val providerCombo =
@@ -275,6 +294,40 @@ private class ConvertPdfToMarkdownDialog(
                     }
                 }
         }
+    private val altTextCheckBox =
+        JBCheckBox("Generate alt text with", false).apply {
+            isEnabled = visionConnections.isNotEmpty()
+            if (visionConnections.isEmpty())
+                toolTipText = "Select a vision model in settings first."
+        }
+    private val altTextCombo =
+        ComboBox(visionConnections.toTypedArray()).apply {
+            renderer =
+                object : DefaultListCellRenderer() {
+                    override fun getListCellRendererComponent(
+                        list: javax.swing.JList<*>?,
+                        value: Any?,
+                        index: Int,
+                        isSelected: Boolean,
+                        cellHasFocus: Boolean,
+                    ): java.awt.Component {
+                        super.getListCellRendererComponent(
+                            list,
+                            value,
+                            index,
+                            isSelected,
+                            cellHasFocus,
+                        )
+                        val connection = value as? VisionConnection
+                        text =
+                            connection?.let {
+                                it.provider.providerType.displayName +
+                                    (it.accountName?.let { name -> " · $name" } ?: "")
+                            } ?: ""
+                        return this
+                    }
+                }
+        }
     private val dpiCombo = ComboBox(arrayOf(150, 300, 600)).apply { selectedItem = 300 }
     private val paddingSpinner = JSpinner(SpinnerNumberModel(2.0, 0.0, 72.0, 1.0))
     private val outputField =
@@ -307,6 +360,7 @@ private class ConvertPdfToMarkdownDialog(
         providerCombo.addActionListener { updateImageControls() }
         imagesCheckBox.addActionListener { updateImageControls() }
         formatCombo.addActionListener { updateImageControls() }
+        altTextCheckBox.addActionListener { updateImageControls() }
         updateImageControls()
         init()
         window.minimumSize = window.preferredSize
@@ -350,6 +404,13 @@ private class ConvertPdfToMarkdownDialog(
             cell(paddingSpinner)
             label("PDF points (72 points = 1 inch)")
         }
+        row("Alt text:") {
+            cell(altTextCheckBox)
+            cell(altTextCombo)
+                .align(AlignX.FILL)
+                .resizableColumn()
+                .comment("Describes each saved figure with a vision model; one request per image.")
+        }
         row("Output file:") {
             cell(outputField)
                 .align(AlignX.FILL)
@@ -386,6 +447,11 @@ private class ConvertPdfToMarkdownDialog(
     fun accountId(): String? = (providerCombo.selectedItem as DocumentConnection).accountId
 
     fun includeImages(): Boolean = imagesCheckBox.isSelected
+
+    fun altTextVision(): VisionConnection? =
+        (altTextCombo.selectedItem as? VisionConnection)?.takeIf {
+            altTextCheckBox.isEnabled && altTextCheckBox.isSelected
+        }
 
     fun imageOptions(): DocumentImageOptions =
         DocumentImageOptions(
@@ -435,6 +501,8 @@ private class ConvertPdfToMarkdownDialog(
         val localExport = enabled && formatCombo.selectedItem != DocumentImageFormat.PROVIDER
         dpiCombo.isEnabled = localExport
         paddingSpinner.isEnabled = localExport
+        altTextCheckBox.isEnabled = imagesCheckBox.isSelected && altTextCombo.itemCount > 0
+        altTextCombo.isEnabled = altTextCheckBox.isEnabled && altTextCheckBox.isSelected
     }
 }
 

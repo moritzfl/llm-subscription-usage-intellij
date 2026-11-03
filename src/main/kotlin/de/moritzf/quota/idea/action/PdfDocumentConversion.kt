@@ -27,6 +27,8 @@ import de.moritzf.quota.shared.DocumentImageExportReport
 import de.moritzf.quota.shared.DocumentImageOptions
 import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.shared.JsonSupport
+import de.moritzf.quota.shared.document.AltTextReport
+import de.moritzf.quota.shared.document.MarkdownAltText
 import de.moritzf.quota.shared.document.PdfBoxMarkdown
 import de.moritzf.quota.shared.document.PdfPages
 import de.moritzf.quota.supergrok.SuperGrokDocumentClient
@@ -261,6 +263,21 @@ internal object PdfDocumentConversion {
             }
         return checkConversionResult(response, output)
     }
+
+    /** Replaces local image alt text in [output] with descriptions from [vision]. */
+    fun describeImages(
+        output: Path,
+        vision: VisionConnection,
+        progress: DocumentConversionProgress = DocumentConversionProgress.NONE,
+    ): AltTextReport =
+        MarkdownAltText.apply(output, progress) { image ->
+            VisionImageAnalysis.analyze(
+                vision.provider,
+                image,
+                MarkdownAltText.PROMPT,
+                accountId = vision.accountId,
+            )
+        }
 }
 
 internal data class DocumentConversionResult(

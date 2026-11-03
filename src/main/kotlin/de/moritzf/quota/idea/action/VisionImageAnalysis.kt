@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.action
 
 import de.moritzf.quota.idea.auth.QuotaAuthService
+import de.moritzf.quota.idea.common.ProviderCatalog
 import de.moritzf.quota.idea.compatible.isCompatibleConnection
 import de.moritzf.quota.idea.kimi.KimiCredentialsStore
 import de.moritzf.quota.idea.kimi.KimiDeviceIdStore
@@ -33,11 +34,36 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
+internal data class VisionConnection(
+    val provider: VisionProvider,
+    val accountId: String? = null,
+    val accountName: String? = null,
+)
+
 /**
  * IDE-side entry point for asking a vision model about one image; mirrors the subscription_vision
  * MCP tool.
  */
 internal object VisionImageAnalysis {
+    fun availableConnections(): List<VisionConnection> {
+        val settings = QuotaSettingsState.getInstance()
+        return VisionProvider.entries.flatMap { choice ->
+            val type = choice.providerType
+            val descriptor = ProviderCatalog.get(type)
+            val accounts =
+                settings.accountsOf(type).filter {
+                    descriptor.capabilities.vision && descriptor.isVisionConfiguredForAccount(it.id)
+                }
+            if (type.isCompatibleConnection()) {
+                accounts.map {
+                    VisionConnection(choice, it.id, it.name.takeIf { accounts.size > 1 })
+                }
+            } else if (accounts.isNotEmpty()) {
+                listOf(VisionConnection(choice))
+            } else emptyList()
+        }
+    }
+
     fun analyze(
         provider: VisionProvider,
         image: Path,
