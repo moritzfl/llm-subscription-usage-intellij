@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Optionally generate alt text for figures when converting a PDF to Markdown. Enable "Generate alt text with" in the conversion dialog, or pass `altTextProvider` to `subscription_document_to_markdown`, and each saved figure is described by that provider's vision model (one request per image; SVG figures are rasterized first). Failed descriptions keep the converter's alt text and are listed as warnings.
+
 ## [1.26.0] - 2026-10-29
 
 - Fix Mistral's included API and Vibe allowances failing to load when the subscription page contains a long Next.js Flight chunk; the chunk is now scanned without a recursive regular expression that overflowed the stack.
