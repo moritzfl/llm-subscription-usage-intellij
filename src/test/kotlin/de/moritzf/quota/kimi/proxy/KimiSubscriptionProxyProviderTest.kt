@@ -135,8 +135,8 @@ class KimiSubscriptionProxyProviderTest {
                     val chatRequest = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                     assertEquals("/coding/v1/chat/completions", chatRequest.path)
                     assertTrue(chatRequest.body.contains("\"model\":\"k2p7\""), chatRequest.body)
-                    assertEquals("KimiCLI/1.40.0", chatRequest.firstHeader("User-Agent"))
-                    assertEquals("kimi_cli", chatRequest.firstHeader("X-Msh-Platform"))
+                    assertEquals("kimi-code-cli/2.5.2", chatRequest.firstHeader("User-Agent"))
+                    assertEquals("kimi_code_cli", chatRequest.firstHeader("X-Msh-Platform"))
                     assertEquals("proxy-device", chatRequest.firstHeader("X-Msh-Device-Id"))
                 } finally {
                     proxy.server.stop(gracePeriodMillis = 0)

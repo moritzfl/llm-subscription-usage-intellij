@@ -394,7 +394,7 @@ class KimiSubscriptionProxyProvider(
             mapOf(
                 "Accept" to "application/json",
                 "Content-Type" to "application/json",
-                "User-Agent" to "KimiCLI/1.40.0",
+                "User-Agent" to KimiDeviceHeaders.USER_AGENT,
             ) + KimiDeviceHeaders.all(deviceId)
 
         private fun intField(item: JsonObject, name: String): Int? {

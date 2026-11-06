@@ -141,7 +141,7 @@ open class KimiVisionClient(
     )
 
     companion object {
-        private const val USER_AGENT = "KimiCLI/1.40.0"
+        private const val USER_AGENT = KimiDeviceHeaders.USER_AGENT
 
         fun createDefault(deviceId: String = KimiDeviceHeaders.processDeviceId): KimiVisionClient =
             KimiVisionClient(deviceId = deviceId)

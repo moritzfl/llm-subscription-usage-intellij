@@ -18,6 +18,7 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.kimi.KimiAuthService
 import de.moritzf.quota.idea.kimi.KimiCredentialsStore
+import de.moritzf.quota.kimi.KimiDeviceHeaders
 import de.moritzf.quota.kimi.KimiQuota
 import de.moritzf.quota.kimi.KimiRegion
 import de.moritzf.quota.shared.JsonSupport
@@ -352,7 +353,7 @@ private fun fetchKimiVisionModelIds(token: String, region: KimiRegion): List<Str
             .timeout(Duration.ofSeconds(30))
             .header("Authorization", "Bearer $token")
             .header("Accept", "application/json")
-            .header("User-Agent", "KimiCLI/1.40.0")
+            .header("User-Agent", KimiDeviceHeaders.USER_AGENT)
             .GET()
             .build()
     val response =

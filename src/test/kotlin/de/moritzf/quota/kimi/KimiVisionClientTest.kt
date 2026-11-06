@@ -41,7 +41,7 @@ class KimiVisionClientTest {
             val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
             assertEquals("/coding/v1/chat/completions", request.path)
             assertTrue(request.authorization.contains("Bearer kimi-token"))
-            assertTrue(request.userAgent.contains("KimiCLI"))
+            assertTrue(request.userAgent.contains("kimi-code-cli/"))
             assertEquals("vision-device", request.deviceId)
             val body = JsonSupport.json.parseToJsonElement(request.body) as JsonObject
             assertEquals("kimi-vision", body["model"]!!.jsonPrimitive.content)

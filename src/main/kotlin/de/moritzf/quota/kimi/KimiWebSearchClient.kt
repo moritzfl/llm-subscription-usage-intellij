@@ -166,7 +166,7 @@ open class KimiWebSearchClient(
         const val MIN_LIMIT = 1
         const val MAX_LIMIT = 20
         private const val SEARCH_TIMEOUT_SECONDS = 30
-        private const val USER_AGENT = "KimiCLI/1.40.0"
+        private const val USER_AGENT = KimiDeviceHeaders.USER_AGENT
 
         internal fun normalizeHttpUrl(value: String): String {
             val trimmed = value.trim()
