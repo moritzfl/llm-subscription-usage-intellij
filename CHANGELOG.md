@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.27.2] - 2026-11-06
+
 - Kimi now identifies as Kimi Code CLI. The Python Kimi CLI it previously reported is archived, and Moonshot is retiring its installations.
 - Claude usage-reset grants can show again: Claude marked them ineligible because the plugin reported an outdated Claude Code version.
 - Add `gpt-6.1-terra` to the OpenAI/Codex models offered by the proxy.
@@ -802,7 +804,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.27.1...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.27.2...HEAD
+[1.27.2]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.27.1...1.27.2
 [1.27.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.27.0...1.27.1
 [1.27.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.26.0...1.27.0
 [1.26.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.25.0...1.26.0
