@@ -58,5 +58,7 @@ class KnownReasoningLevelsTest {
         assertEquals(emptyList(), levels("kimi-k2.7-code"))
         assertEquals(listOf("low", "medium", "high", "xhigh", "max"), levels("minimax-m3.1-flash"))
         assertEquals(listOf("none", "high"), levels("mistral-medium-3-5"))
+        assertEquals(listOf("none", "high"), levels("mistral-small-2603"))
+        assertEquals(listOf("low", "medium", "high"), levels("mistral-large-4-0"))
     }
 }

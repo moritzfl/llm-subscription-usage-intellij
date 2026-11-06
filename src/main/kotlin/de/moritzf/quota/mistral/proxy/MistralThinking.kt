@@ -18,15 +18,19 @@ import kotlinx.serialization.json.put
  */
 internal object MistralThinking {
     /**
-     * Mistral's reasoning docs, the Vibe catalog, and LiteLLM's model map all list reasoning as on
-     * (`high`) or off (`none`); GLM 5.3 accepts `low`, `high`, and `max` but not `none`. Deprecated
-     * Magistral models always reason and keep getting no effort.
+     * Levels each Mistral-hosted model accepts, from Mistral's reasoning docs (2026-11-06): Small 4
+     * and Medium 3.5 switch reasoning on (`high`) or off (`none`); Large 4 takes `low`, `medium`,
+     * and `high` and rejects `none`; GLM 5.3 and GLM 5.3 Flash take `low`, `high`, and `max` but
+     * not `none`; DeepSeek V4.1 Flash is served unmodified and keeps `none`, `low`, `high`, and
+     * `max`. Deprecated Magistral models always reason and keep getting no effort.
      */
     fun reasoningEfforts(modelId: String, supportsReasoning: Boolean?): List<String> {
         val id = modelId.lowercase()
         return when {
             supportsReasoning != true || id.startsWith("magistral-") -> emptyList()
             id.contains("glm") -> listOf("low", "high", "max")
+            id.startsWith("mistral-large-4") -> listOf("low", "medium", "high")
+            id.contains("deepseek") -> listOf("none", "low", "high", "max")
             else -> listOf("none", "high")
         }
     }

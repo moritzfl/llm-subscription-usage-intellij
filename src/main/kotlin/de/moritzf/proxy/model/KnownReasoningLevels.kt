@@ -61,7 +61,10 @@ object KnownReasoningLevels {
             rule("qwen3\\.8-flash", NONE_TO_MAX),
             rule("muse-spark", listOf("minimal", "low", "medium", "high", "xhigh", "max")),
             rule("mai-", LOW_TO_HIGH),
-            rule("mistral-(?:medium-3[.-]5|large-4|small-2603)", listOf("none", "high")),
+            // Mistral Large 4 takes low/medium/high and rejects none; Small 4 and Medium 3.5
+            // switch reasoning on (high) or off (none).
+            rule("mistral-large-4", LOW_TO_HIGH),
+            rule("mistral-(?:medium-3[.-]5|small-2603)", listOf("none", "high")),
         )
 
     fun forModel(modelId: String?): List<String>? {

@@ -46,6 +46,8 @@ class MistralSubscriptionProxyProviderTest {
                         "mi-codestral-latest",
                         "mi-mistral-medium-3-5",
                         "mi-zai-glm-5-3",
+                        "mi-mistral-large-4-0",
+                        "mi-deepseek-v4-1-flash-1017",
                         "mi-ministral-8b-latest",
                     ),
                     ids.filter { it !in OpenAiMedia.advertisedMediaIds(setOf("mistral")) },
@@ -181,16 +183,23 @@ class MistralSubscriptionProxyProviderTest {
                         ?.jsonPrimitive
                         ?.content
                 }
-                // Mistral models switch reasoning on or off; GLM 5.3 has low/high/max.
-                // Mistral reasoning is on (high) or off (none); requests round up, never to none.
+                // Small 4, Medium 3.5 and Large 4: Small/Medium switch reasoning on or off;
+                // Large 4 takes low/medium/high and rejects none, so none rounds up to low.
                 assertEquals("high", sentEffort("mi-mistral-medium-3-5", "high"))
                 assertEquals("high", sentEffort("mi-mistral-medium-3-5", "medium"))
                 assertEquals("high", sentEffort("mi-mistral-medium-3-5", "low"))
                 assertEquals("none", sentEffort("mi-mistral-medium-3-5", "none"))
+                assertEquals("low", sentEffort("mi-mistral-large-4-0", "none"))
+                assertEquals("medium", sentEffort("mi-mistral-large-4-0", "medium"))
+                assertEquals("high", sentEffort("mi-mistral-large-4-0", "high"))
                 // GLM 5.3 has low/high/max and no none.
                 assertEquals("low", sentEffort("mi-zai-glm-5-3", "none"))
                 assertEquals("max", sentEffort("mi-zai-glm-5-3", "xhigh"))
                 assertEquals("max", sentEffort("mi-zai-glm-5-3", "max"))
+                // DeepSeek V4.1 Flash keeps its own none/low/high/max ladder.
+                assertEquals("none", sentEffort("mi-deepseek-v4-1-flash-1017", "none"))
+                assertEquals("low", sentEffort("mi-deepseek-v4-1-flash-1017", "low"))
+                assertEquals("max", sentEffort("mi-deepseek-v4-1-flash-1017", "max"))
                 assertNull(sentEffort("mi-ministral-8b-latest", "high"))
 
                 val response =
@@ -480,6 +489,8 @@ class MistralSubscriptionProxyProviderTest {
                                 "{\"id\":\"mistral-embed\",\"object\":\"embedding\"}," +
                                 "{\"id\":\"mistral-medium-3-5\",\"object\":\"model\",\"capabilities\":{\"completion_chat\":true,\"reasoning\":true}}," +
                                 "{\"id\":\"zai-glm-5-3\",\"object\":\"model\",\"capabilities\":{\"completion_chat\":true,\"reasoning\":true}}," +
+                                "{\"id\":\"mistral-large-4-0\",\"object\":\"model\",\"capabilities\":{\"completion_chat\":true,\"reasoning\":true}}," +
+                                "{\"id\":\"deepseek-v4-1-flash-1017\",\"object\":\"model\",\"capabilities\":{\"completion_chat\":true,\"reasoning\":true}}," +
                                 "{\"id\":\"ministral-8b-latest\",\"object\":\"model\",\"capabilities\":{\"completion_chat\":true,\"reasoning\":false}}" +
                                 "]}"
                     } else if (path.endsWith("/fim/completions")) {

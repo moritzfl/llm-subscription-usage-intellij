@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Send Mistral-hosted models the reasoning levels they accept: Mistral Large 4 takes `low`, `medium`, and `high` instead of being sent `none`, which it rejects, GLM 5.3 and GLM 5.3 Flash take `low`, `high`, and `max`, and DeepSeek V4.1 Flash keeps `none`, `low`, `high`, and `max` instead of collapsing to `none`/`high`.
+
 ## [1.27.2] - 2026-11-06
 
 - Kimi now identifies as Kimi Code CLI. The Python Kimi CLI it previously reported is archived, and Moonshot is retiring its installations.
