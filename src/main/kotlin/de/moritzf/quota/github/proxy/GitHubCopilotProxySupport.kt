@@ -25,10 +25,10 @@ internal object GitHubCopilotProxyIds {
     const val DISPLAY_NAME = "GitHub Copilot"
     const val DEFAULT_RESPONSES_INSTRUCTIONS = "You are a coding assistant."
     const val LITELLM_PROVIDER = "github_copilot"
-    const val USER_AGENT = "GitHubCopilotChat/0.26.7"
+    const val USER_AGENT = "GitHubCopilotChat/0.48.1"
     const val COPILOT_INTEGRATION_ID = "vscode-chat"
-    const val EDITOR_VERSION = "vscode/1.104.1"
-    const val EDITOR_PLUGIN_VERSION = "copilot-chat/0.26.7"
+    const val EDITOR_VERSION = "vscode/1.145.2"
+    const val EDITOR_PLUGIN_VERSION = "copilot-chat/0.48.1"
     const val API_VERSION = "2026-06-01"
     const val DEFAULT_ANTHROPIC_MAX_TOKENS = 4096
     const val MAX_REMOTE_IMAGE_BYTES = 5 * 1024 * 1024

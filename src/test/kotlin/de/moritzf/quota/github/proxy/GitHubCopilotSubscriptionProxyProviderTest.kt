@@ -398,8 +398,8 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 assertEquals("/models", request.path)
                 assertEquals("Bearer github-token", request.firstHeader("Authorization"))
                 assertEquals("vscode-chat", request.firstHeader("Copilot-Integration-Id"))
-                assertEquals("vscode/1.104.1", request.firstHeader("Editor-Version"))
-                assertEquals("copilot-chat/0.26.7", request.firstHeader("Editor-Plugin-Version"))
+                assertEquals("vscode/1.145.2", request.firstHeader("Editor-Version"))
+                assertEquals("copilot-chat/0.48.1", request.firstHeader("Editor-Plugin-Version"))
                 assertEquals("2026-06-01", request.firstHeader("X-GitHub-Api-Version"))
             } finally {
                 proxy.stop()
