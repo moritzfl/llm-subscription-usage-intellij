@@ -164,7 +164,7 @@ class ClaudeQuotaClientTest {
             request.headers().firstValue("anthropic-beta").orElse(null),
         )
         assertEquals(
-            "claude-cli/2.1.87 (external, cli)",
+            "claude-cli/2.1.318 (external, cli)",
             request.headers().firstValue("User-Agent").orElse(null),
         )
         assertTrue(quota.rawJson?.contains("five_hour") == true)

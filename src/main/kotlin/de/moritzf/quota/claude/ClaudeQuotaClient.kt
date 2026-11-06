@@ -250,7 +250,7 @@ open class ClaudeQuotaClient(
         val DEFAULT_USAGE_URI: URI = URI.create("https://api.anthropic.com/api/oauth/usage")
 
         private const val OAUTH_BETA = "oauth-2025-04-20"
-        private const val USER_AGENT = "claude-cli/2.1.87 (external, cli)"
+        private const val USER_AGENT = "claude-cli/2.1.318 (external, cli)"
         private const val PROFILE_PATH = "/api/oauth/profile"
         private const val RESETS_QUERY = "cedar_ember=1"
         private const val AT_LIMIT_QUERY = "at_wall=1&skip_spend=1"
