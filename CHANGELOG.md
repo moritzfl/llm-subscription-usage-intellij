@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Kimi now identifies as Kimi Code CLI. The Python Kimi CLI it previously reported is archived, and Moonshot is retiring its installations.
+- Claude usage-reset grants can show again: Claude marked them ineligible because the plugin reported an outdated Claude Code version.
+- Add `gpt-6.1-terra` to the OpenAI/Codex models offered by the proxy.
+- The GitHub Copilot proxy now reports current Copilot Chat and VS Code versions.
+
 ## [1.27.1] - 2026-11-03
 
 - Fix "The slow operation may freeze UI" when logging out of OpenAI, Claude, or xAI/Grok in settings; the login is now removed from Password Safe in the background.
