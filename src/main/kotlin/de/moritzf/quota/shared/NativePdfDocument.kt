@@ -140,16 +140,16 @@ internal object NativePdfDocument {
                                     put("type", "input_file")
                                     put("filename", filename)
                                     put("file_data", dataUrl)
-                                }
+                                },
                             )
                             add(
                                 buildJsonObject {
                                     put("type", "input_text")
                                     put("text", PROMPT)
-                                }
+                                },
                             )
                         }
-                    }
+                    },
                 )
             }
         }
@@ -171,16 +171,16 @@ internal object NativePdfDocument {
                                         put("filename", filename)
                                         put("file_data", dataUrl)
                                     }
-                                }
+                                },
                             )
                             add(
                                 buildJsonObject {
                                     put("type", "text")
                                     put("text", PROMPT)
-                                }
+                                },
                             )
                         }
-                    }
+                    },
                 )
             }
         }
@@ -204,16 +204,16 @@ internal object NativePdfDocument {
                                         put("media_type", "application/pdf")
                                         put("data", base64)
                                     }
-                                }
+                                },
                             )
                             add(
                                 buildJsonObject {
                                     put("type", "text")
                                     put("text", PROMPT)
-                                }
+                                },
                             )
                         }
-                    }
+                    },
                 )
             }
         }
@@ -234,16 +234,16 @@ internal object NativePdfDocument {
                                 buildJsonObject {
                                     put("type", "input_image")
                                     put("image_url", imageDataUrl)
-                                }
+                                },
                             )
                             add(
                                 buildJsonObject {
                                     put("type", "input_text")
                                     put("text", prompt)
-                                }
+                                },
                             )
                         }
-                    }
+                    },
                 )
             }
         }
@@ -262,16 +262,16 @@ internal object NativePdfDocument {
                                 buildJsonObject {
                                     put("type", "image_url")
                                     put("image_url", buildJsonObject { put("url", imageDataUrl) })
-                                }
+                                },
                             )
                             add(
                                 buildJsonObject {
                                     put("type", "text")
                                     put("text", prompt)
-                                }
+                                },
                             )
                         }
-                    }
+                    },
                 )
             }
         }
@@ -299,16 +299,16 @@ internal object NativePdfDocument {
                                     put("media_type", mediaType)
                                     put("data", base64)
                                 }
-                            }
+                            },
                         )
                         add(
                             buildJsonObject {
                                 put("type", "text")
                                 put("text", prompt)
-                            }
+                            },
                         )
                     }
-                }
+                },
             )
         }
     }

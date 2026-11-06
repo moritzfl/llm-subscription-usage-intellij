@@ -111,14 +111,14 @@ internal fun azureOcrDeployments(
                                 ignoreCase = true,
                             ) && it.value?.let(::isAzureOcrModel) == false
                         }
-                }
+                },
             )
     return available
         .filter { AZURE_DEPLOYMENT_NAME.matches(azureOcrDeploymentId(it)) }
         .distinct()
         .sortedWith(
             compareByDescending<String> { azureDocumentModelRank(modelNameForSelection(it, quota)) }
-                .thenBy { it }
+                .thenBy { it },
         ) +
         listOfNotNull(AZURE_DOCUMENT_INTELLIGENCE_LAYOUT.takeIf { documentIntelligenceAvailable })
 }
@@ -191,7 +191,7 @@ internal fun preferredAzureOcrSelection(
         .maxWithOrNull(
             compareBy<String> { azureDocumentModelRank(modelNameForSelection(it, quota)) }
                 .thenBy { if (isListedDeployment(it)) 1 else 0 }
-                .thenBy { it }
+                .thenBy { it },
         )
 }
 
@@ -234,7 +234,7 @@ private fun azureModelVersionScore(name: String): Long {
 internal fun azureOcrUri(config: AzureAccountConfig): URI? {
     val resource = azureDocumentResource(config) ?: return null
     return URI.create(
-        "https://$resource.services.ai.azure.com/providers/mistral/azure/ocr?api-version=2024-05-01-preview"
+        "https://$resource.services.ai.azure.com/providers/mistral/azure/ocr?api-version=2024-05-01-preview",
     )
 }
 
@@ -247,7 +247,7 @@ internal fun azureDocumentIntelligenceUri(config: AzureAccountConfig): URI? {
     val resource = azureDocumentResource(config) ?: return null
     return URI.create(
         "https://$resource.cognitiveservices.azure.com/documentintelligence/documentModels/prebuilt-layout:analyze" +
-            "?_overload=analyzeDocument&api-version=2024-11-30&outputContentFormat=markdown"
+            "?_overload=analyzeDocument&api-version=2024-11-30&outputContentFormat=markdown",
     )
 }
 

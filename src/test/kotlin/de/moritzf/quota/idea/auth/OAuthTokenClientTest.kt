@@ -33,7 +33,7 @@ class OAuthTokenClientTest {
             OAuthTokenClient(
                 FakeHttpClient(
                     responseBody =
-                        tokenResponse(accessToken = accessToken, refreshToken = "refresh-token")
+                        tokenResponse(accessToken = accessToken, refreshToken = "refresh-token"),
                 ),
                 config(),
             )
@@ -52,7 +52,7 @@ class OAuthTokenClientTest {
             OAuthTokenClient(
                 FakeHttpClient(
                     responseBody =
-                        tokenResponse(accessToken = "opaque-token", refreshToken = "refresh-token")
+                        tokenResponse(accessToken = "opaque-token", refreshToken = "refresh-token"),
                 ),
                 config(),
             )
@@ -76,7 +76,7 @@ class OAuthTokenClientTest {
                             accessToken = accessToken,
                             refreshToken = "refresh-token",
                             expiresIn = 120,
-                        )
+                        ),
                 ),
                 config(),
             )

@@ -782,7 +782,7 @@ class ChatCompletionsHandler {
                                         "error" == eventType -> JsonHelper.encodeToString(parsed)
                                         response?.pathOrNull("error") is JsonObject ->
                                             JsonHelper.encodeToString(
-                                                response.pathOrNull("error") as JsonObject
+                                                response.pathOrNull("error") as JsonObject,
                                             )
                                         else ->
                                             JsonHelper.encodeToString(
@@ -790,7 +790,7 @@ class ChatCompletionsHandler {
                                                     "Upstream response ${response.stringPath("status", "failed")}.",
                                                     "upstream_error",
                                                     "502",
-                                                )
+                                                ),
                                             )
                                     }
                                 // Quota and rate-limit failures keep their OpenAI error type so

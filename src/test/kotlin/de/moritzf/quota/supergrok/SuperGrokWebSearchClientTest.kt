@@ -54,7 +54,7 @@ class SuperGrokWebSearchClientTest {
                       ]
                     }
                     """
-                        .trimIndent()
+                        .trimIndent(),
             )
             .use { server ->
                 val client = newClient(server)

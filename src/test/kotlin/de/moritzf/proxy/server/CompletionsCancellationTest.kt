@@ -337,7 +337,7 @@ class CompletionsCancellationTest {
                             displayName,
                             "openai",
                             setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS),
-                        )
+                        ),
                     )
 
                 override suspend fun handle(ctx: ProxyCall, request: SubscriptionProxyRequest) =

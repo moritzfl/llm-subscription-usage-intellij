@@ -109,7 +109,7 @@ class OllamaResetScheduleTest {
         assertEquals(
             Instant.parse("2026-10-02T18:08:50Z"),
             OllamaResetSchedule.parseMonthlyAnchor(
-                """<div data-time='2026-10-02T18:08:50Z'>reset tomorrow</div>"""
+                """<div data-time='2026-10-02T18:08:50Z'>reset tomorrow</div>""",
             ),
         )
         assertEquals(

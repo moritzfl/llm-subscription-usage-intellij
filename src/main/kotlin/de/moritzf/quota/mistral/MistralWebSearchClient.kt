@@ -27,7 +27,7 @@ open class MistralWebSearchClient(
         val token =
             apiKey.trim().ifBlank {
                 throw MistralQuotaException(
-                    "Mistral API key missing. Add a Mistral API key in settings."
+                    "Mistral API key missing. Add a Mistral API key in settings.",
                 )
             }
         val body =
@@ -38,10 +38,10 @@ open class MistralWebSearchClient(
                     tools =
                         listOf(
                             MistralBuiltInToolDto(
-                                if (premium) "web_search_premium" else "web_search"
-                            )
+                                if (premium) "web_search_premium" else "web_search",
+                            ),
                         ),
-                )
+                ),
             )
         val response = send(postJson(token, conversationsUri, body))
         val status = response.statusCode()
@@ -102,10 +102,10 @@ open class MistralWebSearchClient(
                     tools =
                         listOf(
                             MistralBuiltInToolDto(
-                                if (premium) "web_search_premium" else "web_search"
-                            )
+                                if (premium) "web_search_premium" else "web_search",
+                            ),
                         ),
-                )
+                ),
             )
         }
 

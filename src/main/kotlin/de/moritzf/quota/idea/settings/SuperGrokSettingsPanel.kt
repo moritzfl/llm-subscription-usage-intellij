@@ -87,7 +87,7 @@ internal class SuperGrokSettingsPanel(
                                 copyUrlButton.isVisible = true
                             },
                             ModalityState.stateForComponent(
-                                modalityComponentProvider() ?: this@SuperGrokSettingsPanel
+                                modalityComponentProvider() ?: this@SuperGrokSettingsPanel,
                             ),
                         )
                 },
@@ -109,7 +109,7 @@ internal class SuperGrokSettingsPanel(
                             .invokeLater(
                                 { if (accountId() == accountId) updateAuthUi() },
                                 ModalityState.stateForComponent(
-                                    modalityComponentProvider() ?: this
+                                    modalityComponentProvider() ?: this,
                                 ),
                             )
                     },
@@ -176,7 +176,7 @@ internal class SuperGrokSettingsPanel(
             row { cell(deviceLoginPanel.component).align(AlignX.FILL).resizableColumn() }
             row {
                 text(
-                    "Uses plugin-managed xAI OAuth with the Grok CLI billing API. No local Grok CLI auth file is required."
+                    "Uses plugin-managed xAI OAuth with the Grok CLI billing API. No local Grok CLI auth file is required.",
                 )
             }
             row(message("settings.model.document.label")) {
@@ -192,7 +192,7 @@ internal class SuperGrokSettingsPanel(
                         { documentModelCombo.selected().orEmpty() },
                         modalityComponentProvider,
                         documentModelCombo.combo,
-                    )
+                    ),
                 )
             }
             row(message("settings.model.vision.label")) {
@@ -205,7 +205,7 @@ internal class SuperGrokSettingsPanel(
                         de.moritzf.quota.idea.mcp.VisionProvider.SUPERGROK,
                         visionModelCombo,
                         modalityComponentProvider,
-                    )
+                    ),
                 )
             }
         }
@@ -368,7 +368,9 @@ internal class SuperGrokSettingsPanel(
 private fun fetchSuperGrokModelIds(token: String): List<String> {
     val request =
         HttpRequest.newBuilder(
-                URI.create("${SuperGrokSubscriptionProxyProvider.DEFAULT_UPSTREAM_BASE_URI}/models")
+                URI.create(
+                    "${SuperGrokSubscriptionProxyProvider.DEFAULT_UPSTREAM_BASE_URI}/models",
+                ),
             )
             .timeout(Duration.ofSeconds(30))
             .header("Authorization", "Bearer $token")

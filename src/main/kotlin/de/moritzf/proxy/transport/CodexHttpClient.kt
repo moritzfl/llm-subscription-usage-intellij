@@ -62,7 +62,7 @@ open class CodexHttpClient {
             if (base.host == "chatgpt.com") "wss://api.openai.com"
             else "${if (base.scheme == "https") "wss" else "ws"}://${base.rawAuthority}"
         fun connect(
-            headers: Map<String, String>
+            headers: Map<String, String>,
         ): java.util.concurrent.CompletableFuture<java.net.http.WebSocket> {
             val builder = httpClient.newWebSocketBuilder().connectTimeout(Duration.ofSeconds(15))
             headers.forEach(builder::header)
@@ -440,7 +440,7 @@ open class CodexHttpClient {
         val targetUrl =
             if (resolved.path == "/backend-api/codex/audio/transcriptions") {
                 resolved.resolve(
-                    "/backend-api/transcribe" + resolved.rawQuery?.let { "?$it" }.orEmpty()
+                    "/backend-api/transcribe" + resolved.rawQuery?.let { "?$it" }.orEmpty(),
                 )
             } else {
                 resolved

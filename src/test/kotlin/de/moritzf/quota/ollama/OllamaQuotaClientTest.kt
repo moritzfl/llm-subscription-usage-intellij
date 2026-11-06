@@ -92,7 +92,7 @@ class OllamaQuotaClientTest {
                   "weekly": {"remaining_percent": 0.5, "resets_at": "2026-10-12T00:00:00Z"}
                 }, "purchased": {"balance_usd": 25}}
                 """
-                    .trimIndent()
+                    .trimIndent(),
             )
         assertEquals(25.0, assertNotNull(quota.sessionUsage).usagePercent)
         assertEquals(Instant.parse("2026-10-07T17:00:00Z"), quota.sessionUsage.resetsAt)
@@ -105,7 +105,7 @@ class OllamaQuotaClientTest {
     fun parseBalanceKeepsValidLegacyWindowWhenSiblingChanges() {
         val quota =
             OllamaQuotaClient.parseQuota(
-                """{"included":{"session":{"remaining_percent":{}},"weekly":{"remaining_percent":40}},"purchased":"changed"}"""
+                """{"included":{"session":{"remaining_percent":{}},"weekly":{"remaining_percent":40}},"purchased":"changed"}""",
             )
         assertNull(quota.sessionUsage)
         assertEquals(60.0, assertNotNull(quota.weeklyUsage).usagePercent)
@@ -117,7 +117,7 @@ class OllamaQuotaClientTest {
         for ((remaining, percent) in listOf(60.0 to 0.0, 0.0 to 100.0)) {
             val quota =
                 OllamaQuotaClient.parseQuota(
-                    """{"included":{"balance_usd":$remaining,"allowance_usd":60}}"""
+                    """{"included":{"balance_usd":$remaining,"allowance_usd":60}}""",
                 )
             val monthly = assertNotNull(quota.monthlyUsage)
             assertEquals(percent, monthly.usagePercent)
@@ -130,19 +130,19 @@ class OllamaQuotaClientTest {
     fun parseBalanceReadsPurchasedCreditsWithAndWithoutAnAllowance() {
         val plan =
             OllamaQuotaClient.parseQuota(
-                """{"included":{"balance_usd":45.60447,"allowance_usd":60,"period":{"from":"2026-10-02T18:08:50Z","until":"2026-11-02T18:08:50Z"}},"purchased":{"balance_usd":12.5}}"""
+                """{"included":{"balance_usd":45.60447,"allowance_usd":60,"period":{"from":"2026-10-02T18:08:50Z","until":"2026-11-02T18:08:50Z"}},"purchased":{"balance_usd":12.5}}""",
             )
         val purchasedOnly =
             OllamaQuotaClient.parseQuota(
-                """{"included":{"balance_usd":0,"allowance_usd":0},"purchased":{"balance_usd":"7.25"}}"""
+                """{"included":{"balance_usd":0,"allowance_usd":0},"purchased":{"balance_usd":"7.25"}}""",
             )
         val legacy =
             OllamaQuotaClient.parseQuota(
-                """{"included":{"session":{"remaining_percent":75}},"purchased":{"balance_usd":25}}"""
+                """{"included":{"session":{"remaining_percent":75}},"purchased":{"balance_usd":25}}""",
             )
         val none =
             OllamaQuotaClient.parseQuota(
-                """{"included":{"balance_usd":0,"allowance_usd":60},"purchased":{"balance_usd":0}}"""
+                """{"included":{"balance_usd":0,"allowance_usd":60},"purchased":{"balance_usd":0}}""",
             )
 
         assertEquals(12.5, plan.purchasedBalanceUsd)
@@ -372,7 +372,7 @@ class OllamaQuotaClientTest {
     fun parseQuotaConvertsMonthlyUsageFractionToPercent() {
         val quota =
             OllamaQuotaClient.parseQuota(
-                """{"limits":{"monthly":{"usage":0.25,"resets_at":"2026-09-10T00:00:00Z"}}}"""
+                """{"limits":{"monthly":{"usage":0.25,"resets_at":"2026-09-10T00:00:00Z"}}}""",
             )
 
         val monthly = assertNotNull(quota.monthlyUsage)
@@ -426,7 +426,7 @@ class OllamaQuotaClientTest {
     fun parseQuotaAcceptsNumericStringUsage() {
         val quota =
             OllamaQuotaClient.parseQuota(
-                """{"limits":{"session":{"usage":"0.25"},"weekly":{"usage":"7.5"}}}"""
+                """{"limits":{"session":{"usage":"0.25"},"weekly":{"usage":"7.5"}}}""",
             )
 
         assertEquals(
@@ -486,7 +486,7 @@ class OllamaQuotaClientTest {
     fun applyConfiguredMonthlyResetKeepsApiStamp() {
         val quota =
             OllamaQuotaClient.parseQuota(
-                """{"limits":{"monthly":{"usage":0.1,"resets_at":"2026-09-10T00:00:00Z"}}}"""
+                """{"limits":{"monthly":{"usage":0.1,"resets_at":"2026-09-10T00:00:00Z"}}}""",
             )
         val applied =
             OllamaQuotaClient.applyConfiguredMonthlyReset(
@@ -517,7 +517,7 @@ class OllamaQuotaClientTest {
     fun parseQuotaClampsOutOfRangeUsage() {
         val quota =
             OllamaQuotaClient.parseQuota(
-                """{"limits":{"session":{"usage":-0.5},"weekly":{"usage":250}}}"""
+                """{"limits":{"session":{"usage":-0.5},"weekly":{"usage":250}}}""",
             )
 
         assertEquals(

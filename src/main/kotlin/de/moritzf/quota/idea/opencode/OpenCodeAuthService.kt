@@ -162,7 +162,7 @@ class OpenCodeAuthService(
                             } catch (_: Exception) {
                                 Logger.getInstance(OpenCodeAuthService::class.java)
                                     .info(
-                                        "Could not open OpenCode login browser; use the verification URL and code in settings"
+                                        "Could not open OpenCode login browser; use the verification URL and code in settings",
                                     )
                             }
                         }

@@ -26,7 +26,7 @@ class DocumentAltTextOperationsTest {
                 withAltText(result, VisionProvider.MISTRAL) { provider, _ ->
                     assertEquals(VisionProvider.MISTRAL, provider)
                     "A diagram."
-                }
+                },
             ) as JsonObject
 
         assertEquals("![A diagram.](a.png)", Files.readString(output))

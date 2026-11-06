@@ -32,12 +32,12 @@ internal class AntigravitySettingsPanel : ProviderSettingsPanel() {
                 row { statusCell(status) }
                 row {
                     comment(
-                        "Uses the current Antigravity CLI login. Install AGY 1.1.11 or later and run agy in a terminal to sign in."
+                        "Uses the current Antigravity CLI login. Install AGY 1.1.11 or later and run agy in a terminal to sign in.",
                     )
                 }
                 row {
                     comment(
-                        "Quota only. One CLI account; credentials stay with AGY. Change accounts in AGY."
+                        "Quota only. One CLI account; credentials stay with AGY. Change accounts in AGY.",
                     )
                 }
                 row("AGY executable:") {

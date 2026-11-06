@@ -38,7 +38,7 @@ internal class OllamaSettingsPanel(
                     override fun focusLost(e: FocusEvent) {
                         collapsePastedReset()
                     }
-                }
+                },
             )
         }
     private val apiKeyField =
@@ -58,7 +58,7 @@ internal class OllamaSettingsPanel(
             row { statusCell(ollamaStatusLabel) }
             row {
                 text(
-                    "Create an API key at ollama.com/settings/keys. Used for quota, MCP web search, and the local proxy."
+                    "Create an API key at ollama.com/settings/keys. Used for quota, MCP web search, and the local proxy.",
                 )
             }
             row("API key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
@@ -83,7 +83,7 @@ internal class OllamaSettingsPanel(
                         de.moritzf.quota.idea.mcp.VisionProvider.OLLAMA,
                         visionModelCombo,
                         modalityComponentProvider,
-                    )
+                    ),
                 )
             }
             row {
@@ -119,7 +119,7 @@ internal class OllamaSettingsPanel(
         if (raw.isEmpty()) return null
         return OllamaResetSchedule.parseMonthlyAnchor(raw)?.toString()
             ?: throw ConfigurationException(
-                "Ollama monthly reset must be ISO-8601 UTC, or ollama.com/settings HTML containing the Monthly usage Resets data-time."
+                "Ollama monthly reset must be ISO-8601 UTC, or ollama.com/settings HTML containing the Monthly usage Resets data-time.",
             )
     }
 
@@ -154,7 +154,7 @@ internal class OllamaSettingsPanel(
                         updateResponseArea()
                         refreshVisionModels()
                     }
-                }
+                },
             )
         apiKeyDraft.show(id, if (apiKey.isNullOrBlank()) "" else API_KEY_PLACEHOLDER)
     }

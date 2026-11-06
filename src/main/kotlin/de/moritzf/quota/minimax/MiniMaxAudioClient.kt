@@ -42,14 +42,14 @@ open class MiniMaxAudioClient(
         val token =
             apiKey.trim().ifBlank {
                 throw MiniMaxQuotaException(
-                    "MiniMax API key missing. Add a MiniMax API key in settings."
+                    "MiniMax API key missing. Add a MiniMax API key in settings.",
                 )
             }
         val format = responseFormat.trim().ifBlank { DEFAULT_FORMAT }
         val output =
             resolveOutput(targetFile, baseDirectory, format)
                 ?: throw MiniMaxQuotaException(
-                    "Provide targetFile so the audio is written to disk."
+                    "Provide targetFile so the audio is written to disk.",
                 )
         val body =
             JsonSupport.json.encodeToString(
@@ -58,11 +58,11 @@ open class MiniMaxAudioClient(
                     text = input,
                     voiceSetting =
                         MiniMaxVoiceSettingDto(
-                            voiceId = voiceId?.trim()?.ifBlank { null } ?: DEFAULT_VOICE
+                            voiceId = voiceId?.trim()?.ifBlank { null } ?: DEFAULT_VOICE,
                         ),
                     audioSetting = MiniMaxAudioSettingDto(format = format),
                     outputFormat = "hex",
-                )
+                ),
             )
         val response = send(postJson(token, apiHost(region).resolve(SPEECH_PATH), body))
         val status = response.statusCode()
@@ -96,7 +96,7 @@ open class MiniMaxAudioClient(
         }
         Files.write(output, bytes)
         return JsonSupport.json.encodeToString(
-            MiniMaxSpeechWriteResult(output.toString(), bytes.size.toLong())
+            MiniMaxSpeechWriteResult(output.toString(), bytes.size.toLong()),
         )
     }
 
@@ -104,7 +104,7 @@ open class MiniMaxAudioClient(
         val token =
             apiKey.trim().ifBlank {
                 throw MiniMaxQuotaException(
-                    "MiniMax API key missing. Add a MiniMax API key in settings."
+                    "MiniMax API key missing. Add a MiniMax API key in settings.",
                 )
             }
         val body = JsonSupport.json.encodeToString(MiniMaxGetVoiceRequestDto())
@@ -140,7 +140,7 @@ open class MiniMaxAudioClient(
         val token =
             apiKey.trim().ifBlank {
                 throw MiniMaxQuotaException(
-                    "MiniMax subscription key missing. Add a MiniMax Token Plan subscription key in settings."
+                    "MiniMax subscription key missing. Add a MiniMax Token Plan subscription key in settings.",
                 )
             }
         val path = localFile
@@ -171,9 +171,9 @@ open class MiniMaxAudioClient(
                                 "response_format" to format,
                             ),
                             path,
-                        )
+                        ),
                     )
-                    .build()
+                    .build(),
             )
         val status = response.statusCode()
         val body = response.body()
@@ -321,7 +321,7 @@ internal data class MiniMaxVoiceSettingDto(@SerialName("voice_id") val voiceId: 
 
 @Serializable
 internal data class MiniMaxGetVoiceRequestDto(
-    @SerialName("voice_type") val voiceType: String = "system"
+    @SerialName("voice_type") val voiceType: String = "system",
 )
 
 @Serializable

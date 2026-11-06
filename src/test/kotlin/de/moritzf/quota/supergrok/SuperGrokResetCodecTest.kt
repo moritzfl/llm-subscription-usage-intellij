@@ -10,7 +10,7 @@ class SuperGrokResetCodecTest {
         val expiresAt = Instant.parse("2026-09-13T12:34:56Z")
         val encoded =
             SuperGrokResetCodec.encodeTokens(
-                listOf(SuperGrokResetToken(tokenId = "restok_test", expiresAt = expiresAt))
+                listOf(SuperGrokResetToken(tokenId = "restok_test", expiresAt = expiresAt)),
             )
 
         val tokens =
@@ -30,8 +30,8 @@ class SuperGrokResetCodecTest {
                     SuperGrokResetToken(
                         tokenId = "restok_old",
                         expiresAt = Instant.parse("2026-08-01T00:00:00Z"),
-                    )
-                )
+                    ),
+                ),
             )
 
         val tokens =

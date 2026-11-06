@@ -34,14 +34,14 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer wrong-local-key")
                             .header("Content-Type", "application/json")
                             .POST(
                                 HttpRequest.BodyPublishers.ofString(
-                                    "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}"
-                                )
+                                    "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -76,14 +76,16 @@ class OpenAiProxyServerTest {
                     val response =
                         httpClient.send(
                             HttpRequest.newBuilder(
-                                    URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                    URI.create(
+                                        "http://127.0.0.1:${proxy.port}/v1/chat/completions",
+                                    ),
                                 )
                                 .header("Authorization", "Bearer local-key")
                                 .header("Content-Type", "application/json")
                                 .POST(
                                     HttpRequest.BodyPublishers.ofString(
-                                        "{\"model\":\"future-model\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}"
-                                    )
+                                        "{\"model\":\"future-model\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                                    ),
                                 )
                                 .build(),
                             HttpResponse.BodyHandlers.ofString(),
@@ -114,14 +116,14 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
                             .POST(
                                 HttpRequest.BodyPublishers.ofString(
-                                    "{\"model\":\"gpt-5.5\",\"messages\":"
-                                )
+                                    "{\"model\":\"gpt-5.5\",\"messages\":",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -155,14 +157,14 @@ class OpenAiProxyServerTest {
                     val response =
                         httpClient.send(
                             HttpRequest.newBuilder(
-                                    URI.create("http://127.0.0.1:${proxy.port}/v1/responses")
+                                    URI.create("http://127.0.0.1:${proxy.port}/v1/responses"),
                                 )
                                 .header("Authorization", "Bearer local-key")
                                 .header("Content-Type", "application/json")
                                 .POST(
                                     HttpRequest.BodyPublishers.ofString(
-                                        "{\"model\":\"gpt-5.5\",\"input\":[]}"
-                                    )
+                                        "{\"model\":\"gpt-5.5\",\"input\":[]}",
+                                    ),
                                 )
                                 .build(),
                             HttpResponse.BodyHandlers.ofString(),
@@ -191,7 +193,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -199,8 +201,8 @@ class OpenAiProxyServerTest {
                                 HttpRequest.BodyPublishers.ofString(
                                     "{\"model\":\"gpt-5.5\",\"messages\":[" +
                                         "{\"role\":\"system\",\"content\":\"Follow protocol.\"}," +
-                                        "{\"role\":\"user\",\"content\":\"Say pong.\"}]}"
-                                )
+                                        "{\"role\":\"user\",\"content\":\"Say pong.\"}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -221,7 +223,7 @@ class OpenAiProxyServerTest {
                 assertNull(request.firstHeader("version"))
                 assertEquals("openai-usage-quota-plugin", request.firstHeader("originator"))
                 assertTrue(
-                    request.firstHeader("User-Agent")!!.startsWith("openai-usage-quota-plugin/")
+                    request.firstHeader("User-Agent")!!.startsWith("openai-usage-quota-plugin/"),
                 )
                 assertNull(request.firstHeader("OpenAI-Beta"))
 
@@ -252,7 +254,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -262,8 +264,8 @@ class OpenAiProxyServerTest {
                                         "{\"role\":\"user\",\"content\":[" +
                                         "{\"type\":\"text\",\"text\":\"What is in this image?\"}," +
                                         "{\"type\":\"image_url\",\"image_url\":{" +
-                                        "\"url\":\"$TEST_IMAGE_DATA_URL\",\"detail\":\"high\"}}]}]}"
-                                )
+                                        "\"url\":\"$TEST_IMAGE_DATA_URL\",\"detail\":\"high\"}}]}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -300,16 +302,16 @@ class OpenAiProxyServerTest {
                         httpClient.send(
                             HttpRequest.newBuilder(
                                     URI.create(
-                                        "http://127.0.0.1:${proxy.port}/v1/images/generations"
-                                    )
+                                        "http://127.0.0.1:${proxy.port}/v1/images/generations",
+                                    ),
                                 )
                                 .header("Authorization", "Bearer local-key")
                                 .header("Content-Type", "application/json")
                                 .POST(
                                     HttpRequest.BodyPublishers.ofString(
                                         "{\"model\":\"gpt-image-2\",\"prompt\":\"paint a blue whale\"," +
-                                            "\"size\":\"1024x1024\",\"quality\":\"high\"}"
-                                    )
+                                            "\"size\":\"1024x1024\",\"quality\":\"high\"}",
+                                    ),
                                 )
                                 .build(),
                             HttpResponse.BodyHandlers.ofString(),
@@ -357,15 +359,15 @@ class OpenAiProxyServerTest {
                     val response =
                         httpClient.send(
                             HttpRequest.newBuilder(
-                                    URI.create("http://127.0.0.1:${proxy.port}/images/edits")
+                                    URI.create("http://127.0.0.1:${proxy.port}/images/edits"),
                                 )
                                 .header("Authorization", "Bearer local-key")
                                 .header("Content-Type", "application/json")
                                 .POST(
                                     HttpRequest.BodyPublishers.ofString(
                                         "{\"model\":\"gpt-image-2\",\"prompt\":\"add a red hat\"," +
-                                            "\"images\":[{\"image_url\":\"$TEST_IMAGE_DATA_URL\"}]}"
-                                    )
+                                            "\"images\":[{\"image_url\":\"$TEST_IMAGE_DATA_URL\"}]}",
+                                    ),
                                 )
                                 .build(),
                             HttpResponse.BodyHandlers.ofString(),
@@ -405,15 +407,15 @@ class OpenAiProxyServerTest {
                         httpClient.send(
                             HttpRequest.newBuilder(
                                     URI.create(
-                                        "http://127.0.0.1:${proxy.port}/v1/images/generations"
-                                    )
+                                        "http://127.0.0.1:${proxy.port}/v1/images/generations",
+                                    ),
                                 )
                                 .header("Authorization", "Bearer local-key")
                                 .header("Content-Type", "application/json")
                                 .POST(
                                     HttpRequest.BodyPublishers.ofString(
-                                        "{\"model\":\"gpt-image-2\",\"prompt\":\"paint a blue whale\"}"
-                                    )
+                                        "{\"model\":\"gpt-image-2\",\"prompt\":\"paint a blue whale\"}",
+                                    ),
                                 )
                                 .build(),
                             HttpResponse.BodyHandlers.ofString(),
@@ -443,15 +445,15 @@ class OpenAiProxyServerTest {
                     val response =
                         httpClient.send(
                             HttpRequest.newBuilder(
-                                    URI.create("http://127.0.0.1:${proxy.port}/v1/alpha/search")
+                                    URI.create("http://127.0.0.1:${proxy.port}/v1/alpha/search"),
                                 )
                                 .header("Authorization", "Bearer local-key")
                                 .header("Content-Type", "application/json")
                                 .POST(
                                     HttpRequest.BodyPublishers.ofString(
                                         "{\"id\":\"search-session\",\"model\":\"gpt-5.5\"," +
-                                            "\"commands\":{\"search_query\":[{\"q\":\"OpenAI news\"}]}}"
-                                    )
+                                            "\"commands\":{\"search_query\":[{\"q\":\"OpenAI news\"}]}}",
+                                    ),
                                 )
                                 .build(),
                             HttpResponse.BodyHandlers.ofString(),
@@ -502,8 +504,8 @@ class OpenAiProxyServerTest {
                         httpClient.send(
                             HttpRequest.newBuilder(
                                     URI.create(
-                                        "http://127.0.0.1:${proxy.port}/v1/responses/compact"
-                                    )
+                                        "http://127.0.0.1:${proxy.port}/v1/responses/compact",
+                                    ),
                                 )
                                 .header("Authorization", "Bearer local-key")
                                 .header("Content-Type", "application/json")
@@ -511,8 +513,8 @@ class OpenAiProxyServerTest {
                                     HttpRequest.BodyPublishers.ofString(
                                         "{\"model\":\"gpt-5.5\",\"input\":[{\"type\":\"message\"," +
                                             "\"role\":\"user\",\"content\":[{\"type\":\"input_text\"," +
-                                            "\"text\":\"summarize\"}]}]}"
-                                    )
+                                            "\"text\":\"summarize\"}]}]}",
+                                    ),
                                 )
                                 .build(),
                             HttpResponse.BodyHandlers.ofString(),
@@ -571,8 +573,8 @@ class OpenAiProxyServerTest {
                         httpClient.send(
                             HttpRequest.newBuilder(
                                     URI.create(
-                                        "http://127.0.0.1:${proxy.port}/v1/memories/trace_summarize"
-                                    )
+                                        "http://127.0.0.1:${proxy.port}/v1/memories/trace_summarize",
+                                    ),
                                 )
                                 .header("Authorization", "Bearer local-key")
                                 .header("Content-Type", "application/json")
@@ -581,8 +583,8 @@ class OpenAiProxyServerTest {
                                         "{\"model\":\"gpt-5.5\",\"traces\":[{\"id\":\"trace-1\"," +
                                             "\"metadata\":{\"source_path\":\"/tmp/trace.json\"}," +
                                             "\"items\":[{\"type\":\"message\",\"role\":\"user\"," +
-                                            "\"content\":[{\"type\":\"input_text\",\"text\":\"remember this\"}]}]}]}"
-                                    )
+                                            "\"content\":[{\"type\":\"input_text\",\"text\":\"remember this\"}]}]}]}",
+                                    ),
                                 )
                                 .build(),
                             HttpResponse.BodyHandlers.ofString(),
@@ -636,15 +638,15 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/responses")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/responses"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
                             .POST(
                                 HttpRequest.BodyPublishers.ofString(
                                     "{\"model\":\"gpt-5.5\",\"input\":[],\"store\":true," +
-                                        "\"stream\":false,\"temperature\":1.0,\"max_output_tokens\":20}"
-                                )
+                                        "\"stream\":false,\"temperature\":1.0,\"max_output_tokens\":20}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -672,7 +674,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/responses")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/responses"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -683,8 +685,8 @@ class OpenAiProxyServerTest {
                                         "\"content\":[{\"type\":\"input_text\",\"text\":\"Search OpenAI news\"}]}]," +
                                         "\"tools\":[{\"type\":\"web_search\",\"external_web_access\":true," +
                                         "\"search_context_size\":\"medium\"," +
-                                        "\"search_content_types\":[\"text\"]}]}"
-                                )
+                                        "\"search_content_types\":[\"text\"]}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -741,7 +743,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/responses")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/responses"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -750,8 +752,8 @@ class OpenAiProxyServerTest {
                                     "{\"model\":\"gpt-5.5\",\"instructions\":\"Generate images.\"," +
                                         "\"stream\":true,\"input\":[{\"type\":\"message\",\"role\":\"user\"," +
                                         "\"content\":[{\"type\":\"input_text\",\"text\":\"Draw a cat\"}]}]," +
-                                        "\"tools\":[{\"type\":\"image_generation\",\"output_format\":\"png\"}]}"
-                                )
+                                        "\"tools\":[{\"type\":\"image_generation\",\"output_format\":\"png\"}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -803,7 +805,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/responses")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/responses"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -813,8 +815,8 @@ class OpenAiProxyServerTest {
                                         "\"You are Junie, an autonomous programmer developed by JetBrains. " +
                                         "You're working with a special interface.\",\"input\":[]," +
                                         "\"tools\":[{\"type\":\"function\",\"name\":\"submit\"," +
-                                        "\"parameters\":{\"type\":\"object\",\"properties\":{}}}]}"
-                                )
+                                        "\"parameters\":{\"type\":\"object\",\"properties\":{}}}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -842,7 +844,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -853,8 +855,8 @@ class OpenAiProxyServerTest {
                                         "{\"role\":\"user\",\"content\":\"Reply with exactly: pong\"}]," +
                                         "\"functions\":[{\"name\":\"submit\",\"description\":\"Submit final answer\"," +
                                         "\"parameters\":{\"type\":\"object\",\"properties\":{}}}]," +
-                                        "\"function_call\":{\"name\":\"submit\"}}"
-                                )
+                                        "\"function_call\":{\"name\":\"submit\"}}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -900,7 +902,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -910,8 +912,8 @@ class OpenAiProxyServerTest {
                                         "{\"role\":\"system\",\"content\":\"You are Junie. Answer via answer tool.\"}," +
                                         "{\"role\":\"user\",\"content\":\"test\"}]," +
                                         "\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"answer\"," +
-                                        "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]}"
-                                )
+                                        "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -929,7 +931,7 @@ class OpenAiProxyServerTest {
                 )
                 val arguments =
                     parseObject(
-                        toolCall["function"]!!.jsonObject["arguments"]!!.jsonPrimitive.content
+                        toolCall["function"]!!.jsonObject["arguments"]!!.jsonPrimitive.content,
                     )
                 assertEquals("pong", arguments["full_answer"]!!.jsonPrimitive.content)
 
@@ -954,7 +956,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -966,8 +968,8 @@ class OpenAiProxyServerTest {
                                         "\"name\":\"report_ok\",\"parameters\":{" +
                                         "\"type\":\"object\",\"properties\":{}}}}]," +
                                         "\"tool_choice\":{\"type\":\"function\",\"function\":{" +
-                                        "\"name\":\"report_ok\"}}}"
-                                )
+                                        "\"name\":\"report_ok\"}}}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -995,7 +997,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -1009,8 +1011,8 @@ class OpenAiProxyServerTest {
                                         "{\"type\":\"function\",\"function\":{\"name\":\"create\"," +
                                         "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}," +
                                         "{\"type\":\"function\",\"function\":{\"name\":\"submit\"," +
-                                        "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]}"
-                                )
+                                        "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -1031,7 +1033,7 @@ class OpenAiProxyServerTest {
                     toolCall["function"]!!.jsonObject["arguments"]!!.jsonPrimitive.content,
                 )
                 assertFalse(
-                    (message["content"]?.jsonPrimitive?.contentOrNull ?: "").contains("<COMMAND>")
+                    (message["content"]?.jsonPrimitive?.contentOrNull ?: "").contains("<COMMAND>"),
                 )
 
                 assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
@@ -1051,7 +1053,9 @@ class OpenAiProxyServerTest {
                     val response =
                         httpClient.send(
                             HttpRequest.newBuilder(
-                                    URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                    URI.create(
+                                        "http://127.0.0.1:${proxy.port}/v1/chat/completions",
+                                    ),
                                 )
                                 .header("Authorization", "Bearer local-key")
                                 .header("Content-Type", "application/json")
@@ -1065,8 +1069,8 @@ class OpenAiProxyServerTest {
                                             "{\"type\":\"function\",\"function\":{\"name\":\"bash\"," +
                                             "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}," +
                                             "{\"type\":\"function\",\"function\":{\"name\":\"submit\"," +
-                                            "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]}"
-                                    )
+                                            "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]}",
+                                    ),
                                 )
                                 .build(),
                             HttpResponse.BodyHandlers.ofString(),
@@ -1105,7 +1109,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -1119,8 +1123,8 @@ class OpenAiProxyServerTest {
                                         "{\"type\":\"function\",\"function\":{\"name\":\"bash\"," +
                                         "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}," +
                                         "{\"type\":\"function\",\"function\":{\"name\":\"submit\"," +
-                                        "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]}"
-                                )
+                                        "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -1152,7 +1156,7 @@ class OpenAiProxyServerTest {
                     val response =
                         httpClient.send(
                             HttpRequest.newBuilder(
-                                    URI.create("http://127.0.0.1:${proxy.port}/v1/responses")
+                                    URI.create("http://127.0.0.1:${proxy.port}/v1/responses"),
                                 )
                                 .header("Authorization", "Bearer local-key")
                                 .header("Content-Type", "application/json")
@@ -1164,8 +1168,8 @@ class OpenAiProxyServerTest {
                                             "{\"type\":\"function\",\"name\":\"bash\"," +
                                             "\"parameters\":{\"type\":\"object\",\"properties\":{}}}," +
                                             "{\"type\":\"function\",\"name\":\"submit\"," +
-                                            "\"parameters\":{\"type\":\"object\",\"properties\":{}}}]}"
-                                    )
+                                            "\"parameters\":{\"type\":\"object\",\"properties\":{}}}]}",
+                                    ),
                                 )
                                 .build(),
                             HttpResponse.BodyHandlers.ofString(),
@@ -1200,7 +1204,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -1209,8 +1213,8 @@ class OpenAiProxyServerTest {
                                     "{\"model\":\"gpt-5.5\",\"messages\":[" +
                                         "{\"role\":\"user\",\"content\":\"Create issue.md\"}]," +
                                         "\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"create\"," +
-                                        "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]}"
-                                )
+                                        "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -1248,7 +1252,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -1257,8 +1261,8 @@ class OpenAiProxyServerTest {
                                     "{\"model\":\"gpt-5.5\",\"stream\":true,\"messages\":[" +
                                         "{\"role\":\"user\",\"content\":\"Create issue.md\"}]," +
                                         "\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"create\"," +
-                                        "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]}"
-                                )
+                                        "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -1306,7 +1310,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -1317,8 +1321,8 @@ class OpenAiProxyServerTest {
                                         "You're working with a special interface.\"}," +
                                         "{\"role\":\"user\",\"content\":\"test\"}]," +
                                         "\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"submit\"," +
-                                        "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]}"
-                                )
+                                        "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -1352,7 +1356,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -1363,8 +1367,8 @@ class OpenAiProxyServerTest {
                                         "You're working with a special interface.\"}," +
                                         "{\"role\":\"user\",\"content\":\"test\"}]," +
                                         "\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"submit\"," +
-                                        "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]}"
-                                )
+                                        "\"parameters\":{\"type\":\"object\",\"properties\":{}}}}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -1391,7 +1395,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -1400,8 +1404,8 @@ class OpenAiProxyServerTest {
                                     "{\"model\":\"gpt-5.5\",\"messages\":[" +
                                         "{\"role\":\"system\",\"content\":\"You are Junie. " +
                                         "Other Modes - answer using tool calls only. Report via the submit tool.\"}," +
-                                        "{\"role\":\"user\",\"content\":\"test\"}]}"
-                                )
+                                        "{\"role\":\"user\",\"content\":\"test\"}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -1439,7 +1443,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -1448,8 +1452,8 @@ class OpenAiProxyServerTest {
                                     "{\"model\":\"gpt-5.5\",\"stop\":[\"</COMMAND>\"],\"messages\":[" +
                                         "{\"role\":\"system\",\"content\":\"You are a programming task description summarizer\"}," +
                                         "{\"role\":\"user\",\"content\":\"Provide a short, helpful task name of 5-10 words. " +
-                                        "Return ONLY the name, nothing else.\"}]}"
-                                )
+                                        "Return ONLY the name, nothing else.\"}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -1477,7 +1481,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -1486,8 +1490,8 @@ class OpenAiProxyServerTest {
                                     "{\"model\":\"gpt-5.5\",\"stream\":true,\"messages\":[" +
                                         "{\"role\":\"system\",\"content\":\"You are Junie. " +
                                         "Other Modes - answer using tool calls only. Report via the submit tool.\"}," +
-                                        "{\"role\":\"user\",\"content\":\"test\"}]}"
-                                )
+                                        "{\"role\":\"user\",\"content\":\"test\"}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -1519,7 +1523,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -1528,8 +1532,8 @@ class OpenAiProxyServerTest {
                                     "{\"model\":\"gpt-5.5\",\"stream\":true,\"messages\":[" +
                                         "{\"role\":\"system\",\"content\":\"You are Junie. " +
                                         "Other Modes - answer using tool calls only. Report via the submit tool.\"}," +
-                                        "{\"role\":\"user\",\"content\":\"test\"}]}"
-                                )
+                                        "{\"role\":\"user\",\"content\":\"test\"}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -1561,7 +1565,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -1569,8 +1573,8 @@ class OpenAiProxyServerTest {
                                 HttpRequest.BodyPublishers.ofString(
                                     "{\"model\":\"gpt-5.5\",\"stream\":true,\"messages\":[" +
                                         "{\"role\":\"system\",\"content\":\"You are Junie. Use the special interface.\"}," +
-                                        "{\"role\":\"user\",\"content\":\"test\"}]}"
-                                )
+                                        "{\"role\":\"user\",\"content\":\"test\"}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -1601,15 +1605,15 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
                             .POST(
                                 HttpRequest.BodyPublishers.ofString(
                                     "{\"model\":\"gpt-5.5 (xhigh)\",\"messages\":[" +
-                                        "{\"role\":\"user\",\"content\":\"hi\"}]}"
-                                )
+                                        "{\"role\":\"user\",\"content\":\"hi\"}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -1638,15 +1642,15 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
                             .POST(
                                 HttpRequest.BodyPublishers.ofString(
                                     "{\"model\":\"gpt-5.5 (high)\",\"reasoning_effort\":\"medium\"," +
-                                        "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}"
-                                )
+                                        "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -1675,7 +1679,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/models")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/models"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .GET()
@@ -1719,7 +1723,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/model/info")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/model/info"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .GET()
@@ -1763,7 +1767,7 @@ class OpenAiProxyServerTest {
                 val readiness =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/health/readiness")
+                                URI.create("http://127.0.0.1:${proxy.port}/health/readiness"),
                             )
                             .GET()
                             .build(),
@@ -1772,7 +1776,7 @@ class OpenAiProxyServerTest {
                 val liveliness =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/health/liveliness")
+                                URI.create("http://127.0.0.1:${proxy.port}/health/liveliness"),
                             )
                             .GET()
                             .build(),
@@ -1807,7 +1811,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Origin", "http://localhost:5173")
                             .header("Access-Control-Request-Method", "POST")
@@ -1846,7 +1850,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Origin", "https://client.example")
                             .header("Access-Control-Request-Method", "POST")
@@ -1877,7 +1881,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Origin", "https://client.example")
                             .header("Access-Control-Request-Method", "POST")
@@ -1909,7 +1913,7 @@ class OpenAiProxyServerTest {
             ProxyServer.isAllowedCorsOrigin(
                 "https://client.example",
                 listOf("https://client.example/"),
-            )
+            ),
         )
     }
 
@@ -1922,7 +1926,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/not-a-route")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/not-a-route"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .GET()
@@ -1950,14 +1954,14 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/responses")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/responses"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
                             .POST(
                                 HttpRequest.BodyPublishers.ofString(
-                                    "{\"model\":\"gpt-5.5\",\"stream\":true,\"input\":[]}"
-                                )
+                                    "{\"model\":\"gpt-5.5\",\"stream\":true,\"input\":[]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -1969,7 +1973,7 @@ class OpenAiProxyServerTest {
                         .headers()
                         .firstValue("Content-Type")
                         .orElse("")
-                        .startsWith("text/event-stream")
+                        .startsWith("text/event-stream"),
                 )
                 assertEquals(
                     "no-cache, no-transform",
@@ -1993,14 +1997,14 @@ class OpenAiProxyServerTest {
                 val completion =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
                             .POST(
                                 HttpRequest.BodyPublishers.ofString(
-                                    "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}"
-                                )
+                                    "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -2008,7 +2012,7 @@ class OpenAiProxyServerTest {
                 val usage =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/usage")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/usage"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .GET()
@@ -2044,7 +2048,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/responses")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/responses"),
                             )
                             .header("Content-Type", "application/json")
                             .POST(HttpRequest.BodyPublishers.ofString("{}"))
@@ -2069,7 +2073,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/responses")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/responses"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -2077,8 +2081,8 @@ class OpenAiProxyServerTest {
                                 HttpRequest.BodyPublishers.ofString(
                                     "{\"model\":\"gpt-5.5\",\"stream\":false,\"store\":false," +
                                         "\"previous_response_id\":\"resp_unknown\",\"input\":[" +
-                                        "{\"type\":\"message\",\"role\":\"user\",\"content\":\"hi\"}]}"
-                                )
+                                        "{\"type\":\"message\",\"role\":\"user\",\"content\":\"hi\"}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -2108,7 +2112,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/responses")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/responses"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -2117,8 +2121,8 @@ class OpenAiProxyServerTest {
                                     "{\"model\":\"gpt-5.5\",\"stream\":false,\"store\":false,\"input\":[" +
                                         "{\"type\":\"message\",\"role\":\"system\",\"content\":\"SYSTEM_PROMPT_TOKEN\"}," +
                                         "{\"type\":\"message\",\"role\":\"user\",\"content\":" +
-                                        "[{\"type\":\"input_text\",\"text\":\"hi\"}]}]}"
-                                )
+                                        "[{\"type\":\"input_text\",\"text\":\"hi\"}]}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -2131,7 +2135,7 @@ class OpenAiProxyServerTest {
                     upstreamBody["instructions"]!!
                         .jsonPrimitive
                         .content
-                        .contains("SYSTEM_PROMPT_TOKEN")
+                        .contains("SYSTEM_PROMPT_TOKEN"),
                 )
                 val input = upstreamBody["input"]!!.jsonArray
                 assertEquals(1, input.size)
@@ -2151,7 +2155,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/responses")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/responses"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -2164,8 +2168,8 @@ class OpenAiProxyServerTest {
                                         "{\"type\":\"message\",\"role\":\"user\",\"content\":[" +
                                         "{\"type\":\"input_text\",\"text\":\"Describe the screenshot.\"}," +
                                         "{\"type\":\"input_image\",\"image_url\":\"$TEST_IMAGE_DATA_URL\"," +
-                                        "\"detail\":\"original\"}]}]}"
-                                )
+                                        "\"detail\":\"original\"}]}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -2175,7 +2179,7 @@ class OpenAiProxyServerTest {
                 val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
                 val upstreamBody = parseObject(request.body)
                 assertTrue(
-                    upstreamBody["instructions"]!!.jsonPrimitive.content.contains("You are Junie")
+                    upstreamBody["instructions"]!!.jsonPrimitive.content.contains("You are Junie"),
                 )
                 val input = upstreamBody["input"]!!.jsonArray
                 assertEquals(1, input.size)
@@ -2200,7 +2204,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/responses")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/responses"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -2210,8 +2214,8 @@ class OpenAiProxyServerTest {
                                         "\"input\":[" +
                                         "{\"type\":\"message\",\"role\":\"system\",\"content\":" +
                                         "\"You are Junie, working with a special interface.\"}," +
-                                        "{\"type\":\"message\",\"role\":\"user\",\"content\":\"test\"}]}"
-                                )
+                                        "{\"type\":\"message\",\"role\":\"user\",\"content\":\"test\"}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -2240,7 +2244,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -2249,8 +2253,8 @@ class OpenAiProxyServerTest {
                                     "{\"model\":\"gpt-5.5\",\"messages\":[" +
                                         "{\"role\":\"system\",\"content\":\"You are a helpful assistant.\"}," +
                                         "{\"role\":\"user\",\"content\":\"How does the junie special interface " +
-                                        "with <COMMAND> and previous_step work?\"}]}"
-                                )
+                                        "with <COMMAND> and previous_step work?\"}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -2281,7 +2285,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -2289,8 +2293,8 @@ class OpenAiProxyServerTest {
                                 HttpRequest.BodyPublishers.ofString(
                                     "{\"model\":\"gpt-5.5\",\"stop\":[\"</COMMAND>\"],\"messages\":[" +
                                         "{\"role\":\"system\",\"content\":\"You are Junie. Use the special interface.\"}," +
-                                        "{\"role\":\"user\",\"content\":\"test\"}]}"
-                                )
+                                        "{\"role\":\"user\",\"content\":\"test\"}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -2326,14 +2330,16 @@ class OpenAiProxyServerTest {
                     val response =
                         httpClient.send(
                             HttpRequest.newBuilder(
-                                    URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                    URI.create(
+                                        "http://127.0.0.1:${proxy.port}/v1/chat/completions",
+                                    ),
                                 )
                                 .header("Authorization", "Bearer local-key")
                                 .header("Content-Type", "application/json")
                                 .POST(
                                     HttpRequest.BodyPublishers.ofString(
-                                        "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}"
-                                    )
+                                        "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                                    ),
                                 )
                                 .build(),
                             HttpResponse.BodyHandlers.ofString(),
@@ -2368,14 +2374,16 @@ class OpenAiProxyServerTest {
                     val response =
                         httpClient.send(
                             HttpRequest.newBuilder(
-                                    URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                    URI.create(
+                                        "http://127.0.0.1:${proxy.port}/v1/chat/completions",
+                                    ),
                                 )
                                 .header("Authorization", "Bearer local-key")
                                 .header("Content-Type", "application/json")
                                 .POST(
                                     HttpRequest.BodyPublishers.ofString(
-                                        "{\"model\":\"gpt-5.6-luna\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}"
-                                    )
+                                        "{\"model\":\"gpt-5.6-luna\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                                    ),
                                 )
                                 .build(),
                             HttpResponse.BodyHandlers.ofString(),
@@ -2411,14 +2419,14 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
                             .POST(
                                 HttpRequest.BodyPublishers.ofString(
-                                    "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}"
-                                )
+                                    "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -2444,7 +2452,7 @@ class OpenAiProxyServerTest {
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
@@ -2453,8 +2461,8 @@ class OpenAiProxyServerTest {
                                     "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]," +
                                         "\"response_format\":{\"type\":\"json_schema\",\"json_schema\":{" +
                                         "\"name\":\"answer\",\"strict\":true,\"schema\":{\"type\":\"object\"," +
-                                        "\"properties\":{\"result\":{\"type\":\"integer\"}}}}}}"
-                                )
+                                        "\"properties\":{\"result\":{\"type\":\"integer\"}}}}}}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -2497,14 +2505,14 @@ class OpenAiProxyServerTest {
                 val chat =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/chat/completions")
+                                URI.create("http://127.0.0.1:${proxy.port}/chat/completions"),
                             )
                             .header("Authorization", "Bearer local-key")
                             .header("Content-Type", "application/json")
                             .POST(
                                 HttpRequest.BodyPublishers.ofString(
-                                    "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}"
-                                )
+                                    "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -2519,7 +2527,7 @@ class OpenAiProxyServerTest {
                 val liveliness =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${proxy.port}/health/liveliness")
+                                URI.create("http://127.0.0.1:${proxy.port}/health/liveliness"),
                             )
                             .GET()
                             .build(),
@@ -2546,15 +2554,17 @@ class OpenAiProxyServerTest {
                     val response =
                         httpClient.send(
                             HttpRequest.newBuilder(
-                                    URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                    URI.create(
+                                        "http://127.0.0.1:${proxy.port}/v1/chat/completions",
+                                    ),
                                 )
                                 .header("Authorization", "Bearer local-key")
                                 .header("Content-Type", "application/json")
                                 .header("x-litellm-num-retries", "1")
                                 .POST(
                                     HttpRequest.BodyPublishers.ofString(
-                                        "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}"
-                                    )
+                                        "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                                    ),
                                 )
                                 .build(),
                             HttpResponse.BodyHandlers.ofString(),
@@ -2587,15 +2597,17 @@ class OpenAiProxyServerTest {
                     val response =
                         httpClient.send(
                             HttpRequest.newBuilder(
-                                    URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                    URI.create(
+                                        "http://127.0.0.1:${proxy.port}/v1/chat/completions",
+                                    ),
                                 )
                                 .header("Authorization", "Bearer local-key")
                                 .header("Content-Type", "application/json")
                                 .header("x-litellm-num-retries", "3")
                                 .POST(
                                     HttpRequest.BodyPublishers.ofString(
-                                        "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}"
-                                    )
+                                        "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                                    ),
                                 )
                                 .build(),
                             HttpResponse.BodyHandlers.ofString(),
@@ -2621,15 +2633,17 @@ class OpenAiProxyServerTest {
                     httpClient
                         .send(
                             HttpRequest.newBuilder(
-                                    URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                    URI.create(
+                                        "http://127.0.0.1:${proxy.port}/v1/chat/completions",
+                                    ),
                                 )
                                 .header("Authorization", "Bearer local-key")
                                 .header("Content-Type", "application/json")
                                 .POST(
                                     HttpRequest.BodyPublishers.ofString(
                                         "{\"model\":\"gpt-5.5\",\"stream\":true,$streamOptions" +
-                                            "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}"
-                                    )
+                                            "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                                    ),
                                 )
                                 .build(),
                             HttpResponse.BodyHandlers.ofString(),
@@ -2680,14 +2694,16 @@ class OpenAiProxyServerTest {
                     val response =
                         httpClient.send(
                             HttpRequest.newBuilder(
-                                    URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                    URI.create(
+                                        "http://127.0.0.1:${proxy.port}/v1/chat/completions",
+                                    ),
                                 )
                                 .header("Authorization", "Bearer local-key")
                                 .header("Content-Type", "application/json")
                                 .POST(
                                     HttpRequest.BodyPublishers.ofString(
-                                        "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}"
-                                    )
+                                        "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                                    ),
                                 )
                                 .build(),
                             HttpResponse.BodyHandlers.ofString(),
@@ -2720,14 +2736,16 @@ class OpenAiProxyServerTest {
                     val response =
                         httpClient.send(
                             HttpRequest.newBuilder(
-                                    URI.create("http://127.0.0.1:${proxy.port}/v1/chat/completions")
+                                    URI.create(
+                                        "http://127.0.0.1:${proxy.port}/v1/chat/completions",
+                                    ),
                                 )
                                 .header("Authorization", "Bearer local-key")
                                 .header("Content-Type", "application/json")
                                 .POST(
                                     HttpRequest.BodyPublishers.ofString(
-                                        "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}"
-                                    )
+                                        "{\"model\":\"gpt-5.5\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+                                    ),
                                 )
                                 .build(),
                             HttpResponse.BodyHandlers.ofString(),

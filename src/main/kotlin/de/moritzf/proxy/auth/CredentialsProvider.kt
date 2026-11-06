@@ -1,4 +1,5 @@
 package de.moritzf.proxy.auth
+
 /**
  * Supplies upstream authentication for the proxy. This is the seam an embedder uses to own
  * credential storage and refresh: the proxy library never refreshes tokens on its own when an

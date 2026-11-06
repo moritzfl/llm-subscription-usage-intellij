@@ -142,7 +142,7 @@ internal class GoogleGeminiChatBridge {
                                     put(
                                         "args",
                                         parseToolArguments(
-                                            stringField(function, "arguments").orEmpty()
+                                            stringField(function, "arguments").orEmpty(),
                                         ),
                                     )
                                 }
@@ -207,7 +207,7 @@ internal class GoogleGeminiChatBridge {
                                 }
                                 if (media.isNotEmpty()) put("parts", JsonArray(media))
                             }
-                        }
+                        },
                     )
                 }
             }
@@ -257,11 +257,11 @@ internal class GoogleGeminiChatBridge {
                                 if (toolCalls != null) put("tool_calls", toolCalls)
                             }
                             put("finish_reason", finishReason)
-                        }
+                        },
                     )
                 }
                 if (usage != null) put("usage", usage)
-            }
+            },
         )
     }
 
@@ -312,7 +312,7 @@ internal class GoogleGeminiChatBridge {
                         name = name,
                         arguments =
                             JsonHelper.encodeToString(
-                                toolCall["args"] as? JsonObject ?: JsonObject(emptyMap())
+                                toolCall["args"] as? JsonObject ?: JsonObject(emptyMap()),
                             ),
                     )
                 state.hasToolCalls = true
@@ -351,7 +351,7 @@ internal class GoogleGeminiChatBridge {
                             put("model", request.model.localId)
                             put("choices", JsonArray(emptyList()))
                             put("usage", usage)
-                        }
+                        },
                     )
             }
         }
@@ -382,10 +382,10 @@ internal class GoogleGeminiChatBridge {
                             }
                             if (finishReason == null) put("finish_reason", JsonNull)
                             else put("finish_reason", finishReason)
-                        }
+                        },
                     )
                 }
-            }
+            },
         )
     }
 
@@ -418,15 +418,15 @@ internal class GoogleGeminiChatBridge {
                                                 put("name", name)
                                                 put("arguments", arguments)
                                             }
-                                        }
+                                        },
                                     )
                                 }
                             }
                             put("finish_reason", JsonNull)
-                        }
+                        },
                     )
                 }
-            }
+            },
         )
     }
 
@@ -583,7 +583,7 @@ internal class GoogleGeminiChatBridge {
                                 buildJsonObject {
                                     put("type", "function")
                                     put("function", item)
-                                }
+                                },
                             )
                         }
                     }
@@ -604,10 +604,10 @@ internal class GoogleGeminiChatBridge {
                             GeminiJsonSchema.normalize(
                                 function["parameters"]
                                     ?: function["input_schema"]
-                                    ?: function["parametersJsonSchema"]
+                                    ?: function["parametersJsonSchema"],
                             ),
                         )
-                    }
+                    },
                 )
             }
         }
@@ -792,11 +792,11 @@ internal class GoogleGeminiChatBridge {
                             put(
                                 "arguments",
                                 JsonHelper.encodeToString(
-                                    call["args"] as? JsonObject ?: JsonObject(emptyMap())
+                                    call["args"] as? JsonObject ?: JsonObject(emptyMap()),
                                 ),
                             )
                         }
-                    }
+                    },
                 )
             }
         }

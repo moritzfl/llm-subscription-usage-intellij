@@ -152,7 +152,7 @@ internal object ProviderCatalog {
                 // verifies it.
                 isQuotaConfigured = {
                     AntigravityQuotaProvider.executableForAccount(
-                        QuotaProviderType.ANTIGRAVITY.id
+                        QuotaProviderType.ANTIGRAVITY.id,
                     ) != null
                 },
                 isQuotaConfiguredForAccount = {
@@ -882,7 +882,7 @@ internal object ProviderCatalog {
                         .load(loaded) != null &&
                         de.moritzf.quota.idea.compatible.compatibleEndpoint(
                             de.moritzf.quota.idea.settings.QuotaSettingsState.getInstance()
-                                .account(id)
+                                .account(id),
                         ) != null
                 }
             },

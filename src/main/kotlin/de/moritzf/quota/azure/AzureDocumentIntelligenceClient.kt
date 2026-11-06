@@ -56,7 +56,7 @@ internal class AzureDocumentIntelligenceClient(
         val endpoint =
             azureDocumentIntelligenceUri(config)
                 ?: throw AzureOcrException(
-                    "Document Intelligence needs an Azure Cognitive Services resource name or endpoint."
+                    "Document Intelligence needs an Azure Cognitive Services resource name or endpoint.",
                 )
         val source = AzureDocumentInput(httpClient).read(documentUrl, localFile)
         val markdownOutput = outputFile ?: DocumentMarkdown.defaultOutput(localFile)
@@ -92,7 +92,7 @@ internal class AzureDocumentIntelligenceClient(
         fun analyze(bytes: ByteArray, retryable: Boolean): AzureDocumentAnalysis? {
             val body =
                 JsonSupport.json.encodeToString(
-                    AzureDocumentAnalyzeRequest(Base64.getEncoder().encodeToString(bytes))
+                    AzureDocumentAnalyzeRequest(Base64.getEncoder().encodeToString(bytes)),
                 )
             val started = request(uri, "POST", body)
             if (retryable && started.status in 500..599) return null
@@ -101,7 +101,7 @@ internal class AzureDocumentIntelligenceClient(
             val location =
                 started.header("Operation-Location")?.let { runCatching { URI(it) }.getOrNull() }
                     ?: throw AzureOcrException(
-                        "Document Intelligence returned no analysis location."
+                        "Document Intelligence returned no analysis location.",
                     )
             val prefix = "/documentintelligence/documentModels/prebuilt-layout/analyzeResults/"
             if (
@@ -113,7 +113,7 @@ internal class AzureDocumentIntelligenceClient(
                     !location.path.removePrefix(prefix).matches(Regex("[0-9a-fA-F-]{36}"))
             )
                 throw AzureOcrException(
-                    "Document Intelligence returned an invalid analysis location."
+                    "Document Intelligence returned an invalid analysis location.",
                 )
 
             val deadline = System.nanoTime() + Duration.ofSeconds(120).toNanos()
@@ -137,7 +137,7 @@ internal class AzureDocumentIntelligenceClient(
                     }
                         .getOrNull()
                         ?: throw AzureOcrException(
-                            "Document Intelligence returned an invalid analysis result."
+                            "Document Intelligence returned an invalid analysis result.",
                         )
                 when ((json["status"] as? JsonPrimitive)?.contentOrNull?.lowercase()) {
                     "succeeded" -> {
@@ -154,7 +154,7 @@ internal class AzureDocumentIntelligenceClient(
                         delay = poll.header("Retry-After")?.toLongOrNull()?.coerceIn(1, 10) ?: 2L
                     else ->
                         throw AzureOcrException(
-                            "Document Intelligence returned an unknown analysis status."
+                            "Document Intelligence returned an unknown analysis status.",
                         )
                 }
             }
@@ -166,7 +166,7 @@ internal class AzureDocumentIntelligenceClient(
             val result =
                 root["analyzeResult"] as? JsonObject
                     ?: throw AzureOcrException(
-                        "Document Intelligence returned no document content."
+                        "Document Intelligence returned no document content.",
                     )
             val markdown =
                 (result["content"] as? JsonPrimitive)?.contentOrNull
@@ -198,7 +198,7 @@ internal class AzureDocumentIntelligenceClient(
                             val figureUri =
                                 URI.create(
                                     analysis.location.toString().substringBefore('?') +
-                                        "/figures/$id?api-version=2024-11-30"
+                                        "/figures/$id?api-version=2024-11-30",
                                 )
                             val image = request(figureUri, "GET")
                             if (
@@ -207,7 +207,7 @@ internal class AzureDocumentIntelligenceClient(
                                     image.body.size < 8
                             ) {
                                 throw AzureOcrException(
-                                    "Could not retrieve Document Intelligence figure $id."
+                                    "Could not retrieve Document Intelligence figure $id.",
                                 )
                             }
                             ProviderDocumentImage(image.body, "png")

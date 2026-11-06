@@ -88,7 +88,7 @@ class OpenCodeOAuthClientTest {
                 val result =
                     OpenCodeOAuthClient(endpoint = server.endpoint)
                         .refreshCredentials(
-                            OAuthCredentials("old-access", "old-refresh", 0, "org_existing")
+                            OAuthCredentials("old-access", "old-refresh", 0, "org_existing"),
                         )
                 assertEquals("access", result.accessToken)
                 assertEquals("refresh", result.refreshToken)

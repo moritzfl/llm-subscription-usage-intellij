@@ -19,7 +19,7 @@ internal fun rewriteMarkdownImageLinks(markdown: String, links: Map<String, Stri
         if (target == null) {
             text =
                 Regex(
-                        "!\\[([^]]*)]\\(\\s*<?${Regex.escape(id)}>?(?:\\s+[\"'][^\\r\\n]*[\"'])?\\s*\\)"
+                        "!\\[([^]]*)]\\(\\s*<?${Regex.escape(id)}>?(?:\\s+[\"'][^\\r\\n]*[\"'])?\\s*\\)",
                     )
                     .replace(text) { it.groupValues[1] }
         }

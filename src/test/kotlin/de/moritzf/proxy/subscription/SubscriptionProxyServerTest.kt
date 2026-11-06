@@ -49,7 +49,7 @@ class SubscriptionProxyServerTest {
                                 "gh-gpt-5.5",
                                 "gpt-5.5",
                             ),
-                        )
+                        ),
                 )
             try {
                 server.start()
@@ -86,8 +86,8 @@ class SubscriptionProxyServerTest {
                                 "grok-token",
                                 "grok-4.3",
                                 "grok-4.3",
-                            )
-                        )
+                            ),
+                        ),
                 )
             try {
                 server.start()
@@ -132,7 +132,7 @@ class SubscriptionProxyServerTest {
                                     "gh-gpt-5.5",
                                     "gpt-5.5",
                                 ),
-                            )
+                            ),
                     )
                 try {
                     server.start()
@@ -175,8 +175,8 @@ class SubscriptionProxyServerTest {
                                 "gh-token",
                                 "gh-gpt-5.5",
                                 "gpt-5.5",
-                            )
-                        )
+                            ),
+                        ),
                 )
             try {
                 server.start()
@@ -221,7 +221,7 @@ class SubscriptionProxyServerTest {
     fun usageEndpointCountsChatCompletionTokens() {
         TestUpstream(
                 responseBody =
-                    "{\"id\":\"chatcmpl_1\",\"choices\":[],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":5}}"
+                    "{\"id\":\"chatcmpl_1\",\"choices\":[],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":5}}",
             )
             .use { upstream ->
                 val server =
@@ -235,8 +235,8 @@ class SubscriptionProxyServerTest {
                                     "gh-token",
                                     "gh-gpt-5.5",
                                     "gpt-5.5",
-                                )
-                            )
+                                ),
+                            ),
                     )
                 try {
                     server.start()
@@ -339,7 +339,7 @@ class SubscriptionProxyServerTest {
                                         SubscriptionProxyRoute.CHAT_COMPLETIONS,
                                         SubscriptionProxyRoute.FIM_COMPLETIONS,
                                     ),
-                            )
+                            ),
                         ),
                     completionsConfig =
                         CompletionsConfig(enabled = true, modelLocalId = "mi-codestral-latest"),
@@ -404,7 +404,7 @@ class SubscriptionProxyServerTest {
                                 "gh-gpt-5.4",
                                 "gpt-5.4",
                             ),
-                        )
+                        ),
                 )
             try {
                 server.start()
@@ -443,15 +443,15 @@ class SubscriptionProxyServerTest {
                                 "grok-token",
                                 "grok-4.3",
                                 "grok-4.3",
-                            )
-                        )
+                            ),
+                        ),
                 )
             try {
                 server.start()
                 val response =
                     httpClient.send(
                         HttpRequest.newBuilder(
-                                URI.create("http://127.0.0.1:${server.port}/v1/models")
+                                URI.create("http://127.0.0.1:${server.port}/v1/models"),
                             )
                             .header("Authorization", "Bearer wrong")
                             .GET()
@@ -481,8 +481,8 @@ class SubscriptionProxyServerTest {
                                 "grok-token",
                                 "grok-4.3",
                                 "grok-4.3",
-                            )
-                        )
+                            ),
+                        ),
                 )
             try {
                 server.start()
@@ -516,7 +516,7 @@ class SubscriptionProxyServerTest {
                                 "grok-token",
                                 "grok-4.3",
                                 "grok-4.3",
-                            )
+                            ),
                         ),
                     completionsConfig =
                         CompletionsConfig(enabled = true, modelLocalId = "grok-4.3"),
@@ -569,7 +569,7 @@ class SubscriptionProxyServerTest {
                                 "grok-token",
                                 "grok-4.3",
                                 "grok-4.3",
-                            )
+                            ),
                         ),
                     completionsConfig =
                         CompletionsConfig(enabled = true, modelLocalId = "grok-4.3"),
@@ -608,7 +608,7 @@ class SubscriptionProxyServerTest {
                                 "ol-qwen",
                                 "qwen",
                                 routes = setOf(SubscriptionProxyRoute.COMPLETIONS),
-                            )
+                            ),
                         ),
                     completionsConfig = CompletionsConfig(enabled = true, modelLocalId = "ol-qwen"),
                 )
@@ -650,7 +650,7 @@ class SubscriptionProxyServerTest {
                                 "ol-qwen",
                                 "qwen",
                                 routes = setOf(SubscriptionProxyRoute.COMPLETIONS),
-                            )
+                            ),
                         ),
                     completionsConfig = CompletionsConfig(enabled = true, modelLocalId = "ol-qwen"),
                 )
@@ -668,7 +668,7 @@ class SubscriptionProxyServerTest {
                         .headers()
                         .firstValue("Content-Type")
                         .orElse("")
-                        .contains("text/event-stream")
+                        .contains("text/event-stream"),
                 )
                 assertTrue(response.body().contains("data: "), response.body())
                 assertTrue(
@@ -700,7 +700,7 @@ class SubscriptionProxyServerTest {
                                 "grok-token",
                                 "grok-4.3",
                                 "grok-4.3",
-                            )
+                            ),
                         ),
                     completionsConfig =
                         CompletionsConfig(enabled = true, modelLocalId = "grok-4.3"),
@@ -730,7 +730,7 @@ class SubscriptionProxyServerTest {
     fun passThroughProviderDropsHttp2PseudoHeaders() {
         assertFalse(PassThroughSubscriptionProxyProvider.shouldForwardResponseHeader(":status"))
         assertFalse(
-            PassThroughSubscriptionProxyProvider.shouldForwardResponseHeader("content-length")
+            PassThroughSubscriptionProxyProvider.shouldForwardResponseHeader("content-length"),
         )
         assertTrue(PassThroughSubscriptionProxyProvider.shouldForwardResponseHeader("x-request-id"))
     }
@@ -759,7 +759,7 @@ class SubscriptionProxyServerTest {
                                 "gpt-5.5",
                                 isDefault = true,
                             ),
-                        )
+                        ),
                 )
             try {
                 server.start()
@@ -802,7 +802,7 @@ class SubscriptionProxyServerTest {
                                 "gpt-5.5",
                                 "gpt-5.5",
                             ),
-                        )
+                        ),
                 )
             try {
                 server.start()
@@ -846,7 +846,7 @@ class SubscriptionProxyServerTest {
                         upstreamId = upstreamModel,
                         supportedRoutes = routes,
                         isDefault = isDefault,
-                    )
+                    ),
                 )
             },
             requestLogger =

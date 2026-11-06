@@ -166,7 +166,7 @@ open class ZaiQuotaClient(
                     webSearch?.toCountUsageWindow(
                         webSearch.nextResetTime?.let(Instant::fromEpochMilliseconds)
                             ?: subscriptionReset
-                            ?: nextMonthStartUtc()
+                            ?: nextMonthStartUtc(),
                     ),
             )
         }
@@ -228,7 +228,7 @@ open class ZaiQuotaClient(
             return runCatching {
                 val date = LocalDate.parse(value.trim())
                 Instant.fromEpochMilliseconds(
-                    date.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli()
+                    date.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli(),
                 )
             }
                 .getOrNull()
@@ -242,7 +242,7 @@ open class ZaiQuotaClient(
                     .withDayOfMonth(1)
                     .plusMonths(1)
             return Instant.fromEpochMilliseconds(
-                nextMonth.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli()
+                nextMonth.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli(),
             )
         }
     }

@@ -37,7 +37,9 @@ internal class CompatibleMediaClient(
             VisionChat.chatImageContent(imageUrl, source)
                 ?: error("Select a readable image file or an http(s) image URL.")
         return checkNotNull(
-            VisionChat.chatAnswer(postChat(VisionChat.chatRequestJson(model, image, prompt.trim())))
+            VisionChat.chatAnswer(
+                postChat(VisionChat.chatRequestJson(model, image, prompt.trim())),
+            ),
         )
     }
 

@@ -27,7 +27,7 @@ class OAuthCredentialsStore(
         OAuthCredentialCoordinator(
             PathManager.getCommonDataPath()
                 .resolve("llm-subscription-usage/oauth")
-                .resolve(OAuthCredentialCoordinator.hash(serviceName))
+                .resolve(OAuthCredentialCoordinator.hash(serviceName)),
         ),
 ) : OAuthCredentialStore {
     private val attributes = CredentialAttributes(serviceName, userName)
@@ -56,7 +56,7 @@ class OAuthCredentialsStore(
             LOG.info(
                 "Saved OAuth credentials for $userName (access=${QuotaTokenUtil.fingerprint(credentials.accessToken)}," +
                     " refresh=${QuotaTokenUtil.fingerprint(credentials.refreshToken)}," +
-                    " storage=${CredentialStorage.describe()})"
+                    " storage=${CredentialStorage.describe()})",
             )
         } catch (exception: Exception) {
             LOG.warn("Failed to save OAuth credentials", exception)

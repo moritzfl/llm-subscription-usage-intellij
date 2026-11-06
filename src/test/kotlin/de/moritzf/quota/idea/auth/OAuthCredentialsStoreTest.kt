@@ -23,7 +23,7 @@ class OAuthCredentialsStoreTest {
                     expiresAt = Long.MAX_VALUE,
                     accountId = "workspace",
                     personalAccessToken = true,
-                )
+                ),
             )
 
         val restored = storeFor(QuotaProviderType.OPEN_AI, passwordSafe).load()!!

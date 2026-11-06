@@ -9,5 +9,5 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class OpenAiAuthorizationDto(
-    @SerialName("chatgpt_account_id") val chatgptAccountId: String? = null
+    @SerialName("chatgpt_account_id") val chatgptAccountId: String? = null,
 )

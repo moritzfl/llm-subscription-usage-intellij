@@ -50,7 +50,7 @@ open class KimiVisionClient(
                     selectedModel,
                     imageContent,
                     trimmedPrompt,
-                )
+                ),
             )
         if (response.statusCode().isUnauthorized()) {
             usableCredentials =
@@ -72,7 +72,7 @@ open class KimiVisionClient(
                         selectedModel,
                         imageContent,
                         trimmedPrompt,
-                    )
+                    ),
                 )
         }
         val status = response.statusCode()
@@ -116,8 +116,8 @@ open class KimiVisionClient(
         return builder
             .POST(
                 HttpRequest.BodyPublishers.ofString(
-                    VisionChat.chatRequestJson(model, imageContent, prompt)
-                )
+                    VisionChat.chatRequestJson(model, imageContent, prompt),
+                ),
             )
             .build()
     }

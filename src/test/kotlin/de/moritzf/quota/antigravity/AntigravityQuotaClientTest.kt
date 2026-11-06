@@ -52,14 +52,14 @@ class AntigravityQuotaClientTest {
             if [ "${'$'}2" = /credits ]; then cat ${quote(directory.resolve("credits.json"))}; exit 0; fi
             cat ${quote(directory.resolve("usage.json"))}
         """
-                    .trimIndent()
+                    .trimIndent(),
             )
 
         val quota = AntigravityQuotaClient(executableProvider = { binary }).fetchQuota()
 
         assertEquals(
             JsonSupport.json.parseToJsonElement(
-                """{"usage":${USAGE_REPORT.trim()},"credits":$CREDITS_REPORT}"""
+                """{"usage":${USAGE_REPORT.trim()},"credits":$CREDITS_REPORT}""",
             ),
             JsonSupport.json.parseToJsonElement(quota.rawJson!!),
         )
@@ -97,7 +97,7 @@ class AntigravityQuotaClientTest {
             if [ "${'$'}2" = /credits ]; then printf 'not signed in'; exit 1; fi
             cat ${quote(directory.resolve("usage.json"))}
         """
-                    .trimIndent()
+                    .trimIndent(),
             )
 
         val quota = AntigravityQuotaClient(executableProvider = { binary }).fetchQuota()
@@ -135,7 +135,7 @@ class AntigravityQuotaClientTest {
             printf '%s' "${'$'}${'$'}" > ${quote(directory.resolve("pid"))}
             exec sleep 30
         """
-                    .trimIndent()
+                    .trimIndent(),
             )
         val error =
             assertFailsWith<AntigravityQuotaException> {
@@ -204,7 +204,7 @@ class AntigravityQuotaClientTest {
                 directory.resolve("missing").toString(),
                 environment = emptyMap(),
                 home = home.toString(),
-            )
+            ),
         )
         assertNotNull(AntigravityQuotaClient.findExecutable(fallback.toString()))
     }

@@ -63,7 +63,7 @@ internal object MistralThinking {
                                 },
                             )
                         }
-                    }
+                    },
                 )
             }
         }
@@ -101,7 +101,7 @@ internal object MistralThinking {
                     val message = choice[messageKey] as? JsonObject ?: return@map element
                     val content = message["content"] as? JsonArray ?: return@map element
                     JsonObject(choice + (messageKey to splitContent(message, content, messageKey)))
-                }
+                },
             )
         return JsonObject(root + ("choices" to adapted))
     }
@@ -160,7 +160,7 @@ internal object MistralThinking {
                     buildJsonObject {
                         put("type", "text")
                         put("text", text)
-                    }
+                    },
                 )
             },
         )
@@ -177,7 +177,7 @@ internal object MistralThinking {
                             buildJsonObject {
                                 put("type", "text")
                                 put("text", it)
-                            }
+                            },
                         )
                     }
                     .orEmpty()

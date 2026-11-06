@@ -37,7 +37,7 @@ class MistralOcrClientTest {
 
         val result =
             JsonSupport.json.decodeFromString<MistralOcrWriteResult>(
-                client.convertDocument("key", localFile = source, includeImages = false)
+                client.convertDocument("key", localFile = source, includeImages = false),
             )
 
         assertEquals(
@@ -63,7 +63,7 @@ class MistralOcrClientTest {
                         throw HttpTimeoutException("request timed out")
                     }
                     answer(request, requests)
-                }
+                },
             )
 
         client.convertDocument("key", localFile = source, includeImages = false)
@@ -92,7 +92,7 @@ class MistralOcrClientTest {
                 post = {
                     calls++
                     MistralHttpResult(400, """{"message":"too many pages"}""")
-                }
+                },
             )
 
         val error =
@@ -179,7 +179,7 @@ class MistralOcrClientTest {
                     override fun onError(throwable: Throwable) = completed.countDown()
 
                     override fun onComplete() = completed.countDown()
-                }
+                },
             )
         assertTrue(completed.await(5, TimeUnit.SECONDS))
         return output.toString(Charsets.UTF_8)

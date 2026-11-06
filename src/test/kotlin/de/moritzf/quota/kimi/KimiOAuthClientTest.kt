@@ -34,7 +34,7 @@ class KimiOAuthClientTest {
                 )
             val authorization = client.requestDeviceAuthorization()
             assertIs<KimiDeviceTokenPollResult.Authorized>(
-                client.pollDeviceToken(authorization.deviceCode)
+                client.pollDeviceToken(authorization.deviceCode),
             )
             assertEquals(listOf("login-device", "login-device"), ids.toList())
         } finally {

@@ -28,7 +28,7 @@ class StandaloneSubscriptionProxyTest {
                     "--login",
                     "--local-api-key",
                     "sk-local",
-                )
+                ),
             )
 
         assertEquals("127.0.0.1", options.host)

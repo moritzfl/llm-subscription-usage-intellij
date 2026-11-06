@@ -383,7 +383,7 @@ class KimiSubscriptionProxyProvider(
                     supportsToolUse = true,
                     supportsVision = true,
                     isDefault = true,
-                )
+                ),
             )
         private val MODELS_DEV_CATALOG_URI = URI.create("https://models.dev/api.json")
         private val DEFAULT_REQUEST_LOG_DIR =

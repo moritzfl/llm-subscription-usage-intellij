@@ -40,7 +40,7 @@ class HeadlessLoginClientTest {
                 .withoutPadding()
                 .encodeToString(
                     """{"https://api.openai.com/auth":{"chatgpt_account_id":"workspace"}}"""
-                        .toByteArray()
+                        .toByteArray(),
                 )
         val http =
             FakeHttp(
@@ -77,7 +77,7 @@ class HeadlessLoginClientTest {
         )
         assertEquals(
             JsonSupport.json.parseToJsonElement(
-                """{"device_auth_id":"private-device","user_code":"ABCD-EFGH"}"""
+                """{"device_auth_id":"private-device","user_code":"ABCD-EFGH"}""",
             ),
             JsonSupport.json.parseToJsonElement(http.body(1)),
         )
@@ -97,7 +97,7 @@ class HeadlessLoginClientTest {
                 deviceClient(
                     FakeHttp(
                         200 to
-                            """{"device_auth_id":"private","usercode":"CODE","interval":$interval}"""
+                            """{"device_auth_id":"private","usercode":"CODE","interval":$interval}""",
                     ),
                     QuotaProviderType.OPEN_AI,
                 )
@@ -137,10 +137,12 @@ class HeadlessLoginClientTest {
         assertTrue(
             assertFailsWith<IOException> { client.poll(authorization) }
                 .message!!
-                .contains("expired")
+                .contains("expired"),
         )
         assertTrue(
-            assertFailsWith<IOException> { client.poll(authorization) }.message!!.contains("denied")
+            assertFailsWith<IOException> { client.poll(authorization) }
+                .message!!
+                .contains("denied"),
         )
         val request = OAuthUrlCodec.parseQuery(http.body(0))
         assertEquals(OAuthClientConfig.xAiGrokDefaults().scopes, request["scope"])
@@ -190,7 +192,7 @@ class HeadlessLoginClientTest {
         val http =
             FakeHttp(
                 200 to
-                    """{"chatgpt_account_id":"workspace","chatgpt_account_is_fedramp":false,"chatgpt_plan_type":"business"}"""
+                    """{"chatgpt_account_id":"workspace","chatgpt_account_is_fedramp":false,"chatgpt_plan_type":"business"}""",
             )
         val credentials = OpenAiPersonalTokenClient(http).validate("  at-personal-token  ")
         assertEquals("at-personal-token", credentials.accessToken)
@@ -209,7 +211,7 @@ class HeadlessLoginClientTest {
         )
         val restored =
             JsonSupport.json.decodeFromString<OAuthCredentials>(
-                JsonSupport.json.encodeToString(credentials)
+                JsonSupport.json.encodeToString(credentials),
             )
         assertTrue(restored.personalAccessToken)
         assertEquals(Long.MAX_VALUE, restored.expiresAt)
@@ -275,7 +277,7 @@ class HeadlessLoginClientTest {
                         override fun onError(throwable: Throwable) = subscriber.onError(throwable)
 
                         override fun onComplete() = subscriber.onComplete()
-                    }
+                    },
                 )
             return subscriber.body.toCompletableFuture().join()
         }

@@ -46,7 +46,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                 provider.fallbackModel(
                     "oc-chat",
                     de.moritzf.proxy.subscription.SubscriptionProxyRoute.CHAT_COMPLETIONS,
-                )
+                ),
             )
             assertEquals(1, upstream.requests.size)
         }
@@ -68,7 +68,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
             }
         val expired =
             OpenCodeZenSubscriptionProxyProvider(
-                consoleSessionProvider = { throw OpenCodeQuotaException("Sign in again", 401) }
+                consoleSessionProvider = { throw OpenCodeQuotaException("Sign in again", 401) },
             )
         assertFalse(expired.isConfigured())
         assertEquals(emptyList(), expired.models())
@@ -182,7 +182,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                 assertTrue(
                     calls.all {
                         it.inferenceOrganization == "org_a" && it.authorization == "Bearer oauth"
-                    }
+                    },
                 )
                 assertTrue(calls[0].body.contains("\"input\""))
                 assertTrue(calls[1].body.contains("\"max_tokens\""))
@@ -198,7 +198,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                  "glm-5.3":{"modelID":"glm-5.3"}}}}}"""
         val model =
             assertNotNull(
-                OpenCodeConsoleModel.parse(config).firstOrNull { it.model.upstreamId == "glm-5.3" }
+                OpenCodeConsoleModel.parse(config).firstOrNull { it.model.upstreamId == "glm-5.3" },
             )
         assertEquals(
             listOf("low", "medium", "high", "xhigh", "max"),
@@ -223,7 +223,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
         Upstream(
                 responsesBody =
                     "event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"partial\"}\n\n" +
-                        "event: response.incomplete\ndata: {\"type\":\"response.incomplete\",\"response\":{\"id\":\"resp_1\",\"status\":\"incomplete\",\"output\":[],\"usage\":{\"input_tokens\":1,\"output_tokens\":2}}}\n\n"
+                        "event: response.incomplete\ndata: {\"type\":\"response.incomplete\",\"response\":{\"id\":\"resp_1\",\"status\":\"incomplete\",\"output\":[],\"usage\":{\"input_tokens\":1,\"output_tokens\":2}}}\n\n",
             )
             .use { upstream ->
                 val provider =
@@ -259,7 +259,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                     "data: {\"type\":\"error\",\"sequence_number\":2,\"error\":{" +
                         "\"type\":\"insufficient_quota\",\"code\":\"insufficient_quota\"," +
                         "\"message\":\"You exceeded your current quota, please check your plan and billing details.\"," +
-                        "\"param\":null}}\n\n"
+                        "\"param\":null}}\n\n",
             )
             .use { upstream ->
                 val provider =
@@ -345,18 +345,20 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                                     .filter { it.startsWith("data: {") }
                                     .map {
                                         JsonHelper.JSON.parseToJsonElement(
-                                                it.removePrefix("data: ")
+                                                it.removePrefix("data: "),
                                             )
                                             .jsonObject
                                     }
                                     .toList()
                             } else {
                                 listOf(
-                                    JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject
+                                    JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject,
                                 )
                             }
                         assertTrue(
-                            chunks.all { it["object"]!!.jsonPrimitive.content == "text_completion" }
+                            chunks.all {
+                                it["object"]!!.jsonPrimitive.content == "text_completion"
+                            },
                         )
                         val choices = chunks.map { it["choices"]!!.jsonArray.single().jsonObject }
                         assertEquals(
@@ -375,12 +377,12 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                         assertEquals("32", body["max_tokens"]!!.jsonPrimitive.content)
                         assertEquals(stream.toString(), body["stream"]!!.jsonPrimitive.content)
                         assertTrue(
-                            body["system"]!!.jsonPrimitive.content.contains("exact text to insert")
+                            body["system"]!!.jsonPrimitive.content.contains("exact text to insert"),
                         )
                         assertTrue(
                             body["stop_sequences"]!!.jsonArray.any {
                                 it.jsonPrimitive.content == "STOP_FIM"
-                            }
+                            },
                         )
                     }
                 }
@@ -417,7 +419,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                 provider.fallbackModel(
                     "oc-disabled",
                     de.moritzf.proxy.subscription.SubscriptionProxyRoute.CHAT_COMPLETIONS,
-                )
+                ),
             )
             assertFalse(provider.models().any { it.localId == "oc-disabled" })
         }
@@ -661,7 +663,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
         assertFalse(
             models.keys.any {
                 it.startsWith("oc-") && !it.startsWith("oc-go-") && !it.startsWith("oc-zen-")
-            }
+            },
         )
         assertEquals(6, models.size)
     }
@@ -835,7 +837,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
                     calls.all {
                         !it.session.isNullOrBlank() &&
                             it.userAgent?.startsWith("llm-subscription-usage/") == true
-                    }
+                    },
                 )
             }
         }
@@ -882,7 +884,7 @@ class OpenCodeZenSubscriptionProxyProviderTest {
             OpenCodeConsoleModel.rewritePoolBase(
                 uri("https://opencode.ai/zen/go/v1"),
                 OpenCodePool.GO,
-            )
+            ),
         )
     }
 

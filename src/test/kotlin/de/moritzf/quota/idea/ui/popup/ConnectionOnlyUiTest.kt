@@ -113,7 +113,7 @@ class ConnectionOnlyUiTest {
             QuotaPopupContentPanel(
                 proxyStatusProvider = {
                     OpenAiProxyStatus(false, false, "http://127.0.0.1:14621", null)
-                }
+                },
             ) {}
         panel.update(QuotaUsageSnapshot(emptyMap()))
         assertTrue("Connection needs setup" in texts(panel))
@@ -134,7 +134,7 @@ class ConnectionOnlyUiTest {
                 QuotaPopupContentPanel(
                     proxyStatusProvider = {
                         OpenAiProxyStatus(false, false, "http://127.0.0.1:14621", null)
-                    }
+                    },
                 ) {}
             panel.update(QuotaUsageSnapshot(emptyMap()))
             val liteLlm = addConnection(settings, type = QuotaProviderType.LITELLM)
@@ -142,9 +142,9 @@ class ConnectionOnlyUiTest {
                 QuotaUsageSnapshot(
                     mapOf(
                         QuotaProviderType.LITELLM to
-                            ProviderSnapshot(LiteLlmQuota(25.0, 100.0), null)
-                    )
-                )
+                            ProviderSnapshot(LiteLlmQuota(25.0, 100.0), null),
+                    ),
+                ),
             )
             assertFalse(panel.isConnectionOnly)
             assertTrue("Subscription Usage" in texts(panel))
@@ -155,9 +155,9 @@ class ConnectionOnlyUiTest {
                 QuotaUsageSnapshot(
                     mapOf(
                         QuotaProviderType.LITELLM to
-                            ProviderSnapshot(null, "Key budget unavailable")
-                    )
-                )
+                            ProviderSnapshot(null, "Key budget unavailable"),
+                    ),
+                ),
             )
             assertTrue("Key budget unavailable" in texts(panel))
             assertFalse(texts(panel).any { it.contains("This API does not provide") })

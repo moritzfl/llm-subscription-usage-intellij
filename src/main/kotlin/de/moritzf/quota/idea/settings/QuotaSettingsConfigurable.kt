@@ -217,7 +217,7 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
                 ?: QuotaSettingsState.getInstance().hasDuplicateAccountNames()
         ) {
             throw ConfigurationException(
-                "Account names must be unique per provider and cannot be blank."
+                "Account names must be unique per provider and cannot be blank.",
             )
         }
         panel?.apply()
@@ -453,7 +453,7 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
                         account.name = accountNameField?.text.orEmpty()
                         refreshAccountNameDisplays(account)
                     }
-                }
+                },
             )
         val identity =
             BorderLayoutPanel().apply {
@@ -572,7 +572,7 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
                                 } catch (failure: Exception) {
                                     failure.rethrowIfCancellation()
                                     throw ConfigurationException(
-                                        "Could not save credentials to Password Safe. Please retry Apply."
+                                        "Could not save credentials to Password Safe. Please retry Apply.",
                                     )
                                 }
                             },
@@ -599,7 +599,7 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
                 mcpSyncCheckBox?.isSelected =
                     QuotaSettingsState.getInstance().syncIntellijMcpServerUrl
                 mcpSyncTargetsPanel?.setTargets(
-                    normalizeTargets(QuotaSettingsState.getInstance().mcpServerSyncTargets)
+                    normalizeTargets(QuotaSettingsState.getInstance().mcpServerSyncTargets),
                 )
                 providerPanelsByType.values.forEach { providerPanel ->
                     providerPanel.updateFields()
@@ -626,7 +626,7 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
                     selectedSource != state.source() ||
                     compatiblePanels().any {
                         it.credentialsModified(
-                            accountListPanel?.accounts().orEmpty().map { it.id }.toSet()
+                            accountListPanel?.accounts().orEmpty().map { it.id }.toSet(),
                         )
                     } ||
                     selectedAccountExtrasModified(state) ||
@@ -670,7 +670,7 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
                     }
 
                     row("Indicator quota source:") { cell(indicatorSourceComboBox!!) }
-                }
+                },
             )
             addToCenter(
                 BorderLayoutPanel().apply {
@@ -678,7 +678,7 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
                     isOpaque = true
                     border = JBUI.Borders.emptyTop(12)
                     addToCenter(splitter)
-                }
+                },
             )
         }
     }
@@ -692,7 +692,7 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
                     "IntelliJ's integrated MCP server can change its port from time to time. " +
                         "When sync is enabled, this plugin writes the current server URL to the selected agent " +
                         "configuration files on startup and after settings changes, so those agents keep pointing " +
-                        "at the correct IntelliJ MCP server."
+                        "at the correct IntelliJ MCP server.",
                 )
             }
 
@@ -700,7 +700,7 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
 
             row {
                 comment(
-                    "Use dot paths like mcpServers.jetbrains.url for JSON/TOML/YAML, or JSON Pointer paths like /mcpServers/jetbrains/url."
+                    "Use dot paths like mcpServers.jetbrains.url for JSON/TOML/YAML, or JSON Pointer paths like /mcpServers/jetbrains/url.",
                 )
             }
 

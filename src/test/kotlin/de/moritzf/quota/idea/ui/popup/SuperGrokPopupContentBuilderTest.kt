@@ -23,7 +23,7 @@ class SuperGrokPopupContentBuilderTest {
                         SuperGrokResetToken("restok_1", now + 3.days),
                         SuperGrokResetToken("restok_2", now + 10.days),
                         SuperGrokResetToken("restok_3"),
-                    )
+                    ),
             )
 
         section.update(quota, error = null, visible = true)
@@ -123,7 +123,7 @@ class SuperGrokPopupContentBuilderTest {
             section.components
                 .filterIsInstance<JPanel>()
                 .flatMap { it.components.filterIsInstance<ActionLink>() }
-                .isEmpty()
+                .isEmpty(),
         )
     }
 }

@@ -249,10 +249,10 @@ class AccountResolverTest {
                                 "gpt-reserve",
                                 "GPT Reserve Weekly",
                                 UsageWindow(usedPercent = 0.0),
-                            )
+                            ),
                         ),
-                )
-            )
+                ),
+            ),
         )
         assertTrue(
             AccountResolver.isHardStop(
@@ -264,10 +264,10 @@ class AccountResolverTest {
                                 "gpt-reserve",
                                 "GPT Reserve Weekly",
                                 UsageWindow(usedPercent = 100.0),
-                            )
+                            ),
                         ),
-                )
-            )
+                ),
+            ),
         )
         assertTrue(AccountResolver.isHardStop(OpenAiCodexQuota(limitReached = true)))
     }
@@ -276,18 +276,18 @@ class AccountResolverTest {
     fun miniMaxWeeklyLimitIsHardStop() {
         assertFalse(
             AccountResolver.isHardStop(
-                MiniMaxQuota(sessionUsage = MiniMaxUsageWindow(usagePercent = 40.0))
-            )
+                MiniMaxQuota(sessionUsage = MiniMaxUsageWindow(usagePercent = 40.0)),
+            ),
         )
         assertTrue(
             AccountResolver.isHardStop(
-                MiniMaxQuota(weeklyUsage = MiniMaxUsageWindow(usagePercent = 100.0))
-            )
+                MiniMaxQuota(weeklyUsage = MiniMaxUsageWindow(usagePercent = 100.0)),
+            ),
         )
         assertTrue(
             AccountResolver.isHardStop(
-                MiniMaxQuota(sessionUsage = MiniMaxUsageWindow(usagePercent = 100.0))
-            )
+                MiniMaxQuota(sessionUsage = MiniMaxUsageWindow(usagePercent = 100.0)),
+            ),
         )
     }
 

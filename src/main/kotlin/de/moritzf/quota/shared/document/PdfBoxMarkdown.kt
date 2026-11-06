@@ -39,7 +39,7 @@ internal object PdfBoxMarkdown {
             val range =
                 PdfPages.resolve(pageCount, pageFrom, pageTo)
                     ?: throw IllegalArgumentException(
-                        "Page range is outside this PDF ($pageCount pages)."
+                        "Page range is outside this PDF ($pageCount pages).",
                     )
             val total = range.to - range.from + 1
             val writer = StringWriter()

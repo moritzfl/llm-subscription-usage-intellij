@@ -11,7 +11,7 @@ import javax.swing.JPanel
 
 /** Configuration and local server state, never an inferred upstream health check. */
 internal class ConnectionOnlyPopupPanel(
-    private val credentialState: (String) -> ProviderAuthState
+    private val credentialState: (String) -> ProviderAuthState,
 ) : JPanel(VerticalFlowLayout(VerticalFlowLayout.TOP, 0, 0, true, false)) {
     init {
         isOpaque = false
@@ -32,7 +32,7 @@ internal class ConnectionOnlyPopupPanel(
                 createSectionTitleLabel(
                     settings.accountListLabel(account),
                     ProviderUiRegistry.forType(type).icon,
-                )
+                ),
             )
             add(TruncatingPopupLabel(endpoint?.baseUri?.toString() ?: "API URL needs setup"))
             val credentials =
@@ -53,8 +53,8 @@ internal class ConnectionOnlyPopupPanel(
                     !proxy.enabled -> "Off"
                     proxy.error != null -> "Failed to start"
                     else -> "Starting…"
-                }
-            )
+                },
+            ),
         )
         if (proxy.running) add(TruncatingPopupLabel(proxy.baseUrl))
         if (proxy.enabled && proxy.error != null) add(createWarningLabel(proxy.error))

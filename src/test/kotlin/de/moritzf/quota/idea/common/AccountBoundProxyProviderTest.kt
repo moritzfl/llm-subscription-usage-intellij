@@ -52,7 +52,7 @@ class AccountBoundProxyProviderTest {
                                     displayName,
                                     "openai",
                                     setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS),
-                                )
+                                ),
                             )
 
                         override suspend fun handle(
@@ -79,8 +79,8 @@ class AccountBoundProxyProviderTest {
                             .header("Content-Type", "application/json")
                             .POST(
                                 HttpRequest.BodyPublishers.ofString(
-                                    """{"model":"km-test","messages":[{"role":"user","content":"hi"}]}"""
-                                )
+                                    """{"model":"km-test","messages":[{"role":"user","content":"hi"}]}""",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),
@@ -124,7 +124,7 @@ class AccountBoundProxyProviderTest {
                                     displayName,
                                     "openai",
                                     setOf(SubscriptionProxyRoute.CHAT_COMPLETIONS),
-                                )
+                                ),
                             )
 
                         override suspend fun handle(
@@ -156,8 +156,8 @@ class AccountBoundProxyProviderTest {
                             .header("Content-Type", "application/json")
                             .POST(
                                 HttpRequest.BodyPublishers.ofString(
-                                    """{"model":"km-test","messages":[{"role":"user","content":"hi"}]}"""
-                                )
+                                    """{"model":"km-test","messages":[{"role":"user","content":"hi"}]}""",
+                                ),
                             )
                             .build(),
                         HttpResponse.BodyHandlers.ofString(),

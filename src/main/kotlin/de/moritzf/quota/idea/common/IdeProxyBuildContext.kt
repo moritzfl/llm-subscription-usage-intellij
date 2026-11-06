@@ -58,7 +58,7 @@ internal object IdeProxyFactories {
                 } else {
                     val store =
                         de.moritzf.quota.idea.compatible.CompatibleApiKeyStore.forAccount(
-                            account.id
+                            account.id,
                         )
                     // Password Safe can prompt on the EDT; never load it while holding settings.
                     store.loadBlocking()
@@ -66,7 +66,7 @@ internal object IdeProxyFactories {
                         if (
                             endpoint == null ||
                                 de.moritzf.quota.idea.compatible.compatibleEndpoint(
-                                    ctx.settings.account(account.id)
+                                    ctx.settings.account(account.id),
                                 ) != endpoint
                         )
                             null
@@ -139,7 +139,7 @@ internal object IdeProxyFactories {
     fun github(ctx: IdeProxyBuildContext): SubscriptionProxyProvider {
         val host =
             ctx.settings.githubHostFor(
-                resolvedAccount(ctx, QuotaProviderType.GITHUB)?.id ?: QuotaProviderType.GITHUB.id
+                resolvedAccount(ctx, QuotaProviderType.GITHUB)?.id ?: QuotaProviderType.GITHUB.id,
             )
         return GitHubCopilotSubscriptionProxyProvider(
             accessTokenProvider = {
@@ -152,7 +152,7 @@ internal object IdeProxyFactories {
                 de.moritzf.quota.github.proxy.GitHubCopilotSessionClient.endpoint(host),
             persistentModelCacheProvider = {
                 ctx.settings.subscriptionProxyModelCatalogJson(
-                    GitHubCopilotSubscriptionProxyProvider.ID
+                    GitHubCopilotSubscriptionProxyProvider.ID,
                 )
             },
             persistentModelCacheSaver = { json ->
@@ -188,7 +188,7 @@ internal object IdeProxyFactories {
         val account = resolvedAccount(ctx, QuotaProviderType.MINIMAX)
         val region =
             miniMaxProxyRegion(
-                ctx.settings.miniMaxRegionFor(account?.id ?: QuotaProviderType.MINIMAX.id)
+                ctx.settings.miniMaxRegionFor(account?.id ?: QuotaProviderType.MINIMAX.id),
             )
         return MiniMaxSubscriptionProxyProvider(
             apiKeyProvider = {
@@ -285,7 +285,7 @@ internal object IdeProxyFactories {
             )
         } catch (exception: AccountResolveException) {
             LOG.warn(
-                "Could not resolve ${type.displayName} account for the local proxy: ${exception.message}"
+                "Could not resolve ${type.displayName} account for the local proxy: ${exception.message}",
             )
             null
         }

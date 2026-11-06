@@ -92,7 +92,7 @@ internal object RawResponseRedactor {
                 if (element.isString)
                     JsonPrimitive(
                         if (sensitiveValue) REDACTED
-                        else redactText(element.content, secret, extraSensitiveNames, depth + 1)
+                        else redactText(element.content, secret, extraSensitiveNames, depth + 1),
                     )
                 else element
         }

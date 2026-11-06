@@ -35,7 +35,7 @@ class ProviderTestConnectionTest {
         app.registerService(de.moritzf.quota.idea.openai.OpenAiProxyService::class.java, proxy)
         val panel =
             SubscriptionProxySettingsPanel(
-                testSettingsProvider = { ProxyTestSettings(settings.state) }
+                testSettingsProvider = { ProxyTestSettings(settings.state) },
             )
         val models =
             listOf(
@@ -46,7 +46,7 @@ class ProviderTestConnectionTest {
                     "Draft",
                     "openai",
                     setOf(de.moritzf.proxy.subscription.SubscriptionProxyRoute.CHAT_COMPLETIONS),
-                )
+                ),
             )
         val combo = descendants(panel).filterIsInstance<javax.swing.JComboBox<*>>().single()
         panel.refreshCompletionsModelCombo(models)
@@ -55,7 +55,7 @@ class ProviderTestConnectionTest {
             descendants(panel)
                 .filterIsInstance<javax.swing.JButton>()
                 .single { it.text == "Test AI Completion" }
-                .isEnabled
+                .isEnabled,
         )
         assertFalse(panel.proxyEnabledCheckBox.isSelected)
         assertEquals("draft-model", panel.captureTestSettings().settings.proxyCompletionsModelId)
@@ -138,9 +138,9 @@ class ProviderTestConnectionTest {
             app.registerService(
                 com.intellij.openapi.client.ClientSessionsManager::class.java,
                 com.intellij.openapi.client.ClientSessionsManager<
-                    com.intellij.openapi.client.ClientAppSession
+                    com.intellij.openapi.client.ClientAppSession,
                 >(
-                    CoroutineScope(job + Dispatchers.Default)
+                    CoroutineScope(job + Dispatchers.Default),
                 ),
             )
             app.registerService(

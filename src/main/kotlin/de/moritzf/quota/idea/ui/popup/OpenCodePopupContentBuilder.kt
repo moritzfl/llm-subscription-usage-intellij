@@ -83,7 +83,7 @@ internal class OpenCodePopupSection : ProviderPopupSection() {
                 titleLabel.text =
                     sectionTitle(
                         if (quota.hasUsageState() || quota.paused) "OpenCode $plan"
-                        else OPENCODE_ZEN_LABEL
+                        else OPENCODE_ZEN_LABEL,
                     )
                 val endsAt = quota.endsAt.takeIf { quota.hasUsageState() }
                 endsLabel.isVisible = endsAt != null
@@ -92,15 +92,15 @@ internal class OpenCodePopupSection : ProviderPopupSection() {
                         message(
                             "quota.opencode.canceled",
                             java.time.format.DateTimeFormatter.ofLocalizedDate(
-                                    java.time.format.FormatStyle.MEDIUM
+                                    java.time.format.FormatStyle.MEDIUM,
                                 )
                                 .format(
                                     java.time.LocalDate.ofInstant(
                                         java.time.Instant.ofEpochMilli(
-                                            endsAt.toEpochMilliseconds()
+                                            endsAt.toEpochMilliseconds(),
                                         ),
                                         java.time.ZoneId.systemDefault(),
-                                    )
+                                    ),
                                 ),
                         )
                 }

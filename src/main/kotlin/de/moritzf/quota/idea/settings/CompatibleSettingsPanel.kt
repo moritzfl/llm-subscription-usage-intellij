@@ -143,7 +143,7 @@ internal class CompatibleSettingsPanel(
                     collapsibleGroup(message("settings.compatible.group.modelIds")) {
                             row {
                                 comment(
-                                    "Leave empty to discover models automatically. Enter one model ID per line to use only those models, or when discovery is unavailable."
+                                    "Leave empty to discover models automatically. Enter one model ID per line to use only those models, or when discovery is unavailable.",
                                 )
                             }
                             row {
@@ -155,7 +155,7 @@ internal class CompatibleSettingsPanel(
                         .apply { expanded = false }
                 row {
                     comment(
-                        "Apply this connection, then enable its provider in proxy settings for chat and code completion. LiteLLM can also report key budgets."
+                        "Apply this connection, then enable its provider in proxy settings for chat and code completion. LiteLLM can also report key budgets.",
                     )
                 }
                 row { cell(proxySettingsLinkHost()).align(AlignX.FILL).resizableColumn() }
@@ -346,7 +346,7 @@ internal class CompatibleSettingsPanel(
             account.extra(ProviderAccount.EXTRA_COMPATIBLE_BASE_URL).orEmpty() ||
             CompatibleEndpoint.parseModelIds(modelIdsField.text) !=
                 CompatibleEndpoint.parseModelIds(
-                    account.extra(ProviderAccount.EXTRA_COMPATIBLE_MODELS).orEmpty()
+                    account.extra(ProviderAccount.EXTRA_COMPATIBLE_MODELS).orEmpty(),
                 ) ||
             visionModel.differs(account.extra(ProviderAccount.EXTRA_VISION_MODEL)) ||
             documentModel.differs(account.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
@@ -455,7 +455,7 @@ internal class CompatibleSettingsPanel(
                     setStatus(
                         if (quota.hasUsageState())
                             "Key budget loaded. Team/user limits may also apply."
-                        else message("quota.litellm.unavailable")
+                        else message("quota.litellm.unavailable"),
                     )
                 }
             } catch (failure: Exception) {
@@ -503,7 +503,7 @@ internal class CompatibleSettingsPanel(
                     updateModelChoices()
                     setStatus(
                         if (models.isEmpty()) "No models returned. You can enter model IDs below."
-                        else "${models.size} models available."
+                        else "${models.size} models available.",
                     )
                 }
             } catch (failure: Exception) {

@@ -129,7 +129,7 @@ internal class GitHubCopilotModelCatalog(
                             put(
                                 "supportedRoutes",
                                 JsonArray(
-                                    model.supportedRoutes.map { JsonPrimitive(it.normalizedPath) }
+                                    model.supportedRoutes.map { JsonPrimitive(it.normalizedPath) },
                                 ),
                             )
                             put("supportsFunctionCalling", model.supportsFunctionCalling)
@@ -146,7 +146,7 @@ internal class GitHubCopilotModelCatalog(
                                 )
                             }
                         }
-                    }
+                    },
                 ),
             )
         }
@@ -271,7 +271,7 @@ internal class GitHubCopilotModelCatalog(
                     confirmedModels.values.toList() +
                         cachedConfirmedModels +
                         unconfirmedMissingModels,
-                )
+                ),
             )
             finishMissingModelRetry(retry)
         }
@@ -292,7 +292,7 @@ internal class GitHubCopilotModelCatalog(
     private fun fetchModels(token: String): List<GitHubCopilotRemoteModel> {
         val request =
             HttpRequest.newBuilder(
-                    URI.create(UrlResolver.resolveTargetUrl("/models", upstreamBaseUri.toString()))
+                    URI.create(UrlResolver.resolveTargetUrl("/models", upstreamBaseUri.toString())),
                 )
                 .timeout(Duration.ofSeconds(30))
                 .header("Authorization", "Bearer $token")

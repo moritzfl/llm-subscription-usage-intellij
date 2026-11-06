@@ -20,7 +20,7 @@ class GitHubOAuthClientTest {
                 """
                 {"device_code":"device-123","user_code":"ABCD-1234","verification_uri":"https://github.com/login/device","expires_in":900,"interval":5}
                 """
-                    .trimIndent()
+                    .trimIndent(),
             )
             .use { server ->
                 val client =
@@ -82,7 +82,7 @@ class GitHubOAuthClientTest {
                                 it.key to it.value.joinToString(",")
                             },
                         form = parseForm(body),
-                    )
+                    ),
                 )
                 val bytes = responseBody.toByteArray(StandardCharsets.UTF_8)
                 exchange.responseHeaders.add("Content-Type", "application/json")

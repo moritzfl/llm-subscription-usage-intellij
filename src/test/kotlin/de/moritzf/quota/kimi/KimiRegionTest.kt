@@ -73,7 +73,7 @@ class KimiRegionTest {
                         refreshToken = "r1",
                         expiresAtEpochSeconds = 0.0,
                         region = "global",
-                    )
+                    ),
                 )
 
         assertEquals(

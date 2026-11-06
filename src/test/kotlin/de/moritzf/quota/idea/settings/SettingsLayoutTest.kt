@@ -25,7 +25,7 @@ class SettingsLayoutTest {
                     "AI Completion looks configured (proxy URL and qwen2.5-coder). Type in the " +
                         "editor and wait for gray suggestions.",
                     AuthStatusKind.CONNECTED,
-                )
+                ),
             )
         val form = panel {
             row { button("Test AI Completion") {} }
@@ -36,7 +36,7 @@ class SettingsLayoutTest {
                 BorderLayoutPanel().apply {
                     addToTop(form)
                     addToCenter(JPanel().apply { preferredSize = Dimension(1, 180) })
-                }
+                },
             )
         val lineHeight = status.getFontMetrics(status.font).height
         for (width in listOf(260, 420, 900)) {

@@ -32,7 +32,7 @@ internal class PopupVisibilityToggle : JBLabel() {
                 override fun mouseClicked(e: MouseEvent) {
                     isHidden = !isHidden
                 }
-            }
+            },
         )
         refresh()
     }

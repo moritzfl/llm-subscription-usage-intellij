@@ -17,7 +17,7 @@ class CodexReserveHopTest {
         assertTrue(hop.isEligibleRequest("/responses", "POST", """{"model":"gpt-5.6-luna"}"""))
         val rewritten =
             hop.rewriteRequestToReserve(
-                """{"model":"gpt-5.6-luna","reasoning":{"effort":"ultra"},"stream":true}"""
+                """{"model":"gpt-5.6-luna","reasoning":{"effort":"ultra"},"stream":true}""",
             )
         val root = de.moritzf.proxy.util.Json.INSTANCE.parseToJsonElement(rewritten!!).jsonObject
         assertEquals("gpt-reserve", root["model"]!!.jsonPrimitive.content)
@@ -43,7 +43,7 @@ class CodexReserveHopTest {
     @Test
     fun detectsUsageLimitBodies() {
         assertTrue(
-            hop.isUsageLimit("""{"detail":"You've hit your usage limit. usage_limit_reached"}""")
+            hop.isUsageLimit("""{"detail":"You've hit your usage limit. usage_limit_reached"}"""),
         )
         assertFalse(hop.isUsageLimit("""{"detail":"model not found"}"""))
     }

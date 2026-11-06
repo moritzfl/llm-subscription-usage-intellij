@@ -18,14 +18,14 @@ class OpenCodeBillingParserTest {
         for (amount in listOf("null", "true", "\"NaN\"", "\"Infinity\"", "\"1.5\"")) {
             assertNull(
                 OpenCodeQuotaClient.parseBillingBalance(
-                    OpenCodeQuotaClientTest.BILLING_STATUS.replace("\"1234567890\"", amount)
-                )
+                    OpenCodeQuotaClientTest.BILLING_STATUS.replace("\"1234567890\"", amount),
+                ),
             )
         }
         assertNull(
             OpenCodeQuotaClient.parseBillingBalance(
-                """{"billingMode":"prepaid","mode":"pay-as-you-go","availableMicroCents":"100"}"""
-            )
+                """{"billingMode":"prepaid","mode":"pay-as-you-go","availableMicroCents":"100"}""",
+            ),
         )
     }
 
@@ -45,8 +45,8 @@ class OpenCodeBillingParserTest {
         for (mode in listOf("seat", "credit", "legacy")) {
             assertNull(
                 OpenCodeQuotaClient.parseBillingBalance(
-                    OpenCodeQuotaClientTest.BILLING_STATUS.replace("prepaid", mode)
-                )
+                    OpenCodeQuotaClientTest.BILLING_STATUS.replace("prepaid", mode),
+                ),
             )
         }
     }

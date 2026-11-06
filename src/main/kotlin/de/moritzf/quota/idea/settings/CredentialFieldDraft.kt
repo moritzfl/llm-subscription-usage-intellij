@@ -16,7 +16,7 @@ internal class CredentialFieldDraft(private val field: JTextComponent) {
                 override fun textChanged(event: DocumentEvent) {
                     if (!updating) accountId?.let { drafts[it] = field.text }
                 }
-            }
+            },
         )
     }
 

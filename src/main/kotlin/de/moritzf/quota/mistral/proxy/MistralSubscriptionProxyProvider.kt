@@ -44,7 +44,7 @@ class MistralSubscriptionProxyProvider(
             modelTransformer = { model ->
                 model.copy(
                     reasoningEfforts =
-                        MistralThinking.reasoningEfforts(model.id, model.supportsReasoning)
+                        MistralThinking.reasoningEfforts(model.id, model.supportsReasoning),
                 )
             },
             requestBodyTransformer = { request, body ->
@@ -134,7 +134,7 @@ class MistralSubscriptionProxyProvider(
                                                     (choice["finish_reason"] as? JsonPrimitive)
                                                         ?.contentOrNull ?: "stop",
                                                 )
-                                            }
+                                            },
                                         )
                                     },
                                 )
@@ -142,7 +142,7 @@ class MistralSubscriptionProxyProvider(
                         }
                     }
                     if ("object" !in root) put("object", "text_completion")
-                }
+                },
             )
         }
     }

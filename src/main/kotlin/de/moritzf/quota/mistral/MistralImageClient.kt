@@ -38,7 +38,7 @@ open class MistralImageClient(
         val token =
             apiKey.trim().ifBlank {
                 throw MistralQuotaException(
-                    "Mistral API key missing. Add a Mistral API key in settings."
+                    "Mistral API key missing. Add a Mistral API key in settings.",
                 )
             }
         val body =
@@ -47,7 +47,7 @@ open class MistralImageClient(
                     model = model.trim().ifBlank { DEFAULT_MODEL },
                     inputs = trimmedPrompt,
                     tools = listOf(MistralBuiltInToolDto("image_generation")),
-                )
+                ),
             )
         val response = sendString(postJson(token, conversationsUri, body))
         val status = response.statusCode()
@@ -84,7 +84,7 @@ open class MistralImageClient(
         }
         Files.write(output, bytes)
         return JsonSupport.json.encodeToString(
-            MistralImageWriteResult(output.toString(), fileId, bytes.size.toLong())
+            MistralImageWriteResult(output.toString(), fileId, bytes.size.toLong()),
         )
     }
 

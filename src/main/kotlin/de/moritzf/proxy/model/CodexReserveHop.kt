@@ -12,7 +12,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 
 internal class CodexReserveHop(
-    private val aliasResolver: ModelAliasResolver = ModelAliasResolver()
+    private val aliasResolver: ModelAliasResolver = ModelAliasResolver(),
 ) {
     fun isEligibleRequest(path: String, method: String?, body: String?): Boolean {
         if (body.isNullOrBlank() || !method.equals("POST", ignoreCase = true)) {

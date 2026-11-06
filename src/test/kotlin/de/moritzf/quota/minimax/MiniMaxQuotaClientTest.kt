@@ -431,7 +431,7 @@ class MiniMaxQuotaClientTest {
                                 }
                                 """
                                     .trimIndent()),
-                    )
+                    ),
             )
             .use { server ->
                 val client =
@@ -468,7 +468,7 @@ class MiniMaxQuotaClientTest {
                         "/v1/token_plan/remains" to (401 to """{"error":"expired"}"""),
                         "/v1/coding_plan/remains" to
                             (200 to """{"base_resp":{"status_code":0},"model_remains":[]}"""),
-                    )
+                    ),
             )
             .use { server ->
                 val client =

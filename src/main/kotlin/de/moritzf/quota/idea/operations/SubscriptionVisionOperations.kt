@@ -45,7 +45,7 @@ internal suspend fun SubscriptionOperations.subscription_vision(
     val chosen = model.trim().ifBlank { visionModel(provider) }
     if (chosen == "-" || chosen.isBlank()) {
         return errorResult(
-            "Vision is off for ${provider.providerType.displayName}. Pick a vision model in settings, or pass model="
+            "Vision is off for ${provider.providerType.displayName}. Pick a vision model in settings, or pass model=",
         )
     }
     val trimmedPrompt = prompt.trim()

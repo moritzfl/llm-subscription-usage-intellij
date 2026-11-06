@@ -80,7 +80,7 @@ class AzureOcrClientTest {
                                 AzureUsageWindow.DEPLOYMENT,
                                 resourceName = "my-resource",
                                 modelName = "Mistral-Large-3",
-                            )
+                            ),
                         ),
                 ),
                 "mistral-ocr-chat",
@@ -112,8 +112,8 @@ class AzureOcrClientTest {
                             AzureUsageWindow.DEPLOYMENT,
                             resourceName = "my-resource",
                             modelName = "Cohere-parse-v5",
-                        )
-                    )
+                        ),
+                    ),
             )
         assertEquals(
             listOf("cohere:receipt-parser", AZURE_DOCUMENT_INTELLIGENCE_LAYOUT),
@@ -146,17 +146,18 @@ class AzureOcrClientTest {
             ),
         )
         assertTrue(
-            azureDocumentModelRank("mistral-ocr-latest") > azureDocumentModelRank("mistral-ocr-4-1")
+            azureDocumentModelRank("mistral-ocr-latest") >
+                azureDocumentModelRank("mistral-ocr-4-1"),
         )
         assertTrue(
-            azureDocumentModelRank("mistral-ocr-4-1") > azureDocumentModelRank("mistral-ocr-4-0")
+            azureDocumentModelRank("mistral-ocr-4-1") > azureDocumentModelRank("mistral-ocr-4-0"),
         )
         assertTrue(
-            azureDocumentModelRank("mistral-ocr-4-0") > azureDocumentModelRank("mistral-ocr-2505")
+            azureDocumentModelRank("mistral-ocr-4-0") > azureDocumentModelRank("mistral-ocr-2505"),
         )
         assertTrue(
             azureDocumentModelRank("mistral-ocr-2505") >
-                azureDocumentModelRank("mistral-document-ai-2512")
+                azureDocumentModelRank("mistral-document-ai-2512"),
         )
         assertEquals("receipt-parser", azureOcrDeploymentId("cohere:receipt-parser"))
         assertTrue(isAzureCohereSelection("cohere:receipt-parser"))
@@ -212,7 +213,7 @@ class AzureOcrClientTest {
                             200,
                             """{"model":"mistral-ocr-4-0","pages":[{"markdown":"# Test"}]}""",
                         )
-                    }
+                    },
                 )
             val cli =
                 AzureCli(
@@ -237,13 +238,13 @@ class AzureOcrClientTest {
             assertEquals(
                 "# Test",
                 Files.readString(
-                    file.resolveSibling(file.fileName.toString().removeSuffix(".pdf") + ".md")
+                    file.resolveSibling(file.fileName.toString().removeSuffix(".pdf") + ".md"),
                 ),
             )
             assertEquals(1, calls)
         } finally {
             Files.deleteIfExists(
-                file.resolveSibling(file.fileName.toString().removeSuffix(".pdf") + ".md")
+                file.resolveSibling(file.fileName.toString().removeSuffix(".pdf") + ".md"),
             )
             Files.deleteIfExists(file)
         }
@@ -322,7 +323,7 @@ class AzureOcrClientTest {
                         assertTrue(json.contains("\"type\":\"image_url\""))
                         assertTrue(json.contains("data:image/png;base64,"))
                         AzureOcrResponse(200, native)
-                    }
+                    },
                 )
             val cli =
                 AzureCli(
@@ -342,12 +343,12 @@ class AzureOcrClientTest {
             assertEquals(
                 "Picture",
                 Files.readString(
-                    image.resolveSibling(image.fileName.toString().removeSuffix(".png") + ".md")
+                    image.resolveSibling(image.fileName.toString().removeSuffix(".png") + ".md"),
                 ),
             )
         } finally {
             Files.deleteIfExists(
-                image.resolveSibling(image.fileName.toString().removeSuffix(".png") + ".md")
+                image.resolveSibling(image.fileName.toString().removeSuffix(".png") + ".md"),
             )
             Files.deleteIfExists(image)
         }
@@ -367,7 +368,7 @@ class AzureOcrClientTest {
                     post = { request ->
                         val payload =
                             JsonSupport.json.decodeFromString<MistralOcrRequestDto>(
-                                requestBody(request)
+                                requestBody(request),
                             )
                         assertTrue(payload.includeImageBase64)
                         val bytes =
@@ -391,7 +392,7 @@ class AzureOcrClientTest {
                                                 "img-0.png",
                                                 Base64.getEncoder()
                                                     .encodeToString(byteArrayOf(number.toByte())),
-                                            )
+                                            ),
                                         ),
                                     )
                                 }
@@ -400,7 +401,7 @@ class AzureOcrClientTest {
                             200,
                             JsonSupport.json.encodeToString(MistralOcrResponseDto(pages)),
                         )
-                    }
+                    },
                 )
             val result =
                 JsonSupport.json.decodeFromString<MistralOcrWriteResult>(
@@ -416,7 +417,7 @@ class AzureOcrClientTest {
                                 completed += done
                             }
                         },
-                    )
+                    ),
                 )
             assertEquals((1..count).chunked(30).map(List<Int>::size), sizes)
             assertEquals(count, result.pages)
@@ -453,7 +454,7 @@ class AzureOcrClientTest {
                 post = {
                     if (++calls == 1) pageResponse(30, images = true)
                     else AzureOcrResponse(500, """{"message":"test error"}""")
-                }
+                },
             )
         val error =
             assertFailsWith<AzureOcrException> {
@@ -495,7 +496,7 @@ class AzureOcrClientTest {
                         return@AzureOcrClient AzureOcrResponse(
                             200,
                             JsonSupport.json.encodeToString(
-                                MistralOcrResponseDto(listOf(MistralOcrPageDto("# Image page")))
+                                MistralOcrResponseDto(listOf(MistralOcrPageDto("# Image page"))),
                             ),
                         )
                     }
@@ -514,11 +515,11 @@ class AzureOcrClientTest {
                             200,
                             JsonSupport.json.encodeToString(
                                 MistralOcrResponseDto(
-                                    numbers.map { MistralOcrPageDto("# Page $it") }
-                                )
+                                    numbers.map { MistralOcrPageDto("# Page $it") },
+                                ),
                             ),
                         )
-                }
+                },
             )
 
         val result =
@@ -529,7 +530,7 @@ class AzureOcrClientTest {
                     "mistral-ocr-4-0",
                     localFile = source,
                     outputFile = output,
-                )
+                ),
             )
 
         assertEquals(
@@ -559,7 +560,7 @@ class AzureOcrClientTest {
                 post = {
                     calls++
                     pageResponse(30, images = true)
-                }
+                },
             )
         assertFailsWith<CancellationException> {
             client.convertDocument(
@@ -614,7 +615,7 @@ class AzureOcrClientTest {
                         2 -> AzureOcrResponse(401, "")
                         else -> pageResponse(1)
                     }
-                }
+                },
             )
         val result =
             client.convertDocument(
@@ -647,8 +648,8 @@ class AzureOcrClientTest {
                             if (images) listOf(MistralOcrImageDto("img-0.png", "AQID"))
                             else emptyList(),
                         )
-                    }
-                )
+                    },
+                ),
             ),
         )
 
@@ -689,7 +690,7 @@ class AzureOcrClientTest {
                     override fun onError(throwable: Throwable) = completed.countDown()
 
                     override fun onComplete() = completed.countDown()
-                }
+                },
             )
         assertTrue(completed.await(5, TimeUnit.SECONDS))
         return output.toString(Charsets.UTF_8)

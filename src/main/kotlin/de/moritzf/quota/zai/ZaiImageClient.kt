@@ -42,7 +42,7 @@ open class ZaiImageClient(
                 ZaiImageRequestDto(
                     model = model.trim().ifBlank { DEFAULT_MODEL },
                     prompt = trimmedPrompt,
-                )
+                ),
             )
         val response = sendString(postJson(token, body))
         val status = response.statusCode()
@@ -79,7 +79,7 @@ open class ZaiImageClient(
         }
         Files.write(output, bytes)
         return JsonSupport.json.encodeToString(
-            ZaiImageWriteResult(output.toString(), bytes.size.toLong())
+            ZaiImageWriteResult(output.toString(), bytes.size.toLong()),
         )
     }
 

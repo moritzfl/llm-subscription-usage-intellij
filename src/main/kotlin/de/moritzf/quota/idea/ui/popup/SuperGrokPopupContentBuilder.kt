@@ -149,7 +149,7 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
                             resetTokens.map { it.expiresAt },
                         )
                     cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-                }
+                },
         )
         resetTokensPanel.isVisible = true
     }
@@ -175,7 +175,7 @@ internal class SuperGrokPopupSection : ProviderPopupSection() {
                         ?: runCatching {
                             de.moritzf.quota.idea.settings.QuotaSettingsState.getInstance()
                                 .defaultAccount(
-                                    de.moritzf.quota.idea.common.QuotaProviderType.SUPERGROK
+                                    de.moritzf.quota.idea.common.QuotaProviderType.SUPERGROK,
                                 )
                                 ?.id
                         }

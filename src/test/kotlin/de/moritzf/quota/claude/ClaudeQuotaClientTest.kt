@@ -222,7 +222,7 @@ class ClaudeQuotaClientTest {
                     "weekly_resets_at": "2026-10-26T07:00:00+00:00"
                   }
                 }
-                """
+                """,
             )!!
 
         assertEquals(
@@ -236,7 +236,7 @@ class ClaudeQuotaClientTest {
         assertEquals(
             listOf(
                 ClaudeResetChoice.Session(
-                    ClaudeSessionReset(Instant.parse("2026-10-26T07:00:00Z"))
+                    ClaudeSessionReset(Instant.parse("2026-10-26T07:00:00Z")),
                 ),
                 ClaudeResetChoice.Grant(resets.grants[1]),
             ),
@@ -254,8 +254,8 @@ class ClaudeQuotaClientTest {
                     { "id": "gift", "resets_left": 1, "usable_now": true } ] },
                   "juniper_tide": { "eligible": true, "arm": "control", "available": true }
                 }
-                """
-            )
+                """,
+            ),
         )
         assertNull(ClaudeQuotaClient.parseResets("""{"cedar_ember": null, "juniper_tide": null}"""))
         assertNull(ClaudeQuotaClient.parseResets("not json"))
@@ -314,7 +314,7 @@ class ClaudeQuotaClientTest {
                         """{"error":{"type":"rate_limit_error"}}""",
                         status = 429,
                         headers = mapOf("Retry-After" to listOf("120")),
-                    )
+                    ),
                 ),
                 URI.create("https://api.anthropic.test/api/oauth/usage"),
             )
@@ -358,8 +358,8 @@ class ClaudeQuotaClientTest {
             FakeHttpClient(
                 FakeResponseSpec(
                     """{"juniper_tide": {"arm": "reset", "available": true,
-                        "weekly_resets_at": "2026-10-26T07:00:00+00:00"}}"""
-                )
+                        "weekly_resets_at": "2026-10-26T07:00:00+00:00"}}""",
+                ),
             )
         val client =
             ClaudeQuotaClient(httpClient, URI.create("https://api.anthropic.test/api/oauth/usage"))
@@ -414,7 +414,7 @@ class ClaudeQuotaClientTest {
                      "scope": {"surface": "mobile"}}
                   ]
                 }
-                """
+                """,
             )
 
         assertEquals(
@@ -447,7 +447,7 @@ class ClaudeQuotaClientTest {
                     "resets_at": "2026-12-01T00:00:00Z", "locked_reason": null},
                   "unknown_pool": {"utilization": 99}
                 }
-                """
+                """,
             )
 
         assertEquals(
@@ -484,7 +484,7 @@ class ClaudeQuotaClientTest {
     fun parseQuotaAcceptsAResponseWithOnlyACreditPool() {
         val quota =
             ClaudeQuotaClient.parseQuota(
-                """{"cinder_cove": {"utilization": 0, "resets_at": null}}"""
+                """{"cinder_cove": {"utilization": 0, "resets_at": null}}""",
             )
 
         assertEquals(listOf("Claude Code and Cowork credit"), quota.credits.map { it.label })
@@ -499,21 +499,21 @@ class ClaudeQuotaClientTest {
                 {"five_hour": {"utilization": 1}, "extra_usage": {"is_enabled": true,
                   "monthly_limit": null, "used_credits": 1250, "utilization": null,
                   "currency": "USD"}}
-                """
+                """,
             )
         val capped =
             ClaudeQuotaClient.parseQuota(
                 """
                 {"five_hour": {"utilization": 1}, "extra_usage": {"is_enabled": true,
                   "used_credits": 1250, "currency": "USD"}}
-                """
+                """,
             )
         val blocked =
             ClaudeQuotaClient.parseQuota(
                 """
                 {"five_hour": {"utilization": 1}, "extra_usage": {"is_enabled": false,
                   "disabled_reason": "out_of_credits"}}
-                """
+                """,
             )
 
         assertEquals(true, unlimited.extraUsage?.unlimited)
@@ -532,7 +532,7 @@ class ClaudeQuotaClientTest {
                 {"five_hour": {"utilization": 1},
                  "spend": {"balance": {"amount_minor": 1234, "currency": "EUR", "exponent": 2},
                            "auto_reload": null}}
-                """
+                """,
             )
         val withoutBalance = ClaudeQuotaClient.parseQuota(DECIMAL_CREDITS_RESPONSE)
 
@@ -548,8 +548,8 @@ class ClaudeQuotaClientTest {
                 FakeResponseSpec(
                     """{"account": {"uuid": "a"}, "organization": {"uuid": "$ORGANIZATION",
                        "organization_type": "claude_max", "rate_limit_tier": "default_claude_max_20x",
-                       "plan_display_name": null}}"""
-                )
+                       "plan_display_name": null}}""",
+                ),
             )
         val client =
             ClaudeQuotaClient(httpClient, URI.create("https://api.anthropic.test/api/oauth/usage"))
@@ -633,7 +633,7 @@ class ClaudeQuotaClientTest {
         assertEquals("cedar_ember", grantClaim.jsonObject["program"]?.jsonPrimitive?.content)
         assertEquals("weekly_gift", grantClaim.jsonObject["grant_id"]?.jsonPrimitive?.content)
         assertTrue(
-            grantClaim.jsonObject["request_id"]?.jsonPrimitive?.content?.isNotBlank() == true
+            grantClaim.jsonObject["request_id"]?.jsonPrimitive?.content?.isNotBlank() == true,
         )
         assertEquals(
             mapOf("program" to "juniper_tide"),
@@ -679,7 +679,7 @@ class ClaudeQuotaClientTest {
                     override fun onError(throwable: Throwable) = done.countDown()
 
                     override fun onComplete() = done.countDown()
-                }
+                },
             )
         done.await(5, java.util.concurrent.TimeUnit.SECONDS)
         return bytes.toString(Charsets.UTF_8)

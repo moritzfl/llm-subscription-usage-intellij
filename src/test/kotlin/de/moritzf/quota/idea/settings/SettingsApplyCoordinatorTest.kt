@@ -109,8 +109,8 @@ class SettingsApplyCoordinatorTest {
                                     ProviderAccount.EXTRA_AZURE_ENDPOINT,
                                     "https://example.com",
                                 )
-                            }
-                        )
+                            },
+                        ),
                 )
             }
         val events = mutableListOf<String>()

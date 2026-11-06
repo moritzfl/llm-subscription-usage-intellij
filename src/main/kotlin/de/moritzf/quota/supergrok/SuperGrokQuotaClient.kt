@@ -34,7 +34,7 @@ open class SuperGrokQuotaClient(
         val token =
             accessToken?.trim()?.takeIf { it.isNotBlank() }
                 ?: throw SuperGrokQuotaException(
-                    "Grok login required. Log in from SuperGrok settings."
+                    "Grok login required. Log in from SuperGrok settings.",
                 )
 
         val weeklyJson =
@@ -76,7 +76,7 @@ open class SuperGrokQuotaClient(
         val token =
             accessToken?.trim()?.takeIf { it.isNotBlank() }
                 ?: throw SuperGrokQuotaException(
-                    "Grok login required. Log in from SuperGrok settings."
+                    "Grok login required. Log in from SuperGrok settings.",
                 )
         val resetId =
             tokenId?.trim()?.takeIf { it.isNotBlank() }
@@ -175,7 +175,7 @@ open class SuperGrokQuotaClient(
         if (status !in 200..299) {
             if (!required) return emptyList()
             logger.warn(
-                "SuperGrok reset HTTP error: $status, body=${String(payload.copyOfRange(0, payload.size.coerceAtMost(200)))}"
+                "SuperGrok reset HTTP error: $status, body=${String(payload.copyOfRange(0, payload.size.coerceAtMost(200)))}",
             )
             throw SuperGrokQuotaException(
                 "Grok reset request failed (HTTP $status). Try again later.",
@@ -187,7 +187,7 @@ open class SuperGrokQuotaClient(
         if (grpcStatus != 0) {
             if (!required) return emptyList()
             logger.warn(
-                "SuperGrok reset gRPC error: status=$grpcStatus, message=$grpcMessage, bodySize=${payload.size}"
+                "SuperGrok reset gRPC error: status=$grpcStatus, message=$grpcMessage, bodySize=${payload.size}",
             )
             val detail = grpcMessage?.takeIf { it.isNotBlank() } ?: "status $grpcStatus"
             throw SuperGrokQuotaException("Grok reset request failed ($detail).", status)
@@ -338,7 +338,7 @@ open class SuperGrokQuotaClient(
                                     put("tokenId", token.tokenId)
                                     token.expiresAt?.let { put("expiresAt", it.toString()) }
                                 }
-                            }
+                            },
                         ),
                     )
                 }

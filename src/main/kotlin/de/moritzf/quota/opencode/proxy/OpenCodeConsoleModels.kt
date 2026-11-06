@@ -198,7 +198,7 @@ internal data class OpenCodeConsoleModel(
 
         /** Disabled entries may use an alias key; collect both the catalog id and upstream id. */
         private fun disabledModels(
-            providers: Map<String, ConsoleProvider>
+            providers: Map<String, ConsoleProvider>,
         ): Map<OpenCodePool, Set<String>> {
             val disabled = mutableMapOf<OpenCodePool, MutableSet<String>>()
             providers.forEach { (providerId, provider) ->
@@ -334,7 +334,7 @@ internal data class OpenCodeConsoleModel(
                     uri.host != null &&
                     uri.userInfo == null &&
                     uri.query == null &&
-                    uri.fragment == null
+                    uri.fragment == null,
             ) {
                 "Invalid OpenCode inference URL"
             }
@@ -378,7 +378,7 @@ internal data class OpenCodeConsoleModel(
                 modelId == "qwen3.8-max" ->
                     WireRoute(
                         if (pool == OpenCodePool.GO) SubscriptionProxyRoute.ANTHROPIC_MESSAGES
-                        else SubscriptionProxyRoute.CHAT_COMPLETIONS
+                        else SubscriptionProxyRoute.CHAT_COMPLETIONS,
                     )
                 modelId.startsWith("qwen") -> WireRoute(SubscriptionProxyRoute.ANTHROPIC_MESSAGES)
                 // MiniMax uses Anthropic Messages on Go and Chat Completions on Console.
@@ -516,7 +516,7 @@ internal data class OpenCodeConsoleModel(
                     if (response.statusCode() !in 200..299) return emptySet()
                     val data =
                         (JsonSupport.json.parseToJsonElement(response.body()) as? JsonObject)?.get(
-                            "data"
+                            "data",
                         ) as? JsonArray ?: return emptySet()
                     data
                         .mapNotNull {

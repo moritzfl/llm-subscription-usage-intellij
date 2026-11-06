@@ -349,14 +349,14 @@ internal fun mistralApiUsageBarText(usage: de.moritzf.quota.mistral.MistralApiUs
 }
 
 internal fun isMistralPerMinuteWindow(
-    window: de.moritzf.quota.mistral.MistralUsageWindow
+    window: de.moritzf.quota.mistral.MistralUsageWindow,
 ): Boolean {
     val durationMs = window.periodDurationMs ?: return false
     return durationMs in 1..60_000L
 }
 
 internal fun mistralDisplayWindow(
-    quota: MistralQuota
+    quota: MistralQuota,
 ): de.moritzf.quota.mistral.MistralUsageWindow? {
     return quota.displayWindow()
 }
@@ -577,7 +577,7 @@ internal fun cursorIndicatorState(quota: CursorQuota): CursorIndicatorState? {
 }
 
 internal fun ollamaIndicatorState(
-    quota: de.moritzf.quota.ollama.OllamaQuota
+    quota: de.moritzf.quota.ollama.OllamaQuota,
 ): OllamaIndicatorState? {
     val windows =
         listOfNotNull(

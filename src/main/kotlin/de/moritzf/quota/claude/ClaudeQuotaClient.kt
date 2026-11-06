@@ -122,8 +122,8 @@ open class ClaudeQuotaClient(
                 )
                 .POST(
                     HttpRequest.BodyPublishers.ofString(
-                        JsonSupport.json.encodeToString(ResetClaimDto.serializer(), claim)
-                    )
+                        JsonSupport.json.encodeToString(ResetClaimDto.serializer(), claim),
+                    ),
                 )
                 .build()
         val response = send(request)
@@ -410,7 +410,7 @@ open class ClaudeQuotaClient(
             val extraUsage =
                 payload.extraUsage?.toExtraUsage(
                     unlimitedWhenEnabled =
-                        (root["extra_usage"] as? JsonObject)?.get("monthly_limit") == JsonNull
+                        (root["extra_usage"] as? JsonObject)?.get("monthly_limit") == JsonNull,
                 )
             fun credit(key: String, fallbackLabel: String, oneTime: Boolean): ClaudeCredit? =
                 JsonSupport.decodeSectionOrNull(root[key], ClaudeCreditDto.serializer())
@@ -565,7 +565,7 @@ open class ClaudeQuotaClient(
         }
 
         private fun ClaudeExtraUsageDto.toExtraUsage(
-            unlimitedWhenEnabled: Boolean
+            unlimitedWhenEnabled: Boolean,
         ): ClaudeExtraUsage {
             val limit = monthlyLimit
             val used = usedCredits

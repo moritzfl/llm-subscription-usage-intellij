@@ -40,7 +40,7 @@ open class ZaiVisionClient(
                     token,
                     chatCompletionsUri,
                     VisionChat.chatRequestJson(selectedModel, imageContent, trimmedPrompt),
-                )
+                ),
             )
         val status = response.statusCode()
         val body = response.body()

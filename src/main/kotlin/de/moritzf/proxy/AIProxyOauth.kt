@@ -75,7 +75,7 @@ class AIProxyOauth : Callable<Int> {
         split = ",",
         description =
             [
-                "Additional browser Origin allowed by CORS. Localhost origins are allowed by default. Can be repeated or comma-separated."
+                "Additional browser Origin allowed by CORS. Localhost origins are allowed by default. Can be repeated or comma-separated.",
             ],
     )
     private var corsOrigins: List<String>? = null
@@ -83,7 +83,7 @@ class AIProxyOauth : Callable<Int> {
         names = ["--log-requests"],
         description =
             [
-                "Log full proxied request/response metadata to disk with sensitive headers redacted. Default: false"
+                "Log full proxied request/response metadata to disk with sensitive headers redacted. Default: false",
             ],
     )
     private var logRequests = false
@@ -96,7 +96,7 @@ class AIProxyOauth : Callable<Int> {
         names = ["--forward-prompt-cache-headers"],
         description =
             [
-                "Forward prompt_cache_key as upstream conversation/session headers. Experimental. Default: false"
+                "Forward prompt_cache_key as upstream conversation/session headers. Experimental. Default: false",
             ],
     )
     private var forwardPromptCacheHeaders = false
@@ -104,7 +104,7 @@ class AIProxyOauth : Callable<Int> {
         names = ["--responses-replay-cache"],
         description =
             [
-                "Emulate previous_response_id/item_reference for store=false via an in-memory cache. Only needed for clients that chain responses server-side. Default: false"
+                "Emulate previous_response_id/item_reference for store=false via an in-memory cache. Only needed for clients that chain responses server-side. Default: false",
             ],
     )
     private var responsesReplayCache = false
@@ -129,7 +129,7 @@ class AIProxyOauth : Callable<Int> {
         fallbackValue = "",
         description =
             [
-                "Print a new random API key and exit. Optionally provide a name: --generate-key myapp"
+                "Print a new random API key and exit. Optionally provide a name: --generate-key myapp",
             ],
     )
     private var generateKey: String? = null
@@ -150,7 +150,7 @@ class AIProxyOauth : Callable<Int> {
             System.err.println(
                 "WARNING: full request logging is enabled. Request/response bodies may contain prompts, " +
                     "tool outputs, file paths, and other sensitive data. Authorization and API key headers are " +
-                    "redacted, but logs should still be protected."
+                    "redacted, but logs should still be protected.",
             )
         }
         val inlineKeys = parseInlineKeys()
@@ -304,7 +304,7 @@ class AIProxyOauth : Callable<Int> {
                 System.err.println("No auth file was found at ${config.oauthFilePath}.")
             } else {
                 System.err.println(
-                    "OAuth file path is required. Pass --oauth-file with a file this plugin owns."
+                    "OAuth file path is required. Pass --oauth-file with a file this plugin owns.",
                 )
             }
             return false
@@ -337,7 +337,7 @@ class AIProxyOauth : Callable<Int> {
             out.println("  Models:   ${availableModels.joinToString(", ")}")
         }
         out.println(
-            "  Client API key enforcement: ${if (apiKeyEnforcement) "enabled" else "disabled"}"
+            "  Client API key enforcement: ${if (apiKeyEnforcement) "enabled" else "disabled"}",
         )
         out.println("  Network access: ${describeNetworkAccess(config.host)}")
         out.println("  CORS: ${describeCors(config)}")
@@ -385,7 +385,7 @@ class AIProxyOauth : Callable<Int> {
                         apiKeyStore.stopWatching()
                     },
                     "shutdown-hook",
-                )
+                ),
             )
     }
 

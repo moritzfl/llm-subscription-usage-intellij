@@ -619,13 +619,13 @@ class CompletionsHandler(
                             buildJsonObject {
                                 put("role", "system")
                                 put("content", ChatFimPromptBuilder.SYSTEM_PROMPT)
-                            }
+                            },
                         )
                         add(
                             buildJsonObject {
                                 put("role", "user")
                                 put("content", ChatFimPromptBuilder.userPrompt(fim))
-                            }
+                            },
                         )
                     },
                 )
@@ -676,7 +676,7 @@ class CompletionsHandler(
                                 put("text", text)
                                 put("index", 0)
                                 put("finish_reason", finishReason)
-                            }
+                            },
                         )
                     },
                 )
@@ -715,7 +715,7 @@ class CompletionsHandler(
                                 } else {
                                     put("finish_reason", finishReason)
                                 }
-                            }
+                            },
                         )
                     },
                 )

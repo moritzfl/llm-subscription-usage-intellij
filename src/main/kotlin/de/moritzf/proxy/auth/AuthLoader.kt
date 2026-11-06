@@ -59,7 +59,7 @@ object AuthLoader {
         val candidates = AuthFileResolver.resolveCandidates(authFilePath)
         if (candidates.isEmpty()) {
             throw IOException(
-                "OAuth file path is required. Pass --oauth-file with a file this plugin owns."
+                "OAuth file path is required. Pass --oauth-file with a file this plugin owns.",
             )
         }
         var foundPath: String? = null
@@ -80,7 +80,7 @@ object AuthLoader {
         }
         if (authData == null || foundPath == null) {
             throw IOException(
-                "OAuth file not found. Pass --oauth-file with a file this plugin owns."
+                "OAuth file not found. Pass --oauth-file with a file this plugin owns.",
             )
         }
         val tokensNode = authData["tokens"] as? JsonObject
@@ -104,7 +104,7 @@ object AuthLoader {
                 refreshChatGptTokens(refreshToken, resolvedClientId, resolvedTokenUrl, httpClient)
             if (refreshed == null) {
                 System.err.println(
-                    "Warning: OAuth token refresh failed (server returned error). Continuing with existing token."
+                    "Warning: OAuth token refresh failed (server returned error). Continuing with existing token.",
                 )
             } else {
                 accessToken = refreshed.accessToken
@@ -185,8 +185,8 @@ object AuthLoader {
                 .header("Content-Type", "application/json")
                 .POST(
                     HttpRequest.BodyPublishers.ofString(
-                        Json.INSTANCE.encodeToString(JsonObject.serializer(), body.build())
-                    )
+                        Json.INSTANCE.encodeToString(JsonObject.serializer(), body.build()),
+                    ),
                 )
                 .build()
         val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
@@ -293,7 +293,7 @@ object AuthLoader {
             }
         } catch (exception: Exception) {
             System.err.println(
-                "Warning: could not set strict file permissions on $path: ${exception.message}"
+                "Warning: could not set strict file permissions on $path: ${exception.message}",
             )
         }
     }

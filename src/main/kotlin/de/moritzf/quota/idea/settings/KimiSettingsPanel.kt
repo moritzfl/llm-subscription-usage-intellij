@@ -203,7 +203,7 @@ internal class KimiSettingsPanel(
                             de.moritzf.quota.idea.mcp.VisionProvider.KIMI,
                             visionModelCombo,
                             modalityComponentProvider,
-                        )
+                        ),
                     )
                 }
             },

@@ -27,7 +27,7 @@ class ClientDisconnectsTest {
         // ChatCompletionsHandler rewraps IOException from client writes as UncheckedIOException.
         val failure =
             UncheckedIOException(
-                IOException(ClosedWriteChannelException(IOException("Broken pipe")))
+                IOException(ClosedWriteChannelException(IOException("Broken pipe"))),
             )
 
         assertTrue(failure.isClientDisconnect())

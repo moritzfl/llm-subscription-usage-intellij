@@ -101,7 +101,7 @@ class GitHubAuthService(
         } catch (exception: Exception) {
             if (onVerificationUrl == null) throw exception
             LOG.info(
-                "Could not open GitHub login browser; use the verification URL and code in settings"
+                "Could not open GitHub login browser; use the verification URL and code in settings",
             )
         }
 

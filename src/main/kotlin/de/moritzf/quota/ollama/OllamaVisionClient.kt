@@ -24,7 +24,7 @@ open class OllamaVisionClient(
         val token =
             apiKey.trim().ifBlank {
                 throw OllamaQuotaException(
-                    "Ollama API key missing. Add an Ollama API key in settings."
+                    "Ollama API key missing. Add an Ollama API key in settings.",
                 )
             }
         val trimmedPrompt =
@@ -42,7 +42,7 @@ open class OllamaVisionClient(
                     token,
                     chatCompletionsUri,
                     VisionChat.chatRequestJson(selectedModel, imageContent, trimmedPrompt),
-                )
+                ),
             )
         val status = response.statusCode()
         val body = response.body()

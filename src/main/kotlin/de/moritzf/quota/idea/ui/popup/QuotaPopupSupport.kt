@@ -268,7 +268,7 @@ internal class QuotaPopupContentPanel(
             add(JBLabel("Not logged in.").apply { border = JBUI.Borders.emptyTop(1) })
             add(
                 ActionLink("Open Settings") { onOpenSettings() }
-                    .apply { border = JBUI.Borders.emptyTop(3) }
+                    .apply { border = JBUI.Borders.emptyTop(3) },
             )
         }
 
@@ -278,11 +278,11 @@ internal class QuotaPopupContentPanel(
             add(
                 JBLabel("All quota sources are hidden from this popup.").apply {
                     border = JBUI.Borders.emptyTop(1)
-                }
+                },
             )
             add(
                 ActionLink("Open Settings") { onOpenSettings() }
-                    .apply { border = JBUI.Borders.emptyTop(3) }
+                    .apply { border = JBUI.Borders.emptyTop(3) },
             )
         }
 
@@ -361,7 +361,7 @@ internal class QuotaPopupContentPanel(
         if (updatedAtItems.isNotEmpty()) {
             updatedAtRow.removeAll()
             updatedAtRow.add(
-                JBLabel("Updated:").apply { foreground = com.intellij.ui.JBColor.GRAY }
+                JBLabel("Updated:").apply { foreground = com.intellij.ui.JBColor.GRAY },
             )
             updatedAtItems.forEachIndexed { index, item ->
                 item.icons.forEach { providerIcon ->
@@ -373,15 +373,15 @@ internal class QuotaPopupContentPanel(
                                     this,
                                 )
                             toolTipText = providerIcon.label
-                        }
+                        },
                     )
                 }
                 updatedAtRow.add(
-                    JBLabel(item.text).apply { foreground = com.intellij.ui.JBColor.GRAY }
+                    JBLabel(item.text).apply { foreground = com.intellij.ui.JBColor.GRAY },
                 )
                 if (index < updatedAtItems.lastIndex) {
                     updatedAtRow.add(
-                        JBLabel(";").apply { foreground = com.intellij.ui.JBColor.GRAY }
+                        JBLabel(";").apply { foreground = com.intellij.ui.JBColor.GRAY },
                     )
                 }
             }
@@ -462,7 +462,7 @@ internal class QuotaPopupContentPanel(
                     icons = listOf(item.icon),
                     text = QuotaUiUtil.formatInstant(item.fetchedAt) ?: "loading...",
                 )
-            }
+            },
         )
     }
 }

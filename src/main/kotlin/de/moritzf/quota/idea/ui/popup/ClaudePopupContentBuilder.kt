@@ -210,7 +210,7 @@ internal class ClaudePopupSection : ProviderPopupSection() {
                 JLabel(message("quota.claude.reset.atLimitOnly")).apply {
                     foreground = UIUtil.getContextHelpForeground()
                     toolTipText = resetsTooltip(resets)
-                }
+                },
             )
         } else {
             resetsPanel.add(
@@ -223,7 +223,7 @@ internal class ClaudePopupSection : ProviderPopupSection() {
                         icon = AllIcons.Actions.Restart
                         toolTipText = resetsTooltip(resets)
                         cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-                    }
+                    },
             )
         }
         resetsPanel.isVisible = true
@@ -232,7 +232,7 @@ internal class ClaudePopupSection : ProviderPopupSection() {
     private fun resetsTooltip(resets: ClaudeResets): String {
         val lines =
             listOfNotNull(
-                resets.sessionReset?.let { message("quota.claude.reset.session.detail") }
+                resets.sessionReset?.let { message("quota.claude.reset.session.detail") },
             ) + resets.offeredGrants().map(::grantDetail)
         return lines.joinToString("<br>", "<html>", "</html>") { QuotaUiUtil.escapeHtml(it) }
     }
@@ -343,7 +343,7 @@ internal class ClaudePopupSection : ProviderPopupSection() {
                 fiveHour -> "quota.claude.reset.window.fiveHour"
                 weekly -> "quota.claude.reset.window.weekly"
                 else -> "quota.claude.reset.window.any"
-            }
+            },
         )
     }
 

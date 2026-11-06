@@ -49,7 +49,7 @@ class OpenCodeRequestHeadersTest {
                         buildJsonObject {
                             put("role", "user")
                             put("content", firstMessage)
-                        }
+                        },
                     )
                 },
             )

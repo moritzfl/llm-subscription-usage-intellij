@@ -6,7 +6,7 @@ object CompletionSanitizer {
     private val WRAPPED_QUOTES = Regex("^([\"'])(.*)\\1$", RegexOption.DOT_MATCHES_ALL)
     private val LEFTOVER_TOKENS =
         Regex(
-            "<\\|fim_[a-z]+\\|>|<fim_[a-z]+>|<｜fim▁[^｜]*｜>|<｜(?:end|begin)▁of▁sentence｜>|\\[PREFIX]|\\[SUFFIX]|\\[MIDDLE]|<PRE>|<SUF>|<MID>|<CURSOR>|</code_before_cursor>|</code_after_cursor>|<code_before_cursor>|<code_after_cursor>"
+            "<\\|fim_[a-z]+\\|>|<fim_[a-z]+>|<｜fim▁[^｜]*｜>|<｜(?:end|begin)▁of▁sentence｜>|\\[PREFIX]|\\[SUFFIX]|\\[MIDDLE]|<PRE>|<SUF>|<MID>|<CURSOR>|</code_before_cursor>|</code_after_cursor>|<code_before_cursor>|<code_after_cursor>",
         )
     private val APOLOGY_START =
         Regex("^(sure|here is|here's|i will|the code)\\b", RegexOption.IGNORE_CASE)

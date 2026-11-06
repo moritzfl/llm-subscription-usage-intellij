@@ -55,7 +55,7 @@ internal class PdfOcrSlices(
             while (bytes.size > maxBytes) {
                 if (to == from)
                     throw fail(
-                        "PDF page $from exceeds $service's ${megabytes(maxBytes)} request limit."
+                        "PDF page $from exceeds $service's ${megabytes(maxBytes)} request limit.",
                     )
                 to = from + (to - from) / 2
                 progress.update(from - 1, total, "Preparing pages $from–$to of $total")

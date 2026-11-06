@@ -358,9 +358,9 @@ class ProviderCredentialLifecycleTest {
             app.registerService(
                 com.intellij.openapi.client.ClientSessionsManager::class.java,
                 com.intellij.openapi.client.ClientSessionsManager<
-                    com.intellij.openapi.client.ClientAppSession
+                    com.intellij.openapi.client.ClientAppSession,
                 >(
-                    scope
+                    scope,
                 ),
             )
             app.registerService(

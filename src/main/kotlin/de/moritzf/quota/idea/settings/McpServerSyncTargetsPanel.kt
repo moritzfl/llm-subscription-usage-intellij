@@ -119,7 +119,7 @@ internal class McpServerSyncTargetsPanel(initialTargets: List<McpServerSyncTarge
                 target.jsonFilePath,
                 target.jsonPropertyPath,
                 target.transport(),
-            )
+            ),
         )
     }
 
@@ -282,7 +282,7 @@ internal class McpServerSyncTargetsPanel(initialTargets: List<McpServerSyncTarge
     }
 
     private class PropertyPathCellEditor(
-        private val choosePath: (modelRow: Int, currentPath: String) -> String?
+        private val choosePath: (modelRow: Int, currentPath: String) -> String?,
     ) : AbstractCellEditor(), TableCellEditor {
         private val textFieldWithBrowseButton = TextFieldWithBrowseButton()
         private var currentModelRow: Int = -1
@@ -334,7 +334,7 @@ internal class McpServerSyncTargetsPanel(initialTargets: List<McpServerSyncTarge
         override fun createCenterPanel(): JComponent {
             val help =
                 JBLabel(
-                        "Select the string property that should receive the current IntelliJ MCP server URL."
+                        "Select the string property that should receive the current IntelliJ MCP server URL.",
                     )
                     .apply {
                         foreground = JBColor.GRAY
@@ -504,7 +504,7 @@ internal class McpServerSyncTargetsPanel(initialTargets: List<McpServerSyncTarge
                                     if (canUpdate) "$segment (string)" else "$segment (object)",
                                     path,
                                     canUpdate,
-                                )
+                                ),
                             )
                         current.add(node)
                         current = node
@@ -536,7 +536,7 @@ internal class McpServerSyncTargetsPanel(initialTargets: List<McpServerSyncTarge
                             nodeLabel(key, value),
                             path,
                             McpJsonTargetUpdater.isSupportedTargetValue(value),
-                        )
+                        ),
                     )
                     .apply {
                         if (value is JsonObject) {

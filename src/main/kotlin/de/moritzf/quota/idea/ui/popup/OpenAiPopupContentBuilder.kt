@@ -245,7 +245,7 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
                             availableCount,
                         )
                     cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-                }
+                },
         )
         resetCreditsPanel.isVisible = true
     }
@@ -272,7 +272,7 @@ internal class OpenAiPopupSection : ProviderPopupSection() {
                         ?: runCatching {
                             de.moritzf.quota.idea.settings.QuotaSettingsState.getInstance()
                                 .defaultAccount(
-                                    de.moritzf.quota.idea.common.QuotaProviderType.OPEN_AI
+                                    de.moritzf.quota.idea.common.QuotaProviderType.OPEN_AI,
                                 )
                                 ?.id
                         }

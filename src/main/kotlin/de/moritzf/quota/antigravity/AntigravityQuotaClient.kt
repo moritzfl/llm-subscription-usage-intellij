@@ -19,7 +19,7 @@ class AntigravityQuotaClient(
         val executable =
             executableProvider()
                 ?: throw AntigravityQuotaException(
-                    "AGY executable not found. Install Antigravity CLI or set its path in settings."
+                    "AGY executable not found. Install Antigravity CLI or set its path in settings.",
                 )
         val directory = Files.createTempDirectory("llm-usage-agy-")
         try {
@@ -28,7 +28,7 @@ class AntigravityQuotaClient(
                 run(executable, listOf("--version"), directory, versionTimeoutMillis, 1_024).trim()
             if (!supportsUsageReport(version)) {
                 throw AntigravityQuotaException(
-                    "AGY 1.1.11 or later is required. Run agy update, then refresh."
+                    "AGY 1.1.11 or later is required. Run agy update, then refresh.",
                 )
             }
             fun report(command: String): String =
@@ -86,7 +86,7 @@ class AntigravityQuotaClient(
                     .start()
             } catch (_: IOException) {
                 throw AntigravityQuotaException(
-                    "Could not start AGY. Check the executable path in settings."
+                    "Could not start AGY. Check the executable path in settings.",
                 )
             }
         val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeout)
@@ -107,13 +107,13 @@ class AntigravityQuotaClient(
             }
             if (process.exitValue() != 0) {
                 throw AntigravityQuotaException(
-                    "AGY quota command failed. Run agy to check your sign-in, then refresh."
+                    "AGY quota command failed. Run agy to check your sign-in, then refresh.",
                 )
             }
             return bytes.toString(Charsets.UTF_8)
         } catch (_: TimeoutException) {
             throw AntigravityQuotaException(
-                "AGY quota command timed out. Check AGY in a terminal, then retry."
+                "AGY quota command timed out. Check AGY in a terminal, then retry.",
             )
         } catch (_: ExecutionException) {
             throw AntigravityQuotaException("Could not read the AGY quota report.")

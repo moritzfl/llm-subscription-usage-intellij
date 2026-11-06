@@ -106,7 +106,7 @@ class MistralToolClientTest {
             val result =
                 MistralAudioClient(
                         transcriptionsUri =
-                            java.net.URI.create("http://127.0.0.1:${server.address.port}/t")
+                            java.net.URI.create("http://127.0.0.1:${server.address.port}/t"),
                     )
                     .transcribe("key", audioUrl = "https://example.com/a.mp3", diarize = true)
 

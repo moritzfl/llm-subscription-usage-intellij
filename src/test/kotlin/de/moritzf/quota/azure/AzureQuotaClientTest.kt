@@ -217,7 +217,7 @@ class AzureQuotaClientTest {
                     executable = Path.of("/test/az"),
                     account = config,
                 )
-            }
+            },
         )
 
     private fun resources() =

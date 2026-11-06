@@ -453,7 +453,7 @@ class MistralSubscriptionProxyProviderTest {
     private class TestUpstream(
         private val chatReply: (String) -> Pair<String, String> = {
             "application/json" to "{\"id\":\"chatcmpl_1\",\"choices\":[]}"
-        }
+        },
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
         private val server =

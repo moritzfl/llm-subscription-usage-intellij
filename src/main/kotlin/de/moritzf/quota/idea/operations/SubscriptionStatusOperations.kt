@@ -70,7 +70,7 @@ internal fun SubscriptionOperations.quotaResult(
     val registration =
         UsageQuotaMcpRegistry.get(type)
             ?: return errorResult(
-                "${type.displayName} provides proxy access without quota tracking."
+                "${type.displayName} provides proxy access without quota tracking.",
             )
     val account =
         try {

@@ -59,19 +59,19 @@ internal fun parseAntigravityQuota(raw: String): AntigravityQuota {
     val root =
         runCatching { JsonSupport.json.parseToJsonElement(raw) as? JsonObject }.getOrNull()
             ?: throw AntigravityQuotaException(
-                "AGY returned invalid quota JSON. Update AGY and retry."
+                "AGY returned invalid quota JSON. Update AGY and retry.",
             )
     val command = root["command"] as? JsonObject
     if (root.text("status") != "SUCCESS" || command?.text("name") != "usage") {
         throw AntigravityQuotaException(
-            "AGY did not return a successful usage report. Run agy to check your sign-in, then refresh."
+            "AGY did not return a successful usage report. Run agy to check your sign-in, then refresh.",
         )
     }
     val data = command["data"] as? JsonObject
     val groups =
         data?.get("groups") as? JsonArray
             ?: throw AntigravityQuotaException(
-                "AGY returned no quota groups. Update AGY and retry."
+                "AGY returned no quota groups. Update AGY and retry.",
             )
     val warnings = mutableListOf<String>()
     val windows = buildList {
@@ -116,7 +116,7 @@ internal fun parseAntigravityQuota(raw: String): AntigravityQuota {
                             if (disabledValue.isPresent() && disabled == null) null else remaining,
                         resetsAt = reset,
                         disabled = disabled == true,
-                    )
+                    ),
                 )
             }
         }

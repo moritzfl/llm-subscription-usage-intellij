@@ -204,7 +204,7 @@ object RealtimeSpeechSession {
                                 event(StandardCharsets.UTF_8.decode(message.data).toString())
                             }
                         }
-                    }
+                    },
                 )
             }
         }
@@ -229,7 +229,7 @@ object RealtimeSpeechSession {
                             "ChatGPT denied access to the experimental voice session. This login can still support text and dictation."
                         } else {
                             "ChatGPT realtime voice returned an error."
-                        }
+                        },
                     )
                 }
                 if (
@@ -255,7 +255,7 @@ object RealtimeSpeechSession {
 
                     override fun onFailure(error: String) {
                         offer.completeExceptionally(
-                            IOException("Could not create realtime audio offer.")
+                            IOException("Could not create realtime audio offer."),
                         )
                     }
                 },

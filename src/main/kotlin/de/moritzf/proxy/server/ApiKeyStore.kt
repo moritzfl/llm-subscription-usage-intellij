@@ -69,7 +69,7 @@ class ApiKeyStore(
             }
             if (fileKeys.isEmpty()) {
                 System.err.println(
-                    "Warning: Reloaded API keys file is empty — keeping existing keys"
+                    "Warning: Reloaded API keys file is empty — keeping existing keys",
                 )
                 return
             }
@@ -79,7 +79,7 @@ class ApiKeyStore(
             println("INFO: Reloaded ${next.keys.size} API key(s) from $currentFilePath")
         } catch (exception: IOException) {
             System.err.println(
-                "Warning: Failed to reload API keys from $currentFilePath: ${exception.message}"
+                "Warning: Failed to reload API keys from $currentFilePath: ${exception.message}",
             )
         }
     }
@@ -120,7 +120,7 @@ class ApiKeyStore(
                     Thread.currentThread().interrupt()
                 } catch (exception: IOException) {
                     System.err.println(
-                        "Warning: API keys file watcher failed: ${exception.message}"
+                        "Warning: API keys file watcher failed: ${exception.message}",
                     )
                 }
             }

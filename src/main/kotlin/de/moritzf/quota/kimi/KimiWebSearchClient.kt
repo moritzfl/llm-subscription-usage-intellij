@@ -128,7 +128,7 @@ open class KimiWebSearchClient(
                     limit = limit,
                     enablePageCrawling = includeContent,
                     timeoutSeconds = SEARCH_TIMEOUT_SECONDS,
-                )
+                ),
             )
 
         val builder =
@@ -181,7 +181,7 @@ open class KimiWebSearchClient(
         }
 
         fun createDefault(
-            deviceId: String = KimiDeviceHeaders.processDeviceId
+            deviceId: String = KimiDeviceHeaders.processDeviceId,
         ): KimiWebSearchClient = KimiWebSearchClient(deviceId = deviceId)
 
         private fun defaultHttpClient(): HttpClient {

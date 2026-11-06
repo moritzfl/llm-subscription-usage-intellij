@@ -61,7 +61,7 @@ class KimiSubscriptionProxyProviderTest {
                        "protocol":"openai"},
                       {"id":"k3","limit":{"context":262144},"modalities":{"input":["text"]},
                        "supports_tool_use":false},
-                      {"id":"no-context","modalities":{"input":["text"]}}]}"""
+                      {"id":"no-context","modalities":{"input":["text"]}}]}""",
             )
             .use { upstream ->
                 val proxy = newProxy(upstream)
@@ -162,7 +162,7 @@ class KimiSubscriptionProxyProviderTest {
                 assertEquals(
                     listOf(
                         KimiSubscriptionProxyProvider.PREFIX +
-                            KimiSubscriptionProxyProvider.MODEL_ID
+                            KimiSubscriptionProxyProvider.MODEL_ID,
                     ),
                     ids,
                 )
@@ -491,7 +491,7 @@ class KimiSubscriptionProxyProviderTest {
     }
 
     private class TestModelsDevCatalog(
-        private val providerApi: String = "https://api.kimi.com/coding/v1"
+        private val providerApi: String = "https://api.kimi.com/coding/v1",
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
         private val server =

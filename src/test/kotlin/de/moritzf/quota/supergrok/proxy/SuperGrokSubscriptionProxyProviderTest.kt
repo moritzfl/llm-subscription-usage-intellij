@@ -210,7 +210,7 @@ class SuperGrokSubscriptionProxyProviderTest {
     fun omitsUnsupportedChatStopAndTruncatesResponse() {
         TestUpstream(
                 inferenceBody =
-                    "{\"id\":\"chatcmpl_1\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"before</COMMAND> after\"},\"finish_reason\":\"stop\"}]}"
+                    "{\"id\":\"chatcmpl_1\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"before</COMMAND> after\"},\"finish_reason\":\"stop\"}]}",
             )
             .use { upstream ->
                 val proxy = newProxy(upstream.baseUri)

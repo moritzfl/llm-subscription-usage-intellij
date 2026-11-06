@@ -96,14 +96,14 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
                 .map { target ->
                     target.copy(
                         transportType =
-                            McpServerTransport.fromStorageValue(target.transportType).name
+                            McpServerTransport.fromStorageValue(target.transportType).name,
                     )
                 }
                 .toMutableList()
         openAiProxyEnabled = state.openAiProxyEnabled
         openAiProxyPort =
             OpenAiProxyService.sanitizePort(
-                state.openAiProxyPort.takeIf { it > 0 } ?: OpenAiProxyService.DEFAULT_PORT
+                state.openAiProxyPort.takeIf { it > 0 } ?: OpenAiProxyService.DEFAULT_PORT,
             )
         openAiProxyLogRequests = state.openAiProxyLogRequests
         proxyCompletionsEnabled = state.proxyCompletionsEnabled
@@ -369,7 +369,7 @@ class QuotaSettingsState : PersistentStateComponent<QuotaSettingsState> {
 
     fun addAccount(type: QuotaProviderType): ProviderAccount {
         require(
-            ProviderCatalog.get(type).capabilities.multipleAccounts || accountsOf(type).isEmpty()
+            ProviderCatalog.get(type).capabilities.multipleAccounts || accountsOf(type).isEmpty(),
         ) {
             "${type.displayName} supports only one account."
         }

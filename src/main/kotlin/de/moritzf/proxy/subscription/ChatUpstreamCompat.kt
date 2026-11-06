@@ -99,7 +99,7 @@ object ChatUpstreamCompat {
                 root.forEach { (key, value) ->
                     put(key, if (key == "choices") JsonArray(updatedChoices) else value)
                 }
-            }
+            },
         )
     }
 

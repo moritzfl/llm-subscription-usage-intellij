@@ -117,7 +117,7 @@ internal object CreateProviderAccounts : QuotaSettingsMigration {
         if (ApplicationManager.getApplication() == null) return
         runCatching {
             PasswordSafe.instance.get(
-                CredentialAttributes("LLM Subscription Usage", "migration-probe")
+                CredentialAttributes("LLM Subscription Usage", "migration-probe"),
             )
         }
             .getOrThrow()

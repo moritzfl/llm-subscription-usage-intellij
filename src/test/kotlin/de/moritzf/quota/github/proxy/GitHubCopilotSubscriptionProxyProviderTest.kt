@@ -49,7 +49,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     )
                 val body =
                     JsonHelper.JSON.parseToJsonElement(
-                            """{"messages":[{"role":"user","content":[{"type":"text","text":"Read this"},{"type":"image_url","image_url":{"url":"data:image/png;base64,abc"}}]}]}"""
+                            """{"messages":[{"role":"user","content":[{"type":"text","text":"Read this"},{"type":"image_url","image_url":{"url":"data:image/png;base64,abc"}}]}]}""",
                         )
                         .jsonObject
                 val selection = auto.select(body)
@@ -112,7 +112,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     listOf(
                         copilotModel("gpt-5-mini", "gpt-mini", isDefault = declaredDefault),
                         copilotModel("gpt-5.4-mini", "gpt-mini", endpoints = listOf("/responses")),
-                    )
+                    ),
                 )
             }
                 .use { upstream ->
@@ -159,7 +159,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 listOf(
                     copilotModel("gpt-5-mini", "gpt-mini"),
                     copilotModel("auto", "auto", isDefault = true),
-                )
+                ),
             )
         }
             .use { upstream ->
@@ -198,7 +198,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                                     "test",
                                     endpoints = listOf(path),
                                     pickerEnabled = false,
-                                )
+                                ),
                             )
                         val proxy = newProxy(upstream.baseUri)
                         try {
@@ -456,7 +456,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                         .headers()
                         .firstValue("Content-Type")
                         .orElse("")
-                        .contains("text/event-stream")
+                        .contains("text/event-stream"),
                 )
                 assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS)) // /models discovery
                 val inference = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
@@ -612,7 +612,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                         .headers()
                         .firstValue("Content-Type")
                         .orElse("")
-                        .contains("text/event-stream")
+                        .contains("text/event-stream"),
                 )
                 assertTrue(
                     response.body().contains("\"object\":\"chat.completion.chunk\""),
@@ -710,7 +710,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                         endpoints = listOf("/chat/completions", "/responses"),
                         reasoningEfforts = listOf("medium", "high"),
                     ),
-                )
+                ),
             )
         TestUpstream(modelsBodyProvider = { catalog }).use { upstream ->
             val proxy = newProxy(upstream.baseUri)
@@ -946,21 +946,23 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                                     .filter { it.startsWith("data: {") }
                                     .map {
                                         JsonHelper.JSON.parseToJsonElement(
-                                                it.removePrefix("data: ")
+                                                it.removePrefix("data: "),
                                             )
                                             .jsonObject
                                     }
                                     .toList()
                             } else {
                                 listOf(
-                                    JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject
+                                    JsonHelper.JSON.parseToJsonElement(response.body()).jsonObject,
                                 )
                             }
                         assertTrue(
-                            chunks.all { it["object"]!!.jsonPrimitive.content == "text_completion" }
+                            chunks.all {
+                                it["object"]!!.jsonPrimitive.content == "text_completion"
+                            },
                         )
                         assertTrue(
-                            chunks.all { it["model"]!!.jsonPrimitive.content == "qwen2.5-coder" }
+                            chunks.all { it["model"]!!.jsonPrimitive.content == "qwen2.5-coder" },
                         )
                         val choices = chunks.map { it["choices"]!!.jsonArray.single().jsonObject }
                         assertEquals(
@@ -982,7 +984,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                         assertEquals("32", body["max_tokens"]!!.jsonPrimitive.content)
                         assertEquals(stream.toString(), body["stream"]!!.jsonPrimitive.content)
                         assertTrue(
-                            body["system"]!!.jsonPrimitive.content.contains("exact text to insert")
+                            body["system"]!!.jsonPrimitive.content.contains("exact text to insert"),
                         )
                         val prompt =
                             body["messages"]!!
@@ -993,7 +995,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                                 .content
                         assertTrue(
                             prompt.contains(
-                                "<code_before_cursor>\nval greeting = \"\n</code_before_cursor>"
+                                "<code_before_cursor>\nval greeting = \"\n</code_before_cursor>",
                             ),
                             prompt,
                         )
@@ -1004,7 +1006,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                         assertTrue(
                             body["stop_sequences"]!!.jsonArray.any {
                                 it.jsonPrimitive.content == "STOP_FIM"
-                            }
+                            },
                         )
                     }
                 } finally {
@@ -1034,7 +1036,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                         .headers()
                         .firstValue("Content-Type")
                         .orElse("")
-                        .contains("text/event-stream")
+                        .contains("text/event-stream"),
                 )
                 assertTrue(
                     response.body().contains("\"object\":\"chat.completion.chunk\""),
@@ -1179,7 +1181,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 assertTrue(inference.body.contains("\"input_schema\""), inference.body)
                 assertTrue(
                     inference.body.contains(
-                        "\"tool_choice\":{\"type\":\"tool\",\"name\":\"get_weather\"}"
+                        "\"tool_choice\":{\"type\":\"tool\",\"name\":\"get_weather\"}",
                     ),
                     inference.body,
                 )
@@ -1210,7 +1212,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 assertTrue(inference.body.contains("\"type\":\"image\""), inference.body)
                 assertTrue(
                     inference.body.contains(
-                        "\"source\":{\"type\":\"base64\",\"media_type\":\"image/png\""
+                        "\"source\":{\"type\":\"base64\",\"media_type\":\"image/png\"",
                     ),
                     inference.body,
                 )
@@ -1377,7 +1379,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 assertTrue("/v1/messages" in endpoints)
                 assertTrue("/v1/chat/completions" in endpoints)
                 assertTrue(
-                    claudeInfo["supports_anthropic_messages"]!!.jsonPrimitive.content.toBoolean()
+                    claudeInfo["supports_anthropic_messages"]!!.jsonPrimitive.content.toBoolean(),
                 )
 
                 val gptInfo =
@@ -1390,7 +1392,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 assertTrue("/v1/responses" in gptEndpoints)
                 assertTrue("/v1/chat/completions" in gptEndpoints)
                 assertFalse(
-                    gptInfo["supports_anthropic_messages"]!!.jsonPrimitive.content.toBoolean()
+                    gptInfo["supports_anthropic_messages"]!!.jsonPrimitive.content.toBoolean(),
                 )
             } finally {
                 proxy.stop()
@@ -1409,7 +1411,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                         family = "gpt-mini",
                         endpoints = listOf("/responses"),
                     ),
-                )
+                ),
             )
         val reducedCatalog = modelsBody(listOf(copilotModel("gpt-5-mini", family = "gpt-mini")))
         val modelRequests = AtomicInteger()
@@ -1420,7 +1422,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     val requestNumber = modelRequests.incrementAndGet()
                     if (requestNumber >= 3) retryRequests.countDown()
                     if (requestNumber == 1) fullCatalog else reducedCatalog
-                }
+                },
             )
             .use { upstream ->
                 val firstProxy =
@@ -1432,7 +1434,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 try {
                     firstProxy.start()
                     assertTrue(
-                        "gh-gpt-5.4-mini" in modelInfoIds(get(firstProxy.port, "/v1/model/info"))
+                        "gh-gpt-5.4-mini" in modelInfoIds(get(firstProxy.port, "/v1/model/info")),
                     )
                 } finally {
                     firstProxy.stop()
@@ -1450,7 +1452,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
 
                     assertTrue(
                         "gh-gpt-5.4-mini" in
-                            modelInfoIds(get(restartedProxy.port, "/v1/model/info"))
+                            modelInfoIds(get(restartedProxy.port, "/v1/model/info")),
                     )
                     assertTrue(
                         retryRequests.await(2, TimeUnit.SECONDS),
@@ -1460,7 +1462,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                         waitUntil {
                             "gh-gpt-5.4-mini" !in
                                 modelInfoIds(get(restartedProxy.port, "/v1/model/info"))
-                        }
+                        },
                     )
                 } finally {
                     restartedProxy.stop()
@@ -1479,7 +1481,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                         family = "gpt-mini",
                         endpoints = listOf("/responses"),
                     ),
-                )
+                ),
             )
         val reducedCatalog = modelsBody(listOf(copilotModel("gpt-5-mini", family = "gpt-mini")))
         val modelRequests = AtomicInteger()
@@ -1494,7 +1496,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                         2 -> reducedCatalog
                         else -> fullCatalog
                     }
-                }
+                },
             )
             .use { upstream ->
                 val firstProxy =
@@ -1506,7 +1508,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 try {
                     firstProxy.start()
                     assertTrue(
-                        "gh-gpt-5.4-mini" in modelInfoIds(get(firstProxy.port, "/v1/model/info"))
+                        "gh-gpt-5.4-mini" in modelInfoIds(get(firstProxy.port, "/v1/model/info")),
                     )
                 } finally {
                     firstProxy.stop()
@@ -1524,7 +1526,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
 
                     assertTrue(
                         "gh-gpt-5.4-mini" in
-                            modelInfoIds(get(restartedProxy.port, "/v1/model/info"))
+                            modelInfoIds(get(restartedProxy.port, "/v1/model/info")),
                     )
                     assertTrue(
                         firstRetry.await(2, TimeUnit.SECONDS),
@@ -1549,7 +1551,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                         family = "gpt-mini",
                         endpoints = listOf("/responses"),
                     ),
-                )
+                ),
             )
         val reducedCatalog = modelsBody(listOf(copilotModel("gpt-5-mini", family = "gpt-mini")))
         val emptyCatalog = modelsBody(emptyList())
@@ -1565,7 +1567,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                         2 -> reducedCatalog
                         else -> emptyCatalog
                     }
-                }
+                },
             )
             .use { upstream ->
                 val firstProxy =
@@ -1577,7 +1579,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 try {
                     firstProxy.start()
                     assertTrue(
-                        "gh-gpt-5.4-mini" in modelInfoIds(get(firstProxy.port, "/v1/model/info"))
+                        "gh-gpt-5.4-mini" in modelInfoIds(get(firstProxy.port, "/v1/model/info")),
                     )
                 } finally {
                     firstProxy.stop()
@@ -1595,7 +1597,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
 
                     assertTrue(
                         "gh-gpt-5.4-mini" in
-                            modelInfoIds(get(restartedProxy.port, "/v1/model/info"))
+                            modelInfoIds(get(restartedProxy.port, "/v1/model/info")),
                     )
                     assertTrue(
                         retryRequests.await(2, TimeUnit.SECONDS),
@@ -1603,7 +1605,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                     )
                     assertTrue(
                         "gh-gpt-5.4-mini" in
-                            modelInfoIds(get(restartedProxy.port, "/v1/model/info"))
+                            modelInfoIds(get(restartedProxy.port, "/v1/model/info")),
                     )
                 } finally {
                     restartedProxy.stop()
@@ -1638,7 +1640,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
                 completionsConfig = { completionsConfig },
                 requestLogDir =
                     Files.createTempDirectory("subscription-proxy-test-logs").toString(),
-            )
+            ),
         )
     }
 
@@ -1733,7 +1735,7 @@ class GitHubCopilotSubscriptionProxyProviderTest {
     }
 
     private class TestUpstream(
-        private val modelsBodyProvider: () -> String = { modelsBody(copilotModels) }
+        private val modelsBodyProvider: () -> String = { modelsBody(copilotModels) },
     ) : AutoCloseable {
         val requests = LinkedBlockingQueue<CapturedRequest>()
         private val server =

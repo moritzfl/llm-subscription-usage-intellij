@@ -68,7 +68,7 @@ class MistralVisionClientTest {
     fun missingImageFailsBeforeRequest() {
         val client =
             MistralVisionClient(
-                chatCompletionsUri = URI.create("http://127.0.0.1:1/v1/chat/completions")
+                chatCompletionsUri = URI.create("http://127.0.0.1:1/v1/chat/completions"),
             )
         val exception =
             assertFailsWith<MistralQuotaException> {

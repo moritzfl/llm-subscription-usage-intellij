@@ -30,7 +30,7 @@ internal data class QuotaSettingsDraft(
                 .values
                 .all { rows ->
                     rows.map { it.name.trim().lowercase() }.distinct().size == rows.size
-                }
+                },
         ) {
             "Account names must be unique per provider."
         }

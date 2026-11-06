@@ -10,7 +10,7 @@ class MiniMaxImageClientTest {
         assertEquals(
             "https://cdn.example.com/a.png",
             MiniMaxImageClient.firstImageUrl(
-                """{"data":{"image_urls":["https://cdn.example.com/a.png"]},"base_resp":{"status_code":0}}"""
+                """{"data":{"image_urls":["https://cdn.example.com/a.png"]},"base_resp":{"status_code":0}}""",
             ),
         )
     }
@@ -19,7 +19,7 @@ class MiniMaxImageClientTest {
     fun checkBaseRespThrowsOnProviderError() {
         assertFailsWith<MiniMaxQuotaException> {
             MiniMaxImageClient.checkBaseResp(
-                """{"base_resp":{"status_code":1004,"status_msg":"auth"}}"""
+                """{"base_resp":{"status_code":1004,"status_msg":"auth"}}""",
             )
         }
     }

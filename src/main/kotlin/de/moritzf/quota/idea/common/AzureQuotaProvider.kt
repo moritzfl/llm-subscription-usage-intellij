@@ -23,7 +23,7 @@ class AzureQuotaProvider(
         val executable =
             executableForAccount(accountId)
                 ?: throw AzureCliException(
-                    "Azure CLI not found. Install az or set its path in settings."
+                    "Azure CLI not found. Install az or set its path in settings.",
                 )
         val config = configForAccount(accountId)
         AzureQuotaClient(

@@ -20,14 +20,16 @@ class FimModelsTest {
                             setOf(
                                 SubscriptionProxyRoute.CHAT_COMPLETIONS,
                                 SubscriptionProxyRoute.ANTHROPIC_MESSAGES,
-                            )
+                            ),
                     )
             assertTrue(FimModels.isEligible(bridged), localId)
             assertFalse(FimModels.isNativeFimId(bridged), localId)
             assertFalse(
                 FimModels.isEligible(
-                    bridged.copy(supportedRoutes = setOf(SubscriptionProxyRoute.ANTHROPIC_MESSAGES))
-                )
+                    bridged.copy(
+                        supportedRoutes = setOf(SubscriptionProxyRoute.ANTHROPIC_MESSAGES),
+                    ),
+                ),
             )
             assertFalse(FimModels.isEligible(bridged.copy(supportedRoutes = emptySet())))
         }
@@ -44,13 +46,13 @@ class FimModelsTest {
         assertFalse(FimModels.isNativeFimId("codestral-embed"))
         assertFalse(FimModels.isNativeFimId(model("sg-grok-4.6", "supergrok")))
         assertFalse(
-            FimModels.isNativeFimId(model("api-custom/codestral-latest", "openai-compatible"))
+            FimModels.isNativeFimId(model("api-custom/codestral-latest", "openai-compatible")),
         )
         assertTrue(
             FimModels.isNativeFimId(
                 model("mi-codestral-latest", "mistral")
-                    .copy(supportedRoutes = setOf(SubscriptionProxyRoute.FIM_COMPLETIONS))
-            )
+                    .copy(supportedRoutes = setOf(SubscriptionProxyRoute.FIM_COMPLETIONS)),
+            ),
         )
     }
 
@@ -78,14 +80,14 @@ class FimModelsTest {
                 "sg-grok-4.20-0309-non-reasoning",
                 "grok-4.20-0309-non-reasoning",
                 "supergrok",
-            )
+            ),
         )
         assertNull(
             FimModels.fimReasoningEffort(
                 "mi-mistral-small-latest",
                 "mistral-small-latest",
                 "mistral",
-            )
+            ),
         )
         assertEquals(
             "none",
@@ -114,7 +116,7 @@ class FimModelsTest {
                 "api-custom/deepseek-v4",
                 "deepseek-v4",
                 "openai-compatible",
-            )
+            ),
         )
     }
 
@@ -124,9 +126,9 @@ class FimModelsTest {
         assertTrue(
             FimModels.isNativeFimId(
                 ollama.copy(
-                    supportedRoutes = ollama.supportedRoutes + SubscriptionProxyRoute.COMPLETIONS
-                )
-            )
+                    supportedRoutes = ollama.supportedRoutes + SubscriptionProxyRoute.COMPLETIONS,
+                ),
+            ),
         )
         assertFalse(FimModels.isNativeFimId(ollama))
         assertFalse(FimModels.isNativeFimId(model("oc-go-deepseek-v4.1-flash", "opencode")))

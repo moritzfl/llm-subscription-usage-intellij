@@ -164,8 +164,8 @@ tasks {
     val standaloneKotlinRuntime =
         configurations.detachedConfiguration(
             project.dependencies.create(
-                "org.jetbrains.kotlin:kotlin-stdlib:${libs.versions.kotlin.get()}"
-            )
+                "org.jetbrains.kotlin:kotlin-stdlib:${libs.versions.kotlin.get()}",
+            ),
         )
     val standaloneProxyClasspath =
         sourceSets.main.get().runtimeClasspath +

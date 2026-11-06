@@ -67,7 +67,7 @@ class OpenCodeQuotaClientTest {
                     ),
                     now,
                 )
-                .paymentFailed
+                .paymentFailed,
         )
 
         val ended =

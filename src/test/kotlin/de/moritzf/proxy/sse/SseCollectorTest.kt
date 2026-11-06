@@ -25,7 +25,7 @@ class SseCollectorTest {
                     sse(
                         "response.incomplete",
                         """{"type":"response.incomplete","response":{"id":"resp_1","status":"incomplete","output":[],"usage":{"input_tokens":4,"output_tokens":2}}}""",
-                    )
+                    ),
             )
 
         assertEquals("incomplete", response["status"]?.jsonPrimitive?.content)
@@ -40,7 +40,7 @@ class SseCollectorTest {
                 sse(
                     "response.incomplete",
                     """{"type":"response.incomplete","response":{"id":"resp_1","output":[{"type":"message","content":[{"type":"output_text","text":"cut off"}]}]}}""",
-                )
+                ),
             )
 
         assertEquals("incomplete", response["status"]?.jsonPrimitive?.content)
@@ -53,7 +53,7 @@ class SseCollectorTest {
                 sse(
                     "response.completed",
                     """{"type":"response.completed","response":{"id":"resp_1","output":[{"type":"message","content":[{"type":"output_text","text":"done"}]}]}}""",
-                )
+                ),
             )
 
         assertEquals("completed", response["status"]?.jsonPrimitive?.content)
@@ -67,7 +67,7 @@ class SseCollectorTest {
                 sse(
                     "response.output_text.delta",
                     """{"type":"response.output_text.delta","delta":"hello"}""",
-                ) + "data: [DONE]\n\n"
+                ) + "data: [DONE]\n\n",
             )
 
         assertEquals("completed", response["status"]?.jsonPrimitive?.content)
@@ -89,7 +89,7 @@ class SseCollectorTest {
                     sse(
                         "response.output_text.delta",
                         """{"type":"response.output_text.delta","delta":"lo"}""",
-                    )
+                    ),
             )
 
         assertEquals("incomplete", response["status"]?.jsonPrimitive?.content)
@@ -105,7 +105,7 @@ class SseCollectorTest {
                 sse(
                     "error",
                     """{"type":"error","code":"rate_limit_exceeded","message":"Too many requests"}""",
-                )
+                ),
             )
 
         assertEquals("failed", response["status"]?.jsonPrimitive?.content)
@@ -123,7 +123,7 @@ class SseCollectorTest {
                 "data: {\"type\":\"error\",\"sequence_number\":2,\"error\":{" +
                     "\"type\":\"insufficient_quota\",\"code\":\"insufficient_quota\"," +
                     "\"message\":\"You exceeded your current quota, please check your plan and " +
-                    "billing details.\",\"param\":null}}\n\n"
+                    "billing details.\",\"param\":null}}\n\n",
             )
 
         assertEquals("failed", response["status"]?.jsonPrimitive?.content)
@@ -142,7 +142,7 @@ class SseCollectorTest {
 
     private fun collect(body: String): JsonObject =
         SseCollector.collectCompletedResponse(
-            ByteArrayInputStream(body.toByteArray(Charsets.UTF_8))
+            ByteArrayInputStream(body.toByteArray(Charsets.UTF_8)),
         )
 
     private fun sse(event: String, data: String): String = "event: $event\ndata: $data\n\n"

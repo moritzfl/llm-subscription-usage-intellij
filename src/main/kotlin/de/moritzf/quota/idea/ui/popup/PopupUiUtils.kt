@@ -46,8 +46,8 @@ internal fun resetTokenTooltip(
             append("<br>Reset ${index + 1}: ")
             append(
                 QuotaUiUtil.escapeHtml(
-                    QuotaUiUtil.formatExpiry(expirations.getOrNull(index)) ?: "Expiration unknown"
-                )
+                    QuotaUiUtil.formatExpiry(expirations.getOrNull(index)) ?: "Expiration unknown",
+                ),
             )
         }
         append("</html>")
@@ -337,7 +337,7 @@ internal class TruncatingPopupLabel(initialText: String = "") : JBLabel(initialT
                 override fun componentShown(e: ComponentEvent?) {
                     updateTruncationTooltip()
                 }
-            }
+            },
         )
     }
 

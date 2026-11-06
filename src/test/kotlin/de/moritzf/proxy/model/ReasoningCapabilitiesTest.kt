@@ -14,16 +14,16 @@ class ReasoningCapabilitiesTest {
             listOf("minimal", "low", "medium", "high"),
             ReasoningCapabilities.fromLiteLlm(
                 parse(
-                    """{"supports_reasoning":true,"supports_none_reasoning_effort":false,"supports_minimal_reasoning_effort":true,"supports_xhigh_reasoning_effort":false}"""
-                )
+                    """{"supports_reasoning":true,"supports_none_reasoning_effort":false,"supports_minimal_reasoning_effort":true,"supports_xhigh_reasoning_effort":false}""",
+                ),
             ),
         )
         assertEquals(
             listOf("low", "medium", "high", "xhigh", "max"),
             ReasoningCapabilities.fromLiteLlm(
                 parse(
-                    """{"supports_none_reasoning_effort":false,"supports_minimal_reasoning_effort":false,"supports_xhigh_reasoning_effort":true,"supports_max_reasoning_effort":true}"""
-                )
+                    """{"supports_none_reasoning_effort":false,"supports_minimal_reasoning_effort":false,"supports_xhigh_reasoning_effort":true,"supports_max_reasoning_effort":true}""",
+                ),
             ),
         )
     }
@@ -34,8 +34,8 @@ class ReasoningCapabilitiesTest {
             listOf("low", "high", "max"),
             ReasoningCapabilities.fromLiteLlm(
                 parse(
-                    """{"reasoning_effort_levels":["max","low","high"],"supports_xhigh_reasoning_effort":true}"""
-                )
+                    """{"reasoning_effort_levels":["max","low","high"],"supports_xhigh_reasoning_effort":true}""",
+                ),
             ),
         )
         assertEquals(
@@ -49,7 +49,7 @@ class ReasoningCapabilitiesTest {
     fun readsOpenRouterModelEntries() {
         val grok =
             parse(
-                """{"id":"x-ai/grok-4.6","supported_parameters":["reasoning","reasoning_effort"],"reasoning":{"mandatory":true,"supported_efforts":["xhigh","high","medium","low"],"default_effort":"high"}}"""
+                """{"id":"x-ai/grok-4.6","supported_parameters":["reasoning","reasoning_effort"],"reasoning":{"mandatory":true,"supported_efforts":["xhigh","high","medium","low"],"default_effort":"high"}}""",
             )
         assertEquals(
             listOf("low", "medium", "high", "xhigh"),

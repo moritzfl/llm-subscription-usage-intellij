@@ -39,7 +39,7 @@ open class MiniMaxImageClient(
         val token =
             apiKey.trim().ifBlank {
                 throw MiniMaxQuotaException(
-                    "MiniMax API key missing. Add a MiniMax API key in settings."
+                    "MiniMax API key missing. Add a MiniMax API key in settings.",
                 )
             }
         val body =
@@ -47,7 +47,7 @@ open class MiniMaxImageClient(
                 MiniMaxImageRequestDto(
                     model = model.trim().ifBlank { DEFAULT_MODEL },
                     prompt = trimmedPrompt,
-                )
+                ),
             )
         val response = send(postJson(token, apiHost(region).resolve(IMAGE_PATH), body))
         val status = response.statusCode()
@@ -85,7 +85,7 @@ open class MiniMaxImageClient(
         }
         Files.write(output, bytes)
         return JsonSupport.json.encodeToString(
-            MiniMaxImageWriteResult(output.toString(), bytes.size.toLong())
+            MiniMaxImageWriteResult(output.toString(), bytes.size.toLong()),
         )
     }
 

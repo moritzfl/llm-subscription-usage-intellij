@@ -75,11 +75,11 @@ class LenientDoubleTest {
 
     @Serializable
     private data class NullableBox(
-        @Serializable(with = LenientDoubleOrNullSerializer::class) val usagePercent: Double? = null
+        @Serializable(with = LenientDoubleOrNullSerializer::class) val usagePercent: Double? = null,
     )
 
     @Serializable
     private data class RequiredBox(
-        @Serializable(with = LenientDoubleSerializer::class) val usagePercent: Double = 0.0
+        @Serializable(with = LenientDoubleSerializer::class) val usagePercent: Double = 0.0,
     )
 }

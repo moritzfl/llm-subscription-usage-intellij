@@ -147,7 +147,7 @@ private constructor(
                 when {
                     error != null -> {
                         callbackDeferred.complete(
-                            OAuthCallbackResult(error = "OAuth error: $error")
+                            OAuthCallbackResult(error = "OAuth error: $error"),
                         )
                         buildHtmlResponse(
                             "Authentication Failed",
@@ -159,7 +159,7 @@ private constructor(
                     params["code"].isNullOrBlank() || params["state"].isNullOrBlank() -> {
                         LOG.warn("Callback missing code/state")
                         callbackDeferred.complete(
-                            OAuthCallbackResult(error = "Missing code or state")
+                            OAuthCallbackResult(error = "Missing code or state"),
                         )
                         buildHtmlResponse(
                             "Authentication Failed",
@@ -178,7 +178,7 @@ private constructor(
                         val code = params["code"]!!
                         LOG.info("Callback completed with authorization code")
                         callbackDeferred.complete(
-                            OAuthCallbackResult(code = code, state = params["state"])
+                            OAuthCallbackResult(code = code, state = params["state"]),
                         )
                         buildHtmlResponse(
                             "Authentication Successful",

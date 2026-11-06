@@ -65,7 +65,7 @@ internal class OpenCodeSettingsPanel(
         ProviderTestConnection(
             checkNotNull(boundAccount).snapshot().apply {
                 setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, selectedWorkspaceId())
-            }
+            },
         )
 
     private var modelRefreshGeneration = 0
@@ -182,7 +182,7 @@ internal class OpenCodeSettingsPanel(
                 }
                 row {
                     text(
-                        "Sign in through OpenCode Console for Go quotas, Zen balance, and the local Zen proxy. Select the organization in your browser."
+                        "Sign in through OpenCode Console for Go quotas, Zen balance, and the local Zen proxy. Select the organization in your browser.",
                     )
                 }
                 row("Organization:") {
@@ -282,14 +282,14 @@ internal class OpenCodeSettingsPanel(
                         documentModelCombo.show(
                             selected,
                             (de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel.documentModelIds(
-                                    models
+                                    models,
                                 ) + listOfNotNull(selected))
                                 .distinct(),
                         )
                         visionModelCombo.show(
                             selectedVision,
                             de.moritzf.quota.opencode.proxy.OpenCodeConsoleModel.visionModelIds(
-                                models
+                                models,
                             ),
                             (models.map { it.model.upstreamId } + listOfNotNull(selectedVision))
                                 .distinct(),

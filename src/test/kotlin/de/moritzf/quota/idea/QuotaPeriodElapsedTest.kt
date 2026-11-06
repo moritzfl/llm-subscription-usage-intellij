@@ -45,12 +45,12 @@ class QuotaPeriodElapsedTest {
     fun openCodeRollingWindowComputesElapsedFromResetInSec() {
         val quota =
             OpenCodeQuota(
-                rollingUsage = OpenCodeUsageWindow(usagePercent = 42.0, resetInSec = 9_000)
+                rollingUsage = OpenCodeUsageWindow(usagePercent = 42.0, resetInSec = 9_000),
             )
 
         val elapsed =
             indicatorPeriodElapsedFraction(
-                QuotaIndicatorData(QuotaProviderType.OPEN_CODE, quota, error = null)
+                QuotaIndicatorData(QuotaProviderType.OPEN_CODE, quota, error = null),
             )
 
         assertEquals(0.5, elapsed)

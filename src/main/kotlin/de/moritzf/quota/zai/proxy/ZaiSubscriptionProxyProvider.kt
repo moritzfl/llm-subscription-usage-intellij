@@ -69,7 +69,7 @@ class ZaiSubscriptionProxyProvider(
         val ids = runCatching {
             val request =
                 HttpRequest.newBuilder(
-                        URI.create(upstreamBaseUri.toString().trimEnd('/') + "/models")
+                        URI.create(upstreamBaseUri.toString().trimEnd('/') + "/models"),
                     )
                     .timeout(Duration.ofSeconds(15))
                     .header("Authorization", "Bearer $apiKey")
@@ -144,10 +144,10 @@ class ZaiSubscriptionProxyProvider(
             return JsonObject(
                 body +
                     mapOf(
-                        "thinking" to JsonObject(thinking + ("type" to JsonPrimitive("enabled")))
+                        "thinking" to JsonObject(thinking + ("type" to JsonPrimitive("enabled"))),
                     ) +
                     if ("reasoning_effort" in body) emptyMap()
-                    else mapOf("reasoning_effort" to JsonPrimitive("low"))
+                    else mapOf("reasoning_effort" to JsonPrimitive("low")),
             )
         }
     }

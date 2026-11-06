@@ -56,7 +56,7 @@ class CursorPopupContentBuilderTest {
 
         section.update(
             CursorQuota(
-                planUsage = CursorPlanUsage(autoPercentUsed = 25.0, apiPercentUsed = 100.0)
+                planUsage = CursorPlanUsage(autoPercentUsed = 25.0, apiPercentUsed = 100.0),
             ),
             null,
             true,
@@ -69,7 +69,7 @@ class CursorPopupContentBuilderTest {
         val section = CursorPopupSection()
         section.update(
             CursorQuota(
-                planUsage = CursorPlanUsage(autoPercentUsed = 25.0, apiPercentUsed = 100.0)
+                planUsage = CursorPlanUsage(autoPercentUsed = 25.0, apiPercentUsed = 100.0),
             ),
             null,
             true,
@@ -155,7 +155,7 @@ class CursorPopupContentBuilderTest {
         assertTrue(
             section.visibleBlocks()[2].components.filterIsInstance<JLabel>().any {
                 it.text.startsWith("\$12.50 of \$50.00 used")
-            }
+            },
         )
         assertEquals(listOf("Cursor team extra usage limit reached"), section.warnings())
     }

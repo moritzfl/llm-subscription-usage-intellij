@@ -25,7 +25,7 @@ class ResponsesState {
     private val items =
         object : LinkedHashMap<String, JsonObject>(16, 0.75f, true) {
             override fun removeEldestEntry(
-                eldest: MutableMap.MutableEntry<String, JsonObject>?
+                eldest: MutableMap.MutableEntry<String, JsonObject>?,
             ): Boolean {
                 return size > MAX_ITEM_CACHE_SIZE
             }
@@ -33,7 +33,7 @@ class ResponsesState {
     private val responses =
         object : LinkedHashMap<String, CachedResponse>(16, 0.75f, true) {
             override fun removeEldestEntry(
-                eldest: MutableMap.MutableEntry<String, CachedResponse>?
+                eldest: MutableMap.MutableEntry<String, CachedResponse>?,
             ): Boolean {
                 return size > MAX_RESPONSE_CACHE_SIZE
             }

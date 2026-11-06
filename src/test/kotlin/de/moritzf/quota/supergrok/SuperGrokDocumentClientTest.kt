@@ -51,7 +51,7 @@ class SuperGrokDocumentClientTest {
         assertEquals(
             "# Hello",
             SuperGrokDocumentClient.parseMarkdown(
-                """{"output":[{"type":"message","content":[{"type":"output_text","text":"# Hello"}]}]}"""
+                """{"output":[{"type":"message","content":[{"type":"output_text","text":"# Hello"}]}]}""",
             ),
         )
     }
@@ -149,7 +149,7 @@ class SuperGrokDocumentClientTest {
                 org.apache.pdfbox.pdmodel.PDDocument().use { doc ->
                     val page =
                         org.apache.pdfbox.pdmodel.PDPage(
-                            org.apache.pdfbox.pdmodel.common.PDRectangle(612f, 792f)
+                            org.apache.pdfbox.pdmodel.common.PDRectangle(612f, 792f),
                         )
                     doc.addPage(page)
                     doc.save(pdf.toFile())

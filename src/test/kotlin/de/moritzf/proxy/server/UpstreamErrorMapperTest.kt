@@ -12,7 +12,7 @@ class UpstreamErrorMapperTest {
     fun quotaStreamFailureMapsToInsufficientQuota() {
         val mapped =
             mapper.mapStreamFailure(
-                """{"type":"insufficient_quota","code":"insufficient_quota","message":"You exceeded your current quota."}"""
+                """{"type":"insufficient_quota","code":"insufficient_quota","message":"You exceeded your current quota."}""",
             )
 
         assertEquals(429, mapped.statusCode)
@@ -29,7 +29,7 @@ class UpstreamErrorMapperTest {
     fun rateLimitStreamFailureMapsTo429() {
         val mapped =
             mapper.mapStreamFailure(
-                """{"type":"error","code":"rate_limit_exceeded","message":"Too many requests"}"""
+                """{"type":"error","code":"rate_limit_exceeded","message":"Too many requests"}""",
             )
 
         assertEquals(429, mapped.statusCode)

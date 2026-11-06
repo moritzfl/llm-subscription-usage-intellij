@@ -133,7 +133,7 @@ class RequestLogger(
             val safeRequestId = safeFilePart(requestId ?: "unknown")
             val file =
                 logDir.resolve(
-                    "$safeRequestId-$stage-${Instant.now().toEpochMilli()}-${UUID.randomUUID()}.json"
+                    "$safeRequestId-$stage-${Instant.now().toEpochMilli()}-${UUID.randomUUID()}.json",
                 )
             Files.writeString(
                 file,

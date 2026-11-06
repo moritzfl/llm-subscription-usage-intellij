@@ -45,7 +45,7 @@ internal class MiniMaxSettingsPanel(
                             de.moritzf.quota.idea.mcp.VisionProvider.MINIMAX,
                             visionModelCombo,
                             modalityComponentProvider,
-                        )
+                        ),
                     )
                 }
                 row {
@@ -100,7 +100,7 @@ internal class MiniMaxSettingsPanel(
                             updateStatus()
                             updateResponseArea()
                         }
-                    }
+                    },
                 )
         apiKeyDraft.show(id, if (apiKey.isNullOrBlank()) "" else PLACEHOLDER)
     }

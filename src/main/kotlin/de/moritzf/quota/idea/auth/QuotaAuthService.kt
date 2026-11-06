@@ -101,7 +101,7 @@ class QuotaAuthService(
     init {
         if (CredentialStorage.isMemoryOnly()) {
             LOG.warn(
-                "IDE credential storage is memory-only: ${CredentialStorage.MEMORY_ONLY_WARNING}"
+                "IDE credential storage is memory-only: ${CredentialStorage.MEMORY_ONLY_WARNING}",
             )
         }
         refreshCacheAsync(QuotaProviderType.OPEN_AI)
@@ -136,7 +136,7 @@ class QuotaAuthService(
     ) {
         if (type != QuotaProviderType.OPEN_AI && type != QuotaProviderType.SUPERGROK) {
             callback(
-                LoginResult.error("Device-code login is not supported for ${type.displayName}")
+                LoginResult.error("Device-code login is not supported for ${type.displayName}"),
             )
             return
         }
@@ -152,7 +152,7 @@ class QuotaAuthService(
             val remaining = authorization.prompt.expiresAtMs - nowMs()
             if (remaining <= 0)
                 return@startLoginOperation LoginResult.error(
-                    "Device code expired. Start a new login."
+                    "Device code expired. Start a new login.",
                 )
             val credentials =
                 withTimeoutOrNull(remaining.milliseconds) {
@@ -169,7 +169,7 @@ class QuotaAuthService(
                     authorized
                 }
                     ?: return@startLoginOperation LoginResult.error(
-                        "Device code expired. Start a new login."
+                        "Device code expired. Start a new login.",
                     )
             completeLogin(state, generation, credentials)
         }
@@ -198,7 +198,9 @@ class QuotaAuthService(
                 providerStates.values.firstOrNull { it.type == type && it.authInProgress.get() }
             if (existing != null && existing.accountId != accountId) {
                 callback(
-                    LoginResult.error("Finish or cancel the other ${type.displayName} login first.")
+                    LoginResult.error(
+                        "Finish or cancel the other ${type.displayName} login first.",
+                    ),
                 )
                 return
             }
@@ -214,7 +216,7 @@ class QuotaAuthService(
         }
         if (loginGeneration == null) {
             LOG.warn(
-                "Login requested for ${type.displayName} while another login is already in progress"
+                "Login requested for ${type.displayName} while another login is already in progress",
             )
             callback(LoginResult.error("Login already in progress"))
             return
@@ -372,7 +374,7 @@ class QuotaAuthService(
                         nowMs(),
                         reconnectRequired = true,
                         accessTokenUnusable = true,
-                    )
+                    ),
                 )
             }
         }
@@ -447,7 +449,7 @@ class QuotaAuthService(
                         nowMs(),
                         reconnectRequired = true,
                         accessTokenUnusable = true,
-                    )
+                    ),
                 )
                 return@withRefreshCoordination null
             }
@@ -532,7 +534,7 @@ class QuotaAuthService(
             browserOpener(flow.authorizationUrl)
             val callback = flow.waitForCallback()
             LOG.info(
-                "OAuth callback received for ${state.type.displayName}; success=${callback.error == null}"
+                "OAuth callback received for ${state.type.displayName}; success=${callback.error == null}",
             )
 
             if (callback.error != null) {
@@ -688,7 +690,7 @@ class QuotaAuthService(
                 state.credentialLoadFailed.set(false)
                 if (!sameCredentials(persisted, pending.expectedPersistedCredentials)) {
                     LOG.info(
-                        "Discarded memory-only OAuth credentials for ${state.type.displayName} after stored credentials changed"
+                        "Discarded memory-only OAuth credentials for ${state.type.displayName} after stored credentials changed",
                     )
                     state.pendingCredentials.set(null)
                     state.cachedCredentials.set(persisted)
@@ -706,7 +708,7 @@ class QuotaAuthService(
                         state.cachedCredentials.set(
                             latest?.takeUnless {
                                 sameCredentials(it, pending.expectedPersistedCredentials)
-                            }
+                            },
                         )
                     } else if (!sameCredentials(latest, pending.expectedPersistedCredentials)) {
                         state.pendingCredentials.set(null)
@@ -738,7 +740,7 @@ class QuotaAuthService(
         val cached = state.cachedCredentials.get() ?: return
         if (loaded == null) {
             LOG.info(
-                "Stored OAuth credentials for ${state.type.displayName} disappeared outside this IDE"
+                "Stored OAuth credentials for ${state.type.displayName} disappeared outside this IDE",
             )
             return
         }
@@ -748,7 +750,7 @@ class QuotaAuthService(
         LOG.info(
             "Stored OAuth credentials for ${state.type.displayName} changed outside this IDE:" +
                 " refresh ${QuotaTokenUtil.fingerprint(cached.refreshToken)}" +
-                " -> ${QuotaTokenUtil.fingerprint(loaded.refreshToken)}"
+                " -> ${QuotaTokenUtil.fingerprint(loaded.refreshToken)}",
         )
     }
 
@@ -829,10 +831,10 @@ class QuotaAuthService(
                         rejected ||
                             receipt.accessTokenRejected ||
                             receipt.outcome == OAuthRefreshReceipt.Outcome.ROTATED,
-                )
+                ),
             )
             LOG.info(
-                "Skipped token $operation for ${state.type.displayName} after a shared ${receipt.outcome} outcome"
+                "Skipped token $operation for ${state.type.displayName} after a shared ${receipt.outcome} outcome",
             )
             return null
         }
@@ -847,7 +849,7 @@ class QuotaAuthService(
                 state.lastRefreshFailure.set(previousFailure.copy(accessTokenUnusable = true))
             }
             LOG.info(
-                "Skipped repeated token $operation for ${state.type.displayName} after a recent failure"
+                "Skipped repeated token $operation for ${state.type.displayName} after a recent failure",
             )
             return null
         }
@@ -872,7 +874,7 @@ class QuotaAuthService(
                             outcome?.outcome == OAuthRefreshReceipt.Outcome.ROTATED ||
                                 (rejected &&
                                     sameCredentials(attemptedCredentials, initialCredentials)),
-                    )
+                    ),
                 )
             }
         } else {
@@ -928,7 +930,7 @@ class QuotaAuthService(
                     )
                 try {
                     state.credentialStore.coordinator.writeReceipt(
-                        receipt.copy(outcome = OAuthRefreshReceipt.Outcome.ROTATED)
+                        receipt.copy(outcome = OAuthRefreshReceipt.Outcome.ROTATED),
                     )
                 } catch (exception: Exception) {
                     LOG.warn(
@@ -948,7 +950,7 @@ class QuotaAuthService(
                     return null
                 }
                 state.credentialStore.coordinator.writeReceipt(
-                    receipt.copy(outcome = OAuthRefreshReceipt.Outcome.REJECTED)
+                    receipt.copy(outcome = OAuthRefreshReceipt.Outcome.REJECTED),
                 )
                 if (attempt == 1) {
                     if (currentCredentialClearMarker(state) != clearMarker) {
@@ -1013,7 +1015,7 @@ class QuotaAuthService(
                 state.cachedCredentials.set(null)
                 state.cacheLoaded.set(true)
                 LOG.info(
-                    "Discarded OAuth credentials for ${state.type.displayName} from $operation after logout"
+                    "Discarded OAuth credentials for ${state.type.displayName} from $operation after logout",
                 )
                 return null
             }
@@ -1031,7 +1033,7 @@ class QuotaAuthService(
         LOG.info(
             "Refreshing ${state.type.displayName} token because $reason" +
                 " (refresh=${QuotaTokenUtil.fingerprint(credentials.refreshToken)}," +
-                " expiredForMs=${nowMs() - credentials.expiresAt})"
+                " expiredForMs=${nowMs() - credentials.expiresAt})",
         )
     }
 
@@ -1055,13 +1057,13 @@ class QuotaAuthService(
                     state.cachedCredentials.set(null)
                     state.cacheLoaded.set(true)
                     LOG.info(
-                        "Discarded OAuth credentials for ${state.type.displayName} from $operation after logout"
+                        "Discarded OAuth credentials for ${state.type.displayName} from $operation after logout",
                     )
                     return@withWriteLock null
                 }
                 if (loginGeneration != null && state.loginGeneration.get() != loginGeneration) {
                     LOG.info(
-                        "Discarded OAuth credentials for ${state.type.displayName} from canceled login"
+                        "Discarded OAuth credentials for ${state.type.displayName} from canceled login",
                     )
                     return@withWriteLock null
                 }
@@ -1081,7 +1083,7 @@ class QuotaAuthService(
                                 expectedWriteVersion
                         ) {
                             LOG.info(
-                                "Discarded delayed OAuth $operation for ${state.type.displayName} after another credential write"
+                                "Discarded delayed OAuth $operation for ${state.type.displayName} after another credential write",
                             )
                             state.pendingCredentials.set(null)
                             // The other IDE's write may not yet be visible through Password Safe.
@@ -1094,7 +1096,7 @@ class QuotaAuthService(
                         }
                         if (!sameCredentials(persisted, expectedPersistedCredentials)) {
                             LOG.info(
-                                "Discarded delayed OAuth $operation for ${state.type.displayName} after stored credentials changed"
+                                "Discarded delayed OAuth $operation for ${state.type.displayName} after stored credentials changed",
                             )
                             state.pendingCredentials.set(null)
                             state.credentialLoadFailed.set(false)
@@ -1116,7 +1118,7 @@ class QuotaAuthService(
                                 requireNotNull(expectedPersistedCredentials),
                             clearMarker = clearMarker,
                             expectedWriteVersion = expectedWriteVersion,
-                        )
+                        ),
                     )
                     LOG.warn(
                         "Failed to persist OAuth credentials for ${state.type.displayName} after $operation;" +

@@ -105,7 +105,7 @@ class QuotaSettingsMigrationsTest {
                   <option name="githubEnterpriseHost" value="ghe.example.com" />
                 </component>
                 """
-                    .trimIndent()
+                    .trimIndent(),
             )
 
         assertEquals(0, legacy.settingsVersion)
@@ -225,7 +225,7 @@ class QuotaSettingsMigrationsTest {
                 settingsVersion = 2
                 accounts =
                     mutableListOf(
-                        ProviderAccount.create(QuotaProviderType.ZAI, "Keep", isFirstOfType = true)
+                        ProviderAccount.create(QuotaProviderType.ZAI, "Keep", isFirstOfType = true),
                     )
             }
 

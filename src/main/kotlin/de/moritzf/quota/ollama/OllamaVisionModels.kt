@@ -36,8 +36,8 @@ internal class OllamaVisionModels(
                         .header("Content-Type", "application/json")
                         .POST(
                             HttpRequest.BodyPublishers.ofString(
-                                JsonSupport.json.encodeToString(ShowRequest(id))
-                            )
+                                JsonSupport.json.encodeToString(ShowRequest(id)),
+                            ),
                         )
                         .build(),
                     HttpResponse.BodyHandlers.ofString(),

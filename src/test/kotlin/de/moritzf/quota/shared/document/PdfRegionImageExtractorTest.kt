@@ -54,7 +54,7 @@ class PdfRegionImageExtractorTest {
                         square / pageHeight,
                     ),
                     topLeft,
-                )
+                ),
             )
             val bottomRight = dir.resolve("bottom-right.png")
             assertTrue(
@@ -67,7 +67,7 @@ class PdfRegionImageExtractorTest {
                         1f,
                     ),
                     bottomRight,
-                )
+                ),
             )
 
             val red = ImageIO.read(topLeft.toFile())

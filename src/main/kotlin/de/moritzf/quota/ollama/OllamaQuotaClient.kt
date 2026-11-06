@@ -33,7 +33,7 @@ open class OllamaQuotaClient(
         val token =
             apiKey.trim().takeIf { it.isNotBlank() }
                 ?: throw OllamaQuotaException(
-                    "Ollama API key missing. Add an Ollama API key in settings."
+                    "Ollama API key missing. Add an Ollama API key in settings.",
                 )
 
         val body = getBalanceJson(token)
@@ -350,7 +350,7 @@ private data class OllamaIncludedCreditsDto(
 private data class OllamaPurchasedDto(
     @Serializable(with = LenientDoubleOrNullSerializer::class)
     @SerialName("balance_usd")
-    val balanceUsd: Double? = null
+    val balanceUsd: Double? = null,
 )
 
 @Serializable

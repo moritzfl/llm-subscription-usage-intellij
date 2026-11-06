@@ -50,7 +50,7 @@ open class ZaiVideoClient(
                     model = model.trim().ifBlank { DEFAULT_MODEL },
                     prompt = trimmedPrompt,
                     imageUrl = imageUrl?.trim()?.takeIf { it.isNotEmpty() },
-                )
+                ),
             )
         val start = send(postJson(token, generationsUri, body))
         val startBody = start.body()
@@ -160,7 +160,7 @@ open class ZaiVideoClient(
                         .header("Authorization", "Bearer $token")
                         .header("Accept", "application/json")
                         .GET()
-                        .build()
+                        .build(),
                 )
             lastBody = response.body()
             val status = response.statusCode()

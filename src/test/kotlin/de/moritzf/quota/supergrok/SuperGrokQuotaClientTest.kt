@@ -32,7 +32,7 @@ class SuperGrokQuotaClientTest {
               "currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","start":"2026-10-13T00:00:00Z","end":"2026-10-20T00:00:00Z"},
               "billingPeriodStart":"2026-10-01T00:00:00Z",
               "billingPeriodEnd":"2026-11-01T00:00:00Z"
-            }}"""
+            }}""",
             )
 
         assertEquals(Instant.parse("2026-10-20T00:00:00Z"), quota.creditUsage?.resetsAt)
@@ -47,7 +47,7 @@ class SuperGrokQuotaClientTest {
               "monthlyLimit":{"val":2000},"used":{"val":500},
               "billingPeriodStart":"2026-10-01T00:00:00Z",
               "billingPeriodEnd":"2026-11-01T00:00:00Z"
-            }}"""
+            }}""",
             )
 
         assertEquals(25.0, quota.creditUsage?.usagePercent)
@@ -132,7 +132,7 @@ class SuperGrokQuotaClientTest {
         val quota =
             SuperGrokQuotaClient.parseQuota(
                 """{"config":{"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","start":"2026-09-20T18:42:45.537749+00:00","end":"2026-09-27T18:42:45.537749+00:00"},
-                "productUsage":[{"product":"GrokChat","usagePercent":4.0},{"product":"GrokBuild","usagePercent":2.0}]}}"""
+                "productUsage":[{"product":"GrokChat","usagePercent":4.0},{"product":"GrokBuild","usagePercent":2.0}]}}""",
             )
 
         assertEquals(6.0, quota.creditUsage?.usagePercent)
@@ -147,12 +147,12 @@ class SuperGrokQuotaClientTest {
                   "currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","start":"2026-09-20T18:42:45.537749+00:00","end":"2026-09-27T18:42:45.537749+00:00"},
                   "creditUsagePercent":100,"onDemandCap":{"val":5000},"onDemandUsed":{"val":"1000"},
                   "productUsage":[{"product":"GrokChat","usagePercent":60.0},{"product":"GrokBuild","usagePercent":40.0}],
-                  "isUnifiedBillingUser":true,"prepaidBalance":{"val":-1446}}}"""
+                  "isUnifiedBillingUser":true,"prepaidBalance":{"val":-1446}}}""",
             )
         val empty =
             SuperGrokQuotaClient.parseQuota(
                 """{"config":{"creditUsagePercent":6,"prepaidBalance":{},"onDemandCap":{"val":0},
-                  "productUsage":[{"product":"GrokChat","usagePercent":40.0}]}}"""
+                  "productUsage":[{"product":"GrokChat","usagePercent":40.0}]}}""",
             )
 
         assertEquals(1446L, quota.prepaidBalance, "top-ups are stored as negative cents")
@@ -175,7 +175,7 @@ class SuperGrokQuotaClientTest {
         assertEquals(
             SuperGrokAutoTopUp(2000, 500, 10000),
             SuperGrokQuotaClient.parseAutoTopUp(
-                """{"rule":{"enabled":true,"topupAmount":{"val":2000},"maxAmountPerMonth":{"val":10000},"minBeforeHittingSl":{"val":500}}}"""
+                """{"rule":{"enabled":true,"topupAmount":{"val":2000},"maxAmountPerMonth":{"val":10000},"minBeforeHittingSl":{"val":500}}}""",
             ),
         )
         for (json in
@@ -261,7 +261,7 @@ class SuperGrokQuotaClientTest {
                 FakeResponseSpec(SETTINGS_RESPONSE),
                 resetListBody =
                     SuperGrokResetCodec.encodeTokens(
-                        listOf(SuperGrokResetToken(tokenId = "restok_test", expiresAt = expiresAt))
+                        listOf(SuperGrokResetToken(tokenId = "restok_test", expiresAt = expiresAt)),
                     ),
             )
         val client = SuperGrokQuotaClient(httpClient, URI.create("https://grok.test/v1/"))
@@ -431,7 +431,7 @@ class SuperGrokQuotaClientTest {
                 override fun onComplete() {
                     latch.countDown()
                 }
-            }
+            },
         )
         latch.await()
         return stream.toByteArray()

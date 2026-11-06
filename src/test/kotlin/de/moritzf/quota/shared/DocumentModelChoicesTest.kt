@@ -91,7 +91,7 @@ class DocumentModelChoicesTest {
                             resourceName = "other",
                             modelName = "gpt-5.5",
                         ),
-                    )
+                    ),
             )
         assertEquals(listOf("native:gpt"), azureNativePdfChoices(quota, "res"))
     }
@@ -129,7 +129,7 @@ class DocumentModelChoicesTest {
     fun nativePdfResponseTextIsReadFromChatAndResponses() {
         assertTrue(
             NativePdfDocument.requestJson(NativePdfRoute.RESPONSES, "m", "a.pdf", "data:", "QQ==")
-                .contains("input_file")
+                .contains("input_file"),
         )
         assertEquals(
             NativePdfRoute.ANTHROPIC,
@@ -144,7 +144,7 @@ class DocumentModelChoicesTest {
         assertEquals(
             "Hi",
             NativePdfDocument.extractText(
-                "data: {\"type\":\"response.output_text.delta\",\"delta\":\"Hi\"}\n\n"
+                "data: {\"type\":\"response.output_text.delta\",\"delta\":\"Hi\"}\n\n",
             ),
         )
     }
@@ -160,7 +160,7 @@ class DocumentModelChoicesTest {
                     "QQ==",
                     "image/png",
                 )
-                .contains("\"input_image\"")
+                .contains("\"input_image\""),
         )
         val chat =
             NativePdfDocument.visionRequestJson(

@@ -35,7 +35,7 @@ open class MiniMaxVisionClient(
         val token =
             apiKey.trim().ifBlank {
                 throw MiniMaxQuotaException(
-                    "MiniMax API key missing. Add a MiniMax API key in settings."
+                    "MiniMax API key missing. Add a MiniMax API key in settings.",
                 )
             }
         val question =
@@ -46,7 +46,7 @@ open class MiniMaxVisionClient(
                 ?: throw MiniMaxQuotaException(
                     if (imageUrl.isNullOrBlank() && localFile == null)
                         "Provide a local image file in localFile."
-                    else "MiniMax vision needs a local image file in localFile."
+                    else "MiniMax vision needs a local image file in localFile.",
                 )
         val body = buildJsonObject {
             put("prompt", question)

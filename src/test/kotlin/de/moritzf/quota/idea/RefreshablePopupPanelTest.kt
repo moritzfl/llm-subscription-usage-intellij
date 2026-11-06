@@ -67,7 +67,7 @@ class RefreshablePopupPanelTest {
 
     private fun openAiSnapshot(quota: OpenAiCodexQuota?, error: String?): QuotaUsageSnapshot {
         return QuotaUsageSnapshot(
-            mapOf(QuotaProviderType.OPEN_AI to ProviderSnapshot(quota, error))
+            mapOf(QuotaProviderType.OPEN_AI to ProviderSnapshot(quota, error)),
         )
     }
 }

@@ -148,7 +148,7 @@ internal object NativeDocumentConversion {
         val match =
             models.firstOrNull { it.model.upstreamId == selected || it.model.localId == selected }
                 ?: error(
-                    "OpenCode did not list '$selected'. Refresh settings and pick a model from the list."
+                    "OpenCode did not list '$selected'. Refresh settings and pick a model from the list.",
                 )
         val route =
             when (match.nativeRoute) {

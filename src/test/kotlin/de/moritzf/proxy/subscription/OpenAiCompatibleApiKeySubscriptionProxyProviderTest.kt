@@ -32,7 +32,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProviderTest {
                       {"id":"embed-a","object":"embedding"}
                     ]}
                     """
-                        .trimIndent()
+                        .trimIndent(),
             )
             .use { upstream ->
                 val proxy =
@@ -46,7 +46,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProviderTest {
                             localIdPrefix = "test-",
                             requestLogDir =
                                 Files.createTempDirectory("api-key-provider-test-logs").toString(),
-                        )
+                        ),
                     )
                 try {
                     proxy.server.start()
@@ -96,7 +96,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProviderTest {
                       {"id":"plain-model","object":"model","capabilities":["chat"]}
                     ]}
                     """
-                        .trimIndent()
+                        .trimIndent(),
             )
             .use { upstream ->
                 val models =
@@ -159,7 +159,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProviderTest {
                         staticModels =
                             listOf(
                                 OpenAiCompatibleApiKeySubscriptionProxyProvider.StaticModel(
-                                    "glm-5.1"
+                                    "glm-5.1",
                                 ),
                                 OpenAiCompatibleApiKeySubscriptionProxyProvider.StaticModel(
                                     "glm-5.2",
@@ -168,7 +168,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProviderTest {
                             ),
                         requestLogDir =
                             Files.createTempDirectory("static-provider-test-logs").toString(),
-                    )
+                    ),
                 )
             try {
                 proxy.server.start()
@@ -209,7 +209,7 @@ class OpenAiCompatibleApiKeySubscriptionProxyProviderTest {
                             requestLogDir =
                                 Files.createTempDirectory("api-key-provider-stale-logs").toString(),
                             modelCacheTtl = kotlin.time.Duration.ZERO,
-                        )
+                        ),
                     )
                 try {
                     proxy.server.start()

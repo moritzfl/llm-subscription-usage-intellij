@@ -53,7 +53,7 @@ internal class CodexRealtimeSpeech(private val client: CodexHttpClient) {
                         )
                     if (response.statusCode() !in 200..299)
                         throw IOException(
-                            "ChatGPT realtime call failed (HTTP ${response.statusCode()})."
+                            "ChatGPT realtime call failed (HTTP ${response.statusCode()}).",
                         )
                     return RealtimeSpeechSession.Call(
                         response.body().toString(Charsets.UTF_8),

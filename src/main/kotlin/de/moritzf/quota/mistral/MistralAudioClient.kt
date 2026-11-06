@@ -57,7 +57,7 @@ open class MistralAudioClient(
                         boundary,
                         transcriptionFields(model, url, language, diarize),
                         file,
-                    )
+                    ),
                 )
                 .build()
         return parseOk(sendString(request), "Mistral speech-to-text failed") {
@@ -84,7 +84,7 @@ open class MistralAudioClient(
         val output =
             resolveOutput(targetFile, baseDirectory, format)
                 ?: throw MistralQuotaException(
-                    "Provide targetFile so the audio is written to disk."
+                    "Provide targetFile so the audio is written to disk.",
                 )
         val resolvedVoice =
             voiceId?.trim()?.takeIf { it.isNotEmpty() } ?: firstPresetVoiceId(fetchVoices(token))
@@ -100,7 +100,7 @@ open class MistralAudioClient(
                     voiceId = resolvedVoice,
                     refAudio = refAudio,
                     responseFormat = format,
-                )
+                ),
             )
         val response = sendString(postJson(token, speechUri, body))
         return parseOk(response, "Mistral text-to-speech failed") { responseBody ->
@@ -130,7 +130,7 @@ open class MistralAudioClient(
             }
             Files.write(output, bytes)
             JsonSupport.json.encodeToString(
-                MistralSpeechWriteResult(output.toString(), bytes.size.toLong())
+                MistralSpeechWriteResult(output.toString(), bytes.size.toLong()),
             )
         }
     }
@@ -253,7 +253,7 @@ open class MistralAudioClient(
         private fun requireApiKey(apiKey: String): String {
             return apiKey.trim().ifBlank {
                 throw MistralQuotaException(
-                    "Mistral API key missing. Add a Mistral API key in settings."
+                    "Mistral API key missing. Add a Mistral API key in settings.",
                 )
             }
         }

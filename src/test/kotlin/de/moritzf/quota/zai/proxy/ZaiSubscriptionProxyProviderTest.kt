@@ -51,7 +51,7 @@ class ZaiSubscriptionProxyProviderTest {
                 val chatRequest =
                     assertNotNull(
                         generateSequence { upstream.requests.poll(2, TimeUnit.SECONDS) }
-                            .firstOrNull { it.path.endsWith("/chat/completions") }
+                            .firstOrNull { it.path.endsWith("/chat/completions") },
                     )
                 assertEquals("/api/coding/paas/v4/chat/completions", chatRequest.path)
                 assertEquals("Bearer zai-key", chatRequest.firstHeader("Authorization"))
@@ -80,7 +80,7 @@ class ZaiSubscriptionProxyProviderTest {
                 val chatRequest =
                     assertNotNull(
                         generateSequence { upstream.requests.poll(2, TimeUnit.SECONDS) }
-                            .firstOrNull { it.path.endsWith("/chat/completions") }
+                            .firstOrNull { it.path.endsWith("/chat/completions") },
                     )
                 assertEquals("/api/coding/paas/v4/chat/completions", chatRequest.path)
                 assertTrue(chatRequest.body.contains("\"model\":\"glm-5.4\""), chatRequest.body)
@@ -103,7 +103,7 @@ class ZaiSubscriptionProxyProviderTest {
     fun advertisesTheModelsThePlanEndpointLists() {
         TestUpstream(
                 modelsBody =
-                    """{"object":"list","data":[{"id":"glm-5.3"},{"id":"glm-5.4-preview"},{"id":"embedding-3"},{"id":"glm-5.3"}]}"""
+                    """{"object":"list","data":[{"id":"glm-5.3"},{"id":"glm-5.4-preview"},{"id":"embedding-3"},{"id":"glm-5.3"}]}""",
             )
             .use { upstream ->
                 val proxy = newProxy(upstream.baseUri)
@@ -162,14 +162,14 @@ class ZaiSubscriptionProxyProviderTest {
     fun alwaysThinkingLeavesOtherRequestsAlone() {
         fun adapt(json: String) =
             ZaiSubscriptionProxyProvider.alwaysThinking(
-                    JsonHelper.JSON.parseToJsonElement(json).jsonObject
+                    JsonHelper.JSON.parseToJsonElement(json).jsonObject,
                 )
                 .toString()
 
         assertEquals(
             """{"model":"glm-5.3-flash","thinking":{"type":"enabled"},"reasoning_effort":"high"}""",
             adapt(
-                """{"model":"glm-5.3-flash","thinking":{"type":"disabled"},"reasoning_effort":"high"}"""
+                """{"model":"glm-5.3-flash","thinking":{"type":"disabled"},"reasoning_effort":"high"}""",
             ),
         )
         for (json in

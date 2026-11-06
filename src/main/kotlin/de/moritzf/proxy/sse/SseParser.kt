@@ -33,7 +33,7 @@ object SseParser {
                                 ServerSentEvent(
                                     eventType,
                                     dataLines.takeIf { it.isNotEmpty() }?.joinToString("\n"),
-                                )
+                                ),
                             )
                         if (!proceed) return
                         eventType = null
@@ -56,7 +56,7 @@ object SseParser {
                     ServerSentEvent(
                         eventType,
                         dataLines.takeIf { it.isNotEmpty() }?.joinToString("\n"),
-                    )
+                    ),
                 )
             }
         }

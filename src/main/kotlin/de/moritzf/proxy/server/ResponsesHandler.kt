@@ -39,11 +39,11 @@ class ResponsesHandler {
         Collections.synchronizedMap(
             object : LinkedHashMap<String, ResponsesState>(16, 0.75f, true) {
                 override fun removeEldestEntry(
-                    eldest: MutableMap.MutableEntry<String, ResponsesState>?
+                    eldest: MutableMap.MutableEntry<String, ResponsesState>?,
                 ): Boolean {
                     return size > MAX_REPLAY_NAMESPACES
                 }
-            }
+            },
         )
 
     constructor(
@@ -221,7 +221,7 @@ class ResponsesHandler {
             normalized.put(
                 "instructions",
                 instructionsProvider.instructionsForModel(
-                    (normalized.get("model") as? JsonPrimitive)?.content ?: ""
+                    (normalized.get("model") as? JsonPrimitive)?.content ?: "",
                 ),
             )
         }

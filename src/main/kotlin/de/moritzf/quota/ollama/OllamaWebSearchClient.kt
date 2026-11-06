@@ -28,7 +28,7 @@ open class OllamaWebSearchClient(
         val token =
             apiKey.trim().ifBlank {
                 throw OllamaQuotaException(
-                    "Ollama API key missing. Add an Ollama API key in settings."
+                    "Ollama API key missing. Add an Ollama API key in settings.",
                 )
             }
         val resultLimit = limit.coerceIn(MIN_LIMIT, MAX_LIMIT)
@@ -57,7 +57,7 @@ open class OllamaWebSearchClient(
         val token =
             apiKey.trim().ifBlank {
                 throw OllamaQuotaException(
-                    "Ollama API key missing. Add an Ollama API key in settings."
+                    "Ollama API key missing. Add an Ollama API key in settings.",
                 )
             }
         val response = send(fetchRequest(token, target))

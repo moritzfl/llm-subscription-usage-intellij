@@ -36,7 +36,7 @@ class AntigravityUiTest {
                     {"name":"Models","buckets":[{"id":"unknown","reset_time":"2026-09-29T00:00:00Z"}]}
                 ]}}}
                 """
-                    .trimIndent()
+                    .trimIndent(),
             )
         assertEquals(-1, AntigravityUi.displayPercent(quota, null))
         assertEquals("no data", AntigravityUi.barText(quota, null))

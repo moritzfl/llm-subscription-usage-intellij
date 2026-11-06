@@ -55,7 +55,7 @@ class AzureOtherDocumentClientTest {
                             200,
                             """{"pages":[{"type":"markdown","markdown":{"content":"# Page"}}]}""",
                         )
-                    }
+                    },
                 )
             val result =
                 client.convertDocument(
@@ -115,7 +115,7 @@ class AzureOtherDocumentClientTest {
                             200,
                             """{"pages":[{"markdown":{"content":"# Page $calls"}}]}""",
                         )
-                    }
+                    },
                 )
             client.convertDocument(
                 cli(AZURE_FOUNDRY_SCOPE),
@@ -149,7 +149,7 @@ class AzureOtherDocumentClientTest {
                     post = {
                         calls++
                         AzureOcrResponse(200, """{"pages":[{"markdown":{"content":"Page"}}]}""")
-                    }
+                    },
                 )
             assertFailsWith<CancellationException> {
                 client.convertDocument(
@@ -184,7 +184,7 @@ class AzureOtherDocumentClientTest {
                             200,
                             """{"pages":[{"type":"markdown","markdown":{"content":"Image text"}}]}""",
                         )
-                    }
+                    },
                 )
             client.convertDocument(
                 cli(AZURE_FOUNDRY_SCOPE),
@@ -218,7 +218,7 @@ class AzureOtherDocumentClientTest {
                     }}]
                 }}]}""",
                         )
-                    }
+                    },
                 )
             val result =
                 JsonSupport.json.decodeFromString<MistralOcrWriteResult>(
@@ -227,7 +227,7 @@ class AzureOtherDocumentClientTest {
                         config,
                         "Cohere-parse-v5",
                         localFile = image,
-                    )
+                    ),
                 )
             crop = Path.of(result.imageFiles.single())
             assertEquals(
@@ -267,7 +267,7 @@ class AzureOtherDocumentClientTest {
                         if (calls == 1) {
                             assertEquals("POST", request.method())
                             assertTrue(
-                                request.uri().toString().contains("outputContentFormat=markdown")
+                                request.uri().toString().contains("outputContentFormat=markdown"),
                             )
                             AzureDocumentIntelligenceResponse(
                                 202,
@@ -286,7 +286,7 @@ class AzureOtherDocumentClientTest {
                                     .toByteArray(),
                             )
                         }
-                    }
+                    },
                 )
             val result =
                 client.convertDocument(
@@ -320,11 +320,11 @@ class AzureOtherDocumentClientTest {
                             mapOf(
                                 "Operation-Location" to
                                     "https://example.com/documentintelligence/documentModels/prebuilt-layout/" +
-                                        "analyzeResults/11111111-1111-1111-1111-111111111111?api-version=2024-11-30"
+                                        "analyzeResults/11111111-1111-1111-1111-111111111111?api-version=2024-11-30",
                             ),
                             byteArrayOf(),
                         )
-                    }
+                    },
                 )
             assertFailsWith<AzureOcrException> {
                 client.convertDocument(cli(AZURE_COGNITIVE_SCOPE), config, localFile = source)
@@ -374,7 +374,7 @@ class AzureOtherDocumentClientTest {
                                     request
                                         .uri()
                                         .toString()
-                                        .contains("/figures/1.0?api-version=2024-11-30")
+                                        .contains("/figures/1.0?api-version=2024-11-30"),
                                 )
                                 AzureDocumentIntelligenceResponse(
                                     200,
@@ -392,11 +392,11 @@ class AzureOtherDocumentClientTest {
                                 )
                             }
                         }
-                    }
+                    },
                 )
             val result =
                 JsonSupport.json.decodeFromString<DocumentMarkdownWriteResult>(
-                    client.convertDocument(cli(AZURE_COGNITIVE_SCOPE), config, localFile = source)
+                    client.convertDocument(cli(AZURE_COGNITIVE_SCOPE), config, localFile = source),
                 )
             figure = Path.of(result.imageFiles.single())
             assertEquals(3, calls)
@@ -446,9 +446,9 @@ class AzureOtherDocumentClientTest {
                                 .decode(
                                     JsonSupport.json
                                         .decodeFromString<AzureDocumentAnalyzeRequest>(
-                                            requestBody(request)
+                                            requestBody(request),
                                         )
-                                        .base64Source
+                                        .base64Source,
                                 )
                         analyses +=
                             if (ImageIO.read(bytes.inputStream()) != null) "image"
@@ -474,7 +474,7 @@ class AzureOtherDocumentClientTest {
                             }
                         AzureDocumentIntelligenceResponse(200, emptyMap(), body.toByteArray())
                     }
-                }
+                },
             )
 
         val result =
@@ -484,7 +484,7 @@ class AzureOtherDocumentClientTest {
                     config,
                     localFile = source,
                     includeImages = false,
-                )
+                ),
             )
 
         assertEquals(listOf("1,2,3", "1", "2", "image", "3"), analyses)
@@ -515,7 +515,7 @@ class AzureOtherDocumentClientTest {
                     override fun onError(throwable: Throwable) = completed.countDown()
 
                     override fun onComplete() = completed.countDown()
-                }
+                },
             )
         assertTrue(completed.await(5, TimeUnit.SECONDS))
         return output.toString(Charsets.UTF_8)

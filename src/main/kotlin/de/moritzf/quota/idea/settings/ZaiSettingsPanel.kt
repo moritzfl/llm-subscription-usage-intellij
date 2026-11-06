@@ -54,7 +54,7 @@ internal class ZaiSettingsPanel(
                         { documentModelCombo.selected().orEmpty() },
                         modalityComponentProvider,
                         documentModelCombo.combo,
-                    )
+                    ),
                 )
             }
             row(message("settings.model.vision.label")) {
@@ -67,7 +67,7 @@ internal class ZaiSettingsPanel(
                         de.moritzf.quota.idea.mcp.VisionProvider.ZAI,
                         visionModelCombo,
                         modalityComponentProvider,
-                    )
+                    ),
                 )
             }
             row {
@@ -110,7 +110,7 @@ internal class ZaiSettingsPanel(
                             updateResponseArea()
                             refreshDocumentModels()
                         }
-                    }
+                    },
                 )
         apiKeyDraft.show(id, if (apiKey.isNullOrBlank()) "" else API_KEY_PLACEHOLDER)
     }

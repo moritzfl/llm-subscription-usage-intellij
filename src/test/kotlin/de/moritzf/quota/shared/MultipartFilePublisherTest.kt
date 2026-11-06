@@ -68,7 +68,7 @@ class MultipartFilePublisherTest {
                 override fun onComplete() {
                     done.countDown()
                 }
-            }
+            },
         )
         assertTrue(done.await(5, TimeUnit.SECONDS))
         error?.let { throw it }

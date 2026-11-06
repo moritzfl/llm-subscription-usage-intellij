@@ -80,7 +80,7 @@ class CodexMcpClient(
                 ?: return CodexMcpResponse(
                     errorJson(
                         "Invalid Codex web search options. searchContextSize must be one of low, medium, high; " +
-                            "allowedDomains and blockedDomains must be comma-separated domain names, up to 100 each."
+                            "allowedDomains and blockedDomains must be comma-separated domain names, up to 100 each.",
                     ),
                     true,
                 )
@@ -314,7 +314,7 @@ class CodexMcpClient(
             )
                 return CodexMcpResponse(
                     errorJson(
-                        "Experimental realtime speech requires responseFormat=wav and a .wav targetFile."
+                        "Experimental realtime speech requires responseFormat=wav and a .wav targetFile.",
                     ),
                     true,
                 )
@@ -354,7 +354,7 @@ class CodexMcpClient(
                 CodexMcpResponse(
                     errorJson(
                         detail
-                            ?: "Experimental realtime speech failed. Check voice access, select marin or cedar, and retry."
+                            ?: "Experimental realtime speech failed. Check voice access, select marin or cedar, and retry.",
                     ),
                     true,
                 )
@@ -388,7 +388,7 @@ class CodexMcpClient(
                 if (response.statusCode() == 404)
                     return CodexMcpResponse(
                         errorJson(
-                            "ChatGPT's /audio/speech endpoint is unavailable. Experimental realtime voice uses model=gpt-live-1-codex, responseFormat=wav and voiceId=marin or cedar; it requires voice access and may paraphrase."
+                            "ChatGPT's /audio/speech endpoint is unavailable. Experimental realtime voice uses model=gpt-live-1-codex, responseFormat=wav and voiceId=marin or cedar; it requires voice access and may paraphrase.",
                         ),
                         true,
                     )
@@ -406,7 +406,7 @@ class CodexMcpClient(
             Files.write(output, response.body())
             CodexMcpResponse(
                 JsonSupport.json.encodeToString(
-                    CodexSpeechWriteResult(output.toString(), response.body().size.toLong())
+                    CodexSpeechWriteResult(output.toString(), response.body().size.toLong()),
                 ),
                 false,
             )
@@ -514,7 +514,7 @@ class CodexMcpClient(
                                 },
                             )
                         }
-                    }
+                    },
                 )
             }
             if (options.includeSources) {
@@ -538,7 +538,7 @@ class CodexMcpClient(
                 buildJsonObject {
                     put("type", "input_image")
                     put("image_url", url)
-                }
+                },
             )
         }
         if (localFile == null || !Files.isRegularFile(localFile)) {
@@ -548,7 +548,7 @@ class CodexMcpClient(
         val mime = mimeType(localFile, bytes)
         if (!mime.startsWith("image/")) {
             return ImageInput.Invalid(
-                "Provide an image file. Use subscription_document_to_markdown for documents."
+                "Provide an image file. Use subscription_document_to_markdown for documents.",
             )
         }
         DocumentLimits.inlineOverflowMessage(localFile)?.let {
@@ -558,7 +558,7 @@ class CodexMcpClient(
             buildJsonObject {
                 put("type", "input_image")
                 put("image_url", "data:$mime;base64,${Base64.getEncoder().encodeToString(bytes)}")
-            }
+            },
         )
     }
 
@@ -577,10 +577,10 @@ class CodexMcpClient(
                                 buildJsonObject {
                                     put("type", "input_text")
                                     put("text", prompt)
-                                }
+                                },
                             )
                         }
-                    }
+                    },
                 )
             }
             putJsonArray("tools") {
@@ -589,7 +589,7 @@ class CodexMcpClient(
                         put("type", "image_generation")
                         put("output_format", "png")
                         model.trim().takeIf { it.isNotEmpty() }?.let { put("model", it) }
-                    }
+                    },
                 )
             }
             put("store", false)
@@ -607,7 +607,7 @@ class CodexMcpClient(
                     buildJsonObject {
                         put("type", "image_generation")
                         put("output_format", "png")
-                    }
+                    },
                 )
             }
             put("store", false)
@@ -630,10 +630,10 @@ class CodexMcpClient(
                                 buildJsonObject {
                                     put("type", "input_text")
                                     put("text", DOCUMENT_PROMPT)
-                                }
+                                },
                             )
                         }
-                    }
+                    },
                 )
             }
             put("store", false)
@@ -655,10 +655,10 @@ class CodexMcpClient(
                                 buildJsonObject {
                                     put("type", "input_text")
                                     put("text", prompt)
-                                }
+                                },
                             )
                         }
-                    }
+                    },
                 )
             }
             put("store", false)
@@ -804,7 +804,7 @@ class CodexMcpClient(
                     buildJsonObject {
                         put("type", "input_text")
                         put("text", text)
-                    }
+                    },
                 )
             }
         }
@@ -1028,12 +1028,12 @@ class CodexMcpClient(
                 Path.of(trimmedTarget)
             } catch (exception: InvalidPathException) {
                 return ImageOutputTarget(
-                    error = exception.message ?: "Invalid image target file path."
+                    error = exception.message ?: "Invalid image target file path.",
                 )
             }
         if (path.isAbsolute) {
             return ImageOutputTarget(
-                error = "Image target file must be relative to the project directory."
+                error = "Image target file must be relative to the project directory.",
             )
         }
         val base =
@@ -1041,7 +1041,7 @@ class CodexMcpClient(
         val resolved = base.resolve(path).normalize()
         if (!resolved.startsWith(base)) {
             return ImageOutputTarget(
-                error = "Image target file must stay inside the project directory."
+                error = "Image target file must stay inside the project directory.",
             )
         }
         val format =
@@ -1054,7 +1054,7 @@ class CodexMcpClient(
         if (format !in SUPPORTED_IMAGE_FORMATS) {
             return ImageOutputTarget(
                 error =
-                    "Unsupported image format '$format'. Supported formats: ${SUPPORTED_IMAGE_FORMATS.sorted().joinToString(", ")}."
+                    "Unsupported image format '$format'. Supported formats: ${SUPPORTED_IMAGE_FORMATS.sorted().joinToString(", ")}.",
             )
         }
         return ImageOutputTarget(path = resolved, format = format)
@@ -1192,7 +1192,7 @@ class CodexMcpClient(
 
         fun createDefault(
             capability: de.moritzf.quota.idea.settings.AccountCapability =
-                de.moritzf.quota.idea.settings.AccountCapability.WEB_SEARCH
+                de.moritzf.quota.idea.settings.AccountCapability.WEB_SEARCH,
         ): CodexMcpClient {
             val account =
                 de.moritzf.quota.idea.settings.AccountResolver.resolveOrNull(
@@ -1299,7 +1299,7 @@ class CodexMcpClient(
                 if (diarize) {
                     append("--").append(boundary).append("\r\n")
                     append(
-                        "Content-Disposition: form-data; name=\"response_format\"\r\n\r\ndiarized_json\r\n"
+                        "Content-Disposition: form-data; name=\"response_format\"\r\n\r\ndiarized_json\r\n",
                     )
                 }
                 language

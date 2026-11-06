@@ -87,7 +87,7 @@ class OllamaSubscriptionProxyProvider(
      * chat. Without that list the discovered models stay as they are.
      */
     private fun withCapabilities(
-        models: List<OpenAiCompatibleApiKeySubscriptionProxyProvider.StaticModel>
+        models: List<OpenAiCompatibleApiKeySubscriptionProxyProvider.StaticModel>,
     ): List<OpenAiCompatibleApiKeySubscriptionProxyProvider.StaticModel> {
         val capabilities = runCatching {
             val response =
@@ -241,11 +241,11 @@ class OllamaSubscriptionProxyProvider(
                                     put("text", completion)
                                     put("index", 0)
                                     put("finish_reason", "stop")
-                                }
+                                },
                             )
                         },
                     )
-                }
+                },
             )
         }
     }

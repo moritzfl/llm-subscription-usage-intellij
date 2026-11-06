@@ -89,7 +89,7 @@ class KimiAuthService(
         } catch (exception: Exception) {
             if (onVerificationUrl == null) throw exception
             LOG.info(
-                "Could not open Kimi login browser; use the verification URL and code in settings"
+                "Could not open Kimi login browser; use the verification URL and code in settings",
             )
         }
 

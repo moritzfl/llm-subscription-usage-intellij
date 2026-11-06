@@ -74,7 +74,7 @@ class KimiVisionClientTest {
             server.start()
             baseUri =
                 java.net.URI.create(
-                    "http://127.0.0.1:${server.address.port}/coding/v1/chat/completions"
+                    "http://127.0.0.1:${server.address.port}/coding/v1/chat/completions",
                 )
         }
 

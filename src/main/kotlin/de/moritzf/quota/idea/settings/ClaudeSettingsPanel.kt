@@ -67,7 +67,7 @@ internal class ClaudeSettingsPanel(
                         submitAuthCode()
                     }
                 }
-            }
+            },
         )
 
         loginButton.addActionListener {
@@ -110,7 +110,7 @@ internal class ClaudeSettingsPanel(
                                 }
                             },
                             ModalityState.stateForComponent(
-                                modalityComponentProvider() ?: this@ClaudeSettingsPanel
+                                modalityComponentProvider() ?: this@ClaudeSettingsPanel,
                             ),
                         )
                 },
@@ -124,7 +124,7 @@ internal class ClaudeSettingsPanel(
                                 updateAuthUi()
                             },
                             ModalityState.stateForComponent(
-                                modalityComponentProvider() ?: this@ClaudeSettingsPanel
+                                modalityComponentProvider() ?: this@ClaudeSettingsPanel,
                             ),
                         )
                 },
@@ -191,7 +191,7 @@ internal class ClaudeSettingsPanel(
             }
             row {
                 text(
-                    "Claude has no device-code login. Click Log In, finish the browser flow, then paste the authorization code from the Claude page (full URL or code#state)."
+                    "Claude has no device-code login. Click Log In, finish the browser flow, then paste the authorization code from the Claude page (full URL or code#state).",
                 )
             }
             row("Authorization code:") {

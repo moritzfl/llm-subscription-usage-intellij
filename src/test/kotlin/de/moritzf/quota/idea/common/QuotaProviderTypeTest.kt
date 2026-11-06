@@ -63,7 +63,7 @@ class QuotaProviderTypeTest {
                 listOf(
                     QuotaProviderType.OPEN_AI,
                     QuotaProviderType.OPEN_CODE,
-                )
+                ),
             )
 
         assertEquals(QuotaProviderType.ANTIGRAVITY, merged.first())
@@ -115,7 +115,7 @@ class QuotaProviderTypeTest {
                     QuotaProviderType.OPEN_CODE,
                     QuotaProviderType.KIMI,
                     QuotaProviderType.OPEN_AI,
-                )
+                ),
             )
 
         assertEquals(

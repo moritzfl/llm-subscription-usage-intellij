@@ -44,12 +44,12 @@ class OcrFigureCoordinatesTest {
                                     0.0,
                                     100.0,
                                     100.0,
-                                )
+                                ),
                             ),
                             index = 0,
                             dimensions = MistralOcrPageDimensionsDto(200.0, 100.0),
-                        )
-                    )
+                        ),
+                    ),
                 )
                 writer.commit()
             }
@@ -112,7 +112,7 @@ class OcrFigureCoordinatesTest {
                                 .toByteArray(),
                         )
                     }
-                }
+                },
             )
         val result =
             JsonSupport.json.decodeFromString<DocumentMarkdownWriteResult>(
@@ -121,7 +121,7 @@ class OcrFigureCoordinatesTest {
                     azureAccountConfig(null, "resource", null, null, null),
                     localFile = source,
                     outputFile = directory.resolve("di.md"),
-                )
+                ),
             )
         assertEquals(2, calls)
         assertTrue(result.warnings.isEmpty())
@@ -140,7 +140,7 @@ class OcrFigureCoordinatesTest {
                 "id":"figure","bounding_box":{"top_left_x":40,"top_left_y":20,"bottom_right_x":360,"bottom_right_y":180}
             }]}}]}""",
                     )
-                }
+                },
             )
         val result =
             JsonSupport.json.decodeFromString<MistralOcrWriteResult>(
@@ -152,7 +152,7 @@ class OcrFigureCoordinatesTest {
                     outputFile = directory.resolve("cohere.md"),
                     pageFrom = 2,
                     pageTo = 2,
-                )
+                ),
             )
         assertEquals(1, result.pages)
         assertTrue(result.warnings.isEmpty())

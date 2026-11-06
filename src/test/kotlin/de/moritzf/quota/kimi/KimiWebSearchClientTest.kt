@@ -37,7 +37,7 @@ class KimiWebSearchClientTest {
                       }]
                     }
                     """
-                        .trimIndent()
+                        .trimIndent(),
             )
             .use { server ->
                 val client = newClient(server)
@@ -90,7 +90,7 @@ class KimiWebSearchClientTest {
                       "token_type": "Bearer"
                     }
                     """
-                        .trimIndent()
+                        .trimIndent(),
             )
             .use { server ->
                 val client = newClient(server)
@@ -191,7 +191,7 @@ class KimiWebSearchClientTest {
                       ]
                     }
                     """
-                        .trimIndent()
+                        .trimIndent(),
             )
             .use { server ->
                 val client = newClient(server)

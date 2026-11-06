@@ -54,16 +54,16 @@ class ArchitectureBoundariesTest {
                 .should(
                     onlyHaveDependenciesWhere(
                         DescribedPredicate.describe<Dependency>(
-                            "use only shared code or external libraries"
+                            "use only shared code or external libraries",
                         ) { dependency ->
                             !resideInAnyPackage("de.moritzf..").test(dependency.targetClass) ||
                                 resideInAnyPackage("de.moritzf.quota.shared..")
                                     .test(dependency.targetClass)
-                        }
-                    )
+                        },
+                    ),
                 )
                 .because(
-                    "shared helpers must not depend on provider, proxy, or IDE implementations"
+                    "shared helpers must not depend on provider, proxy, or IDE implementations",
                 )
 
         // Exact runtime bindings. Including
@@ -87,16 +87,16 @@ class ArchitectureBoundariesTest {
                 .should(
                     onlyHaveDependenciesWhere(
                         DescribedPredicate.describe<Dependency>(
-                            "stay outside IDE code except documented class pairs"
+                            "stay outside IDE code except documented class pairs",
                         ) { dependency ->
                             !resideInAnyPackage("com.intellij..", "de.moritzf.quota.idea..")
                                 .test(dependency.targetClass) ||
                                 allowedIdeDependencies.any { it.test(dependency) }
-                        }
-                    )
+                        },
+                    ),
                 )
                 .because(
-                    "provider clients and proxy transport must stay independent of IDE orchestration"
+                    "provider clients and proxy transport must stay independent of IDE orchestration",
                 )
 
         @ArchTest
@@ -122,7 +122,7 @@ class ArchitectureBoundariesTest {
                 .dependOnClassesThat()
                 .haveSimpleNameEndingWith("SettingsConfigurable")
                 .because(
-                    "operations execute capabilities; MCP annotations and settings widgets belong at the boundary"
+                    "operations execute capabilities; MCP annotations and settings widgets belong at the boundary",
                 )
 
         @ArchTest
@@ -136,7 +136,7 @@ class ArchitectureBoundariesTest {
                         call.target.name == "getInstance" &&
                             resideInAnyPackage("de.moritzf.quota.idea..", "com.intellij..")
                                 .test(call.target.owner)
-                    }
+                    },
                 )
                 .because("the subscription MCP facade must delegate service lookup to operations")
     }

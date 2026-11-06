@@ -46,9 +46,9 @@ open class ZaiAudioClient(
                             boundary,
                             listOf("model" to model.trim().ifBlank { DEFAULT_MODEL }),
                             path,
-                        )
+                        ),
                     )
-                    .build()
+                    .build(),
             )
         val status = response.statusCode()
         val body = response.body()

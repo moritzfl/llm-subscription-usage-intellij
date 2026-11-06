@@ -29,7 +29,7 @@ class MiniMaxVisionClientTest {
         val png = Files.createTempFile("minimax-vision", ".png")
         Files.write(png, PNG_BYTES)
         withUpstream(
-            """{"content":"A red dot.","base_resp":{"status_code":0,"status_msg":"success"}}"""
+            """{"content":"A red dot.","base_resp":{"status_code":0,"status_msg":"success"}}""",
         ) { global, cn, requests ->
             val client = MiniMaxVisionClient(globalApiHost = global, cnApiHost = cn)
 
@@ -87,14 +87,14 @@ class MiniMaxVisionClientTest {
         val auth =
             assertFailsWith<MiniMaxQuotaException> {
                 MiniMaxVisionClient.parseAnswer(
-                    """{"base_resp":{"status_code":2049,"status_msg":"invalid api key"}}"""
+                    """{"base_resp":{"status_code":2049,"status_msg":"invalid api key"}}""",
                 )
             }
         assertEquals(401, auth.statusCode)
         val other =
             assertFailsWith<MiniMaxQuotaException> {
                 MiniMaxVisionClient.parseAnswer(
-                    """{"base_resp":{"status_code":1008,"status_msg":"insufficient balance"}}"""
+                    """{"base_resp":{"status_code":1008,"status_msg":"insufficient balance"}}""",
                 )
             }
         assertEquals("MiniMax image analysis failed: insufficient balance", other.message)
@@ -140,7 +140,7 @@ class MiniMaxVisionClientTest {
         val PNG_BYTES: ByteArray =
             java.util.Base64.getDecoder()
                 .decode(
-                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=="
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==",
                 )
     }
 }

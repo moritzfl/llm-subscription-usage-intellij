@@ -206,7 +206,7 @@ open class ZaiOcrClient(
                     total,
                     images.warnings,
                     images.report.takeIf { includeImages },
-                )
+                ),
             )
         }
     }
@@ -238,7 +238,7 @@ open class ZaiOcrClient(
     ): ZaiHttpResult {
         val body =
             JsonSupport.json.encodeToString(
-                ZaiLayoutParsingRequestDto(model, file, returnCropImages)
+                ZaiLayoutParsingRequestDto(model, file, returnCropImages),
             )
         val response = send(postJson(token, body))
         if (response.status == 401 || response.status == 403) {

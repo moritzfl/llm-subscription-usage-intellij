@@ -45,8 +45,8 @@ class AntigravityQuotaTest {
                 {"id":"future","remaining_fraction":0.1,"disabled":{}},
                 {"id":"disabled","remaining_fraction":0,"disabled":true}
             ]}
-        """
-                )
+        """,
+                ),
             )
 
         assertEquals(4, quota.windows.size)
@@ -70,8 +70,8 @@ class AntigravityQuotaTest {
                     report(
                         """
                 {"buckets":[{"id":"unknown","remaining_fraction":$remaining}]}
-            """
-                    )
+            """,
+                    ),
                 )
             assertNull(quota.usageFraction(), remaining)
             assertNull(quota.primaryWindow(), remaining)
@@ -86,11 +86,11 @@ class AntigravityQuotaTest {
     fun remainingEndpointsRepresentExhaustedAndUnusedQuota() {
         val full =
             parseAntigravityQuota(
-                report("""{"buckets":[{"id":"weekly","remaining_fraction":0}]}""")
+                report("""{"buckets":[{"id":"weekly","remaining_fraction":0}]}"""),
             )
         val unused =
             parseAntigravityQuota(
-                report("""{"buckets":[{"id":"weekly","remaining_fraction":1}]}""")
+                report("""{"buckets":[{"id":"weekly","remaining_fraction":1}]}"""),
             )
         assertEquals(1.0, full.usageFraction())
         assertEquals(0.0, unused.usageFraction())

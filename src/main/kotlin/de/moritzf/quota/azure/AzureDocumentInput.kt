@@ -38,14 +38,14 @@ internal class AzureDocumentInput(private val httpClient: HttpClient) {
                     bytes
                         .copyOfRange(0, 8)
                         .contentEquals(
-                            byteArrayOf(0x89.toByte(), 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)
+                            byteArrayOf(0x89.toByte(), 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a),
                         ) -> "image/png"
 
                 bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() ->
                     "image/jpeg"
                 else ->
                     throw AzureOcrException(
-                        "Azure document conversion supports PDF, PNG, or JPEG documents."
+                        "Azure document conversion supports PDF, PNG, or JPEG documents.",
                     )
             }
         return AzureDocumentSource(bytes, mime)
@@ -77,7 +77,7 @@ internal class AzureDocumentInput(private val httpClient: HttpClient) {
         response.body().use { input ->
             if (response.statusCode() !in 200..299)
                 throw AzureOcrException(
-                    "Could not download document (HTTP ${response.statusCode()})."
+                    "Could not download document (HTTP ${response.statusCode()}).",
                 )
             val bytes = input.readNBytes(MAX_DOCUMENT_BYTES + 1)
             if (bytes.size > MAX_DOCUMENT_BYTES)

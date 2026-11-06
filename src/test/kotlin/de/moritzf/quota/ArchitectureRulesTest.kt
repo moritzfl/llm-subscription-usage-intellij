@@ -42,7 +42,7 @@ class ArchitectureRulesTest {
     fun harmlessSourceTextDoesNotCreateDependency() {
         val classes = ClassFileImporter().importClasses(HarmlessProvider::class.java)
         assertFalse(
-            ArchitectureBoundariesTest.providerAndProxyBoundaries.evaluate(classes).hasViolation()
+            ArchitectureBoundariesTest.providerAndProxyBoundaries.evaluate(classes).hasViolation(),
         )
     }
 

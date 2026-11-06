@@ -24,7 +24,7 @@ import kotlinx.serialization.json.put
 
 /** OpenAI chat/completions <-> Anthropic messages bridge for Claude on GitHub Copilot. */
 internal class GitHubCopilotClaudeChatBridge(
-    private val bridgeModel: (String) -> Boolean = ::isClaudeModel
+    private val bridgeModel: (String) -> Boolean = ::isClaudeModel,
 ) {
     private val streamToolCallIndexes = ConcurrentHashMap<String, MutableMap<Int, Int>>()
     private val remoteImageHttpClient =
@@ -72,7 +72,7 @@ internal class GitHubCopilotClaudeChatBridge(
                     buildJsonObject {
                         put("role", mappedRole)
                         put("content", openAiMessageContentToAnthropicContent(item, role))
-                    }
+                    },
                 )
             }
         }
@@ -92,7 +92,7 @@ internal class GitHubCopilotClaudeChatBridge(
                         ?: openAiFunctionsToTools(body["functions"] as? JsonArray)
                 openAiToolsToAnthropicTools(tools)?.let { put("tools", it) }
                 openAiToolChoiceToAnthropicToolChoice(
-                        toolChoice ?: openAiFunctionCallToToolChoice(body["function_call"])
+                        toolChoice ?: openAiFunctionCallToToolChoice(body["function_call"]),
                     )
                     ?.let { put("tool_choice", it) }
             }
@@ -123,7 +123,7 @@ internal class GitHubCopilotClaudeChatBridge(
                     buildJsonObject {
                         put("type", "function")
                         put("function", item)
-                    }
+                    },
                 )
             }
         }
@@ -165,7 +165,7 @@ internal class GitHubCopilotClaudeChatBridge(
                         put("type", "tool_result")
                         put("tool_use_id", stringField(message, "tool_call_id").orEmpty())
                         put("content", contentText(message["content"]))
-                    }
+                    },
                 )
             }
         }
@@ -180,7 +180,7 @@ internal class GitHubCopilotClaudeChatBridge(
                     buildJsonObject {
                         put("type", "text")
                         put("text", text)
-                    }
+                    },
                 )
             }
             toolCalls.forEach { toolCall ->
@@ -193,7 +193,7 @@ internal class GitHubCopilotClaudeChatBridge(
                         put("id", stringField(item, "id").orEmpty())
                         put("name", name)
                         put("input", parseToolArguments(stringField(function, "arguments")))
-                    }
+                    },
                 )
             }
         }
@@ -214,7 +214,7 @@ internal class GitHubCopilotClaudeChatBridge(
                             "input_schema",
                             function["parameters"] ?: buildJsonObject { put("type", "object") },
                         )
-                    }
+                    },
                 )
             }
         }
@@ -434,7 +434,7 @@ internal class GitHubCopilotClaudeChatBridge(
         return intField(body, "max_tokens")
             ?: intField(body, "max_completion_tokens")
             ?: request.model.maxOutputTokens?.coerceAtMost(
-                GitHubCopilotProxyIds.DEFAULT_ANTHROPIC_MAX_TOKENS
+                GitHubCopilotProxyIds.DEFAULT_ANTHROPIC_MAX_TOKENS,
             )
             ?: GitHubCopilotProxyIds.DEFAULT_ANTHROPIC_MAX_TOKENS
     }
@@ -498,12 +498,12 @@ internal class GitHubCopilotClaudeChatBridge(
                                     },
                                 )
                                 put("finish_reason", finishReason)
-                            }
+                            },
                         )
                     },
                 )
                 anthropicUsageToOpenAi(root["usage"] as? JsonObject)?.let { put("usage", it) }
-            }
+            },
         )
     }
 
@@ -613,18 +613,18 @@ internal class GitHubCopilotClaudeChatBridge(
                                                                 put("arguments", "")
                                                             },
                                                         )
-                                                    }
+                                                    },
                                                 )
                                             },
                                         )
                                     },
                                 )
                                 put("finish_reason", JsonNull)
-                            }
+                            },
                         )
                     },
                 )
-            }
+            },
         )
     }
 
@@ -661,18 +661,18 @@ internal class GitHubCopilotClaudeChatBridge(
                                                                 put("arguments", partialJson)
                                                             },
                                                         )
-                                                    }
+                                                    },
                                                 )
                                             },
                                         )
                                     },
                                 )
                                 put("finish_reason", JsonNull)
-                            }
+                            },
                         )
                     },
                 )
-            }
+            },
         )
     }
 
@@ -705,11 +705,11 @@ internal class GitHubCopilotClaudeChatBridge(
                                 )
                                 if (finishReason == null) put("finish_reason", JsonNull)
                                 else put("finish_reason", finishReason)
-                            }
+                            },
                         )
                     },
                 )
-            }
+            },
         )
     }
 
@@ -723,7 +723,7 @@ internal class GitHubCopilotClaudeChatBridge(
                 put("model", request.model.localId)
                 put("choices", JsonArray(emptyList()))
                 put("usage", normalizedUsage)
-            }
+            },
         )
     }
 
@@ -769,7 +769,7 @@ internal class GitHubCopilotClaudeChatBridge(
                                 )
                             },
                         )
-                    }
+                    },
                 )
             }
         }

@@ -39,7 +39,7 @@ class OllamaWebSearchClientTest {
                       ]
                     }
                     """
-                        .trimIndent()
+                        .trimIndent(),
             )
             .use { server ->
                 val client = newClient(server)
@@ -79,7 +79,7 @@ class OllamaWebSearchClientTest {
                     """
                     {"results":[{"title":"First","url":"https://example.test/first","content":"Full content"}]}
                     """
-                        .trimIndent()
+                        .trimIndent(),
             )
             .use { server ->
                 val client = newClient(server)
@@ -115,7 +115,7 @@ class OllamaWebSearchClientTest {
                       "links": ["https://ollama.com/", "https://github.com/ollama/ollama"]
                     }
                     """
-                        .trimIndent()
+                        .trimIndent(),
             )
             .use { server ->
                 val client = newClient(server)

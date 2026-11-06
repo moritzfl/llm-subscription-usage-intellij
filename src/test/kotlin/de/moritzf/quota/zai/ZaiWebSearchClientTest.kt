@@ -24,8 +24,8 @@ class ZaiWebSearchClientTest {
         TestMcpServer(
                 toolText =
                     encodedTwice(
-                        """[{"title":"Node.js","link":"https://nodejs.org","content":"Node.js releases","refer":"ref_1"},{"title":"Two","link":"https://two.test"},{"title":"Three","link":"https://three.test"}]"""
-                    )
+                        """[{"title":"Node.js","link":"https://nodejs.org","content":"Node.js releases","refer":"ref_1"},{"title":"Two","link":"https://two.test"},{"title":"Three","link":"https://three.test"}]""",
+                    ),
             )
             .use { server ->
                 val client = ZaiWebSearchClient(httpClient, server.baseUri)
@@ -47,7 +47,7 @@ class ZaiWebSearchClientTest {
                 assertTrue(requests.all { it.path == "/api/mcp/web_search_prime/mcp" })
                 assertTrue(requests.all { it.header("Authorization") == "Bearer zai-key" })
                 assertTrue(
-                    requests.all { it.header("Accept") == "application/json, text/event-stream" }
+                    requests.all { it.header("Accept") == "application/json, text/event-stream" },
                 )
                 assertEquals(null, requests[0].header("Mcp-Session-Id"))
                 assertTrue(requests.drop(1).all { it.header("Mcp-Session-Id") == "session-1" })
@@ -101,7 +101,7 @@ class ZaiWebSearchClientTest {
                 toolName = "webReader",
                 toolText =
                     encodedTwice(
-                        """{"title":"Example","content":"# Example","url":"https://www.example.com"}"""
+                        """{"title":"Example","content":"# Example","url":"https://www.example.com"}""",
                     ),
             )
             .use { server ->
@@ -131,7 +131,7 @@ class ZaiWebSearchClientTest {
     fun reportsRejectedKeysAndToolErrors() {
         TestMcpServer(
                 accountError =
-                    """{"code":1001,"msg":"Authentication parameter not received","success":false}"""
+                    """{"code":1001,"msg":"Authentication parameter not received","success":false}""",
             )
             .use { server ->
                 val error =
@@ -168,7 +168,7 @@ class ZaiWebSearchClientTest {
     fun parsesServerSentEventsAndDoubleEncodedText() {
         val message =
             ZaiWebSearchClient.parseMessage(
-                "id:1\r\nevent:message\r\ndata:{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{\"ok\":true}}\r\n\r\n"
+                "id:1\r\nevent:message\r\ndata:{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{\"ok\":true}}\r\n\r\n",
             )
         assertEquals(true, message?.get("result")?.jsonObject?.get("ok")?.jsonPrimitive?.boolean)
         assertEquals(JsonArray(emptyList()), ZaiWebSearchClient.decodeResult("\"[]\""))
@@ -234,7 +234,7 @@ class ZaiWebSearchClientTest {
                                 200,
                                 "text/event-stream",
                                 sse(
-                                    """{"content":[{"type":"text","text":"MCP error -401: Api key not found"}],"isError":true}"""
+                                    """{"content":[{"type":"text","text":"MCP error -401: Api key not found"}],"isError":true}""",
                                 ),
                             )
                         }
@@ -243,7 +243,7 @@ class ZaiWebSearchClientTest {
                                 200,
                                 "text/event-stream",
                                 sse(
-                                    """{"content":[{"type":"text","text":${JsonPrimitive(toolError)}}],"isError":true}"""
+                                    """{"content":[{"type":"text","text":${JsonPrimitive(toolError)}}],"isError":true}""",
                                 ),
                             )
                         else ->
@@ -251,7 +251,7 @@ class ZaiWebSearchClientTest {
                                 200,
                                 "text/event-stream",
                                 sse(
-                                    """{"content":[{"type":"text","text":${JsonPrimitive(toolText)}}],"isError":false}"""
+                                    """{"content":[{"type":"text","text":${JsonPrimitive(toolText)}}],"isError":false}""",
                                 ),
                             )
                     }

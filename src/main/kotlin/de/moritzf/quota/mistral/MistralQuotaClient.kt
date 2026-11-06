@@ -33,11 +33,11 @@ open class MistralQuotaClient(
         val now = clock()
         val month =
             YearMonth.from(
-                java.time.Instant.ofEpochMilli(now.toEpochMilliseconds()).atZone(ZoneOffset.UTC)
+                java.time.Instant.ofEpochMilli(now.toEpochMilliseconds()).atZone(ZoneOffset.UTC),
             )
         val billingUrl =
             URI.create(
-                "https://admin.mistral.ai/api/billing/v2/usage?month=${month.monthValue}&year=${month.year}"
+                "https://admin.mistral.ai/api/billing/v2/usage?month=${month.monthValue}&year=${month.year}",
             )
         // Each source can be temporarily unavailable; preserve the other usable readings.
         val billingAttempt = runCatching {
@@ -83,7 +83,7 @@ open class MistralQuotaClient(
                 )
             MistralSubscriptionBudgets.parse(html)
                 ?: throw MistralQuotaException(
-                    "Included usage allowances were not found on the Mistral subscription page."
+                    "Included usage allowances were not found on the Mistral subscription page.",
                 )
         }
         val budgets = subscriptionAttempt.getOrNull()
@@ -105,7 +105,7 @@ open class MistralQuotaClient(
             runCatching {
                 parseCredits(it)
                     ?: throw MistralQuotaException(
-                        "Mistral credits response did not include a balance."
+                        "Mistral credits response did not include a balance.",
                     )
             }
         }
@@ -288,7 +288,7 @@ open class MistralQuotaClient(
         private val CREDITS_URI: URI = URI.create("https://admin.mistral.ai/api/billing/credits")
         private val VIBE_USAGE_URI: URI =
             URI.create(
-                "https://console.mistral.ai/api-ui/trpc/billing.vibeUsage?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D"
+                "https://console.mistral.ai/api-ui/trpc/billing.vibeUsage?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D",
             )
         private const val BROWSER_USER_AGENT =
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
@@ -410,7 +410,7 @@ open class MistralQuotaClient(
             }
             if (sessionPairs.isEmpty()) {
                 throw MistralQuotaException(
-                    "Mistral cookie must include an ory_session_* name and value."
+                    "Mistral cookie must include an ory_session_* name and value.",
                 )
             }
             val csrf =
@@ -432,7 +432,7 @@ open class MistralQuotaClient(
             val value = stripCookieQuotes(sessionValue)
             if (!name.startsWith("ory_session_") || value.isBlank()) {
                 throw MistralQuotaException(
-                    "Need the ory_session_* cookie name and value from admin.mistral.ai."
+                    "Need the ory_session_* cookie name and value from admin.mistral.ai.",
                 )
             }
             val csrf = csrfToken?.let(::stripCookieQuotes)?.takeIf { it.isNotBlank() }

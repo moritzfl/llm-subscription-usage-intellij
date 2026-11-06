@@ -76,7 +76,7 @@ internal class GitHubSettingsPanel(
         ProviderTestConnection(
             checkNotNull(boundAccount).snapshot().apply {
                 setExtra(ProviderAccount.EXTRA_GITHUB_HOST, normalizedEnterpriseHostForStorage())
-            }
+            },
         )
 
     private var modelRefreshGeneration = 0
@@ -269,7 +269,7 @@ internal class GitHubSettingsPanel(
                     runCatching {
                             val base =
                                 IdeProxyFactories.githubCopilotBaseUri(
-                                    QuotaSettingsState.getInstance().githubHostFor(accountId)
+                                    QuotaSettingsState.getInstance().githubHostFor(accountId),
                                 )
                             fetchGitHubListedModels(base, token)
                         }

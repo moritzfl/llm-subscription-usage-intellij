@@ -286,7 +286,7 @@ private class DocumentTestDialog(
                     (image.width * scale).toInt(),
                     (image.height * scale).toInt(),
                     Image.SCALE_SMOOTH,
-                )
+                ),
             )
         return JBScrollPane(JBLabel(icon)).apply {
             border = JBUI.Borders.customLine(JBColor.border(), 1)

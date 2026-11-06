@@ -14,7 +14,7 @@ class ChatUpstreamCompatTest {
     fun omitsFieldsThatBreakJunieOnCopilotChat() {
         val body =
             JsonHelper.parseToJsonElementOrNull(
-                    """{"stop":["</COMMAND>"],"reasoning_effort":"low","messages":[]}"""
+                    """{"stop":["</COMMAND>"],"reasoning_effort":"low","messages":[]}""",
                 )!!
                 .jsonObject
 
@@ -38,7 +38,7 @@ class ChatUpstreamCompatTest {
     fun addsGeminiToolReasoningHeadroom() {
         val body =
             JsonHelper.parseToJsonElementOrNull(
-                    """{"max_tokens":64,"tools":[{"type":"function"}],"messages":[]}"""
+                    """{"max_tokens":64,"tools":[{"type":"function"}],"messages":[]}""",
                 )!!
                 .jsonObject
         val adapted = ChatUpstreamCompat.adaptChat("gemini-3.8-flash", body)

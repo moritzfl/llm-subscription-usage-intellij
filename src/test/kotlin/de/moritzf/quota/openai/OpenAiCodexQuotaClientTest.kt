@@ -700,8 +700,8 @@ class OpenAiCodexQuotaClientTest {
                         "/backend-api/wham/usage" to StubResponse(200, usageJson),
                         "/backend-api/wham/rate-limit-reset-credits" to
                             StubResponse(200, resetsJson),
-                    )
-                )
+                    ),
+                ),
             )
         val quota = client.fetchQuota("token", "account-1")
 
@@ -754,8 +754,8 @@ class OpenAiCodexQuotaClientTest {
                     mapOf(
                         "/backend-api/wham/usage" to StubResponse(200, usageJson),
                         "/backend-api/wham/rate-limit-reset-credits" to StubResponse(404, "{}"),
-                    )
-                )
+                    ),
+                ),
             )
         val quota = client.fetchQuota("token", "account-1")
 
@@ -785,8 +785,8 @@ class OpenAiCodexQuotaClientTest {
                     mapOf(
                         "/backend-api/wham/usage" to StubResponse(200, usageJson),
                         "/backend-api/wham/rate-limit-reset-credits" to StubResponse(404, "{}"),
-                    )
-                )
+                    ),
+                ),
             )
         val quota = client.fetchQuota("token", "account-1")
 
@@ -808,7 +808,7 @@ class OpenAiCodexQuotaClientTest {
                         capturedRequest = request
                         return super.send(request, responseBodyHandler)
                     }
-                }
+                },
             )
 
         val response = client.consumeResetCredit("token", "account-1", "credit-1")

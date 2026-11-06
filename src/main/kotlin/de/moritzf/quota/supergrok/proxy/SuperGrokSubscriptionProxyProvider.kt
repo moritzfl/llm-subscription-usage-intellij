@@ -147,7 +147,7 @@ class SuperGrokSubscriptionProxyProvider(
     private fun fetchModels(token: String): List<RemoteModel> {
         val request =
             HttpRequest.newBuilder(
-                    URI.create(UrlResolver.resolveTargetUrl("/models", upstreamBaseUri.toString()))
+                    URI.create(UrlResolver.resolveTargetUrl("/models", upstreamBaseUri.toString())),
                 )
                 .timeout(Duration.ofSeconds(30))
                 .header("Authorization", "Bearer $token")

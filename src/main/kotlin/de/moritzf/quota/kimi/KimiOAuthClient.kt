@@ -19,7 +19,7 @@ class KimiOAuthClient(
     private val deviceId: String = KimiDeviceHeaders.processDeviceId,
 ) {
     fun requestDeviceAuthorization(
-        region: KimiRegion = KimiRegion.MAINLAND
+        region: KimiRegion = KimiRegion.MAINLAND,
     ): KimiDeviceAuthorization {
         val response =
             postForm(
@@ -91,7 +91,7 @@ class KimiOAuthClient(
                     scope = dto.scope,
                     tokenType = dto.tokenType ?: "Bearer",
                     region = region.id.takeUnless { region == KimiRegion.MAINLAND },
-                )
+                ),
             )
         }
         val error = dto.error.orEmpty()

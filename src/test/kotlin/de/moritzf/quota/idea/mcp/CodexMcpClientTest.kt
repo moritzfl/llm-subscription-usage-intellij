@@ -52,7 +52,7 @@ class CodexMcpClientTest {
                         """{"type":"response.output_text.delta","delta":"search "}""",
                         """{"type":"response.output_text.delta","delta":"result"}""",
                         """{"type":"response.completed","response":{"id":"resp_1","web_search":{"num_requests":1},"tool_usage":{"web_search":{"num_requests":1}}}}""",
-                    )
+                    ),
             )
             .use { upstream ->
                 val client = newClient(upstream.baseUri)
@@ -72,7 +72,7 @@ class CodexMcpClientTest {
                 assertNull(request.firstHeader("version"))
                 assertEquals("openai-usage-quota-plugin", request.firstHeader("originator"))
                 assertTrue(
-                    request.firstHeader("User-Agent")!!.startsWith("openai-usage-quota-plugin/")
+                    request.firstHeader("User-Agent")!!.startsWith("openai-usage-quota-plugin/"),
                 )
                 assertNull(request.firstHeader("OpenAI-Beta"))
                 assertEquals("text/event-stream", request.firstHeader("Accept"))
@@ -109,7 +109,7 @@ class CodexMcpClientTest {
                     sse(
                         """{"type":"response.output_text.done","text":"# Converted"}""",
                         """{"type":"response.completed","response":{"id":"resp_doc"}}""",
-                    )
+                    ),
             )
             .use { upstream ->
                 val client = newClient(upstream.baseUri)
@@ -132,7 +132,7 @@ class CodexMcpClientTest {
                         .jsonObject["file_data"]!!
                         .jsonPrimitive
                         .content
-                        .startsWith("data:application/pdf;base64,")
+                        .startsWith("data:application/pdf;base64,"),
                 )
                 assertEquals("# Converted", Files.readString(dir.resolve("doc.md")))
             }
@@ -151,7 +151,7 @@ class CodexMcpClientTest {
 
             assertTrue(response.isError)
             assertTrue(
-                parseObject(response.body)["error"]!!.jsonPrimitive.content.contains("too large")
+                parseObject(response.body)["error"]!!.jsonPrimitive.content.contains("too large"),
             )
             assertNull(upstream.requests.poll(300, TimeUnit.MILLISECONDS))
         }
@@ -172,7 +172,10 @@ class CodexMcpClientTest {
 
             assertTrue(response.isError)
             assertTrue(
-                parseObject(response.body)["error"]!!.jsonPrimitive.content.contains("out of range")
+                parseObject(response.body)["error"]!!
+                    .jsonPrimitive
+                    .content
+                    .contains("out of range"),
             )
             assertNull(upstream.requests.poll(300, TimeUnit.MILLISECONDS))
         }
@@ -185,7 +188,7 @@ class CodexMcpClientTest {
                     sse(
                         """{"type":"response.output_text.done","text":"# Doc\n\n![A bar chart of Q3 revenue by region](image-p1-1.png)"}""",
                         """{"type":"response.completed","response":{"id":"resp_doc"}}""",
-                    )
+                    ),
             )
             .use { upstream ->
                 val client = newClient(upstream.baseUri)
@@ -226,7 +229,7 @@ class CodexMcpClientTest {
         org.apache.pdfbox.pdmodel.PDDocument().use { doc ->
             val page =
                 org.apache.pdfbox.pdmodel.PDPage(
-                    org.apache.pdfbox.pdmodel.common.PDRectangle(612f, 792f)
+                    org.apache.pdfbox.pdmodel.common.PDRectangle(612f, 792f),
                 )
             doc.addPage(page)
             org.apache.pdfbox.pdmodel.PDPageContentStream(doc, page).use { cs ->
@@ -242,7 +245,7 @@ class CodexMcpClientTest {
                     sse(
                         """{"type":"response.output_text.done","text":"# With Figure\n\n![red box](image-p1-1.png)\n<!-- img page=1 0.0 0.0 0.5 0.5 -->\n"}""",
                         """{"type":"response.completed","response":{"id":"resp_doc"}}""",
-                    )
+                    ),
             )
             .use { upstream ->
                 val client = newClient(upstream.baseUri)
@@ -288,7 +291,7 @@ class CodexMcpClientTest {
                     sse(
                         """{"type":"response.output_text.done","text":"![fig](image-p1-1.png)\n<!-- img page=1 0.0 0.0 0.5 0.5 -->"}""",
                         """{"type":"response.completed","response":{"id":"resp_doc"}}""",
-                    )
+                    ),
             )
             .use { upstream ->
                 val client = newClient(upstream.baseUri)
@@ -313,7 +316,7 @@ class CodexMcpClientTest {
                         """{"type":"response.output_item.done","item":{"type":"web_search_call","id":"ws_1","status":"completed","action":{"type":"search","query":"OpenAI docs","sources":[{"url":"https://openai.com","title":"OpenAI"}]}}}""",
                         """{"type":"response.output_item.done","item":{"type":"message","content":[{"type":"output_text","text":"answer","annotations":[{"type":"url_citation","start_index":0,"end_index":6,"url":"https://openai.com","title":"OpenAI"}]}]}}""",
                         """{"type":"response.completed","response":{"id":"resp_1"}}""",
-                    )
+                    ),
             )
             .use { upstream ->
                 val client = newClient(upstream.baseUri)
@@ -393,7 +396,7 @@ class CodexMcpClientTest {
                 parseObject(response.body)["error"]!!
                     .jsonPrimitive
                     .content
-                    .contains("Invalid Codex web search options")
+                    .contains("Invalid Codex web search options"),
             )
             assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
         }
@@ -406,7 +409,7 @@ class CodexMcpClientTest {
                     sse(
                         """{"type":"response.output_item.done","item":{"type":"image_generation_call","id":"ig_1","status":"generating","revised_prompt":"draw a tiny robot","result":"$TEST_PNG_BASE64"}}""",
                         """{"type":"response.completed","response":{"id":"resp_1","tool_usage":{"image_gen":{"total_tokens":12}}}}""",
-                    )
+                    ),
             )
             .use { upstream ->
                 val client = newClient(upstream.baseUri)
@@ -418,7 +421,7 @@ class CodexMcpClientTest {
                 val targetFile = Path.of(responseBody["output_file"]!!.jsonPrimitive.content)
                 assertEquals(tempDir.toAbsolutePath().normalize(), targetFile.parent)
                 assertTrue(
-                    targetFile.fileName.toString().matches(Regex("image-[0-9a-f-]{36}\\.png"))
+                    targetFile.fileName.toString().matches(Regex("image-[0-9a-f-]{36}\\.png")),
                 )
                 assertEquals("png", responseBody["format"]!!.jsonPrimitive.content)
                 assertEquals(
@@ -462,7 +465,7 @@ class CodexMcpClientTest {
                     sse(
                         """{"type":"response.output_item.done","item":{"type":"image_generation_call","id":"ig_1","status":"completed","revised_prompt":"make it blue","result":"$TEST_PNG_BASE64"}}""",
                         """{"type":"response.completed","response":{"id":"resp_1"}}""",
-                    )
+                    ),
             )
             .use { upstream ->
                 val source = tempDir.resolve("in.png")
@@ -493,7 +496,7 @@ class CodexMcpClientTest {
                         .jsonObject["image_url"]!!
                         .jsonPrimitive
                         .content
-                        .startsWith("data:image/png;base64,")
+                        .startsWith("data:image/png;base64,"),
                 )
                 assertEquals("make it blue", content[1].jsonObject["text"]!!.jsonPrimitive.content)
                 val tool = body["tools"]!!.jsonArray[0].jsonObject
@@ -520,7 +523,7 @@ class CodexMcpClientTest {
 
             assertTrue(response.isError)
             assertTrue(
-                parseObject(response.body)["error"]!!.jsonPrimitive.content.contains("targetFile")
+                parseObject(response.body)["error"]!!.jsonPrimitive.content.contains("targetFile"),
             )
             assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
         }
@@ -533,7 +536,7 @@ class CodexMcpClientTest {
                     sse(
                         """{"type":"response.output_item.done","item":{"type":"image_generation_call","id":"ig_1","status":"generating","revised_prompt":"draw a tiny robot","result":"$TEST_PNG_BASE64"}}""",
                         """{"type":"response.completed","response":{"id":"resp_1","tool_usage":{"image_gen":{"total_tokens":12}}}}""",
-                    )
+                    ),
             )
             .use { upstream ->
                 val client = newClient(upstream.baseUri)
@@ -578,7 +581,7 @@ class CodexMcpClientTest {
                 parseObject(response.body)["error"]!!
                     .jsonPrimitive
                     .content
-                    .contains("Unsupported image format 'txt'")
+                    .contains("Unsupported image format 'txt'"),
             )
             assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
         }
@@ -601,7 +604,7 @@ class CodexMcpClientTest {
                 parseObject(response.body)["error"]!!
                     .jsonPrimitive
                     .content
-                    .contains("must be relative")
+                    .contains("must be relative"),
             )
             assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
         }
@@ -619,7 +622,7 @@ class CodexMcpClientTest {
                 parseObject(response.body)["error"]!!
                     .jsonPrimitive
                     .content
-                    .contains("inside the project")
+                    .contains("inside the project"),
             )
             assertNull(upstream.requests.poll(500, TimeUnit.MILLISECONDS))
         }
@@ -630,8 +633,8 @@ class CodexMcpClientTest {
         TestUpstream(
                 responseBody =
                     sse(
-                        """{"type":"response.failed","response":{"error":{"message":"usage limit reached"}}}"""
-                    )
+                        """{"type":"response.failed","response":{"error":{"message":"usage limit reached"}}}""",
+                    ),
             )
             .use { upstream ->
                 val client = newClient(upstream.baseUri)
@@ -757,7 +760,7 @@ class CodexMcpClientTest {
                         """{"type":"response.output_text.delta","delta":"A red "}""",
                         """{"type":"response.output_text.delta","delta":"box."}""",
                         """{"type":"response.completed","response":{"id":"resp_vision"}}""",
-                    )
+                    ),
             )
             .use { upstream ->
                 val client = newClient(upstream.baseUri)

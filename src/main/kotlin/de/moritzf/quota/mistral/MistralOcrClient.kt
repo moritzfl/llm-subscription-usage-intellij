@@ -73,7 +73,7 @@ open class MistralOcrClient(
         val token =
             apiKey.trim().ifBlank {
                 throw MistralQuotaException(
-                    "Mistral API key missing. Add a Mistral API key in settings."
+                    "Mistral API key missing. Add a Mistral API key in settings.",
                 )
             }
         val selectedModel = model.trim().ifBlank { DEFAULT_MODEL }
@@ -153,7 +153,7 @@ open class MistralOcrClient(
                                         token,
                                         ocrUri,
                                         ocrRequestJson(model, document, includeImages),
-                                    )
+                                    ),
                                 )
                             } catch (exception: MistralQuotaException) {
                                 if (lastAttempt || exception.cause !is HttpTimeoutException)
@@ -304,7 +304,7 @@ open class MistralOcrClient(
                     document = document,
                     includeImageBase64 = includeImageBase64,
                     includeBlocks = false,
-                )
+                ),
             )
         }
 

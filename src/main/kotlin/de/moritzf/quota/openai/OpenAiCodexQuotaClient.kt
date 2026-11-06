@@ -95,7 +95,7 @@ class OpenAiCodexQuotaClient(
                 ConsumeRateLimitResetCreditRequest(
                     creditId = creditId,
                     redeemRequestId = UUID.randomUUID().toString(),
-                )
+                ),
             )
         val requestBuilder =
             HttpRequest.newBuilder()

@@ -71,8 +71,8 @@ class AzureOcrLiveConversionTest {
                                 200,
                                 Files.readString(
                                     output.resolveSibling(
-                                        "${output.fileName}-response-${responses.size + 1}.json"
-                                    )
+                                        "${output.fileName}-response-${responses.size + 1}.json",
+                                    ),
                                 ),
                             )
                         else
@@ -85,13 +85,13 @@ class AzureOcrLiveConversionTest {
                         if (!replayOnly)
                             Files.writeString(
                                 output.resolveSibling(
-                                    "${output.fileName}-response-${responses.size}.json"
+                                    "${output.fileName}-response-${responses.size}.json",
                                 ),
                                 response.body,
                             )
                     }
                     response
-                }
+                },
             )
         val result =
             JsonSupport.json.decodeFromString<MistralOcrWriteResult>(
@@ -108,7 +108,7 @@ class AzureOcrLiveConversionTest {
                             println("Azure OCR: $done/$total — $detail")
                         }
                     },
-                )
+                ),
             )
         client.close()
         assertEquals(pageCount, result.pages)
@@ -146,7 +146,7 @@ class AzureOcrLiveConversionTest {
                 )
                 assertNotNull(ImageIO.read(preview.inputStream()), "SVG preview failed: $image")
                 println(
-                    "SVG figure: ${image.fileName}; embedded raster=${xml.contains("data:image")}"
+                    "SVG figure: ${image.fileName}; embedded raster=${xml.contains("data:image")}",
                 )
             } else assertNotNull(ImageIO.read(image.toFile()), "Unreadable image: $image")
             val link =
@@ -176,7 +176,7 @@ class AzureOcrLiveConversionTest {
             var index = 0
             val destination =
                 output.resolveSibling(
-                    "${output.fileName.toString().removeSuffix(".md")}-${options.format}-${options.dpi}.md"
+                    "${output.fileName.toString().removeSuffix(".md")}-${options.format}-${options.dpi}.md",
                 )
             val replay =
                 AzureOcrClient(post = { AzureOcrResponse(200, responses[index++]) })
@@ -196,7 +196,7 @@ class AzureOcrLiveConversionTest {
             written.imageFiles.forEach { value ->
                 val bitmap = assertNotNull(ImageIO.read(Path.of(value).toFile()))
                 println(
-                    "${options.format}/${options.dpi}: ${Path.of(value).fileName} ${bitmap.width}x${bitmap.height}"
+                    "${options.format}/${options.dpi}: ${Path.of(value).fileName} ${bitmap.width}x${bitmap.height}",
                 )
             }
             if (options.format == DocumentImageFormat.PNG && options.dpi == 300) {
@@ -215,7 +215,7 @@ class AzureOcrLiveConversionTest {
                         for (shift in listOf(0, 8, 16)) {
                             error +=
                                 kotlin.math.abs(
-                                    ((actual shr shift) and 255) - ((expected shr shift) and 255)
+                                    ((actual shr shift) and 255) - ((expected shr shift) and 255),
                                 )
                             count++
                         }
@@ -232,7 +232,7 @@ class AzureOcrLiveConversionTest {
         assertTrue(result.warnings.isEmpty(), result.warnings.joinToString())
         println(
             "Azure OCR ${if (replayOnly) "recorded-response replay" else "live"} passed: pages=$pageCount, images=${result.imageFiles.size}, " +
-                "source-word coverage=$overlap, seconds=${(System.nanoTime() - started) / 1_000_000_000}, output=$output"
+                "source-word coverage=$overlap, seconds=${(System.nanoTime() - started) / 1_000_000_000}, output=$output",
         )
     }
 
@@ -271,7 +271,7 @@ class AzureOcrLiveConversionTest {
                             response.headers().map().mapValues { it.value.firstOrNull().orEmpty() },
                             response.body(),
                         )
-                    }
+                    },
                 )
             val output = folder.resolve("xrechnung-document-intelligence.md")
             val result =
@@ -287,7 +287,7 @@ class AzureOcrLiveConversionTest {
                         ),
                         localFile = sample,
                         outputFile = output,
-                    )
+                    ),
                 )
             assertEquals(2, result.pageCount)
             assertEquals(2, result.imageFiles.size, "Expected one diagram per sample page")
@@ -299,7 +299,7 @@ class AzureOcrLiveConversionTest {
                 assertTrue(!Files.readString(Path.of(value)).contains("data:image"))
             }
             println(
-                "Document Intelligence live passed: pages=${result.pageCount}, SVG figures=${result.imageFiles.size}, output=$output"
+                "Document Intelligence live passed: pages=${result.pageCount}, SVG figures=${result.imageFiles.size}, output=$output",
             )
         }
     }

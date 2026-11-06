@@ -32,7 +32,7 @@ open class SuperGrokWebSearchClient(
         val token =
             accessToken.trim().ifBlank {
                 throw SuperGrokQuotaException(
-                    "Grok login required. Log in from SuperGrok settings."
+                    "Grok login required. Log in from SuperGrok settings.",
                 )
             }
         val trimmedModel = model.trim().ifBlank { DEFAULT_MODEL }
@@ -43,7 +43,7 @@ open class SuperGrokWebSearchClient(
         ) {
             throw SuperGrokQuotaException(
                 "Invalid Grok web search options. allowedDomains and excludedDomains must be comma-separated " +
-                    "domain names, up to $MAX_SEARCH_FILTER_DOMAINS each, and cannot both be set."
+                    "domain names, up to $MAX_SEARCH_FILTER_DOMAINS each, and cannot both be set.",
             )
         }
         val outputTokens = maxOutputTokens.coerceIn(MIN_MAX_OUTPUT_TOKENS, MAX_MAX_OUTPUT_TOKENS)
@@ -57,7 +57,7 @@ open class SuperGrokWebSearchClient(
                     excluded,
                     outputTokens,
                     includeXPosts,
-                )
+                ),
             )
         val status = response.statusCode()
         val body = response.body()
@@ -100,7 +100,7 @@ open class SuperGrokWebSearchClient(
                     input = listOf(GrokResponsesInputDto(role = "user", content = query)),
                     tools = tools,
                     maxOutputTokens = maxOutputTokens,
-                )
+                ),
             )
 
         return HttpRequest.newBuilder()
@@ -170,7 +170,7 @@ open class SuperGrokWebSearchClient(
         private val DEFAULT_BASE_URI = URI.create("https://api.x.ai/v1/")
         private val DOMAIN_PATTERN =
             Regex(
-                "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+"
+                "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+",
             )
 
         fun createDefault(): SuperGrokWebSearchClient = SuperGrokWebSearchClient()

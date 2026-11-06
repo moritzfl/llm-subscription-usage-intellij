@@ -106,7 +106,7 @@ internal class GitHubCopilotSessionClient(
 
         fun endpoint(enterpriseHost: String?): URI =
             URI.create(
-                "https://${GitHubQuotaClient.apiHost(enterpriseHost)}/copilot_internal/v2/token"
+                "https://${GitHubQuotaClient.apiHost(enterpriseHost)}/copilot_internal/v2/token",
             )
     }
 }

@@ -38,7 +38,7 @@ class QuotaIndicatorComponentTest {
     fun indicatorBarDisplayTextFallsBackToSecondaryCodexWindow() {
         val quota =
             OpenAiCodexQuota(
-                secondary = UsageWindow(usedPercent = 42.0, windowDuration = Duration.ofDays(7))
+                secondary = UsageWindow(usedPercent = 42.0, windowDuration = Duration.ofDays(7)),
             )
 
         assertEquals("42%", indicatorBarDisplayText(quota, error = null, loggedIn = true))
@@ -254,7 +254,7 @@ class QuotaIndicatorComponentTest {
     fun openCodeBarDisplayTextShowsPercentAndReset() {
         val quota =
             OpenCodeQuota(
-                rollingUsage = OpenCodeUsageWindow(usagePercent = 42.0, resetInSec = 3661)
+                rollingUsage = OpenCodeUsageWindow(usagePercent = 42.0, resetInSec = 3661),
             )
 
         val text = openCodeBarDisplayText(quota, error = null)
@@ -324,7 +324,7 @@ class QuotaIndicatorComponentTest {
                         usagePercent = 12.0,
                         periodStartedAt = now.minus((24 * 24 * 3600).seconds),
                         resetsAt = now.plus((7 * 24 * 3600).seconds),
-                    )
+                    ),
             )
 
         val text = ollamaBarDisplayText(quota, error = null)
@@ -358,7 +358,7 @@ class QuotaIndicatorComponentTest {
                         usagePercent = 100.0,
                         resetInSec = 3600,
                         status = "rate-limited",
-                    )
+                    ),
             )
 
         val text = openCodeBarDisplayText(quota, error = null)

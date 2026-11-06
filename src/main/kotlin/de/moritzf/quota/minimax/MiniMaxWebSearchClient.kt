@@ -33,7 +33,7 @@ open class MiniMaxWebSearchClient(
         val token =
             apiKey.trim().ifBlank {
                 throw MiniMaxQuotaException(
-                    "MiniMax API key missing. Add a MiniMax API key in settings."
+                    "MiniMax API key missing. Add a MiniMax API key in settings.",
                 )
             }
         val response = send(searchRequest(token, region, trimmedQuery))

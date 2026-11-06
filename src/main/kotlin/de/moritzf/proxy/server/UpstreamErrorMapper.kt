@@ -45,7 +45,7 @@ class UpstreamErrorMapper {
                         "Upstream response $fallbackStatus.",
                         "upstream_error",
                         "502",
-                    )
+                    ),
                 )
             }
         return mapStreamFailure(rawError)

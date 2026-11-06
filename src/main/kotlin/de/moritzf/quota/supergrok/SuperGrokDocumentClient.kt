@@ -42,7 +42,7 @@ open class SuperGrokDocumentClient(
         val token =
             accessToken.trim().ifBlank {
                 throw SuperGrokQuotaException(
-                    "Grok login required. Log in from SuperGrok settings."
+                    "Grok login required. Log in from SuperGrok settings.",
                 )
             }
         if (pageFrom != null || pageTo != null) {
@@ -61,7 +61,7 @@ open class SuperGrokDocumentClient(
                 } else {
                     PdfPages.resolve(count, pageFrom, pageTo)
                         ?: throw SuperGrokQuotaException(
-                            "pageFrom/pageTo out of range (document has $count pages)."
+                            "pageFrom/pageTo out of range (document has $count pages).",
                         )
                 }
             } else {
@@ -75,7 +75,7 @@ open class SuperGrokDocumentClient(
                     if (!PdfPages.writeSlice(localFile!!, pages.from, pages.to, temp)) {
                         Files.deleteIfExists(temp)
                         throw SuperGrokQuotaException(
-                            "Could not extract the requested PDF page range."
+                            "Could not extract the requested PDF page range.",
                         )
                     }
                     temp
@@ -95,7 +95,7 @@ open class SuperGrokDocumentClient(
                     postJson(
                         token,
                         requestJson(model.trim().ifBlank { DEFAULT_MODEL }, fileContent),
-                    )
+                    ),
                 )
             val status = response.statusCode()
             val body = response.body()
@@ -146,7 +146,7 @@ open class SuperGrokDocumentClient(
         val token =
             accessToken.trim().ifBlank {
                 throw SuperGrokQuotaException(
-                    "Grok login required. Log in from SuperGrok settings."
+                    "Grok login required. Log in from SuperGrok settings.",
                 )
             }
         val trimmedPrompt =
@@ -172,7 +172,7 @@ open class SuperGrokDocumentClient(
                 val mime = mimeType(path, bytes)
                 if (!mime.startsWith("image/")) {
                     throw SuperGrokQuotaException(
-                        "Provide an image file. Use subscription_document_to_markdown for documents."
+                        "Provide an image file. Use subscription_document_to_markdown for documents.",
                     )
                 }
                 buildJsonObject {
@@ -223,9 +223,9 @@ open class SuperGrokDocumentClient(
                             boundary,
                             listOf("expires_after" to "3600", "purpose" to "assistants"),
                             path,
-                        )
+                        ),
                     )
-                    .build()
+                    .build(),
             )
         if (response.statusCode() !in 200..299) {
             throw SuperGrokQuotaException(
@@ -257,7 +257,7 @@ open class SuperGrokDocumentClient(
                 .header("Authorization", "Bearer $token")
                 .header("User-Agent", USER_AGENT)
                 .DELETE()
-                .build()
+                .build(),
         )
     }
 
@@ -368,10 +368,10 @@ open class SuperGrokDocumentClient(
                                     buildJsonObject {
                                         put("type", "input_text")
                                         put("text", DOCUMENT_PROMPT)
-                                    }
+                                    },
                                 )
                             }
-                        }
+                        },
                     )
                 }
             }
@@ -395,10 +395,10 @@ open class SuperGrokDocumentClient(
                                     buildJsonObject {
                                         put("type", "input_text")
                                         put("text", prompt)
-                                    }
+                                    },
                                 )
                             }
-                        }
+                        },
                     )
                 }
             }

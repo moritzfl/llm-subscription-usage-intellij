@@ -125,7 +125,7 @@ class AzureQuotaTest {
                   {"limit":0,"name":{"value":"OpenAI.Standard.empty"}}
                 ]}
                 """
-                    .trimIndent()
+                    .trimIndent(),
             )
         assertEquals(2, windows.size)
         assertEquals(12.0, windows.first().used)
@@ -173,13 +173,13 @@ class AzureQuotaTest {
                         null,
                         "eastus",
                         null,
-                    )
+                    ),
                 )
 
         assertEquals("me@contoso.com", quota.account?.userName)
         assertEquals(listOf("gpt-4o"), quota.models)
         assertTrue(
-            quota.windows.any { it.kind == AzureUsageWindow.LIVE && it.usagePercent == 75.0 }
+            quota.windows.any { it.kind == AzureUsageWindow.LIVE && it.usagePercent == 75.0 },
         )
         assertTrue(quota.warnings.any { it.contains("Usages Reader") })
         assertTrue(quota.windows.none { it.kind == AzureUsageWindow.ALLOCATION })
@@ -210,7 +210,7 @@ class AzureQuotaTest {
                 environment = emptyMap(),
                 home = home.toString(),
                 windows = false,
-            )
+            ),
         )
     }
 

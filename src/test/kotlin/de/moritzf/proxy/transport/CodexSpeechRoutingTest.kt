@@ -41,7 +41,7 @@ class CodexSpeechRoutingTest {
                     override fun getAuthHeaders() = mapOf("Authorization" to "Bearer $token")
 
                     override fun refreshAfterUnauthorized(
-                        rejectedAuthorizationHeader: String?
+                        rejectedAuthorizationHeader: String?,
                     ): Boolean {
                         assertEquals("Bearer old", rejectedAuthorizationHeader)
                         refreshes++

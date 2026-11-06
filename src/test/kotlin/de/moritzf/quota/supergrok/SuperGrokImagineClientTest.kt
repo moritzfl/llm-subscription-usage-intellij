@@ -27,7 +27,7 @@ class SuperGrokImagineClientTest {
     @Test
     fun postsImageGenerationsWithSingleUrlImageByDefault() {
         TestGrokServer(
-                responseBody = """{"created":1,"data":[{"url":"https://cdn.example/cat.png"}]}"""
+                responseBody = """{"created":1,"data":[{"url":"https://cdn.example/cat.png"}]}""",
             )
             .use { server ->
                 val client =
@@ -166,10 +166,10 @@ class SuperGrokImagineClientTest {
                 assertTrue(
                     server.requests.any {
                         it.method == "POST" && it.path.endsWith("/videos/generations")
-                    }
+                    },
                 )
                 assertTrue(
-                    server.requests.any { it.method == "GET" && it.path.contains("/videos/vid-1") }
+                    server.requests.any { it.method == "GET" && it.path.contains("/videos/vid-1") },
                 )
                 val post = server.requests.first { it.method == "POST" }
                 val body = parseObject(post.body)

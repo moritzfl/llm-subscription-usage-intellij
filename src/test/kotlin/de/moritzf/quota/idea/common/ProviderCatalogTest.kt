@@ -68,10 +68,10 @@ class ProviderCatalogTest {
         assertTrue(
             ProviderCatalog.createAccountProviders(
                     listOf(
-                        de.moritzf.quota.idea.settings.ProviderAccount("custom", type.id, "Custom")
-                    )
+                        de.moritzf.quota.idea.settings.ProviderAccount("custom", type.id, "Custom"),
+                    ),
                 )
-                .isEmpty()
+                .isEmpty(),
         )
         for (entry in ProviderCatalog.all) {
             assertEquals(entry.capabilities.quota, entry.quotaFactory != null)

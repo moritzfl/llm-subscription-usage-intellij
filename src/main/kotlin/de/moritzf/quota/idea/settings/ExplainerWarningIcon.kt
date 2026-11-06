@@ -32,7 +32,7 @@ internal class ExplainerWarningIcon : JBLabel(AllIcons.General.Warning) {
                     if (!isVisible || event.button != MouseEvent.BUTTON1) return
                     showNow()
                 }
-            }
+            },
         )
     }
 
@@ -104,8 +104,8 @@ internal class ExplainerWarningIcon : JBLabel(AllIcons.General.Warning) {
             border = JBUI.Borders.empty(8, 10)
             add(
                 JBLabel(
-                    "<html><body style='width: 420px'><b>${QuotaUiUtil.escapeHtml(title)}</b>$paragraphs</body></html>"
-                )
+                    "<html><body style='width: 420px'><b>${QuotaUiUtil.escapeHtml(title)}</b>$paragraphs</body></html>",
+                ),
             )
         }
     }

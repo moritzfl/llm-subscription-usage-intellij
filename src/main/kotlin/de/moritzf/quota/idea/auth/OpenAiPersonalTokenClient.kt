@@ -38,7 +38,7 @@ class OpenAiPersonalTokenClient(
             }
         if (response.statusCode() !in 200..299) {
             throw IOException(
-                "Codex access token validation failed (HTTP ${response.statusCode()}). Check token expiration and workspace permissions."
+                "Codex access token validation failed (HTTP ${response.statusCode()}). Check token expiration and workspace permissions.",
             )
         }
         val metadata =
@@ -51,7 +51,7 @@ class OpenAiPersonalTokenClient(
             throw IOException("Codex access token has no workspace account ID")
         if (metadata.fedramp)
             throw IOException(
-                "FedRAMP Codex access tokens require a separate endpoint and are not supported here."
+                "FedRAMP Codex access tokens require a separate endpoint and are not supported here.",
             )
         return OAuthCredentials(
             accessToken = token,

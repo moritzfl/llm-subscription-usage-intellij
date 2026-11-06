@@ -62,7 +62,7 @@ internal class IdeMediaOperations(
                     )
                 else ->
                     throw MediaOperationException(
-                        "Image generation is not available for $providerId."
+                        "Image generation is not available for $providerId.",
                     )
             }
         }
@@ -128,13 +128,13 @@ internal class IdeMediaOperations(
                                     voiceId = voice,
                                     model = model,
                                     responseFormat = format,
-                                )
+                                ),
                         )
                         Files.readAllBytes(path)
                     }
                 else ->
                     throw MediaOperationException(
-                        "Speech synthesis is not available for $providerId."
+                        "Speech synthesis is not available for $providerId.",
                     )
             }
         }
@@ -190,11 +190,11 @@ internal class IdeMediaOperations(
                                     localFile = path,
                                     language = language,
                                     model = model,
-                                )
+                                ),
                         )
                     else ->
                         throw MediaOperationException(
-                            "Speech-to-text is not available for $providerId."
+                            "Speech-to-text is not available for $providerId.",
                         )
                 }
             }

@@ -83,7 +83,7 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
         proxyLinkHost.removeAll()
         proxyLinkHost.addToCenter(
             panel { row { link(message("settings.proxy.open")) { openProxySettings() } } }
-                .apply { border = JBUI.Borders.emptyTop(6) }
+                .apply { border = JBUI.Borders.emptyTop(6) },
         )
         proxyLinkHost.revalidate()
         proxyLinkHost.repaint()
@@ -196,11 +196,11 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
                             addToTop(connectionGroup(config))
                             addToCenter(routingHost)
                             addToBottom(proxyLinkHost)
-                        }
+                        },
                     )
                     addToCenter(response)
-                }
-            )
+                },
+            ),
         )
     }
 
@@ -215,8 +215,8 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
                     connectionGroup(config)
                     row { cell(routingHost).align(AlignX.FILL).resizableColumn() }
                     row { cell(body).align(AlignX.FILL).resizableColumn() }
-                }
-            )
+                },
+            ),
         )
     }
 
@@ -338,7 +338,7 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
                         isOpaque = false
                         addToLeft(refreshButton)
                         addToRight(copyButton)
-                    }
+                    },
                 )
             }
         return BorderLayoutPanel().apply {

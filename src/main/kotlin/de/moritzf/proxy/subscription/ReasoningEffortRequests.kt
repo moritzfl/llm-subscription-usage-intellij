@@ -24,7 +24,7 @@ internal fun adaptReasoningEffort(
             else
                 JsonObject(
                     body - "reasoning_effort" +
-                        listOfNotNull(level?.let { "reasoning_effort" to JsonPrimitive(it) })
+                        listOfNotNull(level?.let { "reasoning_effort" to JsonPrimitive(it) }),
                 )
         }
         SubscriptionProxyRoute.RESPONSES -> {

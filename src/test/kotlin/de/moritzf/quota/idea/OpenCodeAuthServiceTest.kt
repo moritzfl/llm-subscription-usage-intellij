@@ -106,7 +106,7 @@ class OpenCodeAuthServiceTest {
                 oauthClient =
                     object : OpenCodeOAuthClient() {
                         override fun refreshCredentials(
-                            existing: OAuthCredentials
+                            existing: OAuthCredentials,
                         ): OAuthCredentials {
                             entered.countDown()
                             assertTrue(release.await(5, TimeUnit.SECONDS))
@@ -147,7 +147,7 @@ class OpenCodeAuthServiceTest {
                             OpenCodeDeviceAuthorization("device", "CODE", "/console/device", 30, 1)
 
                         override fun pollDeviceToken(
-                            deviceCode: String
+                            deviceCode: String,
                         ): OpenCodeDeviceTokenResult {
                             val call = polls.incrementAndGet()
                             if (call == 1) {
@@ -155,7 +155,7 @@ class OpenCodeAuthServiceTest {
                                 assertTrue(release.await(5, TimeUnit.SECONDS))
                             }
                             return OpenCodeDeviceTokenResult.Authorized(
-                                valid(if (call == 1) "stale" else "new")
+                                valid(if (call == 1) "stale" else "new"),
                             )
                         }
                     },
@@ -193,7 +193,7 @@ class OpenCodeAuthServiceTest {
                 valid().apply {
                     expiresAt = 0
                     accountId = "org_a"
-                }
+                },
             )
         val second = Store(valid("other").apply { accountId = "org_b" })
         val service =

@@ -154,7 +154,7 @@ class ZaiOcrClientTest {
                     sizes += count
                     val from = nextPage - count
                     ZaiHttpResult(200, chunkBody(from, from + count - 1))
-                }
+                },
             )
         val result =
             JsonSupport.json.decodeFromString<ZaiOcrWriteResult>(
@@ -163,7 +163,7 @@ class ZaiOcrClientTest {
                     localFile = source,
                     outputFile = output,
                     includeImages = false,
-                )
+                ),
             )
         assertEquals(listOf(30, 1), sizes)
         assertEquals(31, result.pages)
@@ -193,11 +193,11 @@ class ZaiOcrClientTest {
                             .decode(file.substringAfter("base64,").substringBefore('"'))
                     val count = Loader.loadPDF(bytes).use { it.numberOfPages }
                     ZaiHttpResult(200, chunkBody(1, count))
-                }
+                },
             )
         val single =
             JsonSupport.json.decodeFromString<ZaiOcrWriteResult>(
-                client.convertDocument("token", localFile = small, includeImages = false)
+                client.convertDocument("token", localFile = small, includeImages = false),
             )
         assertEquals(1, calls)
         assertEquals(2, single.pages)
@@ -205,7 +205,7 @@ class ZaiOcrClientTest {
         calls = 0
         val joined =
             JsonSupport.json.decodeFromString<ZaiOcrWriteResult>(
-                client.convertDocument("token", localFile = large, includeImages = false)
+                client.convertDocument("token", localFile = large, includeImages = false),
             )
         assertEquals(2, calls)
         assertEquals(31, joined.pages)
@@ -224,7 +224,7 @@ class ZaiOcrClientTest {
                 post = {
                     calls++
                     ZaiHttpResult(200, chunkBody(1, 30))
-                }
+                },
             )
         assertFailsWith<CancellationException> {
             client.convertDocument(
@@ -254,7 +254,7 @@ class ZaiOcrClientTest {
                 post = {
                     if (++calls == 1) ZaiHttpResult(200, chunkBody(1, 30))
                     else ZaiHttpResult(500, """{"message":"nope"}""")
-                }
+                },
             )
         val error =
             assertFailsWith<ZaiQuotaException> {
@@ -298,7 +298,7 @@ class ZaiOcrClientTest {
                     requests += numbers.joinToString(",")
                     if (2 in numbers) ZaiHttpResult(500, """{"message":"nope"}""")
                     else ZaiHttpResult(200, chunkBody(numbers.first(), numbers.last()))
-                }
+                },
             )
 
         client.convertDocument("token", localFile = source, includeImages = false)
@@ -320,7 +320,7 @@ class ZaiOcrClientTest {
                 post = {
                     calls++
                     ZaiHttpResult(400, """{"message":"bad request"}""")
-                }
+                },
             )
 
         assertFailsWith<ZaiQuotaException> {
@@ -371,7 +371,7 @@ class ZaiOcrClientTest {
                     override fun onError(throwable: Throwable) = completed.countDown()
 
                     override fun onComplete() = completed.countDown()
-                }
+                },
             )
         assertTrue(completed.await(5, TimeUnit.SECONDS))
         return output.toString(StandardCharsets.UTF_8)

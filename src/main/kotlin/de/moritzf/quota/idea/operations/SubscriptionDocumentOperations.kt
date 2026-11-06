@@ -100,7 +100,7 @@ internal fun withAltText(
                         put("provider", vision.name)
                         put("images", report.images)
                         put("described", report.described)
-                    })
+                    }),
         )
     return withWarnings(
         JsonSupport.json.encodeToString(JsonObject.serializer(), updated),
@@ -206,7 +206,7 @@ private suspend fun SubscriptionOperations.convertDocumentToMarkdown(
                         model.ifBlank { documentModel(DocumentToMarkdownProvider.OPEN_AI) },
                         pageFrom.takeIf { it > 0 },
                         pageTo.takeIf { it > 0 },
-                    )
+                    ),
             )
 
         DocumentToMarkdownProvider.SUPERGROK ->
@@ -362,7 +362,7 @@ internal suspend fun SubscriptionOperations.azureDocumentToMarkdown(
     val deployment =
         azureDocumentSelection(model, AzureQuotaProvider.ocrDeploymentForAccount(accountId))
             ?: return errorResult(
-                "Select an Azure document model in settings, or pass model. '-' disables the settings default."
+                "Select an Azure document model in settings, or pass model. '-' disables the settings default.",
             )
     val deploymentId = azureOcrDeploymentId(deployment)
     if (
@@ -569,7 +569,7 @@ internal suspend fun SubscriptionOperations.pdfBoxDocumentToMarkdown(
 ): String {
     if (!documentUrl.isNullOrBlank()) {
         return errorResult(
-            "PDFBox only reads a local PDF. Pass localFile, or use an OCR provider for a URL."
+            "PDFBox only reads a local PDF. Pass localFile, or use an OCR provider for a URL.",
         )
     }
     val source =

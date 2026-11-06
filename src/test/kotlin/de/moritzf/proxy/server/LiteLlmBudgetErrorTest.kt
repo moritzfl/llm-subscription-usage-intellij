@@ -29,13 +29,13 @@ class LiteLlmBudgetErrorTest {
             LiteLlmBudgetError.isBudgetExceeded(
                 422,
                 """{"detail":[{"loc":["body","model"],"msg":"field required"}]}""",
-            )
+            ),
         )
         assertFalse(
             LiteLlmBudgetError.isBudgetExceeded(
                 422,
                 """{"error":{"message":"Invalid model","type":"invalid_request_error"}}""",
-            )
+            ),
         )
         assertFalse(LiteLlmBudgetError.isBudgetExceeded(400, budget))
         assertFalse(LiteLlmBudgetError.isBudgetExceeded(500, budget))

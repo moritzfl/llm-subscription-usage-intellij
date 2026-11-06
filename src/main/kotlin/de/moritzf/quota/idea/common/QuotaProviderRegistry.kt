@@ -30,7 +30,7 @@ internal object QuotaProviderRegistry {
     }
 
     private fun defaultAccount(
-        type: QuotaProviderType
+        type: QuotaProviderType,
     ): de.moritzf.quota.idea.settings.ProviderAccount {
         return de.moritzf.quota.idea.settings.ProviderAccount.create(
             type,

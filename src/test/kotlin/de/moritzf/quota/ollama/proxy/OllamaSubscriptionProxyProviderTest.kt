@@ -104,11 +104,11 @@ class OllamaSubscriptionProxyProviderTest {
                         .jsonObject["model_info"]!!
                         .jsonObject
                 assertFalse(
-                    gemmaInfo["supports_function_calling"]!!.jsonPrimitive.content.toBoolean()
+                    gemmaInfo["supports_function_calling"]!!.jsonPrimitive.content.toBoolean(),
                 )
                 assertFalse(gemmaInfo["supports_tool_choice"]!!.jsonPrimitive.content.toBoolean())
                 assertTrue(
-                    qwenInfo["supports_function_calling"]!!.jsonPrimitive.content.toBoolean()
+                    qwenInfo["supports_function_calling"]!!.jsonPrimitive.content.toBoolean(),
                 )
                 assertTrue(qwenInfo["supports_tool_choice"]!!.jsonPrimitive.content.toBoolean())
                 assertTrue(gemmaInfo["supports_vision"]!!.jsonPrimitive.content.toBoolean())
@@ -159,7 +159,7 @@ class OllamaSubscriptionProxyProviderTest {
         assertEquals(
             mapOf("a" to setOf("completion", "tools")),
             OllamaSubscriptionProxyProvider.parseCapabilities(
-                """{"models":[{"model":"a","capabilities":["completion","tools"]},{"name":"b"},"x"]}"""
+                """{"models":[{"model":"a","capabilities":["completion","tools"]},{"name":"b"},"x"]}""",
             ),
         )
         assertEquals(emptyMap(), OllamaSubscriptionProxyProvider.parseCapabilities("not json"))
@@ -191,7 +191,7 @@ class OllamaSubscriptionProxyProviderTest {
                     put("suffix", "\n}")
                     put("max_tokens", 48)
                     put("stream", true)
-                }
+                },
             )
         assertEquals("qwen3-coder-next", body.jsonObject["model"]!!.jsonPrimitive.content)
         assertEquals("fun add() {\n    return ", body.jsonObject["prompt"]!!.jsonPrimitive.content)
@@ -255,7 +255,7 @@ class OllamaSubscriptionProxyProviderTest {
                             put("max_tokens", 48)
                             put("temperature", 0.2)
                             put("stop", "\n")
-                        }
+                        },
                     )
                 assertEquals(model, body["model"]!!.jsonPrimitive.content)
                 assertEquals(
@@ -287,7 +287,7 @@ class OllamaSubscriptionProxyProviderTest {
                         put("model", model)
                         put("prompt", "return ")
                         put("suffix", "\n}")
-                    }
+                    },
                 )
             assertEquals("return ", body["prompt"]!!.jsonPrimitive.content)
             assertEquals("\n}", body["suffix"]!!.jsonPrimitive.content)
@@ -312,7 +312,7 @@ class OllamaSubscriptionProxyProviderTest {
                             }
                         },
                     )
-                }
+                },
             )
         val options = body["options"]!!.jsonObject
         assertEquals("0", options["temperature"]!!.jsonPrimitive.content)
@@ -332,7 +332,7 @@ class OllamaSubscriptionProxyProviderTest {
                         put("model", model)
                         put("prompt", "return ")
                         put("stop", buildJsonArray { stops.forEach { add(JsonPrimitive(it)) } })
-                    }
+                    },
                 )
             val sent =
                 body["options"]!!.jsonObject["stop"]!!.jsonArray.map { it.jsonPrimitive.content }
@@ -400,7 +400,7 @@ class OllamaSubscriptionProxyProviderTest {
                                     put("prompt", "<｜fim▁begin｜>return <｜fim▁hole｜>\n}<｜fim▁end｜>")
                                     put("stream", stream)
                                     put("max_tokens", 48)
-                                }
+                                },
                             ),
                         )
                     assertEquals(200, response.statusCode(), response.body())
@@ -432,7 +432,7 @@ class OllamaSubscriptionProxyProviderTest {
                                 .headers()
                                 .firstValue("Content-Type")
                                 .orElse("")
-                                .startsWith("text/event-stream")
+                                .startsWith("text/event-stream"),
                         )
                         assertTrue(response.body().contains("data: [DONE]"), response.body())
                         assertEquals("a + b", completionText(response.body(), stream))
@@ -514,7 +514,7 @@ class OllamaSubscriptionProxyProviderTest {
                                         put("prompt", case.prefix)
                                         put("suffix", case.suffix)
                                         put("stream", stream)
-                                    }
+                                    },
                                 ),
                             )
                         assertEquals(200, response.statusCode(), response.body())
@@ -638,7 +638,7 @@ class OllamaSubscriptionProxyProviderTest {
                                 put("model", "deepseek-v4.1-flash")
                                 put("response", generateText)
                                 put("done", true)
-                            }
+                            },
                         )
                     } else {
                         "{\"id\":\"chatcmpl_1\",\"choices\":[]}"

@@ -29,7 +29,7 @@ internal class PdfRegionImageExtractor private constructor(private val document:
     private val pageCache =
         object : LinkedHashMap<Int, BufferedImage>(8, 0.75f, true) {
             override fun removeEldestEntry(
-                eldest: MutableMap.MutableEntry<Int, BufferedImage>?
+                eldest: MutableMap.MutableEntry<Int, BufferedImage>?,
             ): Boolean {
                 return size > MAX_CACHED_PAGES
             }

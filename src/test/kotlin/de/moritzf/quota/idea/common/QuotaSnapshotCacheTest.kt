@@ -39,7 +39,7 @@ class QuotaSnapshotCacheTest {
                     listOf(
                         SuperGrokResetToken("restok_1", expiresAt),
                         SuperGrokResetToken("restok_2"),
-                    )
+                    ),
             )
 
         val cachedCodex = roundTrip(QuotaProviderType.OPEN_AI, codex, "{}") as OpenAiCodexQuota

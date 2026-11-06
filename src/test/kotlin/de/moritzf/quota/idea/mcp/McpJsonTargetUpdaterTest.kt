@@ -219,7 +219,7 @@ class McpJsonTargetUpdaterTest {
                 """
                     .trimIndent(),
                 "mcpServers.jetbrains.url",
-            )
+            ),
         )
         assertNull(
             McpJsonTargetUpdater.validateTargetContent(
@@ -235,12 +235,12 @@ class McpJsonTargetUpdaterTest {
                 """
                     .trimIndent(),
                 "mcpServers.jetbrains.nextUrl",
-            )
+            ),
         )
 
         val missingPath =
             assertNotNull(
-                McpJsonTargetUpdater.validateTargetContent("{}", "mcpServers.jetbrains.url")
+                McpJsonTargetUpdater.validateTargetContent("{}", "mcpServers.jetbrains.url"),
             )
         assertEquals(McpJsonTargetValidationProblem.PROPERTY, missingPath.problem)
 
@@ -258,7 +258,7 @@ class McpJsonTargetUpdaterTest {
                     """
                         .trimIndent(),
                     "mcpServers.jetbrains.url",
-                )
+                ),
             )
         assertEquals(McpJsonTargetValidationProblem.PROPERTY, nonStringPath.problem)
     }
@@ -284,7 +284,7 @@ class McpJsonTargetUpdaterTest {
                     "mcpServers.jetbrains.command",
                     "mcpServers.jetbrains.url",
                     "servers.other.url",
-                )
+                ),
             )
 
         assertEquals("mcpServers.jetbrains.url", likelyPath)
@@ -298,7 +298,7 @@ class McpJsonTargetUpdaterTest {
                     "mcpServers.github.url",
                     "servers.jetbrains.url",
                     "tooling.intellijMcp.endpoint",
-                )
+                ),
             )
 
         assertEquals("tooling.intellijMcp.endpoint", likelyPath)
@@ -311,7 +311,7 @@ class McpJsonTargetUpdaterTest {
                 listOf(
                     "mcp_servers.github.url",
                     "mcp_servers.idea.url",
-                )
+                ),
             )
 
         assertEquals("mcp_servers.idea.url", likelyPath)
@@ -329,7 +329,7 @@ class McpJsonTargetUpdaterTest {
         assertEquals(
             "http://127.0.0.1:64342/stream",
             McpServerTransport.STREAMABLE_HTTP.urlFor(
-                endpoints.copy(streamUrl = "http://127.0.0.1:64342/stream")
+                endpoints.copy(streamUrl = "http://127.0.0.1:64342/stream"),
             ),
         )
     }
@@ -423,7 +423,7 @@ class McpJsonTargetUpdaterTest {
                 url = "http://127.0.0.1:1/stream"
                 enabled = true
                 """
-                    .trimIndent()
+                    .trimIndent(),
             )
 
         assertEquals(listOf("mcp_servers.idea.url", "model"), paths.sorted())
@@ -539,7 +539,7 @@ class McpJsonTargetUpdaterTest {
                     url: http://127.0.0.1:1/stream
                     enabled: true
                 """
-                    .trimIndent()
+                    .trimIndent(),
             )
 
         assertEquals(listOf("mcp_servers.idea.url", "model"), paths.sorted())

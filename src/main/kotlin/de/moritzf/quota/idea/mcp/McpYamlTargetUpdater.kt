@@ -29,7 +29,7 @@ class McpYamlTargetUpdater {
         val propertyIndex =
             findPropertyLine(lines, segments)
                 ?: error(
-                    "YAML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(segments)}"
+                    "YAML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(segments)}",
                 )
         lines[propertyIndex] = replaceYamlStringValue(lines[propertyIndex], value)
         return lines.joinToString(separator)
@@ -134,12 +134,12 @@ class McpYamlTargetUpdater {
                 val currentMap =
                     current as? Map<*, *>
                         ?: error(
-                            "YAML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(path.take(index))} is not a map"
+                            "YAML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(path.take(index))} is not a map",
                         )
                 current =
                     currentMap[segment]
                         ?: error(
-                            "YAML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(path)}"
+                            "YAML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(path)}",
                         )
             }
             require(current is String) { "YAML property path must point to a string value." }

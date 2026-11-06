@@ -25,7 +25,7 @@ import javax.swing.JComponent
 
 /** OpenAI Codex settings tab. */
 internal class OpenAiSettingsPanel(
-    private val modalityComponentProvider: () -> JComponent? = { null }
+    private val modalityComponentProvider: () -> JComponent? = { null },
 ) : ProviderSettingsPanel() {
     private val statusLabel = JBLabel().apply { isVisible = false }
     private val loginButton = createActionLink("Log In")
@@ -87,7 +87,7 @@ internal class OpenAiSettingsPanel(
                                 onAuthUrlReceived?.invoke(url)
                             },
                             ModalityState.stateForComponent(
-                                modalityComponentProvider() ?: this@OpenAiSettingsPanel
+                                modalityComponentProvider() ?: this@OpenAiSettingsPanel,
                             ),
                         )
                 },
@@ -109,7 +109,7 @@ internal class OpenAiSettingsPanel(
                             .invokeLater(
                                 { if (accountKey() == accountId) updateAuthUi() },
                                 ModalityState.stateForComponent(
-                                    modalityComponentProvider() ?: this
+                                    modalityComponentProvider() ?: this,
                                 ),
                             )
                     },
@@ -215,7 +215,7 @@ internal class OpenAiSettingsPanel(
                         { documentModelCombo.selected().orEmpty() },
                         modalityComponentProvider,
                         documentModelCombo.combo,
-                    )
+                    ),
                 )
             }
             row(message("settings.model.vision.label")) {
@@ -228,7 +228,7 @@ internal class OpenAiSettingsPanel(
                         de.moritzf.quota.idea.mcp.VisionProvider.OPEN_AI,
                         visionModelCombo,
                         modalityComponentProvider,
-                    )
+                    ),
                 )
             }
         }

@@ -65,8 +65,8 @@ class MistralQuotaClientTest {
         val credits =
             assertNotNull(
                 MistralQuotaClient.parseCredits(
-                    """{"wallet_amount":"10.5","credit_notes_amount":5,"ongoing_usage_balance":2.5,"currency":"eur"}"""
-                )
+                    """{"wallet_amount":"10.5","credit_notes_amount":5,"ongoing_usage_balance":2.5,"currency":"eur"}""",
+                ),
             )
         assertEquals(10.5, credits.walletAmount)
         assertEquals(5.0, credits.creditNotesAmount)
@@ -80,15 +80,15 @@ class MistralQuotaClientTest {
     fun parseCreditsDefaultsMissingOptionalAmountsAndRejectsMissingBalance() {
         val credits =
             assertNotNull(
-                MistralQuotaClient.parseCredits("""{"wallet_amount":7,"currency":"USD"}""")
+                MistralQuotaClient.parseCredits("""{"wallet_amount":7,"currency":"USD"}"""),
             )
         assertEquals(7.0, credits.availableAmount)
         assertNull(MistralQuotaClient.parseCredits("""{"currency":"USD"}"""))
         assertNull(MistralQuotaClient.parseCredits("""{"wallet_amount":7}"""))
         assertNull(
             MistralQuotaClient.parseCredits(
-                """{"wallet_amount":7,"ongoing_usage_balance":-1e999,"currency":"USD"}"""
-            )
+                """{"wallet_amount":7,"ongoing_usage_balance":-1e999,"currency":"USD"}""",
+            ),
         )
     }
 
@@ -205,7 +205,7 @@ class MistralQuotaClientTest {
     fun mistralQuotaSerializesApiUsage() {
         val quota =
             MistralQuota(
-                apiUsage = MistralApiUsage(spendEur = 9.42, tokens = 44_000_000, ocrPages = 442)
+                apiUsage = MistralApiUsage(spendEur = 9.42, tokens = 44_000_000, ocrPages = 442),
             )
         val json =
             de.moritzf.quota.shared.JsonSupport.json.encodeToString(
@@ -225,7 +225,11 @@ class MistralQuotaClientTest {
         val now = Instant.fromEpochMilliseconds(1_780_000_030_000L)
         val window =
             assertNotNull(
-                MistralQuotaClient.windowFromValues(limit = 500_000, remaining = 499_000, now = now)
+                MistralQuotaClient.windowFromValues(
+                    limit = 500_000,
+                    remaining = 499_000,
+                    now = now,
+                ),
             )
 
         assertEquals(1_000, window.used)
@@ -246,7 +250,7 @@ class MistralQuotaClientTest {
     fun parseSessionCookiesRequiresOrySession() {
         val session =
             MistralQuotaClient.parseSessionCookies(
-                "Cookie: ory_session_abc=token; csrftoken=csrf-1; other=x"
+                "Cookie: ory_session_abc=token; csrftoken=csrf-1; other=x",
             )
         assertEquals("csrf-1", session.csrfToken)
         assertEquals("csrftoken=csrf-1; ory_session_abc=token", session.consoleCookieHeader())
@@ -288,7 +292,7 @@ class MistralQuotaClientTest {
     fun monthlyWindowPrefersVibePercentOverBilling() {
         val billing =
             MistralQuotaClient.parseBilling(
-                """{"vibe_usage":10.0,"start_date":"2026-08-01","end_date":"2026-08-31"}"""
+                """{"vibe_usage":10.0,"start_date":"2026-08-01","end_date":"2026-08-31"}""",
             )
         val vibe = MistralVibeUsage(42.5, Instant.parse("2026-09-01T00:00:00Z"))
         val window = assertNotNull(MistralQuotaClient.monthlyWindow(vibe, billing))

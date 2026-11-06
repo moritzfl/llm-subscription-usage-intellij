@@ -54,7 +54,7 @@ internal class AzureOcrClient(
         val endpoint =
             azureOcrUri(config)
                 ?: throw AzureOcrException(
-                    "Azure OCR needs an Azure Foundry resource name or endpoint."
+                    "Azure OCR needs an Azure Foundry resource name or endpoint.",
                 )
         progress.update(0, 0, "Reading document")
         val source = input.read(documentUrl, localFile)
@@ -84,7 +84,7 @@ internal class AzureOcrClient(
                             document,
                             includeImageBase64 = includeImages && writer != null,
                             includeBlocks = false,
-                        )
+                        ),
                     )
                 fun sendWithCliToken(): AzureOcrResponse {
                     val token =
@@ -101,7 +101,7 @@ internal class AzureOcrClient(
                             .header("Content-Type", "application/json")
                             .header("Accept", "application/json")
                             .POST(HttpRequest.BodyPublishers.ofString(body))
-                            .build()
+                            .build(),
                     )
                 }
                 val first = sendWithCliToken()
@@ -123,12 +123,12 @@ internal class AzureOcrClient(
                         JsonSupport.json.decodeFromString<MistralOcrResponseDto>(response.body)
                     } catch (_: Exception) {
                         throw AzureOcrException(
-                            "Azure OCR returned invalid page data for pages $from–$to."
+                            "Azure OCR returned invalid page data for pages $from–$to.",
                         )
                     }
                 if (parsed.pages.size != to - from + 1) {
                     throw AzureOcrException(
-                        "Azure OCR returned ${parsed.pages.size} pages for pages $from–$to; output was not saved."
+                        "Azure OCR returned ${parsed.pages.size} pages for pages $from–$to; output was not saved.",
                     )
                 }
                 if (writer != null) writer.append(parsed.pages, from - 1)
@@ -167,7 +167,7 @@ internal class AzureOcrClient(
         if (responses.size == 1) return McpJson.providerJson(checkNotNull(singleResponse))
         // Keep each upstream response intact when no output file was requested.
         return JsonSupport.json.encodeToString(
-            AzureOcrChunkResults(responses.last().pageTo, responses)
+            AzureOcrChunkResults(responses.last().pageTo, responses),
         )
     }
 

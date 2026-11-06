@@ -125,7 +125,7 @@ class ClaudeQuotaProviderTest {
                     { throw ClaudeQuotaException("server error", 500, """{"server":1}""") },
                     { throw ClaudeQuotaException("rate limited", 429, """{"limit":2}""") },
                     { ClaudeQuota(rawJson = """{"second":true}""") },
-                )
+                ),
             )
         var now = START
         val provider =
@@ -160,7 +160,7 @@ class ClaudeQuotaProviderTest {
                     { throw ClaudeQuotaException("server error", 500, """{"server":1}""") },
                     { throw ClaudeQuotaException("rate limited", 429, """{"limit":2}""") },
                     { ClaudeQuota(rawJson = """{"second":true}""") },
-                )
+                ),
             )
         var now = START
         val provider =
@@ -348,7 +348,7 @@ class ClaudeQuotaProviderTest {
                             profileReads++
                             if (failProfile) throw ClaudeQuotaException("busy", 429)
                             ClaudeProfile(ORGANIZATION, plans.removeFirst())
-                        }
+                        },
                     ) {
                         ClaudeQuota(fiveHourUsage = ClaudeUsageWindow(usagePercent = 1.0))
                     },
@@ -580,7 +580,7 @@ class ClaudeQuotaProviderTest {
                             atLimitReads++
                             if (failResets) throw ClaudeQuotaException("rate limited", 429)
                             ClaudeResets(sessionReset = session)
-                        }
+                        },
                     ) {
                         ClaudeQuota(
                             fiveHourUsage = ClaudeUsageWindow(usagePercent = percent),

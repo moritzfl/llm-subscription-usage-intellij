@@ -14,13 +14,15 @@ class LiteLlmClientTest {
     @Test
     fun enrichesOnlyAccessiblePublicNamesAndCachesMetadataWithTheKey() {
         val calls = CopyOnWriteArrayList<String>()
-        server({ path, auth ->
-            calls += "$path $auth"
-            200 to
-                if (path.endsWith("/models")) """{"data":[{"id":"company-chat"}]}"""
-                else
-                    """{"data":[{"model_name":"company-chat","model_info":{"id":"private-deployment-id","mode":"chat","supports_vision":true,"supports_pdf_input":true,"supports_function_calling":true,"max_input_tokens":123456,"input_cost_per_token":0.000001}},{"model_name":"admin-only","model_info":{"supports_vision":true}}]}"""
-        }) { endpoint ->
+        server(
+            { path, auth ->
+                calls += "$path $auth"
+                200 to
+                    if (path.endsWith("/models")) """{"data":[{"id":"company-chat"}]}"""
+                    else
+                        """{"data":[{"model_name":"company-chat","model_info":{"id":"private-deployment-id","mode":"chat","supports_vision":true,"supports_pdf_input":true,"supports_function_calling":true,"max_input_tokens":123456,"input_cost_per_token":0.000001}},{"model_name":"admin-only","model_info":{"supports_vision":true}}]}"""
+            },
+        ) { endpoint ->
             var key = "first"
             val provider = CompatibleSubscriptionProxyProvider("one", "Gateway", endpoint, { key })
             val model = provider.models().single()
@@ -60,10 +62,12 @@ class LiteLlmClientTest {
 
     @Test
     fun heterogeneousDeploymentsDoNotInventCapabilitiesOrPrices() {
-        server({ _, _ ->
-            200 to
-                """{"data":[{"model_name":"chat","model_info":{"supports_vision":true,"input_cost_per_token":0.0001}},{"model_name":"chat","model_info":{"supports_vision":false,"input_cost_per_token":0.0002}}]}"""
-        }) { endpoint ->
+        server(
+            { _, _ ->
+                200 to
+                    """{"data":[{"model_name":"chat","model_info":{"supports_vision":true,"input_cost_per_token":0.0001}},{"model_name":"chat","model_info":{"supports_vision":false,"input_cost_per_token":0.0002}}]}"""
+            },
+        ) { endpoint ->
             val model =
                 CompatibleSubscriptionProxyProvider(
                         "one",
@@ -80,10 +84,12 @@ class LiteLlmClientTest {
 
     @Test
     fun deploymentWithoutMetadataKeepsSharedAliasCapabilitiesUnknown() {
-        server({ _, _ ->
-            200 to
-                """{"data":[{"model_name":"chat","model_info":{"supports_vision":true,"max_input_tokens":123456}},{"model_name":"chat"}]}"""
-        }) { endpoint ->
+        server(
+            { _, _ ->
+                200 to
+                    """{"data":[{"model_name":"chat","model_info":{"supports_vision":true,"max_input_tokens":123456}},{"model_name":"chat"}]}"""
+            },
+        ) { endpoint ->
             val model =
                 CompatibleSubscriptionProxyProvider(
                         "one",
@@ -101,11 +107,13 @@ class LiteLlmClientTest {
     @Test
     fun keyBudgetUsesHeaderOnlyRetainsGatewayPrefixAndNeverExportsCredentials() {
         val calls = CopyOnWriteArrayList<Pair<String, String?>>()
-        server({ path, auth ->
-            calls += path to auth
-            200 to
-                """{"key":"secret-key","gateway_version":"1.80.0","info":{"token":"key-hash","spend":12.5,"max_budget":50,"budget_reset_at":"2030-10-01T00:00:00","blocked":false,"models":["company-chat"],"model_spend":{"company-chat":12.5},"team_id":"engineering","metadata":{"api_key":"secret","department":"engineering"},"config":{"nested_secret":"secret","region":"eu"}}}"""
-        }) { endpoint ->
+        server(
+            { path, auth ->
+                calls += path to auth
+                200 to
+                    """{"key":"secret-key","gateway_version":"1.80.0","info":{"token":"key-hash","spend":12.5,"max_budget":50,"budget_reset_at":"2030-10-01T00:00:00","blocked":false,"models":["company-chat"],"model_spend":{"company-chat":12.5},"team_id":"engineering","metadata":{"api_key":"secret","department":"engineering"},"config":{"nested_secret":"secret","region":"eu"}}}"""
+            },
+        ) { endpoint ->
             val quota = LiteLlmClient(endpoint).quota("secret-key")
             assertEquals(listOf("/gateway%20one/key/info" to "Bearer secret-key"), calls.toList())
             assertEquals(0.25, quota.usageFraction())
@@ -216,8 +224,8 @@ class LiteLlmClientTest {
         val quota =
             LiteLlmQuota.parse(
                 JsonSupport.json.parseToJsonElement(
-                    """{"info":{"spend":{"unexpected":true},"max_budget":"50.5","blocked":[],"budget_reset_at":"bad-date","temp_budget_increase":{},"temp_budget_expiry":[]}}"""
-                )
+                    """{"info":{"spend":{"unexpected":true},"max_budget":"50.5","blocked":[],"budget_reset_at":"bad-date","temp_budget_increase":{},"temp_budget_expiry":[]}}""",
+                ),
             )
         assertNull(quota.spend)
         assertEquals(50.5, quota.maxBudget)
@@ -250,7 +258,7 @@ class LiteLlmClientTest {
         assertEquals(
             0.5,
             quota(
-                    """{"spend":10,"max_budget":10,"temp_budget_increase":10,"temp_budget_expiry":"2099-01-01T00:00:00Z"}"""
+                    """{"spend":10,"max_budget":10,"temp_budget_increase":10,"temp_budget_expiry":"2099-01-01T00:00:00Z"}""",
                 )
                 .usageFraction(),
         )
@@ -276,7 +284,7 @@ class LiteLlmClientTest {
         try {
             block(
                 CompatibleEndpoint.parse("http://127.0.0.1:${server.address.port}/gateway%20one/v1")
-                    .copy(liteLlm = true)
+                    .copy(liteLlm = true),
             )
         } finally {
             server.stop(0)

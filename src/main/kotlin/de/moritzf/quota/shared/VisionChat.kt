@@ -61,10 +61,10 @@ internal object VisionChat {
                                 buildJsonObject {
                                     put("type", "text")
                                     put("text", prompt)
-                                }
+                                },
                             )
                         }
-                    }
+                    },
                 )
             }
         }

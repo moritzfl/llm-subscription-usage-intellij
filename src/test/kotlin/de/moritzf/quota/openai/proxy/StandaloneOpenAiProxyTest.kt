@@ -16,7 +16,7 @@ class StandaloneOpenAiProxyTest {
                     "https://client.example,http://localhost:5173",
                     "--cors-url=https://other.example",
                     "--allow-any-cors",
-                )
+                ),
             )
 
         assertEquals(true, options.login)
@@ -40,7 +40,7 @@ class StandaloneOpenAiProxyTest {
                   "id_token": "${jwt("""{"https://api.openai.com/auth":{"chatgpt_account_id":"account-1"}}""")}"
                 }
             """
-                    .trimIndent()
+                    .trimIndent(),
             )
         val after = System.currentTimeMillis()
 

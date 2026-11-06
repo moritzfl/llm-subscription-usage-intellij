@@ -241,7 +241,7 @@ class SubscriptionProxyServer(
                         "object" to "model",
                         "created" to 0,
                         "owned_by" to media.providerId,
-                    )
+                    ),
                 )
             }
         }
@@ -356,7 +356,7 @@ class SubscriptionProxyServer(
                 litellmProvider = "fim-adapter",
                 supportedRoutes = selected.supportedRoutes + SubscriptionProxyRoute.COMPLETIONS,
                 isDefault = false,
-            )
+            ),
         )
     }
 

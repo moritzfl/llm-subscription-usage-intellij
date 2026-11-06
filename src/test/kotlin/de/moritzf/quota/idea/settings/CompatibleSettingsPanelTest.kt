@@ -102,8 +102,8 @@ class CompatibleSettingsPanelTest {
                 val mcp =
                     checkNotNull(
                         de.moritzf.quota.idea.mcp.UsageQuotaMcpRegistry.get(
-                            QuotaProviderType.LITELLM
-                        )
+                            QuotaProviderType.LITELLM,
+                        ),
                     )
                 assertEquals(
                     """{"diagnostic":"gateway-details","info":{"spend":2,"future_pool":{"remaining":17}}}""",
@@ -220,7 +220,7 @@ class CompatibleSettingsPanelTest {
             assertTrue(
                 requests.all {
                     it.first == "/draft/v1/chat/completions" && it.second == "Bearer draft-key"
-                }
+                },
             )
             assertTrue(requests.first().third.contains("data:image/png;base64,"))
             assertTrue(requests.last().third.contains("data:application/pdf;base64,"))
@@ -269,7 +269,7 @@ class CompatibleSettingsPanelTest {
                         .apply {
                             x = 0
                             width = scroll.viewport.width
-                        }
+                        },
                 )
             }
             for (control in
@@ -517,14 +517,14 @@ class CompatibleSettingsPanelTest {
         override fun isGroup(id: String) = false
 
         override fun getKeyboardShortcut(
-            id: String
+            id: String,
         ): com.intellij.openapi.actionSystem.KeyboardShortcut? = null
 
         override fun addTimerListener(listener: com.intellij.openapi.actionSystem.TimerListener) =
             Unit
 
         override fun removeTimerListener(
-            listener: com.intellij.openapi.actionSystem.TimerListener
+            listener: com.intellij.openapi.actionSystem.TimerListener,
         ) = Unit
 
         override fun registerAction(

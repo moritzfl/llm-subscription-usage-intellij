@@ -45,7 +45,7 @@ class DocumentImageGroundingTest {
     fun remapsSlicePageNumbersOntoTheSourceDocument() {
         val parsed =
             DocumentImageGrounding.parse(
-                "![chart](image-p1-1.png)\n<!-- img page=1 0.1 0.2 0.5 0.6 -->\n"
+                "![chart](image-p1-1.png)\n<!-- img page=1 0.1 0.2 0.5 0.6 -->\n",
             )
         val remapped = DocumentImageGrounding.remapPageOffset(parsed, 10)
         assertEquals(11, remapped.regions.single().page)
@@ -78,8 +78,8 @@ class DocumentImageGroundingTest {
         org.apache.pdfbox.pdmodel.PDDocument().use { doc ->
             doc.addPage(
                 org.apache.pdfbox.pdmodel.PDPage(
-                    org.apache.pdfbox.pdmodel.common.PDRectangle(612f, 792f)
-                )
+                    org.apache.pdfbox.pdmodel.common.PDRectangle(612f, 792f),
+                ),
             )
             doc.save(pdf.toFile())
         }

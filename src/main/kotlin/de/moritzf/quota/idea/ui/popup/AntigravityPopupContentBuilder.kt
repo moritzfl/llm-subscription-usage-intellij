@@ -56,7 +56,7 @@ internal class AntigravityPopupSection : ProviderPopupSection() {
                             window.disabled -> "Unavailable"
                             percent == null -> "Usage unavailable"
                             else -> "$percent% used"
-                        }
+                        },
                     )
                     QuotaUiUtil.formatReset(window.resetsAt)?.let(::add)
                 }

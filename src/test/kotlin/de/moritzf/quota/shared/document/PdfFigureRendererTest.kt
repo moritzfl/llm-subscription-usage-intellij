@@ -300,8 +300,8 @@ class PdfFigureRendererTest {
                     )
                     setItem(COSName.BOUNDS, numbers(0.4f))
                     setItem(COSName.ENCODE, numbers(0f, 1f, 1f, 0f))
-                }
-            )
+                },
+            ),
         )
     }
 
@@ -346,7 +346,7 @@ class PdfFigureRendererTest {
                 setItem(COSName.C0, numbers(1f, 0f, 0f))
                 setItem(COSName.C1, numbers(0f, 0f, 1f))
                 setFloat(COSName.N, 1f)
-            }
+            },
         )
 
     private fun assertGradient(configure: PDShadingType2.() -> Unit) {
@@ -549,7 +549,7 @@ class PdfFigureRendererTest {
                 assertTrue(
                     writer.report.diagnostics.any {
                         it.startsWith("Page 2, figure 1: identical to page-1-image-1.svg")
-                    }
+                    },
                 )
                 val folder = Path.of(writer.imageFiles.first()).parent
                 Files.list(folder).use { assertEquals(3L, it.count()) }
@@ -593,7 +593,7 @@ class PdfFigureRendererTest {
                 assertTrue(
                     writer.report.diagnostics.any {
                         it.contains("java.io.IOException: PDF transparency")
-                    }
+                    },
                 )
                 assertEquals(1, writer.report.succeeded)
                 assertEquals(1, writer.report.png)
@@ -623,7 +623,7 @@ class PdfFigureRendererTest {
                             .write(7, 2, null) {
                                 ProviderDocumentImage(byteArrayOf(1, 2, 3), "jpeg")
                             }!!
-                            .endsWith(".jpeg")
+                            .endsWith(".jpeg"),
                     )
                     assertEquals(format == DocumentImageFormat.SVG, writer.warnings.isNotEmpty())
                 }
@@ -639,7 +639,7 @@ class PdfFigureRendererTest {
                     PDResources().apply {
                         add(PDExtendedGraphicsState().apply { blendMode = BlendMode.MULTIPLY })
                     }
-            }
+            },
         )
         DocumentImageWriter(
                 directory.resolve("mixed.md"),

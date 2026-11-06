@@ -54,7 +54,7 @@ internal class AzureCohereParseClient(
         val endpoint =
             azureCohereParseUri(config)
                 ?: throw AzureOcrException(
-                    "Cohere Parse needs an Azure Foundry resource name or endpoint."
+                    "Cohere Parse needs an Azure Foundry resource name or endpoint.",
                 )
         val source = AzureDocumentInput(httpClient).read(documentUrl, localFile)
         val markdownOutput = outputFile ?: DocumentMarkdown.defaultOutput(localFile)
@@ -79,7 +79,7 @@ internal class AzureCohereParseClient(
                     }
                 if (bytes.size > AzureDocumentInput.MAX_DOCUMENT_BYTES) {
                     throw AzureOcrException(
-                        "Rendered page exceeds Cohere Parse's 20 MB image limit."
+                        "Rendered page exceeds Cohere Parse's 20 MB image limit.",
                     )
                 }
                 val body =
@@ -90,7 +90,7 @@ internal class AzureCohereParseClient(
                                 "image_url",
                                 "data:image/png;base64,${java.util.Base64.getEncoder().encodeToString(bytes)}",
                             ),
-                        )
+                        ),
                     )
 
                 fun send(): AzureOcrResponse {
@@ -107,7 +107,7 @@ internal class AzureCohereParseClient(
                             .header("Content-Type", "application/json")
                             .header("Accept", "application/json")
                             .POST(HttpRequest.BodyPublishers.ofString(body))
-                            .build()
+                            .build(),
                     )
                 }
 
@@ -167,7 +167,7 @@ internal class AzureCohereParseClient(
                                                 )
                                             )
                                                 throw AzureOcrException(
-                                                    "Could not encode figure as PNG."
+                                                    "Could not encode figure as PNG.",
                                                 )
                                             ProviderDocumentImage(stream.toByteArray(), "png")
                                         }
@@ -187,7 +187,7 @@ internal class AzureCohereParseClient(
                     val to = pageTo ?: pdf.numberOfPages
                     if (from < 1 || to < from || to > pdf.numberOfPages) {
                         throw AzureOcrException(
-                            "pageFrom/pageTo out of range (document has ${pdf.numberOfPages} pages)."
+                            "pageFrom/pageTo out of range (document has ${pdf.numberOfPages} pages).",
                         )
                     }
                     val work = to - from + 1
@@ -203,7 +203,7 @@ internal class AzureCohereParseClient(
                                 (DPI / 72.0) > MAX_PIXELS
                         ) {
                             throw AzureOcrException(
-                                "PDF page $page is too large to render for Cohere Parse."
+                                "PDF page $page is too large to render for Cohere Parse.",
                             )
                         }
                         parseImage(renderer.renderImageWithDPI(page - 1, DPI, ImageType.RGB), page)
@@ -236,7 +236,7 @@ internal class AzureCohereParseClient(
                     imageWriter?.imageFiles.orEmpty(),
                     pages.size,
                     imageWriter?.warnings.orEmpty(),
-                )
+                ),
             )
         }
     }

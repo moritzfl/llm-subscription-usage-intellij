@@ -42,7 +42,7 @@ class ProxyServer(
     init {
         if (config.requiresApiKeyEnforcement() && !apiKeyStore.isEnforcing()) {
             throw IllegalStateException(
-                "API key enforcement is required when binding to a non-loopback host: ${config.host}"
+                "API key enforcement is required when binding to a non-loopback host: ${config.host}",
             )
         }
         requestLogger = RequestLogger(config.fullRequestLogging, Path.of(config.requestLogDir))

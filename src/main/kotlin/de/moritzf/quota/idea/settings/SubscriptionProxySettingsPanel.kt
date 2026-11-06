@@ -257,7 +257,7 @@ internal class SubscriptionProxySettingsPanel(
                 row {
                     link("Open Providers & API keys") {
                         AiAssistantSettingsNavigator.openProvidersAndApiKeys(
-                            this@SubscriptionProxySettingsPanel
+                            this@SubscriptionProxySettingsPanel,
                         )
                     }
                 }
@@ -300,20 +300,20 @@ internal class SubscriptionProxySettingsPanel(
                         cell(
                             JBLabel("FIM (fill in middle) for code completions").apply {
                                 font = font.deriveFont(Font.BOLD)
-                            }
+                            },
                         )
                     }
                     row {
                         comment(
                             "Gray suggestions while you type, using the selected provider. " +
-                                "Set <b>Subscription model</b> to $COMPLETIONS_OFF to turn FIM off."
+                                "Set <b>Subscription model</b> to $COMPLETIONS_OFF to turn FIM off.",
                         )
                     }
                     indent {
                         row {
                             link("Open AI Completion settings") {
                                 AiAssistantSettingsNavigator.openAiCompletion(
-                                    this@SubscriptionProxySettingsPanel
+                                    this@SubscriptionProxySettingsPanel,
                                 )
                             }
                         }
@@ -327,7 +327,7 @@ internal class SubscriptionProxySettingsPanel(
                                     "<li>Model: ${CompletionsConfig.FIM_ALIAS_ID}</li>" +
                                     "<li>Prompt schema: Auto</li>" +
                                     "</ul>" +
-                                    "Then type in the editor and wait for gray suggestions."
+                                    "Then type in the editor and wait for gray suggestions.",
                             )
                         }
                         row("AI Completion model:") {
@@ -352,7 +352,7 @@ internal class SubscriptionProxySettingsPanel(
                         }
                         row {
                             comment(
-                                "Native FIM models use their own infill endpoint; other models are converted into chat requests a chat model can understand."
+                                "Native FIM models use their own infill endpoint; other models are converted into chat requests a chat model can understand.",
                             )
                         }
                         row("Max output tokens:") {
@@ -378,7 +378,7 @@ internal class SubscriptionProxySettingsPanel(
                         row { statusCell(fimSetupStatusLabel) }
                     }
                 }
-            }
+            },
         )
         addToCenter(
             BorderLayoutPanel().apply {
@@ -393,9 +393,9 @@ internal class SubscriptionProxySettingsPanel(
                         horizontalScrollBarPolicy =
                             ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED
                         verticalScrollBarPolicy = ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED
-                    }
+                    },
                 )
-            }
+            },
         )
     }
 
@@ -420,7 +420,7 @@ internal class SubscriptionProxySettingsPanel(
                 .toString()
         completionsRpmField.text =
             CompletionsConfig.clampMaxRequestsPerMinute(
-                    settings.proxyCompletionsMaxRequestsPerMinute
+                    settings.proxyCompletionsMaxRequestsPerMinute,
                 )
                 .toString()
         completionsTimeoutField.text =
@@ -433,7 +433,7 @@ internal class SubscriptionProxySettingsPanel(
         completionsModelCombo.model =
             DefaultComboBoxModel(
                 (listOf(COMPLETIONS_OFF) + listOfNotNull(selected.takeIf { it.isNotBlank() }))
-                    .toTypedArray()
+                    .toTypedArray(),
             )
         completionsModelCombo.selectedItem = selected.ifBlank { COMPLETIONS_OFF }
         proxyPortField.text = OpenAiProxyService.sanitizePort(settings.openAiProxyPort).toString()
@@ -493,7 +493,7 @@ internal class SubscriptionProxySettingsPanel(
                 CompletionsConfig.clampMaxOutputTokens(state.proxyCompletionsMaxOutputTokens) ||
             completionsMaxRequestsPerMinute() !=
                 CompletionsConfig.clampMaxRequestsPerMinute(
-                    state.proxyCompletionsMaxRequestsPerMinute
+                    state.proxyCompletionsMaxRequestsPerMinute,
                 ) ||
             completionsTimeoutSeconds() !=
                 CompletionsConfig.clampTimeoutSeconds(state.proxyCompletionsTimeoutSeconds) ||
@@ -959,7 +959,7 @@ internal class SubscriptionProxySettingsPanel(
                 override fun removeUpdate(event: DocumentEvent) = action()
 
                 override fun changedUpdate(event: DocumentEvent) = action()
-            }
+            },
         )
     }
 
@@ -1056,7 +1056,7 @@ private class FimTestDialog(
                         false,
                         message("modelTest.failed"),
                         detail = failure.message,
-                    )
+                    ),
                 )
                 return
             }

@@ -27,14 +27,14 @@ class AzurePopupContentBuilderTest {
                 {"name":"embeddings","sku":{"name":"DataZoneStandard","capacity":2000},"properties":{"model":{"name":"text-embedding-3-large"}}}
             ]}""",
                     AzureResourceRef("ai-west", "westeurope", null, null),
-                )
+                ),
             )
         val east =
             assertNotNull(
                 parseAzureDeployments(
                     """{"value":[{"name":"chat-east","properties":{"model":{"name":"gpt-4.1"}}}]}""",
                     AzureResourceRef("ai-east", "eastus", null, null),
-                )
+                ),
             )
         val quota =
             AzureQuota(
@@ -48,7 +48,7 @@ class AzurePopupContentBuilderTest {
                             AzureUsageWindow.ALLOCATION,
                             used = 3333.0,
                             limit = 3333.0,
-                        )
+                        ),
                     ) + west.take(1) + east + west.drop(1),
                 models = listOf("not-a-discovered-deployment"),
             )
@@ -68,15 +68,15 @@ class AzurePopupContentBuilderTest {
             section.visibleLabels(),
         )
         assertTrue(
-            section.visibleBlocks()[1].components.filterIsInstance<JLabel>().first().font.isBold
+            section.visibleBlocks()[1].components.filterIsInstance<JLabel>().first().font.isBold,
         )
         assertTrue(
-            section.visibleBlocks()[2].components.filterIsInstance<JLabel>().first().font.isPlain
+            section.visibleBlocks()[2].components.filterIsInstance<JLabel>().first().font.isPlain,
         )
         assertTrue(
             section.visibleBlocks().all { block ->
                 block.components.filterIsInstance<JProgressBar>().none { it.isVisible }
-            }
+            },
         )
         assertEquals("alex", AzureUi.barText(quota, null))
         assertEquals(-1, AzureUi.displayPercent(quota, null))
@@ -92,11 +92,11 @@ class AzurePopupContentBuilderTest {
         )
         section.update(quota.copy(account = null, windows = east), error = null, visible = true)
         assertTrue(
-            section.visibleBlocks()[1].components.filterIsInstance<JLabel>().first().font.isPlain
+            section.visibleBlocks()[1].components.filterIsInstance<JLabel>().first().font.isPlain,
         )
         section.update(quota.copy(windows = east), error = null, visible = true)
         assertTrue(
-            section.visibleBlocks()[1].components.filterIsInstance<JLabel>().first().font.isBold
+            section.visibleBlocks()[1].components.filterIsInstance<JLabel>().first().font.isBold,
         )
     }
 

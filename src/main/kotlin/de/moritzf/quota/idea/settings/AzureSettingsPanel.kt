@@ -99,7 +99,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                 override fun textChanged(event: DocumentEvent) {
                     if (!applyingFields) refreshTimer.restart()
                 }
-            }
+            },
         )
         ocrDeploymentCombo.addItemListener { event ->
             if (applyingFields || event.stateChange != ItemEvent.SELECTED) return@addItemListener
@@ -111,7 +111,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                 override fun textChanged(event: DocumentEvent) {
                     if (!applyingFields) refreshOcrDeployments(ocrComboValue())
                 }
-            }
+            },
         )
         val targetChanged =
             object : DocumentAdapter() {
@@ -130,7 +130,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                 row {
                     comment(
                         "Uses a signed-in Azure CLI identity. Run az login in a terminal. " +
-                            "Credentials stay with Azure CLI; this plugin does not read ~/.azure."
+                            "Credentials stay with Azure CLI; this plugin does not read ~/.azure.",
                     )
                 }
                 row("Azure CLI:") {
@@ -203,7 +203,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                             { (ocrDeploymentCombo.selectedItem as? String).orEmpty() },
                             { this@AzureSettingsPanel },
                             ocrDeploymentCombo,
-                        )
+                        ),
                     )
                 }
                 row(message("settings.model.vision.label")) {
@@ -216,7 +216,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                             de.moritzf.quota.idea.mcp.VisionProvider.AZURE,
                             visionModelCombo,
                             { this@AzureSettingsPanel },
-                        )
+                        ),
                     )
                 }
                 documentHintRow =
@@ -382,7 +382,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
         val id = accountKey(QuotaProviderType.AZURE)
         val quota = service.getLastQuota(id) as? AzureQuota
         refreshOcrDeployments(
-            ocrComboValue() ?: boundAccount?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT)
+            ocrComboValue() ?: boundAccount?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT),
         )
         val error = service.getLastError(id)
         val identity = quota?.account
@@ -402,7 +402,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                     )
                 else ->
                     AuthStatusMessage(
-                        "Signed in${identity?.userName?.let { " as $it" }.orEmpty()}."
+                        "Signed in${identity?.userName?.let { " as $it" }.orEmpty()}.",
                     )
             }
         status.text = statusDotHtml(message.text, message.kind)

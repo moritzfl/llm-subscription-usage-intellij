@@ -38,7 +38,7 @@ class OperationQuotaTest {
                     AccountCapability.PROXY,
                     proxyRoute = SubscriptionProxyRoute.COMPLETIONS,
                 )
-                .exhausted
+                .exhausted,
         )
         assertTrue(
             OperationQuota.status(
@@ -46,7 +46,7 @@ class OperationQuotaTest {
                     AccountCapability.PROXY,
                     proxyRoute = SubscriptionProxyRoute.CHAT_COMPLETIONS,
                 )
-                .exhausted
+                .exhausted,
         )
         val free =
             quota.copy(
@@ -68,7 +68,7 @@ class OperationQuotaTest {
                     AccountCapability.PROXY,
                     proxyRoute = SubscriptionProxyRoute.CHAT_COMPLETIONS,
                 )
-                .exhausted
+                .exhausted,
         )
     }
 
@@ -154,7 +154,7 @@ class OperationQuotaTest {
 
         assertFalse(OperationQuota.status(quota("Copilot Pro"), AccountCapability.PROXY).exhausted)
         assertTrue(
-            OperationQuota.status(quota("Copilot Pro", 1000.0), AccountCapability.PROXY).exhausted
+            OperationQuota.status(quota("Copilot Pro", 1000.0), AccountCapability.PROXY).exhausted,
         )
         assertTrue(
             OperationQuota.status(quota("Copilot Business"), AccountCapability.PROXY).exhausted,
@@ -200,7 +200,7 @@ class OperationQuotaTest {
                             "gpt-reserve",
                             "GPT Reserve Weekly",
                             UsageWindow(usedPercent = 0.0),
-                        )
+                        ),
                     ),
             )
 

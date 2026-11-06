@@ -13,7 +13,7 @@ class LiteLlmRequestSanitizerTest {
     fun leavesBodyUnchangedWhenDropParamsAbsent() {
         val body =
             parse(
-                """{"model":"mi-codestral-latest","messages":[],"user":"primary","seed":100000}"""
+                """{"model":"mi-codestral-latest","messages":[],"user":"primary","seed":100000}""",
             )
         val sanitized =
             LiteLlmRequestSanitizer.sanitize(SubscriptionProxyRoute.CHAT_COMPLETIONS, body)
@@ -27,7 +27,7 @@ class LiteLlmRequestSanitizerTest {
                 """{"model":"mi-codestral-latest","messages":[{"role":"user","content":"hi"}],""" +
                     """"user":"capability_filter","seed":100000,"drop_params":true,""" +
                     """"thinking":{"type":"enabled"},"enable_thinking":true,""" +
-                    """"chat_template_kwargs":{"x":1},"temperature":0.0,"reasoning_effort":"medium"}"""
+                    """"chat_template_kwargs":{"x":1},"temperature":0.0,"reasoning_effort":"medium"}""",
             )
         val sanitized =
             LiteLlmRequestSanitizer.sanitize(SubscriptionProxyRoute.CHAT_COMPLETIONS, body)
@@ -47,7 +47,7 @@ class LiteLlmRequestSanitizerTest {
     fun onlyStripsDropParamsFlagOnNonChatRoutes() {
         val body =
             parse(
-                """{"model":"codestral-latest","prompt":"fun ","suffix":"}","drop_params":true,"user":"primary"}"""
+                """{"model":"codestral-latest","prompt":"fun ","suffix":"}","drop_params":true,"user":"primary"}""",
             )
         val sanitized =
             LiteLlmRequestSanitizer.sanitize(SubscriptionProxyRoute.FIM_COMPLETIONS, body)

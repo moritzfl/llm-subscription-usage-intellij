@@ -117,7 +117,7 @@ class DocumentModelsTest {
                 DocumentModels.OPEN_AI_DEFAULT,
                 null,
                 DocumentModels.OPEN_AI_DEFAULT,
-            )
+            ),
         )
         assertTrue(DocumentModels.differs("gpt-6-luna", null, DocumentModels.OPEN_AI_DEFAULT))
     }
@@ -156,7 +156,7 @@ class DocumentModelsTest {
         assertEquals(
             listOf("mistral-ocr-4-1", "mistral-small"),
             DocumentModels.parseModelIds(
-                """{"data":[{"id":"mistral-ocr-4-1"},{"id":"mistral-small"}]}"""
+                """{"data":[{"id":"mistral-ocr-4-1"},{"id":"mistral-small"}]}""",
             ),
         )
         assertEquals(
@@ -181,7 +181,7 @@ class DocumentModelsTest {
         assertEquals(
             listOf("legacy-a", "legacy-b"),
             DocumentModels.parseVisionModelIds(
-                """{"data":[{"id":"legacy-a"},{"id":"legacy-b"}]}"""
+                """{"data":[{"id":"legacy-a"},{"id":"legacy-b"}]}""",
             ),
         )
     }

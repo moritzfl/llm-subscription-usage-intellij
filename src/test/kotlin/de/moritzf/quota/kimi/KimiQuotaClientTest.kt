@@ -32,7 +32,7 @@ class KimiQuotaClientTest {
               "usage": {"limit":"100","remaining":"0"},
               "limits": [{"window":{"duration":300,"timeUnit":"TIME_UNIT_MINUTE"},
                 "detail":{"limit":"100","remaining":"0"}}]
-            }"""
+            }""",
             )
 
         val session = assertNotNull(quota.sessionUsage)
@@ -62,7 +62,7 @@ class KimiQuotaClientTest {
               "limit_5h":{"used_ratio":"unknown"},
               "limit_7d":{"used_ratio":-1},
               "limit_month_total":{"used_ratio":0.6,"reset_time":"invalid"}
-            }}"""
+            }}""",
             )
 
         assertNull(quota.sessionUsage)
@@ -117,7 +117,7 @@ class KimiQuotaClientTest {
                   "detail":{"limit":"100","used":"100","resetTime":"2026-10-06T13:23:46.915474Z"}}],
                  "usages":{"limit_5h":{"used_ratio":0,"reset_time":"2026-10-06T13:23:46Z"},
                   "limit_month_total":{"used_ratio":0.5531,"reset_time":"2026-10-22T14:26:29Z"},
-                  "limit_month_code":{"used_ratio":0,"reset_time":"2026-10-22T14:26:29Z"}}}"""
+                  "limit_month_code":{"used_ratio":0,"reset_time":"2026-10-22T14:26:29Z"}}}""",
             )
 
         assertEquals(100.0, quota.sessionUsage?.usagePercent)
@@ -131,7 +131,7 @@ class KimiQuotaClientTest {
         fun quota(detail: String, ratio: String = "0.1") =
             KimiQuotaClient.parseQuota(
                 """{"limits":[{"window":{"duration":300,"timeUnit":"TIME_UNIT_MINUTE"},"detail":$detail}],
-                 "usages":{"limit_5h":{"used_ratio":$ratio,"reset_time":"2026-10-06T13:00:00Z"}}}"""
+                 "usages":{"limit_5h":{"used_ratio":$ratio,"reset_time":"2026-10-06T13:00:00Z"}}}""",
             )
 
         // Resets more than two seconds apart, a lower count, and unreadable counts keep the ratio.
@@ -185,7 +185,7 @@ class KimiQuotaClientTest {
                   "balance":{"type":"BOOSTER","amount":"20000000000","amountLeft":"10000000000"},
                   "monthlyChargeLimitEnabled":true,
                   "monthlyChargeLimit":{"currency":"USD","priceInCents":"20000"},
-                  "monthlyUsed":{"currency":"USD","priceInCents":"5000"}}}"""
+                  "monthlyUsed":{"currency":"USD","priceInCents":"5000"}}}""",
             )
 
         assertEquals(25.0, quota.monthlyCodeUsage?.usagePercent)
@@ -208,15 +208,15 @@ class KimiQuotaClientTest {
         val tiny =
             KimiQuotaClient.parseQuota(
                 """{"usages":{},"boosterWallet":{"balance":{"type":"BOOSTER","amount":"500000","amountLeft":"1"},
-                  "monthlyChargeLimitEnabled":false,"monthlyUsed":{"currency":"CNY","priceInCents":"0"}}}"""
+                  "monthlyChargeLimitEnabled":false,"monthlyUsed":{"currency":"CNY","priceInCents":"0"}}}""",
             )
         val plan =
             KimiQuotaClient.parseQuota(
-                """{"usages":{},"boosterWallet":{"balance":{"type":"PLAN"}}}"""
+                """{"usages":{},"boosterWallet":{"balance":{"type":"PLAN"}}}""",
             )
         val empty =
             KimiQuotaClient.parseQuota(
-                """{"usages":{},"boosterWallet":{"balance":{"type":"BOOSTER","amount":"0"}}}"""
+                """{"usages":{},"boosterWallet":{"balance":{"type":"BOOSTER","amount":"0"}}}""",
             )
 
         assertEquals(KimiExtraUsage(balanceCents = 1, currency = "CNY"), tiny.extraUsage)
@@ -275,7 +275,7 @@ class KimiQuotaClientTest {
                             accessToken = "stale-token",
                             refreshToken = "refresh-1",
                             expiresAtEpochSeconds = 9_999_999_999.0,
-                        )
+                        ),
                     )
 
                 assertEquals("Kimi Code Premium", result.quota.plan)

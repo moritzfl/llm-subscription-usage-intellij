@@ -16,7 +16,7 @@ class McpJsonTargetUpdater(
         allowTrailingComma = true
         prettyPrint = true
         prettyPrintIndent = "  "
-    }
+    },
 ) {
     private val tomlUpdater = McpTomlTargetUpdater()
     private val yamlUpdater = McpYamlTargetUpdater()
@@ -305,7 +305,7 @@ class McpJsonTargetUpdater(
                 val currentObject =
                     current as? JsonObject
                         ?: error(
-                            "JSON property path does not exist: ${formatDotPath(path.take(index))} is not an object"
+                            "JSON property path does not exist: ${formatDotPath(path.take(index))} is not an object",
                         )
                 current =
                     currentObject[segment]

@@ -15,15 +15,15 @@ class ChatFimPromptBuilderTest {
                     suffix = "\n}",
                     filePath = "src/Main.kt",
                     languageHint = "kt",
-                )
+                ),
             )
 
         assertTrue(prompt.contains("File: src/Main.kt"))
         assertTrue(prompt.contains("Language: kt"))
         assertTrue(
             prompt.contains(
-                "<code_before_cursor>\nfun add(a: Int, b: Int): Int {\n    return \n</code_before_cursor>"
-            )
+                "<code_before_cursor>\nfun add(a: Int, b: Int): Int {\n    return \n</code_before_cursor>",
+            ),
         )
         assertTrue(prompt.contains("<CURSOR>"))
         assertTrue(prompt.contains("<code_after_cursor>\n\n}\n</code_after_cursor>"))
@@ -44,7 +44,7 @@ class ChatFimPromptBuilderTest {
                     suffix = "\n */\nfun add() {}",
                     filePath = "src/Main.kt",
                     languageHint = "kt",
-                )
+                ),
             )
 
         assertTrue(prompt.contains("already contains `*/`"))
@@ -64,7 +64,7 @@ class ChatFimPromptBuilderTest {
                     suffix = "\n * the sum of a and b.\n */\nfun add() {}",
                     filePath = "src/Main.kt",
                     languageHint = "kt",
-                )
+                ),
             )
 
         assertTrue(prompt.contains("More comment follows after the cursor"))
@@ -82,7 +82,7 @@ class ChatFimPromptBuilderTest {
                     suffix = "\n    bar()",
                     filePath = "src/Main.kt",
                     languageHint = "kt",
-                )
+                ),
             )
 
         assertTrue(prompt.contains("inside a line comment"))
@@ -98,7 +98,7 @@ class ChatFimPromptBuilderTest {
                     suffix = "\"\n",
                     filePath = "src/Main.kt",
                     languageHint = "kt",
-                )
+                ),
             )
 
         assertFalse(prompt.contains("inside a comment"))
@@ -115,7 +115,7 @@ class ChatFimPromptBuilderTest {
                     prefix = "a",
                     suffix = "b",
                     extraFiles = listOf(FimFileSlice("src/Util.kt", "fun util() = 1")),
-                )
+                ),
             )
 
         assertTrue(prompt.contains("<extra_file path=\"src/Util.kt\">"))
@@ -131,7 +131,7 @@ class ChatFimPromptBuilderTest {
                     prefix = "a",
                     suffix = "b",
                     extraFiles = emptyList(),
-                )
+                ),
             )
 
         assertFalse(prompt.contains("<extra_file"))

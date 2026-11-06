@@ -193,7 +193,7 @@ class ProviderAccountTest {
                         name = "OpenAI",
                         isDefault = true,
                     ),
-                )
+                ),
             )
         assertEquals(listOf("x", "openai"), kept.map { it.id })
     }

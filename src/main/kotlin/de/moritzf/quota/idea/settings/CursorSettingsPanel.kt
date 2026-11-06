@@ -38,7 +38,7 @@ internal class CursorSettingsPanel(
             row { statusCell(cursorStatusLabel) }
             row {
                 text(
-                    "Paste the WorkosCursorSessionToken cookie from cursor.com (DevTools → Application → Cookies)."
+                    "Paste the WorkosCursorSessionToken cookie from cursor.com (DevTools → Application → Cookies).",
                 )
             }
             row("Session cookie (${CursorSessionTokenParser.COOKIE_NAME}):") {
@@ -93,7 +93,7 @@ internal class CursorSettingsPanel(
                     updateStatus()
                     updateResponseArea()
                 }
-            }
+            },
         )
         sessionCookieDraft.show(
             id,

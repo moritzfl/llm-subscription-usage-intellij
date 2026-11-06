@@ -94,7 +94,7 @@ internal data class StandaloneSubscriptionOptions(
 )
 
 internal fun parseStandaloneSubscriptionOptions(
-    args: Array<String>
+    args: Array<String>,
 ): StandaloneSubscriptionOptions {
     var options = StandaloneSubscriptionOptions()
     var index = 0
@@ -122,21 +122,21 @@ internal fun parseStandaloneSubscriptionOptions(
             arg == "--cors-origin" || arg == "--cors-url" -> {
                 options =
                     options.copy(
-                        corsOrigins = options.corsOrigins + parseCommaSeparatedList(requireValue())
+                        corsOrigins = options.corsOrigins + parseCommaSeparatedList(requireValue()),
                     )
             }
             arg.startsWith("--cors-origin=") -> {
                 options =
                     options.copy(
                         corsOrigins =
-                            options.corsOrigins + parseCommaSeparatedList(arg.substringAfter('='))
+                            options.corsOrigins + parseCommaSeparatedList(arg.substringAfter('=')),
                     )
             }
             arg.startsWith("--cors-url=") -> {
                 options =
                     options.copy(
                         corsOrigins =
-                            options.corsOrigins + parseCommaSeparatedList(arg.substringAfter('='))
+                            options.corsOrigins + parseCommaSeparatedList(arg.substringAfter('=')),
                     )
             }
             arg == "--log-requests" -> options = options.copy(logRequests = true)
@@ -344,7 +344,7 @@ private fun createProviders(
                 configProvider = {
                     val executable =
                         AzureCli.findExecutable(
-                            env.value("AZURE_PROXY_EXECUTABLE") ?: env.value("AZURE_CLI")
+                            env.value("AZURE_PROXY_EXECUTABLE") ?: env.value("AZURE_CLI"),
                         )
                     val account =
                         azureAccountConfig(

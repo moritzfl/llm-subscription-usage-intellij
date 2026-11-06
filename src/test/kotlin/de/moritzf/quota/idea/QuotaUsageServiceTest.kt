@@ -803,7 +803,7 @@ class QuotaUsageServiceTest {
                                         usagePercent = 97.0,
                                     ),
                             ),
-                        )
+                        ),
                     ),
                 )
                 setCachedQuotaJson(
@@ -814,7 +814,7 @@ class QuotaUsageServiceTest {
                             OpenAiCodexQuota(allowed = true).apply {
                                 primary = UsageWindow(usedPercent = 0.0)
                             },
-                        )
+                        ),
                     ),
                 )
             }
@@ -1006,7 +1006,7 @@ class QuotaUsageServiceTest {
                         override fun fetchQuota(apiKey: String) =
                             de.moritzf.quota.ollama.OllamaQuota(
                                 sessionUsage =
-                                    de.moritzf.quota.ollama.OllamaUsageWindow(usagePercent = 42.0)
+                                    de.moritzf.quota.ollama.OllamaUsageWindow(usagePercent = 42.0),
                             )
                     },
                 apiKeyProvider = { "pro-key" },
@@ -1019,7 +1019,7 @@ class QuotaUsageServiceTest {
                         override fun fetchQuota(apiKey: String) =
                             de.moritzf.quota.ollama.OllamaQuota(
                                 sessionUsage =
-                                    de.moritzf.quota.ollama.OllamaUsageWindow(usagePercent = 0.0)
+                                    de.moritzf.quota.ollama.OllamaUsageWindow(usagePercent = 0.0),
                             )
                     },
                 apiKeyProvider = { "free-key" },
@@ -1408,7 +1408,7 @@ class QuotaUsageServiceTest {
                         override fun fetchQuota(accessToken: String?): SuperGrokQuota {
                             fetches++
                             return SuperGrokQuota(
-                                resetTokens = listOf(SuperGrokResetToken(tokenId = "restok_1"))
+                                resetTokens = listOf(SuperGrokResetToken(tokenId = "restok_1")),
                             )
                         }
                     },
@@ -1460,7 +1460,7 @@ class QuotaUsageServiceTest {
                         status = "ok",
                         resetInSec = 60,
                         usagePercent = 10.0,
-                    )
+                    ),
             )
         }
     }

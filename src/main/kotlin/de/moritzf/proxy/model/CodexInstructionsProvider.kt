@@ -45,7 +45,7 @@ class CodexInstructionsProvider(
     private val lock = ReentrantLock()
 
     constructor(
-        configuredInstructions: String?
+        configuredInstructions: String?,
     ) : this(
         Mode.CONFIGURED,
         configuredInstructions,

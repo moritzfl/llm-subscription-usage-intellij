@@ -61,9 +61,9 @@ class QuotaHeadlessLoginTest {
             Fixture(
                 object : DeviceClient() {
                     override suspend fun poll(
-                        authorization: OAuthDeviceAuthorization
+                        authorization: OAuthDeviceAuthorization,
                     ): OAuthDevicePollResult = awaitCancellation()
-                }
+                },
             )
         try {
             fixture.service.startDeviceLoginFlow("a", OPEN_AI, {})
@@ -88,7 +88,7 @@ class QuotaHeadlessLoginTest {
             Fixture(
                 object : DeviceClient() {
                     override suspend fun poll(
-                        authorization: OAuthDeviceAuthorization
+                        authorization: OAuthDeviceAuthorization,
                     ): OAuthDevicePollResult {
                         polls += testScheduler.currentTime
                         return when (polls.size) {
@@ -125,7 +125,7 @@ class QuotaHeadlessLoginTest {
                         authorization(expiresAt = System.currentTimeMillis() + 100)
 
                     override suspend fun poll(
-                        authorization: OAuthDeviceAuthorization
+                        authorization: OAuthDeviceAuthorization,
                     ): OAuthDevicePollResult {
                         polls.incrementAndGet()
                         return super.poll(authorization)
@@ -165,7 +165,7 @@ class QuotaHeadlessLoginTest {
                             release.await()
                             authorization()
                         }
-                }
+                },
             )
         try {
             fixture.service.startDeviceLoginFlow(
@@ -198,14 +198,14 @@ class QuotaHeadlessLoginTest {
             Fixture(
                 object : DeviceClient() {
                     override suspend fun poll(
-                        authorization: OAuthDeviceAuthorization
+                        authorization: OAuthDeviceAuthorization,
                     ): OAuthDevicePollResult =
                         withContext(NonCancellable) {
                             entered.complete(Unit)
                             release.await()
                             OAuthDevicePollResult.Authorized(oauth("stale"))
                         }
-                }
+                },
             )
         try {
             fixture.service.startDeviceLoginFlow("a", OPEN_AI, { callbacks.incrementAndGet() })
@@ -236,7 +236,7 @@ class QuotaHeadlessLoginTest {
                             release.await()
                         }
                     personal(input)
-                }
+                },
             )
         try {
             fixture.service.startPersonalTokenLogin("a", "at-old") { callbacks.incrementAndGet() }
@@ -295,7 +295,7 @@ class QuotaHeadlessLoginTest {
                 Fixture(
                     validator = {
                         if (storageFailure) personal(it) else throw IOException("Invalid token")
-                    }
+                    },
                 )
             try {
                 fixture.store("a").save(oauth("existing"))
@@ -333,7 +333,7 @@ class QuotaHeadlessLoginTest {
                         ): OAuthCredentials = error("Unexpected browser login")
 
                         override suspend fun refreshCredentials(
-                            existing: OAuthCredentials
+                            existing: OAuthCredentials,
                         ): OAuthCredentials = error("Personal tokens must not refresh")
                     }
                 },

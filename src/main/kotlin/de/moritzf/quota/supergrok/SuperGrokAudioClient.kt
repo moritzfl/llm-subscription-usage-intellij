@@ -62,7 +62,7 @@ open class SuperGrokAudioClient(
         val output =
             resolveSpeechOutput(targetFile, baseDirectory, format)
                 ?: throw SuperGrokQuotaException(
-                    "Provide targetFile so the audio is written to disk."
+                    "Provide targetFile so the audio is written to disk.",
                 )
         val parent = output.parent
         if (parent != null) {
@@ -70,7 +70,7 @@ open class SuperGrokAudioClient(
         }
         Files.write(output, bytes)
         return JsonSupport.json.encodeToString(
-            GrokSpeechWriteResult(output.toString(), bytes.size.toLong())
+            GrokSpeechWriteResult(output.toString(), bytes.size.toLong()),
         )
     }
 
@@ -104,7 +104,7 @@ open class SuperGrokAudioClient(
                     voiceId = voiceId?.trim()?.ifBlank { null } ?: DEFAULT_VOICE,
                     language = language?.trim()?.ifBlank { null } ?: DEFAULT_LANGUAGE,
                     outputFormat = GrokTtsOutputFormatDto(codec = format),
-                )
+                ),
             )
         val request =
             HttpRequest.newBuilder()

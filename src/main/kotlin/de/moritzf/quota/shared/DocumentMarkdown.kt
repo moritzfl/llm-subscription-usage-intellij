@@ -50,11 +50,11 @@ internal object DocumentMarkdown {
                     pageTo,
                     warnings,
                     imageExport,
-                )
+                ),
             )
         }
         return JsonSupport.json.encodeToString(
-            DocumentMarkdownTextResult(cleaned, pageCount, pageFrom, pageTo)
+            DocumentMarkdownTextResult(cleaned, pageCount, pageFrom, pageTo),
         )
     }
 

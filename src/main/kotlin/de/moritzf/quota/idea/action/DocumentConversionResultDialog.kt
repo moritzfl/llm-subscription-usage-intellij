@@ -36,8 +36,8 @@ internal class DocumentConversionResultDialog(
                     JBLabel(
                         "<html><body style='width: 460px'>${
                         QuotaUiUtil.escapeHtml(summary).replace("\n", "<br>")
-                    }</body></html>"
-                    )
+                    }</body></html>",
+                    ),
                 )
                 .align(Align.FILL)
         }
@@ -54,11 +54,11 @@ internal class DocumentConversionResultDialog(
                                                 UIUtil.getLabelFont().size,
                                             )
                                         caretPosition = 0
-                                    }
+                                    },
                                 )
                                 .apply {
                                     preferredSize = Dimension(JBUI.scale(620), JBUI.scale(280))
-                                }
+                                },
                         )
                         .align(Align.FILL)
                 }
@@ -77,13 +77,13 @@ internal fun documentConversionSummary(result: DocumentConversionResult): String
             ?: return "Markdown saved with warnings. Expand Details for more information."
     return buildString {
         append(
-            "Markdown saved.\nImages: ${images.succeeded} of ${images.total} saved; ${images.failed} failed.\n\n"
+            "Markdown saved.\nImages: ${images.succeeded} of ${images.total} saved; ${images.failed} failed.\n\n",
         )
         when (images.requestedFormat) {
             DocumentImageFormat.SVG -> {
                 append("Requested SVG: ${images.svg} saved.\n")
                 append(
-                    "Fallbacks used: ${images.png} PNG at ${images.dpi} DPI; ${images.provider} provider images."
+                    "Fallbacks used: ${images.png} PNG at ${images.dpi} DPI; ${images.provider} provider images.",
                 )
             }
 

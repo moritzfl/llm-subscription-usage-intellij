@@ -82,7 +82,7 @@ class QuotaRefreshButtonTest {
         val requests =
             results.map { CompletableFuture.completedFuture(it) } +
                 CompletableFuture.failedFuture<ProviderSnapshot?>(
-                    IllegalStateException("Refresh failed")
+                    IllegalStateException("Refresh failed"),
                 )
         requests.forEach { request ->
             var completions = 0

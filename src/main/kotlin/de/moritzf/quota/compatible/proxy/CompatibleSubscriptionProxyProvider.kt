@@ -119,7 +119,7 @@ class CompatibleSubscriptionProxyProvider(
                         buildJsonObject {
                             put("role", "user")
                             put("content", "Reply with only the word OK.")
-                        }
+                        },
                     )
                 },
             )
@@ -127,7 +127,7 @@ class CompatibleSubscriptionProxyProvider(
         val response =
             httpClient.send(
                 HttpRequest.newBuilder(
-                        java.net.URI(endpoint.baseUri.toString() + "/chat/completions")
+                        java.net.URI(endpoint.baseUri.toString() + "/chat/completions"),
                     )
                     .timeout(Duration.ofSeconds(45))
                     .header("Authorization", "Bearer ${requireKey()}")

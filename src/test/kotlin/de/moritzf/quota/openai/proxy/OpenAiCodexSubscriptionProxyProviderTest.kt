@@ -78,7 +78,7 @@ class OpenAiCodexSubscriptionProxyProviderTest {
                 assertNull(request.firstHeader("version"))
                 assertEquals("openai-usage-quota-plugin", request.firstHeader("originator"))
                 assertTrue(
-                    request.firstHeader("User-Agent")!!.startsWith("openai-usage-quota-plugin/")
+                    request.firstHeader("User-Agent")!!.startsWith("openai-usage-quota-plugin/"),
                 )
                 val upstreamBody = JsonHelper.JSON.parseToJsonElement(request.body).jsonObject
                 assertEquals("gpt-5.5", upstreamBody["model"]!!.jsonPrimitive.content)

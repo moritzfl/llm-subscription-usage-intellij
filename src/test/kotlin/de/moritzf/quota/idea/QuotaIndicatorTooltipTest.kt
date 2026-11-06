@@ -125,8 +125,8 @@ class QuotaIndicatorTooltipTest {
         )
         assertNull(
             indicatorPlanName(
-                OpenAiCodexQuota(primary = de.moritzf.quota.openai.UsageWindow(usedPercent = 1.0))
-            )
+                OpenAiCodexQuota(primary = de.moritzf.quota.openai.UsageWindow(usedPercent = 1.0)),
+            ),
         )
         assertEquals(
             "OpenAI (Work) • Plus • 1% 5-hour",
@@ -252,7 +252,7 @@ class QuotaIndicatorTooltipTest {
                         de.moritzf.quota.ollama.OllamaUsageWindow(
                             usagePercent = 8.0,
                             resetsAt = resetsAt,
-                        )
+                        ),
                 ),
                 error = null,
                 ProviderAuthState.AUTHENTICATED,

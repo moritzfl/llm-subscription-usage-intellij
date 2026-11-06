@@ -1,4 +1,5 @@
 package de.moritzf.proxy.sse
+
 data class ServerSentEvent(
     val event: String?,
     val data: String?,

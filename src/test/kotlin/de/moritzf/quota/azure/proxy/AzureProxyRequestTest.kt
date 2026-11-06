@@ -51,12 +51,14 @@ class AzureProxyRequestTest {
                         )
                         val sent =
                             Json.parseToJsonElement(
-                                assertNotNull(requests.poll(5, TimeUnit.SECONDS))
+                                assertNotNull(requests.poll(5, TimeUnit.SECONDS)),
                             ) as JsonObject
                         assertEquals(model, sent["model"]?.jsonPrimitive?.content)
                         assertEquals("64", sent["max_completion_tokens"]?.jsonPrimitive?.content)
                         assertTrue(
-                            listOf("max_tokens", "stop", "temperature", "top_p").none { it in sent }
+                            listOf("max_tokens", "stop", "temperature", "top_p").none {
+                                it in sent
+                            },
                         )
                         assertEquals("true", sent["stream"]?.jsonPrimitive?.content)
                     }
@@ -71,7 +73,7 @@ class AzureProxyRequestTest {
                         )
                         val sent =
                             Json.parseToJsonElement(
-                                assertNotNull(requests.poll(5, TimeUnit.SECONDS))
+                                assertNotNull(requests.poll(5, TimeUnit.SECONDS)),
                             ) as JsonObject
                         assertEquals("none", sent["reasoning_effort"]?.jsonPrimitive?.content)
                         assertEquals("64", sent["max_completion_tokens"]?.jsonPrimitive?.content)
@@ -100,7 +102,7 @@ class AzureProxyRequestTest {
                         )
                         val sentNoTools =
                             Json.parseToJsonElement(
-                                assertNotNull(requests.poll(5, TimeUnit.SECONDS))
+                                assertNotNull(requests.poll(5, TimeUnit.SECONDS)),
                             ) as JsonObject
                         assertEquals("low", sentNoTools["reasoning_effort"]?.jsonPrimitive?.content)
                     }
@@ -329,11 +331,11 @@ class AzureProxyRequestTest {
                 assertEquals(200, slow.get(5, TimeUnit.SECONDS).statusCode())
                 val firstUsage =
                     assertNotNull(
-                        AzureLiveUsage.read(AzureLiveUsage.key(first.accountId, first.account))
+                        AzureLiveUsage.read(AzureLiveUsage.key(first.accountId, first.account)),
                     )
                 val secondUsage =
                     assertNotNull(
-                        AzureLiveUsage.read(AzureLiveUsage.key(second.accountId, second.account))
+                        AzureLiveUsage.read(AzureLiveUsage.key(second.accountId, second.account)),
                     )
                 assertEquals("slow", firstUsage.model)
                 assertEquals(10.0, firstUsage.remainingTokens)
@@ -389,10 +391,10 @@ class AzureProxyRequestTest {
                     assertTrue(
                         calls.all {
                             it[it.indexOf("--subscription") + 1] == first.account.subscriptionId
-                        }
+                        },
                     )
                     assertNotNull(
-                        AzureLiveUsage.read(AzureLiveUsage.key(first.accountId, first.account))
+                        AzureLiveUsage.read(AzureLiveUsage.key(first.accountId, first.account)),
                     )
                 }
             }

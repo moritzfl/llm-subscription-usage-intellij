@@ -55,7 +55,7 @@ open class SuperGrokImagineClient(
                     prompt = trimmedPrompt,
                     n = 1,
                     responseFormat = "url",
-                )
+                ),
             )
         val responseBody =
             postJson(token, IMAGES_GENERATIONS_PATH, body, requestTimeoutSeconds = 120)
@@ -91,7 +91,7 @@ open class SuperGrokImagineClient(
                     model = trimmedModel,
                     prompt = trimmedPrompt,
                     image = GrokEditImageDto(url = source, type = "image_url"),
-                )
+                ),
             )
         val responseBody = postJson(token, IMAGES_EDITS_PATH, body, requestTimeoutSeconds = 120)
         if (outputTarget?.path == null) {
@@ -127,7 +127,7 @@ open class SuperGrokImagineClient(
                     prompt = trimmedPrompt,
                     duration = seconds,
                     image = image,
-                )
+                ),
             )
         val startBody = postJson(token, VIDEOS_GENERATIONS_PATH, body, requestTimeoutSeconds = 60)
         if (!waitForCompletion) {
@@ -399,7 +399,7 @@ open class SuperGrokImagineClient(
                     !url.startsWith("data:")
             ) {
                 throw SuperGrokQuotaException(
-                    "Source image must be an http(s) URL or a local file."
+                    "Source image must be an http(s) URL or a local file.",
                 )
             }
             return url
@@ -419,12 +419,12 @@ open class SuperGrokImagineClient(
                     Path.of(targetFile.trim())
                 } catch (exception: InvalidPathException) {
                     return ImageOutputTarget(
-                        error = exception.message ?: "Invalid image target file path."
+                        error = exception.message ?: "Invalid image target file path.",
                     )
                 }
             if (path.isAbsolute) {
                 return ImageOutputTarget(
-                    error = "Image target file must be relative to the project directory."
+                    error = "Image target file must be relative to the project directory.",
                 )
             }
             val base =
@@ -434,7 +434,7 @@ open class SuperGrokImagineClient(
             val resolved = base.resolve(path).normalize()
             if (!resolved.startsWith(base)) {
                 return ImageOutputTarget(
-                    error = "Image target file must stay inside the project directory."
+                    error = "Image target file must stay inside the project directory.",
                 )
             }
             val format =
@@ -444,12 +444,12 @@ open class SuperGrokImagineClient(
                     ?.lowercase(Locale.ROOT)
                     ?.takeIf { it.isNotBlank() }
                     ?: return ImageOutputTarget(
-                        error = "Image target file must include an extension."
+                        error = "Image target file must include an extension.",
                     )
             if (format !in SUPPORTED_IMAGE_FORMATS) {
                 return ImageOutputTarget(
                     error =
-                        "Unsupported image format '$format'. Supported formats: ${SUPPORTED_IMAGE_FORMATS.sorted().joinToString(", ")}."
+                        "Unsupported image format '$format'. Supported formats: ${SUPPORTED_IMAGE_FORMATS.sorted().joinToString(", ")}.",
                 )
             }
             return ImageOutputTarget(path = resolved, format = format)

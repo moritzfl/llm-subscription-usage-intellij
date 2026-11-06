@@ -64,8 +64,8 @@ class GitHubCopilotCompletionsTest {
                                 .header("Content-Type", "application/json")
                                 .POST(
                                     HttpRequest.BodyPublishers.ofString(
-                                        """{"model":"qwen2.5-coder","prompt":"return ","stream":$stream}"""
-                                    )
+                                        """{"model":"qwen2.5-coder","prompt":"return ","stream":$stream}""",
+                                    ),
                                 )
                                 .build()
                         val previous =
@@ -157,8 +157,8 @@ class GitHubCopilotCompletionsTest {
                                 .header("Content-Type", "application/json")
                                 .POST(
                                     HttpRequest.BodyPublishers.ofString(
-                                        """{"model":"qwen2.5-coder","prompt":"answer: ","stream":$stream,"stop":${JsonArray(stops.map(::JsonPrimitive))}}"""
-                                    )
+                                        """{"model":"qwen2.5-coder","prompt":"answer: ","stream":$stream,"stop":${JsonArray(stops.map(::JsonPrimitive))}}""",
+                                    ),
                                 )
                                 .build(),
                             HttpResponse.BodyHandlers.ofString(),
@@ -230,7 +230,7 @@ class GitHubCopilotCompletionsTest {
                                 .headers()
                                 .firstValue("Content-Type")
                                 .orElse("")
-                                .contains("text/event-stream")
+                                .contains("text/event-stream"),
                         )
                         val chunks =
                             response
@@ -505,8 +505,8 @@ class GitHubCopilotCompletionsTest {
                     .header("Content-Type", "application/json")
                     .POST(
                         HttpRequest.BodyPublishers.ofString(
-                            """{"model":"qwen2.5-coder","prompt":"function add(a, b) { return ","suffix":"; }","max_tokens":32,"stream":$stream,"stop":${JsonArray(stops.map(::JsonPrimitive))}}"""
-                        )
+                            """{"model":"qwen2.5-coder","prompt":"function add(a, b) { return ","suffix":"; }","max_tokens":32,"stream":$stream,"stop":${JsonArray(stops.map(::JsonPrimitive))}}""",
+                        ),
                     )
                     .build(),
                 HttpResponse.BodyHandlers.ofString(),

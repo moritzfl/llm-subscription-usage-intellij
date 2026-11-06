@@ -16,7 +16,7 @@ internal object ProviderSettingsRegistry {
         get() = ProviderCatalog.all.associate { it.type to it.settingsPanelFactory }
 
     fun createPanels(
-        context: ProviderSettingsPanelContext
+        context: ProviderSettingsPanelContext,
     ): LinkedHashMap<QuotaProviderType, ProviderSettingsPanel> {
         return ProviderCatalog.defaultProviderOrder().associateWithTo(linkedMapOf()) { type ->
             ProviderCatalog.get(type).settingsPanelFactory(context)

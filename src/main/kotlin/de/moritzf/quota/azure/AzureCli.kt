@@ -51,7 +51,7 @@ internal class AzureCli(
             else account.subscriptionId.equals(subscriptionId, ignoreCase = true)
         }
             ?: throw AzureCliException(
-                "Azure CLI did not return a subscription. Run az login, then retry."
+                "Azure CLI did not return a subscription. Run az login, then retry.",
             )
     }
 
@@ -161,7 +161,7 @@ internal fun runAzure(
                 .start()
         } catch (_: IOException) {
             throw AzureCliException(
-                "Could not start Azure CLI. Check the executable path in settings."
+                "Could not start Azure CLI. Check the executable path in settings.",
             )
         }
     val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
@@ -204,12 +204,12 @@ internal fun parseAzureCliToken(raw: String, nowMillis: Long): AzureAccessToken 
     val json =
         azureJsonObject(raw)
             ?: throw AzureCliException(
-                "Azure CLI did not return token JSON. Run az login, then retry."
+                "Azure CLI did not return token JSON. Run az login, then retry.",
             )
     val token =
         json.text("accessToken")
             ?: throw AzureCliException(
-                "Azure CLI did not return an access token. Run az login, then retry."
+                "Azure CLI did not return an access token. Run az login, then retry.",
             )
     val expires =
         tokenExpiryMillis(json, nowMillis)
@@ -245,7 +245,7 @@ internal fun parseAzureAccountList(raw: String): List<AzureCliAccount> {
         .filter { it.subscriptionId.isNotEmpty() }
         .sortedWith(
             compareByDescending<AzureCliAccount> { it.userType.equals("user", ignoreCase = true) }
-                .thenBy { it.subscriptionName }
+                .thenBy { it.subscriptionName },
         )
 }
 

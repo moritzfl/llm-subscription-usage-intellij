@@ -22,7 +22,7 @@ object QuotaUiUtil {
 
         val duration =
             Duration.ofMillis(
-                resetsAt.toEpochMilliseconds() - Clock.System.now().toEpochMilliseconds()
+                resetsAt.toEpochMilliseconds() - Clock.System.now().toEpochMilliseconds(),
             )
         val remaining = formatDuration(duration)
         if (remaining != null) {
@@ -41,7 +41,7 @@ object QuotaUiUtil {
 
         val duration =
             Duration.ofMillis(
-                expiresAt.toEpochMilliseconds() - Clock.System.now().toEpochMilliseconds()
+                expiresAt.toEpochMilliseconds() - Clock.System.now().toEpochMilliseconds(),
             )
         val remaining = formatDuration(duration)
         if (remaining != null) {
@@ -60,8 +60,8 @@ object QuotaUiUtil {
 
         return formatCompactDuration(
             Duration.ofMillis(
-                resetsAt.toEpochMilliseconds() - Clock.System.now().toEpochMilliseconds()
-            )
+                resetsAt.toEpochMilliseconds() - Clock.System.now().toEpochMilliseconds(),
+            ),
         )
     }
 
@@ -74,8 +74,8 @@ object QuotaUiUtil {
         val ago =
             formatAgo(
                 Duration.ofMillis(
-                    Clock.System.now().toEpochMilliseconds() - instant.toEpochMilliseconds()
-                )
+                    Clock.System.now().toEpochMilliseconds() - instant.toEpochMilliseconds(),
+                ),
             )
         return ago ?: formatAbsoluteInstant(instant)
     }

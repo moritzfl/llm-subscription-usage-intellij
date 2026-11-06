@@ -167,7 +167,7 @@ class CompatibleSubscriptionProxyTest {
                 provider.fallbackModel(
                     "api-manual/not-allowed",
                     SubscriptionProxyRoute.CHAT_COMPLETIONS,
-                )
+                ),
             )
         }
     }
@@ -269,7 +269,7 @@ class CompatibleSubscriptionProxyTest {
                     )
                     val tools =
                         parse(
-                            """{"tools":[{"type":"function","function":{"name":"lookup","parameters":{"type":"object","properties":{}}}}],"tool_choice":"auto","parallel_tool_calls":true}"""
+                            """{"tools":[{"type":"function","function":{"name":"lookup","parameters":{"type":"object","properties":{}}}}],"tool_choice":"auto","parallel_tool_calls":true}""",
                         )
                     for ((id, target) in listOf("a" to first, "b" to second)) {
                         for (stream in listOf(false, true)) {
@@ -283,7 +283,7 @@ class CompatibleSubscriptionProxyTest {
                                             buildJsonObject {
                                                 put("role", "user")
                                                 put("content", "Hello")
-                                            }
+                                            },
                                         )
                                     },
                                 )
@@ -345,7 +345,7 @@ class CompatibleSubscriptionProxyTest {
                                 account.id,
                                 account.name,
                                 CompatibleEndpoint.parse(
-                                    account.extra(ProviderAccount.EXTRA_COMPATIBLE_BASE_URL)!!
+                                    account.extra(ProviderAccount.EXTRA_COMPATIBLE_BASE_URL)!!,
                                 ),
                                 { "key" },
                             )

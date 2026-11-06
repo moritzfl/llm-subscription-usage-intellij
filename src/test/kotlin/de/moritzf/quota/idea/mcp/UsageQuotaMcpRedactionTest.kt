@@ -32,7 +32,7 @@ class UsageQuotaMcpRedactionTest {
                 for (accountId in listOf("selected", "missing")) {
                     val result =
                         assertNotNull(
-                            registration.jsonForAccount(service, descriptor.type, accountId)
+                            registration.jsonForAccount(service, descriptor.type, accountId),
                         )
                     assertFalse(result.contains("synthetic-secret"), descriptor.type.name)
                     assertTrue(result.contains("12.5"), descriptor.type.name)
@@ -88,7 +88,7 @@ class UsageQuotaMcpRedactionTest {
                             QuotaProviderType.MISTRAL,
                             MistralQuota(rawJson = mistral),
                         ),
-                    )
+                    ),
                 )
                 .rawJson,
         )
@@ -116,7 +116,7 @@ class UsageQuotaMcpRedactionTest {
                 OpenCodeQuotaClient.buildRawResponse(
                     """{"new_pool":{"remaining":42}}""",
                     "<html>Gateway unavailable</html>",
-                )
+                ),
             )
         val settings = JsonSupport.json.parseToJsonElement(raw).jsonObject
         assertEquals(
@@ -135,7 +135,7 @@ class UsageQuotaMcpRedactionTest {
         withService(type, raw) { service ->
             assertNotNull(
                 assertNotNull(UsageQuotaMcpRegistry.get(type))
-                    .jsonForAccount(service, type, "selected")
+                    .jsonForAccount(service, type, "selected"),
             )
         }
 

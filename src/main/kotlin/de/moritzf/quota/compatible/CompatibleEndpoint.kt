@@ -24,7 +24,7 @@ data class CompatibleEndpoint(
             require(
                 uri != null &&
                     uri.scheme?.lowercase() in setOf("https", "http") &&
-                    !uri.host.isNullOrBlank()
+                    !uri.host.isNullOrBlank(),
             ) {
                 "Enter a valid http:// or https:// API base URL."
             }
@@ -35,7 +35,7 @@ data class CompatibleEndpoint(
                 "The URL port must be between 1 and 65535."
             }
             require(
-                !listOf("/chat/completions", "/responses", "/models").any { uri.path.endsWith(it) }
+                !listOf("/chat/completions", "/responses", "/models").any { uri.path.endsWith(it) },
             ) {
                 "Enter the API root (for example https://api.example.com/v1), without /chat/completions, /responses, or /models."
             }

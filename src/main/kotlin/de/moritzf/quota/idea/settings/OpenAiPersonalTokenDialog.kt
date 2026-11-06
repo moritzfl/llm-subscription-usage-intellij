@@ -20,7 +20,7 @@ internal class OpenAiPersonalTokenDialog(parent: JComponent) : DialogWrapper(par
         row { text("For ChatGPT Business and Enterprise workspaces.") }
         row {
             text(
-                "Create a personal access token in <a href=\"https://chatgpt.com/admin/access-tokens\">ChatGPT workspace settings</a>."
+                "Create a personal access token in <a href=\"https://chatgpt.com/admin/access-tokens\">ChatGPT workspace settings</a>.",
             )
         }
         row { text("Select the Codex scope when offered.") }
@@ -29,7 +29,7 @@ internal class OpenAiPersonalTokenDialog(parent: JComponent) : DialogWrapper(par
                 .align(AlignX.FILL)
                 .resizableColumn()
                 .comment(
-                    "Starts with at-. Stored in IntelliJ Password Safe. Replace it when it expires or is revoked."
+                    "Starts with at-. Stored in IntelliJ Password Safe. Replace it when it expires or is revoked.",
                 )
         }
     }

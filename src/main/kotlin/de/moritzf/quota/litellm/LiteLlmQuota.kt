@@ -72,7 +72,7 @@ data class LiteLlmQuota(
                     Instant.parse(
                         java.time.LocalDateTime.parse(it)
                             .toInstant(java.time.ZoneOffset.UTC)
-                            .toString()
+                            .toString(),
                     )
                 }
                     .getOrNull()

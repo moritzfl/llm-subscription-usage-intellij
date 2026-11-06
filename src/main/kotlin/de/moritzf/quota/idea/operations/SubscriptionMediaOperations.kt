@@ -37,7 +37,7 @@ internal suspend fun SubscriptionOperations.subscription_image_edit(
                         targetFile,
                         projectBaseDirectory(),
                         model,
-                    )
+                    ),
             )
         ImageEditProvider.SUPERGROK ->
             superGrokImageEdit(prompt, imageUrl, localFile, targetFile, model)
@@ -53,7 +53,7 @@ internal suspend fun SubscriptionOperations.subscription_image_generation(
         ImageGenerationProvider.OPEN_AI ->
             codexResult(
                 codexClient(AccountCapability.IMAGE_GENERATION)
-                    .imageGeneration(prompt, targetFile, projectBaseDirectory())
+                    .imageGeneration(prompt, targetFile, projectBaseDirectory()),
             )
 
         ImageGenerationProvider.SUPERGROK -> superGrokImageGeneration(prompt, targetFile)
@@ -84,7 +84,7 @@ internal suspend fun SubscriptionOperations.subscription_speech_to_text(
                         language,
                         diarize,
                         model,
-                    )
+                    ),
             )
 
         SpeechToTextProvider.SUPERGROK ->
@@ -132,7 +132,7 @@ internal suspend fun SubscriptionOperations.subscription_text_to_speech(
                         voiceId,
                         model,
                         responseFormat,
-                    )
+                    ),
             )
 
         TextToSpeechProvider.SUPERGROK ->
@@ -160,7 +160,7 @@ internal suspend fun SubscriptionOperations.subscription_text_to_speech(
 }
 
 internal suspend fun SubscriptionOperations.subscription_list_voices(
-    provider: TextToSpeechProvider = TextToSpeechProvider.OPEN_AI
+    provider: TextToSpeechProvider = TextToSpeechProvider.OPEN_AI,
 ): String {
     return when (provider) {
         TextToSpeechProvider.OPEN_AI ->

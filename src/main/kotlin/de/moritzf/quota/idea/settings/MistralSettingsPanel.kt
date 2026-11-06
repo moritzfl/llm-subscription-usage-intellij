@@ -64,7 +64,7 @@ internal class MistralSettingsPanel(
                 row { statusCell(statusLabel) }
                 row {
                     text(
-                        "Quota cookies from admin.mistral.ai / console.mistral.ai → DevTools → Application → Cookies. Copy each name/value."
+                        "Quota cookies from admin.mistral.ai / console.mistral.ai → DevTools → Application → Cookies. Copy each name/value.",
                     )
                 }
                 row("ory_session name:") {
@@ -86,7 +86,7 @@ internal class MistralSettingsPanel(
                             { documentModelCombo.selected().orEmpty() },
                             modalityComponentProvider,
                             documentModelCombo.combo,
-                        )
+                        ),
                     )
                 }
                 row(message("settings.model.vision.label")) {
@@ -99,7 +99,7 @@ internal class MistralSettingsPanel(
                             de.moritzf.quota.idea.mcp.VisionProvider.MISTRAL,
                             visionModelCombo,
                             modalityComponentProvider,
-                        )
+                        ),
                     )
                 }
                 row {
@@ -132,7 +132,7 @@ internal class MistralSettingsPanel(
         }
         val stored =
             MistralQuotaClient.storedSessionFields(
-                MistralSessionCookieStore.forAccount(id).load(onLoaded = onLoaded)
+                MistralSessionCookieStore.forAccount(id).load(onLoaded = onLoaded),
             )
         val apiKey = MistralApiKeyStore.forAccount(id).load(onLoaded = onLoaded)
         sessionNameDraft.show(id, stored?.sessionName.orEmpty())
@@ -185,7 +185,7 @@ internal class MistralSettingsPanel(
                 } else {
                     DocumentModels.fetchModelBody(
                         URI.create(
-                            "${MistralSubscriptionProxyProvider.DEFAULT_UPSTREAM_BASE_URI}/models"
+                            "${MistralSubscriptionProxyProvider.DEFAULT_UPSTREAM_BASE_URI}/models",
                         ),
                         key,
                     )

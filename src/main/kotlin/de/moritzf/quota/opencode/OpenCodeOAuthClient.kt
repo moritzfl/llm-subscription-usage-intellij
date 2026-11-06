@@ -52,7 +52,7 @@ open class OpenCodeOAuthClient(
                         "opencode-cli",
                         "urn:ietf:params:oauth:grant-type:device_code",
                         deviceCode = deviceCode,
-                    )
+                    ),
                 ),
             )
         val error = errorCode(response.body())
@@ -65,7 +65,7 @@ open class OpenCodeOAuthClient(
         checkStatus(response)
         if (error != null) throw authError(response.statusCode(), error)
         return OpenCodeDeviceTokenResult.Authorized(
-            decode<TokenResponse>(response.body()).credentials()
+            decode<TokenResponse>(response.body()).credentials(),
         )
     }
 
@@ -79,7 +79,7 @@ open class OpenCodeOAuthClient(
                         "opencode-cli",
                         "refresh_token",
                         refreshToken = existing.refreshToken,
-                    )
+                    ),
                 ),
             )
         checkStatus(response)
@@ -153,7 +153,7 @@ open class OpenCodeOAuthClient(
                 accessToken.isNotBlank() &&
                     refreshToken.isNotBlank() &&
                     expiresInSeconds > 0 &&
-                    orgId?.isBlank() != true
+                    orgId?.isBlank() != true,
             ) {
                 "Invalid OpenCode authorization response"
             }

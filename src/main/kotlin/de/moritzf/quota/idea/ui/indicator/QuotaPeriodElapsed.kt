@@ -137,7 +137,7 @@ internal fun GitHubUsageWindow.periodElapsedFraction(now: Instant = Clock.System
 }
 
 internal fun SuperGrokUsageWindow.periodElapsedFraction(
-    now: Instant = Clock.System.now()
+    now: Instant = Clock.System.now(),
 ): Double? {
     val durationMs = periodDurationMs ?: return null
     val resetAt = resetsAt ?: return null

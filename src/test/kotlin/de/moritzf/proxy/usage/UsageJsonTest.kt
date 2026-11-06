@@ -23,7 +23,7 @@ class UsageJsonTest {
     fun prefersOpenAiKeysWhenBothArePresent() {
         val usage =
             JsonHelper.parseToJsonElementOrNull(
-                "{\"prompt_tokens\":1,\"completion_tokens\":2,\"input_tokens\":9,\"output_tokens\":8}"
+                "{\"prompt_tokens\":1,\"completion_tokens\":2,\"input_tokens\":9,\"output_tokens\":8}",
             )
         assertEquals(1L to 2L, UsageJson.tokensFrom(usage))
     }

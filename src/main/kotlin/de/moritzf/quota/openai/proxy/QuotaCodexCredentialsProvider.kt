@@ -17,7 +17,7 @@ internal class QuotaCodexCredentialsProvider(
         val accessToken =
             accessTokenProvider()?.trim().takeUnless { it.isNullOrBlank() }
                 ?: throw AuthRequiredException(
-                    "OpenAI login required: log in on the OpenAI settings tab, then retry."
+                    "OpenAI login required: log in on the OpenAI settings tab, then retry.",
                 )
         val headers = linkedMapOf("Authorization" to "Bearer $accessToken")
         val accountId = accountIdProvider()?.trim().takeUnless { it.isNullOrBlank() }

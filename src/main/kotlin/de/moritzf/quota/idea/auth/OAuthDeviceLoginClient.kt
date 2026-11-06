@@ -70,7 +70,7 @@ class OAuthDeviceLoginClient(
                 post(
                     "/oauth2/device/code",
                     OAuthUrlCodec.formEncode(
-                        mapOf("client_id" to config.clientId, "scope" to config.scopes)
+                        mapOf("client_id" to config.clientId, "scope" to config.scopes),
                     ),
                     false,
                 )
@@ -122,14 +122,14 @@ class OAuthDeviceLoginClient(
                 post(
                     "/api/accounts/deviceauth/token",
                     JsonSupport.json.encodeToString(
-                        CodexDevicePoll(authorization.deviceCode, authorization.prompt.userCode)
+                        CodexDevicePoll(authorization.deviceCode, authorization.prompt.userCode),
                     ),
                     true,
                 )
             if (response.statusCode() in listOf(403, 404)) return OAuthDevicePollResult.Pending
             if (response.statusCode() !in 200..299)
                 throw IOException(
-                    "Device-code authorization failed (HTTP ${response.statusCode()})"
+                    "Device-code authorization failed (HTTP ${response.statusCode()})",
                 )
             val code = decode<CodexDeviceCode>(response.body())
             if (code.authorizationCode.isBlank() || code.codeVerifier.isBlank())
@@ -138,7 +138,7 @@ class OAuthDeviceLoginClient(
                 OAuthTokenClient(
                         httpClient,
                         config.copy(
-                            redirectUri = issuer.resolve("/deviceauth/callback").toString()
+                            redirectUri = issuer.resolve("/deviceauth/callback").toString(),
                         ),
                     )
                     .exchangeAuthorizationCode(code.authorizationCode, code.codeVerifier)
@@ -152,7 +152,7 @@ class OAuthDeviceLoginClient(
                         "client_id" to config.clientId,
                         "device_code" to authorization.deviceCode,
                         "grant_type" to "urn:ietf:params:oauth:grant-type:device_code",
-                    )
+                    ),
                 ),
                 false,
             )
@@ -165,15 +165,15 @@ class OAuthDeviceLoginClient(
             null -> {
                 if (response.statusCode() !in 200..299)
                     throw IOException(
-                        "Device-code authorization failed (HTTP ${response.statusCode()})"
+                        "Device-code authorization failed (HTTP ${response.statusCode()})",
                     )
                 OAuthDevicePollResult.Authorized(
-                    OAuthTokenClient(httpClient, config).readLoginCredentials(response.body())
+                    OAuthTokenClient(httpClient, config).readLoginCredentials(response.body()),
                 )
             }
             else ->
                 throw IOException(
-                    "Device-code authorization failed (HTTP ${response.statusCode()})"
+                    "Device-code authorization failed (HTTP ${response.statusCode()})",
                 )
         }
     }

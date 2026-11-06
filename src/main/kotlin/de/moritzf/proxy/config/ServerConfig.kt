@@ -163,7 +163,7 @@ class ServerConfig(
         }
         if (!HostBinding.isLocalOnlyHost(this.host) && this.apiKeys.isEmpty() && adminKey == null) {
             throw IllegalArgumentException(
-                "API key enforcement is required when binding to a non-loopback host: ${this.host}"
+                "API key enforcement is required when binding to a non-loopback host: ${this.host}",
             )
         }
     }
@@ -203,7 +203,7 @@ class ServerConfig(
             val normalized = mode.trim().lowercase(Locale.ROOT)
             if (normalized != "configured" && normalized != "latest-codex") {
                 throw IllegalArgumentException(
-                    "Codex instructions mode must be configured or latest-codex, got: $mode"
+                    "Codex instructions mode must be configured or latest-codex, got: $mode",
                 )
             }
             return normalized

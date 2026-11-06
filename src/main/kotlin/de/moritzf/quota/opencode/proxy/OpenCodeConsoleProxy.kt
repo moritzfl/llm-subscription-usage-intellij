@@ -142,7 +142,7 @@ internal class OpenCodeConsoleProxy(
                     requestHeadersProvider = {
                         clientHeaders +
                             mapOf(
-                                "Accept" to if (stream) "text/event-stream" else "application/json"
+                                "Accept" to if (stream) "text/event-stream" else "application/json",
                             )
                     },
                     upstreamUrlProvider = { req ->

@@ -105,7 +105,7 @@ internal class GitHubCopilotCompletions(
                                             model,
                                             text,
                                             null,
-                                        )
+                                        ),
                                     ),
                                 )
                             }
@@ -118,7 +118,7 @@ internal class GitHubCopilotCompletions(
                                     model,
                                     "",
                                     finishReason,
-                                )
+                                ),
                             ),
                         )
                         emit(ctx, "[DONE]")

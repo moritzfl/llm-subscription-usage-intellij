@@ -59,12 +59,12 @@ internal object OriginalPdf {
                 response.body().use { input ->
                     if (response.statusCode() != 200)
                         throw IOException(
-                            "Original PDF download returned HTTP ${response.statusCode()}"
+                            "Original PDF download returned HTTP ${response.statusCode()}",
                         )
                     val bytes = input.readNBytes(MAX_BYTES + 1)
                     if (bytes.size > MAX_BYTES)
                         throw IOException(
-                            "Original PDF exceeds the 50 MB figure-export download limit"
+                            "Original PDF exceeds the 50 MB figure-export download limit",
                         )
                     if (bytes.size < 5 || bytes.copyOfRange(0, 5).decodeToString() != "%PDF-")
                         return null

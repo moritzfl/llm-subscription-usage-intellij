@@ -28,7 +28,7 @@ internal object McpJson {
                 model = model,
                 resolvedAccountId = resolvedAccountId,
                 fallbackReason = fallbackReason,
-            )
+            ),
         )
     }
 
@@ -45,7 +45,7 @@ internal object McpJson {
                     fetchedAt = fetchedAt?.toString(),
                 ),
                 JsonSupport.json.parseToJsonElement(response),
-            )
+            ),
         )
 
     /** Wrapper for a vision model's answer; provider answers are plain text, not provider JSON. */

@@ -30,7 +30,7 @@ class McpTomlTargetUpdater {
         val propertyIndex =
             findPropertyLine(lines, segments)
                 ?: error(
-                    "TOML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(segments)}"
+                    "TOML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(segments)}",
                 )
         lines[propertyIndex] = replaceTomlStringValue(lines[propertyIndex], value)
         return lines.joinToString(separator)
@@ -135,12 +135,12 @@ class McpTomlTargetUpdater {
                 val currentTable =
                     current as? TomlTable
                         ?: error(
-                            "TOML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(path.take(index))} is not a table"
+                            "TOML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(path.take(index))} is not a table",
                         )
                 current =
                     currentTable.get(segment)
                         ?: error(
-                            "TOML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(path)}"
+                            "TOML property path does not exist: ${McpJsonTargetUpdater.formatDotPath(path)}",
                         )
             }
             require(current is String) { "TOML property path must point to a string value." }

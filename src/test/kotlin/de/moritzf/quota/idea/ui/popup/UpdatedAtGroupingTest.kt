@@ -16,7 +16,7 @@ class UpdatedAtGroupingTest {
                     UpdatedAtItem(listOf(mistral), "just now"),
                     UpdatedAtItem(listOf(ollama), "just now"),
                     UpdatedAtItem(listOf(openCode), "5 minutes ago"),
-                )
+                ),
             )
 
         assertEquals(

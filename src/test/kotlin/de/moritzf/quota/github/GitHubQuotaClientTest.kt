@@ -21,7 +21,7 @@ class GitHubQuotaClientTest {
                 "entitlement":"3000", "credits_used":300,
                 "remaining":0, "percent_remaining":90, "unlimited":false
               }}
-            }"""
+            }""",
             )
 
         val premium = assertNotNull(quota.premiumInteractions)
@@ -37,7 +37,7 @@ class GitHubQuotaClientTest {
             GitHubQuotaClient.parseQuota(
                 """{"token_based_billing":true,"quota_snapshots":{"premium_interactions":{
               "entitlement":3000,"remaining":0,"percent_remaining":90
-            }}}"""
+            }}}""",
             )
 
         val premium = assertNotNull(quota.premiumInteractions)
@@ -55,7 +55,7 @@ class GitHubQuotaClientTest {
                 "token_based_billing":true, "entitlement":1000,
                 "credits_used":"250", "quota_reset_at":1792483200
               }}
-            }"""
+            }""",
             )
 
         val premium = assertNotNull(quota.premiumInteractions)
@@ -76,7 +76,7 @@ class GitHubQuotaClientTest {
                       "percent_remaining":99.7,"quota_id":"premium_interactions","quota_remaining":199.4,
                       "unlimited":false,"has_quota":true,"quota_reset_at":0,"token_based_billing":true,
                       "credits_used":0,"overage_entitlement":1000,"remaining":199,"entitlement":200},
-                    "chat":{"overage_count":7,"overage_permitted":true,"entitlement":100,"percent_remaining":50}}}"""
+                    "chat":{"overage_count":7,"overage_permitted":true,"entitlement":100,"percent_remaining":50}}}""",
             )
 
         val premium = assertNotNull(quota.premiumInteractions)
@@ -117,7 +117,7 @@ class GitHubQuotaClientTest {
                 "premium_interactions":{"entitlement":0,"percent_remaining":0},
                 "chat":{"entitlement":100,"percent_remaining":75}
               }
-            }"""
+            }""",
             )
 
         assertNull(quota.premiumInteractions)

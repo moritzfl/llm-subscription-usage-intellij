@@ -17,7 +17,7 @@ class VisionChatTest {
         val json =
             JsonSupport.json
                 .parseToJsonElement(
-                    VisionChat.chatRequestJson("pixtral-large-latest", image, "What is this?")
+                    VisionChat.chatRequestJson("pixtral-large-latest", image, "What is this?"),
                 )
                 .jsonObject
 
@@ -58,7 +58,7 @@ class VisionChatTest {
         assertEquals(
             "part one part two",
             VisionChat.chatAnswer(
-                """{"choices":[{"message":{"content":[{"type":"text","text":"part one "},{"type":"text","text":"part two"}]}}]}"""
+                """{"choices":[{"message":{"content":[{"type":"text","text":"part one "},{"type":"text","text":"part two"}]}}]}""",
             ),
         )
         assertNull(VisionChat.chatAnswer("""{"choices":[{"message":{"content":""}}]}"""))

@@ -55,7 +55,7 @@ internal object AccountResolver {
                 it.id == pinned || it.name.equals(pinned, ignoreCase = true)
             }
                 ?: throw AccountResolveException(
-                    "No ${type.displayName} account named '$pinned'. Available: ${accountNames(accounts)}"
+                    "No ${type.displayName} account named '$pinned'. Available: ${accountNames(accounts)}",
                 )
         }
         if (accounts.isEmpty()) {
@@ -67,7 +67,7 @@ internal object AccountResolver {
         val default =
             settings.defaultAccount(type)
                 ?: throw AccountResolveException(
-                    "Multiple ${type.displayName} accounts; set Default or pass account=. Available: ${accountNames(accounts)}"
+                    "Multiple ${type.displayName} accounts; set Default or pass account=. Available: ${accountNames(accounts)}",
                 )
         if (
             !allowsFailover(capability) ||

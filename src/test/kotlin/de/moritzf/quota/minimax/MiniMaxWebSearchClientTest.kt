@@ -41,7 +41,7 @@ class MiniMaxWebSearchClientTest {
                       "base_resp": {"status_code": 0, "status_msg": ""}
                     }
                     """
-                        .trimIndent()
+                        .trimIndent(),
             )
             .use { server ->
                 val client = newClient(server)
@@ -90,7 +90,7 @@ class MiniMaxWebSearchClientTest {
                     """
                     {"base_resp":{"status_code":1004,"status_msg":"invalid api key"}}
                     """
-                        .trimIndent()
+                        .trimIndent(),
             )
             .use { server ->
                 val client = newClient(server)

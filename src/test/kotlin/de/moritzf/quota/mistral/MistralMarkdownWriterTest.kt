@@ -68,7 +68,7 @@ class MistralMarkdownWriterTest {
         val result =
             MistralMarkdownWriter(output, true).use { writer ->
                 writer.append(
-                    listOf(MistralOcrPageDto(text, listOf(MistralOcrImageDto("img.png", "AQID"))))
+                    listOf(MistralOcrPageDto(text, listOf(MistralOcrImageDto("img.png", "AQID")))),
                 )
                 writer.commit()
             }
@@ -94,16 +94,16 @@ class MistralMarkdownWriterTest {
                         MistralOcrPageDto(
                             "First ![ok](ok.png)",
                             listOf(MistralOcrImageDto("ok.png", "AQID")),
-                        )
-                    )
+                        ),
+                    ),
                 )
                 writer.append(
                     listOf(
                         MistralOcrPageDto(
                             "Second ![bad](bad.png)",
                             listOf(MistralOcrImageDto("bad.png", "%%%")),
-                        )
-                    )
+                        ),
+                    ),
                 )
                 writer.commit()
             }
@@ -128,8 +128,8 @@ class MistralMarkdownWriterTest {
             MistralMarkdownWriter(output, true).use { writer ->
                 writer.append(
                     listOf(
-                        MistralOcrPageDto("partial", listOf(MistralOcrImageDto("ok.png", "AQID")))
-                    )
+                        MistralOcrPageDto("partial", listOf(MistralOcrImageDto("ok.png", "AQID"))),
+                    ),
                 )
                 writer.append(
                     listOf(
@@ -139,8 +139,8 @@ class MistralMarkdownWriterTest {
                                 MistralOcrImageDto("duplicate.png", "AQID"),
                                 MistralOcrImageDto("duplicate.png", "AQID"),
                             ),
-                        )
-                    )
+                        ),
+                    ),
                 )
                 writer.commit()
             }
@@ -155,7 +155,9 @@ class MistralMarkdownWriterTest {
         val result =
             MistralMarkdownWriter(output, false).use { writer ->
                 writer.append(
-                    listOf(MistralOcrPageDto("text", listOf(MistralOcrImageDto("img.png", "AQID"))))
+                    listOf(
+                        MistralOcrPageDto("text", listOf(MistralOcrImageDto("img.png", "AQID"))),
+                    ),
                 )
                 writer.commit()
             }

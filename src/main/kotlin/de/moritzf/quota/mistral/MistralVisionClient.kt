@@ -27,7 +27,7 @@ open class MistralVisionClient(
         val token =
             apiKey.trim().ifBlank {
                 throw MistralQuotaException(
-                    "Mistral API key missing. Add a Mistral API key in settings."
+                    "Mistral API key missing. Add a Mistral API key in settings.",
                 )
             }
         val trimmedPrompt =
@@ -45,7 +45,7 @@ open class MistralVisionClient(
                     token,
                     chatCompletionsUri,
                     VisionChat.chatRequestJson(selectedModel, imageContent, trimmedPrompt),
-                )
+                ),
             )
         val status = response.statusCode()
         val body = response.body()

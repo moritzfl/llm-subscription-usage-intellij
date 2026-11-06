@@ -81,7 +81,7 @@ open class CursorQuotaClient(
         val unifiedJson =
             if (isUnifiedUserPlan(usageSummaryJson)) {
                 optionalCookieRequest(
-                    cookieRequest("/api/dashboard/v2/usage-status?scope=user", sessionCookie).GET()
+                    cookieRequest("/api/dashboard/v2/usage-status?scope=user", sessionCookie).GET(),
                 )
             } else {
                 null
@@ -104,7 +104,7 @@ open class CursorQuotaClient(
                 cookieRequest("/api/dashboard/get-sand-usage-status", sessionCookie)
                     .header("Content-Type", "application/json")
                     .header("Origin", webBaseUri.toString().trimEnd('/'))
-                    .POST(HttpRequest.BodyPublishers.ofString("{}"))
+                    .POST(HttpRequest.BodyPublishers.ofString("{}")),
             )
 
         val rawJson =
@@ -559,7 +559,7 @@ open class CursorQuotaClient(
         }
 
         private fun unwrapEmbeddedJson(
-            value: kotlinx.serialization.json.JsonElement
+            value: kotlinx.serialization.json.JsonElement,
         ): kotlinx.serialization.json.JsonElement {
             val primitive = value as? JsonPrimitive
             if (primitive?.isString != true) {

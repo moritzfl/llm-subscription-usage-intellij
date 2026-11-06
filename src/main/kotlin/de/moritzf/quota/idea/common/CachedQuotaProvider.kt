@@ -99,7 +99,7 @@ abstract class CachedQuotaProvider<Q : ProviderQuota> : QuotaProvider {
             OAuthConnectionState.LOGGED_OUT -> clearData(notConfiguredMessage)
             OAuthConnectionState.RECONNECT_REQUIRED ->
                 storeError(
-                    "${type.displayName} login needs to be renewed. Log in again from settings."
+                    "${type.displayName} login needs to be renewed. Log in again from settings.",
                 )
             else -> storeError(refreshFailedMessage, transient = true)
         }

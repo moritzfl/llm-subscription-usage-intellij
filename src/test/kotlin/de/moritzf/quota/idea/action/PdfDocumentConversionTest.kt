@@ -25,7 +25,7 @@ class PdfDocumentConversionTest {
 
             val wrongFile =
                 JsonSupport.json.encodeToString(
-                    DocumentMarkdownWriteResult(output.resolveSibling("elsewhere.md").toString())
+                    DocumentMarkdownWriteResult(output.resolveSibling("elsewhere.md").toString()),
                 )
             assertFailsWith<IllegalStateException> { checkConversionResult(wrongFile, output) }
         } finally {
@@ -54,7 +54,7 @@ class PdfDocumentConversionTest {
             val warnings = listOf("Page 3: SVG unavailable; used PNG at 300 DPI.")
             val response =
                 JsonSupport.json.encodeToString(
-                    DocumentMarkdownWriteResult(output.toString(), warnings = warnings)
+                    DocumentMarkdownWriteResult(output.toString(), warnings = warnings),
                 )
             assertEquals(warnings, checkConversionResult(response, output).warnings)
         } finally {
@@ -84,7 +84,7 @@ class PdfDocumentConversionTest {
                         output.toString(),
                         warnings = listOf("Image fallback used"),
                         imageExport = report,
-                    )
+                    ),
                 )
             val result = checkConversionResult(response, output)
             val summary = documentConversionSummary(result)

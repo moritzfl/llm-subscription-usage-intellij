@@ -40,7 +40,7 @@ internal fun compatibleAccount(
     val rows = settings.accountsOf(type)
     if (account.isNullOrBlank() && rows.size > 1)
         error(
-            "Multiple ${type.displayName} connections. Pass account= with a connection name or ID: ${rows.joinToString { it.name }}"
+            "Multiple ${type.displayName} connections. Pass account= with a connection name or ID: ${rows.joinToString { it.name }}",
         )
     return AccountResolver.resolve(type, account, AccountCapability.QUOTA, settings).snapshot()
 }

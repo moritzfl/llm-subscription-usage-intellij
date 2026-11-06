@@ -138,14 +138,14 @@ class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
                                         )
                                     conversion =
                                         conversion.copy(
-                                            warnings = conversion.warnings + altText.warnings
+                                            warnings = conversion.warnings + altText.warnings,
                                         )
                                 }
                                 // NIO writes bypass the VFS. Refresh images too, before opening
                                 // Markdown on the EDT.
                                 LocalFileSystem.getInstance()
                                     .refreshAndFindFileByNioFile(
-                                        destination.toAbsolutePath().parent
+                                        destination.toAbsolutePath().parent,
                                     )
                                     ?.refresh(false, true)
                                 indicator.fraction = 1.0
@@ -189,7 +189,7 @@ class ConvertPdfToMarkdownAction : AnAction(), DumbAware {
                                         )
                                         .show()
                             }
-                        }
+                        },
                     )
             }
         }
@@ -378,7 +378,7 @@ private class ConvertPdfToMarkdownDialog(
                                 preferredSize.height,
                             )
                         minimumSize = Dimension(0, minimumSize.height)
-                    }
+                    },
                 )
                 .align(AlignX.FILL)
                 .resizableColumn()
@@ -393,7 +393,7 @@ private class ConvertPdfToMarkdownDialog(
                 .align(AlignX.FILL)
                 .resizableColumn()
                 .comment(
-                    "Original-PDF export uses OCR figure coordinates (Mistral, Azure, Z.ai). Fallbacks are reported."
+                    "Original-PDF export uses OCR figure coordinates (Mistral, Azure, Z.ai). Fallbacks are reported.",
                 )
         }
         row("PNG resolution:") {
@@ -416,7 +416,7 @@ private class ConvertPdfToMarkdownDialog(
                 .align(AlignX.FILL)
                 .resizableColumn()
                 .comment(
-                    "Relative paths are saved beside the PDF. Browse to choose another folder."
+                    "Relative paths are saved beside the PDF. Browse to choose another folder.",
                 )
         }
     }

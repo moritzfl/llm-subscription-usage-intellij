@@ -47,7 +47,7 @@ class MistralSubscriptionBudgetsTest {
                 mapOf(
                     "/subscription" to (200 to flight("a:{\"budget\":$BUDGETS}\n")),
                     "/api/billing/credits" to (200 to CREDITS),
-                )
+                ),
             )
         val quota =
             MistralQuotaClient(http).fetchQuota("ory_session_test=test-token; csrftoken=test-csrf")
@@ -86,7 +86,7 @@ class MistralSubscriptionBudgetsTest {
                     "/api-ui/trpc/billing.vibeUsage" to
                         (200 to """[{"result":{"data":{"json":{"usage_percentage":0}}}}]"""),
                     "/subscription" to (200 to flight("a:{\"budget\":$BUDGETS}\n")),
-                )
+                ),
             )
         val quota =
             MistralQuotaClient(http) { Instant.parse("2026-09-28T10:00:00Z") }
@@ -102,7 +102,7 @@ class MistralSubscriptionBudgetsTest {
                 .headers()
                 .firstValue("Cookie")
                 .orElse("")
-                .contains("ory_session_test=test-token")
+                .contains("ory_session_test=test-token"),
         )
         assertEquals("month=9&year=2026", http.requests.first().uri().query)
         assertTrue(quota.rawJson!!.contains("\"api_budget\""))
@@ -233,8 +233,8 @@ class MistralSubscriptionBudgetsTest {
         fun window(percent: String, limit: String, currency: String = "USD") =
             MistralSubscriptionBudgets.window(
                 JsonSupport.json.parseToJsonElement(
-                    """{"usage_percentage":$percent,"initial_budget":$limit,"currency":"$currency","reset_at":"2026-03-01T00:00:00Z"}"""
-                )
+                    """{"usage_percentage":$percent,"initial_budget":$limit,"currency":"$currency","reset_at":"2026-03-01T00:00:00Z"}""",
+                ),
             )
         assertNull(window("-1", "15"))
         assertNull(window("0", "0"))
@@ -249,9 +249,9 @@ class MistralSubscriptionBudgetsTest {
             assertNotNull(
                 MistralSubscriptionBudgets.window(
                     JsonSupport.json.parseToJsonElement(
-                        """{"usage_percentage":5,"initial_budget":15,"currency":"EUR","reset_at":"${'$'}D2026-03-01T00:00:00.000Z"}"""
-                    )
-                )
+                        """{"usage_percentage":5,"initial_budget":15,"currency":"EUR","reset_at":"${'$'}D2026-03-01T00:00:00.000Z"}""",
+                    ),
+                ),
             )
         assertEquals(Instant.parse("2026-03-01T00:00:00Z"), reactDate.resetsAt)
     }

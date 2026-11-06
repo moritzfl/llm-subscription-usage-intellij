@@ -97,19 +97,19 @@ class AzureSubscriptionProxyProviderTest {
             provider.fallbackModel(
                 "az-text-embedding-3-large",
                 SubscriptionProxyRoute.CHAT_COMPLETIONS,
-            )
+            ),
         )
         assertNull(
-            provider.fallbackModel("az-mistral-ocr-4-0", SubscriptionProxyRoute.CHAT_COMPLETIONS)
+            provider.fallbackModel("az-mistral-ocr-4-0", SubscriptionProxyRoute.CHAT_COMPLETIONS),
         )
         assertNull(
             provider.fallbackModel(
                 "az-mistral-document-ai-2512",
                 SubscriptionProxyRoute.CHAT_COMPLETIONS,
-            )
+            ),
         )
         assertNull(
-            provider.fallbackModel("az-Cohere-parse-v5", SubscriptionProxyRoute.CHAT_COMPLETIONS)
+            provider.fallbackModel("az-Cohere-parse-v5", SubscriptionProxyRoute.CHAT_COMPLETIONS),
         )
     }
 

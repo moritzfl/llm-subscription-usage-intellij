@@ -80,7 +80,7 @@ class GitHubOAuthClient(
             }
         if (status in 200..299 && !dto.accessToken.isNullOrBlank()) {
             return GitHubDeviceTokenPollResult.Authorized(
-                GitHubCredentials(accessToken = dto.accessToken, oauthClientId = CLIENT_ID)
+                GitHubCredentials(accessToken = dto.accessToken, oauthClientId = CLIENT_ID),
             )
         }
         return when (dto.error) {
@@ -149,13 +149,13 @@ class GitHubOAuthClient(
 
         fun deviceCodeEndpoint(enterpriseHost: String?): URI {
             return URI.create(
-                "https://${GitHubQuotaClient.normalizedEnterpriseHost(enterpriseHost)}/login/device/code"
+                "https://${GitHubQuotaClient.normalizedEnterpriseHost(enterpriseHost)}/login/device/code",
             )
         }
 
         fun accessTokenEndpoint(enterpriseHost: String?): URI {
             return URI.create(
-                "https://${GitHubQuotaClient.normalizedEnterpriseHost(enterpriseHost)}/login/oauth/access_token"
+                "https://${GitHubQuotaClient.normalizedEnterpriseHost(enterpriseHost)}/login/oauth/access_token",
             )
         }
     }

@@ -97,7 +97,7 @@ class QuotaAuthServiceRetentionTest {
                 Credentials(
                     "test",
                     JsonSupport.json.encodeToString(credentials("expired", expiresIn)),
-                )
+                ),
             )
         val queued = AtomicReference<Credentials>()
         val store =
@@ -220,7 +220,7 @@ class QuotaAuthServiceRetentionTest {
                 Credentials(
                     "test",
                     JsonSupport.json.encodeToString(credentials("expired", -60_000)),
-                )
+                ),
             )
         val queued = AtomicReference<Credentials>()
         var writesFail = true
@@ -414,7 +414,7 @@ class QuotaAuthServiceRetentionTest {
                     ): OAuthCredentials = error("No browser login in this test")
 
                     override suspend fun refreshCredentials(
-                        existing: OAuthCredentials
+                        existing: OAuthCredentials,
                     ): OAuthCredentials = refresh(existing)
                 }
             },

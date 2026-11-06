@@ -10,7 +10,7 @@ class HttpJsonUrlsTest {
         assertEquals(
             "https://cdn.example/v.mp4",
             HttpJsonUrls.first(
-                """{"request_id":"vid-1","video":{"url":"https://cdn.example/v.mp4"}}"""
+                """{"request_id":"vid-1","video":{"url":"https://cdn.example/v.mp4"}}""",
             ),
         )
         assertEquals(
