@@ -14,6 +14,10 @@ class KnownReasoningLevelsTest {
         assertEquals(listOf("low", "medium", "high", "xhigh", "max"), levels("gpt-6.1-sol"))
         assertEquals(
             listOf("none", "low", "medium", "high", "xhigh", "max"),
+            levels("gpt-6.1-terra"),
+        )
+        assertEquals(
+            listOf("none", "low", "medium", "high", "xhigh", "max"),
             levels("gpt-5.6-terra"),
         )
         assertEquals(listOf("none", "low", "medium", "high", "xhigh"), levels("gpt-5.4-mini"))

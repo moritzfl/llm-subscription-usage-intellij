@@ -43,6 +43,7 @@ class OpenAiCodexSubscriptionProxyProviderTest {
                 assertTrue("oa-gpt-6-sol" in ids)
                 assertTrue("oa-gpt-6-luna" in ids)
                 assertTrue("oa-gpt-5.6-sol" in ids)
+                assertTrue("oa-gpt-6.1-terra" in ids)
                 assertTrue("oa-gpt-5.6-terra" in ids)
                 assertTrue("oa-gpt-5.6-luna" in ids)
                 assertTrue("oa-gpt-reserve" in ids)
