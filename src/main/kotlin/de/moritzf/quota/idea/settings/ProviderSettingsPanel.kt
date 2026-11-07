@@ -43,7 +43,17 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
         split: (String?) -> List<String> = { listOf(it.orEmpty()) },
         join: (List<String>) -> String? = { it.single().trim().ifEmpty { null } },
     ): StoredSecret =
-        StoredSecret(fields, read, write, split, join, onChange = { updateStatus() })
+        StoredSecret(
+                fields,
+                read,
+                write,
+                split,
+                join,
+                onChange = {
+                    updateStatus()
+                    refreshApplyNote()
+                },
+            )
             .also(secrets::add)
 
     protected fun accountUiGuard(): () -> Boolean {
@@ -65,6 +75,33 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
     }
 
     private var refreshButton: QuotaRefreshButton? = null
+
+    /** Says when the quota below does not reflect this dialog yet. */
+    private val applyNote =
+        JBLabel().apply {
+            font = com.intellij.util.ui.JBFont.small()
+            foreground = com.intellij.util.ui.UIUtil.getContextHelpForeground()
+            isVisible = false
+        }
+
+    /**
+     * Updates [applyNote]: a new account has no quota until Apply, and an unapplied key or cookie
+     * is not used for quota yet.
+     */
+    fun refreshApplyNote() {
+        val id = boundAccountId
+        val text =
+            when {
+                id.isBlank() -> null
+                runCatching { QuotaUsageService.getInstance().providerForAccount(id) }
+                    .getOrNull() == null -> message("settings.response.unapplied")
+                secretsModified(setOf(id)) -> message("settings.response.unsavedSecret")
+                else -> null
+            }
+        applyNote.text = text.orEmpty()
+        applyNote.isVisible = text != null
+    }
+
     private val routingHost =
         BorderLayoutPanel().apply {
             isOpaque = false
@@ -311,12 +348,13 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
                     onCompleted = {
                         val service = QuotaUsageService.getInstance()
                         if (service.providerForAccount(boundAccountId) == null) {
-                            viewer.text = "Apply settings to refresh quota for this account."
+                            viewer.text = message("settings.response.unapplied")
                             viewer.caretPosition = 0
                         } else {
                             updateResponseArea()
                             updateStatus()
                         }
+                        refreshApplyNote()
                     },
                 )
                 .also {
@@ -359,7 +397,13 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
             }
         return BorderLayoutPanel().apply {
             isOpaque = false
-            addToTop(headerRow)
+            addToTop(
+                BorderLayoutPanel().apply {
+                    isOpaque = false
+                    addToTop(headerRow)
+                    addToBottom(applyNote)
+                },
+            )
             addToCenter(createResponseViewerPanel(viewer))
         }
     }

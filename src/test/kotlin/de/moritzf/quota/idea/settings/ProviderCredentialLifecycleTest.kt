@@ -147,6 +147,44 @@ class ProviderCredentialLifecycleTest {
     }
 
     @Test
+    fun theQuotaNoteSaysWhenTheDialogIsNotAppliedYet() {
+        val applied = account(QuotaProviderType.ZAI)
+        val added = account(QuotaProviderType.ZAI)
+        withFixture(
+            providers =
+                listOf(
+                    de.moritzf.quota.idea.common.ZaiQuotaProvider(accountId = applied.id),
+                ),
+        ) { _ ->
+            onEdt {
+                val panel = panel(QuotaProviderType.ZAI)
+                bind(panel, added)
+                panel.refreshApplyNote()
+                assertTrue("New account: apply settings to load its quota." in labels(panel))
+
+                bind(panel, applied)
+                panel.refreshApplyNote()
+                assertTrue(
+                    labels(panel).none {
+                        it.startsWith("New account") || it.startsWith("Quota still")
+                    },
+                )
+                apiKeyField(panel).text = "typed-key"
+                assertTrue(
+                    "Quota still uses the stored credentials until you apply." in labels(panel),
+                    labels(panel).toString(),
+                )
+            }
+        }
+    }
+
+    private fun labels(panel: ProviderSettingsPanel): List<String> =
+        descendants(panel)
+            .filterIsInstance<javax.swing.JLabel>()
+            .filter { it.isVisible }
+            .mapNotNull { it.text }
+
+    @Test
     fun invalidCookiesFailApplyWithoutWriting() = withFixture { _ ->
         val cursor = account(QuotaProviderType.CURSOR)
         val mistral = account(QuotaProviderType.MISTRAL)
@@ -325,8 +363,11 @@ class ProviderCredentialLifecycleTest {
         return checkNotNull(result).getOrThrow()
     }
 
-    private fun withFixture(block: (Fixture) -> Unit) {
-        val fixture = onEdt { Fixture() }
+    private fun withFixture(
+        providers: List<de.moritzf.quota.idea.common.QuotaProvider> = emptyList(),
+        block: (Fixture) -> Unit,
+    ) {
+        val fixture = onEdt { Fixture(providers) }
         try {
             block(fixture)
         } finally {
@@ -363,7 +404,8 @@ class ProviderCredentialLifecycleTest {
         override fun invokeLater(runnable: Runnable, state: ModalityState) = invokeLater(runnable)
     }
 
-    private class Fixture : AutoCloseable {
+    private class Fixture(providers: List<de.moritzf.quota.idea.common.QuotaProvider>) :
+        AutoCloseable {
         val disposable = Disposer.newDisposable()
         val app = QueuedApplication(disposable)
         val passwordSafe = MemoryPasswordSafe()
@@ -395,7 +437,7 @@ class ProviderCredentialLifecycleTest {
             app.registerService(QuotaSettingsState::class.java, settings)
             usage =
                 QuotaUsageService(
-                    providers = emptyList(),
+                    providers = providers,
                     settingsProvider = { settings },
                     updatePublisher = {},
                     scheduleOnInit = false,

@@ -289,6 +289,7 @@ internal class CompatibleSettingsPanel(
             if (keyLoadError != null) UIUtil.getErrorForeground()
             else UIUtil.getContextHelpForeground()
         updateButtons()
+        refreshApplyNote()
     }
 
     override fun updateResponseArea() {

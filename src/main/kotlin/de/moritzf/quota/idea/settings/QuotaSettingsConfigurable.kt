@@ -385,6 +385,7 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
             panel.updateFields()
             panel.updateStatus()
             panel.updateResponseArea()
+            panel.refreshApplyNote()
         }
     }
 
@@ -579,6 +580,7 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
                     throw ConfigurationException(failure.message ?: "Invalid settings")
                 }
                 accountListPanel?.acceptPendingChanges()
+                providerPanelsByType.values.forEach { it.refreshApplyNote() }
                 proxyPanel.refreshAfterApply()
                 providerPanelsByType[QuotaProviderType.GITHUB]?.updateFields()
                 providerPanelsByType[QuotaProviderType.OLLAMA]?.updateFields()
