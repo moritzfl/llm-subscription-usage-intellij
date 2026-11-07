@@ -334,7 +334,7 @@ class QuotaUsageServiceTest {
     }
 
     @Test
-    fun discoveredWorkspaceIdIsPersisted() {
+    fun discoveredWorkspaceIdIsRememberedWithoutWritingSettings() {
         val settings = QuotaSettingsState()
         val openCodeClient = RecordingOpenCodeQuotaClient()
         val openCodeProvider =
@@ -353,9 +353,20 @@ class QuotaUsageServiceTest {
             service.refreshNowBlocking()
 
             assertEquals(1, openCodeClient.discoverCount)
-            assertEquals("wrk-token-a", settings.openCodeWorkspaceId)
+            assertNull(settings.openCodeWorkspaceId, "refreshes never write settings")
+            assertEquals(
+                "wrk-token-a",
+                de.moritzf.quota.idea.opencode.OpenCodeWorkspaces.resolve(
+                    de.moritzf.quota.idea.common.QuotaProviderType.OPEN_CODE.id,
+                    null,
+                    null,
+                ),
+            )
         } finally {
             service.dispose()
+            de.moritzf.quota.idea.opencode.OpenCodeWorkspaces.forget(
+                de.moritzf.quota.idea.common.QuotaProviderType.OPEN_CODE.id,
+            )
         }
     }
 

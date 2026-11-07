@@ -100,6 +100,12 @@ class AzureQuotaProvider(
                 deploymentNames = account?.extra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS),
             )
 
+        /**
+         * Deployments picked from the model catalog for accounts without a saved choice. They stay
+         * in memory: only the settings dialog's Apply writes settings.
+         */
+        private val defaultOcrDeployments = java.util.concurrent.ConcurrentHashMap<String, String>()
+
         internal fun ocrDeploymentForAccount(accountId: String): String? {
             val stored = runCatching {
                 QuotaSettingsState.getInstance()
@@ -107,11 +113,12 @@ class AzureQuotaProvider(
                     ?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT)
             }
                 .getOrNull()
-            if (stored == "-") return null
-            return stored
+            val selection = stored?.takeIf { it.isNotBlank() } ?: defaultOcrDeployments[accountId]
+            if (selection == "-") return null
+            return selection
         }
 
-        /** First catalog read only. A stored model or "-" is left alone. */
+        /** After each catalog read, unless the account has a saved choice; "-" means none. */
         internal fun autofillOcrDeployment(accountId: String, quota: AzureQuota) {
             if (!quota.modelCatalogRead) return
             val account =
@@ -125,7 +132,7 @@ class AzureQuotaProvider(
                     config.deploymentNames.joinToString(","),
                     config.resourceName,
                 )
-            account.setExtra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT, preferred ?: "-")
+            defaultOcrDeployments[accountId] = preferred ?: "-"
         }
 
         internal fun isDocumentConfiguredForAccount(accountId: String): Boolean {

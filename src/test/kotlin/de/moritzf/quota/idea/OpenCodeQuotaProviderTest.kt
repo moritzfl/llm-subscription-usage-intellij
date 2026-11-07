@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea
 
 import de.moritzf.quota.idea.common.OpenCodeQuotaProvider
+import de.moritzf.quota.idea.opencode.OpenCodeWorkspaces
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.opencode.OpenCodeQuotaClient
@@ -41,8 +42,40 @@ class OpenCodeQuotaProviderTest {
             )
         provider.refresh()
         assertEquals(listOf("org_selected"), requested)
-        assertEquals("org_selected", settings.openCodeWorkspaceId)
+        assertEquals("wrk_old", settings.openCodeWorkspaceId, "refreshes never write settings")
         assertNull(provider.getLastError())
+    }
+
+    @Test
+    fun aDiscoveredOrganizationIsRememberedInMemoryNotInSettings() {
+        val settings = QuotaSettingsState()
+        val provider =
+            OpenCodeQuotaProvider(
+                accountId = "oc-discover",
+                openCodeClient =
+                    object : OpenCodeQuotaClient() {
+                        override fun discoverWorkspaceId(accessToken: String) = "org_first"
+
+                        override fun fetchQuota(accessToken: String, workspaceId: String) =
+                            OpenCodeQuota(availableBalance = 0)
+                    },
+                credentialsProvider = { OAuthCredentials(accessToken = "token") },
+                settingsProvider = { settings },
+            )
+        try {
+            provider.refresh()
+            assertNull(settings.openCodeWorkspaceIdFor("oc-discover"))
+            assertEquals("org_first", OpenCodeWorkspaces.resolve("oc-discover", null, null))
+            assertEquals(
+                "org_chosen",
+                OpenCodeWorkspaces.resolve("oc-discover", null, "org_chosen"),
+            )
+            assertEquals("org_login", OpenCodeWorkspaces.resolve("oc-discover", "org_login", "x"))
+            provider.clearData("Not logged in to OpenCode")
+            assertNull(OpenCodeWorkspaces.discovered("oc-discover"))
+        } finally {
+            OpenCodeWorkspaces.forget("oc-discover")
+        }
     }
 
     @Test

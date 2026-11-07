@@ -17,6 +17,7 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.mcp.DocumentToMarkdownProvider
 import de.moritzf.quota.idea.opencode.OpenCodeAuthService
+import de.moritzf.quota.idea.opencode.OpenCodeWorkspaces
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.opencode.OpenCodeWorkspace
@@ -259,8 +260,11 @@ internal class OpenCodeSettingsPanel(
                 val credentials = auth.credentials(id) ?: return@runCatching emptyList()
                 val token = credentials.accessToken ?: return@runCatching emptyList()
                 val organization =
-                    credentials.accountId
-                        ?: QuotaSettingsState.getInstance().openCodeWorkspaceIdFor(id)
+                    OpenCodeWorkspaces.resolve(
+                        id,
+                        credentials.accountId,
+                        QuotaSettingsState.getInstance().openCodeWorkspaceIdFor(id),
+                    )
                 val session =
                     OpenCodeConsoleSession(id, token, organization) {
                         auth.credentials(id, it)?.accessToken
@@ -359,13 +363,13 @@ internal class OpenCodeSettingsPanel(
                 if (request != workspaceRequest) return@onUi
                 result.fold(
                     onSuccess = { workspaces ->
+                        // Showing the organization in use is not a choice: only the user's own
+                        // selection goes into the draft.
                         val selected =
                             workspaces.find { it.id == selectedWorkspaceId() }
+                                ?: workspaces.find { it.id == OpenCodeWorkspaces.discovered(id) }
                                 ?: workspaces.firstOrNull()
                         replaceWorkspaces(workspaces, selected)
-                        selected?.let {
-                            boundAccount?.setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, it.id)
-                        }
                         workspaceStatus.text =
                             if (workspaces.isEmpty()) "No organizations found" else ""
                     },
@@ -393,13 +397,20 @@ internal class OpenCodeSettingsPanel(
         }
     }
 
+    /** The organization in use: the login's, the chosen one, or the one shown by default. */
     private fun selectedWorkspaceId(): String? =
         auth().load(accountId())?.accountId
+            ?: chosenWorkspaceId()
             ?: (workspaceComboBox.selectedItem as? OpenCodeWorkspace)?.id
-            ?: boundAccount?.extra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE)
+
+    /**
+     * The organization picked in this dialog or saved earlier; the combo listener records picks.
+     */
+    private fun chosenWorkspaceId(): String? =
+        boundAccount?.extra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE)
 
     override fun writeAccountFields(account: ProviderAccount) {
-        account.setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, selectedWorkspaceId())
+        account.setExtra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE, chosenWorkspaceId())
         super.writeAccountFields(account)
     }
 
@@ -408,7 +419,7 @@ internal class OpenCodeSettingsPanel(
         saved: ProviderAccount?,
         state: QuotaSettingsState,
     ): Boolean =
-        selectedWorkspaceId() != state.openCodeWorkspaceIdFor(account.id) ||
+        chosenWorkspaceId() != state.openCodeWorkspaceIdFor(account.id) ||
             super.accountFieldsModified(account, saved, state)
 
     override fun updateResponseArea() {

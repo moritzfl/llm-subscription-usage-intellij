@@ -236,7 +236,11 @@ internal object IdeProxyFactories {
                     val auth = ctx.openCodeAuth()
                     auth.credentials(account.id)?.let { credentials ->
                         val organization =
-                            credentials.accountId ?: ctx.settings.openCodeWorkspaceIdFor(account.id)
+                            de.moritzf.quota.idea.opencode.OpenCodeWorkspaces.resolve(
+                                account.id,
+                                credentials.accountId,
+                                ctx.settings.openCodeWorkspaceIdFor(account.id),
+                            )
                         OpenCodeConsoleSession(
                             account.id,
                             checkNotNull(credentials.accessToken),

@@ -67,6 +67,8 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
     private var applyingFields = false
     private var suppressSelection = false
     private var ocrOffExplicit = false
+    /** The user picked a document model; an automatic pick is shown but never saved. */
+    private var ocrChosen = false
     private var refreshGeneration = 0
     private val refreshTimer =
         Timer(400) { refreshAccounts(interactive = false) }.apply { isRepeats = false }
@@ -103,6 +105,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
         )
         ocrDeploymentCombo.addItemListener { event ->
             if (applyingFields || event.stateChange != ItemEvent.SELECTED) return@addItemListener
+            ocrChosen = true
             ocrOffExplicit = event.item == NO_OCR
             updateDocumentHint()
         }
@@ -284,9 +287,10 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                 endpoint().orEmpty() !=
                     boundAccount?.extra(ProviderAccount.EXTRA_AZURE_ENDPOINT).orEmpty()
         if (targetChanged) return null
+        val stored = boundAccount?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT)
+        if (!ocrChosen) return stored
         val selected = ocrDeploymentCombo.selectedItem as? String ?: return null
         if (selected != NO_OCR) return selected
-        val stored = boundAccount?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT)
         return if (ocrOffExplicit || stored == NO_OCR) NO_OCR else null
     }
 
@@ -368,6 +372,7 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
             deploymentsField.text =
                 account?.extra(ProviderAccount.EXTRA_AZURE_DEPLOYMENTS).orEmpty()
             ocrOffExplicit = account?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT) == NO_OCR
+            ocrChosen = false
             refreshOcrDeployments(account?.extra(ProviderAccount.EXTRA_AZURE_OCR_DEPLOYMENT))
             refreshVisionDeployments(account?.extra(ProviderAccount.EXTRA_VISION_MODEL))
         } finally {

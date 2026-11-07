@@ -129,9 +129,12 @@ internal object NativeDocumentConversion {
         val credentials = auth.credentials(accountId) ?: error("OpenCode login required.")
         val token = credentials.accessToken ?: error("OpenCode login required.")
         val organization =
-            credentials.accountId
-                ?: if (account != null) account.extra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE)
-                else QuotaSettingsState.getInstance().openCodeWorkspaceIdFor(accountId)
+            de.moritzf.quota.idea.opencode.OpenCodeWorkspaces.resolve(
+                accountId,
+                credentials.accountId,
+                if (account != null) account.extra(ProviderAccount.EXTRA_OPENCODE_WORKSPACE)
+                else QuotaSettingsState.getInstance().openCodeWorkspaceIdFor(accountId),
+            )
         val session =
             OpenCodeConsoleSession(accountId, token, organization) {
                 auth.credentials(accountId, it)?.accessToken

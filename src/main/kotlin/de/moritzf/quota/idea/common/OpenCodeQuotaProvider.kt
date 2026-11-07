@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.common
 
 import de.moritzf.quota.idea.opencode.OpenCodeAuthService
+import de.moritzf.quota.idea.opencode.OpenCodeWorkspaces
 import de.moritzf.quota.idea.settings.QuotaSettingsState
 import de.moritzf.quota.opencode.OpenCodeQuota
 import de.moritzf.quota.opencode.OpenCodeQuotaClient
@@ -74,8 +75,12 @@ class OpenCodeQuotaProvider(
                 ?: cachedWorkspaceId.get()
                 ?: openCodeClient.discoverWorkspaceId(token)
         cachedWorkspaceId.set(workspace)
-        if (settings != null && settings.openCodeWorkspaceIdFor(accountId) != workspace) {
-            settings.setOpenCodeWorkspaceIdFor(accountId, workspace)
+        // Kept in memory for the proxy and model lists; only the settings dialog writes settings.
+        if (
+            credentials.accountId.isNullOrBlank() &&
+                settings?.openCodeWorkspaceIdFor(accountId).isNullOrBlank()
+        ) {
+            OpenCodeWorkspaces.remember(accountId, workspace)
         }
         return openCodeClient.fetchQuota(token, workspace)
     }
@@ -84,6 +89,7 @@ class OpenCodeQuotaProvider(
         synchronized(dataLock) {
             generation++
             resetWorkspaceCache()
+            OpenCodeWorkspaces.forget(accountId)
             lastToken.set(null)
             super.clearData(error)
         }
