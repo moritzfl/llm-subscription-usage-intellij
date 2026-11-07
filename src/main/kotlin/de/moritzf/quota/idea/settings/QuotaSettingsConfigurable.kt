@@ -566,13 +566,15 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
                         listOfNotNull(
                             proxyPanel.pendingApiKeyWrite().takeIf { proxyApiKeyChanged },
                         ) + providerPanelsByType.values.flatMap { it.pendingSecretWrites(keptIds) }
-                    SettingsApplyCoordinator(state)
-                        .apply(
-                            settingsDraft,
-                            removed = accountListPanel?.removedAccounts().orEmpty(),
-                            credentialsChanged = writes.isNotEmpty(),
-                            saveCredentials = { runSecretWrites(writes) },
-                        )
+                    val applied =
+                        SettingsApplyCoordinator(state, runSecrets = ::runPasswordSafeWork)
+                            .apply(
+                                settingsDraft,
+                                removed = accountListPanel?.removedAccounts().orEmpty(),
+                                credentialsChanged = writes.isNotEmpty(),
+                                saveCredentials = { writes.forEach { it.write() } },
+                            )
+                    if (applied) writes.forEach { it.onSaved() }
                 } catch (failure: IllegalArgumentException) {
                     throw ConfigurationException(failure.message ?: "Invalid settings")
                 }
@@ -823,16 +825,15 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
     }
 
     /**
-     * Password Safe writes block, so they run off the EDT behind a modal progress bar. A failure
-     * keeps the dialog open with its drafts, and settings stay as they were.
+     * Password Safe saves and deletes block, so they run off the EDT behind a modal progress bar. A
+     * failure keeps the dialog open with its drafts, and settings stay as they were.
      */
-    private fun runSecretWrites(writes: List<SecretWrite>) {
-        if (writes.isEmpty()) return
+    private fun runPasswordSafeWork(work: () -> Unit) {
         var failure: Throwable? = null
         val done =
             ProgressManager.getInstance()
                 .runProcessWithProgressSynchronously(
-                    { failure = runCatching { writes.forEach { it.write() } }.exceptionOrNull() },
+                    { failure = runCatching(work).exceptionOrNull() },
                     message("settings.secret.saving"),
                     false,
                     null,
@@ -842,7 +843,6 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
         if (!done || failure != null) {
             throw ConfigurationException(message("settings.secret.saveFailed"))
         }
-        writes.forEach { it.onSaved() }
     }
 
     private fun compatiblePanels(): List<CompatibleSettingsPanel> =

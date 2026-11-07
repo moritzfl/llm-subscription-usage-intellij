@@ -90,6 +90,43 @@ class SettingsApplyCoordinatorTest {
     }
 
     @Test
+    fun passwordSafeWorkRunsThroughTheRunnerOutsideTheStateLock() {
+        val state =
+            QuotaSettingsState().apply {
+                accounts =
+                    mutableListOf(
+                        ProviderAccount("a", "zai", "A"),
+                        ProviderAccount("b", "zai", "B"),
+                    )
+            }
+        val events = mutableListOf<String>()
+        val coordinator =
+            SettingsApplyCoordinator(
+                state,
+                clearSecrets = { events += "delete:${it.id} locked=${Thread.holdsLock(state)}" },
+                runSecrets = {
+                    events += "runner"
+                    it()
+                },
+                syncAccounts = {},
+                clearUsage = {},
+                refresh = {},
+                publish = {},
+            )
+        val draft = QuotaSettingsDraft.from(state).let { it.copy(accounts = it.accounts.take(1)) }
+        coordinator.apply(
+            draft,
+            credentialsChanged = true,
+            saveCredentials = { events += "save locked=${Thread.holdsLock(state)}" },
+        )
+        assertEquals(listOf("runner", "save locked=false", "delete:b locked=false"), events)
+
+        events.clear()
+        coordinator.apply(QuotaSettingsDraft.from(state).copy(proxyEnabled = true))
+        assertTrue(events.isEmpty(), "no progress dialog without Password Safe work")
+    }
+
+    @Test
     fun anInvalidOllamaResetIsAnApplyErrorNotAnAccountSwitchError() {
         val state =
             QuotaSettingsState().apply {

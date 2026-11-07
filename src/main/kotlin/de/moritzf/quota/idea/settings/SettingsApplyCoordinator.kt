@@ -9,6 +9,8 @@ import de.moritzf.quota.idea.common.QuotaUsageService
 internal class SettingsApplyCoordinator(
     private val state: QuotaSettingsState,
     private val clearSecrets: (ProviderAccount) -> Unit = AccountSecrets::clear,
+    /** Runs Password Safe saves and deletes; it throws when any of them failed. */
+    private val runSecrets: (() -> Unit) -> Unit = { it() },
     private val syncAccounts: () -> Unit = { QuotaUsageService.getInstance().syncAccounts() },
     private val clearUsage: (String) -> Unit = {
         QuotaUsageService.getInstance().clearUsageData(it)
@@ -39,13 +41,15 @@ internal class SettingsApplyCoordinator(
                 .filter { it.id !in kept }
                 .distinctBy { it.id }
         if (before == draft && !credentialsChanged && deleted.isEmpty()) return false
-        // Outside the state lock: secret writes run on a worker that may record usage, which
-        // takes that lock while the EDT waits for the writes.
-        if (credentialsChanged) saveCredentials()
-        synchronized(state) {
-            deleted.forEach(clearSecrets)
-            draft.applyTo(state)
+        // Password Safe work runs through [runSecrets], off the EDT in the IDE, and outside the
+        // state lock: it may record usage, which takes that lock while the EDT waits.
+        if (credentialsChanged || deleted.isNotEmpty()) {
+            runSecrets {
+                if (credentialsChanged) saveCredentials()
+                deleted.forEach(clearSecrets)
+            }
         }
+        synchronized(state) { draft.applyTo(state) }
         deleted.forEach { clearUsage(it.id) }
         syncAccounts()
         // Invalidate workers before pruning, so late results cannot restore removed entries.

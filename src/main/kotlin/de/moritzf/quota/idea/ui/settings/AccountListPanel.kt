@@ -30,6 +30,10 @@ internal class AccountListPanel(
     private val onAccountSelected: (ProviderAccount?) -> Unit,
     private val onAccountsChanged: () -> Unit,
     private val onBeforeRemove: () -> Unit = {},
+    private val deleteSecrets: (Runnable) -> Unit = {
+        com.intellij.openapi.application.ApplicationManager.getApplication()
+            .executeOnPooledThread(it)
+    },
 ) : JPanel(BorderLayout()) {
     private val pendingRemovals = mutableListOf<ProviderAccount>()
     private val pendingAdds = mutableListOf<ProviderAccount>()
@@ -139,15 +143,24 @@ internal class AccountListPanel(
         persistedIds = model.items.map { it.id }.toSet()
     }
 
+    /**
+     * Drops unapplied adds and removals. A login made for an account that was never applied is
+     * deleted on a worker, because Password Safe writes block the dialog.
+     */
     fun discardPending() {
-        (pendingAdds + pendingRemovals)
-            .filter { it.id !in persistedIds }
-            .distinctBy { it.id }
-            .forEach { account ->
-                runCatching { de.moritzf.quota.idea.settings.AccountSecrets.clear(account) }
-            }
+        val unapplied =
+            (pendingAdds + pendingRemovals)
+                .filter { it.id !in persistedIds }
+                .distinctBy { it.id }
+                .map { it.snapshot() }
         pendingAdds.clear()
         pendingRemovals.clear()
+        if (unapplied.isEmpty()) return
+        deleteSecrets {
+            unapplied.forEach { account ->
+                runCatching { de.moritzf.quota.idea.settings.AccountSecrets.clear(account) }
+            }
+        }
     }
 
     private fun addAccount(type: QuotaProviderType) {
