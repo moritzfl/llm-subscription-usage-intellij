@@ -101,11 +101,11 @@ class OpenCodeQuotaProviderTest {
         try {
             val refresh = executor.submit { provider.refresh() }
             assertTrue(entered.await(5, TimeUnit.SECONDS))
-            provider.clearData("Not signed in to OpenCode")
+            provider.clearData("Not logged in to OpenCode")
             release.countDown()
             refresh.get(5, TimeUnit.SECONDS)
             assertNull(provider.getLastQuota())
-            assertEquals("Not signed in to OpenCode", provider.getLastError())
+            assertEquals("Not logged in to OpenCode", provider.getLastError())
         } finally {
             release.countDown()
             executor.shutdownNow()

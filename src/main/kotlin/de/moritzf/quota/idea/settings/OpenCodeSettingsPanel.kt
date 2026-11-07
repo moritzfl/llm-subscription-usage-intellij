@@ -36,7 +36,7 @@ internal class OpenCodeSettingsPanel(
     private val statusLabelDefaultForeground: Color? = null,
 ) : ProviderSettingsPanel() {
     private val statusLabel = JBLabel()
-    private val loginButton = ActionLink("Sign in to OpenCode").apply { autoHideOnDisable = false }
+    private val loginButton = ActionLink("Log In").apply { autoHideOnDisable = false }
     private val cancelButton = ActionLink("Cancel Login").apply { autoHideOnDisable = false }
     private val logoutButton = ActionLink("Log Out").apply { autoHideOnDisable = false }
     private val copyUrlButton =
@@ -143,7 +143,7 @@ internal class OpenCodeSettingsPanel(
             ApplicationManager.getApplication().executeOnPooledThread {
                 val result = runCatching { auth().clearCredentials(id) }
                 if (result.isSuccess)
-                    QuotaUsageService.getInstance().clearUsageData(id, "Not signed in to OpenCode")
+                    QuotaUsageService.getInstance().clearUsageData(id, "Not logged in")
                 onUi(id) {
                     loggingOut = false
                     authMessage =
@@ -182,14 +182,14 @@ internal class OpenCodeSettingsPanel(
                 }
                 row {
                     text(
-                        "Sign in through OpenCode Console for Go quotas, Zen balance, and the local Zen proxy. Select the organization in your browser.",
+                        "Log in through OpenCode Console for Go quotas, Zen balance, and the local Zen proxy. Select the organization in your browser.",
                     )
                 }
                 row("Organization:") {
                     cell(workspaceComboBox).resizableColumn().align(AlignX.FILL)
                 }
                 row { statusCell(workspaceStatus) }
-                row { text("To change a browser-scoped organization, sign in again.") }
+                row { text("To change a browser-scoped organization, log in again.") }
                 row(message("settings.model.document.label")) {
                     cell(documentModelCombo.combo)
                         .align(AlignX.FILL)
@@ -322,7 +322,7 @@ internal class OpenCodeSettingsPanel(
                     AuthStatusMessage(auth().loadError(id)!!, true, AuthStatusKind.DISCONNECTED)
                 credentials == null ->
                     AuthStatusMessage(
-                        "Not signed in to OpenCode",
+                        "Not logged in",
                         false,
                         AuthStatusKind.DISCONNECTED,
                     )

@@ -184,7 +184,7 @@ internal class MiniMaxSettingsPanel(
                         AuthStatusKind.CONNECTED,
                     )
                 quota != null -> statusDotHtml("Connected", AuthStatusKind.CONNECTED)
-                apiKey.isNullOrBlank() -> statusDotHtml("Signed in", AuthStatusKind.CONNECTED)
+                apiKey.isNullOrBlank() -> statusDotHtml("Logged in", AuthStatusKind.CONNECTED)
                 else -> statusDotHtml("API key stored securely", AuthStatusKind.CONNECTED)
             }
         statusLabel.foreground = statusLabelDefaultForeground ?: statusLabel.foreground
@@ -214,7 +214,7 @@ internal class MiniMaxSettingsPanel(
                     when (auth().connectionState(id, QuotaProviderType.MINIMAX)) {
                         OAuthConnectionState.RECONNECT_REQUIRED ->
                             AuthStatusMessage(
-                                "Login expired. Sign in again.",
+                                "Login expired. Log in again.",
                                 isError = true,
                             )
                         OAuthConnectionState.TEMPORARY_FAILURE ->
@@ -222,7 +222,7 @@ internal class MiniMaxSettingsPanel(
                                 "Login retained. Temporarily unable to refresh; retrying automatically.",
                                 kind = AuthStatusKind.PENDING,
                             )
-                        else -> AuthStatusMessage("Signed in")
+                        else -> AuthStatusMessage("Logged in")
                     }
             }
         codeStatusLabel.text = statusDotHtml(status.text, status.kind)

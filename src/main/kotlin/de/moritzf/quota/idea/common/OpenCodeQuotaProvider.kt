@@ -19,7 +19,7 @@ class OpenCodeQuotaProvider(
     },
 ) : CachedQuotaProvider<OpenCodeQuota>() {
     override val type = QuotaProviderType.OPEN_CODE
-    override val notConfiguredMessage = "Not signed in to OpenCode"
+    override val notConfiguredMessage = "Not logged in to OpenCode"
     private val lastToken = AtomicReference<String?>()
     private val cachedWorkspaceId = AtomicReference<String?>()
     private val dataLock = Any()

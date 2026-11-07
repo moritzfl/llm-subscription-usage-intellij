@@ -116,7 +116,7 @@ class OpenCodeAuthService(
         accountId: String,
         client: OpenCodeQuotaClient = OpenCodeQuotaClient(),
     ): List<OpenCodeWorkspace> {
-        var credentials = credentials(accountId) ?: error("Not signed in to OpenCode")
+        var credentials = credentials(accountId) ?: error("Not logged in to OpenCode")
         val organizations =
             try {
                 client.fetchWorkspaces(checkNotNull(credentials.accessToken))
@@ -124,7 +124,7 @@ class OpenCodeAuthService(
                 if (exception.statusCode != 401) throw exception
                 credentials =
                     credentials(accountId, credentials.accessToken)
-                        ?: error("Not signed in to OpenCode")
+                        ?: error("Not logged in to OpenCode")
                 client.fetchWorkspaces(checkNotNull(credentials.accessToken))
             }
         // New device grants are scoped in the browser. Never offer an organization outside that

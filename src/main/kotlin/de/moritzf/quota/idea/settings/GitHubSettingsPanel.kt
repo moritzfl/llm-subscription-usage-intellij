@@ -318,7 +318,7 @@ internal class GitHubSettingsPanel(
                 quota != null -> AuthStatusMessage("Connected", false, AuthStatusKind.CONNECTED)
                 else ->
                     AuthStatusMessage(
-                        "Credentials stored securely",
+                        "Logged in",
                         false,
                         AuthStatusKind.CONNECTED,
                     )

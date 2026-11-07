@@ -529,7 +529,7 @@ internal suspend fun SubscriptionOperations.nativePdfDocument(
                 )
                 .id
         } catch (_: de.moritzf.quota.idea.settings.AccountResolveException) {
-            return errorResult("Sign in to ${type.displayName} in settings.")
+            return errorResult("Log in to ${type.displayName} in settings.")
         }
     val selected = model.ifBlank { documentModel(provider) }
     return try {

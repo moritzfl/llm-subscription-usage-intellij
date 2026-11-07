@@ -299,7 +299,7 @@ internal suspend fun SubscriptionOperations.githubVision(
                 )
                 .id
         } catch (_: de.moritzf.quota.idea.settings.AccountResolveException) {
-            return errorResult("Sign in to GitHub Copilot in settings.")
+            return errorResult("Log in to GitHub Copilot in settings.")
         }
     return try {
         val answer =
@@ -335,7 +335,7 @@ internal suspend fun SubscriptionOperations.openCodeVision(
                 )
                 .id
         } catch (_: de.moritzf.quota.idea.settings.AccountResolveException) {
-            return errorResult("Sign in to OpenCode in settings.")
+            return errorResult("Log in to OpenCode in settings.")
         }
     return try {
         val answer =

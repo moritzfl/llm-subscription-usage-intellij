@@ -198,7 +198,7 @@ class QuotaUsageServiceTest {
             assertNull(service.getLastResponseJson(QuotaProviderType.OPEN_AI))
             assertNull(service.getLastQuota(QuotaProviderType.OPEN_CODE))
             assertEquals(
-                "Not signed in to OpenCode",
+                "Not logged in to OpenCode",
                 service.getLastError(QuotaProviderType.OPEN_CODE),
             )
         } finally {
@@ -239,7 +239,7 @@ class QuotaUsageServiceTest {
             assertEquals(rawJson, service.getLastResponseJson(QuotaProviderType.OPEN_AI))
             assertNull(service.getLastQuota(QuotaProviderType.OPEN_CODE))
             assertEquals(
-                "Not signed in to OpenCode",
+                "Not logged in to OpenCode",
                 service.getLastError(QuotaProviderType.OPEN_CODE),
             )
         } finally {
