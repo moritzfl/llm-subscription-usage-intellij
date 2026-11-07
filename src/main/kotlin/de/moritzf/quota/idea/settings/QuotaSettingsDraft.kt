@@ -46,6 +46,18 @@ internal data class QuotaSettingsDraft(
                     throw IllegalArgumentException("${account.name}: ${failure.message}")
                 }
             }
+        accounts
+            .filter { it.providerType() == de.moritzf.quota.idea.common.QuotaProviderType.OLLAMA }
+            .forEach { account ->
+                val reset = account.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET)
+                require(
+                    reset.isNullOrBlank() ||
+                        de.moritzf.quota.ollama.OllamaResetSchedule.parseMonthlyAnchor(reset) !=
+                            null,
+                ) {
+                    "${account.name}: Ollama monthly reset must be ISO-8601 UTC, or ollama.com/settings HTML containing the Monthly usage Resets data-time."
+                }
+            }
     }
 
     fun applyTo(state: QuotaSettingsState) =

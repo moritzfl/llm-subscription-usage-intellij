@@ -2,7 +2,6 @@ package de.moritzf.quota.idea.settings
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
-import com.intellij.openapi.options.ConfigurationException
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBTextField
@@ -117,14 +116,15 @@ internal class OllamaSettingsPanel(
                     ?: account.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET))
                 .orEmpty() || super.accountFieldsModified(account, saved, state)
 
+    /**
+     * The canonical reset, or the text as typed when it does not parse: switching accounts must
+     * keep the draft, and Apply rejects it ([QuotaSettingsDraft.validate]).
+     */
     private fun normalizedMonthlyResetForStorage(): String? {
         collapsePastedReset()
         val raw = monthlyResetField.text.trim()
         if (raw.isEmpty()) return null
-        return OllamaResetSchedule.parseMonthlyAnchor(raw)?.toString()
-            ?: throw ConfigurationException(
-                "Ollama monthly reset must be ISO-8601 UTC, or ollama.com/settings HTML containing the Monthly usage Resets data-time.",
-            )
+        return OllamaResetSchedule.parseMonthlyAnchor(raw)?.toString() ?: raw
     }
 
     private fun collapsePastedReset() {

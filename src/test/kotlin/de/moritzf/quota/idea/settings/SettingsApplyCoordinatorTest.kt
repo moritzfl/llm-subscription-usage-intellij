@@ -90,6 +90,27 @@ class SettingsApplyCoordinatorTest {
     }
 
     @Test
+    fun anInvalidOllamaResetIsAnApplyErrorNotAnAccountSwitchError() {
+        val state =
+            QuotaSettingsState().apply {
+                accounts = mutableListOf(ProviderAccount("o", "ollama", "Ollama"))
+            }
+        val draft = QuotaSettingsDraft.from(state)
+        val account = draft.accounts.single()
+        // The panel keeps unparseable text in the draft instead of throwing.
+        account.setExtra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET, "next tuesday")
+        val failure =
+            assertFailsWith<IllegalArgumentException> {
+                coordinator(state, mutableListOf()).apply(draft)
+            }
+        assertTrue(failure.message.orEmpty().startsWith("Ollama: Ollama monthly reset"))
+        assertTrue(state.accounts.single().extras.isEmpty())
+
+        account.setExtra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET, "2026-10-02T18:08:50Z")
+        assertTrue(coordinator(state, mutableListOf()).apply(draft))
+    }
+
+    @Test
     fun removalAndProviderChangesAreHandledOutsideUi() {
         val state =
             QuotaSettingsState().apply {
