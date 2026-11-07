@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.27.3] - 2026-11-07
+
 - Send Mistral-hosted models the reasoning levels they accept: Mistral Large 4 takes `low`, `medium`, and `high` instead of being sent `none`, which it rejects, GLM 5.3 and GLM 5.3 Flash take `low`, `high`, and `max`, and DeepSeek V4.1 Flash keeps `none`, `low`, `high`, and `max` instead of collapsing to `none`/`high`.
 
 ## [1.27.2] - 2026-11-06
@@ -806,7 +808,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.27.2...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.27.3...HEAD
+[1.27.3]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.27.2...1.27.3
 [1.27.2]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.27.1...1.27.2
 [1.27.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.27.0...1.27.1
 [1.27.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.26.0...1.27.0
