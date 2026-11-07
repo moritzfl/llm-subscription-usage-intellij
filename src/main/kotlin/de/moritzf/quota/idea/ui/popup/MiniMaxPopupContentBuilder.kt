@@ -6,6 +6,7 @@ import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.indicator.QuotaIcons
 import de.moritzf.quota.idea.ui.indicator.QuotaPeriodDurations
 import de.moritzf.quota.idea.ui.indicator.clampPercent
+import de.moritzf.quota.idea.ui.indicator.formatMiniMaxCredits
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.minimax.MiniMaxUsageWindow
 import de.moritzf.quota.shared.ProviderQuota
@@ -22,6 +23,7 @@ internal class MiniMaxPopupSection : ProviderPopupSection() {
     private val weeklyBlock = WindowBlockPanel(5)
     private val videoBlock = WindowBlockPanel(5)
     private val videoWeeklyBlock = WindowBlockPanel(5)
+    private val creditsBlock = WindowBlockPanel(5)
 
     init {
         isOpaque = false
@@ -32,6 +34,7 @@ internal class MiniMaxPopupSection : ProviderPopupSection() {
         add(weeklyBlock)
         add(videoBlock)
         add(videoWeeklyBlock)
+        add(creditsBlock)
         hideAll()
     }
 
@@ -51,13 +54,15 @@ internal class MiniMaxPopupSection : ProviderPopupSection() {
             }
             quota?.planActive == false -> {
                 hideAll()
+                showWarnings(quota)
                 titleLabel.isVisible = true
                 titleLabel.text = sectionTitle("MiniMax", message("quota.minimax.credits"))
                 sessionBlock.showUnavailable(
                     message("quota.minimax.noPlan.title"),
                     message("quota.minimax.noPlan.info"),
-                    message("quota.minimax.noPlan.detail"),
+                    message("quota.minimax.noPlan.detail").takeIf { quota.credits == null },
                 )
+                showCredits(quota)
             }
             quota == null -> {
                 hideAll()
@@ -73,6 +78,8 @@ internal class MiniMaxPopupSection : ProviderPopupSection() {
                 errorLabel.isVisible = limitReached
                 if (limitReached) {
                     errorLabel.text = "MiniMax limit reached"
+                } else {
+                    showWarnings(quota)
                 }
 
                 titleLabel.isVisible = true
@@ -119,8 +126,33 @@ internal class MiniMaxPopupSection : ProviderPopupSection() {
                         prefix = message("quota.minimax.video"),
                     )
                 } ?: videoWeeklyBlock.clear()
+                showCredits(quota)
             }
         }
+    }
+
+    private fun showWarnings(quota: MiniMaxQuota) {
+        if (quota.warnings.isEmpty()) return
+        errorLabel.isVisible = true
+        errorLabel.text = quota.warnings.joinToString("; ")
+    }
+
+    private fun showCredits(quota: MiniMaxQuota) {
+        val credits = quota.credits ?: return creditsBlock.clear()
+        val parts =
+            listOfNotNull(
+                credits.purchased?.let {
+                    message("quota.minimax.credits.purchased", formatMiniMaxCredits(it))
+                },
+                credits.free?.let {
+                    message("quota.minimax.credits.free", formatMiniMaxCredits(it))
+                },
+            )
+        creditsBlock.showUnavailable(
+            message("quota.minimax.credits"),
+            message("quota.minimax.credits.left", formatMiniMaxCredits(credits.remaining)),
+            parts.takeIf { it.isNotEmpty() }?.joinToString(" \u2022 "),
+        )
     }
 
     private fun hideAll() {
@@ -134,6 +166,7 @@ internal class MiniMaxPopupSection : ProviderPopupSection() {
         weeklyBlock.isVisible = false
         videoBlock.isVisible = false
         videoWeeklyBlock.isVisible = false
+        creditsBlock.isVisible = false
     }
 
     private fun WindowBlockPanel.updateMiniMax(

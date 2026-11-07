@@ -89,7 +89,15 @@ internal fun indicatorPlanName(quota: ProviderQuota?): String? {
             is GitHubQuota -> quota.plan
             is KimiQuota -> quota.plan
             is MiniMaxQuota ->
-                if (quota.planActive) quota.plan else QuotaBundle.message("quota.minimax.credits")
+                when {
+                    quota.planActive -> quota.plan
+                    quota.credits != null ->
+                        QuotaBundle.message(
+                            "quota.minimax.credits.tooltip",
+                            formatMiniMaxCredits(quota.credits.remaining),
+                        )
+                    else -> QuotaBundle.message("quota.minimax.credits")
+                }
             is OpenCodeQuota -> quota.plan
             is SuperGrokQuota -> quota.plan
             is ZaiQuota -> quota.plan

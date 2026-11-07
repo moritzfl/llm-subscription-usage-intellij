@@ -295,12 +295,23 @@ internal fun ollamaBarDisplayText(
 internal fun miniMaxBarDisplayText(quota: MiniMaxQuota?, error: String?): String {
     if (error != null) return "error"
     if (quota == null) return "loading..."
-    if (!quota.planActive) return QuotaBundle.message("quota.minimax.credits.bar")
+    if (!quota.planActive) {
+        return quota.credits?.let {
+            QuotaBundle.message(
+                "quota.minimax.credits.bar.amount",
+                QuotaUiUtil.formatCompactCount(kotlin.math.floor(it.remaining).toLong()),
+            )
+        } ?: QuotaBundle.message("quota.minimax.credits.bar")
+    }
     val state = miniMaxIndicatorState(quota) ?: return "no data"
     val reset = QuotaUiUtil.formatResetCompact(state.resetsAt)
     val text = "${state.percent}%"
     return if (reset != null) "$text • $reset" else text
 }
+
+/** Whole credits with grouping, rounded down so a balance is never overstated: "3,944". */
+internal fun formatMiniMaxCredits(value: Double): String =
+    String.format(Locale.ROOT, "%,d", kotlin.math.floor(value).toLong())
 
 internal fun miniMaxIndicatorState(quota: MiniMaxQuota): MiniMaxIndicatorState? {
     val windows = listOfNotNull(quota.sessionUsage, quota.weeklyUsage)

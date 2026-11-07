@@ -352,10 +352,12 @@ internal object ProviderCatalog {
                 },
                 ui = MiniMaxUi,
                 isQuotaConfigured = {
-                    !MiniMaxApiKeyStore.getInstance().loadBlocking().isNullOrBlank()
+                    !MiniMaxApiKeyStore.getInstance().loadBlocking().isNullOrBlank() ||
+                        oauthAccessTokenPresent(QuotaProviderType.MINIMAX)
                 },
                 isQuotaConfiguredForAccount = { accountId ->
-                    !MiniMaxApiKeyStore.forAccount(accountId).loadBlocking().isNullOrBlank()
+                    !MiniMaxApiKeyStore.forAccount(accountId).loadBlocking().isNullOrBlank() ||
+                        oauthAccessTokenPresent(QuotaProviderType.MINIMAX, accountId)
                 },
                 isWebSearchConfigured = {
                     !MiniMaxApiKeyStore.getInstance().loadBlocking().isNullOrBlank()

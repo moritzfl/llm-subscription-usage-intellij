@@ -24,11 +24,16 @@ data class MiniMaxQuota(
      * requests draw on purchased Credits. MiniMax does not report the Credits balance to keys.
      */
     val planActive: Boolean = true,
+    /** Credits left, as read through a MiniMax Code login. */
+    val credits: MiniMaxCredits? = null,
+    /** Sources that failed while another one answered. */
+    val warnings: List<String> = emptyList(),
     override var fetchedAt: Instant? = null,
     @Transient override var rawJson: String? = null,
 ) : ProviderQuota {
     override fun hasUsageState(): Boolean =
         !planActive ||
+            credits != null ||
             sessionUsage != null ||
             weeklyUsage != null ||
             weeklyUnlimited ||
@@ -46,6 +51,14 @@ data class MiniMaxQuota(
         videoWeeklyUsage?.usagePercent?.let { put("videoWeekly", it / 100.0) }
     }
 }
+
+/** MiniMax Credits: purchased packs plus free ones such as rewards. */
+@Serializable
+data class MiniMaxCredits(
+    val remaining: Double,
+    val purchased: Double? = null,
+    val free: Double? = null,
+)
 
 @Serializable
 data class MiniMaxUsageWindow(

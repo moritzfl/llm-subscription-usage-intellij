@@ -31,7 +31,7 @@ internal object TypeHasStoredCredentials {
             QuotaProviderType.KIMI ->
                 KimiCredentialsStore.getInstance().loadBlocking()?.isUsable() == true
             QuotaProviderType.MINIMAX ->
-                !MiniMaxApiKeyStore.getInstance().loadBlocking().isNullOrBlank()
+                !MiniMaxApiKeyStore.getInstance().loadBlocking().isNullOrBlank() || hasOAuth(type)
             QuotaProviderType.MISTRAL ->
                 !MistralSessionCookieStore.getInstance().loadBlocking().isNullOrBlank() ||
                     !MistralApiKeyStore.getInstance().loadBlocking().isNullOrBlank()

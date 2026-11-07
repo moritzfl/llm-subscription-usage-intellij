@@ -37,7 +37,16 @@ internal object AccountSecrets {
             }
             QuotaProviderType.OLLAMA -> OllamaApiKeyStore.forAccount(id).clear()
             QuotaProviderType.ZAI -> ZaiApiKeyStore.forAccount(id).clear()
-            QuotaProviderType.MINIMAX -> MiniMaxApiKeyStore.forAccount(id).clear()
+            QuotaProviderType.MINIMAX -> {
+                MiniMaxApiKeyStore.forAccount(id).clear()
+                runCatching {
+                    QuotaAuthService.getInstance().clearCredentials(id, QuotaProviderType.MINIMAX)
+                    QuotaAuthService.getInstance().forgetAccount(id)
+                }
+                    .onFailure {
+                        LOG.warn("Failed to clear MiniMax Code login for account $id", it)
+                    }
+            }
             QuotaProviderType.OPENAI_COMPATIBLE,
             QuotaProviderType.LITELLM ->
                 de.moritzf.quota.idea.compatible.CompatibleApiKeyStore.forAccount(id).clear()

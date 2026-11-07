@@ -248,6 +248,8 @@ internal object MiniMaxUi : ProviderUi {
     override fun authState(accountId: String): ProviderAuthState {
         val store = MiniMaxApiKeyStore.forAccount(accountId)
         return when {
+            QuotaAuthService.getInstance().isLoggedIn(accountId, QuotaProviderType.MINIMAX) ->
+                ProviderAuthState.AUTHENTICATED
             !store.isLoaded() -> ProviderAuthState.UNKNOWN
             !store.load().isNullOrBlank() -> ProviderAuthState.AUTHENTICATED
             else -> ProviderAuthState.UNAUTHENTICATED

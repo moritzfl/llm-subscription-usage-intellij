@@ -2,7 +2,8 @@
 
 ## [Unreleased]
 
-- Show MiniMax accounts without an active M Plan subscription instead of reporting "Session expired". A subscription key on Credits alone now shows `credits` in the status bar, and the popup says requests use your Credits. MiniMax does not report the Credits balance to API keys. With the region on Auto, a failure from the region that accepts the key is no longer replaced by the other region's "invalid api key", and `subscription_quota` returns that region's response.
+- Show MiniMax accounts without an active M Plan subscription instead of reporting "Session expired". A subscription key on Credits alone now shows `credits` in the status bar, and the popup says requests use your Credits. With the region on Auto, a failure from the region that accepts the key is no longer replaced by the other region's "invalid api key", and `subscription_quota` returns that region's response.
+- Optionally sign in with MiniMax Code in the MiniMax settings to see your Credits balance, which MiniMax does not report to API keys: the status bar shows it for accounts without an M Plan subscription, and the popup lists purchased and free Credits. Without a subscription key, the login also reads your M Plan usage. The login only reads usage; refreshes are coordinated across IDEs because MiniMax revokes a login when a rotated refresh token is reused. `subscription_quota` then returns `subscription_key` and `minimax_code` segments.
 
 ## [1.27.3] - 2026-11-07
 

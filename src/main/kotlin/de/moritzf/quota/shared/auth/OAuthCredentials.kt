@@ -11,4 +11,6 @@ class OAuthCredentials(
     var accountId: String? = null,
     var hd: String? = null,
     var personalAccessToken: Boolean = false,
+    /** Authorization server that granted the login, for providers with regional servers. */
+    var issuer: String? = null,
 )

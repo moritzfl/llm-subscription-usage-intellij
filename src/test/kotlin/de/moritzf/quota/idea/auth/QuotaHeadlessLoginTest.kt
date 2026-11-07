@@ -56,6 +56,40 @@ class QuotaHeadlessLoginTest {
     }
 
     @Test
+    fun miniMaxDeviceLoginNeedsAndUsesTheSuppliedRegionalLogin() = runTest {
+        val fixture = Fixture(dispatcher = StandardTestDispatcher(testScheduler))
+        try {
+            val refused = CompletableFuture<LoginResult>()
+            fixture.service.startDeviceLoginFlow("mm", MINIMAX, { refused.complete(it) })
+            assertFalse(assertNotNull(refused.getNow(null)).success)
+
+            val completed = CompletableFuture<LoginResult>()
+            fixture.service.startDeviceLoginFlow(
+                "mm",
+                MINIMAX,
+                { completed.complete(it) },
+                operations =
+                    object : DeviceClient() {
+                        override suspend fun poll(
+                            authorization: OAuthDeviceAuthorization,
+                        ): OAuthDevicePollResult =
+                            OAuthDevicePollResult.Authorized(
+                                oauth("minimax-access").apply {
+                                    issuer = "https://account.minimax.io"
+                                },
+                            )
+                    },
+            )
+            advanceUntilIdle()
+            assertTrue(assertNotNull(completed.getNow(null)).success)
+            assertEquals("minimax-access", fixture.store("mm").load()?.accessToken)
+            assertEquals("https://account.minimax.io", fixture.service.getIssuer("mm", MINIMAX))
+        } finally {
+            fixture.service.dispose()
+        }
+    }
+
+    @Test
     fun fallbackModesCannotReplaceAnotherActiveLogin() {
         val fixture =
             Fixture(
@@ -369,6 +403,7 @@ class QuotaHeadlessLoginTest {
 
     companion object {
         private val OPEN_AI = QuotaProviderType.OPEN_AI
+        private val MINIMAX = QuotaProviderType.MINIMAX
 
         private fun authorization(expiresAt: Long = System.currentTimeMillis() + 30_000) =
             OAuthDeviceAuthorization(

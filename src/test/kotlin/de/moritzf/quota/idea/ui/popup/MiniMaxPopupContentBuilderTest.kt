@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.ui.popup
 
 import de.moritzf.quota.idea.ui.indicator.miniMaxBarDisplayText
+import de.moritzf.quota.minimax.MiniMaxCredits
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.minimax.MiniMaxUsageWindow
 import java.awt.Container
@@ -58,6 +59,33 @@ class MiniMaxPopupContentBuilderTest {
         )
         assertTrue(labels.none { it.startsWith("MiniMax error") }, labels.toString())
         assertEquals("credits", miniMaxBarDisplayText(MiniMaxQuota(planActive = false), null))
+    }
+
+    @Test
+    fun showsTheCreditsBalanceFromTheLogin() {
+        val credits = MiniMaxCredits(3944.267, 3144.267, 800.0)
+        val section = MiniMaxPopupSection()
+        section.update(MiniMaxQuota(planActive = false, credits = credits), null, true)
+
+        val labels = labels(section)
+        assertTrue("3,944 left" in labels, labels.toString())
+        assertTrue(labels.none { it.startsWith("Sign in with MiniMax Code") }, labels.toString())
+        assertEquals(
+            "3.9k credits",
+            miniMaxBarDisplayText(MiniMaxQuota(planActive = false, credits = credits), null),
+        )
+
+        section.update(
+            MiniMaxQuota(
+                sessionUsage = MiniMaxUsageWindow(usagePercent = 10.0),
+                credits = MiniMaxCredits(12.0),
+                warnings = listOf("MiniMax Code: Request failed."),
+            ),
+            null,
+            true,
+        )
+        assertTrue("12 left" in labels(section), labels(section).toString())
+        assertTrue("MiniMax Code: Request failed." in labels(section), labels(section).toString())
     }
 
     private fun labels(root: Container): List<String> =

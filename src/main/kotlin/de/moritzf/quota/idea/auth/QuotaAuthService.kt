@@ -7,6 +7,7 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import de.moritzf.quota.idea.common.CredentialStorage
 import de.moritzf.quota.idea.common.QuotaProviderType
+import de.moritzf.quota.minimax.MiniMaxCodeOAuthClient
 import de.moritzf.quota.shared.auth.OAuthCredentials
 import java.net.URI
 import java.net.http.HttpClient
@@ -40,8 +41,12 @@ class QuotaAuthService(
     private val httpClient: HttpClient = createHttpClient(),
     private val tokenOperationsFactory:
         (QuotaProviderType, OAuthClientConfig) -> OAuthTokenOperations =
-        { _, config ->
-            OAuthTokenClient(httpClient, config)
+        { type, config ->
+            if (type == QuotaProviderType.MINIMAX) {
+                MiniMaxCodeTokenOperations(MiniMaxCodeOAuthClient(httpClient))
+            } else {
+                OAuthTokenClient(httpClient, config)
+            }
         },
     private val credentialStoreFactory: (String, QuotaProviderType) -> OAuthCredentialStore =
         { accountId, type ->
@@ -128,20 +133,29 @@ class QuotaAuthService(
         }
     }
 
+    /**
+     * [operations] supplies the login for providers whose device flow depends on the account, such
+     * as MiniMax Code's regional account servers.
+     */
     fun startDeviceLoginFlow(
         accountId: String,
         type: QuotaProviderType,
         callback: (LoginResult) -> Unit,
         onPrompt: (DeviceLoginPrompt) -> Unit = {},
+        operations: OAuthDeviceLoginOperations? = null,
     ) {
-        if (type != QuotaProviderType.OPEN_AI && type != QuotaProviderType.SUPERGROK) {
+        if (
+            operations == null &&
+                type != QuotaProviderType.OPEN_AI &&
+                type != QuotaProviderType.SUPERGROK
+        ) {
             callback(
                 LoginResult.error("Device-code login is not supported for ${type.displayName}"),
             )
             return
         }
         startLoginOperation(accountId, type, callback) { state, generation ->
-            val client = deviceLoginFactory(type, state.config)
+            val client = operations ?: deviceLoginFactory(type, state.config)
             val authorization = client.requestAuthorization()
             synchronized(state.credentialsLock) {
                 if (state.loginGeneration.get() != generation)
@@ -472,6 +486,10 @@ class QuotaAuthService(
 
     fun getAccountId(accountId: String, type: QuotaProviderType): String? =
         cachedCredentialsOrScheduleLoad(stateFor(accountId, type))?.accountId
+
+    /** The authorization server of the stored login, see [OAuthCredentials.issuer]. */
+    fun getIssuer(accountId: String, type: QuotaProviderType): String? =
+        cachedCredentialsOrScheduleLoad(stateFor(accountId, type))?.issuer
 
     fun forgetAccount(accountId: String) {
         providerStates[accountId]?.let { abortLogin(accountId, it.type, "Account removed") }
@@ -1175,7 +1193,8 @@ class QuotaAuthService(
                 left.expiresAt == right.expiresAt &&
                 left.accountId == right.accountId &&
                 left.hd == right.hd &&
-                left.personalAccessToken == right.personalAccessToken
+                left.personalAccessToken == right.personalAccessToken &&
+                left.issuer == right.issuer
         }
 
         private fun createHttpClient(): HttpClient {

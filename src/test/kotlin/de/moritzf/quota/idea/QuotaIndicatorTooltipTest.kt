@@ -190,6 +190,18 @@ class QuotaIndicatorTooltipTest {
             ),
         )
         assertEquals(
+            "MiniMax • 3,944 credits left",
+            buildIndicatorTooltip(
+                QuotaProviderType.MINIMAX,
+                MiniMaxQuota(
+                    planActive = false,
+                    credits = de.moritzf.quota.minimax.MiniMaxCredits(3944.267),
+                ),
+                error = null,
+                ProviderAuthState.AUTHENTICATED,
+            ),
+        )
+        assertEquals(
             "MiniMax • MiniMax Token Plan • 100% Weekly",
             buildIndicatorTooltip(
                 QuotaProviderType.MINIMAX,

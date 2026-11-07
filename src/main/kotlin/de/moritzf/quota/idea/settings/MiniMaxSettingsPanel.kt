@@ -1,18 +1,25 @@
 package de.moritzf.quota.idea.settings
 
+import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.ui.ComboBox
+import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.MAX_LINE_LENGTH_WORD_WRAP
+import com.intellij.ui.dsl.builder.RightGap
 import com.intellij.ui.dsl.builder.panel
+import de.moritzf.quota.idea.auth.MiniMaxCodeDeviceLogin
+import de.moritzf.quota.idea.auth.OAuthConnectionState
+import de.moritzf.quota.idea.auth.QuotaAuthService
 import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
 import de.moritzf.quota.minimax.MiniMaxQuota
+import de.moritzf.quota.minimax.MiniMaxRegion
 import de.moritzf.quota.minimax.MiniMaxRegionPreference
 import de.moritzf.quota.minimax.MiniMaxVisionClient
 import java.awt.Color
@@ -26,10 +33,27 @@ internal class MiniMaxSettingsPanel(
     private val apiKeyField = JBPasswordField().apply { columns = 40 }
     private val apiKeyDraft = credentialDraft(apiKeyField)
     private val statusLabel = JBLabel().apply { isVisible = false }
+    private val codeStatusLabel = JBLabel()
+    private val codeLoginButton =
+        ActionLink(message("settings.minimax.code.login")).apply { autoHideOnDisable = false }
+    private val codeCancelButton = ActionLink("Cancel Login").apply { autoHideOnDisable = false }
+    private val codeLogoutButton = ActionLink("Log Out").apply { autoHideOnDisable = false }
+    private val codeDevicePanel = DeviceLoginPanel()
+    private var codeAuthMessage: AuthStatusMessage? = null
+    private var codeGeneration = 0L
+    private var codeLoggingOut = false
     private val responseViewer = createResponseViewer()
     override val visionModelCombo = VisionModelCombo()
 
     init {
+        codeLoginButton.addActionListener { startCodeLogin() }
+        codeCancelButton.addActionListener {
+            codeGeneration++
+            auth().abortLogin(accountId(), QuotaProviderType.MINIMAX, "Login canceled")
+            codeAuthMessage = AuthStatusMessage("Login canceled", kind = AuthStatusKind.PENDING)
+            updateStatus()
+        }
+        codeLogoutButton.addActionListener { logOutCode() }
         install(
             panel {
                 row { statusCell(statusLabel) }
@@ -52,10 +76,23 @@ internal class MiniMaxSettingsPanel(
                     button("Save") { saveKeysNow() }
                     button("Clear") { clearKeysNow() }
                 }
+                separator()
+                row("MiniMax Code:") { statusCell(codeStatusLabel) }
+                row {
+                    cell(codeLoginButton).gap(RightGap.SMALL)
+                    cell(codeCancelButton).gap(RightGap.SMALL)
+                    cell(codeLogoutButton)
+                }
+                row { cell(codeDevicePanel.component).align(AlignX.FILL).resizableColumn() }
+                row { comment(message("settings.minimax.code.help"), MAX_LINE_LENGTH_WORD_WRAP) }
             },
             createResponseSection(responseViewer),
         )
     }
+
+    private fun accountId() = accountKey(QuotaProviderType.MINIMAX)
+
+    private fun auth() = QuotaAuthService.getInstance()
 
     override fun writeAccountFields(account: ProviderAccount) {
         super.writeAccountFields(account)
@@ -85,6 +122,9 @@ internal class MiniMaxSettingsPanel(
                 ?.let(MiniMaxRegionPreference::fromStorageValue)
                 ?: QuotaSettingsState.getInstance()
                     .miniMaxRegionFor(accountKey(QuotaProviderType.MINIMAX))
+        codeGeneration++
+        codeAuthMessage = null
+        codeLoggingOut = false
         updateStatus()
     }
 
@@ -121,32 +161,141 @@ internal class MiniMaxSettingsPanel(
 
     override fun updateStatus() {
         val isCurrent = accountUiGuard()
-        val store = MiniMaxApiKeyStore.forAccount(accountKey(QuotaProviderType.MINIMAX))
+        val id = accountId()
+        val store = MiniMaxApiKeyStore.forAccount(id)
         val apiKey = store.load(onLoaded = { if (isCurrent()) updateStatus() })
-        val quota =
-            QuotaUsageService.getInstance().getLastQuota(accountKey(QuotaProviderType.MINIMAX))
-                as? MiniMaxQuota
-        val error =
-            QuotaUsageService.getInstance().getLastError(accountKey(QuotaProviderType.MINIMAX))
+        val loggedIn = auth().isLoggedIn(id, QuotaProviderType.MINIMAX)
+        val quota = QuotaUsageService.getInstance().getLastQuota(id) as? MiniMaxQuota
+        val error = QuotaUsageService.getInstance().getLastError(id)
         statusLabel.text =
             when {
                 !store.isLoaded() -> statusDotHtml("Loading API keys...", AuthStatusKind.PENDING)
-                apiKey.isNullOrBlank() ->
-                    statusDotHtml(
-                        "MiniMax subscription key missing",
-                        AuthStatusKind.DISCONNECTED,
-                    )
+                apiKey.isNullOrBlank() && !loggedIn ->
+                    statusDotHtml(message("settings.minimax.missing"), AuthStatusKind.DISCONNECTED)
                 error != null -> statusDotHtml("Error: $error", AuthStatusKind.DISCONNECTED)
+                quota != null && quota.warnings.isNotEmpty() ->
+                    statusDotHtml(
+                        "Connected; ${quota.warnings.joinToString("; ")}",
+                        AuthStatusKind.PENDING,
+                    )
                 quota?.planActive == false ->
                     statusDotHtml(
                         message("quota.minimax.status.credits"),
                         AuthStatusKind.CONNECTED,
                     )
                 quota != null -> statusDotHtml("Connected", AuthStatusKind.CONNECTED)
+                apiKey.isNullOrBlank() -> statusDotHtml("Signed in", AuthStatusKind.CONNECTED)
                 else -> statusDotHtml("API key stored securely", AuthStatusKind.CONNECTED)
             }
         statusLabel.foreground = statusLabelDefaultForeground ?: statusLabel.foreground
         statusLabel.isVisible = true
+        updateCodeStatus(id, loggedIn)
+    }
+
+    private fun updateCodeStatus(id: String, loggedIn: Boolean) {
+        val inProgress = auth().isLoginInProgress(id, QuotaProviderType.MINIMAX)
+        val prompt = auth().deviceLoginPrompt(id, QuotaProviderType.MINIMAX)
+        codeDevicePanel.show(prompt)
+        val status =
+            when {
+                codeLoggingOut -> AuthStatusMessage("Logging out...", kind = AuthStatusKind.PENDING)
+                prompt != null ->
+                    AuthStatusMessage(
+                        "Waiting for browser authorization...",
+                        kind = AuthStatusKind.PENDING,
+                    )
+                codeAuthMessage != null -> codeAuthMessage!!
+                !loggedIn ->
+                    AuthStatusMessage(
+                        message("settings.minimax.code.signedOut"),
+                        kind = AuthStatusKind.DISCONNECTED,
+                    )
+                else ->
+                    when (auth().connectionState(id, QuotaProviderType.MINIMAX)) {
+                        OAuthConnectionState.RECONNECT_REQUIRED ->
+                            AuthStatusMessage(
+                                "Login expired. Sign in again.",
+                                isError = true,
+                            )
+                        OAuthConnectionState.TEMPORARY_FAILURE ->
+                            AuthStatusMessage(
+                                "Login retained. Temporarily unable to refresh; retrying automatically.",
+                                kind = AuthStatusKind.PENDING,
+                            )
+                        else -> AuthStatusMessage("Signed in")
+                    }
+            }
+        codeStatusLabel.text = statusDotHtml(status.text, status.kind)
+        codeStatusLabel.foreground = statusLabelDefaultForeground ?: codeStatusLabel.foreground
+        codeLoginButton.isEnabled = !inProgress && !codeLoggingOut
+        codeCancelButton.isEnabled = inProgress && !codeLoggingOut
+        codeLogoutButton.isEnabled = loggedIn && !inProgress && !codeLoggingOut
+    }
+
+    private fun startCodeLogin() {
+        val id = accountId()
+        // The login keeps the region it was granted in; Auto signs in globally.
+        val region =
+            if (selectedRegion() == MiniMaxRegionPreference.CN) MiniMaxRegion.CN
+            else MiniMaxRegion.GLOBAL
+        val generation = ++codeGeneration
+        codeAuthMessage =
+            AuthStatusMessage("Requesting login code...", kind = AuthStatusKind.PENDING)
+        auth()
+            .startDeviceLoginFlow(
+                id,
+                QuotaProviderType.MINIMAX,
+                callback = { result ->
+                    if (result.success) QuotaUsageService.getInstance().refreshAsync(id)
+                    onUi(id) {
+                        if (codeGeneration != generation) return@onUi
+                        codeAuthMessage =
+                            if (result.success) null
+                            else AuthStatusMessage(result.message ?: "Login failed", isError = true)
+                        updateStatus()
+                    }
+                },
+                onPrompt = { prompt ->
+                    onUi(id) {
+                        if (codeGeneration != generation) return@onUi
+                        // The URL carries the code; the panel keeps both copyable as a fallback.
+                        runCatching { BrowserUtil.browse(prompt.verificationUrl) }
+                        updateStatus()
+                    }
+                },
+                operations = MiniMaxCodeDeviceLogin(region),
+            )
+        updateStatus()
+    }
+
+    private fun logOutCode() {
+        val id = accountId()
+        codeGeneration++
+        codeLoggingOut = true
+        codeAuthMessage = null
+        updateStatus()
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val cleared = auth().clearCredentials(id, QuotaProviderType.MINIMAX)
+            if (cleared)
+                refreshOrClear(
+                    id,
+                    hasKey = !MiniMaxApiKeyStore.forAccount(id).loadBlocking().isNullOrBlank(),
+                )
+            onUi(id) {
+                codeLoggingOut = false
+                if (!cleared) {
+                    codeAuthMessage = AuthStatusMessage("Could not log out", isError = true)
+                }
+                updateStatus()
+            }
+        }
+    }
+
+    /** Off the EDT: what remains of the connection decides whether usage is read again. */
+    private fun refreshOrClear(id: String, hasKey: Boolean) {
+        val loggedIn = auth().hasCredentialsBlocking(id, QuotaProviderType.MINIMAX)
+        if (hasKey || loggedIn) QuotaUsageService.getInstance().refreshAsync(id)
+        else QuotaUsageService.getInstance().clearUsageData(id)
     }
 
     override fun updateResponseArea() {
@@ -175,7 +324,7 @@ internal class MiniMaxSettingsPanel(
         setPending("Saving API keys...")
         ApplicationManager.getApplication().executeOnPooledThread {
             MiniMaxApiKeyStore.forAccount(id).save(apiKey)
-            QuotaUsageService.getInstance().refreshAsync(id)
+            refreshOrClear(id, hasKey = !apiKey.isNullOrBlank())
             ApplicationManager.getApplication()
                 .invokeLater(
                     {
@@ -198,7 +347,7 @@ internal class MiniMaxSettingsPanel(
         setPending("Clearing API keys...")
         ApplicationManager.getApplication().executeOnPooledThread {
             MiniMaxApiKeyStore.forAccount(id).clear()
-            QuotaUsageService.getInstance().clearUsageData(id)
+            refreshOrClear(id, hasKey = false)
             ApplicationManager.getApplication()
                 .invokeLater(
                     {
@@ -216,6 +365,14 @@ internal class MiniMaxSettingsPanel(
     private fun setPending(text: String) {
         statusLabel.text = statusDotHtml(text, AuthStatusKind.PENDING)
         statusLabel.isVisible = true
+    }
+
+    private fun onUi(id: String, action: () -> Unit) {
+        ApplicationManager.getApplication()
+            .invokeLater(
+                { if (accountId() == id) action() },
+                ModalityState.stateForComponent(modalityComponentProvider() ?: this),
+            )
     }
 
     private companion object {
