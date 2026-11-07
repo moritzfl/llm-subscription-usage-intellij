@@ -14,14 +14,12 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
 import de.moritzf.quota.ollama.OllamaQuota
-import de.moritzf.quota.ollama.OllamaQuotaClient
 import de.moritzf.quota.ollama.OllamaResetSchedule
 import de.moritzf.quota.ollama.OllamaVisionModels
 import de.moritzf.quota.shared.JsonSupport
 import java.awt.Color
 import java.awt.event.FocusAdapter
 import java.awt.event.FocusEvent
-import java.util.concurrent.atomic.AtomicLong
 import javax.swing.JComponent
 
 /** Ollama Cloud settings tab — API key only (quota, web search, and proxy). */
@@ -47,10 +45,19 @@ internal class OllamaSettingsPanel(
             toolTipText = "Ollama API key from ollama.com/settings/keys"
         }
     private val ollamaStatusLabel = JBLabel().apply { isVisible = false }
-    private val apiKeyDraft = credentialDraft(apiKeyField)
+    private val apiKey =
+        storedSecret(
+            listOf(apiKeyField),
+            read = { OllamaApiKeyStore.forAccount(it).loadBlocking() },
+            write = { id, value ->
+                val store = OllamaApiKeyStore.forAccount(id)
+                saveOrClear(value, store::save, store::clear)
+                if (value == null) QuotaUsageService.getInstance().clearUsageData(id)
+                else QuotaUsageService.getInstance().refreshAsync(id)
+            },
+        )
     override val visionModelCombo = VisionModelCombo()
     private val ollamaJsonViewer = createResponseViewer()
-    private val validationGeneration = AtomicLong(0)
     private var modelRefreshGeneration = 0
 
     init {
@@ -62,6 +69,7 @@ internal class OllamaSettingsPanel(
                 )
             }
             row("API key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
+            row("") { cell(apiKey.hint) }
             row("Monthly reset:") {
                 cell(monthlyResetField)
                     .resizableColumn()
@@ -85,10 +93,6 @@ internal class OllamaSettingsPanel(
                         modalityComponentProvider,
                     ),
                 )
-            }
-            row {
-                button("Save API Key") { saveApiKeyNow() }
-                button("Clear API Key") { clearApiKeyNow() }
             }
         }
 
@@ -133,7 +137,7 @@ internal class OllamaSettingsPanel(
     }
 
     override fun updateFields() {
-        loadCredentialField()
+        apiKey.show(accountKey(QuotaProviderType.OLLAMA))
         monthlyResetField.text =
             boundAccount?.extra(ProviderAccount.EXTRA_OLLAMA_MONTHLY_RESET).orEmpty()
         showVisionModels(emptyMap())
@@ -141,28 +145,10 @@ internal class OllamaSettingsPanel(
         refreshVisionModels()
     }
 
-    private fun loadCredentialField() {
-        val id = accountKey(QuotaProviderType.OLLAMA)
-        val isCurrent = accountUiGuard()
-        val apiKeyStore = OllamaApiKeyStore.forAccount(id)
-        val apiKey =
-            apiKeyStore.load(
-                onLoaded = {
-                    if (isCurrent()) {
-                        loadCredentialField()
-                        updateStatus()
-                        updateResponseArea()
-                        refreshVisionModels()
-                    }
-                },
-            )
-        apiKeyDraft.show(id, if (apiKey.isNullOrBlank()) "" else API_KEY_PLACEHOLDER)
-    }
-
     override fun testConnection(): ProviderTestConnection =
         ProviderTestConnection(
             checkNotNull(boundAccount),
-            String(apiKeyField.password).takeUnless { it == API_KEY_PLACEHOLDER },
+            apiKey.override(accountKey(QuotaProviderType.OLLAMA)),
         )
 
     private fun showVisionModels(
@@ -200,8 +186,7 @@ internal class OllamaSettingsPanel(
         }
     }
 
-    override fun testApiKeyDrafts(): Map<String, String> =
-        apiKeyDraft.snapshot().filterValues { it != API_KEY_PLACEHOLDER }
+    override fun testApiKeyDrafts(): Map<String, String> = apiKey.drafts()
 
     override fun updateStatus() {
         val isCurrent = accountUiGuard()
@@ -222,7 +207,7 @@ internal class OllamaSettingsPanel(
             }
             apiKey.isNullOrBlank() -> {
                 ollamaStatusLabel.text =
-                    statusDotHtml("No API key configured", AuthStatusKind.DISCONNECTED)
+                    statusDotHtml(message("settings.status.noKey"), AuthStatusKind.DISCONNECTED)
                 ollamaStatusLabel.foreground =
                     statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
@@ -239,78 +224,11 @@ internal class OllamaSettingsPanel(
             }
             else -> {
                 ollamaStatusLabel.text =
-                    statusDotHtml("API key stored securely", AuthStatusKind.CONNECTED)
+                    statusDotHtml(message("settings.status.keyStored"), AuthStatusKind.CONNECTED)
                 ollamaStatusLabel.foreground =
                     statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
         }
-        ollamaStatusLabel.isVisible = true
-    }
-
-    private fun saveApiKeyNow() {
-        val id = accountKey(QuotaProviderType.OLLAMA)
-        val submitted = String(apiKeyField.password)
-        val apiKey = submitted.trim()
-        if (apiKey.isNotBlank() && apiKey != API_KEY_PLACEHOLDER) {
-            OllamaApiKeyStore.forAccount(id).save(apiKey)
-            apiKeyDraft.saved(id, submitted)
-            apiKeyDraft.show(id, API_KEY_PLACEHOLDER)
-            setOllamaPendingStatus()
-            validateApiKeyNow(apiKey)
-            QuotaUsageService.getInstance().refreshAsync(accountKey(QuotaProviderType.OLLAMA))
-        }
-    }
-
-    private fun clearApiKeyNow() {
-        val id = accountKey(QuotaProviderType.OLLAMA)
-        OllamaApiKeyStore.forAccount(id).clear()
-        apiKeyDraft.saved(id, String(apiKeyField.password))
-        apiKeyDraft.show(id, "")
-        validationGeneration.incrementAndGet()
-        updateStatus()
-        QuotaUsageService.getInstance().clearUsageData(accountKey(QuotaProviderType.OLLAMA))
-    }
-
-    private fun validateApiKeyNow(apiKey: String) {
-        val isCurrent = accountUiGuard()
-        val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
-        val generation = validationGeneration.incrementAndGet()
-        ApplicationManager.getApplication().executeOnPooledThread {
-            val result = runCatching { OllamaQuotaClient().fetchQuota(apiKey) }
-            ApplicationManager.getApplication()
-                .invokeLater(
-                    {
-                        if (!isCurrent() || generation != validationGeneration.get()) {
-                            return@invokeLater
-                        }
-                        result.fold(
-                            onSuccess = {
-                                ollamaStatusLabel.text =
-                                    statusDotHtml("Connected", AuthStatusKind.CONNECTED)
-                                ollamaStatusLabel.foreground =
-                                    statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
-                                ollamaStatusLabel.isVisible = true
-                            },
-                            onFailure = { error ->
-                                ollamaStatusLabel.text =
-                                    statusDotHtml(
-                                        "Error: ${error.message ?: "Validation failed"}",
-                                        AuthStatusKind.DISCONNECTED,
-                                    )
-                                ollamaStatusLabel.foreground =
-                                    statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
-                                ollamaStatusLabel.isVisible = true
-                            },
-                        )
-                    },
-                    modality,
-                )
-        }
-    }
-
-    private fun setOllamaPendingStatus() {
-        ollamaStatusLabel.text = statusDotHtml("Validating API key...", AuthStatusKind.PENDING)
-        ollamaStatusLabel.foreground = statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
         ollamaStatusLabel.isVisible = true
     }
 
@@ -339,9 +257,5 @@ internal class OllamaSettingsPanel(
                 }
             }
         ollamaJsonViewer.setCaretPosition(0)
-    }
-
-    private companion object {
-        private const val API_KEY_PLACEHOLDER = "********"
     }
 }

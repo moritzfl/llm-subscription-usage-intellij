@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Save every setting the same way: API keys and session cookies for Ollama, Z.ai, MiniMax, Mistral, and Cursor are now normal fields that Apply or OK stores in Password Safe and Cancel discards, like URLs, models, and regions. The separate Save and Clear buttons are gone; empty a field and apply to remove its key. A note under each field says whether the value is stored, will be saved, or will be removed when you apply. Invalid cookies are reported when you apply, and Password Safe writes no longer block the settings dialog. Logins still take effect immediately, and their buttons and status read Log In, Log Out, and Logged in for every provider.
+
 - Show MiniMax accounts without an active M Plan subscription instead of reporting "Session expired". A subscription key on Credits alone now shows `credits` in the status bar, and the popup says requests use your Credits. With the region on Auto, a failure from the region that accepts the key is no longer replaced by the other region's "invalid api key", and `subscription_quota` returns that region's response.
 - Optionally sign in with MiniMax Code in the MiniMax settings to see your Credits balance, which MiniMax does not report to API keys: the status bar shows it for accounts without an M Plan subscription, and the popup lists purchased and free Credits. Without a subscription key, the login also reads your M Plan usage. The login only reads usage; refreshes are coordinated across IDEs because MiniMax revokes a login when a rotated refresh token is reused. `subscription_quota` then returns `subscription_key` and `minimax_code` segments.
 

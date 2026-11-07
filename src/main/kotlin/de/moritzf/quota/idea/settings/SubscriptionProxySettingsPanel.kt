@@ -477,12 +477,18 @@ internal class SubscriptionProxySettingsPanel(
         }
     }
 
-    fun saveProxyApiKeyBlocking() {
+    /** Apply's write of the proxy API key; the write itself runs off the EDT. */
+    fun pendingApiKeyWrite(): SecretWrite {
         val apiKey = proxyApiKey()
-        OpenAiProxyApiKeyStore.getInstance().saveBlocking(apiKey)
-        savedProxyApiKey = apiKey
-        proxyApiKeyLoadError = null
-        updateProxyApiKeyHint()
+        return SecretWrite(
+            accountId = null,
+            write = { OpenAiProxyApiKeyStore.getInstance().saveBlocking(apiKey) },
+            onSaved = {
+                savedProxyApiKey = apiKey
+                proxyApiKeyLoadError = null
+                updateProxyApiKeyHint()
+            },
+        )
     }
 
     fun isCompletionsModified(): Boolean {

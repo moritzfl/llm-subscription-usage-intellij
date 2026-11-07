@@ -14,11 +14,9 @@ import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.zai.ZaiOcrClient
 import de.moritzf.quota.zai.ZaiQuota
-import de.moritzf.quota.zai.ZaiQuotaClient
 import de.moritzf.quota.zai.proxy.ZaiSubscriptionProxyProvider
 import java.awt.Color
 import java.net.URI
-import java.util.concurrent.atomic.AtomicLong
 import javax.swing.JComponent
 
 /** Z.ai settings tab. */
@@ -35,14 +33,24 @@ internal class ZaiSettingsPanel(
             toolTipText = "Z.ai API key from the Z.ai console"
         }
     private val zaiStatusLabel = JBLabel().apply { isVisible = false }
-    private val apiKeyDraft = credentialDraft(apiKeyField)
+    private val apiKey =
+        storedSecret(
+            listOf(apiKeyField),
+            read = { ZaiApiKeyStore.forAccount(it).loadBlocking() },
+            write = { id, value ->
+                val store = ZaiApiKeyStore.forAccount(id)
+                saveOrClear(value, store::save, store::clear)
+                if (value == null) QuotaUsageService.getInstance().clearUsageData(id)
+                else QuotaUsageService.getInstance().refreshAsync(id)
+            },
+        )
     private val zaiJsonViewer = createResponseViewer()
-    private val validationGeneration = AtomicLong(0)
 
     init {
         val configPanel = panel {
             row { statusCell(zaiStatusLabel) }
             row("API key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
+            row("") { cell(apiKey.hint) }
             row(message("settings.model.document.label")) {
                 cell(documentModelCombo.combo)
                     .align(AlignX.FILL)
@@ -70,55 +78,23 @@ internal class ZaiSettingsPanel(
                     ),
                 )
             }
-            row {
-                button("Save") {
-                    val apiKey = String(apiKeyField.password)
-                    if (apiKey.isNotBlank() && apiKey != API_KEY_PLACEHOLDER) {
-                        setZaiPendingStatus("Validating API key...")
-                        saveApiKeyNow(apiKey)
-                    }
-                }
-                button("Clear") {
-                    apiKeyField.text = ""
-                    setZaiPendingStatus("Clearing API key...")
-                    clearApiKeyNow()
-                }
-            }
         }
 
         install(configPanel, createResponseSection(zaiJsonViewer))
     }
 
     override fun updateFields() {
-        loadCredentialField()
+        apiKey.show(accountKey(QuotaProviderType.ZAI))
         showDocumentModels(emptyList())
         showVisionModels(emptyList())
         updateStatus()
         refreshDocumentModels()
     }
 
-    private fun loadCredentialField() {
-        val id = accountKey(QuotaProviderType.ZAI)
-        val isCurrent = accountUiGuard()
-        val apiKey =
-            ZaiApiKeyStore.forAccount(id)
-                .load(
-                    onLoaded = {
-                        if (isCurrent()) {
-                            loadCredentialField()
-                            updateStatus()
-                            updateResponseArea()
-                            refreshDocumentModels()
-                        }
-                    },
-                )
-        apiKeyDraft.show(id, if (apiKey.isNullOrBlank()) "" else API_KEY_PLACEHOLDER)
-    }
-
     override fun testConnection(): ProviderTestConnection =
         ProviderTestConnection(
             checkNotNull(boundAccount),
-            String(apiKeyField.password).takeUnless { it == API_KEY_PLACEHOLDER },
+            apiKey.override(accountKey(QuotaProviderType.ZAI)),
         )
 
     private fun showDocumentModels(
@@ -179,8 +155,7 @@ internal class ZaiSettingsPanel(
         }
     }
 
-    override fun testApiKeyDrafts(): Map<String, String> =
-        apiKeyDraft.snapshot().filterValues { it != API_KEY_PLACEHOLDER }
+    override fun testApiKeyDrafts(): Map<String, String> = apiKey.drafts()
 
     override fun updateStatus() {
         val isCurrent = accountUiGuard()
@@ -199,7 +174,7 @@ internal class ZaiSettingsPanel(
             }
             apiKey.isNullOrBlank() -> {
                 zaiStatusLabel.text =
-                    statusDotHtml("No Z.ai API key configured", AuthStatusKind.DISCONNECTED)
+                    statusDotHtml(message("settings.status.noKey"), AuthStatusKind.DISCONNECTED)
                 zaiStatusLabel.foreground =
                     statusLabelDefaultForeground ?: zaiStatusLabel.foreground
             }
@@ -215,7 +190,7 @@ internal class ZaiSettingsPanel(
             }
             else -> {
                 zaiStatusLabel.text =
-                    statusDotHtml("API key stored securely", AuthStatusKind.CONNECTED)
+                    statusDotHtml(message("settings.status.keyStored"), AuthStatusKind.CONNECTED)
                 zaiStatusLabel.foreground =
                     statusLabelDefaultForeground ?: zaiStatusLabel.foreground
             }
@@ -249,112 +224,5 @@ internal class ZaiSettingsPanel(
                 }
             }
         zaiJsonViewer.setCaretPosition(0)
-    }
-
-    private fun saveApiKeyNow(apiKey: String) {
-        val id = accountKey(QuotaProviderType.ZAI)
-        val submitted = String(apiKeyField.password)
-        val isCurrent = accountUiGuard()
-        val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
-        ApplicationManager.getApplication().executeOnPooledThread {
-            val result = runCatching {
-                ZaiApiKeyStore.forAccount(id).save(apiKey)
-                QuotaUsageService.getInstance().refreshAsync(id)
-            }
-            ApplicationManager.getApplication()
-                .invokeLater(
-                    {
-                        if (result.isSuccess) apiKeyDraft.saved(id, submitted)
-                        if (!isCurrent()) return@invokeLater
-                        result.fold(
-                            onSuccess = {
-                                apiKeyDraft.show(id, API_KEY_PLACEHOLDER)
-                                validateApiKeyNow(apiKey)
-                            },
-                            onFailure = { error ->
-                                zaiStatusLabel.text =
-                                    statusDotHtml(
-                                        "Error: ${error.message ?: "Could not save API key"}",
-                                        AuthStatusKind.DISCONNECTED,
-                                    )
-                                zaiStatusLabel.foreground =
-                                    statusLabelDefaultForeground ?: zaiStatusLabel.foreground
-                                zaiStatusLabel.isVisible = true
-                            },
-                        )
-                    },
-                    modality,
-                )
-        }
-    }
-
-    private fun clearApiKeyNow() {
-        val id = accountKey(QuotaProviderType.ZAI)
-        val isCurrent = accountUiGuard()
-        val submitted = String(apiKeyField.password)
-        val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
-        validationGeneration.incrementAndGet()
-        ApplicationManager.getApplication().executeOnPooledThread {
-            ZaiApiKeyStore.forAccount(id).clear()
-            QuotaUsageService.getInstance().clearUsageData(id)
-            ApplicationManager.getApplication()
-                .invokeLater(
-                    {
-                        apiKeyDraft.saved(id, submitted)
-                        if (isCurrent()) {
-                            apiKeyDraft.show(id, "")
-                            updateStatus()
-                        }
-                    },
-                    modality,
-                )
-        }
-    }
-
-    private fun validateApiKeyNow(apiKey: String) {
-        val isCurrent = accountUiGuard()
-        val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
-        val generation = validationGeneration.incrementAndGet()
-        ApplicationManager.getApplication().executeOnPooledThread {
-            val result = runCatching { ZaiQuotaClient().fetchQuota(apiKey) }
-            ApplicationManager.getApplication()
-                .invokeLater(
-                    {
-                        if (!isCurrent() || generation != validationGeneration.get()) {
-                            return@invokeLater
-                        }
-                        result.fold(
-                            onSuccess = {
-                                zaiStatusLabel.text =
-                                    statusDotHtml("Connected", AuthStatusKind.CONNECTED)
-                                zaiStatusLabel.foreground =
-                                    statusLabelDefaultForeground ?: zaiStatusLabel.foreground
-                                zaiStatusLabel.isVisible = true
-                            },
-                            onFailure = { error ->
-                                zaiStatusLabel.text =
-                                    statusDotHtml(
-                                        "Error: ${error.message ?: "Validation failed"}",
-                                        AuthStatusKind.DISCONNECTED,
-                                    )
-                                zaiStatusLabel.foreground =
-                                    statusLabelDefaultForeground ?: zaiStatusLabel.foreground
-                                zaiStatusLabel.isVisible = true
-                            },
-                        )
-                    },
-                    modality,
-                )
-        }
-    }
-
-    private fun setZaiPendingStatus(text: String) {
-        zaiStatusLabel.text = statusDotHtml(text, AuthStatusKind.PENDING)
-        zaiStatusLabel.foreground = statusLabelDefaultForeground ?: zaiStatusLabel.foreground
-        zaiStatusLabel.isVisible = true
-    }
-
-    private companion object {
-        private const val API_KEY_PLACEHOLDER = "********"
     }
 }

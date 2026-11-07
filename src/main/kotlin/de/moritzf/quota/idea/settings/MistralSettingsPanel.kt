@@ -49,10 +49,38 @@ internal class MistralSettingsPanel(
         }
     override val documentModelCombo =
         DocumentModelCombo(MistralOcrClient.DEFAULT_MODEL, vision = false)
-    private val sessionNameDraft = credentialDraft(sessionNameField)
-    private val sessionValueDraft = credentialDraft(sessionValueField)
-    private val csrfDraft = credentialDraft(csrfField)
-    private val apiKeyDraft = credentialDraft(apiKeyField)
+    private val session =
+        storedSecret(
+            listOf(sessionNameField, sessionValueField, csrfField),
+            read = { MistralSessionCookieStore.forAccount(it).loadBlocking() },
+            write = { id, value ->
+                val store = MistralSessionCookieStore.forAccount(id)
+                saveOrClear(value, store::save, store::clear)
+                refreshUsage(id)
+            },
+            split = { raw ->
+                val stored = MistralQuotaClient.storedSessionFields(raw)
+                listOf(
+                    stored?.sessionName.orEmpty(),
+                    stored?.sessionValue.orEmpty(),
+                    stored?.csrfToken.orEmpty(),
+                )
+            },
+            join = { (name, value, csrf) ->
+                if (listOf(name, value, csrf).all(String::isBlank)) null
+                else MistralQuotaClient.encodeStoredSession(name, value, csrf)
+            },
+        )
+    private val apiKey =
+        storedSecret(
+            listOf(apiKeyField),
+            read = { MistralApiKeyStore.forAccount(it).loadBlocking() },
+            write = { id, value ->
+                val store = MistralApiKeyStore.forAccount(id)
+                saveOrClear(value, store::save, store::clear)
+                refreshUsage(id)
+            },
+        )
     override val visionModelCombo = VisionModelCombo()
     private var modelRefreshGeneration = 0
     private val statusLabel = JBLabel().apply { isVisible = false }
@@ -74,7 +102,9 @@ internal class MistralSettingsPanel(
                     cell(sessionValueField).resizableColumn().align(AlignX.FILL)
                 }
                 row("csrftoken:") { cell(csrfField).resizableColumn().align(AlignX.FILL) }
+                row("") { cell(session.hint) }
                 row("API key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
+                row("") { cell(apiKey.hint) }
                 row(message("settings.model.document.label")) {
                     cell(documentModelCombo.combo)
                         .align(AlignX.FILL)
@@ -102,53 +132,28 @@ internal class MistralSettingsPanel(
                         ),
                     )
                 }
-                row {
-                    button("Save") { saveNow() }
-                    button("Clear") { clearNow() }
-                }
             },
             createResponseSection(responseViewer, "Last quota response (session + API key)"),
         )
     }
 
     override fun updateFields() {
-        loadCredentialFields()
+        val id = accountKey(QuotaProviderType.MISTRAL)
+        session.show(id)
+        apiKey.show(id)
         showDocumentModels(emptyList())
         showVisionModels(emptyList())
         updateStatus()
         refreshDocumentModels()
     }
 
-    private fun loadCredentialFields() {
-        val id = accountKey(QuotaProviderType.MISTRAL)
-        val isCurrent = accountUiGuard()
-        val onLoaded = {
-            if (isCurrent()) {
-                loadCredentialFields()
-                updateStatus()
-                updateResponseArea()
-                refreshDocumentModels()
-            }
-        }
-        val stored =
-            MistralQuotaClient.storedSessionFields(
-                MistralSessionCookieStore.forAccount(id).load(onLoaded = onLoaded),
-            )
-        val apiKey = MistralApiKeyStore.forAccount(id).load(onLoaded = onLoaded)
-        sessionNameDraft.show(id, stored?.sessionName.orEmpty())
-        sessionValueDraft.show(id, if (stored?.sessionValue.isNullOrBlank()) "" else PLACEHOLDER)
-        csrfDraft.show(id, if (stored?.csrfToken.isNullOrBlank()) "" else PLACEHOLDER)
-        apiKeyDraft.show(id, if (apiKey.isNullOrBlank()) "" else PLACEHOLDER)
-    }
-
     override fun testConnection(): ProviderTestConnection =
         ProviderTestConnection(
             checkNotNull(boundAccount),
-            String(apiKeyField.password).takeUnless { it == PLACEHOLDER },
+            apiKey.override(accountKey(QuotaProviderType.MISTRAL)),
         )
 
-    override fun testApiKeyDrafts(): Map<String, String> =
-        apiKeyDraft.snapshot().filterValues { it != PLACEHOLDER }
+    override fun testApiKeyDrafts(): Map<String, String> = apiKey.drafts()
 
     private fun showDocumentModels(
         discovered: List<String>,
@@ -225,12 +230,13 @@ internal class MistralSettingsPanel(
         statusLabel.text =
             when {
                 !cookieStore.isLoaded() ->
-                    statusDotHtml("Loading credentials...", AuthStatusKind.PENDING)
+                    statusDotHtml(message("settings.secret.loading"), AuthStatusKind.PENDING)
                 cookie.isNullOrBlank() ->
-                    statusDotHtml("Mistral session cookie missing", AuthStatusKind.DISCONNECTED)
+                    statusDotHtml(message("settings.status.noCookie"), AuthStatusKind.DISCONNECTED)
                 error != null -> statusDotHtml("Error: $error", AuthStatusKind.DISCONNECTED)
                 quota != null -> statusDotHtml("Connected", AuthStatusKind.CONNECTED)
-                else -> statusDotHtml("Session cookie stored securely", AuthStatusKind.CONNECTED)
+                else ->
+                    statusDotHtml(message("settings.status.cookieStored"), AuthStatusKind.CONNECTED)
             }
         statusLabel.foreground = statusLabelDefaultForeground ?: statusLabel.foreground
         statusLabel.isVisible = true
@@ -252,106 +258,11 @@ internal class MistralSettingsPanel(
         responseViewer.setCaretPosition(0)
     }
 
-    private fun saveNow() {
-        val id = accountKey(QuotaProviderType.MISTRAL)
-        val isCurrent = accountUiGuard()
-        val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
-        val current =
-            MistralQuotaClient.storedSessionFields(MistralSessionCookieStore.forAccount(id).load())
-        val currentKey = MistralApiKeyStore.forAccount(id).load()
-        val submittedSession = String(sessionValueField.password)
-        val submittedCsrf = String(csrfField.password)
-        val submittedKey = String(apiKeyField.password)
-        val sessionName = sessionNameField.text
-        val sessionValue =
-            String(sessionValueField.password).let { value ->
-                if (value == PLACEHOLDER) current?.sessionValue.orEmpty() else value
-            }
-        val csrf =
-            String(csrfField.password).let { value ->
-                if (value == PLACEHOLDER) current?.csrfToken.orEmpty() else value
-            }
-        val apiKey = String(apiKeyField.password).let { if (it == PLACEHOLDER) currentKey else it }
-        setPending("Saving credentials...")
-        ApplicationManager.getApplication().executeOnPooledThread {
-            val encoded = runCatching {
-                MistralQuotaClient.encodeStoredSession(sessionName, sessionValue, csrf)
-            }
-                .getOrElse { error ->
-                    ApplicationManager.getApplication()
-                        .invokeLater(
-                            {
-                                if (!isCurrent()) return@invokeLater
-                                statusLabel.text =
-                                    statusDotHtml(
-                                        error.message ?: "Invalid Mistral cookies",
-                                        AuthStatusKind.DISCONNECTED,
-                                    )
-                                statusLabel.isVisible = true
-                            },
-                            modality,
-                        )
-                    return@executeOnPooledThread
-                }
-            MistralSessionCookieStore.forAccount(id).save(encoded)
-            MistralApiKeyStore.forAccount(id).save(apiKey)
-            QuotaUsageService.getInstance().refreshAsync(id)
-            ApplicationManager.getApplication()
-                .invokeLater(
-                    {
-                        sessionNameDraft.saved(id, sessionName)
-                        sessionValueDraft.saved(id, submittedSession)
-                        csrfDraft.saved(id, submittedCsrf)
-                        apiKeyDraft.saved(id, submittedKey)
-                        if (isCurrent()) {
-                            loadCredentialFields()
-                            updateStatus()
-                            refreshDocumentModels()
-                        }
-                    },
-                    modality,
-                )
-        }
-    }
-
-    private fun clearNow() {
-        val id = accountKey(QuotaProviderType.MISTRAL)
-        val isCurrent = accountUiGuard()
-        val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
-        val submitted =
-            listOf(
-                sessionNameField.text,
-                String(sessionValueField.password),
-                String(csrfField.password),
-                String(apiKeyField.password),
-            )
-        setPending("Clearing credentials...")
-        ApplicationManager.getApplication().executeOnPooledThread {
-            MistralSessionCookieStore.forAccount(id).clear()
-            MistralApiKeyStore.forAccount(id).clear()
-            QuotaUsageService.getInstance().clearUsageData(id)
-            ApplicationManager.getApplication()
-                .invokeLater(
-                    {
-                        listOf(sessionNameDraft, sessionValueDraft, csrfDraft, apiKeyDraft)
-                            .zip(submitted)
-                            .forEach { (draft, value) -> draft.saved(id, value) }
-                        if (isCurrent()) {
-                            loadCredentialFields()
-                            updateStatus()
-                        }
-                    },
-                    modality,
-                )
-        }
-    }
-
-    private fun setPending(text: String) {
-        statusLabel.text = statusDotHtml(text, AuthStatusKind.PENDING)
-        statusLabel.isVisible = true
-    }
-
-    private companion object {
-        const val PLACEHOLDER = "********"
+    /** Off the EDT, after Apply wrote one of the account's secrets. */
+    private fun refreshUsage(id: String) {
+        val hasCookie = !MistralSessionCookieStore.forAccount(id).loadBlocking().isNullOrBlank()
+        val hasKey = !MistralApiKeyStore.forAccount(id).loadBlocking().isNullOrBlank()
+        if (hasCookie || hasKey) QuotaUsageService.getInstance().refreshAsync(id)
+        else QuotaUsageService.getInstance().clearUsageData(id)
     }
 }

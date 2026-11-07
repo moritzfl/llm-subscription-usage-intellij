@@ -5,6 +5,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.options.ConfigurationException
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.ui.JBColor
@@ -225,20 +226,20 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
 
     override fun reset() {
         testApiKeyDrafts.clear()
-        providerPanelsByType.values.forEach { it.discardCredentialDrafts() }
+        providerPanelsByType.values.forEach { it.discardSecretDrafts() }
         panel?.reset()
     }
 
     override fun cancel() {
-        providerPanelsByType.values.forEach { it.discardCredentialDrafts() }
-        compatiblePanels().forEach { it.discardDrafts() }
+        testApiKeyDrafts.clear()
+        providerPanelsByType.values.forEach { it.discardSecretDrafts() }
         accountListPanel?.discardPending()
         super.cancel()
     }
 
     override fun disposeUIResources() {
         testApiKeyDrafts.clear()
-        providerPanelsByType.values.forEach { it.discardCredentialDrafts() }
+        providerPanelsByType.values.forEach { it.discardSecretDrafts() }
         compatiblePanels().forEach { it.dispose() }
         accountListPanel?.discardPending()
         connection?.disconnect()
@@ -557,25 +558,20 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
                 draft.openAiProxyLogRequests = proxyPanel.proxyLogRequestsCheckBox.isSelected
                 proxyPanel.applyProviderSelections(draft)
                 proxyPanel.applyCompletionsSettings(draft)
+                val settingsDraft = QuotaSettingsDraft.from(draft)
                 try {
+                    // Check everything before the first Password Safe write.
+                    settingsDraft.validate()
+                    val writes =
+                        listOfNotNull(
+                            proxyPanel.pendingApiKeyWrite().takeIf { proxyApiKeyChanged },
+                        ) + providerPanelsByType.values.flatMap { it.pendingSecretWrites(keptIds) }
                     SettingsApplyCoordinator(state)
                         .apply(
-                            QuotaSettingsDraft.from(draft),
+                            settingsDraft,
                             removed = accountListPanel?.removedAccounts().orEmpty(),
-                            credentialsChanged =
-                                proxyApiKeyChanged ||
-                                    compatiblePanels().any { it.credentialsModified(keptIds) },
-                            saveCredentials = {
-                                try {
-                                    proxyPanel.saveProxyApiKeyBlocking()
-                                    compatiblePanels().forEach { it.saveCredentials(keptIds) }
-                                } catch (failure: Exception) {
-                                    failure.rethrowIfCancellation()
-                                    throw ConfigurationException(
-                                        "Could not save credentials to Password Safe. Please retry Apply.",
-                                    )
-                                }
-                            },
+                            credentialsChanged = writes.isNotEmpty(),
+                            saveCredentials = { runSecretWrites(writes) },
                         )
                 } catch (failure: IllegalArgumentException) {
                     throw ConfigurationException(failure.message ?: "Invalid settings")
@@ -588,7 +584,6 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
 
             onReset {
                 boundDetailAccountId = null
-                compatiblePanels().forEach { it.discardDrafts() }
                 locationComboBox?.selectedItem = QuotaSettingsState.getInstance().location()
                 updateDisplayModeChoices(QuotaSettingsState.getInstance().displayMode())
                 updateDisplayModePreview()
@@ -620,15 +615,12 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
                     indicatorSourceComboBox?.selectedItem as? QuotaIndicatorSource
                         ?: return@onIsModified false
                 val state = QuotaSettingsState.getInstance()
+                val keptIds = accountListPanel?.accounts().orEmpty().map { it.id }.toSet()
                 selectedLocation != state.location() ||
                     QuotaDisplayMode.sanitizeFor(selectedLocation, selectedDisplayMode) !=
                         state.displayMode() ||
                     selectedSource != state.source() ||
-                    compatiblePanels().any {
-                        it.credentialsModified(
-                            accountListPanel?.accounts().orEmpty().map { it.id }.toSet(),
-                        )
-                    } ||
+                    providerPanelsByType.values.any { it.secretsModified(keptIds) } ||
                     selectedAccountExtrasModified(state) ||
                     accountListPanel?.isModifiedVs(state) == true ||
                     accountListPanel?.hasDuplicateNames() == true ||
@@ -828,6 +820,29 @@ class QuotaSettingsConfigurable : Configurable, Configurable.NoScroll {
             keys.putAll(liveDrafts.filterKeys { it in ids })
         }
         return ProxyTestSettings(draft, keys)
+    }
+
+    /**
+     * Password Safe writes block, so they run off the EDT behind a modal progress bar. A failure
+     * keeps the dialog open with its drafts, and settings stay as they were.
+     */
+    private fun runSecretWrites(writes: List<SecretWrite>) {
+        if (writes.isEmpty()) return
+        var failure: Throwable? = null
+        val done =
+            ProgressManager.getInstance()
+                .runProcessWithProgressSynchronously(
+                    { failure = runCatching { writes.forEach { it.write() } }.exceptionOrNull() },
+                    message("settings.secret.saving"),
+                    false,
+                    null,
+                    rootComponent,
+                )
+        failure?.rethrowIfCancellation()
+        if (!done || failure != null) {
+            throw ConfigurationException(message("settings.secret.saveFailed"))
+        }
+        writes.forEach { it.onSaved() }
     }
 
     private fun compatiblePanels(): List<CompatibleSettingsPanel> =

@@ -56,6 +56,12 @@ class CursorCredentialsStore(
         return resolveAuth() != null
     }
 
+    /** The stored cookie as the user pasted it, read from Password Safe. */
+    fun loadSessionCookieBlocking(): String? {
+        loadBlocking()
+        return cachedSessionCookie.get()
+    }
+
     fun loadBlocking(): CursorAuth? {
         loadGeneration.incrementAndGet()
         cachedSessionCookie.set(loadSessionCookie())

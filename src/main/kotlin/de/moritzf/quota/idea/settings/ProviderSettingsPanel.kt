@@ -24,7 +24,7 @@ import javax.swing.Timer
 /** Common surface the settings dialog uses to drive a provider's panel. */
 internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
     private var accountUiGeneration = 0L
-    private val credentialDrafts = mutableListOf<CredentialFieldDraft>()
+    private val secrets = mutableListOf<StoredSecret>()
     val popupVisibilityToggle = PopupVisibilityToggle()
     var boundAccountId: String = ""
         set(value) {
@@ -35,17 +35,33 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
 
     var boundAccount: ProviderAccount? = null
 
-    protected fun credentialDraft(field: javax.swing.text.JTextComponent): CredentialFieldDraft =
-        CredentialFieldDraft(field).also(credentialDrafts::add)
+    /** Registers a secret this panel edits; Apply saves it, Cancel and Reset discard it. */
+    protected fun storedSecret(
+        fields: List<javax.swing.text.JTextComponent>,
+        read: (String) -> String?,
+        write: (String, String?) -> Unit,
+        split: (String?) -> List<String> = { listOf(it.orEmpty()) },
+        join: (List<String>) -> String? = { it.single().trim().ifEmpty { null } },
+    ): StoredSecret =
+        StoredSecret(fields, read, write, split, join, onChange = { updateStatus() })
+            .also(secrets::add)
 
     protected fun accountUiGuard(): () -> Boolean {
         val generation = accountUiGeneration
         return { generation == accountUiGeneration }
     }
 
-    fun discardCredentialDrafts() {
+    /** Whether Apply has secrets to save for [keptIds]. */
+    open fun secretsModified(keptIds: Set<String>): Boolean = secrets.any { it.isModified(keptIds) }
+
+    /** The Password Safe writes Apply runs; throws [IllegalArgumentException] for invalid input. */
+    open fun pendingSecretWrites(keptIds: Set<String>): List<SecretWrite> = secrets.flatMap {
+        it.pendingWrites(keptIds)
+    }
+
+    open fun discardSecretDrafts() {
         accountUiGeneration++
-        credentialDrafts.forEach(CredentialFieldDraft::discard)
+        secrets.forEach { it.discard() }
     }
 
     private var refreshButton: QuotaRefreshButton? = null

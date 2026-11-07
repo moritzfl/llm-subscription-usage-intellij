@@ -179,7 +179,7 @@ internal class AccountListPanel(
                         "Remove $label quota tracking? Your AGY CLI login will remain available."
                     QuotaProviderType.AZURE ->
                         "Remove $label? Your Azure CLI login will remain available."
-                    else -> "Remove $label and delete its stored login?"
+                    else -> "Remove $label? Its keys and login are deleted when you apply."
                 },
                 message("settings.account.remove.title"),
                 Messages.getQuestionIcon(),

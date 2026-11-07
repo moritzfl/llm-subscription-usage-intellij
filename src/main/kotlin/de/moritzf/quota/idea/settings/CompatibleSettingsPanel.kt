@@ -277,10 +277,12 @@ internal class CompatibleSettingsPanel(
         keyHint.text =
             when {
                 keyLoadError != null -> keyLoadError
-                keys[shownAccountId] == null -> "Loading API key from Password Safe…"
+                keys[shownAccountId] == null -> message("settings.secret.loading")
+                keys[shownAccountId]?.let { it.saved != it.value && it.value == null } == true ->
+                    message("settings.secret.remove")
                 keys[shownAccountId]?.let { it.saved != it.value } == true ->
-                    "Apply to save the API key to Password Safe."
-                currentKey() != null -> "API key stored in Password Safe."
+                    message("settings.secret.save")
+                currentKey() != null -> message("settings.secret.stored")
                 else -> "Enter your provider's API key."
             }
         keyHint.foreground =
@@ -351,24 +353,28 @@ internal class CompatibleSettingsPanel(
             visionModel.differs(account.extra(ProviderAccount.EXTRA_VISION_MODEL)) ||
             documentModel.differs(account.extra(ProviderAccount.EXTRA_DOCUMENT_MODEL))
 
-    fun credentialsModified(keptIds: Set<String>): Boolean = keys.any { (id, draft) ->
+    override fun secretsModified(keptIds: Set<String>): Boolean = keys.any { (id, draft) ->
         id in keptIds && draft.value != draft.saved
     }
 
-    fun saveCredentials(keptIds: Set<String>) {
+    override fun pendingSecretWrites(keptIds: Set<String>): List<SecretWrite> =
         keys
-            .filterKeys { it in keptIds }
-            .forEach { (id, draft) ->
-                if (draft.value != draft.saved) {
-                    saveKey(id, draft.value)
-                    draft.saved = draft.value
-                }
+            .filter { (id, draft) -> id in keptIds && draft.value != draft.saved }
+            .map { (id, draft) ->
+                val value = draft.value
+                SecretWrite(
+                    id,
+                    write = { saveKey(id, value) },
+                    onSaved = {
+                        draft.saved = value
+                        keys.keys.retainAll(keptIds)
+                        updateStatus()
+                    },
+                )
             }
-        keys.keys.retainAll(keptIds)
-        updateStatus()
-    }
 
-    fun discardDrafts() {
+    override fun discardSecretDrafts() {
+        super.discardSecretDrafts()
         cancelRequests()
         keys.clear()
         updating = true
@@ -386,7 +392,7 @@ internal class CompatibleSettingsPanel(
 
     override fun dispose() {
         disposed = true
-        discardDrafts()
+        discardSecretDrafts()
         apiKeyField.text = ""
     }
 

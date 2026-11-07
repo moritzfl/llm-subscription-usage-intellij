@@ -39,8 +39,10 @@ internal class SettingsApplyCoordinator(
                 .filter { it.id !in kept }
                 .distinctBy { it.id }
         if (before == draft && !credentialsChanged && deleted.isEmpty()) return false
+        // Outside the state lock: secret writes run on a worker that may record usage, which
+        // takes that lock while the EDT waits for the writes.
+        if (credentialsChanged) saveCredentials()
         synchronized(state) {
-            if (credentialsChanged) saveCredentials()
             deleted.forEach(clearSecrets)
             draft.applyTo(state)
         }

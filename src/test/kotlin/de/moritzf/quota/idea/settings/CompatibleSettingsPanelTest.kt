@@ -377,16 +377,21 @@ class CompatibleSettingsPanelTest {
                 panel.testButton.isEnabled,
                 "Manual model selection should immediately enable testing",
             )
-            assertTrue(panel.credentialsModified(setOf("a", "b")))
+            assertTrue(panel.secretsModified(setOf("a", "b")))
             assertEquals(mapOf("a" to "saved-a", "b" to "saved-b"), saved)
-            panel.saveCredentials(setOf("a"))
+            val writes = panel.pendingSecretWrites(setOf("a"))
+            assertEquals(mapOf("a" to "saved-a", "b" to "saved-b"), saved, "writes wait for Apply")
+            writes.forEach {
+                it.write()
+                it.onSaved()
+            }
             assertEquals(mapOf("a" to "draft-a", "b" to "saved-b"), saved)
-            assertFalse(panel.credentialsModified(setOf("a")))
+            assertFalse(panel.secretsModified(setOf("a")))
             panel.apiKeyField.text = "cancelled"
-            panel.discardDrafts()
+            panel.discardSecretDrafts()
             load(a)
             assertEquals("draft-a", String(panel.apiKeyField.password))
-            assertFalse(panel.credentialsModified(setOf("a")))
+            assertFalse(panel.secretsModified(setOf("a")))
         } finally {
             panel.dispose()
         }
@@ -421,10 +426,10 @@ class CompatibleSettingsPanelTest {
             assertFalse(panel.testButton.isEnabled)
             assertFalse(panel.refreshButton.isEnabled)
             assertTrue(panel.status.text.contains("API root"))
-            panel.discardDrafts()
+            panel.discardSecretDrafts()
             panel.updateFields()
             workers.removeFirst().run()
-            panel.discardDrafts()
+            panel.discardSecretDrafts()
             ui.removeFirst().invoke()
             assertEquals("", String(panel.apiKeyField.password))
         } finally {

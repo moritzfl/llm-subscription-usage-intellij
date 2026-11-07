@@ -31,7 +31,16 @@ internal class MiniMaxSettingsPanel(
 ) : ProviderSettingsPanel() {
     private val regionComboBox = ComboBox(MiniMaxRegionPreference.entries.toTypedArray())
     private val apiKeyField = JBPasswordField().apply { columns = 40 }
-    private val apiKeyDraft = credentialDraft(apiKeyField)
+    private val apiKey =
+        storedSecret(
+            listOf(apiKeyField),
+            read = { MiniMaxApiKeyStore.forAccount(it).loadBlocking() },
+            write = { id, value ->
+                val store = MiniMaxApiKeyStore.forAccount(id)
+                saveOrClear(value, store::save, store::clear)
+                refreshOrClear(id, hasKey = value != null)
+            },
+        )
     private val statusLabel = JBLabel().apply { isVisible = false }
     private val codeStatusLabel = JBLabel()
     private val codeLoginButton =
@@ -59,6 +68,7 @@ internal class MiniMaxSettingsPanel(
                 row { statusCell(statusLabel) }
                 row("Region:") { cell(regionComboBox) }
                 row("Subscription key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
+                row("") { cell(apiKey.hint) }
                 row(message("settings.model.vision.label")) {
                     cell(visionModelCombo.combo)
                         .align(AlignX.FILL)
@@ -71,10 +81,6 @@ internal class MiniMaxSettingsPanel(
                             modalityComponentProvider,
                         ),
                     )
-                }
-                row {
-                    button("Save") { saveKeysNow() }
-                    button("Clear") { clearKeysNow() }
                 }
                 separator()
                 row("MiniMax Code:") { statusCell(codeStatusLabel) }
@@ -111,7 +117,7 @@ internal class MiniMaxSettingsPanel(
         regionComboBox.selectedItem as? MiniMaxRegionPreference
 
     override fun updateFields() {
-        loadCredentialField()
+        apiKey.show(accountId())
         visionModelCombo.show(
             boundAccount?.extra(ProviderAccount.EXTRA_VISION_MODEL),
             listOf(MiniMaxVisionClient.MODEL),
@@ -128,23 +134,6 @@ internal class MiniMaxSettingsPanel(
         updateStatus()
     }
 
-    private fun loadCredentialField() {
-        val id = accountKey(QuotaProviderType.MINIMAX)
-        val isCurrent = accountUiGuard()
-        val apiKey =
-            MiniMaxApiKeyStore.forAccount(id)
-                .load(
-                    onLoaded = {
-                        if (isCurrent()) {
-                            loadCredentialField()
-                            updateStatus()
-                            updateResponseArea()
-                        }
-                    },
-                )
-        apiKeyDraft.show(id, if (apiKey.isNullOrBlank()) "" else PLACEHOLDER)
-    }
-
     override fun testConnection(): ProviderTestConnection =
         ProviderTestConnection(
             checkNotNull(boundAccount).snapshot().apply {
@@ -153,24 +142,24 @@ internal class MiniMaxSettingsPanel(
                     selectedRegion()?.name,
                 )
             },
-            String(apiKeyField.password).takeUnless { it == PLACEHOLDER },
+            apiKey.override(accountId()),
         )
 
-    override fun testApiKeyDrafts(): Map<String, String> =
-        apiKeyDraft.snapshot().filterValues { it != PLACEHOLDER }
+    override fun testApiKeyDrafts(): Map<String, String> = apiKey.drafts()
 
     override fun updateStatus() {
         val isCurrent = accountUiGuard()
         val id = accountId()
         val store = MiniMaxApiKeyStore.forAccount(id)
-        val apiKey = store.load(onLoaded = { if (isCurrent()) updateStatus() })
+        val storedKey = store.load(onLoaded = { if (isCurrent()) updateStatus() })
         val loggedIn = auth().isLoggedIn(id, QuotaProviderType.MINIMAX)
         val quota = QuotaUsageService.getInstance().getLastQuota(id) as? MiniMaxQuota
         val error = QuotaUsageService.getInstance().getLastError(id)
         statusLabel.text =
             when {
-                !store.isLoaded() -> statusDotHtml("Loading API keys...", AuthStatusKind.PENDING)
-                apiKey.isNullOrBlank() && !loggedIn ->
+                !store.isLoaded() ->
+                    statusDotHtml(message("settings.secret.loading"), AuthStatusKind.PENDING)
+                storedKey.isNullOrBlank() && !loggedIn ->
                     statusDotHtml(message("settings.minimax.missing"), AuthStatusKind.DISCONNECTED)
                 error != null -> statusDotHtml("Error: $error", AuthStatusKind.DISCONNECTED)
                 quota != null && quota.warnings.isNotEmpty() ->
@@ -184,8 +173,10 @@ internal class MiniMaxSettingsPanel(
                         AuthStatusKind.CONNECTED,
                     )
                 quota != null -> statusDotHtml("Connected", AuthStatusKind.CONNECTED)
-                apiKey.isNullOrBlank() -> statusDotHtml("Logged in", AuthStatusKind.CONNECTED)
-                else -> statusDotHtml("API key stored securely", AuthStatusKind.CONNECTED)
+                storedKey.isNullOrBlank() ->
+                    statusDotHtml(message("settings.status.signedIn"), AuthStatusKind.CONNECTED)
+                else ->
+                    statusDotHtml(message("settings.status.keyStored"), AuthStatusKind.CONNECTED)
             }
         statusLabel.foreground = statusLabelDefaultForeground ?: statusLabel.foreground
         statusLabel.isVisible = true
@@ -222,7 +213,7 @@ internal class MiniMaxSettingsPanel(
                                 "Login retained. Temporarily unable to refresh; retrying automatically.",
                                 kind = AuthStatusKind.PENDING,
                             )
-                        else -> AuthStatusMessage("Logged in")
+                        else -> AuthStatusMessage(message("settings.status.signedIn"))
                     }
             }
         codeStatusLabel.text = statusDotHtml(status.text, status.kind)
@@ -314,68 +305,11 @@ internal class MiniMaxSettingsPanel(
         responseViewer.setCaretPosition(0)
     }
 
-    private fun saveKeysNow() {
-        val id = accountKey(QuotaProviderType.MINIMAX)
-        val isCurrent = accountUiGuard()
-        val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
-        val current = MiniMaxApiKeyStore.forAccount(id).load()
-        val submitted = String(apiKeyField.password)
-        val apiKey = submitted.let { if (it == PLACEHOLDER) current else it }
-        setPending("Saving API keys...")
-        ApplicationManager.getApplication().executeOnPooledThread {
-            MiniMaxApiKeyStore.forAccount(id).save(apiKey)
-            refreshOrClear(id, hasKey = !apiKey.isNullOrBlank())
-            ApplicationManager.getApplication()
-                .invokeLater(
-                    {
-                        apiKeyDraft.saved(id, submitted)
-                        if (isCurrent()) {
-                            apiKeyDraft.show(id, if (apiKey.isNullOrBlank()) "" else PLACEHOLDER)
-                            updateStatus()
-                        }
-                    },
-                    modality,
-                )
-        }
-    }
-
-    private fun clearKeysNow() {
-        val id = accountKey(QuotaProviderType.MINIMAX)
-        val isCurrent = accountUiGuard()
-        val submitted = String(apiKeyField.password)
-        val modality = ModalityState.stateForComponent(modalityComponentProvider() ?: this)
-        setPending("Clearing API keys...")
-        ApplicationManager.getApplication().executeOnPooledThread {
-            MiniMaxApiKeyStore.forAccount(id).clear()
-            refreshOrClear(id, hasKey = false)
-            ApplicationManager.getApplication()
-                .invokeLater(
-                    {
-                        apiKeyDraft.saved(id, submitted)
-                        if (isCurrent()) {
-                            apiKeyDraft.show(id, "")
-                            updateStatus()
-                        }
-                    },
-                    modality,
-                )
-        }
-    }
-
-    private fun setPending(text: String) {
-        statusLabel.text = statusDotHtml(text, AuthStatusKind.PENDING)
-        statusLabel.isVisible = true
-    }
-
     private fun onUi(id: String, action: () -> Unit) {
         ApplicationManager.getApplication()
             .invokeLater(
                 { if (accountId() == id) action() },
                 ModalityState.stateForComponent(modalityComponentProvider() ?: this),
             )
-    }
-
-    private companion object {
-        const val PLACEHOLDER = "********"
     }
 }
