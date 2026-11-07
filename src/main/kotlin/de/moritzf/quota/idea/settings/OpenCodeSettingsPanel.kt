@@ -37,11 +37,16 @@ internal class OpenCodeSettingsPanel(
     private val statusLabelDefaultForeground: Color? = null,
 ) : ProviderSettingsPanel() {
     private val statusLabel = JBLabel()
-    private val loginButton = ActionLink("Log In").apply { autoHideOnDisable = false }
-    private val cancelButton = ActionLink("Cancel Login").apply { autoHideOnDisable = false }
-    private val logoutButton = ActionLink("Log Out").apply { autoHideOnDisable = false }
+    private val loginButton =
+        ActionLink(message("settings.login.logIn")).apply { autoHideOnDisable = false }
+    private val cancelButton =
+        ActionLink(message("settings.login.cancel")).apply { autoHideOnDisable = false }
+    private val logoutButton =
+        ActionLink(message("settings.login.logOut")).apply { autoHideOnDisable = false }
     private val copyUrlButton =
-        JButton("Copy URL", AllIcons.Actions.Copy).apply { isVisible = false }
+        JButton(message("settings.login.copyUrl"), AllIcons.Actions.Copy).apply {
+            isVisible = false
+        }
     private val userCodeLabel = JBLabel().apply { isVisible = false }
     private val workspaceComboBox = ComboBox<OpenCodeWorkspace>().shrinkable()
     private val workspaceStatus = JBLabel()
@@ -90,7 +95,12 @@ internal class OpenCodeSettingsPanel(
         loginButton.addActionListener {
             val id = accountId()
             val generation = ++uiGeneration
-            authMessage = AuthStatusMessage("Opening browser...", false, AuthStatusKind.PENDING)
+            authMessage =
+                AuthStatusMessage(
+                    message("settings.status.openingBrowser"),
+                    false,
+                    AuthStatusKind.PENDING,
+                )
             auth()
                 .startLoginFlow(
                     id,
@@ -102,7 +112,7 @@ internal class OpenCodeSettingsPanel(
                                 if (result.success) null
                                 else
                                     AuthStatusMessage(
-                                        result.message ?: "Login failed",
+                                        result.message ?: message("settings.status.loginFailed"),
                                         true,
                                         AuthStatusKind.DISCONNECTED,
                                     )
@@ -119,7 +129,7 @@ internal class OpenCodeSettingsPanel(
                             userCodeLabel.isVisible = code.isNotBlank()
                             authMessage =
                                 AuthStatusMessage(
-                                    "Waiting for browser authorization...",
+                                    message("settings.status.waiting"),
                                     false,
                                     AuthStatusKind.PENDING,
                                 )
@@ -132,7 +142,12 @@ internal class OpenCodeSettingsPanel(
         cancelButton.addActionListener {
             uiGeneration++
             auth().abortLogin(accountId())
-            authMessage = AuthStatusMessage("Login canceled", false, AuthStatusKind.DISCONNECTED)
+            authMessage =
+                AuthStatusMessage(
+                    message("settings.status.loginCanceled"),
+                    false,
+                    AuthStatusKind.DISCONNECTED,
+                )
             updateStatus()
         }
         logoutButton.addActionListener {
@@ -150,7 +165,7 @@ internal class OpenCodeSettingsPanel(
                     authMessage =
                         result.exceptionOrNull()?.let {
                             AuthStatusMessage(
-                                it.message ?: "Could not log out",
+                                it.message ?: message("settings.status.logoutFailed"),
                                 true,
                                 AuthStatusKind.DISCONNECTED,
                             )
@@ -318,26 +333,43 @@ internal class OpenCodeSettingsPanel(
             (QuotaUsageService.getInstance().getLastQuota(id) as? OpenCodeQuota)?.warnings.orEmpty()
         val message =
             when {
-                loggingOut -> AuthStatusMessage("Logging out...", false, AuthStatusKind.PENDING)
+                loggingOut ->
+                    AuthStatusMessage(
+                        message("settings.status.loggingOut"),
+                        false,
+                        AuthStatusKind.PENDING,
+                    )
                 authMessage != null -> authMessage!!
                 !auth().isLoaded(id) ->
-                    AuthStatusMessage("Loading credentials...", false, AuthStatusKind.PENDING)
+                    AuthStatusMessage(
+                        message("settings.status.loading"),
+                        false,
+                        AuthStatusKind.PENDING,
+                    )
                 auth().loadError(id) != null ->
                     AuthStatusMessage(auth().loadError(id)!!, true, AuthStatusKind.DISCONNECTED)
                 credentials == null ->
                     AuthStatusMessage(
-                        "Not logged in",
+                        message("settings.status.notLoggedIn"),
                         false,
                         AuthStatusKind.DISCONNECTED,
                     )
                 error != null -> AuthStatusMessage(error, true, AuthStatusKind.DISCONNECTED)
                 warnings.isNotEmpty() ->
                     AuthStatusMessage(
-                        "Connected; ${warnings.joinToString("; ")}",
+                        message(
+                            "settings.status.connectedWithWarnings",
+                            warnings.joinToString("; "),
+                        ),
                         false,
                         AuthStatusKind.PENDING,
                     )
-                else -> AuthStatusMessage("Connected", false, AuthStatusKind.CONNECTED)
+                else ->
+                    AuthStatusMessage(
+                        message("settings.status.connected"),
+                        false,
+                        AuthStatusKind.CONNECTED,
+                    )
             }
         statusLabel.text = statusDotHtml(message.text, message.kind)
         statusLabel.foreground = statusLabelDefaultForeground ?: statusLabel.foreground

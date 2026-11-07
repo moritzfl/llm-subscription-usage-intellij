@@ -9,6 +9,7 @@ import com.intellij.ui.dsl.builder.MAX_LINE_LENGTH_WORD_WRAP
 import com.intellij.ui.dsl.builder.panel
 import de.moritzf.quota.antigravity.AntigravityQuota
 import de.moritzf.quota.antigravity.AntigravityQuotaClient
+import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 
@@ -103,19 +104,25 @@ internal class AntigravitySettingsPanel : ProviderSettingsPanel() {
         val id = accountKey(QuotaProviderType.ANTIGRAVITY)
         val quota = service.getLastQuota(id) as? AntigravityQuota
         val error = service.getLastError(id)
-        val message =
+        val statusMessage =
             when {
                 error != null -> AuthStatusMessage(error, isError = true)
                 quota == null ->
-                    AuthStatusMessage("No AGY usage report yet.", kind = AuthStatusKind.PENDING)
-                quota.warnings.isNotEmpty() ->
                     AuthStatusMessage(
-                        "Connected. ${quota.warnings.joinToString(" ")}",
+                        message("settings.status.noReading"),
                         kind = AuthStatusKind.PENDING,
                     )
-                else -> AuthStatusMessage("Connected to the current AGY CLI account.")
+                quota.warnings.isNotEmpty() ->
+                    AuthStatusMessage(
+                        message(
+                            "settings.status.connectedWithWarnings",
+                            quota.warnings.joinToString(" "),
+                        ),
+                        kind = AuthStatusKind.PENDING,
+                    )
+                else -> AuthStatusMessage(message("settings.antigravity.connected"))
             }
-        status.text = statusDotHtml(message.text, message.kind)
+        status.text = statusDotHtml(statusMessage.text, statusMessage.kind)
     }
 
     override fun updateResponseArea() {

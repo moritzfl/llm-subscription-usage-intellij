@@ -391,15 +391,18 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
         )
         val error = service.getLastError(id)
         val identity = quota?.account
-        val message =
+        val statusMessage =
             when {
                 error != null -> AuthStatusMessage(error, isError = true)
                 quota == null ->
-                    AuthStatusMessage("No Azure reading yet.", kind = AuthStatusKind.PENDING)
+                    AuthStatusMessage(
+                        message("settings.status.noReading"),
+                        kind = AuthStatusKind.PENDING,
+                    )
                 quota.warnings.isNotEmpty() ->
                     AuthStatusMessage(
                         buildString {
-                            append(identity?.userName ?: "Signed in")
+                            append(loggedInText(identity?.userName))
                             append(". ")
                             append(quota.warnings.joinToString(" "))
                         },
@@ -407,10 +410,10 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
                     )
                 else ->
                     AuthStatusMessage(
-                        "Signed in${identity?.userName?.let { " as $it" }.orEmpty()}.",
+                        loggedInText(identity?.userName),
                     )
             }
-        status.text = statusDotHtml(message.text, message.kind)
+        status.text = statusDotHtml(statusMessage.text, statusMessage.kind)
     }
 
     override fun updateResponseArea() {
@@ -420,6 +423,10 @@ internal class AzureSettingsPanel : ProviderSettingsPanel() {
             service.getLastError(id) ?: service.getLastResponseJson(id) ?: "No Azure reading yet."
         viewer.caretPosition = 0
     }
+
+    private fun loggedInText(userName: String?): String =
+        userName?.let { message("settings.status.loggedInAs", it) }
+            ?: message("settings.status.loggedIn")
 
     private fun ocrComboValue(): String? = ocrDeploymentCombo.selectedItem as? String
 

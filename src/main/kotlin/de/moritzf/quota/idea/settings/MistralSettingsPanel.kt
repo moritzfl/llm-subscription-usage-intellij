@@ -245,8 +245,13 @@ internal class MistralSettingsPanel(
                     statusDotHtml(message("settings.secret.loading"), AuthStatusKind.PENDING)
                 cookie.isNullOrBlank() ->
                     statusDotHtml(message("settings.status.noCookie"), AuthStatusKind.DISCONNECTED)
-                error != null -> statusDotHtml("Error: $error", AuthStatusKind.DISCONNECTED)
-                quota != null -> statusDotHtml("Connected", AuthStatusKind.CONNECTED)
+                error != null ->
+                    statusDotHtml(
+                        message("settings.status.quotaError", error),
+                        AuthStatusKind.DISCONNECTED,
+                    )
+                quota != null ->
+                    statusDotHtml(message("settings.status.connected"), AuthStatusKind.CONNECTED)
                 else ->
                     statusDotHtml(message("settings.status.cookieStored"), AuthStatusKind.CONNECTED)
             }

@@ -175,7 +175,8 @@ internal class ZaiSettingsPanel(
 
         when {
             !apiKeyStore.isLoaded() -> {
-                zaiStatusLabel.text = statusDotHtml("Loading API key...", AuthStatusKind.PENDING)
+                zaiStatusLabel.text =
+                    statusDotHtml(message("settings.status.loading"), AuthStatusKind.PENDING)
                 zaiStatusLabel.foreground =
                     statusLabelDefaultForeground ?: zaiStatusLabel.foreground
             }
@@ -186,12 +187,17 @@ internal class ZaiSettingsPanel(
                     statusLabelDefaultForeground ?: zaiStatusLabel.foreground
             }
             error != null -> {
-                zaiStatusLabel.text = statusDotHtml("Error: $error", AuthStatusKind.DISCONNECTED)
+                zaiStatusLabel.text =
+                    statusDotHtml(
+                        message("settings.status.quotaError", error),
+                        AuthStatusKind.DISCONNECTED,
+                    )
                 zaiStatusLabel.foreground =
                     statusLabelDefaultForeground ?: zaiStatusLabel.foreground
             }
             quota != null -> {
-                zaiStatusLabel.text = statusDotHtml("Connected", AuthStatusKind.CONNECTED)
+                zaiStatusLabel.text =
+                    statusDotHtml(message("settings.status.connected"), AuthStatusKind.CONNECTED)
                 zaiStatusLabel.foreground =
                     statusLabelDefaultForeground ?: zaiStatusLabel.foreground
             }

@@ -35,11 +35,11 @@ internal class ClaudeSettingsPanel(
     private val statusLabelDefaultForeground: Color? = null,
 ) : ProviderSettingsPanel() {
     private val statusLabel = JBLabel().apply { isVisible = false }
-    private val loginButton = createActionLink("Log In with Claude")
-    private val cancelLoginButton = createActionLink("Cancel Login")
-    private val logoutButton = createActionLink("Log Out")
+    private val loginButton = createActionLink(message("settings.login.logInWith", "Claude"))
+    private val cancelLoginButton = createActionLink(message("settings.login.cancel"))
+    private val logoutButton = createActionLink(message("settings.login.logOut"))
     private val copyUrlButton =
-        JButton("Copy URL", AllIcons.Actions.Copy).apply {
+        JButton(message("settings.login.copyUrl"), AllIcons.Actions.Copy).apply {
             isVisible = false
             toolTipText = "Copy login URL to clipboard"
         }
@@ -49,7 +49,7 @@ internal class ClaudeSettingsPanel(
             toolTipText =
                 "Paste the Claude callback URL, code#state, or code=...&state=... after browser login"
         }
-    private val submitCodeButton = JButton("Submit Code")
+    private val submitCodeButton = JButton(message("settings.login.submitCode"))
     private val jsonViewer = createResponseViewer()
     private var authUrl: String? = null
     private var authStatusMessage: AuthStatusMessage? = null
@@ -76,7 +76,7 @@ internal class ClaudeSettingsPanel(
             authCodeField.text = ""
             authStatusMessage =
                 AuthStatusMessage(
-                    "Opening browser... complete Claude login, then paste the authorization code below.",
+                    message("settings.status.pasteCode"),
                     false,
                     AuthStatusKind.PENDING,
                 )
@@ -92,13 +92,14 @@ internal class ClaudeSettingsPanel(
                                     if (result.success) {
                                         authCodeField.text = ""
                                         AuthStatusMessage(
-                                            "Connected to Claude",
+                                            message("settings.status.connected"),
                                             false,
                                             AuthStatusKind.CONNECTED,
                                         )
                                     } else {
                                         AuthStatusMessage(
-                                            result.message ?: "Login failed",
+                                            result.message
+                                                ?: message("settings.status.loginFailed"),
                                             true,
                                             AuthStatusKind.DISCONNECTED,
                                         )
@@ -135,11 +136,16 @@ internal class ClaudeSettingsPanel(
         cancelLoginButton.addActionListener {
             val aborted =
                 QuotaAuthService.getInstance()
-                    .abortLogin(accountId(), QuotaProviderType.CLAUDE, "Login canceled")
+                    .abortLogin(
+                        accountId(),
+                        QuotaProviderType.CLAUDE,
+                        message("settings.status.loginCanceled"),
+                    )
             authCodeField.text = ""
             authStatusMessage =
                 AuthStatusMessage(
-                    if (aborted) "Login canceled" else "No login in progress",
+                    if (aborted) message("settings.status.loginCanceled")
+                    else message("settings.status.noLoginInProgress"),
                     false,
                     if (aborted) AuthStatusKind.PENDING else AuthStatusKind.DISCONNECTED,
                 )
@@ -161,13 +167,13 @@ internal class ClaudeSettingsPanel(
                             authStatusMessage =
                                 if (cleared) {
                                     AuthStatusMessage(
-                                        "Logged out of Claude",
+                                        message("settings.status.loggedOut"),
                                         false,
                                         AuthStatusKind.DISCONNECTED,
                                     )
                                 } else {
                                     AuthStatusMessage(
-                                        "Could not remove Claude login from Password Safe",
+                                        message("settings.status.logoutFailed"),
                                         true,
                                         AuthStatusKind.CONNECTED,
                                     )
@@ -208,7 +214,7 @@ internal class ClaudeSettingsPanel(
         if (input.isEmpty()) {
             authStatusMessage =
                 AuthStatusMessage(
-                    "Paste the Claude authorization code first.",
+                    message("settings.status.codeEmpty"),
                     true,
                     AuthStatusKind.PENDING,
                 )
@@ -220,7 +226,7 @@ internal class ClaudeSettingsPanel(
         ) {
             authStatusMessage =
                 AuthStatusMessage(
-                    "Click Log In with Claude first, then paste the code from that browser session.",
+                    message("settings.status.codeWithoutLogin"),
                     true,
                     AuthStatusKind.DISCONNECTED,
                 )
@@ -232,7 +238,11 @@ internal class ClaudeSettingsPanel(
                 .completePastedCallback(accountId(), QuotaProviderType.CLAUDE, input)
         authStatusMessage =
             if (error == null) {
-                AuthStatusMessage("Exchanging authorization code...", false, AuthStatusKind.PENDING)
+                AuthStatusMessage(
+                    message("settings.status.exchangingCode"),
+                    false,
+                    AuthStatusKind.PENDING,
+                )
             } else {
                 AuthStatusMessage(error, true, AuthStatusKind.PENDING)
             }

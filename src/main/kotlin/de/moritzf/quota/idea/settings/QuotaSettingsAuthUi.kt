@@ -1,6 +1,7 @@
 package de.moritzf.quota.idea.settings
 
 import de.moritzf.quota.idea.auth.OAuthConnectionState
+import de.moritzf.quota.idea.common.QuotaBundle.message
 
 internal data class AuthStatusMessage(
     val text: String,
@@ -40,31 +41,36 @@ internal data class QuotaSettingsAuthUiState(
                     inProgress ->
                         statusMessage
                             ?: AuthStatusMessage(
-                                "Complete the login in your browser.",
+                                message("settings.status.completeInBrowser"),
                                 kind = AuthStatusKind.PENDING,
                             )
                     reconnect ->
                         AuthStatusMessage(
                             listOfNotNull(
                                     statusMessage?.takeIf { it.isError }?.text,
-                                    "Reconnect required. Log in again to renew this login.",
+                                    message("settings.status.reconnect"),
                                 )
                                 .joinToString(" "),
                             isError = true,
                         )
                     connectionState == OAuthConnectionState.TEMPORARY_FAILURE ->
                         AuthStatusMessage(
-                            "Login retained. Temporarily unable to refresh; retrying automatically.",
+                            message("settings.status.retrying"),
                             kind = AuthStatusKind.PENDING,
                         )
-                    !loggedIn -> statusMessage ?: AuthStatusMessage("Not logged in", isError = true)
+                    !loggedIn ->
+                        statusMessage
+                            ?: AuthStatusMessage(
+                                message("settings.status.notLoggedIn"),
+                                isError = true,
+                            )
                     quotaError != null ->
                         AuthStatusMessage(
-                            "Quota unavailable: $quotaError",
+                            message("settings.status.quotaError", quotaError),
                             isError = true,
                             kind = AuthStatusKind.PENDING,
                         )
-                    else -> statusMessage ?: AuthStatusMessage("Connected")
+                    else -> statusMessage ?: AuthStatusMessage(message("settings.status.connected"))
                 }
             return QuotaSettingsAuthUiState(
                 headerText = "Login",

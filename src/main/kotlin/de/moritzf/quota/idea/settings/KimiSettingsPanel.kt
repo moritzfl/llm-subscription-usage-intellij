@@ -41,11 +41,11 @@ internal class KimiSettingsPanel(
     private val statusLabel = JBLabel().apply { isVisible = false }
     override val visionModelCombo = VisionModelCombo()
     private var modelRefreshGeneration = 0
-    private val loginButton = createActionLink("Log In")
-    private val cancelLoginButton = createActionLink("Cancel Login")
-    private val logoutButton = createActionLink("Log Out")
+    private val loginButton = createActionLink(message("settings.login.logIn"))
+    private val cancelLoginButton = createActionLink(message("settings.login.cancel"))
+    private val logoutButton = createActionLink(message("settings.login.logOut"))
     private val copyUrlButton =
-        JButton("Copy URL", AllIcons.Actions.Copy).apply {
+        JButton(message("settings.login.copyUrl"), AllIcons.Actions.Copy).apply {
             isVisible = false
             toolTipText = "Copy Kimi verification URL to clipboard"
         }
@@ -89,7 +89,11 @@ internal class KimiSettingsPanel(
             }
             loginButton.isEnabled = false
             authStatusMessage =
-                AuthStatusMessage("Opening browser...", false, AuthStatusKind.PENDING)
+                AuthStatusMessage(
+                    message("settings.status.openingBrowser"),
+                    false,
+                    AuthStatusKind.PENDING,
+                )
             updateStatus()
             authService.startLoginFlow(
                 region = region,
@@ -102,13 +106,14 @@ internal class KimiSettingsPanel(
                                 authStatusMessage =
                                     if (result.success) {
                                         AuthStatusMessage(
-                                            "Connected",
+                                            message("settings.status.connected"),
                                             false,
                                             AuthStatusKind.CONNECTED,
                                         )
                                     } else {
                                         AuthStatusMessage(
-                                            result.message ?: "Login failed",
+                                            result.message
+                                                ?: message("settings.status.loginFailed"),
                                             true,
                                             AuthStatusKind.DISCONNECTED,
                                         )
@@ -131,7 +136,7 @@ internal class KimiSettingsPanel(
                                 userCodeLabel.isVisible = userCode.isNotBlank()
                                 authStatusMessage =
                                     AuthStatusMessage(
-                                        "Waiting for browser authorization...",
+                                        message("settings.status.waiting"),
                                         false,
                                         AuthStatusKind.PENDING,
                                     )
@@ -147,10 +152,11 @@ internal class KimiSettingsPanel(
         cancelLoginButton.addActionListener {
             val aborted =
                 (KimiAuthService.forAccount(accountKey(QuotaProviderType.KIMI)) as AuthService)
-                    .abortLogin("Login canceled")
+                    .abortLogin(message("settings.status.loginCanceled"))
             authStatusMessage =
                 AuthStatusMessage(
-                    if (aborted) "Login canceled" else "No login in progress",
+                    if (aborted) message("settings.status.loginCanceled")
+                    else message("settings.status.noLoginInProgress"),
                     false,
                     if (aborted) AuthStatusKind.PENDING else AuthStatusKind.DISCONNECTED,
                 )
@@ -170,7 +176,11 @@ internal class KimiSettingsPanel(
                         {
                             if (!isCurrent()) return@invokeLater
                             authStatusMessage =
-                                AuthStatusMessage("Logged out", false, AuthStatusKind.DISCONNECTED)
+                                AuthStatusMessage(
+                                    message("settings.status.loggedOut"),
+                                    false,
+                                    AuthStatusKind.DISCONNECTED,
+                                )
                             updateStatus()
                         },
                         modality,
@@ -271,15 +281,32 @@ internal class KimiSettingsPanel(
         val fallbackMessage =
             when {
                 !store.isLoaded() ->
-                    AuthStatusMessage("Loading credentials...", false, AuthStatusKind.PENDING)
+                    AuthStatusMessage(
+                        message("settings.status.loading"),
+                        false,
+                        AuthStatusKind.PENDING,
+                    )
                 credentials?.isUsable() != true ->
-                    AuthStatusMessage("Not logged in", false, AuthStatusKind.DISCONNECTED)
+                    AuthStatusMessage(
+                        message("settings.status.notLoggedIn"),
+                        false,
+                        AuthStatusKind.DISCONNECTED,
+                    )
                 error != null ->
-                    AuthStatusMessage("Error: $error", true, AuthStatusKind.DISCONNECTED)
-                quota != null -> AuthStatusMessage("Connected", false, AuthStatusKind.CONNECTED)
+                    AuthStatusMessage(
+                        message("settings.status.quotaError", error),
+                        true,
+                        AuthStatusKind.DISCONNECTED,
+                    )
+                quota != null ->
+                    AuthStatusMessage(
+                        message("settings.status.connected"),
+                        false,
+                        AuthStatusKind.CONNECTED,
+                    )
                 else ->
                     AuthStatusMessage(
-                        "Logged in",
+                        message("settings.status.loggedIn"),
                         false,
                         AuthStatusKind.CONNECTED,
                     )
@@ -336,7 +363,7 @@ internal class KimiSettingsPanel(
     }
 
     private fun setPending() {
-        val text = "Clearing credentials..."
+        val text = message("settings.status.loggingOut")
         authStatusMessage = AuthStatusMessage(text, false, AuthStatusKind.PENDING)
         statusLabel.text = statusDotHtml(text, AuthStatusKind.PENDING)
         statusLabel.isVisible = true

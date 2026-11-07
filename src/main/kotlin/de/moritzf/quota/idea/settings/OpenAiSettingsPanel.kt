@@ -28,14 +28,14 @@ internal class OpenAiSettingsPanel(
     private val modalityComponentProvider: () -> JComponent? = { null },
 ) : ProviderSettingsPanel() {
     private val statusLabel = JBLabel().apply { isVisible = false }
-    private val loginButton = createActionLink("Log In")
-    private val deviceLoginButton = createActionLink("Log In with Device Code")
-    private val tokenLoginButton = createActionLink("Use Access Token...")
+    private val loginButton = createActionLink(message("settings.login.logIn"))
+    private val deviceLoginButton = createActionLink(message("settings.login.deviceCode"))
+    private val tokenLoginButton = createActionLink(message("settings.login.accessToken"))
     private val deviceLoginPanel = DeviceLoginPanel()
-    private val cancelLoginButton = createActionLink("Cancel Login")
-    private val logoutButton = createActionLink("Log Out")
+    private val cancelLoginButton = createActionLink(message("settings.login.cancel"))
+    private val logoutButton = createActionLink(message("settings.login.logOut"))
     private val copyUrlButton =
-        JButton("Copy URL", AllIcons.Actions.Copy).apply {
+        JButton(message("settings.login.copyUrl"), AllIcons.Actions.Copy).apply {
             isVisible = false
             toolTipText = "Copy login URL to clipboard"
         }
@@ -64,7 +64,11 @@ internal class OpenAiSettingsPanel(
             val accountId = accountKey()
             loginButton.isEnabled = false
             authStatusMessage =
-                AuthStatusMessage("Opening browser...", false, AuthStatusKind.PENDING)
+                AuthStatusMessage(
+                    message("settings.status.openingBrowser"),
+                    false,
+                    AuthStatusKind.PENDING,
+                )
             updateAuthUi()
             authService.startLoginFlow(
                 accountId = accountId,
@@ -98,7 +102,10 @@ internal class OpenAiSettingsPanel(
         deviceLoginButton.addActionListener {
             val accountId = accountKey()
             authStatusMessage =
-                AuthStatusMessage("Requesting device code...", kind = AuthStatusKind.PENDING)
+                AuthStatusMessage(
+                    message("settings.status.requestingCode"),
+                    kind = AuthStatusKind.PENDING,
+                )
             QuotaAuthService.getInstance()
                 .startDeviceLoginFlow(
                     accountId,
@@ -122,7 +129,10 @@ internal class OpenAiSettingsPanel(
             val dialog = OpenAiPersonalTokenDialog(modalityComponentProvider() ?: this)
             if (dialog.showAndGet()) {
                 authStatusMessage =
-                    AuthStatusMessage("Validating access token...", kind = AuthStatusKind.PENDING)
+                    AuthStatusMessage(
+                        message("settings.status.validatingToken"),
+                        kind = AuthStatusKind.PENDING,
+                    )
                 QuotaAuthService.getInstance().startPersonalTokenLogin(
                     accountId,
                     dialog.takeToken(),
@@ -136,10 +146,15 @@ internal class OpenAiSettingsPanel(
         cancelLoginButton.addActionListener {
             val aborted =
                 QuotaAuthService.getInstance()
-                    .abortLogin(accountKey(), QuotaProviderType.OPEN_AI, "Login canceled")
+                    .abortLogin(
+                        accountKey(),
+                        QuotaProviderType.OPEN_AI,
+                        message("settings.status.loginCanceled"),
+                    )
             authStatusMessage =
                 AuthStatusMessage(
-                    if (aborted) "Login canceled" else "No login in progress",
+                    if (aborted) message("settings.status.loginCanceled")
+                    else message("settings.status.noLoginInProgress"),
                     false,
                     if (aborted) AuthStatusKind.PENDING else AuthStatusKind.DISCONNECTED,
                 )
@@ -162,13 +177,13 @@ internal class OpenAiSettingsPanel(
                             authStatusMessage =
                                 if (cleared) {
                                     AuthStatusMessage(
-                                        "Logged out",
+                                        message("settings.status.loggedOut"),
                                         false,
                                         AuthStatusKind.DISCONNECTED,
                                     )
                                 } else {
                                     AuthStatusMessage(
-                                        "Could not remove login from Password Safe",
+                                        message("settings.status.logoutFailed"),
                                         true,
                                         AuthStatusKind.CONNECTED,
                                     )
@@ -267,7 +282,7 @@ internal class OpenAiSettingsPanel(
                 inProgress,
                 if (prompt != null)
                     AuthStatusMessage(
-                        "Waiting for device authorization...",
+                        message("settings.status.waiting"),
                         kind = AuthStatusKind.PENDING,
                     )
                 else authStatusMessage,
@@ -295,10 +310,13 @@ internal class OpenAiSettingsPanel(
                     if (accountKey() != accountId) return@invokeLater
                     authStatusMessage =
                         if (result.success) {
-                            AuthStatusMessage("Connected", kind = AuthStatusKind.CONNECTED)
+                            AuthStatusMessage(
+                                message("settings.status.connected"),
+                                kind = AuthStatusKind.CONNECTED,
+                            )
                         } else {
                             AuthStatusMessage(
-                                result.message ?: "Login failed",
+                                result.message ?: message("settings.status.loginFailed"),
                                 true,
                                 AuthStatusKind.DISCONNECTED,
                             )

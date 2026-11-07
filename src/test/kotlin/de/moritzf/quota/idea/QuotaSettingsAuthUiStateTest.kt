@@ -23,7 +23,7 @@ class QuotaSettingsAuthUiStateTest {
         assertTrue(uiState.logoutEnabled)
         assertFalse(uiState.cancelEnabled)
         assertEquals(AuthStatusKind.DISCONNECTED, uiState.visibleStatusMessage?.kind)
-        assertTrue(uiState.visibleStatusMessage!!.text.contains("Reconnect required"))
+        assertTrue(uiState.visibleStatusMessage!!.text.contains("Login expired. Log in again."))
     }
 
     @Test
@@ -39,7 +39,7 @@ class QuotaSettingsAuthUiStateTest {
         assertFalse(uiState.loginEnabled)
         assertTrue(uiState.logoutEnabled)
         assertEquals(AuthStatusKind.PENDING, uiState.visibleStatusMessage?.kind)
-        assertTrue(uiState.visibleStatusMessage!!.text.contains("Login retained"))
+        assertTrue(uiState.visibleStatusMessage!!.text.contains("Login kept"))
     }
 
     @Test
@@ -54,7 +54,7 @@ class QuotaSettingsAuthUiStateTest {
             )
         assertTrue(uiState.loginEnabled)
         assertTrue(uiState.visibleStatusMessage!!.text.contains("Token exchange failed: HTTP 400"))
-        assertTrue(uiState.visibleStatusMessage.text.contains("Reconnect required"))
+        assertTrue(uiState.visibleStatusMessage.text.contains("Login expired. Log in again."))
     }
 
     @Test

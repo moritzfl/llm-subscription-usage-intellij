@@ -413,7 +413,7 @@ internal abstract class ProviderSettingsPanel : BorderLayoutPanel() {
 internal fun clearOAuthLogin(
     accountId: String,
     type: de.moritzf.quota.idea.common.QuotaProviderType,
-    usageError: String? = "Not logged in",
+    usageError: String? = message("settings.status.notLoggedIn"),
 ): Boolean {
     val cleared =
         de.moritzf.quota.idea.auth.QuotaAuthService.getInstance().clearCredentials(accountId, type)

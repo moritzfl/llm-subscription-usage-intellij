@@ -38,13 +38,13 @@ internal class SuperGrokSettingsPanel(
     override val visionModelCombo = VisionModelCombo()
     private val statusLabel = JBLabel().apply { isVisible = false }
     private var modelRefreshGeneration = 0
-    private val loginButton = createActionLink("Log In with xAI/Grok")
-    private val deviceLoginButton = createActionLink("Log In with Device Code")
+    private val loginButton = createActionLink(message("settings.login.logInWith", "xAI/Grok"))
+    private val deviceLoginButton = createActionLink(message("settings.login.deviceCode"))
     private val deviceLoginPanel = DeviceLoginPanel()
-    private val cancelLoginButton = createActionLink("Cancel Login")
-    private val logoutButton = createActionLink("Log Out")
+    private val cancelLoginButton = createActionLink(message("settings.login.cancel"))
+    private val logoutButton = createActionLink(message("settings.login.logOut"))
     private val copyUrlButton =
-        JButton("Copy URL", AllIcons.Actions.Copy).apply {
+        JButton(message("settings.login.copyUrl"), AllIcons.Actions.Copy).apply {
             isVisible = false
             toolTipText = "Copy login URL to clipboard"
         }
@@ -65,7 +65,11 @@ internal class SuperGrokSettingsPanel(
             val accountId = accountId()
             loginButton.isEnabled = false
             authStatusMessage =
-                AuthStatusMessage("Opening browser...", false, AuthStatusKind.PENDING)
+                AuthStatusMessage(
+                    message("settings.status.openingBrowser"),
+                    false,
+                    AuthStatusKind.PENDING,
+                )
             updateAuthUi()
             authService.startLoginFlow(
                 accountId = accountId,
@@ -98,7 +102,10 @@ internal class SuperGrokSettingsPanel(
         deviceLoginButton.addActionListener {
             val accountId = accountId()
             authStatusMessage =
-                AuthStatusMessage("Requesting device code...", kind = AuthStatusKind.PENDING)
+                AuthStatusMessage(
+                    message("settings.status.requestingCode"),
+                    kind = AuthStatusKind.PENDING,
+                )
             QuotaAuthService.getInstance()
                 .startDeviceLoginFlow(
                     accountId,
@@ -120,10 +127,15 @@ internal class SuperGrokSettingsPanel(
         cancelLoginButton.addActionListener {
             val aborted =
                 QuotaAuthService.getInstance()
-                    .abortLogin(accountId(), QuotaProviderType.SUPERGROK, "Login canceled")
+                    .abortLogin(
+                        accountId(),
+                        QuotaProviderType.SUPERGROK,
+                        message("settings.status.loginCanceled"),
+                    )
             authStatusMessage =
                 AuthStatusMessage(
-                    if (aborted) "Login canceled" else "No login in progress",
+                    if (aborted) message("settings.status.loginCanceled")
+                    else message("settings.status.noLoginInProgress"),
                     false,
                     if (aborted) AuthStatusKind.PENDING else AuthStatusKind.DISCONNECTED,
                 )
@@ -144,13 +156,13 @@ internal class SuperGrokSettingsPanel(
                             authStatusMessage =
                                 if (cleared) {
                                     AuthStatusMessage(
-                                        "Logged out of xAI/Grok",
+                                        message("settings.status.loggedOut"),
                                         false,
                                         AuthStatusKind.DISCONNECTED,
                                     )
                                 } else {
                                     AuthStatusMessage(
-                                        "Could not remove xAI/Grok login from Password Safe",
+                                        message("settings.status.logoutFailed"),
                                         true,
                                         AuthStatusKind.CONNECTED,
                                     )
@@ -283,7 +295,7 @@ internal class SuperGrokSettingsPanel(
                 inProgress,
                 if (prompt != null)
                     AuthStatusMessage(
-                        "Waiting for device authorization...",
+                        message("settings.status.waiting"),
                         kind = AuthStatusKind.PENDING,
                     )
                 else authStatusMessage,
@@ -313,12 +325,12 @@ internal class SuperGrokSettingsPanel(
                     authStatusMessage =
                         if (result.success) {
                             AuthStatusMessage(
-                                "Connected to xAI/Grok",
+                                message("settings.status.connected"),
                                 kind = AuthStatusKind.CONNECTED,
                             )
                         } else {
                             AuthStatusMessage(
-                                result.message ?: "Login failed",
+                                result.message ?: message("settings.status.loginFailed"),
                                 true,
                                 AuthStatusKind.DISCONNECTED,
                             )

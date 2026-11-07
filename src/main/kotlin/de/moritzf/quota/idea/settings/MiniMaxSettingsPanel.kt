@@ -47,8 +47,10 @@ internal class MiniMaxSettingsPanel(
     private val codeStatusLabel = JBLabel()
     private val codeLoginButton =
         ActionLink(message("settings.minimax.code.login")).apply { autoHideOnDisable = false }
-    private val codeCancelButton = ActionLink("Cancel Login").apply { autoHideOnDisable = false }
-    private val codeLogoutButton = ActionLink("Log Out").apply { autoHideOnDisable = false }
+    private val codeCancelButton =
+        ActionLink(message("settings.login.cancel")).apply { autoHideOnDisable = false }
+    private val codeLogoutButton =
+        ActionLink(message("settings.login.logOut")).apply { autoHideOnDisable = false }
     private val codeDevicePanel = DeviceLoginPanel()
     private var codeAuthMessage: AuthStatusMessage? = null
     private var codeGeneration = 0L
@@ -60,8 +62,17 @@ internal class MiniMaxSettingsPanel(
         codeLoginButton.addActionListener { startCodeLogin() }
         codeCancelButton.addActionListener {
             codeGeneration++
-            auth().abortLogin(accountId(), QuotaProviderType.MINIMAX, "Login canceled")
-            codeAuthMessage = AuthStatusMessage("Login canceled", kind = AuthStatusKind.PENDING)
+            auth()
+                .abortLogin(
+                    accountId(),
+                    QuotaProviderType.MINIMAX,
+                    message("settings.status.loginCanceled"),
+                )
+            codeAuthMessage =
+                AuthStatusMessage(
+                    message("settings.status.loginCanceled"),
+                    kind = AuthStatusKind.PENDING,
+                )
             updateStatus()
         }
         codeLogoutButton.addActionListener { logOutCode() }
@@ -191,10 +202,17 @@ internal class MiniMaxSettingsPanel(
                     statusDotHtml(message("settings.secret.loading"), AuthStatusKind.PENDING)
                 storedKey.isNullOrBlank() && !loggedIn ->
                     statusDotHtml(message("settings.minimax.missing"), AuthStatusKind.DISCONNECTED)
-                error != null -> statusDotHtml("Error: $error", AuthStatusKind.DISCONNECTED)
+                error != null ->
+                    statusDotHtml(
+                        message("settings.status.quotaError", error),
+                        AuthStatusKind.DISCONNECTED,
+                    )
                 quota != null && quota.warnings.isNotEmpty() ->
                     statusDotHtml(
-                        "Connected; ${quota.warnings.joinToString("; ")}",
+                        message(
+                            "settings.status.connectedWithWarnings",
+                            quota.warnings.joinToString("; "),
+                        ),
                         AuthStatusKind.PENDING,
                     )
                 quota?.planActive == false ->
@@ -202,9 +220,10 @@ internal class MiniMaxSettingsPanel(
                         message("quota.minimax.status.credits"),
                         AuthStatusKind.CONNECTED,
                     )
-                quota != null -> statusDotHtml("Connected", AuthStatusKind.CONNECTED)
+                quota != null ->
+                    statusDotHtml(message("settings.status.connected"), AuthStatusKind.CONNECTED)
                 storedKey.isNullOrBlank() ->
-                    statusDotHtml(message("settings.status.signedIn"), AuthStatusKind.CONNECTED)
+                    statusDotHtml(message("settings.status.loggedIn"), AuthStatusKind.CONNECTED)
                 else ->
                     statusDotHtml(message("settings.status.keyStored"), AuthStatusKind.CONNECTED)
             }
@@ -219,10 +238,14 @@ internal class MiniMaxSettingsPanel(
         codeDevicePanel.show(prompt)
         val status =
             when {
-                codeLoggingOut -> AuthStatusMessage("Logging out...", kind = AuthStatusKind.PENDING)
+                codeLoggingOut ->
+                    AuthStatusMessage(
+                        message("settings.status.loggingOut"),
+                        kind = AuthStatusKind.PENDING,
+                    )
                 prompt != null ->
                     AuthStatusMessage(
-                        "Waiting for browser authorization...",
+                        message("settings.status.waiting"),
                         kind = AuthStatusKind.PENDING,
                     )
                 codeAuthMessage != null -> codeAuthMessage!!
@@ -235,15 +258,15 @@ internal class MiniMaxSettingsPanel(
                     when (auth().connectionState(id, QuotaProviderType.MINIMAX)) {
                         OAuthConnectionState.RECONNECT_REQUIRED ->
                             AuthStatusMessage(
-                                "Login expired. Log in again.",
+                                message("settings.status.reconnect"),
                                 isError = true,
                             )
                         OAuthConnectionState.TEMPORARY_FAILURE ->
                             AuthStatusMessage(
-                                "Login retained. Temporarily unable to refresh; retrying automatically.",
+                                message("settings.status.retrying"),
                                 kind = AuthStatusKind.PENDING,
                             )
-                        else -> AuthStatusMessage(message("settings.status.signedIn"))
+                        else -> AuthStatusMessage(message("settings.status.loggedIn"))
                     }
             }
         codeStatusLabel.text = statusDotHtml(status.text, status.kind)
@@ -261,7 +284,10 @@ internal class MiniMaxSettingsPanel(
             else MiniMaxRegion.GLOBAL
         val generation = ++codeGeneration
         codeAuthMessage =
-            AuthStatusMessage("Requesting login code...", kind = AuthStatusKind.PENDING)
+            AuthStatusMessage(
+                message("settings.status.requestingCode"),
+                kind = AuthStatusKind.PENDING,
+            )
         auth()
             .startDeviceLoginFlow(
                 id,
@@ -272,7 +298,11 @@ internal class MiniMaxSettingsPanel(
                         if (codeGeneration != generation) return@onUi
                         codeAuthMessage =
                             if (result.success) null
-                            else AuthStatusMessage(result.message ?: "Login failed", isError = true)
+                            else
+                                AuthStatusMessage(
+                                    result.message ?: message("settings.status.loginFailed"),
+                                    isError = true,
+                                )
                         updateStatus()
                     }
                 },
@@ -305,7 +335,8 @@ internal class MiniMaxSettingsPanel(
             onUi(id) {
                 codeLoggingOut = false
                 if (!cleared) {
-                    codeAuthMessage = AuthStatusMessage("Could not log out", isError = true)
+                    codeAuthMessage =
+                        AuthStatusMessage(message("settings.status.logoutFailed"), isError = true)
                 }
                 updateStatus()
             }

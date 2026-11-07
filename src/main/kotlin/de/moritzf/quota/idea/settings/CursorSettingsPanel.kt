@@ -98,7 +98,7 @@ internal class CursorSettingsPanel(
         when {
             !store.isLoaded() -> {
                 cursorStatusLabel.text =
-                    statusDotHtml("Loading credentials...", AuthStatusKind.PENDING)
+                    statusDotHtml(message("settings.status.loading"), AuthStatusKind.PENDING)
             }
             !store.hasCredentials() -> {
                 cursorStatusLabel.text =
@@ -106,10 +106,14 @@ internal class CursorSettingsPanel(
             }
             cursorError != null -> {
                 cursorStatusLabel.text =
-                    statusDotHtml("Error: $cursorError", AuthStatusKind.DISCONNECTED)
+                    statusDotHtml(
+                        message("settings.status.quotaError", cursorError),
+                        AuthStatusKind.DISCONNECTED,
+                    )
             }
             cursorQuota != null -> {
-                cursorStatusLabel.text = statusDotHtml("Connected", AuthStatusKind.CONNECTED)
+                cursorStatusLabel.text =
+                    statusDotHtml(message("settings.status.connected"), AuthStatusKind.CONNECTED)
             }
             else -> {
                 cursorStatusLabel.text =

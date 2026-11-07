@@ -208,7 +208,7 @@ internal class OllamaSettingsPanel(
         when {
             !apiKeyStore.isLoaded() -> {
                 ollamaStatusLabel.text =
-                    statusDotHtml("Loading Ollama credentials...", AuthStatusKind.PENDING)
+                    statusDotHtml(message("settings.status.loading"), AuthStatusKind.PENDING)
                 ollamaStatusLabel.foreground =
                     statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
@@ -220,12 +220,16 @@ internal class OllamaSettingsPanel(
             }
             ollamaError != null -> {
                 ollamaStatusLabel.text =
-                    statusDotHtml("Error: $ollamaError", AuthStatusKind.DISCONNECTED)
+                    statusDotHtml(
+                        message("settings.status.quotaError", ollamaError),
+                        AuthStatusKind.DISCONNECTED,
+                    )
                 ollamaStatusLabel.foreground =
                     statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
             ollamaQuota != null -> {
-                ollamaStatusLabel.text = statusDotHtml("Connected", AuthStatusKind.CONNECTED)
+                ollamaStatusLabel.text =
+                    statusDotHtml(message("settings.status.connected"), AuthStatusKind.CONNECTED)
                 ollamaStatusLabel.foreground =
                     statusLabelDefaultForeground ?: ollamaStatusLabel.foreground
             }
