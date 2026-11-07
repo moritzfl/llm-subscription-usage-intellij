@@ -137,6 +137,11 @@ internal class MiniMaxSettingsPanel(
                         AuthStatusKind.DISCONNECTED,
                     )
                 error != null -> statusDotHtml("Error: $error", AuthStatusKind.DISCONNECTED)
+                quota?.planActive == false ->
+                    statusDotHtml(
+                        message("quota.minimax.status.credits"),
+                        AuthStatusKind.CONNECTED,
+                    )
                 quota != null -> statusDotHtml("Connected", AuthStatusKind.CONNECTED)
                 else -> statusDotHtml("API key stored securely", AuthStatusKind.CONNECTED)
             }

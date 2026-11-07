@@ -93,6 +93,7 @@ open class MiniMaxQuotaClient(
     companion object {
         private const val STATUS_EXHAUSTED = 2
         private const val STATUS_UNLIMITED = 3
+        private const val STATUS_NO_ACTIVE_PLAN = 2062
         private val AUTH_STATUS_CODES = setOf(401, 403, 1004, 2049)
         private const val MILLIS_EPOCH_THRESHOLD = 10_000_000_000L
 
@@ -126,6 +127,18 @@ open class MiniMaxQuotaClient(
 
             val statusCode = dto.baseResp?.statusCode ?: 0
             val statusMessage = dto.baseResp?.statusMsg.orEmpty()
+            if (statusCode == STATUS_NO_ACTIVE_PLAN) {
+                // 2062 also means "M Plan rate limit reached"; on usage reads it usually means the
+                // key is valid but the account has no M Plan subscription and runs on Credits.
+                if (statusMessage.contains("rate limit", ignoreCase = true)) {
+                    throw MiniMaxQuotaException(
+                        "MiniMax rate-limited the usage request. Try again later.",
+                        429,
+                        body,
+                    )
+                }
+                return MiniMaxQuota(region = region, planActive = false)
+            }
             if (statusCode != 0) {
                 // 1004 is a missing or rejected key and 2049 an invalid one, both with HTTP 200.
                 if (
@@ -145,13 +158,14 @@ open class MiniMaxQuotaClient(
                 )
             }
 
+            val remains = dto.modelRemains.orEmpty()
             val item =
-                dto.modelRemains.firstOrNull { it.modelName.equals("general", ignoreCase = true) }
-                    ?: dto.modelRemains.firstOrNull { !it.isVideo() }
-                    ?: dto.modelRemains.firstOrNull()
+                remains.firstOrNull { it.modelName.equals("general", ignoreCase = true) }
+                    ?: remains.firstOrNull { !it.isVideo() }
+                    ?: remains.firstOrNull()
                     ?: throw MiniMaxQuotaException("Could not parse usage data.", 200, body)
             val countdownIsMillis = countdownUsesMillis(item)
-            val video = dto.modelRemains.firstOrNull { it !== item && it.isVideo() && it.inPlan() }
+            val video = remains.firstOrNull { it !== item && it.isVideo() && it.inPlan() }
 
             return MiniMaxQuota(
                 plan = normalizePlan(inferPlan(item, region), region),
@@ -373,7 +387,7 @@ open class MiniMaxQuotaClient(
 @Serializable
 private data class MiniMaxResponseDto(
     @SerialName("base_resp") val baseResp: MiniMaxBaseRespDto? = null,
-    @SerialName("model_remains") val modelRemains: List<MiniMaxRemainDto> = emptyList(),
+    @SerialName("model_remains") val modelRemains: List<MiniMaxRemainDto>? = null,
 )
 
 @Serializable

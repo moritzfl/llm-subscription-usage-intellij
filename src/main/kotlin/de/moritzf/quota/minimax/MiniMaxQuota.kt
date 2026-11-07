@@ -19,11 +19,20 @@ data class MiniMaxQuota(
     val videoUsage: MiniMaxUsageWindow? = null,
     val videoWeeklyUsage: MiniMaxUsageWindow? = null,
     val region: MiniMaxRegion = MiniMaxRegion.GLOBAL,
+    /**
+     * False when MiniMax accepts the key but the account has no active M Plan subscription, so
+     * requests draw on purchased Credits. MiniMax does not report the Credits balance to keys.
+     */
+    val planActive: Boolean = true,
     override var fetchedAt: Instant? = null,
     @Transient override var rawJson: String? = null,
 ) : ProviderQuota {
     override fun hasUsageState(): Boolean =
-        sessionUsage != null || weeklyUsage != null || weeklyUnlimited || videoUsage != null
+        !planActive ||
+            sessionUsage != null ||
+            weeklyUsage != null ||
+            weeklyUnlimited ||
+            videoUsage != null
 
     override fun usageFraction(): Double? {
         val windows = listOfNotNull(sessionUsage?.usagePercent, weeklyUsage?.usagePercent)

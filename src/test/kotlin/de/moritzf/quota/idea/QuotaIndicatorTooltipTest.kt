@@ -181,6 +181,15 @@ class QuotaIndicatorTooltipTest {
             ),
         )
         assertEquals(
+            "MiniMax • Credits",
+            buildIndicatorTooltip(
+                QuotaProviderType.MINIMAX,
+                MiniMaxQuota(planActive = false),
+                error = null,
+                ProviderAuthState.AUTHENTICATED,
+            ),
+        )
+        assertEquals(
             "MiniMax • MiniMax Token Plan • 100% Weekly",
             buildIndicatorTooltip(
                 QuotaProviderType.MINIMAX,

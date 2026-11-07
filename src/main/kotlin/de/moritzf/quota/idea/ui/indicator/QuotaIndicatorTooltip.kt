@@ -4,6 +4,7 @@ import de.moritzf.quota.antigravity.AntigravityQuota
 import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.cursor.CursorQuota
 import de.moritzf.quota.github.GitHubQuota
+import de.moritzf.quota.idea.common.QuotaBundle
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.ui.QuotaUiUtil
 import de.moritzf.quota.idea.ui.popup.codexPlanLabel
@@ -87,7 +88,8 @@ internal fun indicatorPlanName(quota: ProviderQuota?): String? {
             is CursorQuota -> quota.planName.ifBlank { quota.membershipType }
             is GitHubQuota -> quota.plan
             is KimiQuota -> quota.plan
-            is MiniMaxQuota -> quota.plan
+            is MiniMaxQuota ->
+                if (quota.planActive) quota.plan else QuotaBundle.message("quota.minimax.credits")
             is OpenCodeQuota -> quota.plan
             is SuperGrokQuota -> quota.plan
             is ZaiQuota -> quota.plan

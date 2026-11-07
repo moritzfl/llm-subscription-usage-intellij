@@ -9,6 +9,7 @@ import de.moritzf.quota.cursor.CursorQuota
 import de.moritzf.quota.github.GitHubQuota
 import de.moritzf.quota.github.GitHubSubscriptionState
 import de.moritzf.quota.idea.common.ProviderCatalog
+import de.moritzf.quota.idea.common.QuotaBundle
 import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.settings.QuotaDisplayMode
 import de.moritzf.quota.idea.ui.QuotaUiUtil
@@ -294,6 +295,7 @@ internal fun ollamaBarDisplayText(
 internal fun miniMaxBarDisplayText(quota: MiniMaxQuota?, error: String?): String {
     if (error != null) return "error"
     if (quota == null) return "loading..."
+    if (!quota.planActive) return QuotaBundle.message("quota.minimax.credits.bar")
     val state = miniMaxIndicatorState(quota) ?: return "no data"
     val reset = QuotaUiUtil.formatResetCompact(state.resetsAt)
     val text = "${state.percent}%"

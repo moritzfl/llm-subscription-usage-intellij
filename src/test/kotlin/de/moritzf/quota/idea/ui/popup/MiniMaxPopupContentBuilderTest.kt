@@ -1,10 +1,12 @@
 package de.moritzf.quota.idea.ui.popup
 
+import de.moritzf.quota.idea.ui.indicator.miniMaxBarDisplayText
 import de.moritzf.quota.minimax.MiniMaxQuota
 import de.moritzf.quota.minimax.MiniMaxUsageWindow
 import java.awt.Container
 import javax.swing.JLabel
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class MiniMaxPopupContentBuilderTest {
@@ -40,6 +42,22 @@ class MiniMaxPopupContentBuilderTest {
             labels(section).toString(),
         )
         assertTrue(labels(section).none { it.startsWith("Video") })
+    }
+
+    @Test
+    fun aCreditsOnlyAccountExplainsTheMissingPlanInsteadOfAnError() {
+        val section = MiniMaxPopupSection()
+        section.update(MiniMaxQuota(planActive = false), null, true)
+
+        val labels = labels(section)
+        assertTrue("MiniMax (Credits)" in labels, labels.toString())
+        assertTrue("M Plan" in labels, labels.toString())
+        assertTrue(
+            "No active subscription. Requests use your Credits." in labels,
+            labels.toString(),
+        )
+        assertTrue(labels.none { it.startsWith("MiniMax error") }, labels.toString())
+        assertEquals("credits", miniMaxBarDisplayText(MiniMaxQuota(planActive = false), null))
     }
 
     private fun labels(root: Container): List<String> =

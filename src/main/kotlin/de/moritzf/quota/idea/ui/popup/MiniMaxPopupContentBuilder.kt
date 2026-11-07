@@ -49,6 +49,16 @@ internal class MiniMaxPopupSection : ProviderPopupSection() {
                 errorLabel.text = "MiniMax error: $error"
                 hideContent()
             }
+            quota?.planActive == false -> {
+                hideAll()
+                titleLabel.isVisible = true
+                titleLabel.text = sectionTitle("MiniMax", message("quota.minimax.credits"))
+                sessionBlock.showUnavailable(
+                    message("quota.minimax.noPlan.title"),
+                    message("quota.minimax.noPlan.info"),
+                    message("quota.minimax.noPlan.detail"),
+                )
+            }
             quota == null -> {
                 hideAll()
                 titleLabel.isVisible = true

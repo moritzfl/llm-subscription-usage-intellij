@@ -10,6 +10,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -332,6 +333,65 @@ class MiniMaxQuotaClientTest {
                     )
                 }
             assertEquals(401, exception.statusCode, "stops trying the other endpoints")
+        }
+    }
+
+    @Test
+    fun keyWithoutActivePlanIsACreditsOnlyAccount() {
+        // Live answer for a valid subscription key whose account only holds Credits.
+        val quota =
+            MiniMaxQuotaClient.parseQuota(
+                """{"model_remains":null,"base_resp":{"status_code":2062,"status_msg":"no active token plan subscription"}}""",
+                MiniMaxRegion.GLOBAL,
+            )
+
+        assertFalse(quota.planActive)
+        assertTrue(quota.hasUsageState())
+        assertNull(quota.sessionUsage)
+        assertNull(quota.weeklyUsage)
+        assertNull(quota.usageFraction())
+        assertEquals(MiniMaxRegion.GLOBAL, quota.region)
+    }
+
+    @Test
+    fun planRateLimitIsReportedAsRateLimit() {
+        val exception =
+            assertFailsWith<MiniMaxQuotaException> {
+                MiniMaxQuotaClient.parseQuota(
+                    """{"base_resp":{"status_code":2062,"status_msg":"M Plan rate limit reached"}}""",
+                    MiniMaxRegion.GLOBAL,
+                )
+            }
+
+        assertEquals(429, exception.statusCode)
+    }
+
+    @Test
+    fun fetchQuotaStopsAtTheFirstEndpointWithoutAnActivePlan() {
+        val body =
+            """{"model_remains":null,"base_resp":{"status_code":2062,"status_msg":"no active token plan subscription"}}"""
+        TestMiniMaxServer(responses = mapOf("/v1/token_plan/remains" to (200 to body))).use { server
+            ->
+            val client =
+                MiniMaxQuotaClient(
+                    httpClient = HttpClient.newHttpClient(),
+                    endpointsByRegion = {
+                        listOf(
+                            server.uri("/v1/token_plan/remains"),
+                            server.uri("/v1/coding_plan/remains"),
+                        )
+                    },
+                )
+
+            val quota = client.fetchQuota("credits-only-key", MiniMaxRegion.GLOBAL)
+
+            assertFalse(quota.planActive)
+            assertEquals(body, quota.rawJson)
+            assertEquals(
+                "/v1/token_plan/remains",
+                server.requests.poll(2, TimeUnit.SECONDS)?.path,
+            )
+            assertNull(server.requests.poll(200, TimeUnit.MILLISECONDS))
         }
     }
 

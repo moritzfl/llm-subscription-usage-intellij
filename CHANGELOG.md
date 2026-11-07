@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Show MiniMax accounts without an active M Plan subscription instead of reporting "Session expired". A subscription key on Credits alone now shows `credits` in the status bar, and the popup says requests use your Credits. MiniMax does not report the Credits balance to API keys. With the region on Auto, a failure from the region that accepts the key is no longer replaced by the other region's "invalid api key", and `subscription_quota` returns that region's response.
+
 ## [1.27.3] - 2026-11-07
 
 - Send Mistral-hosted models the reasoning levels they accept: Mistral Large 4 takes `low`, `medium`, and `high` instead of being sent `none`, which it rejects, GLM 5.3 and GLM 5.3 Flash take `low`, `high`, and `max`, and DeepSeek V4.1 Flash keeps `none`, `low`, `high`, and `max` instead of collapsing to `none`/`high`.
