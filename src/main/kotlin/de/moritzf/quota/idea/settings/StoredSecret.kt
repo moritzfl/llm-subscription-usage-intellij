@@ -8,6 +8,7 @@ import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.UIUtil
 import de.moritzf.quota.idea.common.QuotaBundle.message
+import javax.swing.JButton
 import javax.swing.event.DocumentEvent
 import javax.swing.text.JTextComponent
 
@@ -64,6 +65,71 @@ internal class StoredSecret(
             foreground = UIUtil.getContextHelpForeground()
         }
 
+    /** The result of the last Check, cleared when the value or the account changes. */
+    val checkStatus = JBLabel().apply { font = JBFont.small() }
+    private var checkGeneration = 0
+
+    /**
+     * A button that asks the provider whether it accepts the value in the fields, without saving
+     * it. [check] runs on the EDT, where it may read other fields, and returns the request to run
+     * off the EDT, which throws when the value is not accepted.
+     */
+    fun checkButton(check: (accountId: String, value: String) -> () -> Unit): JButton =
+        JButton(message("settings.secret.check")).apply {
+            toolTipText = message("settings.secret.check.tooltip")
+            addActionListener { runCheck(check) }
+        }
+
+    private fun runCheck(check: (String, String) -> () -> Unit) {
+        val id = accountId ?: return
+        val generation = ++checkGeneration
+        val value =
+            try {
+                join(fields.map { it.text })
+            } catch (failure: Exception) {
+                showCheck(failure.message ?: message("settings.secret.invalid"), false)
+                return
+            }
+        if (value == null) {
+            showCheck(message("settings.secret.checkEmpty"), false)
+            return
+        }
+        checkStatus.text =
+            statusDotHtml(message("settings.secret.checking"), AuthStatusKind.PENDING)
+        val request = check(id, value)
+        executor {
+            val result = runCatching { request() }
+            dispatch {
+                if (generation != checkGeneration || accountId != id) return@dispatch
+                result.fold(
+                    onSuccess = { showCheck(message("settings.secret.checkOk"), true) },
+                    onFailure = {
+                        showCheck(
+                            message(
+                                "settings.secret.checkFailed",
+                                it.message ?: it.javaClass.simpleName,
+                            ),
+                            false,
+                        )
+                    },
+                )
+            }
+        }
+    }
+
+    private fun showCheck(text: String, accepted: Boolean) {
+        checkStatus.text =
+            statusDotHtml(
+                text,
+                if (accepted) AuthStatusKind.CONNECTED else AuthStatusKind.DISCONNECTED,
+            )
+    }
+
+    private fun clearCheck() {
+        checkGeneration++
+        checkStatus.text = ""
+    }
+
     init {
         val listener =
             object : DocumentAdapter() {
@@ -71,6 +137,7 @@ internal class StoredSecret(
                     if (updating) return
                     val entry = accountId?.let(entries::get) ?: return
                     entry.draft = fields.map { it.text }
+                    clearCheck()
                     changed()
                 }
             }
@@ -79,6 +146,7 @@ internal class StoredSecret(
 
     /** Shows [accountId]'s draft, or its stored value once Password Safe has been read. */
     fun show(accountId: String) {
+        if (this.accountId != accountId) clearCheck()
         this.accountId = accountId
         val entry = entries.getOrPut(accountId) { Entry() }
         display(entry.draft ?: entry.stored ?: blank())
@@ -176,6 +244,7 @@ internal class StoredSecret(
             }
 
     fun discard() {
+        clearCheck()
         entries.clear()
         accountId = null
         display(blank())

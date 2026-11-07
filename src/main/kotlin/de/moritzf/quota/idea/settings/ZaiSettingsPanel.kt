@@ -14,6 +14,7 @@ import de.moritzf.quota.idea.zai.ZaiApiKeyStore
 import de.moritzf.quota.shared.DocumentModels
 import de.moritzf.quota.zai.ZaiOcrClient
 import de.moritzf.quota.zai.ZaiQuota
+import de.moritzf.quota.zai.ZaiQuotaClient
 import de.moritzf.quota.zai.proxy.ZaiSubscriptionProxyProvider
 import java.awt.Color
 import java.net.URI
@@ -49,8 +50,14 @@ internal class ZaiSettingsPanel(
     init {
         val configPanel = panel {
             row { statusCell(zaiStatusLabel) }
-            row("API key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
-            row("") { cell(apiKey.hint) }
+            row("API key:") {
+                cell(apiKeyField).resizableColumn().align(AlignX.FILL)
+                cell(apiKey.checkButton { _, key -> { ZaiQuotaClient().fetchQuota(key) } })
+            }
+            row("") {
+                cell(apiKey.hint)
+                cell(apiKey.checkStatus)
+            }
             row(message("settings.model.document.label")) {
                 cell(documentModelCombo.combo)
                     .align(AlignX.FILL)

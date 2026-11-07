@@ -4,7 +4,9 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
+import de.moritzf.quota.cursor.CursorAuth
 import de.moritzf.quota.cursor.CursorQuota
+import de.moritzf.quota.cursor.CursorQuotaClient
 import de.moritzf.quota.cursor.CursorSessionTokenParser
 import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.common.QuotaProviderType
@@ -59,12 +61,22 @@ internal class CursorSettingsPanel(
             }
             row("Session cookie (${CursorSessionTokenParser.COOKIE_NAME}):") {
                 cell(sessionCookieField).resizableColumn().align(AlignX.FILL)
+                cell(sessionCookie.checkButton { _, cookie -> { checkCookie(cookie) } })
             }
-            row("") { cell(sessionCookie.hint) }
+            row("") {
+                cell(sessionCookie.hint)
+                cell(sessionCookie.checkStatus)
+            }
             row("Auth source:") { cell(authSourceLabel) }
         }
 
         install(cursorConfigPanel, createResponseSection(cursorJsonViewer))
+    }
+
+    private fun checkCookie(cookie: String) {
+        val token = checkNotNull(CursorSessionTokenParser.extractAccessToken(cookie))
+        CursorQuotaClient()
+            .fetchQuota(token, CursorAuth(accessToken = token, sessionCookie = cookie))
     }
 
     override fun updateFields() {

@@ -152,6 +152,43 @@ class StoredSecretTest {
         assertEquals("ory_session_1=x", store["a"])
     }
 
+    @Test
+    fun checkTestsTheTypedValueWithoutSavingIt() = onEdt {
+        val secret = secret()
+        val checked = mutableListOf<String>()
+        val button = secret.checkButton { id, value ->
+            {
+                checked += "$id:$value"
+                if (value == "bad") error("HTTP 401")
+            }
+        }
+        secret.show("a")
+        finishReads()
+
+        button.doClick()
+        assertTrue(secret.checkStatus.text.contains("Enter a value to check."))
+        assertTrue(checked.isEmpty())
+
+        field.text = "good"
+        button.doClick()
+        assertTrue(secret.checkStatus.text.contains("Checking"))
+        finishReads()
+        assertEquals(listOf("a:good"), checked)
+        assertTrue(secret.checkStatus.text.contains("Accepted by the provider."))
+        assertTrue(store.isEmpty(), "checking never saves")
+
+        field.text = "bad"
+        assertEquals("", secret.checkStatus.text, "an edit clears the old result")
+        button.doClick()
+        finishReads()
+        assertTrue(secret.checkStatus.text.contains("Not accepted: HTTP 401"))
+
+        button.doClick()
+        secret.show("b")
+        finishReads()
+        assertEquals("", secret.checkStatus.text, "a result never lands on another account")
+    }
+
     private fun onEdt(block: () -> Unit) {
         if (SwingUtilities.isEventDispatchThread()) return block()
         var failure: Throwable? = null

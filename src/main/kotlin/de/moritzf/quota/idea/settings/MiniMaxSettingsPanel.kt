@@ -19,6 +19,8 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.minimax.MiniMaxApiKeyStore
 import de.moritzf.quota.minimax.MiniMaxQuota
+import de.moritzf.quota.minimax.MiniMaxQuotaClient
+import de.moritzf.quota.minimax.MiniMaxQuotaException
 import de.moritzf.quota.minimax.MiniMaxRegion
 import de.moritzf.quota.minimax.MiniMaxRegionPreference
 import de.moritzf.quota.minimax.MiniMaxVisionClient
@@ -67,8 +69,14 @@ internal class MiniMaxSettingsPanel(
             panel {
                 row { statusCell(statusLabel) }
                 row("Region:") { cell(regionComboBox) }
-                row("Subscription key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
-                row("") { cell(apiKey.hint) }
+                row("Subscription key:") {
+                    cell(apiKeyField).resizableColumn().align(AlignX.FILL)
+                    cell(apiKey.checkButton { _, key -> checkKey(key) })
+                }
+                row("") {
+                    cell(apiKey.hint)
+                    cell(apiKey.checkStatus)
+                }
                 row(message("settings.model.vision.label")) {
                     cell(visionModelCombo.combo)
                         .align(AlignX.FILL)
@@ -112,6 +120,28 @@ internal class MiniMaxSettingsPanel(
     ): Boolean =
         selectedRegion() != state.miniMaxRegionFor(account.id) ||
             super.accountFieldsModified(account, saved, state)
+
+    /** Reads the region on the EDT; the request accepts the key in either region on Auto. */
+    private fun checkKey(key: String): () -> Unit {
+        val regions =
+            when (selectedRegion()) {
+                MiniMaxRegionPreference.GLOBAL -> listOf(MiniMaxRegion.GLOBAL)
+                MiniMaxRegionPreference.CN -> listOf(MiniMaxRegion.CN)
+                else -> listOf(MiniMaxRegion.GLOBAL, MiniMaxRegion.CN)
+            }
+        return {
+            val failures = regions.map { region ->
+                runCatching { MiniMaxQuotaClient().fetchQuota(key, region) }.exceptionOrNull()
+                    ?: return@map null
+            }
+            if (failures.none { it == null }) {
+                throw failures.filterNotNull().let { all ->
+                    all.firstOrNull { (it as? MiniMaxQuotaException)?.statusCode != 401 }
+                        ?: all.first()
+                }
+            }
+        }
+    }
 
     private fun selectedRegion(): MiniMaxRegionPreference? =
         regionComboBox.selectedItem as? MiniMaxRegionPreference

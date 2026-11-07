@@ -13,6 +13,7 @@ import de.moritzf.quota.idea.common.QuotaProviderType
 import de.moritzf.quota.idea.common.QuotaUsageService
 import de.moritzf.quota.idea.ollama.OllamaApiKeyStore
 import de.moritzf.quota.ollama.OllamaQuota
+import de.moritzf.quota.ollama.OllamaQuotaClient
 import de.moritzf.quota.ollama.OllamaResetSchedule
 import de.moritzf.quota.ollama.OllamaVisionModels
 import de.moritzf.quota.shared.JsonSupport
@@ -67,8 +68,14 @@ internal class OllamaSettingsPanel(
                     "Create an API key at ollama.com/settings/keys. Used for quota, MCP web search, and the local proxy.",
                 )
             }
-            row("API key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
-            row("") { cell(apiKey.hint) }
+            row("API key:") {
+                cell(apiKeyField).resizableColumn().align(AlignX.FILL)
+                cell(apiKey.checkButton { _, key -> { OllamaQuotaClient().fetchQuota(key) } })
+            }
+            row("") {
+                cell(apiKey.hint)
+                cell(apiKey.checkStatus)
+            }
             row("Monthly reset:") {
                 cell(monthlyResetField)
                     .resizableColumn()

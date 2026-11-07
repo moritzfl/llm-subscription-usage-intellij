@@ -101,10 +101,22 @@ internal class MistralSettingsPanel(
                 row("ory_session value:") {
                     cell(sessionValueField).resizableColumn().align(AlignX.FILL)
                 }
-                row("csrftoken:") { cell(csrfField).resizableColumn().align(AlignX.FILL) }
-                row("") { cell(session.hint) }
-                row("API key:") { cell(apiKeyField).resizableColumn().align(AlignX.FILL) }
-                row("") { cell(apiKey.hint) }
+                row("csrftoken:") {
+                    cell(csrfField).resizableColumn().align(AlignX.FILL)
+                    cell(session.checkButton { _, cookie -> { checkSession(cookie) } })
+                }
+                row("") {
+                    cell(session.hint)
+                    cell(session.checkStatus)
+                }
+                row("API key:") {
+                    cell(apiKeyField).resizableColumn().align(AlignX.FILL)
+                    cell(apiKey.checkButton { _, key -> { checkApiKey(key) } })
+                }
+                row("") {
+                    cell(apiKey.hint)
+                    cell(apiKey.checkStatus)
+                }
                 row(message("settings.model.document.label")) {
                     cell(documentModelCombo.combo)
                         .align(AlignX.FILL)
@@ -256,6 +268,19 @@ internal class MistralSettingsPanel(
                 else -> raw
             }
         responseViewer.setCaretPosition(0)
+    }
+
+    private fun checkSession(cookie: String) {
+        if (!MistralQuotaClient().fetchQuota(cookie).hasUsageState()) {
+            error(message("settings.mistral.check.noUsage"))
+        }
+    }
+
+    private fun checkApiKey(key: String) {
+        DocumentModels.fetchModelBody(
+            URI.create("${MistralSubscriptionProxyProvider.DEFAULT_UPSTREAM_BASE_URI}/models"),
+            key,
+        ) ?: error(message("settings.mistral.check.keyRejected"))
     }
 
     /** Off the EDT, after Apply wrote one of the account's secrets. */
