@@ -25,7 +25,6 @@ internal class CursorSettingsPanel(
             columns = 40
             toolTipText = "WorkosCursorSessionToken from cursor.com browser cookies"
         }
-    private val authSourceLabel = JBLabel()
     private val sessionCookie =
         storedSecret(
             listOf(sessionCookieField),
@@ -67,7 +66,6 @@ internal class CursorSettingsPanel(
                 cell(sessionCookie.hint)
                 cell(sessionCookie.checkStatus)
             }
-            row("Auth source:") { cell(authSourceLabel) }
         }
 
         install(cursorConfigPanel, createResponseSection(cursorJsonViewer))
@@ -93,7 +91,6 @@ internal class CursorSettingsPanel(
                 as? CursorQuota
         val cursorError =
             QuotaUsageService.getInstance().getLastError(accountKey(QuotaProviderType.CURSOR))
-        updateAuthSourceLabel(store)
 
         when {
             !store.isLoaded() -> {
@@ -122,15 +119,6 @@ internal class CursorSettingsPanel(
         }
         cursorStatusLabel.foreground = statusLabelDefaultForeground ?: cursorStatusLabel.foreground
         cursorStatusLabel.isVisible = true
-    }
-
-    private fun updateAuthSourceLabel(store: CursorCredentialsStore) {
-        authSourceLabel.text =
-            when {
-                !store.isLoaded() -> "Loading..."
-                store.hasSessionCookie() -> "Browser session cookie"
-                else -> "Not configured"
-            }
     }
 
     override fun updateResponseArea() {

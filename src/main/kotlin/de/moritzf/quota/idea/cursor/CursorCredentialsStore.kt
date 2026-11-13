@@ -42,13 +42,6 @@ class CursorCredentialsStore(
 
     fun isLoaded(): Boolean = loaded.get()
 
-    fun hasSessionCookie(): Boolean {
-        if (loaded.get()) {
-            return !cachedSessionCookie.get().isNullOrBlank()
-        }
-        return !loadSessionCookie().isNullOrBlank()
-    }
-
     fun hasCredentials(): Boolean {
         if (!loaded.get()) {
             return !loadSessionCookie().isNullOrBlank()
