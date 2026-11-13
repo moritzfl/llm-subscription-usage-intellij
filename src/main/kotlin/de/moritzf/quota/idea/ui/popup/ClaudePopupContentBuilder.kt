@@ -2,7 +2,6 @@ package de.moritzf.quota.idea.ui.popup
 
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.ui.MessageDialogBuilder
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.ui.components.ActionLink
@@ -10,7 +9,6 @@ import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import de.moritzf.quota.claude.ClaudeQuota
 import de.moritzf.quota.claude.ClaudeResetChoice
-import de.moritzf.quota.claude.ClaudeResetGrant
 import de.moritzf.quota.claude.ClaudeResetOutcome
 import de.moritzf.quota.claude.ClaudeResets
 import de.moritzf.quota.claude.ClaudeUsageWindow
@@ -203,25 +201,36 @@ internal class ClaudePopupSection : ProviderPopupSection() {
             resetsPanel.isVisible = false
             return
         }
-        resetsPanel.add(JLabel(message("quota.claude.reset.available", count)))
+        val tooltip = claudeResetsTooltip(resets)
         val choices = resets.choices()
+        val usable = choices.sumOf { choice ->
+            when (choice) {
+                is ClaudeResetChoice.Session -> 1
+                is ClaudeResetChoice.Grant -> choice.grant.resetsLeft
+            }
+        }
+        val label =
+            if (usable in 1 until count)
+                message("quota.claude.reset.availablePartial", count, usable)
+            else message("quota.claude.reset.available", count)
+        resetsPanel.add(JLabel(label).apply { toolTipText = tooltip })
         if (choices.isEmpty()) {
             resetsPanel.add(
                 JLabel(message("quota.claude.reset.atLimitOnly")).apply {
                     foreground = UIUtil.getContextHelpForeground()
-                    toolTipText = resetsTooltip(resets)
+                    toolTipText = tooltip
                 },
             )
         } else {
             resetsPanel.add(
                 ActionLink(message("quota.claude.reset.use")) { event ->
                         runOutsidePopup(event.source as JComponent) { parent ->
-                            chooseAndReset(parent, choices)
+                            chooseAndReset(parent, resets)
                         }
                     }
                     .apply {
                         icon = AllIcons.Actions.Restart
-                        toolTipText = resetsTooltip(resets)
+                        toolTipText = tooltip
                         cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
                     },
             )
@@ -229,49 +238,11 @@ internal class ClaudePopupSection : ProviderPopupSection() {
         resetsPanel.isVisible = true
     }
 
-    private fun resetsTooltip(resets: ClaudeResets): String {
-        val lines =
-            listOfNotNull(
-                resets.sessionReset?.let { message("quota.claude.reset.session.detail") },
-            ) + resets.offeredGrants().map(::grantDetail)
-        return lines.joinToString("<br>", "<html>", "</html>") { QuotaUiUtil.escapeHtml(it) }
-    }
-
-    private fun chooseAndReset(parent: Component, choices: List<ClaudeResetChoice>) {
+    private fun chooseAndReset(parent: Component, resets: ClaudeResets) {
         val title = message("quota.claude.reset.dialog.title")
-        val choice =
-            if (choices.size == 1) {
-                val confirmed =
-                    MessageDialogBuilder.yesNo(
-                            title,
-                            message("quota.claude.reset.confirm", detail(choices.single())),
-                        )
-                        .yesText(message("quota.reset.title"))
-                        .noText("Cancel")
-                        .icon(AllIcons.Actions.Restart)
-                        .ask(parent)
-                if (!confirmed) return
-                choices.single()
-            } else {
-                val labels = choices.map(::buttonLabel)
-                val buttons =
-                    labels.mapIndexed { index, label ->
-                        if (labels.count { it == label } > 1) "$label ${index + 1}" else label
-                    } + "Cancel"
-                val index =
-                    Messages.showDialog(
-                        parent,
-                        message(
-                            "quota.claude.reset.choose",
-                            choices.joinToString("\n", transform = ::detail),
-                        ),
-                        title,
-                        buttons.toTypedArray(),
-                        buttons.lastIndex,
-                        AllIcons.Actions.Restart,
-                    )
-                choices.getOrNull(index) ?: return
-            }
+        val dialog = ClaudeResetDialog(parent, resets)
+        if (!dialog.showAndGet()) return
+        val choice = dialog.selectedChoice ?: return
 
         val links = resetsPanel.components.filterIsInstance<ActionLink>()
         links.forEach { it.isEnabled = false }
@@ -306,45 +277,6 @@ internal class ClaudePopupSection : ProviderPopupSection() {
                     }
                 }
         }
-    }
-
-    private fun buttonLabel(choice: ClaudeResetChoice): String =
-        when (choice) {
-            is ClaudeResetChoice.Session -> message("quota.claude.reset.session")
-            is ClaudeResetChoice.Grant ->
-                choice.grant.label.ifBlank { message("quota.claude.reset.grant") }
-        }
-
-    private fun detail(choice: ClaudeResetChoice): String =
-        when (choice) {
-            is ClaudeResetChoice.Session -> message("quota.claude.reset.session.detail")
-            is ClaudeResetChoice.Grant -> grantDetail(choice.grant)
-        }
-
-    private fun grantDetail(grant: ClaudeResetGrant): String =
-        listOfNotNull(
-                message(
-                    "quota.claude.reset.grant.detail",
-                    grant.label.ifBlank { message("quota.claude.reset.grant") },
-                    refilledLimits(grant.clears),
-                    grant.resetsLeft,
-                ),
-                message("quota.claude.reset.grant.atLimitOnly").takeUnless { grant.usableNow },
-                QuotaUiUtil.formatExpiry(grant.endsAt)?.let { "$it." },
-            )
-            .joinToString(" ")
-
-    private fun refilledLimits(clears: List<String>): String {
-        val fiveHour = "five_hour" in clears
-        val weekly = clears.any { it.startsWith("seven_day") }
-        return message(
-            when {
-                fiveHour && weekly -> "quota.claude.reset.window.both"
-                fiveHour -> "quota.claude.reset.window.fiveHour"
-                weekly -> "quota.claude.reset.window.weekly"
-                else -> "quota.claude.reset.window.any"
-            },
-        )
     }
 
     private fun resultMessage(result: String): String =
