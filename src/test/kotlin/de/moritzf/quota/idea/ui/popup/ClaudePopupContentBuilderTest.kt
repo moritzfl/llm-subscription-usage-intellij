@@ -136,6 +136,30 @@ class ClaudePopupContentBuilderTest {
     }
 
     @Test
+    fun refilledLimitsFollowWhatEachGrantClears() {
+        assertEquals("5-hour limit", refilledLimits(grant("a")))
+        assertEquals("Opus limit", refilledLimits(grant("b", clears = listOf("seven_day_opus"))))
+        assertEquals(
+            "weekly limit",
+            refilledLimits(grant("c", clears = listOf("seven_day_overage_included"))),
+        )
+        assertEquals(
+            "usage limits",
+            refilledLimits(grant("d", clears = listOf("seven_day_cowork"))),
+        )
+        assertEquals(
+            "5-hour, weekly and Sonnet limits",
+            refilledLimits(
+                grant("e", clears = listOf("seven_day_sonnet", "seven_day", "five_hour")),
+            ),
+        )
+        val fable =
+            grant("f", clears = listOf("five_hour", "seven_day_overage_included"))
+                .copy(givesBackWeekly = true)
+        assertEquals("5-hour and Fable limits", refilledLimits(fable))
+    }
+
+    @Test
     fun resetsUsableOnlyAtALimitAreListedWithoutALink() {
         val section = ClaudePopupSection()
         val resets = ClaudeResets(grants = listOf(grant("session_gift", usableNow = false)))

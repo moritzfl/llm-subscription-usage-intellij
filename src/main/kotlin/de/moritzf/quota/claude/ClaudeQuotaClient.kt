@@ -26,6 +26,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.longOrNull
@@ -351,6 +352,11 @@ open class ClaudeQuotaClient(
                 clears =
                     (clears as? JsonArray).orEmpty().mapNotNull {
                         (it as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.content
+                    },
+                givesBackWeekly = (givesBackWeekly as? JsonPrimitive)?.booleanOrNull == true,
+                type =
+                    (type as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.content?.takeIf {
+                        it.isNotBlank()
                     },
             )
         }
@@ -709,6 +715,8 @@ private data class ResetGrantDto(
     val paused: Boolean? = null,
     @SerialName("usable_now") val usableNow: Boolean? = null,
     val clears: JsonElement? = null,
+    @SerialName("gives_back_weekly") val givesBackWeekly: JsonElement? = null,
+    val type: JsonElement? = null,
 )
 
 @Serializable

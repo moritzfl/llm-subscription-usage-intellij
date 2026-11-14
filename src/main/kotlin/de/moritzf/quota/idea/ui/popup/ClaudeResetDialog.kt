@@ -5,6 +5,7 @@ import com.intellij.openapi.ui.VerticalFlowLayout
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.ui.JBUI
 import de.moritzf.quota.claude.ClaudeResetChoice
+import de.moritzf.quota.claude.ClaudeResetGrant
 import de.moritzf.quota.claude.ClaudeResets
 import de.moritzf.quota.idea.common.QuotaBundle.message
 import de.moritzf.quota.idea.ui.QuotaUiUtil
@@ -29,7 +30,7 @@ internal fun claudeResetsTooltip(resets: ClaudeResets): String {
                     val grant = choice.grant
                     val details =
                         listOfNotNull(
-                                refilledLimits(grant.clears),
+                                refilledLimits(grant),
                                 message("quota.claude.reset.summary.remaining", grant.resetsLeft)
                                     .takeIf { grant.resetsLeft > 1 },
                                 QuotaUiUtil.formatExpiry(grant.endsAt)
@@ -51,17 +52,32 @@ private fun resetChoices(resets: ClaudeResets): List<ClaudeResetChoice> =
     resets.choices() +
         resets.offeredGrants().filterNot { it.usableNow }.map(ClaudeResetChoice::Grant)
 
-internal fun refilledLimits(clears: List<String>): String {
-    val fiveHour = "five_hour" in clears
-    val weekly = clears.any { it.startsWith("seven_day") }
-    return message(
-        when {
-            fiveHour && weekly -> "quota.claude.reset.window.both"
-            fiveHour -> "quota.claude.reset.window.fiveHour"
-            weekly -> "quota.claude.reset.window.weekly"
-            else -> "quota.claude.reset.window.any"
-        },
-    )
+/** The limits a grant refills, worded as Claude Code does, such as "5-hour and Fable limits". */
+internal fun refilledLimits(grant: ClaudeResetGrant): String {
+    val clears = grant.clears
+    val names = buildList {
+        if ("five_hour" in clears) add("fiveHour")
+        if (
+            "seven_day" in clears ||
+                "seven_day_overage_included" in clears && !grant.givesBackWeekly
+        ) {
+            add("weekly")
+        }
+        if (grant.givesBackWeekly) add("fable")
+        if ("seven_day_opus" in clears) add("opus")
+        if ("seven_day_sonnet" in clears) add("sonnet")
+    }
+        .map { message("quota.claude.reset.window.$it") }
+    return when (names.size) {
+        0 -> message("quota.claude.reset.window.any")
+        1 -> message("quota.claude.reset.window.one", names.single())
+        else ->
+            message(
+                "quota.claude.reset.window.many",
+                names.dropLast(1).joinToString(", "),
+                names.last(),
+            )
+    }
 }
 
 /** Show restricted grants too, but never select them or preselect an irreversible action. */
@@ -135,7 +151,7 @@ private fun choiceHtml(choice: ClaudeResetChoice, nextGrantId: String?, number: 
                 listOfNotNull(
                         message(
                             "quota.claude.reset.choice.detail",
-                            refilledLimits(grant.clears),
+                            refilledLimits(grant),
                             grant.resetsLeft,
                         ),
                         QuotaUiUtil.formatExpiry(grant.endsAt),

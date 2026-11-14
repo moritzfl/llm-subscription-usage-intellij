@@ -17,6 +17,7 @@ import javax.net.ssl.SSLSession
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
@@ -242,6 +243,34 @@ class ClaudeQuotaClientTest {
             ),
             resets.choices(),
         )
+    }
+
+    @Test
+    fun parseResetsReadsWhichGrantsOnlyGiveBackFableUsage() {
+        val resets =
+            ClaudeQuotaClient.parseResets(
+                """
+                {
+                  "cedar_ember": {
+                    "eligible": true,
+                    "grants": [
+                      { "id": "full-reset-2611", "resets_left": 1, "usable_now": true,
+                        "type": "full", "gives_back_weekly": false,
+                        "clears": ["five_hour", "seven_day", "seven_day_overage_included"] },
+                      { "id": "launch-2610-fable", "resets_left": 1, "usable_now": true,
+                        "type": {}, "gives_back_weekly": true,
+                        "clears": ["five_hour", "seven_day_overage_included"] }
+                    ]
+                  }
+                }
+                """,
+            )!!
+
+        val (full, fable) = resets.grants
+        assertFalse(full.givesBackWeekly)
+        assertEquals("full", full.type)
+        assertTrue(fable.givesBackWeekly)
+        assertNull(fable.type, "a malformed type keeps the grant")
     }
 
     @Test

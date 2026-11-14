@@ -52,6 +52,10 @@ data class ClaudeResetGrant(
     val usableNow: Boolean,
     /** Usage windows the grant refills, such as `five_hour` or `seven_day`. */
     val clears: List<String>,
+    /** The grant also returns what Fable used of the weekly limit, without resetting it. */
+    val givesBackWeekly: Boolean = false,
+    /** The server's `session`, `weekly`, or `full`; null when it names none. */
+    val type: String? = null,
 )
 
 /** The weekly session reset is on offer now. */
