@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.28.1] - 2026-11-14
+
 - Claude limit resets are grouped the way claude.ai shows them, for example "Full reset" and "Fable reset · 3 left", so identical resets no longer fill the chooser. Fable resets now say what they actually do: they refill your 5-hour and Fable limits and return what Fable used to your weekly limit, but do not fully reset your weekly limit. A clock marks the kind that expires first, grant names appear on hover, and long text wraps instead of being cut off.
 
 ## [1.28.0] - 2026-11-13
@@ -819,7 +821,9 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.27.3...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.28.1...HEAD
+[1.28.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.28.0...1.28.1
+[1.28.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.27.3...1.28.0
 [1.27.3]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.27.2...1.27.3
 [1.27.2]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.27.1...1.27.2
 [1.27.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.27.0...1.27.1
