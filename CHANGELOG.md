@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Claude limit resets are grouped the way claude.ai shows them, for example "Full reset" and "Fable reset · 3 left", so identical resets no longer fill the chooser. Fable resets now say what they actually do: they refill your 5-hour and Fable limits and return what Fable used to your weekly limit, but do not fully reset your weekly limit. A clock marks the kind that expires first, grant names appear on hover, and long text wraps instead of being cut off.
+
 ## [1.28.0] - 2026-11-13
 
 - Simplify Claude limit resets: the popup summarizes available resets and their limits, while a scrollable chooser shows each reset's scope, expiry, and availability before you explicitly select one.
