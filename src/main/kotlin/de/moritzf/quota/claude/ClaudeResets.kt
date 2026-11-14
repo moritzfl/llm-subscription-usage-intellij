@@ -18,14 +18,29 @@ data class ClaudeResets(
     fun availableCount(): Int =
         offeredGrants().sumOf { it.resetsLeft } + if (sessionReset != null) 1 else 0
 
-    /** Resets that can be used now, with the grant the server suggests first. */
-    fun choices(): List<ClaudeResetChoice> = buildList {
+    /**
+     * Every reset on offer, as claude.ai groups them: the session reset, then one choice per kind
+     * of grant. Usable choices come first, each ordered by the expiry of the grant it would use.
+     */
+    fun offeredChoices(): List<ClaudeResetChoice> = buildList {
         sessionReset?.let { add(ClaudeResetChoice.Session(it)) }
+        val claimOrder =
+            compareByDescending<ClaudeResetGrant> { it.id == nextGrantId }
+                .thenBy(nullsLast()) { it.endsAt }
         offeredGrants()
-            .filter { it.usableNow }
-            .sortedByDescending { it.id == nextGrantId }
-            .forEach { add(ClaudeResetChoice.Grant(it)) }
+            .groupBy { Triple(it.kind, it.clears.toSet(), it.usableNow) }
+            .values
+            .map { ClaudeResetChoice.Grant(it.sortedWith(claimOrder)) }
+            .sortedWith(
+                compareByDescending<ClaudeResetChoice.Grant> { it.grant.usableNow }
+                    .thenBy(nullsLast()) { it.grant.endsAt },
+            )
+            .forEach(::add)
     }
+
+    /** Resets that can be used now. */
+    fun choices(): List<ClaudeResetChoice> =
+        offeredChoices().filter { it !is ClaudeResetChoice.Grant || it.grant.usableNow }
 
     companion object {
         /**
@@ -56,7 +71,27 @@ data class ClaudeResetGrant(
     val givesBackWeekly: Boolean = false,
     /** The server's `session`, `weekly`, or `full`; null when it names none. */
     val type: String? = null,
-)
+) {
+    /** The kind Claude Code and claude.ai name the grant by. */
+    val kind: ClaudeResetKind
+        get() =
+            when {
+                givesBackWeekly -> ClaudeResetKind.FABLE
+                type == "session" -> ClaudeResetKind.SESSION
+                type == "weekly" -> ClaudeResetKind.WEEKLY
+                type == "full" -> ClaudeResetKind.FULL
+                clears.isNotEmpty() && clears.all { it == "five_hour" } -> ClaudeResetKind.SESSION
+                clears.isNotEmpty() && "five_hour" !in clears -> ClaudeResetKind.WEEKLY
+                else -> ClaudeResetKind.FULL
+            }
+}
+
+enum class ClaudeResetKind {
+    SESSION,
+    WEEKLY,
+    FULL,
+    FABLE,
+}
 
 /** The weekly session reset is on offer now. */
 data class ClaudeSessionReset(val weeklyResetsAt: Instant?)
@@ -64,7 +99,22 @@ data class ClaudeSessionReset(val weeklyResetsAt: Instant?)
 sealed interface ClaudeResetChoice {
     data class Session(val reset: ClaudeSessionReset) : ClaudeResetChoice
 
-    data class Grant(val grant: ClaudeResetGrant) : ClaudeResetChoice
+    /**
+     * Grants of one kind; a claim uses the first, which the server or the earliest expiry picks.
+     */
+    data class Grant(val grants: List<ClaudeResetGrant>) : ClaudeResetChoice {
+        constructor(grant: ClaudeResetGrant) : this(listOf(grant))
+
+        init {
+            require(grants.isNotEmpty())
+        }
+
+        val grant: ClaudeResetGrant
+            get() = grants.first()
+
+        val resetsLeft: Int
+            get() = grants.sumOf { it.resetsLeft }
+    }
 }
 
 /**

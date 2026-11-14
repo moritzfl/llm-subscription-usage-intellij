@@ -246,31 +246,44 @@ class ClaudeQuotaClientTest {
     }
 
     @Test
-    fun parseResetsReadsWhichGrantsOnlyGiveBackFableUsage() {
+    fun parseResetsGroupsGrantsByKindLikeClaudeAi() {
         val resets =
             ClaudeQuotaClient.parseResets(
                 """
                 {
                   "cedar_ember": {
                     "eligible": true,
+                    "next_grant_id": "full-reset-2611",
                     "grants": [
-                      { "id": "full-reset-2611", "resets_left": 1, "usable_now": true,
-                        "type": "full", "gives_back_weekly": false,
-                        "clears": ["five_hour", "seven_day", "seven_day_overage_included"] },
-                      { "id": "launch-2610-fable", "resets_left": 1, "usable_now": true,
-                        "type": {}, "gives_back_weekly": true,
-                        "clears": ["five_hour", "seven_day_overage_included"] }
+                      { "id": "full-reset-2611", "label": "One full limit reset", "resets_left": 1,
+                        "ends_at": "2026-12-10T22:00:00+00:00", "usable_now": true, "type": "full",
+                        "clears": ["five_hour", "seven_day", "seven_day_overage_included"],
+                        "gives_back_weekly": false },
+                      { "id": "launch-2610-fable", "label": "Launch", "resets_left": 1,
+                        "ends_at": "2027-03-09T07:59:00+00:00", "usable_now": true, "type": "full",
+                        "clears": ["five_hour", "seven_day_overage_included"],
+                        "gives_back_weekly": true },
+                      { "id": "launch-2610-fable-12mo", "label": "Tenure", "resets_left": 1,
+                        "ends_at": "2027-03-09T07:59:00+00:00", "usable_now": true, "type": {},
+                        "clears": ["five_hour", "seven_day_overage_included"],
+                        "gives_back_weekly": true }
                     ]
                   }
                 }
                 """,
             )!!
 
-        val (full, fable) = resets.grants
-        assertFalse(full.givesBackWeekly)
+        val (full, launch, tenure) = resets.grants
+        assertEquals(ClaudeResetKind.FULL, full.kind)
         assertEquals("full", full.type)
-        assertTrue(fable.givesBackWeekly)
-        assertNull(fable.type, "a malformed type keeps the grant")
+        assertFalse(full.givesBackWeekly)
+        assertEquals(ClaudeResetKind.FABLE, launch.kind)
+        assertTrue(tenure.givesBackWeekly)
+        assertNull(tenure.type, "a malformed type keeps the grant")
+        assertEquals(
+            listOf(ClaudeResetChoice.Grant(full), ClaudeResetChoice.Grant(listOf(launch, tenure))),
+            resets.choices(),
+        )
     }
 
     @Test

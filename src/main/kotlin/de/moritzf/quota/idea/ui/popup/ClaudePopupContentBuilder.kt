@@ -206,7 +206,7 @@ internal class ClaudePopupSection : ProviderPopupSection() {
         val usable = choices.sumOf { choice ->
             when (choice) {
                 is ClaudeResetChoice.Session -> 1
-                is ClaudeResetChoice.Grant -> choice.grant.resetsLeft
+                is ClaudeResetChoice.Grant -> choice.resetsLeft
             }
         }
         val label =

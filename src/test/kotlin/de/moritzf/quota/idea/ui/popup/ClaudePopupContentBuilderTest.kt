@@ -11,9 +11,9 @@ import de.moritzf.quota.claude.ClaudeResets
 import de.moritzf.quota.claude.ClaudeSessionReset
 import de.moritzf.quota.claude.ClaudeUsageWindow
 import java.awt.Container
+import javax.swing.JEditorPane
 import javax.swing.JLabel
 import javax.swing.JRadioButton
-import javax.swing.JScrollPane
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -44,7 +44,7 @@ class ClaudePopupContentBuilderTest {
         assertTrue(labels(section).contains("Resets: 3"))
         val tooltip = links(section).single().toolTipText
         assertTrue(tooltip.contains("Session reset: 5-hour limit only"))
-        assertTrue(tooltip.contains("Reset 1: weekly limit · 2 left · Expires in "))
+        assertTrue(tooltip.contains("Weekly reset: weekly limit · 2 left · Expires in "), tooltip)
         assertFalse(tooltip.contains("weekly_gift"))
     }
 
@@ -62,34 +62,76 @@ class ClaudePopupContentBuilderTest {
     }
 
     @Test
-    fun resetChooserRequiresSelectionAndKeepsLongNamesAndGrantIdentity() {
-        val recommended =
-            grant("recommended", 2).copy(label = "A long <launch> grant for eligible accounts")
-        val second = grant("second").copy(label = recommended.label)
-        val restricted = grant("restricted", usableNow = false)
-        val resets =
-            ClaudeResets(listOf(second, restricted, recommended), nextGrantId = recommended.id)
+    fun chooserGroupsResetsByKindAndRequiresSelection() {
+        val resets = launchResets(nextGrantId = "fable-2")
         var changes = 0
         val panel = ClaudeResetSelectionPanel(resets) { changes++ }
         val options = visible(panel).filterIsInstance<JRadioButton>()
-        assertEquals(3, options.size)
+
+        assertEquals(
+            listOf("Full reset", "Fable reset · 3 left", "Weekly reset"),
+            options.map { it.text },
+        )
         assertNull(panel.selectedChoice)
-        assertTrue(options[0].text.contains("A long &lt;launch&gt; grant"))
-        assertTrue(options[0].text.contains("Reset 1:"))
-        assertTrue(options[1].text.contains("Reset 2:"))
-        assertTrue(options[2].text.contains("Reset 3:"))
-        assertTrue(options[0].text.contains("Suggested by Claude"))
-        assertTrue(options[0].text.contains("2 left"))
-        assertTrue(options[0].text.contains("Expires in "))
-        assertFalse(options[1].text.contains("Suggested by Claude"))
+        val comments = comments(panel)
+        assertTrue(
+            comments.any { "Refills your 5-hour and weekly limits. Expires in 26d" in it },
+            comments.toString(),
+        )
+        assertTrue(
+            comments.any {
+                "Refills your 5-hour and Fable limits and returns what Fable used to your weekly " +
+                    "limit. Your weekly limit is not fully reset. All expire in 115d" in it
+            },
+            comments.toString(),
+        )
+        assertTrue(comments.any { "Usable only at a usage limit · Expires in " in it })
+        assertTrue(options[1].toolTipText.contains("Launch &lt;1&gt; · Expires in 115d"))
+        assertTrue(options[1].toolTipText.contains("Launch &lt;3&gt;"))
+
         assertFalse(options[2].isEnabled)
-        assertTrue(options[2].text.contains("Only at a usage limit"))
         options[2].doClick()
         assertNull(panel.selectedChoice)
-        assertTrue(labels(panel).any { it.contains("Disabled resets become usable") })
         options[1].doClick()
-        assertEquals(ClaudeResetChoice.Grant(second), panel.selectedChoice)
+        val choice = panel.selectedChoice as ClaudeResetChoice.Grant
+        assertEquals("fable-2", choice.grant.id, "the server's next grant is claimed first")
+        assertEquals(3, choice.resetsLeft)
         assertEquals(1, changes)
+    }
+
+    @Test
+    fun onlyTheKindThatRunsOutFirstIsMarked() {
+        val panel = ClaudeResetSelectionPanel(launchResets())
+        val components = visible(panel)
+        val options = components.filterIsInstance<JRadioButton>()
+        val badge = components.single { it is JLabel && it.text == "Expires first" }
+        assertTrue(
+            components.indexOf(badge) in
+                components.indexOf(options[0])..components.indexOf(options[1]),
+        )
+
+        val fableOnly = ClaudeResets(launchResets().grants.filter { it.givesBackWeekly })
+        assertFalse(labels(ClaudeResetSelectionPanel(fableOnly)).contains("Expires first"))
+        val endsAt = Clock.System.now() + 5.days
+        val tied =
+            ClaudeResets(
+                launchResets().grants.filter { it.usableNow }.map { it.copy(endsAt = endsAt) },
+            )
+        assertFalse(labels(ClaudeResetSelectionPanel(tied)).contains("Expires first"))
+    }
+
+    @Test
+    fun groupedResetsClaimTheEarliestExpiryAndSayWhenExpiriesDiffer() {
+        val later = grant("later").copy(endsAt = Clock.System.now() + 12.days + 12.hours)
+        val sooner = grant("sooner").copy(endsAt = Clock.System.now() + 4.days + 12.hours)
+        val resets = ClaudeResets(listOf(later, sooner))
+
+        assertEquals(ClaudeResetChoice.Grant(listOf(sooner, later)), resets.choices().single())
+        assertTrue(comments(ClaudeResetSelectionPanel(resets)).any { "First expires in 4d" in it })
+        assertTrue(
+            claudeResetsTooltip(resets)
+                .contains("5-hour reset: 5-hour limit · 2 left · First expires in 4d"),
+        )
     }
 
     @Test
@@ -98,41 +140,26 @@ class ClaudePopupContentBuilderTest {
         val panel = ClaudeResetSelectionPanel(ClaudeResets(sessionReset = reset))
         val button = visible(panel).filterIsInstance<JRadioButton>().single()
         assertNull(panel.selectedChoice)
-        assertTrue(button.text.contains("Weekly limit still applies"))
+        assertEquals("Session reset", button.text)
+        assertTrue(
+            comments(panel).any {
+                "Refills your 5-hour limit. Your weekly limit still applies. One per week" in it
+            },
+        )
         button.doClick()
         assertEquals(ClaudeResetChoice.Session(reset), panel.selectedChoice)
     }
 
     @Test
-    fun manyResetsUseBoundedScrollableChooserAndListIndividualExpiries() {
-        val resets =
-            ClaudeResets(
-                grants = (1..30).map { grant("grant-$it").copy(label = "Long grant $it") },
-            )
-        val panel = ClaudeResetSelectionPanel(resets)
-        val scroll = panel.components.filterIsInstance<JScrollPane>().single()
-        assertTrue(scroll.preferredSize.height <= com.intellij.util.ui.JBUI.scale(360))
-        assertEquals(30, visible(panel).filterIsInstance<JRadioButton>().size)
-        val tooltip = claudeResetsTooltip(resets)
-        assertTrue(tooltip.contains("Reset 1: 5-hour limit · Expires in "))
-        assertTrue(tooltip.contains("Reset 30: 5-hour limit · Expires in "))
-        assertFalse(tooltip.contains("Long grant"))
-    }
-
-    @Test
-    fun tooltipListsEachExpiryAndUsesTheChooserOrder() {
-        val first = grant("first").copy(endsAt = Clock.System.now() + 4.days + 12.hours)
-        val suggested = grant("suggested").copy(endsAt = Clock.System.now() + 12.days + 12.hours)
-        val restricted = grant("restricted", usableNow = false).copy(endsAt = null)
-        val resets = ClaudeResets(listOf(first, restricted, suggested), nextGrantId = suggested.id)
-        val tooltip = claudeResetsTooltip(resets)
-        assertTrue(tooltip.contains("Reset 1: 5-hour limit · Expires in 12d"), tooltip)
-        assertTrue(tooltip.contains("Reset 2: 5-hour limit · Expires in 4d"), tooltip)
-        assertTrue(tooltip.contains("Reset 3: 5-hour limit · Expiration unknown · At limit only"))
-        val buttons = visible(ClaudeResetSelectionPanel(resets)).filterIsInstance<JRadioButton>()
-        assertTrue(buttons[0].text.contains("Suggested by Claude"))
-        assertTrue(buttons[1].text.contains("Reset 2:"))
-        assertFalse(buttons[2].isEnabled)
+    fun tooltipNamesEachKindInChooserOrderWithoutGrantNames() {
+        val tooltip = claudeResetsTooltip(launchResets())
+        val full = tooltip.indexOf("Full reset: 5-hour and weekly limits · Expires in 26d")
+        val fable =
+            tooltip.indexOf("Fable reset: 5-hour and Fable limits · 3 left · All expire in 115d")
+        val weekly = tooltip.indexOf("Weekly reset: weekly limit · Expires in ")
+        assertTrue(full in 0 until fable && fable < weekly, tooltip)
+        assertTrue(tooltip.contains("At limit only"))
+        assertFalse(tooltip.contains("Launch"))
     }
 
     @Test
@@ -297,6 +324,35 @@ class ClaudePopupContentBuilderTest {
             usableNow = usableNow,
             clears = clears,
         )
+
+    /** A full reset, three Fable launch resets, and a weekly reset usable only at a limit. */
+    private fun launchResets(nextGrantId: String? = null): ClaudeResets {
+        val now = Clock.System.now()
+        val full =
+            grant("full", clears = listOf("five_hour", "seven_day", "seven_day_overage_included"))
+                .copy(
+                    label = "One full limit reset",
+                    endsAt = now + 26.days + 12.hours,
+                    type = "full",
+                )
+        val fable =
+            (1..3).map {
+                grant("fable-$it", clears = listOf("five_hour", "seven_day_overage_included"))
+                    .copy(
+                        label = "Launch <$it>",
+                        endsAt = now + 115.days + 12.hours,
+                        givesBackWeekly = true,
+                        type = "full",
+                    )
+            }
+        val restricted = grant("restricted", usableNow = false, clears = listOf("seven_day"))
+        return ClaudeResets(fable + restricted + full, nextGrantId)
+    }
+
+    private fun comments(root: Container): List<String> =
+        visible(root).filterIsInstance<JEditorPane>().map {
+            it.document.getText(0, it.document.length).trim().replace(Regex("\\s+"), " ")
+        }
 
     private fun links(root: Container): List<ActionLink> =
         visible(root).filterIsInstance<ActionLink>()
