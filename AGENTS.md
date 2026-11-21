@@ -1,5 +1,7 @@
 # Agent Notes
 
+For provider/model freshness reviews, load the project-local `provider-drift-audit` OpenCode skill.
+
 ## Project and credentials
 
 - `LLM Subscription Usage`: IntelliJ plugin for subscription quotas, MCP tools/server-URL sync, and a local subscription proxy. Production/tests are Kotlin-only in `src/main/kotlin` and `src/test/kotlin`; Java libraries are usable via interop. Target JVM 21, Kotlin API/language 2.3 (IntelliJ 2026.1).
