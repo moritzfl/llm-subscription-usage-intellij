@@ -26,14 +26,17 @@ class OpenCodeQuotaClientTest {
     }
 
     @Test
-    fun readsGoPlusProduct() {
-        val quota =
-            OpenCodeQuotaClient.parseQuotaResponse(
-                GO_STATUS.replace(""""product":"go"""", """"product":"go-plus""""),
-                now,
-            )
-        assertEquals("go-plus", quota.product)
-        assertEquals("Go Plus", quota.plan)
+    fun readsGoPlusAndGoTeamsProducts() {
+        for ((product, name) in listOf("go-plus" to "Go Plus", "go-teams" to "Go Teams")) {
+            val quota =
+                OpenCodeQuotaClient.parseQuotaResponse(
+                    GO_STATUS.replace(""""product":"go"""", """"product":"$product""""),
+                    now,
+                )
+            assertEquals(product, quota.product)
+            assertEquals(name, quota.plan)
+            assertEquals(25.0, quota.rollingUsage?.usagePercent)
+        }
         assertNull(OpenCodeQuotaClient.parseQuotaResponse("""{"access":null}""", now).plan)
     }
 

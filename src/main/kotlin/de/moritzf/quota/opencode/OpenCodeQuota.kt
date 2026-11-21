@@ -64,11 +64,12 @@ data class OpenCodeQuota(
     /** A reached Go limit bills the balance instead of stopping requests. */
     fun billsBalanceAtLimit(): Boolean = useBalance && (availableCredit ?: 0) > 0
 
-    /** "Go" or "Go Plus"; null without a Go subscription product. */
+    /** OpenCode's display name for the Go subscription product. */
     val plan: String?
         get() =
             when {
                 product.isNullOrBlank() -> null
+                product.equals("go-teams", ignoreCase = true) -> "Go Teams"
                 product.contains("plus", ignoreCase = true) -> "Go Plus"
                 else -> "Go"
             }

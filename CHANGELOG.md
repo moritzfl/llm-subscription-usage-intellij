@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - Add GPT-6.2 Sol and Astra to the OpenAI/Codex proxy and model pickers. Sol is the default for proxy requests that omit a model. Both models use `low` when asked for no reasoning, and the proxy advertises their Codex reasoning levels and input limits.
+- Show the Go Teams plan name in OpenCode quota details instead of labeling it as Go.
 
 ## [1.28.1] - 2026-11-14
 
