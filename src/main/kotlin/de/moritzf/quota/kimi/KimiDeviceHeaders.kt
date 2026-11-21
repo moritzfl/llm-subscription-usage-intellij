@@ -8,7 +8,7 @@ object KimiDeviceHeaders {
     /** Stable for standalone clients during this process; IDE callers inject a persisted ID. */
     val processDeviceId: String = UUID.randomUUID().toString().replace("-", "")
     private const val PLATFORM = "kimi_code_cli"
-    private const val VERSION = "2.5.2"
+    private const val VERSION = "2.7.2"
     const val USER_AGENT = "kimi-code-cli/$VERSION"
 
     fun all(deviceId: String = processDeviceId): Map<String, String> =

@@ -64,9 +64,9 @@ class KimiWebSearchClientTest {
                 assertEquals("/search", request.path)
                 assertEquals("Bearer kimi-token", request.firstHeader("Authorization"))
                 assertEquals("application/json", request.firstHeader("Accept"))
-                assertEquals("kimi-code-cli/2.5.2", request.firstHeader("User-Agent"))
+                assertEquals("kimi-code-cli/2.7.2", request.firstHeader("User-Agent"))
                 assertEquals("kimi_code_cli", request.firstHeader("X-Msh-Platform"))
-                assertEquals("2.5.2", request.firstHeader("X-Msh-Version"))
+                assertEquals("2.7.2", request.firstHeader("X-Msh-Version"))
                 assertEquals("search-device", request.firstHeader("X-Msh-Device-Id"))
 
                 val body = parseObject(request.body)
