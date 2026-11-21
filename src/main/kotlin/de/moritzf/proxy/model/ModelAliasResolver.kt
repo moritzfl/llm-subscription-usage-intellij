@@ -38,6 +38,11 @@ class ModelAliasResolver {
         }
         var effort = requestedEffort.trim().lowercase(Locale.ROOT)
         val modelName = model?.lowercase(Locale.ROOT).orEmpty()
+        if (chatGptBackend) {
+            ChatGptSubscriptionModels.reasoningEfforts(modelName)?.let {
+                return ReasoningEffort.fit(effort, it)
+            }
+        }
         if (chatGptBackend && isMiniModel(modelName)) {
             // Tested against the live Codex /responses endpoint: mini models accept only
             // medium/high reasoning. Keep the request-time clamp even if unsupported aliases

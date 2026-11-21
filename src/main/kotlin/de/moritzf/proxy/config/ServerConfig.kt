@@ -1,5 +1,6 @@
 package de.moritzf.proxy.config
 
+import de.moritzf.proxy.model.ChatGptSubscriptionModels
 import java.nio.file.Path
 import java.util.Locale
 
@@ -177,7 +178,7 @@ class ServerConfig(
         const val DEFAULT_CLIENT_ID: String = "app_EMoamEEZ73f0CkXaXp7hrann"
         const val DEFAULT_ISSUER: String = "https://auth.openai.com"
         const val DEFAULT_INSTRUCTIONS: String = ""
-        const val DEFAULT_MODEL: String = "gpt-6-astra"
+        const val DEFAULT_MODEL: String = ChatGptSubscriptionModels.DEFAULT_MODEL
         val DEFAULT_REQUEST_LOG_DIR: String =
             Path.of("logs", "requests").toAbsolutePath().normalize().toString()
         const val DEFAULT_CODEX_INSTRUCTIONS_MODE: String = "configured"

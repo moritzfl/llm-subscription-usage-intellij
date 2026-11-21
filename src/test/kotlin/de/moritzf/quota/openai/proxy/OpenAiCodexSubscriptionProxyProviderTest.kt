@@ -33,11 +33,13 @@ class OpenAiCodexSubscriptionProxyProviderTest {
                 val response = get(proxy.port, "/v1/models")
 
                 assertEquals(200, response.statusCode())
-                val ids =
+                val models =
                     JsonHelper.JSON.parseToJsonElement(response.body())
                         .jsonObject["data"]!!
                         .jsonArray
-                        .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+                        .associate { it.jsonObject["id"]!!.jsonPrimitive.content to it.jsonObject }
+                val ids = models.keys
+                assertEquals(listOf("oa-gpt-6.2-sol", "oa-gpt-6.2-astra"), ids.take(2))
                 assertTrue("oa-gpt-6.1-sol" in ids)
                 assertTrue("oa-gpt-6-astra" in ids)
                 assertTrue("oa-gpt-6-sol" in ids)
@@ -50,6 +52,37 @@ class OpenAiCodexSubscriptionProxyProviderTest {
                 assertTrue("oa-gpt-5.5" in ids)
                 assertFalse(ids.any { "(" in it })
                 assertTrue(ids.all { it.startsWith(OpenAiCodexSubscriptionProxyProvider.PREFIX) })
+
+                val infoResponse = get(proxy.port, "/v1/model/info")
+                assertEquals(200, infoResponse.statusCode())
+                val info =
+                    JsonHelper.JSON.parseToJsonElement(infoResponse.body())
+                        .jsonObject["data"]!!
+                        .jsonArray
+                        .associate {
+                            it.jsonObject["id"]!!.jsonPrimitive.content to
+                                it.jsonObject["model_info"]!!.jsonObject
+                        }
+                for ((id, maxInput) in
+                    listOf("oa-gpt-6.2-sol" to "500000", "oa-gpt-6.2-astra" to "272000")) {
+                    val reasoning = models.getValue(id)["reasoning"]!!.jsonObject
+                    val efforts = listOf("low", "medium", "high", "xhigh", "max", "ultra")
+                    val modelInfo = info.getValue(id)
+                    assertEquals("true", reasoning["mandatory"]!!.jsonPrimitive.content)
+                    assertEquals(
+                        efforts.reversed(),
+                        reasoning["supported_efforts"]!!.jsonArray.map { it.jsonPrimitive.content },
+                    )
+                    assertEquals(maxInput, modelInfo["max_input_tokens"]!!.jsonPrimitive.content)
+                    assertEquals("128000", modelInfo["max_output_tokens"]!!.jsonPrimitive.content)
+                    assertEquals(
+                        efforts,
+                        modelInfo["reasoning_effort_levels"]!!.jsonArray.map {
+                            it.jsonPrimitive.content
+                        },
+                    )
+                }
+                assertNull(upstream.requests.poll())
             } finally {
                 proxy.stop()
             }
@@ -84,6 +117,42 @@ class OpenAiCodexSubscriptionProxyProviderTest {
                 val upstreamBody = JsonHelper.JSON.parseToJsonElement(request.body).jsonObject
                 assertEquals("gpt-5.5", upstreamBody["model"]!!.jsonPrimitive.content)
                 assertEquals("true", upstreamBody["stream"]!!.jsonPrimitive.content)
+            } finally {
+                proxy.stop()
+            }
+        }
+    }
+
+    @Test
+    fun fitsGpt62EffortForChatAndResponsesAndDefaultsToSol() {
+        TestUpstream(responseBody = COMPLETED_RESPONSE_STREAM_WITH_TEXT).use { upstream ->
+            val proxy = newProxy(upstream.baseUri)
+            try {
+                proxy.start()
+                val chat =
+                    post(
+                        proxy.port,
+                        "/v1/chat/completions",
+                        """{"messages":[{"role":"user","content":"Say pong"}],"reasoning_effort":"none"}""",
+                    )
+                assertEquals(200, chat.statusCode(), chat.body())
+                val responses =
+                    post(
+                        proxy.port,
+                        "/v1/responses",
+                        """{"model":"oa-gpt-6.2-astra","input":"Say pong","reasoning":{"effort":"ultra"}}""",
+                    )
+                assertEquals(200, responses.statusCode(), responses.body())
+                for ((model, effort) in
+                    listOf("gpt-6.2-sol" to "low", "gpt-6.2-astra" to "ultra")) {
+                    val request = assertNotNull(upstream.requests.poll(2, TimeUnit.SECONDS))
+                    val body = JsonHelper.JSON.parseToJsonElement(request.body).jsonObject
+                    assertEquals(model, body["model"]!!.jsonPrimitive.content)
+                    assertEquals(
+                        effort,
+                        body["reasoning"]!!.jsonObject["effort"]!!.jsonPrimitive.content,
+                    )
+                }
             } finally {
                 proxy.stop()
             }

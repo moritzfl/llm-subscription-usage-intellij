@@ -40,6 +40,7 @@ object ReasoningCapabilities {
                 "high" -> true
                 "xhigh",
                 "max" -> flags[level] == true
+                "ultra" -> false // Only infer it from an explicit level list.
                 else -> flags[level] != false
             }
         }

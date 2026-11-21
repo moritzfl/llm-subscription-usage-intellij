@@ -2,6 +2,7 @@ package de.moritzf.quota.openai.proxy
 
 import de.moritzf.proxy.auth.CredentialsProvider
 import de.moritzf.proxy.config.ServerConfig
+import de.moritzf.proxy.model.ChatGptSubscriptionModels
 import de.moritzf.proxy.model.ModelResolver
 import de.moritzf.proxy.server.ApiKeyStore
 import de.moritzf.proxy.server.ProxyServer
@@ -211,32 +212,7 @@ class OpenAiProxyServer(
                 "max_output_tokens",
                 "temperature",
             )
-        // Curated Codex models for /v1/models and /v1/model/info.
-        // Align with the Codex UI menu for ChatGPT subscriptions, using models.json
-        // visibility/priority as a guide (not the incomplete ChatGPT /models endpoint).
-        // ChatGPT accounts reject gpt-5.4, gpt-5.4-mini, gpt-5.2, gpt-5.3-codex, and gpt-5.5-pro.
-        // Those are not advertised and are not forwarded. Other unlisted oa- slugs still
-        // forward via fallbackModel. Advertise base ids only; harnesses send reasoning_effort.
-        private val ADVERTISED_BASE_MODELS =
-            listOf(
-                "gpt-6.1-sol",
-                "gpt-6-astra",
-                "gpt-6-sol",
-                "gpt-6-luna",
-                "gpt-5.6-sol",
-                "gpt-6.1-terra",
-                "gpt-5.6-terra",
-                "gpt-5.6-luna",
-                "gpt-reserve",
-                "gpt-5.5",
-            )
 
-        fun advertisedModels(): List<String> = ADVERTISED_BASE_MODELS
-
-        /** Flagship GPT-6 Astra when present; otherwise alphabetically latest base id. */
-        fun defaultAdvertisedModel(): String =
-            ADVERTISED_BASE_MODELS.firstOrNull { it == "gpt-6-astra" }
-                ?: ADVERTISED_BASE_MODELS.maxOrNull()
-                ?: ServerConfig.DEFAULT_MODEL
+        fun advertisedModels(): List<String> = ChatGptSubscriptionModels.advertised
     }
 }

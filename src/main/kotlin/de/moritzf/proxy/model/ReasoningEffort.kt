@@ -4,10 +4,10 @@ import java.util.Locale
 
 /** OpenAI-style reasoning effort levels, fitted the way LiteLLM's router does. */
 object ReasoningEffort {
-    /** LiteLLM's advertisement order. `none` is the off switch, not a strength. */
-    val LEVELS: List<String> = listOf("none", "minimal", "low", "medium", "high", "xhigh", "max")
-
     private val STRENGTH = listOf("minimal", "low", "medium", "high", "xhigh", "max", "ultra")
+
+    /** Advertisement order. `none` is the off switch, not a strength. */
+    val LEVELS: List<String> = listOf("none") + STRENGTH
 
     /**
      * Fits [requested] to the [supported] levels like LiteLLM: the weakest supported level at least

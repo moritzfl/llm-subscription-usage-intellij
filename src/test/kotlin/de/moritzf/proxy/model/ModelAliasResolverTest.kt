@@ -52,6 +52,23 @@ class ModelAliasResolverTest {
     }
 
     @Test
+    fun fitsGpt62ToTheReasoningLevelsOfItsRoute() {
+        for (model in listOf("gpt-6.2-astra", "gpt-6.2-sol")) {
+            assertEquals("low", resolver.clampReasoningEffort(model, "none"))
+            assertEquals("low", resolver.clampReasoningEffort(model, "minimal"))
+            assertEquals("ultra", resolver.clampReasoningEffort(model, "ultra"))
+            assertEquals(
+                "low",
+                resolver.clampReasoningEffort(model, "none", chatGptBackend = false),
+            )
+            assertEquals(
+                "max",
+                resolver.clampReasoningEffort(model, "ultra", chatGptBackend = false),
+            )
+        }
+    }
+
+    @Test
     fun parsesMaxAndUltraSuffixes() {
         val max = resolver.resolve("gpt-6-astra (max)")
         assertEquals("gpt-6-astra", max.model)

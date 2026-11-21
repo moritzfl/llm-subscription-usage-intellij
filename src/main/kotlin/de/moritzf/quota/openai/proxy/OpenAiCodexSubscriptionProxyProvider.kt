@@ -3,6 +3,7 @@ package de.moritzf.quota.openai.proxy
 import de.moritzf.proxy.auth.CredentialsProvider
 import de.moritzf.proxy.config.ServerConfig
 import de.moritzf.proxy.logging.RequestLogger
+import de.moritzf.proxy.model.ChatGptSubscriptionModels
 import de.moritzf.proxy.model.CodexInstructionsProvider
 import de.moritzf.proxy.server.ChatCompletionsHandler
 import de.moritzf.proxy.server.JsonHelper
@@ -99,9 +100,10 @@ class OpenAiCodexSubscriptionProxyProvider(
                 supportsToolChoice = true,
                 supportsVision = true,
                 supportsPromptCaching = true,
-                maxInputTokens = 272_000,
+                maxInputTokens = ChatGptSubscriptionModels.maxInputTokens(id),
                 maxOutputTokens = 128_000,
-                isDefault = id == OpenAiProxyServer.defaultAdvertisedModel(),
+                isDefault = id == ChatGptSubscriptionModels.DEFAULT_MODEL,
+                reasoningEfforts = ChatGptSubscriptionModels.reasoningEfforts(id),
             )
         }
     }
@@ -127,7 +129,7 @@ class OpenAiCodexSubscriptionProxyProvider(
             supportsToolChoice = true,
             supportsVision = true,
             supportsPromptCaching = true,
-            maxInputTokens = 272_000,
+            maxInputTokens = ChatGptSubscriptionModels.maxInputTokens(upstreamId),
             maxOutputTokens = 128_000,
         )
     }

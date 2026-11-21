@@ -56,6 +56,7 @@ class DocumentModelsTest {
     fun openAiVisionListReusesProxyCatalogAndDropsReserve() {
         val models = DocumentModels.openAiVisionModels(OpenAiProxyServer.advertisedModels())
         assertEquals("gpt-6-sol", DocumentModels.OPEN_AI_DEFAULT)
+        assertEquals(listOf("gpt-6.2-sol", "gpt-6.2-astra"), models.take(2))
         assertTrue("gpt-6-astra" in models)
         assertTrue("gpt-5.6-luna" in models)
         assertFalse("gpt-reserve" in models)

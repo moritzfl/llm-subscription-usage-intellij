@@ -72,6 +72,7 @@ class FimModelsTest {
     fun fimReasoningEffortUsesTheLeastReasoningEachModelAccepts() {
         assertEquals("low", FimModels.fimReasoningEffort("sg-grok-4.6", "grok-4.6", "supergrok"))
         assertEquals("low", FimModels.fimReasoningEffort("oa-gpt-6-astra", "gpt-6-astra", "openai"))
+        assertEquals("low", FimModels.fimReasoningEffort("oa-gpt-6.2-sol", "gpt-6.2-sol", "openai"))
         assertEquals("none", FimModels.fimReasoningEffort("oa-gpt-6-sol", "gpt-6-sol", "openai"))
         assertEquals("none", FimModels.fimReasoningEffort("oa-gpt-6-luna", "gpt-6-luna", "openai"))
         assertEquals("low", FimModels.fimReasoningEffort("oa-gpt-5.6-sol", "gpt-5.6-sol", "openai"))

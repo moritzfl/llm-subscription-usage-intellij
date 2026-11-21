@@ -1693,12 +1693,14 @@ class OpenAiProxyServerTest {
                     root["data"]!!.jsonArray.map { it.jsonObject["id"]!!.jsonPrimitive.content }
                 assertEquals(
                     listOf(
+                        "gpt-6.2-sol",
+                        "gpt-6.2-astra",
+                        "gpt-6.1-terra",
                         "gpt-6.1-sol",
                         "gpt-6-astra",
                         "gpt-6-sol",
                         "gpt-6-luna",
                         "gpt-5.6-sol",
-                        "gpt-6.1-terra",
                         "gpt-5.6-terra",
                         "gpt-5.6-luna",
                         "gpt-reserve",
@@ -1735,15 +1737,20 @@ class OpenAiProxyServerTest {
                 assertEquals(200, response.statusCode())
                 val root = parseObject(response.body())
                 val firstModel = root["data"]!!.jsonArray[0].jsonObject
-                assertEquals("gpt-6.1-sol", firstModel["id"]!!.jsonPrimitive.content)
-                assertEquals("gpt-6.1-sol", firstModel["model_name"]!!.jsonPrimitive.content)
+                assertEquals("gpt-6.2-sol", firstModel["id"]!!.jsonPrimitive.content)
+                assertEquals("gpt-6.2-sol", firstModel["model_name"]!!.jsonPrimitive.content)
                 assertEquals(
-                    "gpt-6.1-sol",
+                    "gpt-6.2-sol",
                     firstModel["litellm_params"]!!.jsonObject["model"]!!.jsonPrimitive.content,
                 )
+                val modelInfo = firstModel["model_info"]!!.jsonObject
+                assertEquals("chat", modelInfo["mode"]!!.jsonPrimitive.content)
+                assertEquals("500000", modelInfo["max_input_tokens"]!!.jsonPrimitive.content)
                 assertEquals(
-                    "chat",
-                    firstModel["model_info"]!!.jsonObject["mode"]!!.jsonPrimitive.content,
+                    listOf("low", "medium", "high", "xhigh", "max", "ultra"),
+                    modelInfo["reasoning_effort_levels"]!!.jsonArray.map {
+                        it.jsonPrimitive.content
+                    },
                 )
                 assertNull(upstream.requests.poll())
             } finally {

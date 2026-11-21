@@ -1,6 +1,8 @@
 package de.moritzf.proxy.server
 
+import de.moritzf.proxy.model.ChatGptSubscriptionModels
 import de.moritzf.proxy.model.ModelResolver
+import de.moritzf.proxy.model.ReasoningCapabilities
 
 class LiteLlmModelInfoHandler(private val modelResolver: ModelResolver) {
     suspend fun handle(ctx: ProxyCall) {
@@ -25,15 +27,16 @@ class LiteLlmModelInfoHandler(private val modelResolver: ModelResolver) {
                 "supports_tool_choice" to true,
                 "supports_vision" to true,
                 "supports_prompt_caching" to true,
-                // Context limits of the GPT-5 family behind the Codex backend; clients such as
-                // Junie size their prompts from these fields.
-                "max_input_tokens" to 272_000,
+                "max_input_tokens" to ChatGptSubscriptionModels.maxInputTokens(id),
                 "max_output_tokens" to 128_000,
                 "max_tokens" to 128_000,
                 "input_cost_per_token" to 0.0,
                 "output_cost_per_token" to 0.0,
                 "cache_read_input_token_cost" to 0.0,
             )
+        ChatGptSubscriptionModels.reasoningEfforts(id)?.let {
+            modelInfo.putAll(ReasoningCapabilities.liteLlmFields(it))
+        }
         return linkedMapOf(
             "id" to id,
             "model_name" to id,

@@ -21,7 +21,7 @@ object KnownReasoningLevels {
     private val RULES: List<Pair<Regex, List<String>>> =
         listOf(
             // OpenAI
-            rule("gpt-6\\.1-sol|gpt-6-astra", LOW_TO_MAX),
+            rule("gpt-6\\.2-(?:astra|sol)|gpt-6\\.1-sol|gpt-6-astra", LOW_TO_MAX),
             rule("gpt-[6-9]|gpt-5\\.6", NONE_TO_MAX),
             rule("gpt-5-pro", listOf("high")),
             rule("gpt-5\\.[2-9]-pro", listOf("medium", "high", "xhigh")),
