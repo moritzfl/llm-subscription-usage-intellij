@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.28.2] - 2026-11-21
+
 - Add GPT-6.2 Sol and Astra to the OpenAI/Codex proxy and model pickers. Sol is the default for proxy requests that omit a model. Both models use `low` when asked for no reasoning, and the proxy advertises their Codex reasoning levels and input limits.
 - Show the Go Teams plan name in OpenCode quota details instead of labeling it as Go.
 - Refresh the client versions reported to Claude, Kimi, and GitHub Copilot.
@@ -825,7 +827,8 @@
 - First public release
 - Status bar widget showing quick quota state
 
-[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.28.1...HEAD
+[Unreleased]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.28.2...HEAD
+[1.28.2]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.28.1...1.28.2
 [1.28.1]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.28.0...1.28.1
 [1.28.0]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.27.3...1.28.0
 [1.27.3]: https://github.com/moritzfl/llm-subscription-usage-intellij/compare/1.27.2...1.27.3
